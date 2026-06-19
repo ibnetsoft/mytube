@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 import database as db
 from config import config
 from services.drive_bundle_service import drive_bundle_service
+from services.sync_service import upsert_web_admin_publishing_request
 from services.youtube_upload_service import youtube_upload_service
 
 
@@ -90,7 +91,7 @@ def publish_project_to_youtube(
             raise FileNotFoundError(f"Project not found: {project_id}")
 
         settings = db.get_project_settings(project_id) or {}
-        metadata = db.get_metadata(project_id) or {}
+        metadata = db.get_project_metadata(project_id, settings.get("app_mode")) or {}
 
         video_path = _resolve_local_output_asset_path(settings.get("external_video_path"))
         upload_source = "external"
@@ -181,3 +182,87 @@ def publish_project_to_youtube(
                 shutil.rmtree(temp_dir_to_cleanup, ignore_errors=True)
             except Exception:
                 pass
+
+
+def queue_project_for_admin_publish(
+    project_id: int,
+    *,
+    requested_privacy: str = "private",
+    requested_publish_at: Optional[str] = None,
+    requested_channel_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    project = db.get_project(project_id)
+    if not project:
+        raise FileNotFoundError(f"Project not found: {project_id}")
+
+    settings = db.get_project_settings(project_id) or {}
+    bundle = drive_bundle_service.get_project_bundle(project_id)
+    video_file = bundle.get("video_file") or {}
+    folder = bundle.get("folder") or {}
+    thumbnail_file = bundle.get("thumbnail_file") or {}
+    metadata_file = bundle.get("metadata_file") or {}
+
+    if not video_file.get("id"):
+        raise FileNotFoundError("Google Drive bundle video not found for this project.")
+
+    title = bundle.get("title") or project.get("name") or f"Project {project_id}"
+    description = bundle.get("description") or ""
+    tags = list(bundle.get("tags") or [])
+    hashtags = list(bundle.get("hashtags") or [])
+    metadata_json = bundle.get("metadata_json") or {}
+    track_count = metadata_json.get("track_count")
+    total_duration_seconds = metadata_json.get("total_duration_seconds")
+    track_durations = metadata_json.get("track_durations") or []
+    if total_duration_seconds in (None, "", 0) and isinstance(track_durations, list):
+        try:
+            total_duration_seconds = sum(int(item or 0) for item in track_durations)
+        except Exception:
+            total_duration_seconds = None
+
+    db.update_project_setting(project_id, "upload_privacy", requested_privacy or "private")
+    db.update_project_setting(project_id, "upload_schedule_at", requested_publish_at)
+    if requested_channel_id is not None:
+        db.update_project_setting(project_id, "youtube_channel_id", requested_channel_id)
+
+    payload_metadata = {
+        "title": title,
+        "description": description,
+        "tags": tags,
+        "hashtags": hashtags,
+        "drive_folder_id": folder.get("id"),
+        "drive_video_file_id": video_file.get("id"),
+        "drive_thumbnail_file_id": thumbnail_file.get("id"),
+        "drive_metadata_file_id": metadata_file.get("id"),
+        "channel_id": requested_channel_id or settings.get("youtube_channel_id"),
+        "preferred_channel_handle": settings.get("preferred_youtube_channel_handle"),
+        "preferred_channel_name": settings.get("preferred_youtube_channel_name"),
+        "privacy_status": requested_privacy or "private",
+        "publish_at": requested_publish_at,
+        "track_count": track_count,
+        "track_durations": track_durations,
+        "total_duration_seconds": total_duration_seconds,
+        "app_mode": settings.get("app_mode") or "longform_music",
+    }
+    response = upsert_web_admin_publishing_request(
+        project_id,
+        video_url=video_file.get("webViewLink"),
+        status="pending",
+        metadata_payload=payload_metadata,
+    )
+    if response is None or response.status_code not in (200, 201, 204):
+        raise RuntimeError("Failed to register project in web-admin publishing queue.")
+
+    db.update_project_setting(project_id, "admin_publish_ready", "1")
+    db.update_project_setting(project_id, "admin_publish_status", "pending_review")
+
+    return {
+        "status": "ok",
+        "project_id": project_id,
+        "queue_status": "pending_review",
+        "video_url": video_file.get("webViewLink"),
+        "url": video_file.get("webViewLink"),
+        "title": title,
+        "description": description,
+        "hashtags": hashtags,
+        "publish_at": requested_publish_at,
+    }

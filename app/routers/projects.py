@@ -190,6 +190,10 @@ async def get_project(project_id: int, background_tasks: BackgroundTasks):
     project = db.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    settings = db.get_project_settings(project_id) or {}
+    project["app_mode"] = settings.get("app_mode") or DEFAULT_APP_MODE
+    project["video_title"] = settings.get("title")
+    project["duration_seconds"] = settings.get("duration_seconds")
     background_tasks.add_task(ensure_vietnamese_translations_bg, [project])
     return project
 

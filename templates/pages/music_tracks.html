@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .tracks-shell { background: #1c2027; }
+    .tracks-card {
+        background: #232832;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+    }
+    .tracks-input {
+        width: 100%;
+        background: #1c2027;
+        color: #dae2fd;
+        border: 1px solid #3b4251;
+        border-radius: 10px;
+        padding: 10px 12px;
+        outline: none;
+    }
+    .tracks-input:focus { border-color: #7c93ff; }
+    .tracks-btn {
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 9px 12px;
+    }
+    .tracks-btn-primary {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+    }
+    .tracks-btn-secondary {
+        background: #2a303b;
+        color: #c5c5d4;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .status-pill {
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+    }
+    .status-done { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .status-error { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .status-ready { background: rgba(96,165,250,0.15); color: #93c5fd; }
+    .status-pending { background: rgba(245,158,11,0.15); color: #fcd34d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tracks-shell min-h-[calc(100vh-8rem)]">
+    <div class="max-w-6xl mx-auto px-6 py-6 space-y-5">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <p class="text-[11px] font-black uppercase tracking-[0.18em] text-blue-300">Track Management</p>
+                <h1 class="text-2xl font-black text-white mt-1">생성된 음악 트랙 관리</h1>
+                <p id="pageMeta" class="text-sm text-gray-400 mt-2">프로젝트를 선택하면 생성된 트랙 목록과 상태를 불러옵니다.</p>
+            </div>
+            <div class="tracks-card px-4 py-3 min-w-[220px]">
+                <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Summary</p>
+                <p id="summaryTracks" class="text-sm font-bold text-white mt-2">0 tracks</p>
+                <p id="summaryDuration" class="text-xs text-gray-400 mt-1">0 min</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-5">
+            <section class="tracks-card p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-black text-white">트랙 목록</h2>
+                        <p class="text-xs text-gray-400 mt-1">재생성, 삭제, 순서 변경, 렌더링 포함 여부를 여기서 관리합니다.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="tracks-btn tracks-btn-secondary" onclick="reloadTrackPage()">새로고침</button>
+                        <button class="tracks-btn tracks-btn-primary" id="generateAllBtn" onclick="startGenerateAllTracks()">전체 재생성</button>
+                    </div>
+                </div>
+
+                <div id="trackList" class="space-y-3"></div>
+            </section>
+
+            <aside class="space-y-5">
+                <section class="tracks-card p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-black text-white">렌더링 준비</h2>
+                            <p class="text-xs text-gray-400 mt-1">선택된 트랙 순서와 길이를 기준으로 플레이리스트 렌더링을 진행합니다.</p>
+                        </div>
+                        <span id="selectedCount" class="text-xs text-gray-300">0 selected</span>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Playlist Image</label>
+                        <input type="file" id="playlistImageInput" accept="image/*" class="tracks-input text-xs" onchange="previewImage(this)">
+                        <img id="imagePreview" class="hidden w-full rounded-xl max-h-48 object-cover">
+                    </div>
+                    <div id="renderReadiness" class="tracks-input text-xs" style="min-height:84px;background:#171b22;color:#9ca3af;"></div>
+                    <button class="tracks-btn tracks-btn-secondary w-full" id="renderBtn" onclick="renderCombinedPlaylist()">플레이리스트 렌더링</button>
+                </section>
+
+                <section class="tracks-card p-4 space-y-3">
+                    <h2 class="text-sm font-black text-white">음악기획 연결</h2>
+                    <p class="text-xs text-gray-400">트랙 제목, 프롬프트, 분위기 같은 기획 수정은 음악기획 페이지에서 하고, 여기서는 생성 결과를 관리합니다.</p>
+                    <button class="tracks-btn tracks-btn-secondary w-full" onclick="window.location.href='/music-plan'">음악기획으로 이동</button>
+                </section>
+            </aside>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPlan = null;
+    let currentTrackPlans = [];
+    let generatedTracks = [];
+    let currentProjectSettings = {};
+    let currentProjectMetadata = null;
+
+    const trackI18n = {
+        noProject: '프로젝트를 먼저 선택해 주세요.',
+        noTracks: '아직 관리할 트랙이 없습니다. 음악기획에서 먼저 생성해 주세요.',
+        generating: '생성 중...',
+        generateAll: '전체 재생성',
+        reloadFailed: '트랙 정보를 불러오지 못했습니다.',
+        deleted: '트랙을 삭제했습니다.',
+        deleteFailed: '트랙 삭제 실패',
+        renderFailed: '렌더링 실패',
+        renderComplete: '렌더링 완료',
+        selectTrack: '렌더링할 트랙을 선택해 주세요.',
+        selectImage: '플레이리스트 이미지를 선택해 주세요.',
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadTrackWorkspace();
+    });
+
+    window.addEventListener('projectChanged', async () => {
+        await loadTrackWorkspace();
+    });
+
+    window.addEventListener('projectStateRestored', async () => {
+        await loadTrackWorkspace();
+    });
+
+    function getStatusClass(status) {
+        if (status === 'done') return 'status-pill status-done';
+        if (status === 'error') return 'status-pill status-error';
+        if (status === 'ready') return 'status-pill status-ready';
+        return 'status-pill status-pending';
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    async function loadTrackWorkspace() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            document.getElementById('trackList').innerHTML = `<div class="tracks-card p-5 text-sm text-gray-400">${trackI18n.noProject}</div>`;
+            updateSummary();
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/music/plan/${projectId}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || trackI18n.reloadFailed);
+
+            currentPlan = data.plan || null;
+            currentTrackPlans = Array.isArray(data.track_plans) ? data.track_plans : [];
+            generatedTracks = Array.isArray(data.generated_tracks) ? data.generated_tracks : [];
+            currentProjectSettings = {};
+            currentProjectMetadata = null;
+
+            try {
+                const [settingsRes, metadataRes] = await Promise.all([
+                    fetch(`/api/projects/${projectId}/settings`),
+                    fetch(`/api/projects/${projectId}/metadata?app_mode=longform_music`),
+                ]);
+                currentProjectSettings = settingsRes.ok ? await settingsRes.json() : {};
+                currentProjectMetadata = metadataRes.ok ? await metadataRes.json() : null;
+            } catch (_metaError) {
+                currentProjectSettings = {};
+                currentProjectMetadata = null;
+            }
+
+            const sourceTracks = currentTrackPlans.length
+                ? currentTrackPlans.map((track, index) => ({
+                    track_index: track.track_index != null ? track.track_index : index,
+                    title: track.title || '',
+                    mood: track.mood || '',
+                    instruments: Array.isArray(track.instruments) ? track.instruments : [],
+                    lyrics: track.lyrics || '',
+                    vocalist_gender: track.vocalist_gender || 'any',
+                    vocal_mode: track.vocal_mode || 'instrumental',
+                    prompt: track.prompt || '',
+                    duration_seconds: track.duration_seconds || 180,
+                    status: track.status || 'planned',
+                }))
+                : (currentPlan?.tracks || []);
+
+            if (!generatedTracks.length && sourceTracks.length) {
+                generatedTracks = sourceTracks.map((track, index) => ({
+                    title: track.title || `Track ${String(index + 1).padStart(2, '0')}`,
+                    mood: track.mood || '',
+                    instruments: track.instruments || [],
+                    lyrics: track.lyrics || '',
+                    vocalist_gender: track.vocalist_gender || 'any',
+                    vocal_mode: track.vocal_mode || 'instrumental',
+                    prompt: track.prompt || '',
+                    duration_seconds: track.duration_seconds || 180,
+                    status: track.status === 'planned' ? 'ready' : (track.status || 'ready'),
+                    selected: true,
+                    index: track.track_index != null ? track.track_index : index,
+                }));
+                await saveGeneratedTracks();
+            }
+
+            const title = data.config?.playlist_title || data.plan?.playlist_title || data.project_name || 'Playlist';
+            document.getElementById('pageMeta').textContent = `${title} / ${generatedTracks.length || 0} tracks`;
+            renderTrackList();
+            updateSummary();
+            updateRenderReadiness();
+        } catch (e) {
+            console.error(e);
+            document.getElementById('trackList').innerHTML = `<div class="tracks-card p-5 text-sm text-red-300">${trackI18n.reloadFailed}</div>`;
+        }
+    }
+
+    function updateSummary() {
+        const totalTracks = generatedTracks.length;
+        const selectedTracks = generatedTracks.filter(t => t.selected !== false);
+        const totalSeconds = selectedTracks.reduce((sum, t) => sum + (t.actual_duration_seconds || t.duration_seconds || 0), 0);
+        document.getElementById('summaryTracks').textContent = `${totalTracks} tracks`;
+        document.getElementById('summaryDuration').textContent = `${Math.round(totalSeconds / 60)} min`;
+        document.getElementById('selectedCount').textContent = `${selectedTracks.length} selected`;
+        updateRenderReadiness();
+    }
+
+    function getRenderReadinessState() {
+        const selectedTracks = generatedTracks.filter(t => t.selected !== false && t.file_path);
+        const hasSelectedTracks = selectedTracks.length > 0;
+        const hasCover = Boolean(currentProjectSettings?.template_image_url || currentProjectSettings?.background_video_url);
+        const hasThumbnail = Boolean(currentProjectSettings?.thumbnail_url);
+        const hasTitle = Boolean(currentProjectSettings?.title || currentProjectMetadata?.titles?.[0] || currentPlan?.playlist_title);
+        const hasDescription = Boolean(currentProjectMetadata?.description || currentProjectSettings?.description);
+        const hasLocalImage = Boolean(document.getElementById('playlistImageInput')?.files?.[0]);
+        return {
+            selectedTracks,
+            ready: hasSelectedTracks && hasCover && hasThumbnail && hasTitle && hasDescription && hasLocalImage,
+            checks: [
+                { ok: hasSelectedTracks, label: `선택된 생성완료 트랙 ${selectedTracks.length}개` },
+                { ok: hasCover, label: '커버 이미지 또는 배경 영상 준비됨' },
+                { ok: hasThumbnail, label: '썸네일 이미지 준비됨' },
+                { ok: hasTitle, label: '제목 메타데이터 준비됨' },
+                { ok: hasDescription, label: '설명 메타데이터 준비됨' },
+                { ok: hasLocalImage, label: '이번 렌더용 플레이리스트 이미지 선택됨' },
+            ],
+        };
+    }
+
+    function updateRenderReadiness() {
+        const box = document.getElementById('renderReadiness');
+        const btn = document.getElementById('renderBtn');
+        if (!box || !btn) return;
+        const state = getRenderReadinessState();
+        box.innerHTML = state.checks.map(item => {
+            const color = item.ok ? '#6ee7b7' : '#fca5a5';
+            const prefix = item.ok ? 'OK' : 'NEED';
+            return `<div style="color:${color};font-weight:700;margin-bottom:4px;">${prefix} - ${item.label}</div>`;
+        }).join('');
+        btn.disabled = !state.ready;
+        btn.style.opacity = state.ready ? '1' : '0.5';
+        btn.style.cursor = state.ready ? 'pointer' : 'not-allowed';
+    }
+
+    function renderTrackList() {
+        const list = document.getElementById('trackList');
+        if (!generatedTracks.length) {
+            list.innerHTML = `<div class="tracks-card p-5 text-sm text-gray-400">${trackI18n.noTracks}</div>`;
+            return;
+        }
+
+        list.innerHTML = generatedTracks.map((track, index) => `
+            <div class="tracks-card p-4 space-y-3">
+                <div class="flex items-start gap-3">
+                    <input type="checkbox" class="mt-1 rounded" ${track.selected === false ? '' : 'checked'} onchange="toggleTrackSelected(${index}, this.checked)">
+                    <div class="flex-1 min-w-0 space-y-2">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-black text-white truncate">${escapeHtml(track.title || `Track ${String(index + 1).padStart(2, '0')}`)}</p>
+                                <p class="text-xs text-gray-400 truncate">${escapeHtml(track.mood || '-')}</p>
+                            </div>
+                            <span class="${getStatusClass(track.status || 'pending')}">${escapeHtml(track.status || 'pending')}</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-[1fr_90px] gap-2">
+                            <textarea class="tracks-input text-xs resize-none" rows="2" onchange="updateTrackPrompt(${index}, this.value)">${escapeHtml(track.prompt || '')}</textarea>
+                            <input type="number" min="60" step="30" class="tracks-input text-sm text-center" value="${parseInt(track.duration_seconds || 180, 10)}" onchange="updateTrackDuration(${index}, this.value)">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input type="text" class="tracks-input text-xs" value="${escapeHtml(Array.isArray(track.instruments) ? track.instruments.join(', ') : '')}" onchange="updateTrackInstruments(${index}, this.value)" placeholder="instruments">
+                            <input type="text" class="tracks-input text-xs" value="${escapeHtml((track.vocal_mode || 'instrumental') + ' / ' + (track.vocalist_gender || 'any'))}" readonly>
+                        </div>
+                        <textarea class="tracks-input text-xs resize-none" rows="2" onchange="updateTrackLyrics(${index}, this.value)" placeholder="lyrics">${escapeHtml(track.lyrics || '')}</textarea>
+                        ${track.file_path ? `<audio class="w-full h-8" controls preload="metadata" src="${escapeHtml(track.file_path)}?t=${Date.now()}"></audio>` : ''}
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="tracks-btn tracks-btn-secondary" onclick="moveTrack(${index}, -1)">위로</button>
+                    <button class="tracks-btn tracks-btn-secondary" onclick="moveTrack(${index}, 1)">아래로</button>
+                    <button class="tracks-btn tracks-btn-secondary" onclick="regenerateTrack(${index})">재생성</button>
+                    <button class="tracks-btn tracks-btn-secondary" onclick="deleteTrack(${index})" style="color:#fca5a5;">삭제</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function saveGeneratedTracks() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        await fetch('/api/music/tracks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: projectId, tracks: generatedTracks }),
+        });
+    }
+
+    async function reloadTrackPage() {
+        await loadTrackWorkspace();
+    }
+
+    async function startGenerateAllTracks() {
+        const projectId = getCurrentProject();
+        if (!projectId || !generatedTracks.length) return;
+
+        const btn = document.getElementById('generateAllBtn');
+        btn.disabled = true;
+        btn.textContent = trackI18n.generating;
+
+        for (let i = 0; i < generatedTracks.length; i++) {
+            await regenerateTrack(i, false);
+        }
+
+        btn.disabled = false;
+        btn.textContent = trackI18n.generateAll;
+        renderTrackList();
+        updateSummary();
+    }
+
+    async function regenerateTrack(index, rerender = true) {
+        const projectId = getCurrentProject();
+        const track = generatedTracks[index];
+        if (!projectId || !track) return;
+
+        track.status = 'pending';
+        if (rerender) renderTrackList();
+        await saveGeneratedTracks();
+
+        try {
+            const res = await fetch('/api/music/generate-track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    track_index: track.index != null ? track.index : index,
+                    prompt: track.prompt || '',
+                    duration_seconds: parseInt(track.duration_seconds || 180, 10),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'generation failed');
+            track.status = 'done';
+            track.file_path = data.file_path;
+            track.actual_duration_seconds = data.duration_seconds || track.duration_seconds;
+        } catch (e) {
+            console.error(e);
+            track.status = 'error';
+        }
+
+        await saveGeneratedTracks();
+        renderTrackList();
+        updateSummary();
+    }
+
+    async function deleteTrack(index) {
+        const projectId = getCurrentProject();
+        const track = generatedTracks[index];
+        if (!projectId || !track) return;
+
+        try {
+            const res = await fetch('/api/music/tracks/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    index: track.index,
+                    file_path: track.file_path || null,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || trackI18n.deleteFailed);
+            generatedTracks = Array.isArray(data.tracks) ? data.tracks : generatedTracks.filter((_, i) => i !== index);
+            Utils.showToast(trackI18n.deleted, 'success');
+            renderTrackList();
+            updateSummary();
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(trackI18n.deleteFailed, 'error');
+        }
+    }
+
+    function moveTrack(index, direction) {
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= generatedTracks.length) return;
+        const temp = generatedTracks[index];
+        generatedTracks[index] = generatedTracks[nextIndex];
+        generatedTracks[nextIndex] = temp;
+        renderTrackList();
+        updateSummary();
+        saveGeneratedTracks();
+    }
+
+    function toggleTrackSelected(index, checked) {
+        if (!generatedTracks[index]) return;
+        generatedTracks[index].selected = checked;
+        updateSummary();
+        saveGeneratedTracks();
+    }
+
+    function updateTrackPrompt(index, value) {
+        if (!generatedTracks[index]) return;
+        generatedTracks[index].prompt = value;
+        saveGeneratedTracks();
+    }
+
+    function updateTrackInstruments(index, value) {
+        if (!generatedTracks[index]) return;
+        generatedTracks[index].instruments = String(value || '')
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean);
+        saveGeneratedTracks();
+    }
+
+    function updateTrackLyrics(index, value) {
+        if (!generatedTracks[index]) return;
+        generatedTracks[index].lyrics = value;
+        saveGeneratedTracks();
+    }
+
+    function updateTrackDuration(index, value) {
+        if (!generatedTracks[index]) return;
+        generatedTracks[index].duration_seconds = parseInt(value || 180, 10);
+        updateSummary();
+        saveGeneratedTracks();
+    }
+
+    function previewImage(input) {
+        const preview = document.getElementById('imagePreview');
+        const file = input.files?.[0];
+        updateRenderReadiness();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            preview.src = e.target.result;
+            preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function renderCombinedPlaylist() {
+        const projectId = getCurrentProject();
+        const readiness = getRenderReadinessState();
+        const selected = readiness.selectedTracks;
+        if (!readiness.ready) {
+            Utils.showToast('렌더링 전에 트랙, 커버, 썸네일, 메타데이터, 플레이리스트 이미지를 모두 준비해야 합니다.', 'warning');
+            return;
+        }
+        const imageFile = document.getElementById('playlistImageInput')?.files?.[0];
+
+        const formData = new FormData();
+        formData.append('project_id', projectId);
+        formData.append('playlist_title', currentPlan?.playlist_title || 'Playlist');
+        formData.append('image', imageFile);
+        selected.forEach(t => formData.append('track_files', t.file_path));
+        selected.forEach(t => formData.append('track_durations', Math.round(t.actual_duration_seconds || t.duration_seconds || 0)));
+
+        try {
+            const res = await fetch('/api/music/render-playlist', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error(trackI18n.renderFailed);
+            Utils.showToast(trackI18n.renderComplete, 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(trackI18n.renderFailed, 'error');
+        }
+    }
+</script>
+{% endblock %}

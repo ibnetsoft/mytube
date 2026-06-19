@@ -156,5 +156,24 @@ class WebAdminClient:
                 keys[config_key] = value
         return keys
 
+    def fetch_music_plan_templates(self) -> List[Dict[str, Any]]:
+        response = self.supabase_get(
+            "style_presets",
+            params={
+                "select": "id,key_code,display_name_ko,display_name_vi,prompt_template,gemini_instruction,image_url,created_at",
+                "preset_type": "eq.music_plan",
+                "order": "created_at.desc",
+            },
+            timeout=8,
+        )
+        if response is None or response.status_code != 200:
+            if response is not None:
+                print(f"[WebAdmin] music plan templates load failed: HTTP {response.status_code} {response.text[:200]}")
+            return []
+        try:
+            return response.json() or []
+        except Exception:
+            return []
+
 
 web_admin_client = WebAdminClient()

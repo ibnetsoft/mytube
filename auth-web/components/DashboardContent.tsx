@@ -588,6 +588,43 @@ export default function DashboardContent() {
                 <div className="text-[9px] font-black uppercase tracking-[0.28em] text-gray-500 text-left mb-2">
                     {isKor ? '빠른 바로가기' : 'Quick Access'}
                 </div>
+                <div className="mb-3 space-y-1 text-left">
+                    {meta.project_id && (
+                        <div className="text-[10px] font-black text-gray-300">
+                            PROJECT ID <span className="ml-1 font-mono text-white">{meta.project_id}</span>
+                        </div>
+                    )}
+                    {meta.app_mode && (
+                        <div className="text-[10px] font-black text-gray-500">
+                            MODE <span className="ml-1 font-mono text-gray-300">{meta.app_mode}</span>
+                        </div>
+                    )}
+                    {meta.drive_video_file_id && (
+                        <div className="text-[10px] font-black text-gray-500 break-all">
+                            VIDEO FILE <span className="ml-1 font-mono text-gray-300">{meta.drive_video_file_id}</span>
+                        </div>
+                    )}
+                    {meta.drive_thumbnail_file_id && (
+                        <div className="text-[10px] font-black text-gray-500 break-all">
+                            THUMB FILE <span className="ml-1 font-mono text-gray-300">{meta.drive_thumbnail_file_id}</span>
+                        </div>
+                    )}
+                    {meta.drive_metadata_file_id && (
+                        <div className="text-[10px] font-black text-gray-500 break-all">
+                            META FILE <span className="ml-1 font-mono text-gray-300">{meta.drive_metadata_file_id}</span>
+                        </div>
+                    )}
+                    {meta.track_count ? (
+                        <div className="text-[10px] font-black text-gray-500">
+                            TRACKS <span className="ml-1 font-mono text-gray-300">{meta.track_count}</span>
+                        </div>
+                    ) : null}
+                    {meta.total_duration_seconds ? (
+                        <div className="text-[10px] font-black text-gray-500">
+                            TOTAL MIN <span className="ml-1 font-mono text-gray-300">{Math.round(Number(meta.total_duration_seconds || 0) / 60)}</span>
+                        </div>
+                    ) : null}
+                </div>
                 <div className="mb-3 flex justify-end">
                     {req.status === 'pending' && !req.metadata?.is_invalid_request && (
                         <button
@@ -2169,6 +2206,11 @@ export default function DashboardContent() {
                                                                             </div>
                                                                         )}
                                                                         <div className="mt-2 flex flex-wrap gap-2">
+                                                                            {req.metadata?.project_id && (
+                                                                                <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                                                    PID {req.metadata.project_id}
+                                                                                </span>
+                                                                            )}
                                                                             {req.metadata?.project_name && (
                                                                                 <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
                                                                                     ?꾨줈?앺듃: {req.metadata.project_name}
@@ -2184,10 +2226,39 @@ export default function DashboardContent() {
                                                                                     DRIVE BUNDLE
                                                                                 </span>
                                                                             )}
+                                                                            {req.metadata?.app_mode === 'longform_music' && (
+                                                                                <span className="px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-300">
+                                                                                    LONGFORM MUSIC
+                                                                                </span>
+                                                                            )}
+                                                                            {req.metadata?.privacy_status && (
+                                                                                <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                                                    {String(req.metadata.privacy_status).toUpperCase()}
+                                                                                </span>
+                                                                            )}
+                                                                            {req.metadata?.track_count ? (
+                                                                                <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                                                    TRACKS {req.metadata.track_count}
+                                                                                </span>
+                                                                            ) : null}
                                                                             <span className={`px-2 py-1 rounded-full border text-[9px] font-black ${statusMeta.className}`}>
                                                                                 {statusMeta.label}
                                                                             </span>
                                                                         </div>
+                                                                        {(req.metadata?.total_duration_seconds || req.metadata?.publish_at) && (
+                                                                            <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-bold">
+                                                                                {req.metadata?.total_duration_seconds ? (
+                                                                                    <span className="text-sky-300">
+                                                                                        Total: {Math.round(Number(req.metadata.total_duration_seconds || 0) / 60)} min
+                                                                                    </span>
+                                                                                ) : null}
+                                                                                {req.metadata?.publish_at ? (
+                                                                                    <span className="text-amber-300">
+                                                                                        Publish At: {new Date(req.metadata.publish_at).toLocaleString()}
+                                                                                    </span>
+                                                                                ) : null}
+                                                                            </div>
+                                                                        )}
                                                                         {req.metadata?.publish_error && (
                                                                             <div className="mt-2 text-[11px] font-semibold text-red-300 break-all">
                                                                                 {req.metadata.publish_error}
@@ -2518,14 +2589,45 @@ export default function DashboardContent() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/10 text-xs font-medium text-gray-300">
-                                            {renderQueue.map((task: any) => (
+                                            {renderQueue.map((task: any) => {
+                                                const meta = task.metadata || {}
+                                                const totalMinutes = meta.total_duration_seconds
+                                                    ? Math.round(Number(meta.total_duration_seconds || 0) / 60)
+                                                    : null
+                                                return (
                                                 <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
                                                     <td className="px-4 py-4 whitespace-nowrap">
                                                         <div>{new Date(task.created_at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
                                                         <div className="text-[10px] text-gray-500 mt-0.5">{new Date(task.created_at).toLocaleDateString()}</div>
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap text-blue-400 font-bold">{task.email}</td>
-                                                    <td className="px-4 py-4 font-bold text-white max-w-[200px] truncate" title={task.project_name}>{task.project_name} <span className="text-[10px] text-gray-500 font-mono">({task.project_id})</span></td>
+                                                    <td className="px-4 py-4 font-bold text-white max-w-[260px]" title={meta.title || task.project_name}>
+                                                        <div className="truncate">
+                                                            {meta.title || task.project_name} <span className="text-[10px] text-gray-500 font-mono">({task.project_id})</span>
+                                                        </div>
+                                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            {meta.is_music_queue && (
+                                                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-300">
+                                                                    MUSIC QUEUE
+                                                                </span>
+                                                            )}
+                                                            {meta.app_mode === 'longform_music' && (
+                                                                <span className="px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-[9px] font-black text-teal-300">
+                                                                    LONGFORM MUSIC
+                                                                </span>
+                                                            )}
+                                                            {meta.track_count ? (
+                                                                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                                    TRACKS {meta.track_count}
+                                                                </span>
+                                                            ) : null}
+                                                            {totalMinutes ? (
+                                                                <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-300">
+                                                                    Total: {totalMinutes} min
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                    </td>
                                                     <td className="px-4 py-4 whitespace-nowrap">
                                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
                                                             task.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
@@ -2535,6 +2637,11 @@ export default function DashboardContent() {
                                                         }`}>
                                                             {task.status === 'pending' ? '대기중' : task.status === 'rendering' ? '렌더링중' : task.status === 'completed' ? '완료' : '실패'}
                                                         </span>
+                                                        {meta.admin_publish_status ? (
+                                                            <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-amber-300">
+                                                                Publish: {String(meta.admin_publish_status).replace(/_/g, ' ')}
+                                                            </div>
+                                                        ) : null}
                                                     </td>
                                                     <td className="px-4 py-4 min-w-[150px]">
                                                         <div className="flex items-center gap-2">
@@ -2554,7 +2661,8 @@ export default function DashboardContent() {
                                                         <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">??젣</button>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                )
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

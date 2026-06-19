@@ -903,15 +903,7 @@ async def save_metadata(project_id: int, req: MetadataSave, app_mode: str = Quer
 async def get_metadata(project_id: int, app_mode: str = Query(None)):
     """메타데이터 조회 (app_mode별로 분리)"""
     app_mode = normalize_app_mode(app_mode)
-    setting_key = f"metadata_{app_mode}"
-    settings = db.get_project_settings(project_id) or {}
-    raw_data = settings.get(setting_key)
-    if raw_data:
-        try:
-            return json.loads(raw_data) if isinstance(raw_data, str) else raw_data
-        except Exception:
-            pass
-    return {}
+    return db.get_project_metadata(project_id, app_mode) or {}
 
 @app.post("/api/projects/{project_id}/thumbnails")
 async def save_thumbnails(project_id: int, req: ThumbnailsSave):
@@ -2788,41 +2780,79 @@ async def add_to_render_queue(project_id: int):
 
 @app.get("/api/render-queue")
 async def get_render_queue():
-    """렌더링 대기 중인 프로젝트 목록 (status=tts_done)"""
+    """Return local render queue plus remote Google Drive render queue."""
     try:
         all_projects = db.get_all_projects()
         queue = []
+
         for p in all_projects:
-            if p.get("status") == "tts_done":
-                pid = p["id"]
-                settings = db.get_project_settings(pid) or {}
-                p["app_mode"] = settings.get("app_mode", "longform")
-                # 프로젝트 표시명: script title > settings title > project name > topic
-                script = db.get_script(pid)
-                if script and script.get("title"):
-                    p["display_name"] = script["title"]
-                elif settings.get("title"):
-                    p["display_name"] = settings["title"]
-                else:
-                    p["display_name"] = p.get("name") or p.get("topic") or f"프로젝트 {pid}"
-                # 씬 수로 예상 렌더링 시간 추정
-                try:
-                    prompts = db.get_image_prompts(pid) or []
-                    scene_count = len(prompts)
-                except Exception:
-                    scene_count = 0
-                p["scene_count"] = scene_count
-                est_sec = max(60, scene_count * 3 + 30)
-                if est_sec < 3600:
-                    p["est_time"] = f"약 {est_sec // 60}분"
-                else:
-                    p["est_time"] = f"약 {est_sec // 3600}시간 {(est_sec % 3600) // 60}분"
-                queue.append(p)
-        queue.sort(key=lambda x: x.get("id", 0))
+            if p.get("status") != "tts_done":
+                continue
+            pid = p["id"]
+            settings = db.get_project_settings(pid) or {}
+            item = dict(p)
+            item["app_mode"] = settings.get("app_mode", "longform")
+            script = db.get_script(pid)
+            if script and script.get("title"):
+                item["display_name"] = script["title"]
+            elif settings.get("title"):
+                item["display_name"] = settings["title"]
+            else:
+                item["display_name"] = item.get("name") or item.get("topic") or f"Project {pid}"
+            try:
+                prompts = db.get_image_prompts(pid) or []
+                scene_count = len(prompts)
+            except Exception:
+                scene_count = 0
+            item["scene_count"] = scene_count
+            est_sec = max(60, scene_count * 3 + 30)
+            if est_sec < 3600:
+                item["est_time"] = f"약 {est_sec // 60}분"
+            else:
+                item["est_time"] = f"약 {est_sec // 3600}시간 {(est_sec % 3600) // 60}분"
+            item["queue_source"] = "local"
+            queue.append(item)
+
+        try:
+            from services.remote_drive_render_service import remote_drive_render_service
+
+            remote_rows = remote_drive_render_service.list_queue_rows(
+                statuses=["pending", "rendering", "completed", "failed"],
+                limit=100,
+            )
+            for row in remote_rows:
+                metadata = row.get("metadata") or {}
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                    except Exception:
+                        metadata = {}
+                queue.append({
+                    "id": row.get("project_id") or row.get("id"),
+                    "project_id": row.get("project_id"),
+                    "task_id": row.get("id"),
+                    "name": row.get("project_name"),
+                    "display_name": metadata.get("playlist_title") or row.get("project_name") or f"Project {row.get('project_id')}",
+                    "topic": metadata.get("playlist_title") or row.get("project_name") or "",
+                    "status": row.get("status"),
+                    "app_mode": metadata.get("app_mode") or metadata.get("display_type") or "longform",
+                    "render_style": metadata.get("render_style"),
+                    "queue_type": metadata.get("queue_type"),
+                    "queue_source": "remote_drive",
+                    "remote_queue": True,
+                    "remote_progress": row.get("progress"),
+                    "remote_message": row.get("message"),
+                    "track_count": metadata.get("track_count"),
+                    "updated_at": row.get("updated_at"),
+                    "admin_action_required": metadata.get("admin_action_required"),
+                })
+        except Exception as remote_err:
+            print(f"[Queue] Failed to load remote render queue: {remote_err}")
+
+        queue.sort(key=lambda x: (0 if x.get("queue_source") == "remote_drive" else 1, x.get("id") or 0))
         return {"status": "ok", "queue": queue}
     except Exception as e:
         raise HTTPException(500, str(e))
-
 # ===========================================
 
 

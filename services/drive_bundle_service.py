@@ -62,7 +62,7 @@ class DriveBundleService:
     def get_project_bundle(self, project_id: int) -> Dict[str, Any]:
         project = db.get_project(project_id) or {}
         settings = db.get_project_settings(project_id) or {}
-        local_metadata = db.get_metadata(project_id) or {}
+        local_metadata = db.get_project_metadata(project_id, settings.get("app_mode")) or {}
 
         root_folder_id = _get_drive_root_folder_id()
         token_path = _get_drive_token_path()
@@ -144,6 +144,9 @@ class DriveBundleService:
             "description": description,
             "tags": tags,
             "hashtags": hashtags,
+            "track_count": (metadata_json or {}).get("track_count"),
+            "track_durations": (metadata_json or {}).get("track_durations") or [],
+            "total_duration_seconds": (metadata_json or {}).get("total_duration_seconds"),
             "status": "ok" if folder else "empty",
         }
 

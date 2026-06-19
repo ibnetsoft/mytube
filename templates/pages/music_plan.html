@@ -197,7 +197,7 @@
                             <button class="lyrics-tab active" id="tabWrite" onclick="setLyricsMode('write')">{{ t('music_lyrics_write') }}</button>
                             <button class="lyrics-tab" id="tabPrompt" onclick="setLyricsMode('prompt')">{{ t('music_lyrics_prompt') }}</button>
                             <button class="lyrics-tab" id="tabInstrumental" onclick="setLyricsMode('instrumental')">{{ t('music_instrumental') }}</button>
-                            <button onclick="suggestLyrics()" class="text-[10px] px-2 py-1 rounded-lg" style="background:var(--atl-high);color:var(--atl-primary);" title="AI">✨</button>
+                            <button onclick="suggestLyrics()" class="text-[10px] px-2 py-1 rounded-lg" style="background:var(--atl-high);color:var(--atl-primary);" title="AI">AI</button>
                         </div>
                     </div>
                     <div id="lyricsBody" class="collapse-body px-4 pb-4" style="max-height:200px;">
@@ -211,8 +211,8 @@
                     <div class="collapse-header px-4 py-3" onclick="toggleSection('stylesBody')">
                         <span class="atl-section-label">{{ t('music_styles') }}</span>
                         <div class="flex gap-1.5" onclick="event.stopPropagation()">
-                            <button onclick="suggestStyles()" class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style="background:#1d4ed8;color:white;">✨</button>
-                            <button onclick="refreshStyleTags()" class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style="background:var(--atl-high);color:var(--atl-sub);">↻</button>
+                            <button onclick="suggestStyles()" class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style="background:#1d4ed8;color:white;">AI</button>
+                            <button onclick="refreshStyleTags()" class="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style="background:var(--atl-high);color:var(--atl-sub);" title="Refresh">↻</button>
                         </div>
                     </div>
                     <div id="stylesBody" class="collapse-body px-4 pb-4 space-y-3" style="max-height:280px;">
@@ -226,7 +226,7 @@
                 <div class="atl-card overflow-hidden">
                     <div class="collapse-header px-4 py-3" onclick="toggleSection('moreBody')">
                         <span class="atl-section-label">{{ t('music_more_options') }}</span>
-                        <span class="text-[10px]" style="color:var(--atl-outline);">▼</span>
+                        <span class="text-[10px]" style="color:var(--atl-outline);">Optional</span>
                     </div>
                     <div id="moreBody" class="collapse-body px-4 pb-4 space-y-4" style="max-height:400px;">
                         <div>
@@ -260,6 +260,15 @@
             <!-- Common settings -->
             <div class="atl-card p-4 space-y-3">
                 <div class="space-y-1.5">
+                    <label class="atl-section-label block">Music Plan Template</label>
+                    <div class="grid grid-cols-[1fr_auto] gap-2">
+                        <select id="musicTemplateSelect" class="atl-input text-xs py-2">
+                            <option value="">Select template</option>
+                        </select>
+                        <button type="button" onclick="applySelectedMusicTemplate()" class="mode-pill active">Apply</button>
+                    </div>
+                </div>
+                <div class="space-y-1.5">
                     <label class="atl-section-label block">{{ t('music_playlist_title') }}</label>
                     <input type="text" id="playlistTitle" class="atl-input text-sm" placeholder="{{ t('music_playlist_title_placeholder') }}">
                 </div>
@@ -268,6 +277,7 @@
                         <label class="atl-section-label block">{{ t('music_genre') }}</label>
                         <select id="genreSelect" class="atl-input text-xs py-2" onchange="refreshStyleTags()">
                             <option value="lofi">Lo-fi</option>
+                            <option value="japanese_enka">일본 엔카</option>
                             <option value="jazz">Jazz</option>
                             <option value="piano">Piano</option>
                             <option value="acoustic">Acoustic</option>
@@ -307,7 +317,7 @@
                     <div class="space-y-1.5">
                         <label class="atl-section-label block">{{ t('music_track_count') }}</label>
                         <input type="number" id="trackCountInput" class="atl-input text-sm text-center font-bold py-2"
-                            style="color:var(--atl-primary);" value="12" min="1" max="30">
+                            style="color:var(--atl-primary);" value="12" min="1" max="120">
                     </div>
                 </div>
                 <div class="space-y-1.5">
@@ -330,12 +340,12 @@
             <div class="space-y-2 pt-1">
                 <button onclick="generateMusicPlan()" id="createBtn"
                     class="create-btn w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all hover:brightness-110 text-sm">
-                    🎵 {{ t('music_btn_create_plan') }}
+                    {{ t('music_btn_create_plan') }}
                 </button>
                 <button onclick="saveMusicSettings()"
                     class="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
                     style="background:var(--atl-high);color:var(--atl-sub);">
-                    💾 {{ t('save_settings') }}
+                    {{ t('save_settings') }}
                 </button>
             </div>
         </div>
@@ -351,7 +361,7 @@
                 <!-- Empty state -->
                 <div id="emptyState" class="h-[65vh] flex flex-col items-center justify-center text-center space-y-6">
                     <div class="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
-                         style="background:#232832;border:1px solid var(--atl-outline-dim);">🎵</div>
+                         style="background:#232832;border:1px solid var(--atl-outline-dim);">♪</div>
                     <div class="max-w-sm space-y-2">
                         <h3 style="font-family:'Manrope',sans-serif;font-size:1.5rem;font-weight:800;color:var(--atl-text);">
                             {{ t('title_studio_canvas') }}
@@ -373,33 +383,94 @@
                     </div>
                     <p id="planVisual" class="text-xs leading-relaxed p-3 rounded-xl"
                        style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);"></p>
+                    <div id="tracksSummary" class="hidden text-[11px] px-3 py-2 rounded-xl"
+                       style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);"></div>
+                    <div id="distributionSummary" class="hidden text-[11px] px-3 py-3 rounded-xl space-y-2"
+                       style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);"></div>
+                    <div class="flex justify-end">
+                        <button type="button" onclick="rebalancePlanToTemplate()"
+                            class="px-3 py-2 rounded-xl text-[11px] font-bold transition-all hover:brightness-110"
+                            style="background:rgba(124,58,237,0.18);color:#c4b5fd;border:1px solid rgba(124,58,237,0.4);">
+                            템플릿 기준 자동 보정
+                        </button>
+                    </div>
                     <div id="tracksList" class="space-y-2"></div>
                     <div class="flex gap-2 pt-2">
                         <button onclick="goToTrackGeneration()"
                             class="flex-1 py-3 rounded-xl font-bold text-xs transition-all hover:brightness-110"
                             style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;">
-                            🎧 {{ t('music_btn_go_tracks') }}
+                            트랙 관리로 이동
                         </button>
                     </div>
                     <div id="generationPanel" class="hidden mt-4 pt-4 border-t border-atl-outline-dim">
                         <div class="flex items-center justify-between mb-3">
-                            <span class="atl-section-label">🎵 {{ t('music_generating_tracks') }}</span>
+                            <span class="atl-section-label">생성된 트랙</span>
                             <span id="genProgress" class="text-xs" style="color:var(--atl-sub);">0 / 0</span>
                         </div>
+                        <p class="text-[11px] mb-3" style="color:var(--atl-sub);">
+                            여기서 바로 전체 곡 생성과 재생 확인이 가능합니다. 순서 변경, 삭제, 렌더링 포함 여부 관리는 트랙 관리 페이지에서 이어서 합니다.
+                        </p>
                         <div id="generatedTracksList" class="space-y-2"></div>
                         <button onclick="startGenerateAllTracks()" id="generateAllBtn"
                             class="w-full mt-3 py-2.5 rounded-xl font-bold text-xs"
                             style="background:linear-gradient(135deg,#10b981,#059669);color:white;">
-                            ▶ {{ t('music_start_generation') }}
+                            전체 곡 생성
                         </button>
                         <button onclick="renderCombinedPlaylist()" id="renderBtn" class="hidden w-full mt-2 py-2.5 rounded-xl font-bold text-xs"
                             style="background:linear-gradient(135deg,#f59e0b,#d97706);color:white;">
-                            🎬 {{ t('music_render_playlist') }}
+                            플레이리스트 렌더링
                         </button>
                         <div id="imageUploadPanel" class="hidden mt-3 pt-3 border-t border-atl-outline-dim">
                             <label class="atl-section-label block mb-2">Playlist Image</label>
                             <input type="file" id="playlistImageInput" accept="image/*" class="atl-input text-xs py-2" onchange="previewImage(this)">
                             <img id="imagePreview" class="hidden w-full mt-2 rounded-lg max-h-40 object-cover">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="rebalancePreviewModal" class="hidden fixed inset-0 z-40 flex items-center justify-center px-4"
+                     style="background:rgba(2,6,23,0.78);">
+                    <div class="w-full max-w-3xl rounded-2xl overflow-hidden"
+                         style="background:#0f172a;border:1px solid rgba(148,163,184,0.2);box-shadow:0 24px 60px rgba(0,0,0,0.45);">
+                        <div class="flex items-center justify-between px-5 py-4"
+                             style="border-bottom:1px solid rgba(148,163,184,0.14);">
+                            <div>
+                                <p class="atl-section-label mb-1">&#51088;&#46041; &#48372;&#51221; &#48120;&#47532;&#48372;&#44592;</p>
+                                <p class="text-xs" style="color:var(--atl-sub);">&#51201;&#50857; &#51204; &#48320;&#44221;&#46104;&#45716; &#54637;&#47785;&#47564; &#47676;&#51200; &#54869;&#51064;&#54633;&#45768;&#45796;.</p>
+                            </div>
+                            <button type="button" onclick="closeRebalancePreview()" class="px-3 py-1.5 rounded-lg text-xs font-bold"
+                                style="background:var(--atl-high);color:var(--atl-sub);">&#45803;&#44592;</button>
+                        </div>
+                        <div class="px-5 py-4 space-y-3 max-h-[65vh] overflow-y-auto atl-scrollbar">
+                            <div id="rebalancePreviewSummary" class="text-[11px] px-3 py-2 rounded-xl"
+                                 style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);"></div>
+                            <div id="rebalanceScopeOptions" class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                                <label class="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer" style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);">
+                                    <input type="checkbox" id="rebalanceScopeGenre" checked onchange="refreshRebalancePreviewFromScopes()">
+                                    &#51109;&#47476;&#47564; &#48372;&#51221;
+                                </label>
+                                <label class="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer" style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);">
+                                    <input type="checkbox" id="rebalanceScopeDuration" checked onchange="refreshRebalancePreviewFromScopes()">
+                                    &#44600;&#51060;&#47564; &#48372;&#51221;
+                                </label>
+                                <label class="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer" style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);">
+                                    <input type="checkbox" id="rebalanceScopeLyrics" checked onchange="refreshRebalancePreviewFromScopes()">
+                                    &#44032;&#49324; &#48708;&#50984;&#47564; &#48372;&#51221;
+                                </label>
+                                <label class="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer" style="background:rgba(8,12,24,0.5);color:var(--atl-sub);border:1px solid var(--atl-outline-dim);">
+                                    <input type="checkbox" id="rebalanceScopeVocal" checked onchange="refreshRebalancePreviewFromScopes()">
+                                    &#48372;&#52972; &#48516;&#54252;&#47564; &#48372;&#51221;
+                                </label>
+                            </div>
+                            <div id="rebalancePreviewList" class="space-y-2"></div>
+                        </div>
+                        <div class="flex gap-2 px-5 py-4" style="border-top:1px solid rgba(148,163,184,0.14);">
+                            <button type="button" onclick="applyRebalancePreview()" class="flex-1 py-3 rounded-xl text-xs font-bold" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;">
+                                &#51060;&#45824;&#47196; &#51201;&#50857;
+                            </button>
+                            <button type="button" onclick="closeRebalancePreview()" class="px-4 py-3 rounded-xl text-xs font-bold" style="background:var(--atl-high);color:var(--atl-sub);">
+                                &#52712;&#49548;
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -415,23 +486,60 @@
     let lyricsMode = 'write';
     let vocalGender = 'any';
     let selectedTags = new Set();
+    let musicPlanTemplates = [];
+    let expectedDistributionConfig = null;
+    let highlightedTrackIndexes = new Set();
+    let pendingRebalanceTracks = null;
+    let pendingRebalanceSourceTracks = null;
+    let currentProjectSettings = {};
+    let currentProjectMetadata = null;
 
-    const i18n = {
+const musicI18n = {
         generating: "{{ t('music_status_generating') }}",
         saved: "{{ t('music_status_saved') }}",
-        preview: "{{ t('music_btn_preview') }}",
+        preview: "{{ t('music_btn_preview') }} (20s)",
         tracks: "{{ t('music_track_count') }}",
         minutes: "{{ t('plan_duration_unit_min') }}",
         error: "{{ t('music_status_error') }}",
+        previewHint: "미리듣기는 20초 샘플입니다. 전체 길이는 곡 생성에서 반영됩니다.",
+        bulkPlanningHint: "60곡 이상도 한 번에 기획 저장할 수 있습니다.",
+        noTracks: "아직 생성된 트랙이 없습니다.",
+        generatingTracks: "트랙 생성 중...",
+        generateTracks: "전체 곡 생성",
+        delete: "삭제",
+        selectTrack: "생성된 트랙을 선택해 주세요.",
+        selectImage: "플레이리스트 이미지를 선택해 주세요.",
+        renderComplete: "렌더링 완료",
+        renderFailed: "렌더링 실패",
+        projectCreateFailed: "프로젝트 생성 실패",
+        noPlan: "먼저 음악 기획을 생성해 주세요.",
+        totalPlayTime: "Total play time",
+        trackPlanSaved: "트랙 기획을 저장했습니다.",
+        savePlanFailed: "트랙 기획 저장 실패",
+        trackMood: "분위기",
+        trackPrompt: "프롬프트",
     };
 
     document.addEventListener('DOMContentLoaded', async () => {
         refreshStyleTags();
+        await loadMusicPlanTemplates();
         await loadSavedState();
     });
 
-    window.addEventListener('projectStateRestored', (e) => {
+    window.addEventListener('projectChanged', async (e) => {
+        const projectId = e.detail?.projectId;
+        if (!projectId) return;
+        await syncPlaylistTitleFromProject(projectId);
+    });
+
+    window.addEventListener('projectStateRestored', async (e) => {
+        resetMusicWorkspace();
         if (e.detail) loadFromProjectData(e.detail);
+        await loadSavedState(e.detail?.project?.id);
+    });
+
+    window.addEventListener('projectStateCleared', () => {
+        resetMusicWorkspace();
     });
 
     function toggleSection(id) {
@@ -490,7 +598,7 @@
 
     function collectConfig() {
         const durationMin = parseInt(document.getElementById('durationInput').value) || 60;
-        const trackCount = parseInt(document.getElementById('trackCountInput').value) || 12;
+        const trackCount = Math.max(1, Math.min(120, parseInt(document.getElementById('trackCountInput').value) || 12));
         return {
             content_type: contentType === 'single' ? 'single_track' : 'music_playlist',
             input_mode: inputMode,
@@ -560,27 +668,282 @@
         refreshStyleTags();
     }
 
-    async function loadSavedState() {
-        const projectId = getCurrentProject();
+    function resetMusicWorkspace() {
+        currentPlan = null;
+        generatedTracks = [];
+        selectedTags = new Set();
+
+        setInputMode('simple');
+        setContentType('playlist');
+        setLyricsMode('write');
+        setVocalGender('any');
+
+        document.getElementById('simplePrompt').value = '';
+        document.getElementById('playlistTitle').value = '';
+        document.getElementById('genreSelect').value = 'lofi';
+        document.getElementById('vocalModeSelect').value = 'instrumental';
+        document.getElementById('durationInput').value = 60;
+        document.getElementById('trackCountInput').value = 12;
+        document.getElementById('lyricsText').value = '';
+        document.getElementById('stylesPrompt').value = '';
+        document.getElementById('weirdnessSlider').value = 50;
+        document.getElementById('weirdnessVal').textContent = '50%';
+        document.getElementById('influenceSlider').value = 50;
+        document.getElementById('influenceVal').textContent = '50%';
+        document.querySelectorAll('input[name="mood"]').forEach(el => {
+            el.checked = el.value === 'calm';
+        });
+
+        document.getElementById('planResult').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('generationPanel').classList.add('hidden');
+        document.getElementById('renderBtn').classList.add('hidden');
+        document.getElementById('genProgress').textContent = '0 / 0';
+        const summaryEl = document.getElementById('tracksSummary');
+        if (summaryEl) {
+            summaryEl.classList.add('hidden');
+            summaryEl.textContent = '';
+        }
+        const distributionEl = document.getElementById('distributionSummary');
+        if (distributionEl) {
+            distributionEl.classList.add('hidden');
+            distributionEl.innerHTML = '';
+        }
+        renderGeneratedTracks();
+        refreshStyleTags();
+    }
+
+    function normalizeTitleCandidate(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).trim();
+    }
+
+    function parseMaybeJsonObject(value) {
+        if (!value) return null;
+        if (typeof value === 'object') return value;
+        if (typeof value !== 'string') return null;
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function resolveMusicTitle(data = {}) {
+        const settings = data.settings || {};
+        const project = data.project || {};
+        const config = data.config || parseMaybeJsonObject(settings.longform_music) || {};
+        const plan = data.plan || parseMaybeJsonObject(settings.longform_music_plan_json) || {};
+
+        return [
+            config.playlist_title,
+            plan.playlist_title,
+            settings.title,
+            data.topic,
+            data.project_name,
+            project.topic,
+            project.name,
+            data.name,
+        ].map(normalizeTitleCandidate).find(Boolean) || '';
+    }
+
+    function setPlaylistTitleFromData(data, overwrite = false) {
+        const title = resolveMusicTitle(data);
+        const titleEl = document.getElementById('playlistTitle');
+        if (!title || !titleEl) return false;
+        if (overwrite || !titleEl.value.trim()) {
+            titleEl.value = title;
+            return true;
+        }
+        return false;
+    }
+
+    async function syncPlaylistTitleFromProject(projectId) {
+        try {
+            const res = await fetch(`/api/music/plan/${projectId}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (setPlaylistTitleFromData(data, true)) return;
+            }
+        } catch (e) {
+            console.warn('syncPlaylistTitleFromProject', e);
+        }
+
+        try {
+            const res = await fetch(`/api/projects/${projectId}`);
+            if (!res.ok) return;
+            const project = await res.json();
+            setPlaylistTitleFromData({ project }, true);
+        } catch (e) {
+            console.warn('syncPlaylistTitleFromProject fallback', e);
+        }
+    }
+
+    async function loadSavedState(projectIdOverride = null) {
+        const projectId = projectIdOverride || getCurrentProject();
         if (!projectId) return;
         try {
             const res = await fetch(`/api/music/plan/${projectId}`);
             if (!res.ok) return;
             const data = await res.json();
-            if (data.topic) document.getElementById('playlistTitle').value = data.topic;
             applyConfig(data.config);
-            if (data.plan) renderPlan(data.plan);
+            captureExpectedDistribution(data.config || {});
+            setPlaylistTitleFromData(data, false);
+            if (data.plan) {
+                currentPlan = data.plan;
+                const restoredTracks = normalizeTrackPlans(
+                    data.track_plans,
+                    data.config?.genre || data.plan?.genre,
+                    data.config?.vocal_mode
+                );
+                if (restoredTracks.length) {
+                    currentPlan.tracks = restoredTracks;
+                }
+                renderPlan(data.plan, { resetGeneratedTracks: false });
+            }
+            try {
+                const [settingsRes, metadataRes] = await Promise.all([
+                    fetch(`/api/projects/${projectId}/settings`),
+                    fetch(`/api/projects/${projectId}/metadata?app_mode=longform_music`),
+                ]);
+                currentProjectSettings = settingsRes.ok ? await settingsRes.json() : {};
+                currentProjectMetadata = metadataRes.ok ? await metadataRes.json() : null;
+            } catch (_restoreMetaError) {
+                currentProjectSettings = {};
+                currentProjectMetadata = null;
+            }
+            if (Array.isArray(data.generated_tracks) && data.generated_tracks.length) {
+                generatedTracks = data.generated_tracks;
+                document.getElementById('generationPanel').classList.remove('hidden');
+                document.getElementById('genProgress').textContent = `${generatedTracks.filter(t => t.status === 'done').length} / ${generatedTracks.length}`;
+                if (generatedTracks.some(t => t.file_path)) {
+                    document.getElementById('renderBtn').classList.remove('hidden');
+                }
+                renderGeneratedTracks();
+            }
+            updateFinalRenderAvailability();
         } catch (e) { console.warn('loadSavedState', e); }
     }
 
     function loadFromProjectData(data) {
-        if (data.project?.topic) {
-            const title = document.getElementById('playlistTitle');
-            if (!title.value) title.value = data.project.topic;
-        }
+        setPlaylistTitleFromData(data, false);
         if (data.settings?.duration_seconds) {
             document.getElementById('durationInput').value = Math.floor(data.settings.duration_seconds / 60);
         }
+    }
+
+    function captureExpectedDistribution(cfg) {
+        expectedDistributionConfig = cfg ? {
+            genre_mix: cfg.genre_mix || cfg.genre_distribution || null,
+            vocal_mode_distribution: cfg.vocal_mode_distribution || cfg.vocal_mode_sequence || null,
+            vocal_gender_distribution: cfg.vocal_gender_distribution || cfg.singer_gender_distribution || null,
+            lyrics_ratio_percent: cfg.lyrics_ratio_percent || 0,
+            duration_distribution: cfg.duration_distribution || null,
+            track_count: cfg.track_count || 0,
+        } : null;
+    }
+
+    function normalizeTemplateAliasMap(raw = {}) {
+        return {
+            playlist_title: raw.playlist_title || raw.title || raw.playlist_name || '',
+            genre: raw.genre || raw.primary_genre || '',
+            vocal_mode: raw.vocal_mode || raw.voice_mode || raw.song_mode || '',
+            track_count: raw.track_count || raw.total_tracks || raw.count || '',
+            playlist_duration_seconds: raw.playlist_duration_seconds || raw.total_duration_seconds || raw.duration_seconds || '',
+            duration_minutes: raw.duration_minutes || raw.total_duration_minutes || raw.minutes || '',
+            moods: raw.moods || raw.mood_tags || raw.mood_list || raw.mood || [],
+            lyrics_mode: raw.lyrics_mode || raw.lyric_mode || '',
+            lyrics_text: raw.lyrics_text || raw.lyrics || '',
+            style_prompt: raw.style_prompt || raw.styles_prompt || '',
+            style_tags: raw.style_tags || raw.tags || [],
+            vocal_gender: raw.vocal_gender || raw.singer_gender || raw.voice_gender || '',
+            weirdness: raw.weirdness,
+            style_influence: raw.style_influence || raw.influence,
+            simple_prompt: raw.simple_prompt || raw.prompt_template || raw.prompt || '',
+        };
+    }
+
+    function normalizeTemplateMoods(moods) {
+        if (Array.isArray(moods)) return moods.map(item => String(item).trim()).filter(Boolean);
+        if (typeof moods === 'string') return moods.split(',').map(item => item.trim()).filter(Boolean);
+        return [];
+    }
+
+    async function loadMusicPlanTemplates() {
+        try {
+            const res = await fetch('/api/music/templates');
+            if (!res.ok) return;
+            const data = await res.json();
+            musicPlanTemplates = Array.isArray(data.templates) ? data.templates : [];
+            const select = document.getElementById('musicTemplateSelect');
+            if (!select) return;
+            select.innerHTML = '<option value="">Select template</option>' + musicPlanTemplates.map((item, index) => {
+                const label = item.display_name_ko || item.display_name_vi || item.key_code || `Template ${index + 1}`;
+                return `<option value="${index}">${escapeHtml(label)}</option>`;
+            }).join('');
+        } catch (e) {
+            console.warn('loadMusicPlanTemplates', e);
+        }
+    }
+
+    function applySelectedMusicTemplate() {
+        const select = document.getElementById('musicTemplateSelect');
+        const index = parseInt(select?.value || '', 10);
+        if (Number.isNaN(index) || !musicPlanTemplates[index]) return;
+        const template = musicPlanTemplates[index];
+        let config = {};
+        try {
+            config = template.gemini_instruction ? JSON.parse(template.gemini_instruction) : {};
+        } catch (e) {
+            console.warn('template parse failed', e);
+        }
+        const normalized = normalizeTemplateAliasMap(config || {});
+        const mergedConfig = {
+            ...config,
+            simple_prompt: normalized.simple_prompt || template.prompt_template || '',
+            playlist_title: normalized.playlist_title || '',
+            genre: normalized.genre || '',
+            vocal_mode: normalized.vocal_mode || '',
+            track_count: normalized.track_count || '',
+            playlist_duration_seconds: normalized.playlist_duration_seconds || (normalized.duration_minutes ? parseInt(normalized.duration_minutes, 10) * 60 : ''),
+            moods: normalizeTemplateMoods(normalized.moods),
+            lyrics: {
+                mode: normalized.lyrics_mode || ((normalized.lyrics_text || '').trim() ? 'write' : undefined),
+                text: normalized.lyrics_text || '',
+            },
+            styles: {
+                prompt: normalized.style_prompt || '',
+                tags: Array.isArray(normalized.style_tags) ? normalized.style_tags : [],
+            },
+            advanced: {
+                vocal_gender: normalized.vocal_gender || 'any',
+                weirdness: normalized.weirdness != null ? normalized.weirdness : 50,
+                style_influence: normalized.style_influence != null ? normalized.style_influence : 50,
+            },
+        };
+        captureExpectedDistribution(mergedConfig);
+        applyConfig(mergedConfig);
+        if (mergedConfig.playlist_title) {
+            document.getElementById('playlistTitle').value = mergedConfig.playlist_title;
+        }
+    }
+
+    function normalizeTrackPlans(trackPlans, fallbackGenre, fallbackVocalMode) {
+        if (!Array.isArray(trackPlans) || !trackPlans.length) return [];
+        return trackPlans.map((track, index) => ({
+            track_index: track.track_index != null ? track.track_index : index,
+            title: track.title || '',
+            genre: track.genre || fallbackGenre || '',
+            mood: track.mood || '',
+            instruments: Array.isArray(track.instruments) ? track.instruments : [],
+            lyrics: track.lyrics || '',
+            vocalist_gender: track.vocalist_gender || 'any',
+            vocal_mode: track.vocal_mode || fallbackVocalMode || 'instrumental',
+            duration_seconds: parseInt(track.duration_seconds || 180, 10),
+            prompt: track.prompt || '',
+            status: track.status || 'planned',
+        }));
     }
 
     async function refreshStyleTags() {
@@ -626,7 +989,7 @@
                 selectedTags = new Set(data.tags);
                 renderStyleTags(data.tags);
             }
-        } catch (e) { Utils.showToast(i18n.error, 'error'); }
+        } catch (e) { Utils.showToast(musicI18n.error, 'error'); }
     }
 
     async function suggestLyrics() {
@@ -641,7 +1004,7 @@
             });
             const data = await res.json();
             if (data.lyrics) document.getElementById('lyricsText').value = data.lyrics;
-        } catch (e) { Utils.showToast(i18n.error, 'error'); }
+        } catch (e) { Utils.showToast(musicI18n.error, 'error'); }
     }
 
     async function saveMusicSettings() {
@@ -650,14 +1013,14 @@
         const playlistTitle = config.playlist_title?.trim();
 
         try {
-            // 프로젝트가 없으면 자동 생성
+            // ?꾨줈?앺듃媛 ?놁쑝硫??먮룞 ?앹꽦
             if (!projectId) {
                 if (!playlistTitle) {
                     Utils.showToast('{{ t("status_enter_playlist_title") }}', 'warning');
                     return;
                 }
 
-                const createRes = await fetch('/projects', {
+                const createRes = await fetch('/api/projects', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -669,7 +1032,7 @@
                 });
                 const createData = await createRes.json();
                 if (!createRes.ok || !createData.project_id) {
-                    throw new Error('프로젝트 생성 실패');
+                    throw new Error(musicI18n.projectCreateFailed);
                 }
                 projectId = createData.project_id;
                 setCurrentProject(projectId);
@@ -685,8 +1048,8 @@
                     topic: config.playlist_title || undefined,
                 }),
             });
-            Utils.showToast(i18n.saved, 'success');
-        } catch (e) { Utils.showToast(i18n.error, 'error'); }
+            Utils.showToast(musicI18n.saved, 'success');
+        } catch (e) { Utils.showToast(musicI18n.error, 'error'); }
     }
 
     async function generateMusicPlan(force = false) {
@@ -696,19 +1059,19 @@
 
         const btn = document.getElementById('createBtn');
         btn.disabled = true;
-        btn.textContent = '⏳ ' + i18n.generating;
+        btn.textContent = musicI18n.generating;
 
         try {
-            // 프로젝트가 없으면 자동 생성
+            // ?꾨줈?앺듃媛 ?놁쑝硫??먮룞 ?앹꽦
             if (!projectId) {
                 if (!playlistTitle) {
                     Utils.showToast('{{ t("status_enter_playlist_title") }}', 'warning');
                     btn.disabled = false;
-                    btn.innerHTML = '🎵 {{ t("music_btn_create_plan") }}';
+                    btn.innerHTML = '{{ t("music_btn_create_plan") }}';
                     return;
                 }
 
-                btn.textContent = '⏳ 프로젝트 생성 중...';
+                btn.textContent = '프로젝트 생성 중...';
                 const createRes = await fetch('/api/projects', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -721,11 +1084,11 @@
                 });
                 const createData = await createRes.json();
                 if (!createRes.ok || !createData.project_id) {
-                    throw new Error('프로젝트 생성 실패');
+                    throw new Error(musicI18n.projectCreateFailed);
                 }
                 projectId = createData.project_id;
                 setCurrentProject(projectId);
-                btn.textContent = '⏳ ' + i18n.generating;
+                btn.textContent = musicI18n.generating;
             }
 
             const res = await fetch('/api/music/plan', {
@@ -734,19 +1097,31 @@
                 body: JSON.stringify({ project_id: projectId, config, force_regenerate: force }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || i18n.error);
+            if (!res.ok) throw new Error(data.detail || musicI18n.error);
             currentPlan = data.plan;
+            const restoredTracks = normalizeTrackPlans(
+                data.track_plans,
+                config.genre || data.plan?.genre,
+                config.vocal_mode
+            );
+            if (restoredTracks.length) {
+                currentPlan.tracks = restoredTracks;
+            }
             renderPlan(data.plan);
+            await saveEditedPlan(false);
+            if (data.plan?.tracks?.length) {
+                setTimeout(() => previewTrack(0), 50);
+            }
             Utils.showToast('{{ t("music_status_plan_done") }}', 'success');
         } catch (e) {
-            Utils.showToast(e.message || i18n.error, 'error');
+            Utils.showToast(e.message || musicI18n.error, 'error');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = '🎵 {{ t("music_btn_create_plan") }}';
+            btn.innerHTML = '{{ t("music_btn_create_plan") }}';
         }
     }
 
-    function renderPlan(plan) {
+    function renderPlan(plan, options = {}) {
         if (!plan) return;
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('planResult').classList.remove('hidden');
@@ -755,31 +1130,74 @@
         document.getElementById('planTitle').textContent = title;
         const trackCount = (plan.tracks || []).length;
         const dur = document.getElementById('durationInput').value;
-        document.getElementById('planMeta').textContent = `${trackCount} ${i18n.tracks} · ${dur} ${i18n.minutes} · ${plan.genre || ''}`;
+        currentPlan = plan;
+        if (options.resetGeneratedTracks !== false) {
+            generatedTracks = [];
+            document.getElementById('generationPanel').classList.add('hidden');
+            document.getElementById('renderBtn').classList.add('hidden');
+            document.getElementById('genProgress').textContent = '0 / 0';
+            renderGeneratedTracks();
+        }
+        updateTracksSummary();
+        document.getElementById('planMeta').textContent = `${trackCount} ${musicI18n.tracks} / ${dur} ${musicI18n.minutes} / ${plan.genre || ''} / ${musicI18n.bulkPlanningHint}`;
         document.getElementById('planVisual').textContent = plan.visual_concept || '';
+
+        renderDistributionSummary();
 
         const list = document.getElementById('tracksList');
         list.innerHTML = (plan.tracks || []).map((t, i) => {
             const dur = t.duration_seconds || 180;
             const durMin = Math.round(dur / 60);
+            const highlightStyle = highlightedTrackIndexes.has(i) ? 'border-color:#fbbf24;background:rgba(251,191,36,0.08);' : '';
             return `
-            <div class="track-card p-4">
+            <div class="track-card p-4" style="${highlightStyle}">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color:var(--atl-primary);">Track ${String(i+1).padStart(2,'0')} · ${durMin}m</p>
-                        <p class="text-sm font-bold truncate" style="color:var(--atl-text);">${escapeHtml(t.title || '')}</p>
-                        <p class="text-[10px] mt-1 line-clamp-2" style="color:var(--atl-sub);">${escapeHtml(t.mood || '')}</p>
+                        <p class="text-[9px] font-bold uppercase tracking-widest mb-1" style="color:var(--atl-primary);">Track ${String(i+1).padStart(2,'0')} / ${durMin}m</p>
+                        <input type="text" class="atl-input text-sm py-2 font-bold" id="trackTitle_${i}"
+                            value="${escapeHtml(t.title || '')}" onchange="updateTrackTitle(${i}, this.value)"
+                            placeholder="Track ${String(i+1).padStart(2,'0')} title">
+                        <input type="text" class="atl-input text-[10px] mt-2 py-2" id="trackMood_${i}"
+                            value="${escapeHtml(t.mood || '')}" onchange="updateTrackMood(${i}, this.value)"
+                            placeholder="${musicI18n.trackMood}">
+                        <input type="text" class="atl-input text-[10px] mt-2 py-2" id="trackInstruments_${i}"
+                            value="${escapeHtml(Array.isArray(t.instruments) ? t.instruments.join(', ') : (t.instruments || ''))}"
+                            onchange="updateTrackInstruments(${i}, this.value)"
+                            placeholder="instruments">
                         <textarea class="atl-input text-[10px] mt-2 resize-none" rows="2"
-                            id="trackPrompt_${i}" onchange="updateTrackPrompt(${i}, this.value)">${escapeHtml(t.prompt || '')}</textarea>
+                            id="trackLyrics_${i}" onchange="updateTrackLyrics(${i}, this.value)"
+                            placeholder="lyrics">${escapeHtml(t.lyrics || '')}</textarea>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <select class="atl-input text-[10px] py-2" id="trackVocalMode_${i}" onchange="updateTrackVocalMode(${i}, this.value)">
+                                <option value="instrumental" ${(t.vocal_mode || 'instrumental') === 'instrumental' ? 'selected' : ''}>instrumental</option>
+                                <option value="soft_vocal" ${t.vocal_mode === 'soft_vocal' ? 'selected' : ''}>soft_vocal</option>
+                                <option value="vocal" ${t.vocal_mode === 'vocal' ? 'selected' : ''}>vocal</option>
+                            </select>
+                            <select class="atl-input text-[10px] py-2" id="trackVocalGender_${i}" onchange="updateTrackVocalGender(${i}, this.value)">
+                                <option value="any" ${(t.vocalist_gender || 'any') === 'any' ? 'selected' : ''}>any</option>
+                                <option value="male" ${t.vocalist_gender === 'male' ? 'selected' : ''}>male</option>
+                                <option value="female" ${t.vocalist_gender === 'female' ? 'selected' : ''}>female</option>
+                                <option value="duet" ${t.vocalist_gender === 'duet' ? 'selected' : ''}>duet</option>
+                            </select>
+                        </div>
+                        <textarea class="atl-input text-[10px] mt-2 resize-none" rows="2"
+                            id="trackPrompt_${i}" onchange="updateTrackPrompt(${i}, this.value)"
+                            placeholder="${musicI18n.trackPrompt}">${escapeHtml(t.prompt || '')}</textarea>
                         <div class="flex items-center gap-2 mt-2">
                             <input type="range" id="trackDuration_${i}" class="range-slider flex-1" min="180" max="300" step="30" value="${dur}"
                                 oninput="updateTrackDuration(${i}, this.value); document.getElementById('durationLabel_${i}').textContent = Math.round(this.value/60) + 'm'">
                             <span id="durationLabel_${i}" class="text-[9px] font-mono w-8 text-right" style="color:var(--atl-sub);">${durMin}m</span>
                         </div>
+                        <input type="text" class="atl-input text-[10px] mt-2 py-2" id="trackStatus_${i}"
+                            value="${escapeHtml(t.status || 'planned')}" onchange="updateTrackStatus(${i}, this.value)"
+                            placeholder="planned">
                     </div>
-                    <button onclick="previewTrack(${i})" id="previewBtn_${i}"
-                        class="shrink-0 text-[9px] font-bold px-2.5 py-1.5 rounded-lg"
-                        style="background:var(--atl-high);color:var(--atl-primary);">${i18n.preview}</button>
+                    <div class="shrink-0 flex flex-col items-end gap-1">
+                        <button onclick="previewTrack(${i})" id="previewBtn_${i}"
+                            class="text-[9px] font-bold px-2.5 py-1.5 rounded-lg"
+                            style="background:var(--atl-high);color:var(--atl-primary);">${musicI18n.preview}</button>
+                        <span class="text-[9px] text-right max-w-[110px]" style="color:var(--atl-sub);">${musicI18n.previewHint}</span>
+                    </div>
                 </div>
                 <audio id="previewAudio_${i}" class="hidden w-full mt-2" controls></audio>
             </div>
@@ -790,17 +1208,649 @@
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
+    function updateTracksSummary() {
+        const summaryEl = document.getElementById('tracksSummary');
+        const tracks = currentPlan?.tracks || [];
+        if (!summaryEl || !tracks.length) {
+            if (summaryEl) {
+                summaryEl.classList.add('hidden');
+                summaryEl.textContent = '';
+            }
+            return;
+        }
+        const totalSeconds = tracks.reduce((sum, track) => sum + (parseInt(track.duration_seconds, 10) || 0), 0);
+        const totalMinutes = Math.round(totalSeconds / 60);
+        summaryEl.classList.remove('hidden');
+        summaryEl.textContent = `${musicI18n.totalPlayTime}: ${totalMinutes}m · ${tracks.length} ${musicI18n.tracks}`;
+    }
+
+    function summarizeCounts(tracks, key) {
+        const counts = {};
+        (tracks || []).forEach(track => {
+            let value = track?.[key];
+            if (key === 'lyrics') {
+                value = String(value || '').trim() ? 'with_lyrics' : 'instrumental_lyrics_off';
+            }
+            value = String(value || 'unknown').trim() || 'unknown';
+            counts[value] = (counts[value] || 0) + 1;
+        });
+        return counts;
+    }
+
+    function summarizeDurations(tracks) {
+        const counts = {};
+        (tracks || []).forEach(track => {
+            const seconds = parseInt(track?.duration_seconds || 0, 10) || 0;
+            const label = seconds ? `${Math.round(seconds / 60)}m` : 'unknown';
+            counts[label] = (counts[label] || 0) + 1;
+        });
+        return counts;
+    }
+
+    function formatCountSummary(counts) {
+        return Object.entries(counts || {}).map(([key, value]) => `${key}: ${value}`).join(' / ');
+    }
+
+    function buildExpectedCounts(raw, total, formatter = (value) => String(value)) {
+        if (!raw || !total) return {};
+        const counts = {};
+        const addValue = (value) => {
+            const key = formatter(value);
+            counts[key] = (counts[key] || 0) + 1;
+        };
+        if (Array.isArray(raw) && raw.length) {
+            for (let i = 0; i < total; i++) addValue(raw[i % raw.length]);
+        } else if (typeof raw === 'object') {
+            Object.entries(raw).forEach(([key, value]) => {
+                const count = parseInt(value, 10) || 0;
+                if (count > 0) counts[formatter(key)] = count;
+            });
+        }
+        return counts;
+    }
+
+    function expectedSequenceSummary(raw, total, formatter = (value) => String(value)) {
+        return formatCountSummary(buildExpectedCounts(raw, total, formatter));
+    }
+
+    function expectedLyricsSummary(percent, total) {
+        const withLyrics = Math.round((Math.max(0, parseInt(percent || 0, 10)) / 100) * total);
+        return formatCountSummary({
+            with_lyrics: withLyrics,
+            instrumental_lyrics_off: Math.max(0, total - withLyrics),
+        });
+    }
+
+    function buildExpectedLyricsCounts(percent, total) {
+        const withLyrics = Math.round((Math.max(0, parseInt(percent || 0, 10)) / 100) * total);
+        return {
+            with_lyrics: withLyrics,
+            instrumental_lyrics_off: Math.max(0, total - withLyrics),
+        };
+    }
+
+    function expectedDurationSummary(distribution, total) {
+        if (!distribution || !total) return '';
+        if (Array.isArray(distribution.sequence)) {
+            return expectedSequenceSummary(distribution.sequence, total, value => `${Math.round((parseInt(value, 10) || 0) / 60)}m`);
+        }
+        if (distribution.options && typeof distribution.options === 'object') {
+            const counts = {};
+            Object.entries(distribution.options).forEach(([key, value]) => {
+                const count = parseInt(value, 10) || 0;
+                if (count > 0) counts[`${Math.round((parseInt(key, 10) || 0) / 60)}m`] = count;
+            });
+            return formatCountSummary(counts);
+        }
+        return '';
+    }
+
+    function buildExpectedDurationCounts(distribution, total) {
+        if (!distribution || !total) return {};
+        if (Array.isArray(distribution.sequence)) {
+            return buildExpectedCounts(distribution.sequence, total, value => `${Math.round((parseInt(value, 10) || 0) / 60)}m`);
+        }
+        if (distribution.options && typeof distribution.options === 'object') {
+            const counts = {};
+            Object.entries(distribution.options).forEach(([key, value]) => {
+                const count = parseInt(value, 10) || 0;
+                if (count > 0) counts[`${Math.round((parseInt(key, 10) || 0) / 60)}m`] = count;
+            });
+            return counts;
+        }
+        return {};
+    }
+
+    function compareCountSets(expectedCounts, actualCounts, totalTracks) {
+        const keys = Array.from(new Set([...Object.keys(expectedCounts || {}), ...Object.keys(actualCounts || {})]));
+        let maxDelta = 0;
+        keys.forEach(key => {
+            const expected = expectedCounts?.[key] || 0;
+            const actual = actualCounts?.[key] || 0;
+            maxDelta = Math.max(maxDelta, Math.abs(expected - actual));
+        });
+        if (!keys.length || !totalTracks) return { level: 'ok', maxDelta: 0 };
+        const criticalThreshold = Math.max(3, Math.ceil(totalTracks * 0.15));
+        const warningThreshold = Math.max(2, Math.ceil(totalTracks * 0.08));
+        if (maxDelta >= criticalThreshold) return { level: 'critical', maxDelta };
+        if (maxDelta >= warningThreshold) return { level: 'warning', maxDelta };
+        if (maxDelta > 0) return { level: 'info', maxDelta };
+        return { level: 'ok', maxDelta: 0 };
+    }
+
+    function findOverrepresentedValues(expectedCounts, actualCounts) {
+        const values = [];
+        const keys = Array.from(new Set([...Object.keys(expectedCounts || {}), ...Object.keys(actualCounts || {})]));
+        keys.forEach(key => {
+            const expected = expectedCounts?.[key] || 0;
+            const actual = actualCounts?.[key] || 0;
+            if (actual > expected) values.push(key);
+        });
+        return values;
+    }
+
+    function markHighlightedTracks(tracks, key, values) {
+        (tracks || []).forEach((track, index) => {
+            let value = track?.[key];
+            if (key === 'lyrics') {
+                value = String(value || '').trim() ? 'with_lyrics' : 'instrumental_lyrics_off';
+            } else if (key === 'duration_seconds') {
+                value = `${Math.round((parseInt(value || 0, 10) || 0) / 60)}m`;
+            }
+            if (values.includes(String(value || 'unknown').trim() || 'unknown')) {
+                highlightedTrackIndexes.add(index);
+            }
+        });
+    }
+
+    function applyTrackHighlights() {
+        const list = document.getElementById('tracksList');
+        if (!list) return;
+        Array.from(list.querySelectorAll('.track-card')).forEach((card, index) => {
+            if (!(card instanceof HTMLElement)) return;
+            if (highlightedTrackIndexes.has(index)) {
+                card.style.borderColor = '#fbbf24';
+                card.style.background = 'rgba(251,191,36,0.08)';
+            } else {
+                card.style.borderColor = '';
+                card.style.background = '';
+            }
+        });
+    }
+
+    function buildRepeatedSequence(raw, total, fallbackValue) {
+        const values = [];
+        if (Array.isArray(raw)) {
+            raw.forEach(item => {
+                const value = String(item || '').trim();
+                if (value) values.push(value);
+            });
+        } else if (raw && typeof raw === 'object') {
+            Object.entries(raw).forEach(([key, count]) => {
+                const value = String(key || '').trim();
+                const repeat = Math.max(0, parseInt(count, 10) || 0);
+                for (let i = 0; i < repeat; i++) {
+                    if (value) values.push(value);
+                }
+            });
+        } else if (typeof raw === 'string') {
+            raw.split(',').map(item => item.trim()).filter(Boolean).forEach(value => values.push(value));
+        }
+        if (!values.length && fallbackValue) values.push(String(fallbackValue));
+        const sequence = [];
+        while (values.length && sequence.length < total) {
+            sequence.push(values[sequence.length % values.length]);
+        }
+        return sequence;
+    }
+
+    function buildDurationSequence(distribution, total, fallbackSeconds) {
+        if (!distribution || !total) return Array.from({ length: total }, () => fallbackSeconds);
+        if (Array.isArray(distribution.sequence)) {
+            const sequence = distribution.sequence
+                .map(value => parseInt(value, 10))
+                .filter(value => Number.isFinite(value) && value > 0);
+            if (sequence.length) {
+                const expanded = [];
+                while (expanded.length < total) {
+                    expanded.push(sequence[expanded.length % sequence.length]);
+                }
+                return expanded.slice(0, total);
+            }
+        }
+        if (distribution.options && typeof distribution.options === 'object') {
+            const weighted = [];
+            Object.entries(distribution.options).forEach(([key, count]) => {
+                const duration = parseInt(key, 10);
+                const repeat = Math.max(0, parseInt(count, 10) || 0);
+                if (!Number.isFinite(duration) || duration <= 0) return;
+                for (let i = 0; i < repeat; i++) weighted.push(duration);
+            });
+            if (weighted.length) {
+                const expanded = [];
+                while (expanded.length < total) {
+                    expanded.push(weighted[expanded.length % weighted.length]);
+                }
+                return expanded.slice(0, total);
+            }
+        }
+        return Array.from({ length: total }, () => fallbackSeconds);
+    }
+
+    function defaultRebalanceScopes() {
+        return { genre: true, duration: true, lyrics: true, vocal: true };
+    }
+
+    function getRebalanceScopesFromModal() {
+        const fallback = defaultRebalanceScopes();
+        const read = (id, key) => {
+            const el = document.getElementById(id);
+            return el ? !!el.checked : fallback[key];
+        };
+        return {
+            genre: read('rebalanceScopeGenre', 'genre'),
+            duration: read('rebalanceScopeDuration', 'duration'),
+            lyrics: read('rebalanceScopeLyrics', 'lyrics'),
+            vocal: read('rebalanceScopeVocal', 'vocal'),
+        };
+    }
+
+    function setRebalanceScopeInputs(scopes = defaultRebalanceScopes()) {
+        const pairs = [
+            ['rebalanceScopeGenre', 'genre'],
+            ['rebalanceScopeDuration', 'duration'],
+            ['rebalanceScopeLyrics', 'lyrics'],
+            ['rebalanceScopeVocal', 'vocal'],
+        ];
+        pairs.forEach(([id, key]) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = scopes[key] !== false;
+        });
+    }
+
+    function hasAnyRebalanceScope(scopes) {
+        return !!(scopes?.genre || scopes?.duration || scopes?.lyrics || scopes?.vocal);
+    }
+
+    function buildRebalancedTrackDrafts(scopes = defaultRebalanceScopes(), sourceTracks = null) {
+        const tracks = sourceTracks || currentPlan?.tracks || [];
+        const total = tracks.length;
+        const config = collectConfig();
+        const fallbackGenre = config.genre || currentPlan?.genre || 'lofi';
+        const fallbackVocalMode = config.vocal_mode || 'instrumental';
+        const fallbackGender = vocalGender || 'any';
+        const fallbackDuration = Math.max(180, Math.round((config.playlist_duration_seconds || total * 180) / Math.max(1, total)));
+        const genreSequence = buildRepeatedSequence(expectedDistributionConfig.genre_mix, total, fallbackGenre);
+        const vocalSequence = buildRepeatedSequence(expectedDistributionConfig.vocal_mode_distribution, total, fallbackVocalMode);
+        const genderSequence = buildRepeatedSequence(expectedDistributionConfig.vocal_gender_distribution, total, fallbackGender);
+        const durationSequence = buildDurationSequence(expectedDistributionConfig.duration_distribution, total, fallbackDuration);
+        const lyricsTarget = Math.max(0, Math.min(total, Math.round(((parseInt(expectedDistributionConfig.lyrics_ratio_percent || 0, 10) || 0) / 100) * total)));
+
+        return tracks.map((track, index) => {
+            const nextTrack = { ...track };
+            if (scopes.genre) {
+                nextTrack.genre = genreSequence[index] || nextTrack.genre || fallbackGenre;
+            }
+            if (scopes.vocal) {
+                nextTrack.vocal_mode = vocalSequence[index] || nextTrack.vocal_mode || fallbackVocalMode;
+                nextTrack.vocalist_gender = genderSequence[index] || nextTrack.vocalist_gender || fallbackGender;
+            }
+            if (scopes.duration) {
+                nextTrack.duration_seconds = durationSequence[index] || nextTrack.duration_seconds || fallbackDuration;
+            }
+
+            if (scopes.lyrics) {
+                const shouldHaveLyrics = index < lyricsTarget && nextTrack.vocal_mode !== 'instrumental';
+                if (shouldHaveLyrics) {
+                    if (!String(nextTrack.lyrics || '').trim()) {
+                        nextTrack.lyrics = `[Verse]\n${nextTrack.title || `Track ${String(index + 1).padStart(2, '0')}`}\n\n[Chorus]\nOriginal safe lyrics`;
+                    }
+                } else {
+                    nextTrack.lyrics = '';
+                }
+            }
+            return nextTrack;
+        });
+    }
+
+    function buildTrackChangeRows(beforeTracks, afterTracks) {
+        const rows = [];
+        (beforeTracks || []).forEach((beforeTrack, index) => {
+            const afterTrack = afterTracks?.[index];
+            if (!afterTrack) return;
+            const changes = [];
+            if (String(beforeTrack.genre || '') !== String(afterTrack.genre || '')) {
+                changes.push(`\uC7A5\uB974: ${beforeTrack.genre || '-'} -> ${afterTrack.genre || '-'}`);
+            }
+            if (String(beforeTrack.vocal_mode || '') !== String(afterTrack.vocal_mode || '')) {
+                changes.push(`\uBCF4\uCEEC \uBAA8\uB4DC: ${beforeTrack.vocal_mode || '-'} -> ${afterTrack.vocal_mode || '-'}`);
+            }
+            if (String(beforeTrack.vocalist_gender || '') !== String(afterTrack.vocalist_gender || '')) {
+                changes.push(`\uAC00\uC218 \uC131\uBCC4: ${beforeTrack.vocalist_gender || '-'} -> ${afterTrack.vocalist_gender || '-'}`);
+            }
+            if (parseInt(beforeTrack.duration_seconds || 0, 10) !== parseInt(afterTrack.duration_seconds || 0, 10)) {
+                changes.push(`\uAE38\uC774: ${Math.round((beforeTrack.duration_seconds || 0) / 60)}m -> ${Math.round((afterTrack.duration_seconds || 0) / 60)}m`);
+            }
+            const beforeLyrics = String(beforeTrack.lyrics || '').trim() ? 'on' : 'off';
+            const afterLyrics = String(afterTrack.lyrics || '').trim() ? 'on' : 'off';
+            if (beforeLyrics !== afterLyrics) {
+                changes.push(`\uAC00\uC0AC: ${beforeLyrics} -> ${afterLyrics}`);
+            }
+            if (changes.length) {
+                rows.push({
+                    index,
+                    title: afterTrack.title || beforeTrack.title || `Track ${String(index + 1).padStart(2, '0')}`,
+                    changes,
+                });
+            }
+        });
+        return rows;
+    }
+    function closeRebalancePreview() {
+        pendingRebalanceTracks = null;
+        pendingRebalanceSourceTracks = null;
+        const modal = document.getElementById('rebalancePreviewModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function renderRebalancePreviewRows(changeRows) {
+        const summary = document.getElementById('rebalancePreviewSummary');
+        const list = document.getElementById('rebalancePreviewList');
+        if (!summary || !list) return;
+        if (!hasAnyRebalanceScope(getRebalanceScopesFromModal())) {
+            summary.textContent = 'No rebalance scope selected. Select at least one option to apply.';
+            list.innerHTML = '';
+            return;
+        }
+        summary.textContent = `${changeRows.length} track(s) will change for the selected rebalance scope. Titles, moods, and prompts stay unchanged.`;
+        list.innerHTML = changeRows.length ? changeRows.map(row => `
+            <div class="track-card p-3 space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-sm font-bold truncate" style="color:var(--atl-text);">${escapeHtml(row.title)}</p>
+                    <span class="text-[10px]" style="color:var(--atl-sub);">Track ${String(row.index + 1).padStart(2, '0')}</span>
+                </div>
+                <div class="text-[11px] space-y-1" style="color:var(--atl-sub);">
+                    ${row.changes.map(change => `<div>${escapeHtml(change)}</div>`).join('')}
+                </div>
+            </div>
+        `).join('') : '<p class="text-xs text-center py-4" style="color:var(--atl-sub);">No tracks will change for the selected scope.</p>';
+    }
+    function refreshRebalancePreviewFromScopes() {
+        if (!Array.isArray(pendingRebalanceSourceTracks) || !pendingRebalanceSourceTracks.length) return;
+        const scopes = getRebalanceScopesFromModal();
+        pendingRebalanceTracks = buildRebalancedTrackDrafts(scopes, pendingRebalanceSourceTracks);
+        renderRebalancePreviewRows(buildTrackChangeRows(pendingRebalanceSourceTracks, pendingRebalanceTracks));
+    }
+
+    function openRebalancePreview(changeRows, nextTracks, sourceTracks) {
+        pendingRebalanceSourceTracks = (sourceTracks || currentPlan?.tracks || []).map(track => ({ ...track }));
+        pendingRebalanceTracks = nextTracks;
+        setRebalanceScopeInputs(defaultRebalanceScopes());
+        const modal = document.getElementById('rebalancePreviewModal');
+        if (!modal) return;
+        renderRebalancePreviewRows(changeRows);
+        modal.classList.remove('hidden');
+    }
+
+    function applyRebalancePreview() {
+        if (!hasAnyRebalanceScope(getRebalanceScopesFromModal())) {
+            Utils.showToast('Select at least one rebalance option.', 'warning');
+            return;
+        }
+        if (!Array.isArray(pendingRebalanceTracks) || !pendingRebalanceTracks.length || !currentPlan) {
+            closeRebalancePreview();
+            return;
+        }
+        currentPlan.tracks = pendingRebalanceTracks;
+        currentPlan.tracks.forEach((_, index) => syncGeneratedTrackFromPlan(index));
+
+        renderPlan(currentPlan, { resetGeneratedTracks: false });
+        renderGeneratedTracks();
+        saveEditedPlan();
+        saveGeneratedTracks();
+        closeRebalancePreview();
+        Utils.showToast('Selected rebalance options were applied.', 'success');
+    }
+
+    function rebalancePlanToTemplate() {
+        const tracks = currentPlan?.tracks || [];
+        if (!tracks.length) {
+            Utils.showToast(musicI18n.noPlan, 'warning');
+            return;
+        }
+        if (!expectedDistributionConfig) {
+            Utils.showToast('No template distribution settings are available.', 'warning');
+            return;
+        }
+
+        const scopes = defaultRebalanceScopes();
+        const nextTracks = buildRebalancedTrackDrafts(scopes, tracks);
+        const changeRows = buildTrackChangeRows(tracks, nextTracks);
+        if (!changeRows.length) {
+            Utils.showToast('Already matches the template distribution.', 'success');
+            return;
+        }
+        openRebalancePreview(changeRows, nextTracks, tracks);
+    }
+    function renderDistributionSummary() {
+        const summaryEl = document.getElementById('distributionSummary');
+        const tracks = currentPlan?.tracks || [];
+        if (!summaryEl || !tracks.length) {
+            if (summaryEl) {
+                summaryEl.classList.add('hidden');
+                summaryEl.innerHTML = '';
+            }
+            highlightedTrackIndexes = new Set();
+            applyTrackHighlights();
+            return;
+        }
+        highlightedTrackIndexes = new Set();
+        const totalTracks = tracks.length;
+        const actualGenre = formatCountSummary(summarizeCounts(tracks, 'genre'));
+        const actualVocalMode = formatCountSummary(summarizeCounts(tracks, 'vocal_mode'));
+        const actualSinger = formatCountSummary(summarizeCounts(tracks, 'vocalist_gender'));
+        const actualLyrics = formatCountSummary(summarizeCounts(tracks, 'lyrics'));
+        const actualDuration = formatCountSummary(summarizeDurations(tracks));
+        const actualGenreCounts = summarizeCounts(tracks, 'genre');
+        const actualVocalModeCounts = summarizeCounts(tracks, 'vocal_mode');
+        const actualSingerCounts = summarizeCounts(tracks, 'vocalist_gender');
+        const actualLyricsCounts = summarizeCounts(tracks, 'lyrics');
+        const actualDurationCounts = summarizeDurations(tracks);
+
+        const expectedGenre = expectedSequenceSummary(expectedDistributionConfig?.genre_mix, totalTracks);
+        const expectedVocalMode = expectedSequenceSummary(expectedDistributionConfig?.vocal_mode_distribution, totalTracks);
+        const expectedSinger = expectedSequenceSummary(expectedDistributionConfig?.vocal_gender_distribution, totalTracks);
+        const expectedLyrics = expectedDistributionConfig ? expectedLyricsSummary(expectedDistributionConfig.lyrics_ratio_percent, totalTracks) : '';
+        const expectedDuration = expectedDurationSummary(expectedDistributionConfig?.duration_distribution, totalTracks);
+        const expectedGenreCounts = buildExpectedCounts(expectedDistributionConfig?.genre_mix, totalTracks);
+        const expectedVocalModeCounts = buildExpectedCounts(expectedDistributionConfig?.vocal_mode_distribution, totalTracks);
+        const expectedSingerCounts = buildExpectedCounts(expectedDistributionConfig?.vocal_gender_distribution, totalTracks);
+        const expectedLyricsCounts = buildExpectedLyricsCounts(expectedDistributionConfig?.lyrics_ratio_percent, totalTracks);
+        const expectedDurationCounts = buildExpectedDurationCounts(expectedDistributionConfig?.duration_distribution, totalTracks);
+
+        const comparisons = [
+            { label: 'Genre mix differs from template', result: compareCountSets(expectedGenreCounts, actualGenreCounts, totalTracks) },
+            { label: 'Vocal mode mix differs from template', result: compareCountSets(expectedVocalModeCounts, actualVocalModeCounts, totalTracks) },
+            { label: 'Singer mix differs from template', result: compareCountSets(expectedSingerCounts, actualSingerCounts, totalTracks) },
+            { label: 'Lyrics ratio differs from template', result: compareCountSets(expectedLyricsCounts, actualLyricsCounts, totalTracks) },
+            { label: 'Duration mix differs from template', result: compareCountSets(expectedDurationCounts, actualDurationCounts, totalTracks) },
+        ].filter(item => item.result.level !== 'ok');
+
+        if (compareCountSets(expectedGenreCounts, actualGenreCounts, totalTracks).level !== 'info' && Object.keys(expectedGenreCounts).length) {
+            markHighlightedTracks(tracks, 'genre', findOverrepresentedValues(expectedGenreCounts, actualGenreCounts));
+        }
+        if (compareCountSets(expectedVocalModeCounts, actualVocalModeCounts, totalTracks).level !== 'info' && Object.keys(expectedVocalModeCounts).length) {
+            markHighlightedTracks(tracks, 'vocal_mode', findOverrepresentedValues(expectedVocalModeCounts, actualVocalModeCounts));
+        }
+        if (compareCountSets(expectedSingerCounts, actualSingerCounts, totalTracks).level !== 'info' && Object.keys(expectedSingerCounts).length) {
+            markHighlightedTracks(tracks, 'vocalist_gender', findOverrepresentedValues(expectedSingerCounts, actualSingerCounts));
+        }
+        if (compareCountSets(expectedLyricsCounts, actualLyricsCounts, totalTracks).level !== 'info' && Object.keys(expectedLyricsCounts).length) {
+            markHighlightedTracks(tracks, 'lyrics', findOverrepresentedValues(expectedLyricsCounts, actualLyricsCounts));
+        }
+        if (compareCountSets(expectedDurationCounts, actualDurationCounts, totalTracks).level !== 'info' && Object.keys(expectedDurationCounts).length) {
+            markHighlightedTracks(tracks, 'duration_seconds', findOverrepresentedValues(expectedDurationCounts, actualDurationCounts));
+        }
+
+        const warningHtml = comparisons.map(item => {
+            const color = item.result.level === 'critical' ? '#f87171' : item.result.level === 'warning' ? '#fbbf24' : '#93c5fd';
+            const tag = item.result.level === 'critical' ? 'critical' : item.result.level === 'warning' ? 'warning' : 'info';
+            return `<span style="display:inline-block;margin-right:8px;color:${color};"><strong>${tag}</strong> ${item.label} (delta ${item.result.maxDelta})</span>`;
+        }).join('');
+
+        summaryEl.classList.remove('hidden');
+        summaryEl.innerHTML = `
+            ${comparisons.length ? `<div>${warningHtml}</div>` : ''}
+            <div><strong>Genre Mix</strong>: ${actualGenre}${expectedGenre ? ` <span style="opacity:0.8;">(expected: ${expectedGenre})</span>` : ''}</div>
+            <div><strong>Vocal Mode</strong>: ${actualVocalMode}${expectedVocalMode ? ` <span style="opacity:0.8;">(expected: ${expectedVocalMode})</span>` : ''}</div>
+            <div><strong>Singer Mix</strong>: ${actualSinger}${expectedSinger ? ` <span style="opacity:0.8;">(expected: ${expectedSinger})</span>` : ''}</div>
+            <div><strong>Lyrics</strong>: ${actualLyrics}${expectedLyrics ? ` <span style="opacity:0.8;">(expected: ${expectedLyrics})</span>` : ''}</div>
+            <div><strong>Duration Mix</strong>: ${actualDuration}${expectedDuration ? ` <span style="opacity:0.8;">(expected: ${expectedDuration})</span>` : ''}</div>
+        `;
+        applyTrackHighlights();
+    }
+
+    async function saveEditedPlan(showToast = false) {
+        const projectId = getCurrentProject();
+        if (!projectId || !currentPlan) return;
+        try {
+            const res = await fetch('/api/music/plan/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    plan: currentPlan,
+                    config: collectConfig(),
+                }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.detail || musicI18n.savePlanFailed);
+            }
+            if (showToast) Utils.showToast(musicI18n.trackPlanSaved, 'success');
+        } catch (e) {
+            console.warn('saveEditedPlan', e);
+            if (showToast) Utils.showToast(e.message || musicI18n.savePlanFailed, 'error');
+        }
+    }
+
+    function syncGeneratedTrackFromPlan(index) {
+        const planTrack = currentPlan?.tracks?.[index];
+        if (!planTrack) return;
+        if (generatedTracks[index]) {
+            generatedTracks[index].title = planTrack.title || generatedTracks[index].title;
+            generatedTracks[index].prompt = planTrack.prompt || '';
+            generatedTracks[index].duration_seconds = planTrack.duration_seconds || generatedTracks[index].duration_seconds;
+            generatedTracks[index].mood = planTrack.mood || '';
+        }
+    }
+
+    function updateTrackTitle(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].title = value;
+            syncGeneratedTrackFromPlan(index);
+            renderGeneratedTracks();
+            updateTracksSummary();
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
+    function updateTrackMood(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].mood = value;
+            syncGeneratedTrackFromPlan(index);
+            renderGeneratedTracks();
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
+    function updateTrackInstruments(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].instruments = String(value || '')
+                .split(',')
+                .map(item => item.trim())
+                .filter(Boolean);
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
+    function updateTrackLyrics(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].lyrics = value;
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
+    function updateTrackVocalMode(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].vocal_mode = value;
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
+    function updateTrackVocalGender(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].vocalist_gender = value;
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
     function updateTrackPrompt(index, value) {
-        if (currentPlan?.tracks?.[index]) currentPlan.tracks[index].prompt = value;
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].prompt = value;
+            syncGeneratedTrackFromPlan(index);
+            renderGeneratedTracks();
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
     }
 
     function updateTrackDuration(index, value) {
-        if (currentPlan?.tracks?.[index]) currentPlan.tracks[index].duration_seconds = parseInt(value);
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].duration_seconds = parseInt(value);
+            syncGeneratedTrackFromPlan(index);
+            renderGeneratedTracks();
+            updateTracksSummary();
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
+    }
+
+    function updateTrackStatus(index, value) {
+        if (currentPlan?.tracks?.[index]) {
+            currentPlan.tracks[index].status = String(value || '').trim() || 'planned';
+            renderDistributionSummary();
+            saveEditedPlan();
+        }
     }
 
     function goToTrackGeneration() {
-        document.getElementById('generationPanel').classList.remove('hidden');
-        document.getElementById('generationPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (!currentPlan?.tracks?.length) {
+            Utils.showToast(musicI18n.noPlan, 'warning');
+            return;
+        }
+        if (!generatedTracks.length) {
+            generatedTracks = currentPlan.tracks.map((t, i) => ({
+                title: t.title || `Track ${String(i + 1).padStart(2, '0')}`,
+                mood: t.mood || '',
+                prompt: t.prompt || '',
+                duration_seconds: t.duration_seconds || 180,
+                status: 'ready',
+                selected: true,
+                index: t.track_index != null ? t.track_index : i,
+            }));
+            renderGeneratedTracks();
+            document.getElementById('genProgress').textContent = `0 / ${generatedTracks.length}`;
+            saveGeneratedTracks();
+        }
+        saveEditedPlan(false);
+        window.location.href = '/audio-gen';
     }
 
     async function previewTrack(index) {
@@ -809,7 +1859,7 @@
         const btn = document.getElementById(`previewBtn_${index}`);
         const prompt = document.getElementById(`trackPrompt_${index}`)?.value;
         const dur = currentPlan?.tracks?.[index]?.duration_seconds || 20;
-        btn.textContent = '⏳';
+        btn.textContent = '...';
         btn.disabled = true;
         try {
             const res = await fetch('/api/music/preview-track', {
@@ -818,37 +1868,83 @@
                 body: JSON.stringify({ project_id: projectId, track_index: index, prompt, duration_seconds: Math.min(dur, 20) }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || i18n.error);
+            if (!res.ok) throw new Error(data.detail || musicI18n.error);
             const audio = document.getElementById(`previewAudio_${index}`);
             audio.src = data.audio_url + '?t=' + Date.now();
             audio.classList.remove('hidden');
-            audio.play();
+            try {
+                await audio.play();
+            } catch (_playError) {
+                // Browser autoplay can be blocked; keep the player visible.
+            }
         } catch (e) {
-            Utils.showToast(e.message || i18n.error, 'error');
+            Utils.showToast(e.message || musicI18n.error, 'error');
         } finally {
-            btn.textContent = i18n.preview;
+            btn.textContent = musicI18n.preview;
             btn.disabled = false;
         }
     }
 
     let generatedTracks = [];
 
+    async function saveGeneratedTracks() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            await fetch('/api/music/tracks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, tracks: generatedTracks }),
+            });
+        } catch (e) {
+            console.warn('saveGeneratedTracks', e);
+        }
+    }
+
     function renderGeneratedTracks() {
         const list = document.getElementById('generatedTracksList');
         if (!generatedTracks.length) {
-            list.innerHTML = '<p class="text-xs text-center py-4" style="color:var(--atl-sub);">No tracks generated yet</p>';
+            list.innerHTML = `<p class="text-xs text-center py-4" style="color:var(--atl-sub);">${musicI18n.noTracks}</p>`;
+            updateFinalRenderAvailability();
             return;
         }
         list.innerHTML = generatedTracks.map((t, i) => `
-            <div class="track-card p-3 flex items-center gap-3">
-                <input type="checkbox" id="selectTrack_${i}" checked onchange="updateSelectedTracks(${i}, this.checked)" class="rounded w-4 h-4">
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-bold truncate" style="color:var(--atl-text);">${escapeHtml(t.title || '')}</p>
-                    <p class="text-[9px]" style="color:var(--atl-sub);">${Math.round(t.duration_seconds / 60)}m · ${t.status || 'pending'}</p>
+            <div class="track-card p-3 space-y-2">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="selectTrack_${i}" ${t.selected === false ? '' : 'checked'} onchange="updateSelectedTracks(${i}, this.checked)" class="rounded w-4 h-4">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold truncate" style="color:var(--atl-text);">${escapeHtml(t.title || `Track ${String(i + 1).padStart(2, '0')}`)}</p>
+                        <p class="text-[9px] truncate" style="color:var(--atl-sub);">${escapeHtml(t.mood || '') || '-'}</p>
+                        <p class="text-[9px]" style="color:var(--atl-sub);">${Math.round((t.actual_duration_seconds || t.duration_seconds || 0) / 60)}m / ${t.status || 'pending'}</p>
+                    </div>
+                    <button onclick="deleteTrack(${i})" class="text-[9px] px-2 py-1 rounded" style="background:var(--atl-high);color:#ef4444;">${musicI18n.delete}</button>
                 </div>
-                <button onclick="deleteTrack(${i})" class="text-[9px] px-2 py-1 rounded" style="background:var(--atl-high);color:#ef4444;">✕</button>
+                ${t.file_path ? `<audio class="w-full h-8" controls preload="metadata" src="${escapeHtml(t.file_path)}?t=${encodeURIComponent(t.file_path)}"></audio>` : ''}
             </div>
         `).join('');
+        updateFinalRenderAvailability();
+    }
+
+    function getFinalRenderAvailability() {
+        const selected = generatedTracks.filter(t => t.selected && t.file_path);
+        const hasCover = Boolean(currentProjectSettings?.template_image_url || currentProjectSettings?.background_video_url);
+        const hasThumbnail = Boolean(currentProjectSettings?.thumbnail_url);
+        const hasTitle = Boolean(currentProjectSettings?.title || currentProjectMetadata?.titles?.[0] || currentPlan?.playlist_title);
+        const hasDescription = Boolean(currentProjectMetadata?.description || currentProjectSettings?.description);
+        const hasLocalImage = Boolean(document.getElementById('playlistImageInput')?.files?.[0]);
+        return {
+            ready: Boolean(selected.length && hasCover && hasThumbnail && hasTitle && hasDescription && hasLocalImage),
+            selected,
+        };
+    }
+
+    function updateFinalRenderAvailability() {
+        const btn = document.getElementById('renderBtn');
+        if (!btn) return;
+        const state = getFinalRenderAvailability();
+        btn.disabled = !state.ready;
+        btn.style.opacity = state.ready ? '1' : '0.5';
+        btn.style.cursor = state.ready ? 'pointer' : 'not-allowed';
     }
 
     async function startGenerateAllTracks() {
@@ -857,16 +1953,18 @@
 
         const btn = document.getElementById('generateAllBtn');
         btn.disabled = true;
-        btn.textContent = '⏳ Generating...';
+        btn.textContent = musicI18n.generatingTracks;
 
         generatedTracks = currentPlan.tracks.map((t, i) => ({
             title: t.title,
             prompt: t.prompt,
             duration_seconds: t.duration_seconds,
             status: 'pending',
+            selected: true,
             index: i,
         }));
         renderGeneratedTracks();
+        await saveGeneratedTracks();
 
         for (let i = 0; i < generatedTracks.length; i++) {
             document.getElementById('genProgress').textContent = `${i} / ${generatedTracks.length}`;
@@ -889,17 +1987,20 @@
                     generatedTracks[i].file_path = data.file_path;
                     generatedTracks[i].actual_duration_seconds = data.duration_seconds || generatedTracks[i].duration_seconds;
                     generatedTracks[i].selected = true;
+                    await saveGeneratedTracks();
                 } else {
                     generatedTracks[i].status = 'error';
+                    await saveGeneratedTracks();
                 }
             } catch (e) {
                 generatedTracks[i].status = 'error';
+                await saveGeneratedTracks();
             }
             renderGeneratedTracks();
         }
 
         btn.disabled = false;
-        btn.textContent = '▶ Generate Tracks';
+        btn.textContent = musicI18n.generateTracks;
         document.getElementById('genProgress').textContent = `${generatedTracks.length} / ${generatedTracks.length}`;
         document.getElementById('renderBtn').classList.remove('hidden');
     }
@@ -907,25 +2008,30 @@
     function updateSelectedTracks(index, checked) {
         if (generatedTracks[index]) {
             generatedTracks[index].selected = checked;
+            saveGeneratedTracks();
+            updateFinalRenderAvailability();
         }
     }
 
     function deleteTrack(index) {
         generatedTracks.splice(index, 1);
         renderGeneratedTracks();
+        saveGeneratedTracks();
+        updateFinalRenderAvailability();
     }
 
     async function renderCombinedPlaylist() {
         const projectId = getCurrentProject();
-        const selected = generatedTracks.filter(t => t.selected && t.file_path);
-        if (!selected.length) {
-            Utils.showToast('Select at least one track', 'warning');
+        const availability = getFinalRenderAvailability();
+        const selected = availability.selected;
+        if (!availability.ready) {
+            Utils.showToast('렌더링 전에 트랙, 커버, 썸네일, 메타데이터, 플레이리스트 이미지를 모두 준비해야 합니다.', 'warning');
             return;
         }
 
         const imageFile = document.getElementById('playlistImageInput')?.files?.[0];
         if (!imageFile) {
-            Utils.showToast('Select a playlist image first', 'warning');
+            Utils.showToast(musicI18n.selectImage, 'warning');
             return;
         }
 
@@ -944,10 +2050,10 @@
             const res = await fetch('/api/music/render-playlist', { method: 'POST', body: formData });
             if (res.ok) {
                 const data = await res.json();
-                Utils.showToast(`Rendering complete! (${durationMins}m)`, 'success');
+                Utils.showToast(`${musicI18n.renderComplete}! (${durationMins}m)`, 'success');
                 // Optionally: show video preview or download link
             } else {
-                Utils.showToast('Render failed', 'error');
+                Utils.showToast(musicI18n.renderFailed, 'error');
             }
         } catch (e) {
             Utils.showToast(e.message, 'error');
@@ -957,6 +2063,7 @@
     function previewImage(input) {
         const preview = document.getElementById('imagePreview');
         const file = input.files?.[0];
+        updateFinalRenderAvailability();
         if (file) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -968,3 +2075,5 @@
     }
 </script>
 {% endblock %}
+
+

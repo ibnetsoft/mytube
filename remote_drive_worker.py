@@ -24,8 +24,49 @@ except Exception:
     pass
 
 
+def _configure_ffmpeg_for_worker():
+    try:
+        import glob
+        import shutil as _shutil
+        import imageio_ffmpeg
+
+        ffmpeg_candidates = []
+        if os.getenv("IMAGEIO_FFMPEG_EXE"):
+            ffmpeg_candidates.append(os.getenv("IMAGEIO_FFMPEG_EXE"))
+        ffmpeg_candidates.extend(
+            glob.glob(
+                os.path.join(
+                    os.getcwd(),
+                    "venv",
+                    "Lib",
+                    "site-packages",
+                    "imageio_ffmpeg",
+                    "binaries",
+                    "ffmpeg*.exe",
+                )
+            )
+        )
+        if _shutil.which("ffmpeg"):
+            ffmpeg_candidates.append(_shutil.which("ffmpeg"))
+
+        ffmpeg_path = next((p for p in ffmpeg_candidates if p and os.path.exists(p)), None)
+        if not ffmpeg_path:
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+
+        if ffmpeg_path and os.path.exists(ffmpeg_path):
+            os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+            ffmpeg_dir = os.path.dirname(ffmpeg_path)
+            current_path = os.environ.get("PATH", "")
+            if ffmpeg_dir and ffmpeg_dir not in current_path.split(os.pathsep):
+                os.environ["PATH"] = current_path + os.pathsep + ffmpeg_dir if current_path else ffmpeg_dir
+            print(f"[RemoteDriveWorker] FFmpeg configured: {ffmpeg_path}")
+    except Exception as e:
+        print(f"[RemoteDriveWorker] FFmpeg setup warning: {e}")
+
+
 class RemoteDriveWorker:
     def __init__(self):
+        _configure_ffmpeg_for_worker()
         try:
             config.load_remote_keys_from_supabase()
         except Exception as e:

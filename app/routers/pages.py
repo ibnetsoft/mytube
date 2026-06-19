@@ -1,6 +1,6 @@
-"""
-페이지 라우터 — HTML 템플릿 응답 전용
-templates 인스턴스는 main.py에서 주입 (순환 import 방지)
+﻿"""
+?섏씠吏 ?쇱슦????HTML ?쒗뵆由??묐떟 ?꾩슜
+templates ?몄뒪?댁뒪??main.py?먯꽌 二쇱엯 (?쒗솚 import 諛⑹?)
 """
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,7 +10,7 @@ import database as db
 
 router = APIRouter(tags=["Pages"])
 
-# main.py에서 init_pages(templates) 호출 시 주입
+# main.py?먯꽌 init_pages(templates) ?몄텧 ??二쇱엯
 _templates: Optional[Jinja2Templates] = None
 
 def init_pages(templates: Jinja2Templates):
@@ -37,7 +37,7 @@ async def page_index(request: Request):
 
 @router.get("/projects", response_class=HTMLResponse)
 async def page_projects(request: Request):
-    return _render(request, "pages/projects.html", "projects", "내 프로젝트")
+    return _render(request, "pages/projects.html", "projects", "프로젝트")
 
 @router.get("/script-plan", response_class=HTMLResponse)
 async def page_script_plan(request: Request):
@@ -56,6 +56,9 @@ async def page_script_gen(request: Request):
 
 @router.get("/image-gen", response_class=HTMLResponse)
 async def page_image_gen(request: Request):
+    app_mode = db.get_global_setting("app_mode", "longform")
+    if app_mode == "longform_music":
+        return _render(request, "pages/music_cover.html", "image-gen", "커버 이미지")
     return _render(request, "pages/image_gen.html", "image-gen", "이미지 생성")
 
 @router.get("/image-crop", response_class=HTMLResponse)
@@ -64,11 +67,14 @@ async def page_image_crop(request: Request):
 
 @router.get("/audio-gen", response_class=HTMLResponse)
 async def page_audio_gen(request: Request):
+    app_mode = db.get_global_setting("app_mode", "longform")
+    if app_mode == "longform_music":
+        return _render(request, "pages/music_tracks.html", "audio-gen", "트랙 관리")
     return _render(request, "pages/audio_gen.html", "audio-gen", "오디오 생성")
 
 @router.get("/video-gen", response_class=HTMLResponse)
 async def page_video_gen(request: Request):
-    return _render(request, "pages/video_gen.html", "video-gen", "동영상 생성")
+    return _render(request, "pages/video_gen.html", "video-gen", "영상 생성")
 
 @router.get("/tts", response_class=HTMLResponse)
 async def page_tts(request: Request):
@@ -76,11 +82,27 @@ async def page_tts(request: Request):
 
 @router.get("/render", response_class=HTMLResponse)
 async def page_render(request: Request):
+    app_mode = db.get_global_setting("app_mode", "longform")
+    if app_mode == "longform_music":
+        return _render(request, "pages/music_render.html", "render", "렌더링")
     return _render(request, "pages/render.html", "render", "영상 렌더링")
 
 @router.get("/video-upload", response_class=HTMLResponse)
 async def page_video_upload(request: Request):
     from services.auth_service import auth_service
+    app_mode = db.get_global_setting("app_mode", "longform")
+    if app_mode == "longform_music":
+        return _templates.TemplateResponse(
+            request=request,
+            name="pages/music_video_upload.html",
+            context={
+                "page": "video-upload",
+                "title": "예약 업로드",
+                "is_independent": auth_service.is_independent(),
+                "membership": auth_service.get_membership(),
+                "token_balance": auth_service.get_token_balance()
+            }
+        )
     return _templates.TemplateResponse(
         request=request,
         name="pages/video_upload.html",
@@ -114,6 +136,9 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
 
 @router.get("/title-desc", response_class=HTMLResponse)
 async def page_title_desc(request: Request):
+    app_mode = db.get_global_setting("app_mode", "longform")
+    if app_mode == "longform_music":
+        return _render(request, "pages/music_title_desc.html", "title-desc", "제목/설명 생성")
     return _render(request, "pages/title_desc.html", "title-desc", "제목/설명 생성")
 
 @router.get("/thumbnail", response_class=HTMLResponse)
@@ -164,3 +189,4 @@ async def page_logs(request: Request):
 @router.get("/autopilot", response_class=HTMLResponse)
 async def page_autopilot(request: Request):
     return _render(request, "pages/autopilot.html", "autopilot", "오토파일럿")
+

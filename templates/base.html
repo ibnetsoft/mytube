@@ -293,7 +293,7 @@
 
             <!-- Top Fixed Header (Project Progress) -->
             <header id="projectProgressHeader"
-                style="{% if page == 'autopilot' %}display: none !important;{% endif %}"
+                style="{% if page == 'autopilot' or app_mode == 'longform_music' %}display: none !important;{% endif %}"
                 class="hidden sticky top-0 bg-[#1c2027]/95 backdrop-blur border-b border-white/5 z-30 transition-all duration-300">
                 <div class="px-6 py-3">
                     <!-- Top Row: Title & Actions -->
@@ -1254,7 +1254,7 @@
                     setVisible(navCommerce, false);
                     setVisible(navWebtoon, false);
 
-                    setVisible(navTopic, true);
+                    setVisible(navTopic, false);
                     setVisible(navRepository, false);
                     setVisible(navPlan, true);
                     setVisible(navScript, false);
@@ -1269,7 +1269,7 @@
                     setVisible(navRender, true);
                     setVisible(navTitle, true);
                     setVisible(navShorts, false);
-                    setVisible(navUpload, true);
+                    setVisible(navUpload, false);
                     setVisible(navAutopilot, true);
 
                     setNavLabel(navPlan, "{{ t('nav_music_plan') }}");

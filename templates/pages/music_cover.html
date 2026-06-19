@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .cover-card {
+        background: #232832;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+    }
+    .cover-input {
+        width: 100%;
+        background: #1c2027;
+        color: #dae2fd;
+        border: 1px solid #3b4251;
+        border-radius: 10px;
+        padding: 10px 12px;
+        outline: none;
+    }
+    .cover-input:focus { border-color: #7c93ff; }
+    .cover-btn {
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 10px 14px;
+    }
+    .cover-primary {
+        background: linear-gradient(135deg, #4f46e5, #2563eb);
+        color: white;
+    }
+    .cover-secondary {
+        background: #2a303b;
+        color: #d1d5db;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-6 py-6 space-y-5">
+    <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.18em] text-blue-300">Cover / Background</p>
+        <h1 class="text-2xl font-black text-white mt-1">롱폼뮤직 커버 이미지</h1>
+        <p id="coverMeta" class="text-sm text-gray-400 mt-2">16:9 커버와 정적 배경 이미지를 프로젝트 에셋으로 저장합니다.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <section class="cover-card p-4 space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-sm font-black text-white">유튜브 커버 16:9</h2>
+                    <p class="text-xs text-gray-400 mt-1">썸네일 전 단계의 플레이리스트 메인 이미지입니다.</p>
+                </div>
+                <button class="cover-btn cover-primary" onclick="generateMusicImage('cover')">커버 생성</button>
+            </div>
+            <textarea id="coverPrompt" rows="5" class="cover-input text-sm resize-none" placeholder="예: midnight lofi playlist cover, rainy neon city, cinematic, cozy cafe window, no text"></textarea>
+            <img id="coverPreview" class="hidden w-full rounded-xl object-cover aspect-video">
+        </section>
+
+        <section class="cover-card p-4 space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-sm font-black text-white">정적 배경 이미지</h2>
+                    <p class="text-xs text-gray-400 mt-1">렌더링에서 zoom/pan 효과를 줄 기본 배경입니다.</p>
+                </div>
+                <button class="cover-btn cover-primary" onclick="generateMusicImage('background')">배경 생성</button>
+            </div>
+            <textarea id="backgroundPrompt" rows="5" class="cover-input text-sm resize-none" placeholder="예: slow ambient night highway background, clean composition, subtle depth, no text, no people"></textarea>
+            <img id="backgroundPreview" class="hidden w-full rounded-xl object-cover aspect-video">
+        </section>
+    </div>
+
+    <section class="cover-card p-4 space-y-3">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-sm font-black text-white">현재 저장 상태</h2>
+                <p class="text-xs text-gray-400 mt-1">프로젝트에 연결된 커버와 배경 이미지를 표시합니다.</p>
+            </div>
+            <button class="cover-btn cover-secondary" onclick="loadMusicCoverState()">새로고침</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-2">
+                <p class="text-[11px] font-black uppercase tracking-[0.14em] text-gray-400">Saved Cover</p>
+                <img id="savedCover" class="hidden w-full rounded-xl object-cover aspect-video">
+                <div id="savedCoverEmpty" class="text-sm text-gray-500">저장된 커버 없음</div>
+            </div>
+            <div class="space-y-2">
+                <p class="text-[11px] font-black uppercase tracking-[0.14em] text-gray-400">Saved Background</p>
+                <img id="savedBackground" class="hidden w-full rounded-xl object-cover aspect-video">
+                <div id="savedBackgroundEmpty" class="text-sm text-gray-500">저장된 배경 없음</div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        await hydratePromptsFromProject();
+        await loadMusicCoverState();
+    });
+
+    window.addEventListener('projectChanged', async () => {
+        await hydratePromptsFromProject();
+        await loadMusicCoverState();
+    });
+
+    async function hydratePromptsFromProject() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            const [projectRes, musicRes] = await Promise.all([
+                fetch(`/api/projects/${projectId}`),
+                fetch(`/api/music/plan/${projectId}`),
+            ]);
+            const projectData = projectRes.ok ? await projectRes.json() : {};
+            const musicData = musicRes.ok ? await musicRes.json() : {};
+            const title = musicData.plan?.playlist_title || musicData.config?.playlist_title || projectData.video_title || projectData.topic || projectData.name || 'playlist';
+            document.getElementById('coverMeta').textContent = `${title} · 16:9 커버와 정적 배경을 프로젝트 에셋으로 저장합니다.`;
+            if (!document.getElementById('coverPrompt').value.trim()) {
+                document.getElementById('coverPrompt').value = `${title}, youtube music playlist cover, cinematic, premium lighting, no text, 16:9`;
+            }
+            if (!document.getElementById('backgroundPrompt').value.trim()) {
+                document.getElementById('backgroundPrompt').value = `${title}, static playlist background, subtle depth, calm atmosphere, no people, no text, 16:9`;
+            }
+        } catch (e) {
+            console.warn('hydratePromptsFromProject', e);
+        }
+    }
+
+    async function loadMusicCoverState() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/project-settings/${projectId}`);
+            const settings = await res.json();
+            toggleSavedImage('savedCover', 'savedCoverEmpty', settings.template_image_url);
+            toggleSavedImage('savedBackground', 'savedBackgroundEmpty', settings.background_video_url);
+        } catch (e) {
+            console.warn('loadMusicCoverState', e);
+        }
+    }
+
+    function toggleSavedImage(imageId, emptyId, url) {
+        const imageEl = document.getElementById(imageId);
+        const emptyEl = document.getElementById(emptyId);
+        if (url) {
+            imageEl.src = `${url}?t=${Date.now()}`;
+            imageEl.classList.remove('hidden');
+            emptyEl.classList.add('hidden');
+        } else {
+            imageEl.classList.add('hidden');
+            emptyEl.classList.remove('hidden');
+        }
+    }
+
+    async function generateMusicImage(imageType) {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택하세요.', 'warning');
+            return;
+        }
+
+        const promptEl = document.getElementById(imageType === 'cover' ? 'coverPrompt' : 'backgroundPrompt');
+        const previewEl = document.getElementById(imageType === 'cover' ? 'coverPreview' : 'backgroundPreview');
+        const prompt = promptEl.value.trim();
+        if (!prompt) {
+            Utils.showToast('프롬프트를 입력하세요.', 'warning');
+            return;
+        }
+
+        try {
+            Utils.showToast(`${imageType === 'cover' ? '커버' : '배경'} 생성 중...`, 'info');
+            const res = await fetch('/api/image/generate-music-cover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    prompt,
+                    image_type: imageType,
+                    style: 'cinematic',
+                    aspect_ratio: '16:9',
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'image generation failed');
+            previewEl.src = `${data.image_url}?t=${Date.now()}`;
+            previewEl.classList.remove('hidden');
+            await loadMusicCoverState();
+            Utils.showToast(`${imageType === 'cover' ? '커버' : '배경'} 저장 완료`, 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(e.message || '이미지 생성 실패', 'error');
+        }
+    }
+</script>
+{% endblock %}

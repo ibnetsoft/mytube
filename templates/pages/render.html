@@ -542,44 +542,58 @@
         renderQueueList();
     }
 
-    function getFilteredQueue() {
-        if (_queueFilter === 'all') return _allQueueItems;
-        return _allQueueItems.filter(p => (p.app_mode || 'longform') === _queueFilter);
+    function normalizeQueueMode(p) {
+    const raw = p.app_mode || 'longform';
+    return raw === 'longform_music' ? 'longform' : raw;
+}
+
+function getFilteredQueue() {
+    if (_queueFilter === 'all') return _allQueueItems;
+    return _allQueueItems.filter(p => normalizeQueueMode(p) === _queueFilter);
+}
+
+function renderQueueList() {
+    const list = document.getElementById('queueList');
+    const items = getFilteredQueue();
+    document.getElementById('queueCount').textContent = _allQueueItems.length;
+
+    if (items.length === 0) {
+        list.innerHTML = `<div class="text-xs text-gray-400 text-center py-3">${i18n_render.status_no_queue_projects}</div>`;
+        return;
     }
 
-    function renderQueueList() {
-        const list = document.getElementById('queueList');
-        const items = getFilteredQueue();
-        document.getElementById('queueCount').textContent = _allQueueItems.length;
-
-        if (items.length === 0) {
-            list.innerHTML = `<div class="text-xs text-gray-400 text-center py-3">${i18n_render.status_no_queue_projects}</div>`;
-            return;
-        }
-
-        list.innerHTML = items.map((p, idx) => {
-            const modeTag = p.app_mode === 'shorts'
-                ? `<span class="text-[9px] bg-purple-100 dark:bg-[#1c2027] text-purple-600 dark:text-purple-300 px-1 rounded">${i18n_render.mode_shorts}</span>`
+    list.innerHTML = items.map((p, idx) => {
+        const modeTag = p.app_mode === 'shorts'
+            ? `<span class="text-[9px] bg-purple-100 dark:bg-[#1c2027] text-purple-600 dark:text-purple-300 px-1 rounded">${i18n_render.mode_shorts}</span>`
+            : p.app_mode === 'longform_music'
+                ? `<span class="text-[9px] bg-emerald-100 dark:bg-[#1c2027] text-emerald-600 dark:text-emerald-300 px-1 rounded">음악</span>`
                 : `<span class="text-[9px] bg-blue-100 dark:bg-[#1c2027] text-blue-600 dark:text-blue-300 px-1 rounded">${i18n_render.mode_longform}</span>`;
-            const itemState = p._batchState || '';
-            const stateIcon = itemState === 'rendering' ? '<span class="animate-spin text-blue-500">⏳</span>'
-                : itemState === 'done' ? '<span class="text-green-500">✓</span>'
-                : itemState === 'failed' ? '<span class="text-red-500">✗</span>'
-                : '';
-            const displayName = p.display_name || p.name || p.topic || `${i18n_render.label_project} ${p.id}`;
-            const estTime = p.est_time ? `<span class="text-[9px] bg-[#1c2027]/50 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded shrink-0 whitespace-nowrap">⏱ ${p.est_time}</span>` : '';
-            return `<div class="queue-item ${itemState}" id="queueItem_${p.id}">
-                <input type="checkbox" class="queue-checkbox w-3 h-3" data-id="${p.id}" ${_isBatchRendering ? 'disabled' : ''}>
-                <span class="flex-1 truncate text-gray-700 dark:text-gray-300 font-medium" title="${displayName}">${displayName}</span>
-                ${modeTag}
-                ${estTime}
-                ${stateIcon}
-                <button onclick="loadProjectAndNavigate(${p.id})" class="text-[9px] text-gray-400 hover:text-blue-500 shrink-0" title="${i18n_render.btn_go_to_project}">→</button>
-            </div>`;
-        }).join('');
-    }
-
-    function toggleSelectAll() {
+        const itemState = p._batchState || '';
+        const stateIcon = itemState === 'rendering' ? '<span class="animate-spin text-blue-500">...</span>'
+            : itemState === 'done' ? '<span class="text-green-500">OK</span>'
+            : itemState === 'failed' ? '<span class="text-red-500">!</span>'
+            : '';
+        const displayName = p.display_name || p.name || p.topic || `${i18n_render.label_project} ${p.id}`;
+        const estTime = p.est_time ? `<span class="text-[9px] bg-[#1c2027]/50 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded shrink-0 whitespace-nowrap">${p.est_time}</span>` : '';
+        const queueSourceTag = p.queue_source === 'remote_drive'
+            ? `<span class="text-[9px] bg-amber-100 dark:bg-[#1c2027] text-amber-700 dark:text-amber-300 px-1 rounded">Drive</span>`
+            : '';
+        const remoteProgress = (p.remote_progress !== undefined && p.remote_progress !== null)
+            ? `<span class="text-[9px] bg-[#1c2027]/50 text-gray-500 dark:text-gray-300 px-1 py-0.5 rounded shrink-0 whitespace-nowrap">${p.remote_progress}%</span>`
+            : '';
+        return `<div class="queue-item ${itemState}" id="queueItem_${p.id}">
+            <input type="checkbox" class="queue-checkbox w-3 h-3" data-id="${p.id}" ${_isBatchRendering ? 'disabled' : ''}>
+            <span class="flex-1 truncate text-gray-700 dark:text-gray-300 font-medium" title="${displayName}">${displayName}</span>
+            ${modeTag}
+            ${queueSourceTag}
+            ${estTime}
+            ${remoteProgress}
+            ${stateIcon}
+            <button onclick="loadProjectAndNavigate(${p.id})" class="text-[9px] text-gray-400 hover:text-blue-500 shrink-0" title="${i18n_render.btn_go_to_project}">GO</button>
+        </div>`;
+    }).join('');
+}
+function toggleSelectAll() {
         const boxes = document.querySelectorAll('.queue-checkbox:not(:disabled)');
         const allChecked = Array.from(boxes).every(b => b.checked);
         boxes.forEach(b => b.checked = !allChecked);

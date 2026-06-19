@@ -32,7 +32,7 @@ def _resolve_local_asset_path(asset_url_or_path: Optional[str]) -> Optional[str]
 def _build_project_drive_metadata(project_id: int, video_file_name: str, thumbnail_file_name: Optional[str]):
     project = db.get_project(project_id) or {}
     settings = db.get_project_settings(project_id) or {}
-    metadata = db.get_metadata(project_id) or {}
+    metadata = db.get_project_metadata(project_id, settings.get("app_mode")) or {}
 
     title = (
         (metadata.get("titles") or [None])[0]
@@ -62,6 +62,69 @@ def _build_project_drive_metadata(project_id: int, video_file_name: str, thumbna
         "status": "ready_for_upload",
         "app_mode": settings.get("app_mode") or db.get_global_setting("app_mode", "longform"),
     }
+
+
+def upsert_web_admin_publishing_request(
+    project_id: int,
+    *,
+    video_url: Optional[str] = None,
+    status: str = "pending",
+    metadata_payload: Optional[dict] = None,
+):
+    project = db.get_project(project_id) or {}
+    settings = db.get_project_settings(project_id) or {}
+    email = project.get("employee_email") or auth_service.get_user_email()
+    if not email:
+        return None
+
+    user_id = web_admin_client.resolve_user_id(email=email)
+    if not user_id:
+        return None
+
+    payload_metadata = dict(metadata_payload or {})
+    payload_metadata.setdefault("project_id", project_id)
+    payload_metadata.setdefault("project_name", project.get("name"))
+    payload_metadata.setdefault("topic", project.get("topic"))
+    payload_metadata.setdefault("employee_email", email)
+    payload_metadata.setdefault("channel_id", settings.get("youtube_channel_id"))
+    payload_metadata.setdefault("preferred_channel_handle", settings.get("preferred_youtube_channel_handle"))
+    payload_metadata.setdefault("preferred_channel_name", settings.get("preferred_youtube_channel_name"))
+    payload_metadata.setdefault("privacy_status", settings.get("upload_privacy") or "private")
+    payload_metadata.setdefault("publish_at", settings.get("upload_schedule_at"))
+    payload_metadata.setdefault("app_mode", settings.get("app_mode") or db.get_global_setting("app_mode", "longform"))
+
+    payload = {
+        "user_id": user_id,
+        "video_url": video_url,
+        "metadata": payload_metadata,
+        "status": status,
+    }
+
+    existing = web_admin_client.supabase_get(
+        "publishing_requests",
+        params={
+            "select": "id,status,metadata",
+            "user_id": f"eq.{user_id}",
+            "status": "in.(pending,to_be_published,failed,published)",
+        },
+        timeout=10,
+    )
+    existing_row = None
+    if existing is not None and existing.status_code == 200:
+        for row in existing.json() or []:
+            if (row.get("metadata") or {}).get("project_id") == project_id:
+                existing_row = row
+                break
+
+    if existing_row:
+        return web_admin_client.supabase_patch(
+            "publishing_requests",
+            payload,
+            params={"id": f"eq.{existing_row.get('id')}"},
+            timeout=10,
+        )
+
+    return web_admin_client.supabase_post("publishing_requests", payload, timeout=10)
 
 
 def _get_drive_root_folder_id():
@@ -157,59 +220,24 @@ def upload_and_sync_video(project_id: int, local_video_path: str):
 
         print(f"[Sync] Google Drive project bundle uploaded: folder={project_folder.get('name')}")
 
-        user_id = web_admin_client.resolve_user_id(email=email)
-        if user_id:
-            metadata_payload = {
-                "project_id": project_id,
-                "project_name": project.get("name"),
-                "topic": project.get("topic"),
-                "title": metadata_payload["title"],
-                "description": metadata_payload["description"],
-                "tags": metadata_payload["tags"],
-                "hashtags": metadata_payload["hashtags"],
-                "employee_email": email,
-                "channel_id": settings.get("youtube_channel_id"),
-                "preferred_channel_handle": settings.get("preferred_youtube_channel_handle"),
-                "preferred_channel_name": settings.get("preferred_youtube_channel_name"),
-                "drive_folder_id": project_folder.get("id"),
-                "drive_video_file_id": (video_file or {}).get("id"),
-                "drive_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
-                "drive_metadata_file_id": (metadata_file or {}).get("id") if metadata_file else None,
-            }
-            payload = {
-                "user_id": user_id,
-                "video_url": (video_file or {}).get("webViewLink"),
-                "metadata": metadata_payload,
-                "status": "pending",
-            }
-            existing = web_admin_client.supabase_get(
-                "publishing_requests",
-                params={
-                    "select": "id,status,metadata",
-                    "user_id": f"eq.{user_id}",
-                    "status": "in.(pending,to_be_published,failed)",
-                },
-                timeout=10,
-            )
-            existing_row = None
-            if existing is not None and existing.status_code == 200:
-                for row in existing.json() or []:
-                    if (row.get("metadata") or {}).get("project_id") == project_id:
-                        existing_row = row
-                        break
-
-            if existing_row:
-                r_publish = web_admin_client.supabase_patch(
-                    "publishing_requests",
-                    payload,
-                    params={"id": f"eq.{existing_row.get('id')}"},
-                    timeout=10,
-                )
-            else:
-                r_publish = web_admin_client.supabase_post("publishing_requests", payload, timeout=10)
-
-            if r_publish is not None and r_publish.status_code in [200, 201, 204]:
-                print("[Sync] Lightweight admin index row synced to Supabase.")
+        publish_metadata = {
+            "title": metadata_payload["title"],
+            "description": metadata_payload["description"],
+            "tags": metadata_payload["tags"],
+            "hashtags": metadata_payload["hashtags"],
+            "drive_folder_id": project_folder.get("id"),
+            "drive_video_file_id": (video_file or {}).get("id"),
+            "drive_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
+            "drive_metadata_file_id": (metadata_file or {}).get("id") if metadata_file else None,
+        }
+        r_publish = upsert_web_admin_publishing_request(
+            project_id,
+            video_url=(video_file or {}).get("webViewLink"),
+            status="pending",
+            metadata_payload=publish_metadata,
+        )
+        if r_publish is not None and r_publish.status_code in [200, 201, 204]:
+            print("[Sync] Lightweight admin index row synced to Supabase.")
 
         db.update_project_setting(project_id, "is_uploaded", 1)
     except Exception as e:

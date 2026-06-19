@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .music-render-shell { background: #1c2027; }
+    .music-render-card {
+        background: #232832;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+    }
+    .music-render-input {
+        width: 100%;
+        background: #1c2027;
+        color: #dae2fd;
+        border: 1px solid #3b4251;
+        border-radius: 10px;
+        padding: 10px 12px;
+        outline: none;
+    }
+    .music-render-input:focus { border-color: #7c93ff; }
+    .music-render-btn {
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 10px 12px;
+    }
+    .music-render-btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+    .music-render-btn-secondary {
+        background: #2a303b;
+        color: #c5c5d4;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .status-chip {
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 800;
+    }
+    .status-chip.ready { background: rgba(96,165,250,0.15); color: #93c5fd; }
+    .status-chip.active { background: rgba(245,158,11,0.15); color: #fcd34d; }
+    .status-chip.done { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .status-chip.fail { background: rgba(239,68,68,0.15); color: #fca5a5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="music-render-shell min-h-[calc(100vh-8rem)]">
+    <div class="max-w-6xl mx-auto px-6 py-6 space-y-5">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <p class="text-[11px] font-black uppercase tracking-[0.18em] text-blue-300">Rendering</p>
+                <h1 class="text-2xl font-black text-white mt-1">음악 플레이리스트 렌더링</h1>
+                <p id="renderMeta" class="text-sm text-gray-400 mt-2">프로젝트를 선택하면 트랙과 커버 상태를 확인합니다.</p>
+            </div>
+            <div class="music-render-card px-4 py-3 min-w-[220px] space-y-1">
+                <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Queue Status</p>
+                <p id="queueState" class="text-sm font-bold text-white">대기 중</p>
+                <p id="queueMessage" class="text-xs text-gray-400">Google Drive 원격 렌더 큐를 사용합니다.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
+            <section class="music-render-card p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-black text-white">렌더 입력</h2>
+                        <p class="text-xs text-gray-400 mt-1">선택된 트랙, 커버/배경, 썸네일, 메타데이터가 모두 준비된 상태에서 Google Drive 렌더 큐에 전송합니다.</p>
+                    </div>
+                    <span id="renderStatusChip" class="status-chip ready">ready</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Playlist Title</label>
+                        <input id="playlistTitle" class="music-render-input" type="text" placeholder="Playlist Title">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Resolution</label>
+                        <select id="resolution" class="music-render-input">
+                            <option value="1080p">1080p</option>
+                            <option value="720p">720p</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Cover Override</label>
+                    <input id="coverInput" class="music-render-input text-xs" type="file" accept="image/*">
+                    <p class="text-xs text-gray-500">선택하지 않으면 커버 이미지 페이지에서 저장한 커버 이미지 또는 배경 영상을 사용합니다.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="music-render-card p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Tracks</p>
+                        <p id="trackCount" class="text-lg font-black text-white mt-2">0</p>
+                        <p id="trackDuration" class="text-xs text-gray-400 mt-1">0 min</p>
+                    </div>
+                    <div class="music-render-card p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Cover</p>
+                        <p id="coverState" class="text-lg font-black text-white mt-2">없음</p>
+                        <p id="coverHint" class="text-xs text-gray-400 mt-1">커버 또는 배경이 필요합니다.</p>
+                    </div>
+                    <div class="music-render-card p-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Output</p>
+                        <p id="outputState" class="text-lg font-black text-white mt-2">대기</p>
+                        <p id="outputHint" class="text-xs text-gray-400 mt-1">원격 렌더 결과를 기다리는 중입니다.</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button class="music-render-btn music-render-btn-primary" id="queueRenderBtn" onclick="queueMusicRender()">Google Drive 렌더 큐 전송</button>
+                    <button class="music-render-btn music-render-btn-secondary" onclick="reloadRenderWorkspace()">새로고침</button>
+                    <button class="music-render-btn music-render-btn-secondary" onclick="window.location.href='/audio-gen'">트랙 관리로 이동</button>
+                </div>
+            </section>
+
+            <aside class="space-y-5">
+                <section class="music-render-card p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-black text-white">선택된 트랙</h2>
+                        <span id="selectedLabel" class="text-xs text-gray-400">0 selected</span>
+                    </div>
+                    <div id="selectedTrackList" class="space-y-2 max-h-[360px] overflow-y-auto"></div>
+                </section>
+
+                <section class="music-render-card p-4 space-y-3">
+                    <h2 class="text-sm font-black text-white">렌더 상태</h2>
+                    <div class="h-2 bg-[#1c2027] rounded-full overflow-hidden">
+                        <div id="progressBar" class="h-full bg-blue-500 transition-all duration-300" style="width:0%"></div>
+                    </div>
+                    <p id="progressText" class="text-xs text-gray-400">아직 렌더 큐에 등록하지 않았습니다.</p>
+                    <a id="resultLink" href="#" target="_blank" class="hidden text-sm text-blue-300 font-bold">완료된 영상 열기</a>
+                </section>
+            </aside>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let renderPlan = null;
+    let renderTracks = [];
+    let renderSettings = null;
+    let statusPoller = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadRenderWorkspace();
+    });
+
+    window.addEventListener('projectChanged', async () => {
+        await loadRenderWorkspace();
+    });
+
+    window.addEventListener('projectStateRestored', async () => {
+        await loadRenderWorkspace();
+    });
+
+    function setStatusChip(mode, text) {
+        const chip = document.getElementById('renderStatusChip');
+        chip.className = `status-chip ${mode}`;
+        chip.textContent = text;
+    }
+
+    async function loadRenderWorkspace() {
+        const projectId = getCurrentProject();
+        clearInterval(statusPoller);
+        statusPoller = null;
+
+        if (!projectId) {
+            document.getElementById('renderMeta').textContent = '프로젝트를 먼저 선택해 주세요.';
+            document.getElementById('selectedTrackList').innerHTML = '';
+            setStatusChip('ready', 'ready');
+            return;
+        }
+
+        try {
+            const [planRes, settingsRes, projectRes] = await Promise.all([
+                fetch(`/api/music/plan/${projectId}`),
+                fetch(`/api/project-settings/${projectId}`),
+                fetch(`/api/projects/${projectId}`),
+            ]);
+            const planData = await planRes.json();
+            renderSettings = settingsRes.ok ? await settingsRes.json() : {};
+            const projectData = projectRes.ok ? await projectRes.json() : {};
+
+            if (!planRes.ok) throw new Error(planData.detail || 'plan load failed');
+
+            renderPlan = planData.plan || null;
+            renderTracks = Array.isArray(planData.generated_tracks) ? planData.generated_tracks.filter(t => t.selected !== false && t.file_path) : [];
+
+            const title = renderPlan?.playlist_title || planData.config?.playlist_title || projectData.video_title || projectData.topic || projectData.name || 'Playlist';
+            document.getElementById('playlistTitle').value = title;
+            document.getElementById('renderMeta').textContent = `${title} / ${renderTracks.length} tracks`;
+            document.getElementById('trackCount').textContent = String(renderTracks.length);
+            const totalSeconds = renderTracks.reduce((sum, track) => sum + (track.actual_duration_seconds || track.duration_seconds || 0), 0);
+            document.getElementById('trackDuration').textContent = `${Math.round(totalSeconds / 60)} min`;
+
+            const hasCover = Boolean(renderSettings?.template_image_url);
+            const hasBackground = Boolean(renderSettings?.background_video_url);
+            document.getElementById('coverState').textContent = hasCover ? '커버 준비됨' : (hasBackground ? '배경 준비됨' : '없음');
+            document.getElementById('coverHint').textContent = hasCover ? renderSettings.template_image_url : (hasBackground ? renderSettings.background_video_url : '커버 또는 배경이 필요합니다.');
+
+            renderSelectedTracks();
+            hydrateStatus(projectData);
+            statusPoller = setInterval(checkRenderStatus, 6000);
+        } catch (error) {
+            console.error(error);
+            document.getElementById('renderMeta').textContent = '렌더 정보를 불러오지 못했습니다.';
+            setStatusChip('fail', 'error');
+        }
+    }
+
+    function renderSelectedTracks() {
+        const list = document.getElementById('selectedTrackList');
+        document.getElementById('selectedLabel').textContent = `${renderTracks.length} selected`;
+        if (!renderTracks.length) {
+            list.innerHTML = `<div class="text-sm text-gray-400">렌더링할 생성 트랙이 없습니다.</div>`;
+            return;
+        }
+        list.innerHTML = renderTracks.map((track, index) => `
+            <div class="music-render-card p-3">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-sm font-black text-white truncate">${escapeHtml(track.title || `Track ${index + 1}`)}</p>
+                        <p class="text-xs text-gray-400 truncate">${escapeHtml(track.mood || '')}</p>
+                    </div>
+                    <span class="text-xs text-gray-400">${Math.round((track.actual_duration_seconds || track.duration_seconds || 0) / 60)}m</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function hydrateStatus(projectData) {
+        const projectStatus = projectData?.status || 'idle';
+        const videoPath = renderSettings?.video_path || '';
+        if (projectStatus === 'rendered' && videoPath) {
+            setStatusChip('done', 'rendered');
+            document.getElementById('queueState').textContent = '완료';
+            document.getElementById('queueMessage').textContent = '렌더 결과가 저장되었습니다.';
+            document.getElementById('outputState').textContent = '완료';
+            document.getElementById('outputHint').textContent = videoPath;
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = '렌더링 완료';
+            const link = document.getElementById('resultLink');
+            link.href = videoPath;
+            link.classList.remove('hidden');
+            return;
+        }
+        if (projectStatus === 'remote_packaging' || projectStatus === 'remote_queued') {
+            setStatusChip('active', projectStatus);
+            document.getElementById('queueState').textContent = projectStatus;
+            document.getElementById('queueMessage').textContent = renderSettings?.remote_render_message || '원격 렌더 대기 중';
+            document.getElementById('progressBar').style.width = `${parseInt(renderSettings?.remote_render_progress || 10, 10)}%`;
+            document.getElementById('progressText').textContent = renderSettings?.remote_render_message || '원격 처리 중';
+            return;
+        }
+        setStatusChip('ready', 'ready');
+        document.getElementById('queueState').textContent = '대기 중';
+        document.getElementById('queueMessage').textContent = 'Google Drive 원격 렌더 큐를 사용합니다.';
+    }
+
+    function validateRenderReadiness() {
+        const hasTracks = renderTracks.length > 0;
+        const hasVisual = Boolean(renderSettings?.template_image_url) || Boolean(renderSettings?.background_video_url) || Boolean(document.getElementById('coverInput').files?.[0]);
+        const hasThumbnail = Boolean(renderSettings?.thumbnail_url);
+        const hasTitle = Boolean((renderSettings?.title || '').trim());
+        const hasDescription = Boolean((renderSettings?.description || '').trim());
+
+        if (!hasTracks) return '렌더링할 생성 트랙이 없습니다.';
+        if (!hasVisual) return '커버 이미지 또는 배경 영상을 먼저 준비해 주세요.';
+        if (!hasThumbnail) return '썸네일 이미지를 먼저 생성해 주세요.';
+        if (!hasTitle || !hasDescription) return '제목과 설명 메타데이터를 먼저 저장해 주세요.';
+        return '';
+    }
+
+    async function queueMusicRender() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해 주세요.', 'warning');
+            return;
+        }
+        const readinessError = validateRenderReadiness();
+        if (readinessError) {
+            Utils.showToast(readinessError, 'warning');
+            return;
+        }
+
+        const coverFile = document.getElementById('coverInput').files?.[0];
+
+        const btn = document.getElementById('queueRenderBtn');
+        btn.disabled = true;
+        btn.textContent = '전송 중...';
+
+        const formData = new FormData();
+        formData.append('project_id', projectId);
+        formData.append('playlist_title', document.getElementById('playlistTitle').value || 'Playlist');
+        formData.append('render_target', 'drive_api');
+        if (coverFile) {
+            formData.append('image', coverFile);
+        }
+        renderTracks.forEach(track => formData.append('track_files', track.file_path));
+        renderTracks.forEach(track => formData.append('track_durations', Math.round(track.actual_duration_seconds || track.duration_seconds || 0)));
+
+        try {
+            const res = await fetch('/api/music/render-playlist', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'render queue failed');
+            Utils.showToast('Google Drive 렌더 큐에 등록했습니다.', 'success');
+            setStatusChip('active', 'queued');
+            document.getElementById('queueState').textContent = 'remote_queued';
+            document.getElementById('queueMessage').textContent = data.message || '원격 렌더 대기 중';
+            document.getElementById('progressText').textContent = data.message || '원격 렌더 대기 중';
+            await checkRenderStatus();
+        } catch (error) {
+            console.error(error);
+            setStatusChip('fail', 'error');
+            Utils.showToast('렌더 큐 등록에 실패했습니다.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Google Drive 렌더 큐 전송';
+        }
+    }
+
+    async function checkRenderStatus() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            const [statusRes, settingsRes] = await Promise.all([
+                fetch(`/api/video/projects/${projectId}/status`),
+                fetch(`/api/project-settings/${projectId}`),
+            ]);
+            const statusData = await statusRes.json();
+            renderSettings = settingsRes.ok ? await settingsRes.json() : renderSettings;
+            if (!statusRes.ok) return;
+
+            const projectStatus = statusData.project_status || 'idle';
+            const progress = parseInt(renderSettings?.remote_render_progress || 0, 10);
+            const message = renderSettings?.remote_render_message || '';
+            document.getElementById('queueState').textContent = projectStatus;
+            document.getElementById('queueMessage').textContent = message || projectStatus;
+            document.getElementById('progressBar').style.width = `${Math.max(0, Math.min(progress || (projectStatus === 'rendered' ? 100 : 15), 100))}%`;
+            document.getElementById('progressText').textContent = message || projectStatus;
+
+            if (projectStatus === 'rendered' && statusData.video_path) {
+                setStatusChip('done', 'rendered');
+                document.getElementById('outputState').textContent = '완료';
+                document.getElementById('outputHint').textContent = statusData.video_path;
+                const link = document.getElementById('resultLink');
+                link.href = statusData.video_path;
+                link.classList.remove('hidden');
+            } else if (projectStatus === 'failed') {
+                setStatusChip('fail', 'failed');
+            } else if (projectStatus === 'remote_packaging' || projectStatus === 'remote_queued') {
+                setStatusChip('active', projectStatus);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async function reloadRenderWorkspace() {
+        await loadRenderWorkspace();
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+</script>
+{% endblock %}

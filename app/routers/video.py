@@ -18,6 +18,7 @@ from services.video_service import video_service
 from services.storage_service import storage_service
 from services.replicate_service import replicate_service
 from app.modes import is_shorts_mode
+from services.project_publish_service import publish_project_to_youtube, queue_project_for_admin_publish
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -33,6 +34,12 @@ class RenderRequest(BaseModel):
     aspect_ratio: Optional[str] = None # [NEW] Manual aspect ratio override (16:9, 9:16)
     render_target: Optional[str] = "local" # local or drive_api
     remote_url: Optional[str] = None
+
+
+class MusicUploadRequest(BaseModel):
+    privacy_status: str = "private"
+    publish_at: Optional[str] = None
+    channel_id: Optional[int] = None
 
 
 class SubtitleGenerationRequest(BaseModel):
@@ -2045,6 +2052,33 @@ async def upload_project_to_youtube(
     except Exception as e:
         print(f"Upload failed: {e}")
         return {"status": "error", "error": str(e)}
+
+
+@router.post("/projects/{project_id}/music-upload")
+async def upload_music_project_to_youtube(project_id: int, req: MusicUploadRequest):
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    settings = db.get_project_settings(project_id) or {}
+    if (settings.get("app_mode") or "longform") != "longform_music":
+        raise HTTPException(400, "Music upload endpoint is only for longform music projects.")
+
+    if not settings.get("video_path") and not settings.get("external_video_path"):
+        raise HTTPException(400, "Rendered music video not found.")
+
+    try:
+        result = queue_project_for_admin_publish(
+            project_id,
+            requested_privacy=req.privacy_status or "private",
+            requested_publish_at=req.publish_at,
+            requested_channel_id=req.channel_id,
+        )
+        db.update_project_setting(project_id, "upload_schedule_at", req.publish_at)
+        return result
+    except Exception as e:
+        print(f"[MusicUpload] Upload failed: {e}")
+        raise HTTPException(500, str(e))
 
 
 # ===========================================

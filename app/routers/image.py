@@ -97,6 +97,14 @@ class ThumbnailGenerateRequest(BaseModel):
     aspect_ratio: Optional[str] = "16:9"  # [NEW] Aspect Ratio
 
 
+class MusicCoverGenerateRequest(BaseModel):
+    project_id: int
+    prompt: str
+    image_type: str = "cover"
+    style: str = "cinematic"
+    aspect_ratio: str = "16:9"
+
+
 
 @router.post("/api/image/generate-prompts")
 async def generate_image_prompts_api(req: PromptsGenerateRequest):
@@ -1104,6 +1112,33 @@ async def bulk_generate_motion(
     except Exception as e:
         import traceback; traceback.print_exc()
         return {"status": "error", "error": str(e)}
+
+
+@router.post("/api/image/generate-music-cover")
+async def generate_music_cover(req: MusicCoverGenerateRequest):
+    project = db.get_project(req.project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    result = await generate_image(
+        prompt=req.prompt,
+        project_id=req.project_id,
+        scene_number=900 if req.image_type == "cover" else 901,
+        style=req.style,
+        aspect_ratio=req.aspect_ratio or "16:9",
+        no_human=False,
+    )
+    if not isinstance(result, dict) or result.get("status") != "ok":
+        detail = result.get("error") if isinstance(result, dict) else "cover generation failed"
+        raise HTTPException(500, detail)
+
+    image_url = result.get("image_url")
+    if req.image_type == "background":
+        db.update_project_setting(req.project_id, "background_video_url", image_url)
+    else:
+        db.update_project_setting(req.project_id, "template_image_url", image_url)
+
+    return {"status": "ok", "image_url": image_url, "image_type": req.image_type}
 
 
 @router.post("/api/image/generate")

@@ -6,6 +6,7 @@ import tempfile
 import time
 import glob
 import re
+import subprocess
 
 from config import config
 import database as db
@@ -101,7 +102,7 @@ def _compute_image_durations(starts_or_durations, scene_count: int, audio_durati
 
 
 def _build_project_upload_metadata(project_id: int, project_obj: dict, p_settings: dict):
-    metadata = db.get_metadata(project_id) or {}
+    metadata = db.get_project_metadata(project_id, p_settings.get("app_mode")) or {}
     title = (
         (metadata.get('titles') or [None])[0]
         or p_settings.get('title')
@@ -347,6 +348,94 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def package_music_project_assets(project_id: int, track_file_paths, playlist_title: str = "", resolution: str = "1080p") -> str:
+    """Package longform-music playlist assets for remote rendering."""
+    temp_dir = tempfile.mkdtemp(prefix=f'music_render_pkg_{project_id}_')
+
+    try:
+        audio_dir = os.path.join(temp_dir, 'audio')
+        os.makedirs(audio_dir, exist_ok=True)
+
+        p_settings = db.get_project_settings(project_id) or {}
+        project_obj = db.get_project(project_id) or {}
+        output_title = (
+            playlist_title
+            or p_settings.get("title")
+            or p_settings.get("playlist_title")
+            or project_obj.get("topic")
+            or project_obj.get("name")
+            or f"Project {project_id}"
+        )
+
+        track_entries = []
+        for index, raw_path in enumerate(track_file_paths or []):
+            local_path = _resolve_packaged_asset_path(raw_path)
+            if not local_path or not os.path.exists(local_path):
+                continue
+            ext = os.path.splitext(local_path)[1].lower() or ".mp3"
+            filename = f"track_{index:02d}{ext}"
+            shutil.copy2(local_path, os.path.join(audio_dir, filename))
+            track_entries.append({
+                "filename": filename,
+                "source_path": raw_path,
+                "title": f"Track {index + 1:02d}",
+            })
+
+        if not track_entries:
+            raise RuntimeError("No generated music tracks were found for remote rendering.")
+
+        cover_filename = None
+        cover_path = _resolve_packaged_asset_path(p_settings.get("template_image_url") or p_settings.get("thumbnail_url"))
+        if cover_path and os.path.exists(cover_path):
+            cover_filename = f"cover{os.path.splitext(cover_path)[1].lower() or '.jpg'}"
+            shutil.copy2(cover_path, os.path.join(temp_dir, cover_filename))
+
+        background_filename = None
+        background_path = _resolve_packaged_asset_path(p_settings.get("background_video_url"))
+        if background_path and os.path.exists(background_path):
+            background_filename = f"background{os.path.splitext(background_path)[1].lower()}"
+            shutil.copy2(background_path, os.path.join(temp_dir, background_filename))
+
+        thumbnail_filename = None
+        thumbnail_path = _resolve_packaged_asset_path(p_settings.get("thumbnail_url"))
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            thumbnail_filename = f"thumbnail{os.path.splitext(thumbnail_path)[1].lower() or '.jpg'}"
+            shutil.copy2(thumbnail_path, os.path.join(temp_dir, thumbnail_filename))
+
+        metadata = {
+            'project_id': project_id,
+            'project_name': project_obj.get('name') or f'Project {project_id}',
+            'playlist_title': output_title,
+            'resolution': resolution,
+            'aspect_ratio': '16:9',
+            'app_mode': 'longform_music',
+            'render_style': 'music_playlist',
+            'track_entries': track_entries,
+            'cover_filename': cover_filename,
+            'background_filename': background_filename,
+            'thumbnail_filename': thumbnail_filename,
+            'project_upload_metadata': _build_project_upload_metadata(project_id, project_obj, p_settings),
+        }
+
+        with open(os.path.join(temp_dir, 'config.json'), 'w', encoding='utf-8') as f_conf:
+            json.dump(metadata, f_conf, ensure_ascii=False, indent=4)
+
+        zip_output_dir = os.path.join(config.OUTPUT_DIR, f'project_{project_id}')
+        os.makedirs(zip_output_dir, exist_ok=True)
+        zip_path = os.path.join(zip_output_dir, f'remote_music_render_pkg_{project_id}.zip')
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, _dirs, files in os.walk(temp_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, temp_dir)
+                    zipf.write(file_path, rel_path)
+
+        return zip_path
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = False):
     progress_file = os.path.join(temp_dir, 'progress.txt')
 
@@ -362,6 +451,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
 
         aspect_ratio = metadata.get('aspect_ratio', '16:9')
         resolution = metadata.get('resolution', '1080p')
+        app_mode = metadata.get('app_mode', 'longform')
         audio_filename = metadata.get('audio_filename')
         images_filenames = metadata.get('images', [])
         subs = _sanitize_subtitles_for_render(metadata.get('subtitles', []))
@@ -374,6 +464,91 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             target_resolution = (1080, 1920) if resolution == '1080p' else (720, 1280)
         else:
             target_resolution = (1920, 1080) if resolution == '1080p' else (1280, 720)
+
+        if app_mode == 'longform_music':
+            update_progress(20, 'Preparing music playlist render...')
+            try:
+                import imageio_ffmpeg
+                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            except Exception:
+                ffmpeg_exe = "ffmpeg"
+            track_entries = metadata.get('track_entries') or []
+            if not track_entries:
+                raise Exception('No playlist tracks were found.')
+
+            concat_path = os.path.join(temp_dir, 'audio', 'concat.txt')
+            with open(concat_path, 'w', encoding='utf-8') as f_concat:
+                for track in track_entries:
+                    filename = track.get('filename')
+                    if filename:
+                        track_path = os.path.join(temp_dir, 'audio', filename).replace(os.sep, '/')
+                        f_concat.write(f"file '{track_path}'\n")
+
+            combined_audio = os.path.join(temp_dir, 'combined_audio.mp3')
+            concat_result = subprocess.run(
+                [ffmpeg_exe, "-f", "concat", "-safe", "0", "-i", concat_path, "-c", "copy", combined_audio, "-y"],
+                capture_output=True,
+                text=True,
+                timeout=1800,
+            )
+            if concat_result.returncode != 0:
+                raise Exception(f"Failed to combine music tracks: {concat_result.stderr}")
+
+            visual_filename = metadata.get('background_filename') or metadata.get('cover_filename')
+            if not visual_filename:
+                raise Exception('No cover image or background video was found for playlist rendering.')
+            visual_path = os.path.join(temp_dir, visual_filename)
+            if not os.path.exists(visual_path):
+                raise Exception('Playlist visual asset was not found in render package.')
+
+            output_file_path = os.path.join(temp_dir, 'output.mp4')
+            update_progress(55, 'Rendering playlist video...')
+            is_video_background = os.path.splitext(visual_path)[1].lower() in {'.mp4', '.mov', '.webm', '.mkv'}
+            title_text = str(metadata.get('playlist_title') or metadata.get('project_name') or 'Playlist').replace("'", "")
+            if is_video_background:
+                command = [
+                    ffmpeg_exe,
+                    "-stream_loop", "-1",
+                    "-i", visual_path,
+                    "-i", combined_audio,
+                    "-vf", f"scale={target_resolution[0]}:{target_resolution[1]},fps=24",
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-pix_fmt", "yuv420p",
+                    "-shortest",
+                    "-y",
+                    output_file_path,
+                ]
+            else:
+                drawtext = (
+                    f"drawtext=text='{title_text}':fontcolor=white:fontsize=48:"
+                    "x=(w-text_w)/2:y=h-120:box=1:boxcolor=black@0.35:boxborderw=18"
+                )
+                command = [
+                    ffmpeg_exe,
+                    "-loop", "1",
+                    "-i", visual_path,
+                    "-i", combined_audio,
+                    "-vf", f"scale={target_resolution[0]}:{target_resolution[1]},{drawtext}",
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-pix_fmt", "yuv420p",
+                    "-shortest",
+                    "-y",
+                    output_file_path,
+                ]
+
+            render_result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=3600,
+            )
+            if render_result.returncode != 0:
+                raise Exception(f"Failed to render music playlist video: {render_result.stderr}")
+
+            update_progress(100, 'Completed')
+            return
 
         audio_path = os.path.join(temp_dir, 'audio', audio_filename) if audio_filename else None
         if not audio_path or not os.path.exists(audio_path):

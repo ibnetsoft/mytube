@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block content %}
 <div class="flex justify-between items-center mb-6">
@@ -31,25 +31,25 @@
         <!-- Pagination & Sorting Controls -->
         <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
             <select id="sortOrder" onchange="changeSort(this.value)" class="text-[11px] bg-transparent border-none outline-none font-bold text-gray-600 dark:text-gray-400 cursor-pointer bg-[#1c2027] text-white">
-                <option value="newest">⌛ {{ t('sort_newest') or '최신기준' }}</option>
-                <option value="oldest">⏳ {{ t('sort_oldest') or '과거기준' }}</option>
-                <option value="name">🔤 {{ t('sort_name') or '이름순' }}</option>
+                <option value="newest">{{ t('sort_newest') }}</option>
+                <option value="oldest">{{ t('sort_oldest') }}</option>
+                <option value="name">{{ t('sort_name') }}</option>
             </select>
             <div class="h-3 w-px bg-gray-300 dark:bg-gray-600"></div>
             <select id="pageSize" onchange="changePageSize(this.value)" class="text-[11px] bg-transparent border-none outline-none font-bold text-gray-600 dark:text-gray-400 cursor-pointer bg-[#1c2027] text-white">
-                <option value="20">20{{ t('rows_suffix') or '개씩' }}</option>
-                <option value="50">50{{ t('rows_suffix') or '개씩' }}</option>
-                <option value="100">100{{ t('rows_suffix') or '개씩' }}</option>
+                <option value="20">20{{ t('rows_suffix') }}</option>
+                <option value="50">50{{ t('rows_suffix') }}</option>
+                <option value="100">100{{ t('rows_suffix') }}</option>
             </select>
         </div>
 
         <button onclick="openProjectModal()" class="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
-            {{ t('btn_new_project') or '새 프로젝트' }}
+            {{ t('btn_new_project') }}
         </button>
     </div>
 </div>
 
-<!-- 프로젝트 목록 -->
+<!-- ?꾨줈?앺듃 紐⑸줉 -->
 <div id="loadingSection" class="hidden">
     <div class="card text-center py-12">
         <div class="loader mx-auto mb-4"></div>
@@ -60,61 +60,7 @@
 <div class="overflow-x-auto bg-[#1c2027] rounded-3xl shadow-2xl border border-gray-700 overflow-hidden">
     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead class="bg-[#1c2027]/50">
-            <tr>
-                <th scope="col"
-                    class="px-2 py-2 w-10 text-center sticky left-0 z-20 bg-[#1c2027]/50 border-r border-gray-100 dark:border-gray-600">
-                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
-                        class="w-4 h-4 text-blue-600 bg-[#1c2027] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#1c2027]/50 dark:border-gray-600 cursor-pointer">
-                </th>
-                <th scope="col"
-                    class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#1c2027]/50 border-r border-white/5 max-w-[140px] truncate"
-                    style="left: 40px;">
-                    {{ t('th_project_name') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
-                    {{ t('th_start_date') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
-                    {{ t('th_edit_date') }}</th>
-                <th scope="col"
-                    class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                    {{ t('th_topic') }}</th>
-                <th scope="col"
-                    class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[150px]">
-                    {{ t('th_video_title') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_plan') }}">{{ t('th_plan') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_script') }}">{{ t('th_script') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_image') }}">{{ t('th_image') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_tts') }}">{{ t('th_tts') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_video') }}">{{ t('th_video') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_thumbnail') }}">{{ t('th_thumbnail') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_desc') }}">{{ t('th_desc') }}</th>
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_upload') }}">{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_publish') }}{% endif %}</th>
-                {% if is_independent %}
-                <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
-                    title="{{ t('th_publish') }}">{{ t('th_publish') }}</th>
-                {% endif %}
-                <th scope="col"
-                    class="px-2 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                    {{ t('th_manage') }}</th>
-            </tr>
+            <tr id="projectTableHeadRow"></tr>
         </thead>
         <tbody id="projectTableBody" class="bg-[#1c2027] divide-y divide-gray-200 dark:divide-gray-700">
             <!-- Rows rendered here -->
@@ -125,7 +71,7 @@
 <!-- Pagination Bottom -->
 <div id="paginationContainer" class="mt-4 flex items-center justify-between px-4 py-3 bg-[#1c2027] rounded-lg shadow border border-gray-100 dark:border-gray-700">
     <div class="text-xs text-gray-500 dark:text-gray-400">
-        {{ t('total') or '총' }} <span id="totalItemsCount" class="font-bold text-blue-500">0</span> {{ t('items') or '개' }}
+        {{ t('total') }} <span id="totalItemsCount" class="font-bold text-blue-500">0</span> {{ t('items') }}
     </div>
     <div class="flex items-center gap-2">
         <button id="prevBtn" onclick="changePage(-1)" class="px-3 py-1.5 rounded-lg border border-gray-600 hover:bg-[#0a0f1d] text-xs font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all">
@@ -141,11 +87,11 @@
 </div>
 
 <div id="emptySection" class="card text-center py-12 hidden">
-    <div class="text-5xl mb-4">📁</div>
+    <div class="text-5xl mb-4">?뱚</div>
     <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ t('no_projects_title') }}</h3>
     <p class="text-gray-500 mb-6 dark:text-gray-400">{{ t('no_projects_desc') }}</p>
     <button onclick="openProjectModal()" class="btn-primary">
-        + {{ t('btn_new_project') or '새 프로젝트' }}
+        + {{ t('btn_new_project') }}
     </button>
 </div>
 {% endblock %}
@@ -155,7 +101,7 @@
     const isIndependent = JSON.parse('{{ is_independent | tojson | safe }}');
     const licenseKey = '{{ get_license_key() }}';
 
-    // i18n for JS (var 사용 - base.html의 var i18n과 전역 충돌 방지)
+    // i18n for JS (var ?ъ슜 - base.html??var i18n怨??꾩뿭 異⑸룎 諛⑹?)
     var i18n = {
         title_go_to: "{{ t('title_go_to') }}",
         title_page: "{{ t('title_page') }}",
@@ -203,9 +149,9 @@
         err_delete_failed_msg: "{{ t('err_delete_failed_msg') }}",
         err_action_failed_suffix: "{{ t('err_action_failed_suffix') }}",
         err_generic_msg: "{{ t('err_generic_msg') }}",
-        sort_newest: "{{ t('sort_newest') or '최신기준' }}",
-        sort_oldest: "{{ t('sort_oldest') or '과거기준' }}",
-        sort_name: "{{ t('sort_name') or '이름순' }}"
+        sort_newest: "{{ t('sort_newest') }}",
+        sort_oldest: "{{ t('sort_oldest') }}",
+        sort_name: "{{ t('sort_name') }}"
     };
 
     // State for Pagination & Sorting
@@ -213,6 +159,69 @@
     let currentPage = 1;
     let pageSize = 20;
     let currentSort = 'newest';
+    let currentDisplayMode = 'longform';
+
+    function renderProjectTableHeader() {
+        const head = document.getElementById('projectTableHeadRow');
+        const isMusicMode = currentDisplayMode === 'longform_music';
+        const statusColumns = isMusicMode ? [
+            '음악기획',
+            '커버',
+            '트랙',
+            '썸네일',
+            '렌더링',
+            '설명',
+            '전송',
+        ] : [
+            `{{ t('th_plan') }}`,
+            `{{ t('th_script') }}`,
+            `{{ t('th_image') }}`,
+            `{{ t('th_tts') }}`,
+            `{{ t('th_video') }}`,
+            `{{ t('th_thumbnail') }}`,
+            `{{ t('th_desc') }}`,
+            `{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_publish') }}{% endif %}`,
+            ...(isIndependent ? [`{{ t('th_publish') }}`] : []),
+        ];
+
+        head.innerHTML = `
+            <th scope="col"
+                class="px-2 py-2 w-10 text-center sticky left-0 z-20 bg-[#1c2027]/50 border-r border-gray-100 dark:border-gray-600">
+                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
+                    class="w-4 h-4 text-blue-600 bg-[#1c2027] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#1c2027]/50 dark:border-gray-600 cursor-pointer">
+            </th>
+            <th scope="col"
+                class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#1c2027]/50 border-r border-white/5 max-w-[140px] truncate"
+                style="left: 40px;">
+                {{ t('th_project_name') }}
+            </th>
+            <th scope="col"
+                class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
+                {{ t('th_start_date') }}
+            </th>
+            <th scope="col"
+                class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-20">
+                {{ t('th_edit_date') }}
+            </th>
+            <th scope="col"
+                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
+                {{ t('th_topic') }}
+            </th>
+            <th scope="col"
+                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[150px]">
+                ${isMusicMode ? '음악 제목' : `{{ t('th_video_title') }}`}
+            </th>
+            ${statusColumns.map(label => `
+                <th scope="col"
+                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
+                    title="${label}">${label}</th>
+            `).join('')}
+            <th scope="col"
+                class="px-2 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
+                {{ t('th_manage') }}
+            </th>
+        `;
+    }
 
     async function loadProjectList() {
         document.getElementById('loadingSection').classList.remove('hidden');
@@ -227,6 +236,9 @@
                 const settings = await res.json();
                 targetMode = settings.app_mode || 'longform';
             } catch (e) { console.error("Failed to load settings:", e); }
+
+            currentDisplayMode = targetMode;
+            renderProjectTableHeader();
 
             console.log("Filtering projects for mode:", targetMode);
 
@@ -362,14 +374,14 @@
 
     function renderProjects(projects) {
         const tbody = document.getElementById('projectTableBody');
+        const isMusicMode = currentDisplayMode === 'longform_music';
 
         tbody.innerHTML = projects.map(p => {
             const s = p.progress || {};
-            // 날짜 포맷 (YY.MM.DD)
+            const planStep = p.app_mode === 'longform_music' ? 'music-plan' : 'script-plan';
             const created = new Date(p.created_at).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
             const updated = new Date(p.updated_at).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' });
 
-            // 상태 아이콘 헬퍼
             const checkLink = (isDone, type, pid) => {
                 const color = isDone ? 'text-green-500 hover:text-green-600 scale-110' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400';
                 const symbol = isDone ? '●' : '○';
@@ -381,6 +393,61 @@
                 </div>`;
             };
 
+            const musicStatusCells = `
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_plan, 'music-plan', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_cover, 'image-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_tracks, 'audio-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_render, 'render', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_desc, 'title-desc', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_publish, 'render', p.id)}</td>
+            `;
+
+            const defaultStatusCells = `
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.plan, planStep, p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap relative">
+                    ${checkLink(s.upload, 'upload', p.id)}
+                    ${s.desc && (s.video || s.upload) ? `
+                    <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
+                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform z-20" 
+                        title="${isIndependent ? i18n.title_yt_rocket_independent : i18n.title_yt_rocket_cloud}">
+                        ??
+                    </button>` : ''}
+                </td>
+                ${isIndependent ? `
+                <td class="px-1 py-2 text-center whitespace-nowrap relative">
+                    ${checkLink(s.publish, 'publish', p.id)}
+                    ${s.upload && !s.publish ? `
+                    <button onclick="event.stopPropagation(); publicizeVideo('${p.id}')" 
+                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform" 
+                        title="${i18n.title_yt_public}">
+                        ?뱼
+                    </button>` : ''}
+                </td>` : ''}
+            `;
+
+            const manageCell = isMusicMode ? `
+                <div class="flex items-center justify-center gap-1">
+                    <button onclick="event.stopPropagation(); navigateToStep('${p.id}', 'render')"
+                        class="px-2 py-1 rounded border border-blue-900/30 text-[11px] font-bold text-blue-300 hover:bg-[#0a0f1d] transition">
+                        ${s.music_render ? '상태 확인' : '렌더링'}
+                    </button>
+                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-300 transition p-1 text-xs rounded hover:bg-[#0a0f1d] dark:hover:bg-red-900/40">
+                        삭제
+                    </button>
+                </div>
+            ` : `
+                <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-900 transition p-1 text-xs rounded hover:bg-[#0a0f1d] dark:hover:bg-red-900/40">
+                    삭제
+                </button>
+            `;
+
             return `
             <tr class="hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] transition cursor-pointer group" onclick="if(!event.target.closest('input')) selectAndGo('${p.id}')">
                 <td class="px-2 py-2 text-center sticky left-0 z-20 bg-[#1c2027] border-r border-white/5 group-hover:bg-[#0a0f1d]" onclick="event.stopPropagation()">
@@ -391,7 +458,7 @@
                     style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-1">
-                        <span class="text-base">📁</span>
+                        <span class="text-base">?뱚</span>
                         <div class="flex flex-col min-w-0">
                             <span class="truncate">${p.name}</span>
                             ${p.name_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
@@ -414,59 +481,46 @@
                         ${p.video_title_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
                     </div>
                 </td>
-                
-                <!-- Steps -->
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.plan, 'script-plan', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap relative">
-                    ${checkLink(s.upload, 'upload', p.id)}
-                    <!-- Auto Upload Rocket Icon (Only if Metadata exists) -->
-                    ${s.desc && (s.video || s.upload) ? `
-                    <button onclick="event.stopPropagation(); autoUploadYouTube('${p.id}')" 
-                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform z-20" 
-                        title="${isIndependent ? i18n.title_yt_rocket_independent : i18n.title_yt_rocket_cloud}">
-                        🚀
-                    </button>` : ''}
-                </td>
-                ${isIndependent ? `
-                <td class="px-1 py-2 text-center whitespace-nowrap relative">
-                    ${checkLink(s.publish, 'publish', p.id)}
-                    ${s.upload && !s.publish ? `
-                    <button onclick="event.stopPropagation(); publicizeVideo('${p.id}')" 
-                        class="absolute -right-2 top-1/2 -translate-y-1/2 text-sm hover:scale-125 transition-transform" 
-                        title="${i18n.title_yt_public}">
-                        📢
-                    </button>` : ''}
-                </td>` : ''}
-
+                ${isMusicMode ? musicStatusCells : defaultStatusCells}
                 <td class="px-2 py-2 whitespace-nowrap text-center text-sm font-medium">
-                    <button onclick="event.stopPropagation(); deleteProject('${p.id}')" class="text-red-400 hover:text-red-900 transition p-1 text-xs rounded hover:bg-[#0a0f1d] dark:hover:bg-red-900/40">
-                        🗑️
-                    </button>
+                    ${manageCell}
                 </td>
             </tr>
             `;
         }).join('');
     }
 
+    function getStepRoute(step) {
+        const routeMap = {
+            'music-plan': '/music-plan',
+            'script-plan': '/script-plan',
+            'script-gen': '/script-gen',
+            'image-gen': '/image-gen',
+            'image-crop': '/image-crop',
+            'audio-gen': '/audio-gen',
+            'tts': '/tts',
+            'thumbnail': '/thumbnail',
+            'render': '/render',
+            'title-desc': '/title-desc',
+            'upload': '/video-upload',
+            'publish': '/video-upload',
+        };
+        return routeMap[step] || `/${step}`;
+    }
+
     function navigateToStep(projectId, step) {
         console.log(`Navigating to step ${step} for project ${projectId}`);
         setCurrentProject(projectId);
-        window.location.href = '/' + step;
+        window.location.href = getStepRoute(step);
     }
 
     async function selectAndGo(projectId) {
-        // [FIX] Single Click: Just Highlight or do nothing? 
-        // User requested Double Click -> Select in Sidebar.
-        // We will keep single click as "noop" or simple highlight for now, 
-        // and let Double Click handle the selection.
-        console.log('Single click on project:', projectId);
-        // Optional: Add visual highlight logic here if needed
+        setCurrentProject(projectId);
+        const select = document.getElementById('projectSelect');
+        if (select) select.value = projectId;
+        if (typeof onProjectChange === 'function') {
+            await onProjectChange(projectId);
+        }
     }
 
     async function handleProjectDoubleClick(projectId) {
@@ -511,7 +565,7 @@
                         if (field === 'name') {
                             cell.innerHTML = `
                                 <div class="flex items-center gap-2">
-                                    <span class="text-lg">📁</span>
+                                    <span class="text-lg">?뱚</span>
                                     <span>${newValue}</span>
                                 </div>
                             `;
@@ -551,7 +605,7 @@
             await API.project.delete(projectId);
             Utils.showToast(`${i18n.status_deleted}`, 'success');
             loadProjectList();
-            // 사이드바 목록도 갱신
+            // ?ъ씠?쒕컮 紐⑸줉??媛깆떊
             if (window.loadProjects) window.loadProjects();
         } catch (e) {
             Utils.showToast(`${i18n.status_failed_delete}`, 'error');
@@ -565,7 +619,7 @@
         if (isIndependent) {
             if (!confirm(`${i18n.confirm_yt_auto_upload}`)) return;
             try {
-                rocketBtn.innerText = '⏳';
+                rocketBtn.innerText = '??;
                 rocketBtn.disabled = true;
                 Utils.showToast(`${i18n.status_yt_upload_start}`, 'info');
 
@@ -586,7 +640,7 @@
             // [STANDARD USER] Direct YouTube Private Upload + Admin Record
             if (!confirm(`${i18n.confirm_yt_cloud_reserve}`)) return;
             try {
-                rocketBtn.innerText = '⏳';
+                rocketBtn.innerText = '??;
                 rocketBtn.disabled = true;
                 Utils.showToast(`${i18n.status_yt_reserving}`, 'info');
 
@@ -781,3 +835,4 @@
     document.addEventListener('DOMContentLoaded', loadProjectList);
 </script>
 {% endblock %}
+

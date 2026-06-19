@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .music-meta-shell { background: #1c2027; }
+    .music-meta-card {
+        background: #232832;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+    }
+    .music-meta-input {
+        width: 100%;
+        background: #1c2027;
+        color: #dae2fd;
+        border: 1px solid #3b4251;
+        border-radius: 10px;
+        padding: 10px 12px;
+        outline: none;
+    }
+    .music-meta-input:focus { border-color: #7c93ff; }
+    .music-meta-btn {
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 10px 12px;
+    }
+    .music-meta-btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+    .music-meta-btn-secondary {
+        background: #2a303b;
+        color: #c5c5d4;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+    .candidate-item.active {
+        border-color: rgba(59,130,246,0.55);
+        background: rgba(59,130,246,0.10);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="music-meta-shell min-h-[calc(100vh-8rem)]">
+    <div class="max-w-6xl mx-auto px-6 py-6 space-y-5">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <p class="text-[11px] font-black uppercase tracking-[0.18em] text-blue-300">Title / Description</p>
+                <h1 class="text-2xl font-black text-white mt-1">음악 플레이리스트 메타데이터</h1>
+                <p id="metaPageInfo" class="text-sm text-gray-400 mt-2">프로젝트를 선택하면 플레이리스트 제목과 트랙 타임라인을 구성합니다.</p>
+            </div>
+            <div class="music-meta-card px-4 py-3 min-w-[220px] space-y-1">
+                <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Summary</p>
+                <p id="summaryTracks" class="text-sm font-bold text-white">0 tracks</p>
+                <p id="summaryDuration" class="text-xs text-gray-400">0 min</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-5">
+            <section class="music-meta-card p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-black text-white">추천 제목</h2>
+                        <p class="text-xs text-gray-400 mt-1">클릭하면 대표 제목으로 선택됩니다.</p>
+                    </div>
+                    <button class="music-meta-btn music-meta-btn-primary" id="generateMetaBtn" onclick="generateMusicMetadata()">추천 생성</button>
+                </div>
+                <div id="candidateTitles" class="space-y-2"></div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">선택 제목</label>
+                    <input id="selectedTitle" class="music-meta-input" type="text" placeholder="Playlist title">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">트랙 타임라인</label>
+                    <textarea id="timelineText" class="music-meta-input min-h-[180px] text-sm resize-none"></textarea>
+                </div>
+            </section>
+
+            <section class="music-meta-card p-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-black text-white">설명 / 태그</h2>
+                        <p class="text-xs text-gray-400 mt-1">저장 시 음악 메타데이터와 업로드용 설정을 함께 갱신합니다.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="music-meta-btn music-meta-btn-secondary" onclick="copyDescription()">설명 복사</button>
+                        <button class="music-meta-btn music-meta-btn-primary" id="saveMetaBtn" onclick="saveMusicMetadata()">저장</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">설명문</label>
+                    <textarea id="descriptionText" class="music-meta-input min-h-[220px] text-sm resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Tags</label>
+                        <textarea id="tagsText" class="music-meta-input min-h-[120px] text-sm resize-none" placeholder="lofi, study music, cafe playlist"></textarea>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Hashtags</label>
+                        <textarea id="hashtagsText" class="music-meta-input min-h-[120px] text-sm resize-none" placeholder="#lofi #study #playlist"></textarea>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let musicMetaProjectId = null;
+    let musicMetaPlan = null;
+    let musicMetaTracks = [];
+    let musicMetaData = { titles: [], description: '', tags: [], hashtags: [] };
+    let selectedTitleIndex = 0;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadMusicMetaWorkspace();
+    });
+
+    window.addEventListener('projectChanged', async () => {
+        await loadMusicMetaWorkspace();
+    });
+
+    window.addEventListener('projectStateRestored', async () => {
+        await loadMusicMetaWorkspace();
+    });
+
+    async function loadMusicMetaWorkspace() {
+        musicMetaProjectId = getCurrentProject();
+        if (!musicMetaProjectId) {
+            document.getElementById('metaPageInfo').textContent = '프로젝트를 먼저 선택하세요.';
+            document.getElementById('candidateTitles').innerHTML = '';
+            return;
+        }
+
+        try {
+            const [planRes, metadataRes, settingsRes, projectRes] = await Promise.all([
+                fetch(`/api/music/plan/${musicMetaProjectId}`),
+                fetch(`/api/projects/${musicMetaProjectId}/metadata?app_mode=longform_music`),
+                fetch(`/api/project-settings/${musicMetaProjectId}`),
+                fetch(`/api/projects/${musicMetaProjectId}`),
+            ]);
+            const planData = await planRes.json();
+            const metadata = metadataRes.ok ? await metadataRes.json() : {};
+            const settings = settingsRes.ok ? await settingsRes.json() : {};
+            const project = projectRes.ok ? await projectRes.json() : {};
+            if (!planRes.ok) throw new Error(planData.detail || 'plan load failed');
+
+            musicMetaPlan = planData.plan || null;
+            musicMetaTracks = Array.isArray(planData.generated_tracks) ? planData.generated_tracks.filter(track => track.selected !== false) : [];
+            const title = settings.title || metadata.titles?.[0] || musicMetaPlan?.playlist_title || project.topic || project.name || 'Playlist';
+            const totalSeconds = musicMetaTracks.reduce((sum, track) => sum + (track.actual_duration_seconds || track.duration_seconds || 0), 0);
+
+            document.getElementById('metaPageInfo').textContent = `${title} / ${musicMetaTracks.length} tracks`;
+            document.getElementById('summaryTracks').textContent = `${musicMetaTracks.length} tracks`;
+            document.getElementById('summaryDuration').textContent = `${Math.round(totalSeconds / 60)} min`;
+
+            const timeline = buildTimelineText();
+            musicMetaData = {
+                titles: Array.isArray(metadata.titles) && metadata.titles.length ? metadata.titles : buildFallbackTitles(title),
+                description: metadata.description || buildFallbackDescription(title, timeline),
+                tags: Array.isArray(metadata.tags) ? metadata.tags : [],
+                hashtags: Array.isArray(metadata.hashtags) ? metadata.hashtags : [],
+            };
+
+            document.getElementById('selectedTitle').value = settings.title || musicMetaData.titles[0] || title;
+            document.getElementById('timelineText').value = timeline;
+            document.getElementById('descriptionText').value = musicMetaData.description || '';
+            document.getElementById('tagsText').value = (musicMetaData.tags || []).join(', ');
+            document.getElementById('hashtagsText').value = (musicMetaData.hashtags || []).join(' ');
+            renderCandidateTitles();
+        } catch (error) {
+            console.error(error);
+            document.getElementById('metaPageInfo').textContent = '메타데이터 작업 정보를 불러오지 못했습니다.';
+        }
+    }
+
+    function buildFallbackTitles(baseTitle) {
+        const source = baseTitle || 'Playlist';
+        return [
+            source,
+            `${source} | Longform Music`,
+            `${source} | Study / Relax`,
+            `${source} | Full Playlist`,
+            `${source} | Background Music`,
+        ];
+    }
+
+    function buildTimelineText() {
+        let offset = 0;
+        return musicMetaTracks.map((track, index) => {
+            const title = track.title || `Track ${String(index + 1).padStart(2, '0')}`;
+            const line = `${formatTimelineTime(offset)} ${title}`;
+            offset += Math.max(0, Math.round(track.actual_duration_seconds || track.duration_seconds || 0));
+            return line;
+        }).join('\n');
+    }
+
+    function buildFallbackDescription(title, timeline) {
+        const lines = [
+            title || 'Playlist',
+            '',
+            'Track List',
+            timeline || '',
+        ].filter(Boolean);
+        return lines.join('\n');
+    }
+
+    function formatTimelineTime(totalSeconds) {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function renderCandidateTitles() {
+        const container = document.getElementById('candidateTitles');
+        const activeTitle = document.getElementById('selectedTitle').value.trim();
+        container.innerHTML = (musicMetaData.titles || []).map((title, index) => `
+            <button type="button"
+                class="candidate-item music-meta-card w-full p-3 text-left transition ${activeTitle === title ? 'active' : ''}"
+                onclick="selectCandidateTitle(${index})">
+                <span class="text-sm font-bold text-white">${escapeHtml(title)}</span>
+            </button>
+        `).join('');
+    }
+
+    function selectCandidateTitle(index) {
+        selectedTitleIndex = index;
+        const title = musicMetaData.titles?.[index] || '';
+        document.getElementById('selectedTitle').value = title;
+        renderCandidateTitles();
+    }
+
+    async function generateMusicMetadata() {
+        if (!musicMetaProjectId) {
+            Utils.showToast('프로젝트를 먼저 선택하세요.', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('generateMetaBtn');
+        btn.disabled = true;
+        btn.textContent = '생성 중...';
+
+        const baseTitle = musicMetaPlan?.playlist_title || document.getElementById('selectedTitle').value || 'Playlist';
+        const timeline = buildTimelineText();
+        const trackSummary = musicMetaTracks.map((track, index) => {
+            const duration = Math.round(track.actual_duration_seconds || track.duration_seconds || 0);
+            return `${index + 1}. ${track.title || `Track ${String(index + 1).padStart(2, '0')}`} / mood=${track.mood || '-'} / duration=${duration}s / prompt=${track.prompt || ''}`;
+        }).join('\n');
+
+        const prompt = `You are writing YouTube playlist metadata for a longform music project.
+
+Return JSON only.
+{
+  "titles": ["...", "...", "...", "...", "..."],
+  "description": "...",
+  "tags": ["...", "..."],
+  "hashtags": ["#...", "#..."]
+}
+
+Requirements:
+- Titles should be natural YouTube playlist titles.
+- Description should include a short intro and a track timeline section.
+- Hashtags should be compact and relevant.
+- Keep output usable for a music playlist upload.
+
+Playlist title seed: ${baseTitle}
+Track timeline:
+${timeline}
+
+Track details:
+${trackSummary}`;
+
+        try {
+            const result = await API.gemini.generate(prompt, { temperature: 0.7, max_tokens: 1200 });
+            if (result.status !== 'ok') throw new Error(result.error || 'generation failed');
+            const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('invalid metadata response');
+            const parsed = JSON.parse(jsonMatch[0]);
+            musicMetaData = {
+                titles: Array.isArray(parsed.titles) && parsed.titles.length ? parsed.titles : buildFallbackTitles(baseTitle),
+                description: parsed.description || buildFallbackDescription(baseTitle, timeline),
+                tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+                hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+            };
+            document.getElementById('selectedTitle').value = musicMetaData.titles[0] || baseTitle;
+            document.getElementById('descriptionText').value = musicMetaData.description || '';
+            document.getElementById('tagsText').value = (musicMetaData.tags || []).join(', ');
+            document.getElementById('hashtagsText').value = (musicMetaData.hashtags || []).join(' ');
+            renderCandidateTitles();
+            Utils.showToast('메타데이터 추천을 생성했습니다.', 'success');
+        } catch (error) {
+            console.error(error);
+            Utils.showToast('메타데이터 생성에 실패했습니다.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '추천 생성';
+        }
+    }
+
+    async function saveMusicMetadata() {
+        if (!musicMetaProjectId) {
+            Utils.showToast('프로젝트를 먼저 선택하세요.', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('saveMetaBtn');
+        btn.disabled = true;
+        btn.textContent = '저장 중...';
+
+        const selectedTitle = document.getElementById('selectedTitle').value.trim();
+        const description = document.getElementById('descriptionText').value;
+        const tags = document.getElementById('tagsText').value.split(',').map(item => item.trim()).filter(Boolean);
+        const hashtags = document.getElementById('hashtagsText').value.split(/\s+/).map(item => item.trim()).filter(Boolean);
+        const timeline = document.getElementById('timelineText').value.trim();
+        const finalDescription = description.includes('Track List') || !timeline
+            ? description
+            : `${description.trim()}\n\nTrack List\n${timeline}`.trim();
+
+        musicMetaData = {
+            titles: buildSavedTitles(selectedTitle),
+            description: finalDescription,
+            tags,
+            hashtags,
+        };
+
+        try {
+            await fetch(`/api/projects/${musicMetaProjectId}/metadata?app_mode=longform_music`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(musicMetaData),
+            });
+
+            await Promise.all([
+                fetch(`/api/project-settings/${musicMetaProjectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'title', value: selectedTitle }),
+                }),
+                fetch(`/api/project-settings/${musicMetaProjectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'description', value: finalDescription }),
+                }),
+                fetch(`/api/project-settings/${musicMetaProjectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'hashtags', value: hashtags.join(', ') }),
+                }),
+            ]);
+
+            Utils.showToast('음악 메타데이터를 저장했습니다.', 'success');
+            renderCandidateTitles();
+        } catch (error) {
+            console.error(error);
+            Utils.showToast('메타데이터 저장에 실패했습니다.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '저장';
+        }
+    }
+
+    function buildSavedTitles(primaryTitle) {
+        const existing = (musicMetaData.titles || []).filter(Boolean).filter(title => title !== primaryTitle);
+        return [primaryTitle, ...existing].slice(0, 5);
+    }
+
+    function copyDescription() {
+        Utils.copyToClipboard(document.getElementById('descriptionText').value);
+        Utils.showToast('설명을 복사했습니다.', 'success');
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+</script>
+{% endblock %}

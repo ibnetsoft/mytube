@@ -162,6 +162,28 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS music_track_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            track_index INTEGER NOT NULL,
+            title TEXT,
+            genre TEXT,
+            mood TEXT,
+            instruments TEXT,
+            lyrics TEXT,
+            vocalist_gender TEXT,
+            vocal_mode TEXT,
+            duration_seconds INTEGER DEFAULT 240,
+            prompt TEXT,
+            status TEXT DEFAULT 'planned',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(project_id, track_index),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+
     # [MIGRATION] Add video options columns if not exists
     for col, col_type in [("all_video", "INTEGER DEFAULT 0"), ("motion_method", "TEXT DEFAULT 'standard'"), ("video_scene_count", "INTEGER DEFAULT 0")]:
         try:
@@ -1110,13 +1132,36 @@ scene_type별 구조:
         ("thumbnail_font_size", "INTEGER"),
         ("thumbnail_color", "TEXT"),
         ("thumbnail_full_state", "TEXT"),
-        ("template_full_state", "TEXT")
+        ("template_full_state", "TEXT"),
+        ("longform_music", "TEXT"),
+        ("longform_music_plan_json", "TEXT"),
+        ("longform_music_generated_tracks_json", "TEXT")
     ]:
         try:
             cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
             print(f"[Migration] Added {col} to project_settings")
         except sqlite3.OperationalError:
             pass
+
+    try:
+        cursor.execute("PRAGMA table_info(music_track_plans)")
+        music_plan_columns = [info[1] for info in cursor.fetchall()]
+        if "instruments" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN instruments TEXT")
+        if "lyrics" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN lyrics TEXT")
+        if "vocalist_gender" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN vocalist_gender TEXT")
+        if "vocal_mode" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN vocal_mode TEXT")
+        if "duration_seconds" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN duration_seconds INTEGER DEFAULT 240")
+        if "prompt" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN prompt TEXT")
+        if "status" not in music_plan_columns:
+            cursor.execute("ALTER TABLE music_track_plans ADD COLUMN status TEXT DEFAULT 'planned'")
+    except Exception:
+        pass
 
     # [NEW] Character DNA Migration
     cursor.execute("PRAGMA table_info(project_characters)")
@@ -1211,9 +1256,15 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         p.name_vi, p.topic_vi, ps.title_vi as video_title_vi,
         CASE WHEN s.id IS NOT NULL THEN 1 ELSE 0 END as has_script,
         CASE WHEN ss.id IS NOT NULL THEN 1 ELSE 0 END as has_structure,
+        CASE WHEN ps.longform_music_plan_json IS NOT NULL AND ps.longform_music_plan_json != '' THEN 1 ELSE 0 END as has_music_plan,
+        CASE WHEN ps.longform_music_generated_tracks_json IS NOT NULL AND ps.longform_music_generated_tracks_json != '' THEN 1 ELSE 0 END as has_music_tracks,
         (SELECT COUNT(*) FROM image_prompts WHERE project_id = p.id AND image_url IS NOT NULL AND image_url != '') as image_count,
         CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END as has_tts,
         ps.video_path,
+        ps.external_video_path,
+        ps.template_image_url,
+        ps.thumbnail_url,
+        ps.upload_schedule_at,
         ps.is_uploaded as is_uploaded,
         ps.is_published as is_published,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
@@ -1242,6 +1293,48 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
     results = []
     for row in rows:
         r = dict(row)
+        r["has_structure"] = bool(r.get("has_structure")) or bool(r.get("has_music_plan"))
+        is_music_mode = (r.get("app_mode") or "longform") == "longform_music"
+        has_cover = bool(r.get("template_image_url")) or int(r.get("image_count") or 0) > 0
+        has_tracks = bool(r.get("has_music_tracks"))
+        has_thumbnail = bool(r.get("thumbnail_url")) or int(r.get("thumbnail_count") or 0) > 0
+        has_render = bool(r.get("video_path")) or bool(r.get("external_video_path")) or str(r.get("project_status") or "") in {
+            "rendering", "remote_queued", "remote_packaging", "rendered", "completed"
+        }
+        has_publish_state = (
+            bool(r.get("upload_schedule_at"))
+            or bool(r.get("is_uploaded"))
+            or bool(r.get("is_published"))
+            or bool(r.get("youtube_video_id"))
+        )
+        has_remote_delivery = str(r.get("project_status") or "") in {
+            "remote_packaging", "remote_queued", "rendering", "rendered", "completed"
+        } or bool(r.get("video_path")) or bool(r.get("external_video_path"))
+        progress = { # Detailed progress
+            "plan": bool(r["has_structure"]),     # 대본 기획
+            "script": bool(r["has_script"]),      # 대본 생성
+            "image": int(r["image_count"] or 0) > 0,        # 이미지 생성 (하나라도 있으면)
+            "tts": bool(r["has_tts"]),            # TTS
+            "video": bool(r["video_path"]),       # 영상 렌더링
+            "thumbnail": int(r["thumbnail_count"] or 0) > 0,# 썸네일
+            "upload": bool(r["is_uploaded"]),     # 업로드
+            "publish": bool(r.get("is_published", 0)), # 발행
+            "desc": bool(r["description"]),       # 설명
+            "music_plan": bool(r.get("has_music_plan")),
+            "music_cover": has_cover,
+            "music_tracks": has_tracks,
+            "music_thumbnail": has_thumbnail,
+            "music_render": has_render,
+            "music_desc": bool(r["description"]),
+            "music_publish": has_remote_delivery,
+        }
+        if is_music_mode:
+            progress.update({
+                "plan": bool(r.get("has_music_plan")),
+                "video": has_render,
+                "upload": has_remote_delivery,
+                "publish": has_remote_delivery,
+            })
         # 가공된 상태 정보 추가
         results.append({
             "id": r["id"],
@@ -1255,17 +1348,7 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "video_title": r["video_title"],
             "status": r["project_status"], # String status
             "app_mode": r["app_mode"], # [NEW]
-            "progress": { # Detailed progress
-                "plan": bool(r["has_structure"]),     # 대본 기획
-                "script": bool(r["has_script"]),      # 대본 생성
-                "image": r["image_count"] > 0,        # 이미지 생성 (하나라도 있으면)
-                "tts": bool(r["has_tts"]),            # TTS
-                "video": bool(r["video_path"]),       # 영상 렌더링
-                "thumbnail": r["thumbnail_count"] > 0,# 썸네일
-                "upload": bool(r["is_uploaded"]),     # 업로드
-                "publish": bool(r.get("is_published", 0)), # 발행
-                "desc": bool(r["description"])        # 설명
-            }
+            "progress": progress
         })
     return results
 
@@ -1776,6 +1859,30 @@ def get_metadata(project_id: int) -> Optional[Dict]:
         return data
     return None
 
+def get_project_metadata(project_id: int, app_mode: Optional[str] = None) -> Optional[Dict]:
+    """Return mode-scoped metadata when available, with legacy fallback."""
+    settings = get_project_settings(project_id) or {}
+    resolved_mode = str(
+        app_mode
+        or settings.get("app_mode")
+        or get_global_setting("app_mode", "longform")
+        or "longform"
+    ).strip().lower()
+    raw_data = settings.get(f"metadata_{resolved_mode}")
+
+    if raw_data:
+        try:
+            parsed = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+            if isinstance(parsed, dict):
+                parsed["titles"] = parsed.get("titles") or []
+                parsed["tags"] = parsed.get("tags") or []
+                parsed["hashtags"] = parsed.get("hashtags") or []
+                return parsed
+        except Exception:
+            pass
+
+    return get_metadata(project_id)
+
 # ============ 썸네일 ============
 
 def save_thumbnails(project_id: int, ideas: List[Dict], texts: List[str], full_settings: Dict = None):
@@ -2043,6 +2150,109 @@ def update_project_setting(project_id: int, key: str, value: Any):
              return False
 
     return False
+
+
+def replace_music_track_plans(project_id: int, tracks: List[Dict[str, Any]]) -> None:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM music_track_plans WHERE project_id = ?", (project_id,))
+    for index, track in enumerate(tracks or []):
+        if not isinstance(track, dict):
+            continue
+        cursor.execute(
+            """
+            INSERT INTO music_track_plans (
+                project_id, track_index, title, genre, mood, instruments, lyrics,
+                vocalist_gender, vocal_mode, duration_seconds, prompt, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                project_id,
+                int(track.get("track_index", index)),
+                track.get("title"),
+                track.get("genre"),
+                track.get("mood"),
+                json.dumps(track.get("instruments"), ensure_ascii=False) if isinstance(track.get("instruments"), (list, dict)) else track.get("instruments"),
+                track.get("lyrics"),
+                track.get("vocalist_gender"),
+                track.get("vocal_mode"),
+                int(track.get("duration_seconds") or 240),
+                track.get("prompt"),
+                track.get("status") or "planned",
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_music_track_plans(project_id: int) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT * FROM music_track_plans
+        WHERE project_id = ?
+        ORDER BY track_index ASC, id ASC
+        """,
+        (project_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    results: List[Dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        instruments = item.get("instruments")
+        if isinstance(instruments, str) and instruments.strip():
+            try:
+                item["instruments"] = json.loads(instruments)
+            except Exception:
+                pass
+        results.append(item)
+    return results
+
+
+def update_music_track_plan(project_id: int, track_index: int, updates: Dict[str, Any]) -> bool:
+    allowed_fields = [
+        "title",
+        "genre",
+        "mood",
+        "instruments",
+        "lyrics",
+        "vocalist_gender",
+        "vocal_mode",
+        "duration_seconds",
+        "prompt",
+        "status",
+    ]
+    fields = []
+    values: List[Any] = []
+    for key in allowed_fields:
+        if key not in updates:
+            continue
+        value = updates[key]
+        if key == "instruments" and isinstance(value, (list, dict)):
+            value = json.dumps(value, ensure_ascii=False)
+        fields.append(f"{key} = ?")
+        values.append(value)
+    if not fields:
+        return False
+
+    conn = get_db()
+    cursor = conn.cursor()
+    values.extend([project_id, track_index])
+    cursor.execute(
+        f"""
+        UPDATE music_track_plans
+        SET {", ".join(fields)}, updated_at = CURRENT_TIMESTAMP
+        WHERE project_id = ? AND track_index = ?
+        """,
+        values,
+    )
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
 
 
 # ============ 쇼츠 ============

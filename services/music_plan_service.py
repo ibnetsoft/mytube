@@ -9,6 +9,7 @@ from services.gemini_service import gemini_service
 
 STYLE_TAG_LIBRARY: Dict[str, List[str]] = {
     "lofi": ["Lo-fi Beat", "Dusty Vinyl", "Soft Piano", "Rain Ambience", "Mellow Drums", "Warm Bass"],
+    "japanese_enka": ["Enka Ballad", "Shamisen", "Koto", "Kobushi Vocal", "Showa Mood", "Melancholy"],
     "jazz": ["Smooth Jazz", "Saxophone", "Walking Bass", "Brush Drums", "Late Night", "Coffee Shop"],
     "piano": ["Solo Piano", "Gentle Melody", "Reverb Hall", "Emotional", "Minimal", "Acoustic"],
     "ambient": ["Atmospheric Pad", "Ethereal", "Slow Evolution", "Deep Space", "Meditative", "Drone"],
@@ -18,8 +19,165 @@ STYLE_TAG_LIBRARY: Dict[str, List[str]] = {
     "default": ["Groovy Drum", "Deep Sub-bass", "Steady Beat", "Warm Pad", "Clean Mix", "Loopable"],
 }
 
+GENRE_GUIDE_LIBRARY: Dict[str, str] = {
+    "lofi": "lo-fi hip hop with mellow drums, soft keys, warm bass, vinyl texture, and loopable calm ambience",
+    "japanese_enka": (
+        "Japanese enka style with sentimental Showa-era mood, slow to mid tempo, "
+        "pentatonic melodic phrasing, dramatic vibrato-inspired topline, shamisen/koto accents, "
+        "warm strings, restrained percussion, and nostalgic melancholy. Keep it original and avoid "
+        "artist names or copyrighted song references."
+    ),
+    "jazz": "smooth jazz with warm saxophone or piano, walking bass, brushed drums, late-night lounge atmosphere",
+    "piano": "gentle piano-focused music with clear melodic motifs, soft dynamics, emotional but uncluttered arrangement",
+    "ambient": "ambient atmospheric music with evolving pads, spacious reverb, minimal rhythm, meditative pacing",
+    "cinematic": "cinematic score with wide soundstage, orchestral colors, emotional build, polished film-like arrangement",
+    "city_pop": "retro city-pop inspired groove with funky bass, clean guitar, synth colors, and bright urban night energy",
+    "acoustic": "organic acoustic music with fingerpicked guitar, natural room tone, soft percussion, and intimate warmth",
+}
+
 
 class MusicPlanService:
+    def _normalize_weighted_values(self, raw: Any, fallback: List[str]) -> List[str]:
+        if isinstance(raw, list):
+            values = [str(item).strip() for item in raw if str(item).strip()]
+            return values or fallback
+        if isinstance(raw, dict):
+            weighted: List[str] = []
+            for key, value in raw.items():
+                try:
+                    count = max(0, int(value))
+                except Exception:
+                    count = 0
+                weighted.extend([str(key).strip()] * count)
+            return weighted or fallback
+        if isinstance(raw, str) and raw.strip():
+            return [part.strip() for part in raw.split(",") if part.strip()] or fallback
+        return fallback
+
+    def _expand_ratio_sequence(self, raw: Any, total: int, fallback: List[str]) -> List[str]:
+        values = self._normalize_weighted_values(raw, fallback)
+        if not values:
+            values = fallback
+        sequence: List[str] = []
+        while len(sequence) < total:
+            sequence.extend(values)
+        return sequence[:total]
+
+    def _resolve_duration_sequence(self, music_config: dict, target_count: int, default_duration: int) -> List[int]:
+        distribution = music_config.get("duration_distribution") or {}
+        sequence = distribution.get("sequence") if isinstance(distribution, dict) else None
+        if isinstance(sequence, list) and sequence:
+            durations = []
+            for item in sequence:
+                try:
+                    durations.append(max(120, int(item)))
+                except Exception:
+                    pass
+            if durations:
+                expanded: List[int] = []
+                while len(expanded) < target_count:
+                    expanded.extend(durations)
+                return expanded[:target_count]
+
+        options = distribution.get("options") if isinstance(distribution, dict) else None
+        if isinstance(options, dict) and options:
+            expanded: List[int] = []
+            for key, value in options.items():
+                try:
+                    duration = max(120, int(key))
+                    count = max(0, int(value))
+                    expanded.extend([duration] * count)
+                except Exception:
+                    continue
+            if expanded:
+                while len(expanded) < target_count:
+                    expanded.extend(expanded)
+                return expanded[:target_count]
+
+        return [default_duration] * target_count
+
+    def _coerce_instruments(self, raw: Any, genre: str) -> List[str]:
+        if isinstance(raw, list):
+            values = [str(item).strip() for item in raw if str(item).strip()]
+            if values:
+                return values[:8]
+        if isinstance(raw, str) and raw.strip():
+            values = [part.strip() for part in raw.split(",") if part.strip()]
+            if values:
+                return values[:8]
+        defaults = {
+            "lofi": ["soft piano", "warm bass", "dusty drums"],
+            "japanese_enka": ["shamisen", "koto", "warm strings"],
+            "jazz": ["saxophone", "upright bass", "brush drums"],
+            "piano": ["solo piano", "soft pad"],
+            "ambient": ["atmospheric pad", "texture drone", "soft piano"],
+            "cinematic": ["strings", "piano", "subtle percussion"],
+            "city_pop": ["retro synth", "clean guitar", "funk bass"],
+            "acoustic": ["acoustic guitar", "soft percussion", "piano"],
+        }
+        return defaults.get(str(genre or "").strip(), ["soft piano", "warm pad", "steady drums"])
+
+    def _build_track_lyrics(self, music_config: dict, track_title: str, mood: str) -> str:
+        lyrics = music_config.get("lyrics") or {}
+        vocal_mode = str(music_config.get("vocal_mode") or "instrumental")
+        if vocal_mode == "instrumental" or str(lyrics.get("mode") or "instrumental") == "instrumental":
+            return ""
+        text = str(lyrics.get("text") or "").strip()
+        if text:
+            return text
+        return f"[Verse]\n{track_title}\n{mood}\n\n[Chorus]\nOriginal safe lyrics for {track_title}"
+
+    def genre_display_name(self, genre: str) -> str:
+        labels = {
+            "lofi": "Lo-fi",
+            "japanese_enka": "Japanese Enka",
+            "jazz": "Jazz",
+            "piano": "Piano",
+            "ambient": "Ambient",
+            "cinematic": "Cinematic",
+            "city_pop": "City Pop",
+            "acoustic": "Acoustic",
+        }
+        return labels.get(str(genre or "").strip(), str(genre or "Music").replace("_", " ").title())
+
+    def genre_guide(self, genre: str) -> str:
+        return GENRE_GUIDE_LIBRARY.get(str(genre or "").strip(), GENRE_GUIDE_LIBRARY["lofi"])
+
+    def is_generic_track_title(self, title: str, index: int) -> bool:
+        text = str(title or "").strip()
+        if not text:
+            return True
+        patterns = [
+            rf"^track\s*0?{index}$",
+            rf"^track\s*0?{index}\s*title$",
+            rf"^song\s*0?{index}$",
+            rf"^music\s*0?{index}$",
+        ]
+        return any(re.match(pattern, text, re.IGNORECASE) for pattern in patterns)
+
+    def fallback_track_title(self, index: int, topic: str, genre: str, mood: str = "") -> str:
+        topic_text = str(topic or "").strip() or self.genre_display_name(genre)
+        mood_text = str(mood or "").replace("_", " ").strip()
+        templates = [
+            "{topic}의 첫 장면 (Opening Scene of {topic_en})",
+            "잔잔히 번지는 {topic} (Softly Spreading {topic_en})",
+            "{mood} 마음의 길 (A {mood_en} Path Within)",
+            "밤을 건너는 {topic} (Crossing the Night with {topic_en})",
+            "오래 남는 선율 (Lingering Melody)",
+            "따뜻한 여운 (Warm Afterglow)",
+            "고요한 흐름 (Quiet Flow)",
+            "마지막 빛 (Last Light)",
+        ]
+        topic_en = re.sub(r"[^A-Za-z0-9 ]+", " ", topic_text).strip() or self.genre_display_name(genre)
+        mood_en = re.sub(r"[^A-Za-z0-9 ]+", " ", mood_text).strip() or "Gentle"
+        template = templates[(index - 1) % len(templates)]
+        return template.format(
+            topic=topic_text[:18],
+            topic_en=topic_en[:32],
+            mood=mood_text[:12] or "잔잔한",
+            mood_en=mood_en[:24],
+        )
+
     def parse_music_config(self, raw: Any) -> dict:
         if isinstance(raw, dict):
             return dict(raw)
@@ -89,7 +247,9 @@ class MusicPlanService:
         if not isinstance(tracks, list):
             tracks = []
 
-        genre = str(music_config.get("genre") or plan.get("genre") or "lofi").replace("_", " ")
+        raw_genre = str(music_config.get("genre") or plan.get("genre") or "lofi")
+        genre = self.genre_display_name(raw_genre)
+        genre_guide = self.genre_guide(raw_genre)
         moods_raw = music_config.get("moods") or plan.get("moods") or [plan.get("mood") or "calm"]
         if isinstance(moods_raw, str):
             moods = [m.strip() for m in moods_raw.split(",") if m.strip()]
@@ -107,7 +267,7 @@ class MusicPlanService:
         styles = music_config.get("styles") or {}
         style_hint = str(styles.get("prompt") or "").strip()
         base_directive = (
-            f"Original {genre} music, {', '.join(moods)}, {vocal_directive}, "
+            f"Original {genre} music ({genre_guide}), {', '.join(moods)}, {vocal_directive}, "
             f"{style_hint + ', ' if style_hint else ''}"
             "safe for YouTube playlist, no artist names, no copyrighted melody"
         )
@@ -115,36 +275,83 @@ class MusicPlanService:
         target_count = int(music_config.get("track_count") or 8)
         playlist_duration = int(music_config.get("playlist_duration_seconds") or 3600)
         track_duration = max(180, min(300, playlist_duration // target_count)) if target_count > 0 else 300
+        topic = str(music_config.get("playlist_title") or plan.get("playlist_title") or plan.get("topic") or "").strip()
+        track_genre_sequence = self._expand_ratio_sequence(
+            music_config.get("genre_mix") or music_config.get("genre_distribution"),
+            target_count,
+            [raw_genre],
+        )
+        track_vocal_sequence = self._expand_ratio_sequence(
+            music_config.get("vocal_mode_sequence") or music_config.get("vocal_mode_distribution"),
+            target_count,
+            [vocal_mode],
+        )
+        track_gender_sequence = self._expand_ratio_sequence(
+            music_config.get("vocal_gender_distribution") or music_config.get("singer_gender_distribution"),
+            target_count,
+            [str((music_config.get("advanced") or {}).get("vocal_gender") or "any")],
+        )
+        lyrics_ratio = int(music_config.get("lyrics_ratio_percent") or 0)
+        duration_sequence = self._resolve_duration_sequence(music_config, target_count, track_duration)
 
         normalized = []
         for index, item in enumerate(tracks, start=1):
+            assigned_genre = str(track_genre_sequence[index - 1] or raw_genre)
+            assigned_vocal_mode = str(track_vocal_sequence[index - 1] or vocal_mode)
+            assigned_gender = str(track_gender_sequence[index - 1] or "any")
             if isinstance(item, str):
                 title = item.strip() or f"Track {index:02d}"
                 prompt = title
                 mood = ""
+                item_duration = duration_sequence[index - 1]
             elif isinstance(item, dict):
                 title = str(item.get("title") or item.get("name") or f"Track {index:02d}").strip()
                 mood = str(item.get("mood") or item.get("style") or "").strip()
                 prompt = str(item.get("prompt") or item.get("music_prompt") or "").strip()
                 if not prompt:
                     prompt = ", ".join(part for part in [title, mood, plan.get("mood")] if part)
+                item_duration = item.get("duration_seconds") or duration_sequence[index - 1]
             else:
                 continue
+            if self.is_generic_track_title(title, index):
+                title = self.fallback_track_title(index, topic, assigned_genre, mood or (moods[(index - 1) % len(moods)] if moods else ""))
+                if self.is_generic_track_title(prompt, index):
+                    prompt = title
+            include_lyrics = assigned_vocal_mode != "instrumental" and lyrics_ratio > 0 and ((index - 1) / max(1, target_count)) < (lyrics_ratio / 100)
             normalized.append({
+                "track_index": index - 1,
                 "title": title,
+                "genre": assigned_genre,
                 "mood": mood,
                 "prompt": f"{base_directive}. Track concept: {prompt}",
-                "duration_seconds": item.get("duration_seconds") or track_duration,
+                "duration_seconds": item_duration,
+                "instruments": self._coerce_instruments(item.get("instruments") if isinstance(item, dict) else None, assigned_genre),
+                "lyrics": self._build_track_lyrics(music_config, title, mood or "") if include_lyrics else "",
+                "vocalist_gender": assigned_gender,
+                "vocal_mode": assigned_vocal_mode,
+                "status": str(item.get("status") or "planned") if isinstance(item, dict) else "planned",
             })
 
         while len(normalized) < target_count:
             idx = len(normalized) + 1
-            base_mood = plan.get("mood") or "calm cinematic instrumental background music"
+            assigned_genre = str(track_genre_sequence[idx - 1] or raw_genre)
+            assigned_vocal_mode = str(track_vocal_sequence[idx - 1] or vocal_mode)
+            assigned_gender = str(track_gender_sequence[idx - 1] or "any")
+            base_mood = moods[(idx - 1) % len(moods)] if moods else (plan.get("mood") or "calm cinematic instrumental background music")
+            title = self.fallback_track_title(idx, topic, assigned_genre, base_mood)
+            include_lyrics = assigned_vocal_mode != "instrumental" and lyrics_ratio > 0 and ((idx - 1) / max(1, target_count)) < (lyrics_ratio / 100)
             normalized.append({
-                "title": f"Track {idx:02d}",
+                "track_index": idx - 1,
+                "title": title,
+                "genre": assigned_genre,
                 "mood": base_mood,
-                "prompt": f"{base_directive}. Track concept: {base_mood}, smooth loopable longform playlist track",
-                "duration_seconds": track_duration,
+                "prompt": f"{base_directive}. Track concept: {title}, {base_mood}, smooth loopable longform playlist track",
+                "duration_seconds": duration_sequence[idx - 1],
+                "instruments": self._coerce_instruments(None, assigned_genre),
+                "lyrics": self._build_track_lyrics(music_config, title, base_mood) if include_lyrics else "",
+                "vocalist_gender": assigned_gender,
+                "vocal_mode": assigned_vocal_mode,
+                "status": "planned",
             })
         return normalized[:target_count]
 
@@ -169,6 +376,7 @@ class MusicPlanService:
                 try:
                     plan = json.loads(raw_plan)
                     if isinstance(plan, dict) and plan.get("tracks"):
+                        plan["tracks"] = self.coerce_tracks(plan, music_config)
                         return plan
                 except Exception:
                     pass
@@ -187,6 +395,10 @@ class MusicPlanService:
         else:
             moods_str = str(moods)
 
+        genre_key = music_config.get('genre', 'lofi')
+        genre_name = self.genre_display_name(str(genre_key))
+        genre_guide = self.genre_guide(str(genre_key))
+
         prompt = f"""Create a production JSON plan for a longform YouTube music playlist.
 
 Topic: {topic}
@@ -194,7 +406,8 @@ Creative brief:
 {brief[:3000]}
 
 Requirements:
-- Music genre/category: {music_config.get('genre', 'lofi')}
+- Music genre/category: {genre_name} ({genre_key})
+- Genre-specific direction: {genre_guide}
 - Moods: {moods_str}
 - Vocal mode: {music_config.get('vocal_mode', 'instrumental')}
 - Target language/market: {music_config.get('target_language', 'global')}
@@ -202,11 +415,13 @@ Requirements:
 - Total target duration seconds: {music_config.get('playlist_duration_seconds', 3600)}
 - Instrumental-first unless brief requests vocals. Avoid artist names, song names, and copyrighted lyrics.
 - Each track prompt must be safe for AI music generation and distinct enough for a playlist.
+- Create exactly the requested number of tracks.
+- Every track must have a meaningful Korean title plus an English subtitle in parentheses. Never use generic names like "Track 01" or "Track 02".
 
 Return JSON only:
 {{
   "playlist_title": "...",
-  "genre": "{music_config.get('genre', 'lofi')}",
+  "genre": "{genre_key}",
   "moods": [],
   "mood": "...",
   "visual_concept": "...",
@@ -248,8 +463,12 @@ Return JSON only:
 
     def save_plan(self, project_id: int, plan: dict, music_config: Optional[dict] = None) -> None:
         db.update_project_setting(project_id, "longform_music_plan_json", json.dumps(plan, ensure_ascii=False))
+        db.replace_music_track_plans(project_id, plan.get("tracks") or [])
         if music_config is not None:
             self.save_config(project_id, music_config)
+
+    def get_track_plans(self, project_id: int) -> List[Dict[str, Any]]:
+        return db.get_music_track_plans(project_id)
 
     def get_plan(self, project_id: int) -> Optional[dict]:
         settings = db.get_project_settings(project_id) or {}
@@ -258,7 +477,12 @@ Return JSON only:
             return None
         try:
             plan = json.loads(raw_plan)
-            return plan if isinstance(plan, dict) else None
+            if not isinstance(plan, dict):
+                return None
+            music_config = self.parse_music_config(settings.get("longform_music"))
+            if plan.get("tracks"):
+                plan["tracks"] = self.coerce_tracks(plan, music_config)
+            return plan
         except Exception:
             return None
 

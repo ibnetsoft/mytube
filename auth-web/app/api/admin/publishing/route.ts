@@ -38,6 +38,14 @@ function normalizePublishingRequest(request: any) {
     const driveMetadataFileId = metadata.drive_metadata_file_id || metadata.result_metadata_file_id || null
     const projectId = metadata.project_id || null
     const publishError = metadata.publish_error || null
+    const trackDurations = Array.isArray(metadata.track_durations) ? metadata.track_durations : []
+    const totalDurationSeconds =
+        Number(metadata.total_duration_seconds || 0) ||
+        trackDurations.reduce((sum: number, item: any) => sum + (Number(item || 0) || 0), 0) ||
+        null
+    const trackCount =
+        Number(metadata.track_count || 0) ||
+        (trackDurations.length ? trackDurations.length : null)
 
     return {
         ...request,
@@ -58,6 +66,8 @@ function normalizePublishingRequest(request: any) {
                 buildDriveThumbnailPreview(driveThumbnailFileId),
             youtube_url: metadata.videoId ? `https://youtu.be/${metadata.videoId}` : null,
             has_drive_bundle: Boolean(driveFolderId || driveVideoFileId || driveMetadataFileId),
+            track_count: trackCount,
+            total_duration_seconds: totalDurationSeconds,
             publish_error: publishError,
             published_at: metadata.published_at || null,
             failed_at: metadata.failed_at || null,
@@ -95,9 +105,70 @@ export async function GET(req: Request) {
     }
 }
 
+export async function POST(req: Request) {
+    try {
+        const payload = await req.json()
+        const userId = payload?.user_id || payload?.userId
+        const videoUrl = payload?.video_url || payload?.videoUrl
+        const metadata = payload?.metadata || {}
+        const projectId = metadata?.project_id || payload?.project_id || null
+
+        if (!userId || !videoUrl || !projectId) {
+            return NextResponse.json({ error: 'Missing user_id, video_url, or metadata.project_id' }, { status: 400 })
+        }
+
+        const supabase = getAdmin()
+        const { data: existing, error: existingError } = await supabase
+            .from('publishing_requests')
+            .select('id, metadata, status')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+
+        if (existingError) throw existingError
+
+        const existingRow = (existing || []).find((row: any) => {
+            const rowProjectId = row?.metadata?.project_id
+            return String(rowProjectId || '') === String(projectId)
+        })
+
+        if (existingRow) {
+            const { data, error } = await supabase
+                .from('publishing_requests')
+                .update({
+                    video_url: videoUrl,
+                    metadata,
+                    status: 'pending',
+                })
+                .eq('id', existingRow.id)
+                .select()
+                .single()
+
+            if (error) throw error
+            return NextResponse.json({ success: true, request: normalizePublishingRequest(data), updated: true })
+        }
+
+        const { data, error } = await supabase
+            .from('publishing_requests')
+            .insert({
+                user_id: userId,
+                video_url: videoUrl,
+                metadata,
+                status: 'pending',
+            })
+            .select()
+            .single()
+
+        if (error) throw error
+        return NextResponse.json({ success: true, request: normalizePublishingRequest(data), created: true })
+    } catch (error: any) {
+        console.error("Publishing POST Error:", error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}
+
 export async function PATCH(req: Request) {
     try {
-        const { requestId, status } = await req.json()
+        const { requestId, status, publish_visibility } = await req.json()
         if (!requestId || !status) return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
 
         const supabase = getAdmin()
@@ -112,9 +183,14 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ error: 'Missing project_id in publishing request metadata' }, { status: 400 })
         }
 
+        const nextMetadata = {
+            ...(existing?.metadata || {}),
+            ...(publish_visibility ? { publish_visibility } : {}),
+        }
+
         const { data, error } = await supabase
             .from('publishing_requests')
-            .update({ status })
+            .update({ status, metadata: nextMetadata })
             .eq('id', requestId)
             .select()
 
