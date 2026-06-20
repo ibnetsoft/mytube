@@ -84,6 +84,7 @@ class AutoPublishService:
                     continue
 
                 try:
+                    db.update_project_setting(int(project_id), "admin_publish_status", str(req.get("status") or "approved"))
                     result = publish_project_to_youtube(
                         int(project_id),
                         requested_privacy=str(metadata.get("privacy_status") or "public"),
@@ -123,6 +124,11 @@ class AutoPublishService:
                 except Exception as e:
                     err_msg = str(e)
                     print(f"[Error] Failed to publish request {req_id}: {err_msg}")
+                    try:
+                        db.update_project_setting(int(project_id), "admin_publish_status", "publish_failed")
+                        db.update_project_setting(int(project_id), "admin_publish_error", err_msg)
+                    except Exception:
+                        pass
                     try:
                         web_admin_client.supabase_patch(
                             "publishing_requests",

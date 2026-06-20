@@ -7,7 +7,7 @@ import shutil
 import uuid
 import time
 import httpx
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, Response
 from config import config
 from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 
@@ -348,6 +348,94 @@ async def save_global_settings_api(settings: GlobalSettings):
         "previous_mode": previous_mode,
         "new_mode": settings.app_mode
     }
+
+
+def _parse_bool_query(value: Optional[str], default: bool = True) -> bool:
+    if value is None:
+        return default
+    return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+@router.get("/settlement-summary")
+async def get_settlement_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    email: Optional[str] = None,
+    approved_only: Optional[str] = "true",
+):
+    _require_advanced_settings_access()
+    stats = db.get_worker_settlement_stats(
+        start_date=start_date,
+        end_date=end_date,
+        email=(email or "").strip() or None,
+        approved_only=_parse_bool_query(approved_only, True),
+    )
+    return {
+        "status": "success",
+        "approved_only": _parse_bool_query(approved_only, True),
+        "stats": stats,
+    }
+
+
+@router.get("/settlement-export")
+async def export_settlement_csv(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    email: Optional[str] = None,
+    project_pay: int = 0,
+    ai_pay: int = 0,
+    approved_only: Optional[str] = "true",
+):
+    _require_advanced_settings_access()
+    import csv
+    import io
+    import time as _time
+
+    stats = db.get_worker_settlement_stats(
+        start_date=start_date,
+        end_date=end_date,
+        email=(email or "").strip() or None,
+        approved_only=_parse_bool_query(approved_only, True),
+    )
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "worker",
+        "approved_projects",
+        "total_projects",
+        "success_ai_tasks",
+        "total_ai_tasks",
+        "tts_tasks",
+        "media_tasks",
+        "project_pay",
+        "ai_pay",
+        "total_payout",
+    ])
+    for row in stats:
+        approved_projects = int(row.get("completed_projects") or 0)
+        success_ai_tasks = int(row.get("success_ai_tasks") or 0)
+        project_earnings = approved_projects * int(project_pay or 0)
+        ai_earnings = success_ai_tasks * int(ai_pay or 0)
+        writer.writerow([
+            row.get("worker") or "unknown",
+            approved_projects,
+            int(row.get("total_projects") or 0),
+            success_ai_tasks,
+            int(row.get("total_ai_tasks") or 0),
+            int(row.get("tts_tasks") or 0),
+            int(row.get("media_tasks") or 0),
+            project_earnings,
+            ai_earnings,
+            project_earnings + ai_earnings,
+        ])
+
+    filename = f"picadiri_settlement_{_time.strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        content="\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 class StylePreset(BaseModel):
     style_key: str

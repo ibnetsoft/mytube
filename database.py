@@ -473,6 +473,7 @@ def init_db():
             thinking_tokens INTEGER DEFAULT 0,
             balance_after INTEGER,
             elapsed_time REAL,
+            worker_email TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -892,6 +893,9 @@ scene_type별 구조:
     except sqlite3.OperationalError: pass
     try:
         cursor.execute("ALTER TABLE ai_generation_logs ADD COLUMN balance_after INTEGER")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE ai_generation_logs ADD COLUMN worker_email TEXT")
     except sqlite3.OperationalError: pass
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN upload_schedule_at TEXT")
@@ -3546,13 +3550,21 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
         except:
             pass
 
+    # [NEW] worker_email 가져오기
+    worker_email = None
+    try:
+        from services.auth_service import auth_service
+        worker_email = auth_service.get_user_email()
+    except:
+        pass
+
     conn = get_db()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, thinking_tokens)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, thinking_tokens))
+            INSERT INTO ai_generation_logs (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, thinking_tokens, worker_email)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, thinking_tokens, worker_email))
         conn.commit()
     except Exception as e:
         print(f"[DB] Failed to add AI log: {e}")
@@ -3709,5 +3721,116 @@ def get_channel(channel_id: int):
     except Exception as e:
         print(f"[DB Error] get_channel: {e}")
         return None
+    finally:
+        conn.close()
+
+def get_worker_settlement_stats(
+    start_date: str = None,
+    end_date: str = None,
+    email: str = None,
+    approved_only: bool = True,
+) -> List[Dict[str, Any]]:
+    """직원 정산을 위해 날짜 범위 및 이메일별 작업량 통계를 집계합니다."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # 1. AI 작업량(ai_generation_logs) 집계
+        query = """
+            SELECT
+                COALESCE(worker_email, 'unknown') as worker,
+                COUNT(id) as total_ai_tasks,
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_ai_tasks,
+                SUM(CASE WHEN task_type = 'tts_gen' THEN 1 ELSE 0 END) as tts_tasks,
+                SUM(CASE WHEN task_type = 'vision_gen' OR task_type = 'image_crop' THEN 1 ELSE 0 END) as media_tasks
+            FROM ai_generation_logs
+            WHERE 1=1
+        """
+        params = []
+        if start_date:
+            query += " AND created_at >= ?"
+            params.append(f"{start_date} 00:00:00")
+        if end_date:
+            query += " AND created_at <= ?"
+            params.append(f"{end_date} 23:59:59")
+        if email:
+            query += " AND worker_email = ?"
+            params.append(email)
+
+        query += " GROUP BY worker"
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        # 2. 프로젝트 완료(projects 테이블) 집계 (employee_email 연동)
+        approved_statuses = (
+            "approved",
+            "to_be_published",
+            "published",
+            "publish_completed",
+            "youtube_published",
+        )
+        approved_status_expr = "LOWER(COALESCE(ps.admin_publish_status, ''))"
+        completed_expr = (
+            f"CASE WHEN {approved_status_expr} IN ({','.join(['?'] * len(approved_statuses))}) "
+            "THEN 1 ELSE 0 END"
+            if approved_only
+            else "CASE WHEN p.status = 'completed' OR p.status = 'rendered' THEN 1 ELSE 0 END"
+        )
+        p_query = f"""
+            SELECT
+                COALESCE(p.employee_email, 'unknown') as worker,
+                COUNT(DISTINCT p.id) as total_projects,
+                SUM({completed_expr}) as completed_projects
+            FROM projects p
+            LEFT JOIN project_settings ps ON ps.project_id = p.id
+            WHERE 1=1
+        """
+        p_params = list(approved_statuses) if approved_only else []
+        if start_date:
+            p_query += " AND p.updated_at >= ?"
+            p_params.append(f"{start_date} 00:00:00")
+        if end_date:
+            p_query += " AND p.updated_at <= ?"
+            p_params.append(f"{end_date} 23:59:59")
+        if email:
+            p_query += " AND p.employee_email = ?"
+            p_params.append(email)
+
+        p_query += " GROUP BY worker"
+        cursor.execute(p_query, p_params)
+        p_rows = cursor.fetchall()
+
+        # 매핑 통합
+        stats_map = {}
+        for r in rows:
+            w = r['worker']
+            stats_map[w] = {
+                "worker": w,
+                "total_ai_tasks": r['total_ai_tasks'],
+                "success_ai_tasks": r['success_ai_tasks'],
+                "tts_tasks": r['tts_tasks'],
+                "media_tasks": r['media_tasks'],
+                "total_projects": 0,
+                "completed_projects": 0
+            }
+
+        for pr in p_rows:
+            w = pr['worker']
+            if w not in stats_map:
+                stats_map[w] = {
+                    "worker": w,
+                    "total_ai_tasks": 0,
+                    "success_ai_tasks": 0,
+                    "tts_tasks": 0,
+                    "media_tasks": 0,
+                    "total_projects": 0,
+                    "completed_projects": 0
+                }
+            stats_map[w]["total_projects"] = pr['total_projects']
+            stats_map[w]["completed_projects"] = pr['completed_projects']
+
+        return list(stats_map.values())
+    except Exception as e:
+        print(f"[DB] Failed to get worker settlement stats: {e}")
+        return []
     finally:
         conn.close()

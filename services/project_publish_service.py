@@ -166,6 +166,8 @@ def publish_project_to_youtube(
         db.update_project_setting(project_id, "is_published", 1)
         db.update_project_setting(project_id, "is_uploaded", 1)
         db.update_project_setting(project_id, "upload_source", upload_source)
+        db.update_project_setting(project_id, "admin_publish_status", "published")
+        db.update_project_setting(project_id, "admin_publish_ready", "1")
 
         return {
             "status": "ok",

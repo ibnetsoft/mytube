@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     })
 
     try {
-        const { userId } = await req.json()
+        const { userId, hwid } = await req.json()
 
         if (!userId) {
             return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
@@ -30,6 +30,10 @@ export async function POST(req: Request) {
         }
 
         const meta = user.user_metadata || {}
+        const appMeta = user.app_metadata || {}
+        if (appMeta.banned || appMeta.restricted || meta.banned || meta.restricted) {
+            return NextResponse.json({ error: 'Account is restricted', status: 'restricted' }, { status: 403 })
+        }
 
         // 1. 시스템 전역 키 조회 (공용 fallback)
         const sys_keys: Record<string, string> = {}
@@ -73,14 +77,36 @@ export async function POST(req: Request) {
         }
 
         // Get user profile (token balance, pin_code)
-        const { data: profile, error: profileError } = await supabaseAdmin
+        let { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .select('token_balance, membership, pin_code')
+            .select('token_balance, membership, pin_code, is_approved, approved_hwid, device_hwid')
             .eq('id', userId)
             .maybeSingle()
 
         if (profileError) {
             console.warn(`[Verify] Profile fetch error for ${userId}:`, profileError.message)
+            const fallback = await supabaseAdmin
+                .from('profiles')
+                .select('token_balance, membership, pin_code, is_approved')
+                .eq('id', userId)
+                .maybeSingle()
+            profile = fallback.data
+            profileError = fallback.error
+        }
+
+        if (profileError) {
+            console.warn(`[Verify] Profile fallback fetch error for ${userId}:`, profileError.message)
+        }
+
+        const isApproved = profile?.is_approved
+        if (isApproved === false || isApproved === null || isApproved === undefined || ['false', '0', 'none'].includes(String(isApproved).toLowerCase())) {
+            return NextResponse.json({ error: 'Account is waiting for admin approval', status: 'restricted' }, { status: 403 })
+        }
+
+        const registeredHwid = String(profile?.approved_hwid || profile?.device_hwid || '').trim()
+        const incomingHwid = String(hwid || '').trim()
+        if (registeredHwid && incomingHwid && registeredHwid !== incomingHwid) {
+            return NextResponse.json({ error: 'Device is not approved for this account', status: 'restricted' }, { status: 403 })
         }
 
         const tokenBalance = profile?.token_balance ?? 0
