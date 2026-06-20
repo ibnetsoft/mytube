@@ -25,6 +25,9 @@ CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON public.withdrawals(status);
 -- 4. Enable Row Level Security (RLS)
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "withdrawals_self_read" ON public.withdrawals;
+DROP POLICY IF EXISTS "withdrawals_self_insert" ON public.withdrawals;
+
 -- Policy: Users can read their own withdrawals
 CREATE POLICY "withdrawals_self_read" ON public.withdrawals
     FOR SELECT USING (auth.uid() = user_id);
