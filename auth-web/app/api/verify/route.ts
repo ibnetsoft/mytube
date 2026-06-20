@@ -77,11 +77,23 @@ export async function POST(req: Request) {
         }
 
         // Get user profile (token balance, pin_code)
-        let { data: profile, error: profileError } = await supabaseAdmin
+        let profile: {
+            token_balance?: any
+            membership?: any
+            pin_code?: any
+            is_approved?: any
+            approved_hwid?: any
+            device_hwid?: any
+        } | null = null
+        let profileError: any = null
+
+        const profileResult = await supabaseAdmin
             .from('profiles')
             .select('token_balance, membership, pin_code, is_approved, approved_hwid, device_hwid')
             .eq('id', userId)
             .maybeSingle()
+        profile = profileResult.data
+        profileError = profileResult.error
 
         if (profileError) {
             console.warn(`[Verify] Profile fetch error for ${userId}:`, profileError.message)

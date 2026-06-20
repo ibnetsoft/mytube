@@ -68,6 +68,18 @@ def init_db():
 
     # 프로젝트 테이블
     cursor.execute("""
+        # [MIGRATION] withdrawals 테이블 생성
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_email TEXT NOT NULL,
+            amount REAL NOT NULL,
+            dest_address TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -190,6 +202,19 @@ def init_db():
             cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
         except Exception:
             pass # Already exists
+
+    for col, col_type in [
+        ("actual_payout", "INTEGER DEFAULT 0"),
+        ("asset_mix_summary_json", "TEXT"),
+        ("video_clip_ratio", "TEXT"),
+        ("total_scenes", "INTEGER DEFAULT 0"),
+        ("video_scenes", "INTEGER DEFAULT 0"),
+        ("image_scenes", "INTEGER DEFAULT 0"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass
 
     # 분석 데이터 (주제 찾기 결과)
     cursor.execute("""
@@ -1981,6 +2006,7 @@ def save_project_settings(project_id: int, settings: Dict):
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style',
+                    'actual_payout', 'asset_mix_summary_json', 'video_clip_ratio', 'total_scenes', 'video_scenes', 'image_scenes',
                     'webtoon_auto_split', 'webtoon_smart_pan', 'webtoon_convert_zoom', 'webtoon_scenes_json', 'webtoon_plan_json']: # [NEW] Webtoon
             if key in settings:
                 fields.append(f"{key} = ?")
@@ -2003,8 +2029,9 @@ def save_project_settings(project_id: int, settings: Dict):
               image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style,
               subtitle_base_color, subtitle_pos_y, subtitle_pos_x, subtitle_bg_enabled, subtitle_stroke_enabled, subtitle_line_spacing, subtitle_bg_color, subtitle_bg_opacity,
               voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path, thumbnail_style, image_style,
+              actual_payout, asset_mix_summary_json, video_clip_ratio, total_scenes, video_scenes, image_scenes,
               webtoon_auto_split, webtoon_smart_pan, webtoon_convert_zoom, webtoon_scenes_json, webtoon_plan_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          """, (
             project_id,
             settings.get('title'),
@@ -2050,6 +2077,12 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('intro_video_path'),
             settings.get('thumbnail_style'),
             settings.get('image_style'),
+            settings.get('actual_payout', 0),
+            settings.get('asset_mix_summary_json'),
+            settings.get('video_clip_ratio'),
+            settings.get('total_scenes', 0),
+            settings.get('video_scenes', 0),
+            settings.get('image_scenes', 0),
             settings.get('webtoon_auto_split', 1),
             settings.get('webtoon_smart_pan', 1),
             settings.get('webtoon_convert_zoom', 1),
@@ -3779,7 +3812,10 @@ def get_worker_settlement_stats(
             SELECT
                 COALESCE(p.employee_email, 'unknown') as worker,
                 COUNT(DISTINCT p.id) as total_projects,
-                SUM({completed_expr}) as completed_projects
+                SUM({completed_expr}) as completed_projects,
+                SUM(CASE WHEN ({completed_expr}) = 1 THEN CAST(COALESCE(NULLIF(ps.actual_payout, 0), ps.estimated_payout, 0) AS INTEGER) ELSE 0 END) as total_project_payout,
+                SUM(CASE WHEN ({completed_expr}) = 1 THEN CAST(COALESCE(ps.estimated_payout, 0) AS INTEGER) ELSE 0 END) as total_estimated_payout,
+                SUM(CASE WHEN ({completed_expr}) = 1 THEN CAST(COALESCE(ps.actual_payout, 0) AS INTEGER) ELSE 0 END) as total_actual_payout
             FROM projects p
             LEFT JOIN project_settings ps ON ps.project_id = p.id
             WHERE 1=1
@@ -3823,10 +3859,16 @@ def get_worker_settlement_stats(
                     "tts_tasks": 0,
                     "media_tasks": 0,
                     "total_projects": 0,
-                    "completed_projects": 0
+                    "completed_projects": 0,
+                    "total_project_payout": 0,
+                    "total_estimated_payout": 0,
+                    "total_actual_payout": 0,
                 }
             stats_map[w]["total_projects"] = pr['total_projects']
             stats_map[w]["completed_projects"] = pr['completed_projects']
+            stats_map[w]["total_project_payout"] = pr['total_project_payout'] or 0
+            stats_map[w]["total_estimated_payout"] = pr['total_estimated_payout'] or 0
+            stats_map[w]["total_actual_payout"] = pr['total_actual_payout'] or 0
 
         return list(stats_map.values())
     except Exception as e:
@@ -3834,3 +3876,64 @@ def get_worker_settlement_stats(
         return []
     finally:
         conn.close()
+
+
+def get_worker_project_history(employee_email: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        query = '''
+            SELECT
+                p.id as project_id,
+                p.name as project_name,
+                p.updated_at as completion_date,
+                ps.duration_seconds,
+                ps.video_clip_ratio,
+                ps.estimated_payout as payout_amount
+            FROM projects p
+            LEFT JOIN project_settings ps ON p.id = ps.project_id
+            WHERE p.employee_email = ? 
+              AND p.status IN ('completed', 'rendered', 'published', 'uploaded', 'youtube_published')
+            ORDER BY p.updated_at DESC
+        '''
+        cursor.execute(query, (employee_email,))
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"[DB] Error in get_worker_project_history: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+
+def create_withdrawal(employee_email: str, amount: float, dest_address: str) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO withdrawals (employee_email, amount, dest_address, status) VALUES (?, ?, ?, 'pending')",
+            (employee_email, amount, dest_address)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as e:
+        print(f"[DB] Error creating withdrawal: {e}")
+        return 0
+    finally:
+        conn.close()
+
+def get_worker_withdrawals(employee_email: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT id, amount, dest_address, status, created_at FROM withdrawals WHERE employee_email = ? ORDER BY created_at DESC",
+            (employee_email,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"[DB] Error getting withdrawals: {e}")
+        return []
+    finally:
+        conn.close()
+

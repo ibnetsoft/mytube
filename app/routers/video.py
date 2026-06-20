@@ -68,6 +68,44 @@ class SubtitlePreviewRequest(BaseModel):
 # Helper Functions
 # ===========================================
 
+def _to_int(value, default: int = 0):
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _build_asset_mix_payout_summary(project_id: int, base_payout: int):
+    image_prompts = db.get_image_prompts(project_id) or []
+    total_scenes = len(image_prompts)
+    video_scenes = sum(1 for row in image_prompts if str(row.get("video_url") or "").strip())
+    image_scenes = sum(
+        1 for row in image_prompts
+        if not str(row.get("video_url") or "").strip() and str(row.get("image_url") or "").strip()
+    )
+    unresolved_scenes = max(0, total_scenes - video_scenes - image_scenes)
+
+    if total_scenes <= 0 or base_payout <= 0:
+        actual_payout = base_payout
+    else:
+        weighted_scene_score = video_scenes + (image_scenes * 0.15)
+        actual_payout = int(base_payout * (weighted_scene_score / total_scenes))
+
+    return {
+        "total_scenes": total_scenes,
+        "video_scenes": video_scenes,
+        "image_scenes": image_scenes,
+        "unresolved_scenes": unresolved_scenes,
+        "video_clip_ratio": f"{video_scenes}/{total_scenes}" if total_scenes > 0 else "0/0",
+        "estimated_payout": base_payout,
+        "actual_payout": actual_payout,
+        "weight_policy": {
+            "video_scene_weight": 1.0,
+            "image_scene_weight": 0.15,
+        },
+    }
+
+
 def get_project_output_dir(project_id: int):
     """프로젝트 ID를 기반으로 '프로젝트명_날짜' 형식의 폴더를 생성하고 경로를 반환합니다."""
     project = db.get_project(project_id)
@@ -963,9 +1001,37 @@ async def render_project_video(
         app_mode = global_settings.get("app_mode", "longform")
 
         # 1. 데이터 조회
-        images_data = db.get_image_prompts(project_id)
         tts_data = db.get_tts(project_id)
         p_settings = db.get_project_settings(project_id) or {}
+        estimated_payout = _to_int(p_settings.get("estimated_payout"), 0)
+        payout_summary = _build_asset_mix_payout_summary(project_id, estimated_payout)
+        actual_payout = payout_summary["actual_payout"]
+
+        db.update_project_setting(project_id, "actual_payout", actual_payout)
+        db.update_project_setting(project_id, "video_clip_ratio", payout_summary["video_clip_ratio"])
+        db.update_project_setting(project_id, "total_scenes", payout_summary["total_scenes"])
+        db.update_project_setting(project_id, "video_scenes", payout_summary["video_scenes"])
+        db.update_project_setting(project_id, "image_scenes", payout_summary["image_scenes"])
+        db.update_project_setting(project_id, "asset_mix_summary_json", json.dumps(payout_summary, ensure_ascii=False))
+
+        topic_id = p_settings.get("topic_queue_id")
+        if topic_id:
+            try:
+                from services.web_admin_client import web_admin_client
+                web_admin_client.supabase_patch(
+                    "topics_queue",
+                    {
+                        "actual_payout": actual_payout,
+                        "video_clip_ratio": payout_summary["video_clip_ratio"],
+                        "total_scenes": payout_summary["total_scenes"],
+                        "video_scenes": payout_summary["video_scenes"],
+                        "image_scenes": payout_summary["image_scenes"],
+                        "asset_mix_summary": payout_summary,
+                    },
+                    params={"id": f"eq.{topic_id}"}
+                )
+            except Exception as e:
+                print(f"[Payout Sync Warning] Failed to patch topics_queue: {e}")
         
         if request.render_target == "drive_api":
             db.update_project(project_id, status="remote_packaging")

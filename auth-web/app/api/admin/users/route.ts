@@ -45,6 +45,8 @@ export async function GET() {
                 user_metadata: userMetadata,
                 profile: {
                     token_balance: profileData.token_balance || 0,
+                    usdt_balance: profileData.usdt_balance || 0,
+                    wallet_address: profileData.wallet_address || '',
                     membership_tier: membership,
                     membership: membership,
                     pin_code: profileData.pin_code || '1234',
@@ -54,6 +56,9 @@ export async function GET() {
                     full_name: profileData.full_name || '',
                     contact: profileData.contact || '',
                     nationality: profileData.nationality || '',
+                    persona_name: profileData.persona_name || '',
+                    persona_style: profileData.persona_style || '',
+                    persona_description: profileData.persona_description || '',
                 }
             }
         })
@@ -77,6 +82,8 @@ export async function GET() {
                 },
                 profile: {
                     token_balance: p.token_balance || 0,
+                    usdt_balance: p.usdt_balance || 0,
+                    wallet_address: p.wallet_address || '',
                     membership_tier: membership,
                     membership: membership,
                     pin_code: p.pin_code || '1234',
@@ -86,6 +93,9 @@ export async function GET() {
                     full_name: p.full_name || '',
                     contact: p.contact || '',
                     nationality: p.nationality || '',
+                    persona_name: p.persona_name || '',
+                    persona_style: p.persona_style || '',
+                    persona_description: p.persona_description || '',
                 }
             } as any)
         }

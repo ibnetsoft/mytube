@@ -22,6 +22,27 @@ function payoutForMinutes(minutes: number, minMinutes: number, basePay: number, 
     return basePay + Math.max(0, minutes - minMinutes) * extraPerMinute
 }
 
+function normalizeTopicQueueRow(topic: any) {
+    const assetMix = topic?.asset_mix_summary && typeof topic.asset_mix_summary === 'object'
+        ? topic.asset_mix_summary
+        : {}
+    const totalScenes = toInt(topic?.total_scenes ?? assetMix?.total_scenes, 0)
+    const videoScenes = toInt(topic?.video_scenes ?? assetMix?.video_scenes, 0)
+    const imageScenes = toInt(topic?.image_scenes ?? assetMix?.image_scenes, 0)
+    const actualPayout = toInt(topic?.actual_payout ?? assetMix?.actual_payout, 0)
+    const fallbackRatio = totalScenes > 0 ? `${videoScenes}/${totalScenes}` : null
+    const videoClipRatio = String(topic?.video_clip_ratio || assetMix?.video_clip_ratio || fallbackRatio || '').trim()
+
+    return {
+        ...topic,
+        total_scenes: totalScenes,
+        video_scenes: videoScenes,
+        image_scenes: imageScenes,
+        actual_payout: actualPayout,
+        video_clip_ratio: videoClipRatio,
+    }
+}
+
 // GET: 대기열 주제 목록 조회
 export async function GET(req: Request) {
     try {
@@ -63,7 +84,7 @@ export async function GET(req: Request) {
             )
         )
 
-        topics = topics.map((topic: any) => ({
+        topics = topics.map((topic: any) => normalizeTopicQueueRow({
             ...topic,
             assigned_employee_email: topic.categories?.assigned_employee_email || topic.assigned_employee_email
         }))

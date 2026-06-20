@@ -14,14 +14,43 @@ interface UserProfile {
     user_metadata: Record<string, any>
     app_metadata: Record<string, any>
     profile?: {
-        token_balance: number
+        token_balance?: number
+        usdt_balance?: number
+        wallet_address?: string
         is_approved?: boolean
         signup_status?: string
         signup_source?: string
         full_name?: string
         contact?: string
         nationality?: string
+        membership?: string
+        membership_tier?: string
+        pin_code?: string
+        approved_hwid?: string
+        device_hwid?: string
+        persona_name?: string
+        persona_style?: string
+        persona_description?: string
     }
+}
+
+interface EditInfoFormState {
+    full_name: string
+    nationality: string
+    contact: string
+    persona_name: string
+    persona_style: string
+    persona_description: string
+}
+
+
+interface WithdrawalReq {
+    id: string
+    user_id: string
+    amount: number
+    dest_address: string
+    status: 'pending' | 'completed' | 'rejected'
+    created_at: string
 }
 
 interface PublishingRequest {
@@ -104,9 +133,11 @@ export default function DashboardContent() {
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
+    const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals'>('topics')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
+    const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
 
@@ -167,7 +198,14 @@ export default function DashboardContent() {
     const [tempApiKeys, setTempApiKeys] = useState<any>({ openai: '', gemini: '', pexels: '', replicate: '' });
     const [tempChannelInfo, setTempChannelInfo] = useState<any>({ name: '', id: '', proxy: '' });
     const [editInfoUser, setEditInfoUser] = useState<any>(null);
-    const [editInfoForm, setEditInfoForm] = useState({ full_name: '', nationality: '', contact: '' });
+    const [editInfoForm, setEditInfoForm] = useState<EditInfoFormState>({
+        full_name: '',
+        nationality: '',
+        contact: '',
+        persona_name: '',
+        persona_style: '',
+        persona_description: '',
+    });
     
     // Data Stats State
     const [globalLogs, setGlobalLogs] = useState<any[]>([])
@@ -561,13 +599,25 @@ export default function DashboardContent() {
                         ...(editInfoForm.full_name  && { full_name:   editInfoForm.full_name }),
                         ...(editInfoForm.nationality && { nationality: editInfoForm.nationality }),
                         ...(editInfoForm.contact    && { contact:     editInfoForm.contact }),
+                        persona_name: editInfoForm.persona_name || '',
+                        persona_style: editInfoForm.persona_style || '',
+                        persona_description: editInfoForm.persona_description || ''
                     }
                 })
             });
             const data = await res.json();
             if (data.success) {
                 setUsers(prev => prev.map(u => u.id === editInfoUser.id
-                    ? { ...u, user_metadata: { ...u.user_metadata, ...editInfoForm } }
+                    ? {
+                        ...u,
+                        user_metadata: { ...u.user_metadata, ...editInfoForm },
+                        profile: {
+                            ...u.profile,
+                            persona_name: editInfoForm.persona_name || '',
+                            persona_style: editInfoForm.persona_style || '',
+                            persona_description: editInfoForm.persona_description || ''
+                        }
+                      }
                     : u
                 ));
                 setEditInfoUser(null);
@@ -773,6 +823,35 @@ export default function DashboardContent() {
             setGlobalStats(calcGeneralStats(data.logs || [], days));
         } finally { setGlobalLoading(false); }
     }, [isAdmin]);
+
+    
+    const fetchWithdrawals = useCallback(async () => {
+        const { data, error } = await supabase
+            .from('withdrawals')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100)
+        
+        if (data && !error) {
+            setWithdrawals(data)
+        }
+    }, [])
+
+    const updateWithdrawalStatus = async (id: string, newStatus: 'completed' | 'rejected') => {
+        if (!confirm(`정말로 이 출금 요청을 ${newStatus === 'completed' ? '완료' : '거절'} 처리하시겠습니까?`)) return
+        
+        const { error } = await supabase
+            .from('withdrawals')
+            .update({ status: newStatus, processed_at: new Date().toISOString() })
+            .eq('id', id)
+            
+        if (error) {
+            alert('상태 업데이트 실패: ' + error.message)
+        } else {
+            alert('출금 상태가 업데이트 되었습니다.')
+            fetchWithdrawals()
+        }
+    }
 
     const fetchPublishingRequests = useCallback(async () => {
         if (!isAdmin) return;
@@ -1254,6 +1333,13 @@ export default function DashboardContent() {
         }
     }
 
+    
+    useEffect(() => {
+        if (activeTab === 'withdrawals') {
+            fetchWithdrawals();
+        }
+    }, [activeTab, fetchWithdrawals]);
+
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueue();
@@ -1419,7 +1505,7 @@ export default function DashboardContent() {
                             </td>
                             <td className="px-10 py-5"><div className="flex items-center gap-3"><div className={`w-1.5 h-1.5 rounded-full ${log.status === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} /><span className="text-[11px] font-black text-white uppercase tracking-widest">{typeMap[log.task_type] || log.task_type}</span></div></td>
                             <td className="px-10 py-5"><div className="text-[10px] font-black text-white uppercase italic">{log.model_id}</div><div className="text-[8px] text-gray-600 font-bold uppercase">{log.provider || 'AI_ENGINE'}</div></td>
-                            <td className="px-10 py-5 max-w-[400px] text-gray-500 italic text-[11px] truncate group-hover:text-gray-300 transition-colors">"{log.prompt_summary || 'No summary available'}"</td>
+                            <td className="px-10 py-5 max-w-[400px] text-gray-500 italic text-[11px] truncate group-hover:text-gray-300 transition-colors">&quot;{log.prompt_summary || 'No summary available'}&quot;</td>
                             <td className="px-10 py-5 text-right font-black text-[12px]">
                                 <div className="flex flex-col items-end">
                                     <span className={log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-white'}>
@@ -1465,7 +1551,7 @@ export default function DashboardContent() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-4xl font-black uppercase tracking-tighter">관리자 대시보드</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
-                        {['topics', 'overview', 'users', 'api', 'render-queue', 'styles'].map(tab => (
+                        {['topics', 'overview', 'users', 'withdrawals', 'api', 'render-queue', 'styles'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
                                 {tab === 'topics'
                                     ? '주제배당'
@@ -1857,6 +1943,18 @@ export default function DashboardContent() {
                             const isPendingTopic = (item: any) => item.status === 'pending';
                             const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
                             const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working' ? isWorkingTopic(item) : isPendingTopic(item);
+                            const topicActualPayout = (item: any) => {
+                                const parsed = Number(item?.actual_payout ?? 0);
+                                return Number.isFinite(parsed) ? parsed : 0;
+                            };
+                            const topicVideoClipRatio = (item: any) => String(item?.video_clip_ratio || '').trim();
+                            const topicSceneSummary = (item: any) => {
+                                const total = Number(item?.total_scenes ?? 0) || 0;
+                                const video = Number(item?.video_scenes ?? 0) || 0;
+                                const image = Number(item?.image_scenes ?? 0) || 0;
+                                if (total <= 0 && video <= 0 && image <= 0) return '';
+                                return `SCENES ${video}V ${image}I / ${total}`;
+                            };
                             const queueCategories = [...categories].sort((a, b) => {
                                 const aActive = topics.filter(t => String(t.category_id) === String(a.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
                                 const bActive = topics.filter(t => String(t.category_id) === String(b.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
@@ -2031,7 +2129,28 @@ export default function DashboardContent() {
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <span className="block truncate">{item.topic}</span>
+                                                                <div className="space-y-2">
+                                                                    <span className="block truncate">{item.topic}</span>
+                                                                    {(topicActualPayout(item) > 0 || topicVideoClipRatio(item) || topicSceneSummary(item)) && (
+                                                                        <div className="flex flex-wrap gap-1.5">
+                                                                            {topicActualPayout(item) > 0 && (
+                                                                                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-300">
+                                                                                    ACTUAL {topicActualPayout(item).toLocaleString()}
+                                                                                </span>
+                                                                            )}
+                                                                            {topicVideoClipRatio(item) && (
+                                                                                <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-300">
+                                                                                    CLIP {topicVideoClipRatio(item)}
+                                                                                </span>
+                                                                            )}
+                                                                            {topicSceneSummary(item) && (
+                                                                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-black text-gray-300">
+                                                                                    {topicSceneSummary(item)}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </div>
                                                         {item.is_auto_generated && (
@@ -2384,6 +2503,56 @@ export default function DashboardContent() {
                     </div>
                 )}
 
+                
+                {activeTab === 'withdrawals' && (
+                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
+                            <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">수당 출금 요청 리스트</h3>
+                            <button onClick={fetchWithdrawals} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
+                        </div>
+                        <table className="w-full text-left">
+                            <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-widest">
+                                <tr>
+                                    <th className="px-4 py-4 whitespace-nowrap">신청일자</th>
+                                    <th className="px-4 py-4 whitespace-nowrap">이메일</th>
+                                    <th className="px-4 py-4 whitespace-nowrap">출금 주소</th>
+                                    <th className="px-4 py-4 text-right whitespace-nowrap">금액 (USDT)</th>
+                                    <th className="px-4 py-4 text-center whitespace-nowrap">상태</th>
+                                    <th className="px-4 py-4 text-center whitespace-nowrap">액션</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/20">
+                                {withdrawals.map(w => (
+                                    <tr key={w.id} className="hover:bg-white/[0.03] transition-colors group">
+                                        <td className="px-4 py-4 text-xs text-gray-400">{new Date(w.created_at).toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-sm font-bold text-blue-400">{users.find(u => u.id === w.user_id)?.email || 'N/A'}</td>
+                                        <td className="px-4 py-4 text-xs font-mono text-gray-300 max-w-[200px] truncate">{w.dest_address}</td>
+                                        <td className="px-4 py-4 text-right text-sm font-black text-green-400">{w.amount} USDT</td>
+                                        <td className="px-4 py-4 text-center">
+                                            {w.status === 'pending' && <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs font-bold">대기중</span>}
+                                            {w.status === 'completed' && <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold">완료</span>}
+                                            {w.status === 'rejected' && <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold">거절</span>}
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            {w.status === 'pending' && (
+                                                <div className="flex justify-center gap-2">
+                                                    <button onClick={() => updateWithdrawalStatus(w.id, 'completed')} className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-[10px] font-bold rounded-lg transition-colors">승인완료</button>
+                                                    <button onClick={() => updateWithdrawalStatus(w.id, 'rejected')} className="px-3 py-1 bg-red-600/50 hover:bg-red-500 text-white text-[10px] font-bold rounded-lg transition-colors">거절</button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {withdrawals.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm font-bold">출금 신청 내역이 없습니다.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
                 {activeTab === 'users' && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
@@ -2403,6 +2572,7 @@ export default function DashboardContent() {
                                     <th className="px-0 py-4 text-center whitespace-nowrap">멤버십</th>
                                     <th className="px-0 py-4 text-center whitespace-nowrap">가입일</th>
                                     <th className="px-0 py-4 text-center whitespace-nowrap">최근접속</th>
+                                    <th className="px-0 py-4 text-center whitespace-nowrap">USDT 잔액</th>
                                     <th className="px-0 py-4 text-center whitespace-nowrap">관리</th>
                                 </tr>
                             </thead>
@@ -2420,7 +2590,7 @@ export default function DashboardContent() {
                                                 {u.email === SUPER_ADMIN_EMAIL && <span className="px-1 py-0.5 bg-blue-600 text-[7px] font-black rounded text-white">理쒓퀬愿由ъ옄</span>}
                                                 {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1 py-0.5 bg-indigo-500 text-[7px] font-black rounded text-white">遺愿由ъ옄</span>}
                                                 <span className={`px-1 py-0.5 text-[7px] font-black rounded border ${u.profile?.is_approved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
-                                                    {u.profile?.is_approved ? 'APPROVED' : 'PENDING'}
+                                                    {u.profile?.is_approved ? '승인됨' : '승인대기'}
                                                 </span>
                                             </div>
                                         </td>
@@ -2458,6 +2628,9 @@ export default function DashboardContent() {
                                         <td className="px-1 py-4 text-center text-[10px] font-bold text-gray-500 whitespace-nowrap">{formatDate(u.created_at)}</td>
                                         {/* 理쒓렐?묒냽 */}
                                         <td className="px-1 py-4 text-center text-[10px] font-bold text-gray-500 whitespace-nowrap">{formatDate(u.last_sign_in_at)}</td>
+                                        <td className="px-1 py-4 text-center font-black text-emerald-300 text-sm tabular-nums whitespace-nowrap">
+                                            {Number(u.profile?.usdt_balance || 0).toLocaleString()}
+                                        </td>
                                         {/* 愿由?硫붾돱 ??3x2 洹몃━??*/}
                                         <td className="px-1 py-4">
                                             <div className="grid grid-cols-3 gap-1">
@@ -2466,10 +2639,10 @@ export default function DashboardContent() {
                                                     : <span />
                                                 }
                                                 <button onClick={() => handleApprovalChange(u.id, !u.profile?.is_approved)} className={`px-1.5 py-1 text-[7px] font-black rounded border transition-all whitespace-nowrap ${u.profile?.is_approved ? 'bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white border-yellow-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border-emerald-500/20'}`}>
-                                                    {u.profile?.is_approved ? '????' : '??'}
+                                                    {u.profile?.is_approved ? '대기전환' : '승인'}
                                                 </button>
                                                 <button onClick={() => handleRecharge(u.id)} className="px-1.5 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[7px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
-                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '' }); }} className="px-1.5 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[7px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
+                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-1.5 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[7px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
                                                 <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-1.5 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[7px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
                                                 <button onClick={() => { setChannelViewUser(u); setTempChannelInfo({ name: u.user_metadata?.youtube_channel || '', id: u.user_metadata?.youtube_channel_id || '', proxy: u.user_metadata?.youtube_channel_proxy || '' }); }} className="px-1.5 py-1 bg-purple-600/10 hover:bg-purple-600 text-purple-500 hover:text-white text-[7px] font-black rounded border border-purple-500/20 transition-all whitespace-nowrap">채널ID</button>
                                                 <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-1.5 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[7px] font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
@@ -2753,7 +2926,31 @@ export default function DashboardContent() {
                             <button onClick={fetchRenderQueue} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
                         </div>
                         <div className="p-10">
-                            {queueLoading && renderQueue.length === 0 ? (
+                            <div className="mb-4 flex items-center gap-2">
+                                <button
+                                    onClick={() => setRenderQueueFilter('all')}
+                                    className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        renderQueueFilter === 'all'
+                                            ? 'bg-blue-600 text-white border-blue-500'
+                                            : 'bg-blue-600/10 text-blue-500 border-blue-500/20'
+                                    }`}
+                                >
+                                    ALL
+                                </button>
+                                <button
+                                    onClick={() => setRenderQueueFilter('intro_ready')}
+                                    className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        renderQueueFilter === 'intro_ready'
+                                            ? 'bg-emerald-600 text-white border-emerald-500'
+                                            : 'bg-emerald-600/10 text-emerald-400 border-emerald-500/20'
+                                    }`}
+                                >
+                                    INTRO READY
+                                </button>
+                            </div>
+                            {queueLoading && (renderQueueFilter === 'intro_ready'
+                                ? renderQueue.filter((task: any) => Boolean(task?.metadata?.intro_video_ready)).length === 0
+                                : renderQueue.length === 0) ? (
                                 <div className="text-center text-xs text-gray-500 py-10">대기열 조회 중...</div>
                             ) : renderQueue.length === 0 ? (
                                 <div className="text-center text-xs text-gray-500 py-10">현재 대기 또는 실행 중인 렌더링 작업이 없습니다.</div>
@@ -2772,7 +2969,10 @@ export default function DashboardContent() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/10 text-xs font-medium text-gray-300">
-                                            {renderQueue.map((task: any) => {
+                                            {(renderQueueFilter === 'intro_ready'
+                                                ? renderQueue.filter((task: any) => Boolean(task?.metadata?.intro_video_ready))
+                                                : renderQueue
+                                            ).map((task: any) => {
                                                 const meta = task.metadata || {}
                                                 const totalMinutes = meta.total_duration_seconds
                                                     ? Math.round(Number(meta.total_duration_seconds || 0) / 60)
@@ -2804,6 +3004,19 @@ export default function DashboardContent() {
                                                                     TRACKS {meta.track_count}
                                                                 </span>
                                                             ) : null}
+                                                            {meta.intro_video_ready != null ? (
+                                                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black ${meta.intro_video_ready ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-500'}`}>
+                                                                    INTRO VIDEO {meta.intro_video_ready ? 'READY' : 'PENDING'}
+                                                                </span>
+                                                            ) : null}
+                                                            {meta.intro_bgm_ready != null ? (
+                                                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black ${meta.intro_bgm_ready ? 'bg-violet-500/10 border-violet-500/20 text-violet-300' : 'bg-white/5 border-white/10 text-gray-500'}`}>
+                                                                    INTRO BGM {meta.intro_bgm_ready ? 'READY' : 'PENDING'}
+                                                                </span>
+                                                            ) : null}
+                                                            <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-400">
+                                                                INTRO OPTIONAL
+                                                            </span>
                                                             {totalMinutes ? (
                                                                 <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-300">
                                                                     Total: {totalMinutes} min
@@ -2828,6 +3041,21 @@ export default function DashboardContent() {
                                                         {meta.admin_publish_ready != null ? (
                                                             <div className={`mt-1 text-[9px] font-black uppercase tracking-widest ${String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'text-emerald-300' : 'text-gray-500'}`}>
                                                                 {String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'Admin Publish Ready' : 'Admin Publish Pending'}
+                                                            </div>
+                                                        ) : null}
+                                                        {meta.intro_mode ? (
+                                                            <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                                Intro Mode: {String(meta.intro_mode).replace(/_/g, ' ')}
+                                                            </div>
+                                                        ) : null}
+                                                        {meta.intro_bgm_usage ? (
+                                                            <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                                Intro BGM: {String(meta.intro_bgm_usage).replace(/_/g, ' ')}
+                                                            </div>
+                                                        ) : null}
+                                                        {(meta.intro_video_prompt_ready != null || meta.intro_bgm_prompt_ready != null) ? (
+                                                            <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                                Prompt Pack: {meta.intro_video_prompt_ready ? 'Video' : 'NoVideo'} / {meta.intro_bgm_prompt_ready ? 'BGM' : 'NoBGM'}
                                                             </div>
                                                         ) : null}
                                                     </td>
@@ -3078,6 +3306,24 @@ export default function DashboardContent() {
                                 <input value={editInfoForm.contact} onChange={e => setEditInfoForm(p => ({ ...p, contact: e.target.value }))}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="연락처 입력" />
                             </div>
+                            <div className="border-t border-white/10 my-2 pt-2">
+                                <div className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-2">🤖 AI 작가 페르소나 설정</div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">페르소나 이름</label>
+                                <input value={editInfoForm.persona_name || ''} onChange={e => setEditInfoForm(p => ({ ...p, persona_name: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="예: 란 (유머 작가)" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">작문 스타일 키워드 (영어 권장)</label>
+                                <input value={editInfoForm.persona_style || ''} onChange={e => setEditInfoForm(p => ({ ...p, persona_style: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="예: humorous, witty, fast-paced" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">상세 성향 설명 (한글 가능)</label>
+                                <textarea value={editInfoForm.persona_description || ''} onChange={e => setEditInfoForm(p => ({ ...p, persona_description: e.target.value }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50 h-20 resize-none" placeholder="예: 유머러스하고 유쾌한 숏폼 스타일 대본 작가" />
+                            </div>
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={handleSaveUserInfo} className="flex-1 py-3 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-black rounded-xl transition-all uppercase tracking-widest">저장</button>
@@ -3203,7 +3449,7 @@ export default function DashboardContent() {
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditCategory(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">카테고리 수정</div>
-                        <div className="text-white font-black text-lg mb-6">"{editCategory.name}" 설정 관리</div>
+                        <div className="text-white font-black text-lg mb-6">&quot;{editCategory.name}&quot; 설정 관리</div>
                         <div className="flex flex-col gap-4 text-xs">
                             <div>
                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">移댄뀒怨좊━紐?*</label>
@@ -3346,7 +3592,7 @@ export default function DashboardContent() {
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setChannelConfigCategory(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">업로드 채널 설정</div>
-                        <div className="text-white font-black text-lg mb-2">"{channelConfigCategory.name}" 업로드 채널 연결</div>
+                        <div className="text-white font-black text-lg mb-2">&quot;{channelConfigCategory.name}&quot; 업로드 채널 연결</div>
                         <p className="text-[12px] text-gray-500 mb-6">이 카테고리에서 생성되는 영상은 여기에서 지정한 채널로만 업로드됩니다.</p>
 
                         <div className="space-y-4 text-xs">

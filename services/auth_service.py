@@ -419,4 +419,71 @@ class AuthService:
         #     return False
         return True
 
+
+    def get_referral_code(self):
+        return getattr(self, "_my_referral_code", "")
+
+    def get_or_create_wallet_info(self):
+        import json
+        import database as db
+        
+        wallet_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".wallet_key")
+        wallet_data = {}
+        
+        # 1. Try to load existing
+        if os.path.exists(wallet_file):
+            try:
+                with open(wallet_file, "r") as f:
+                    wallet_data = json.load(f)
+            except Exception as e:
+                self.logger.error(f"Error loading wallet info: {e}")
+        
+        # 2. Create new if not exists
+        if not wallet_data or "address" not in wallet_data:
+            try:
+                from services.crypto_service import generate_bep20_wallet
+                wallet_data = generate_bep20_wallet()
+                with open(wallet_file, "w") as f:
+                    json.dump(wallet_data, f)
+            except Exception as e:
+                self.logger.error(f"Error generating wallet: {e}")
+                wallet_data = {"address": ""}
+        
+        # 3. Calculate actual balance
+        total_payout_krw = 0
+        total_withdrawn_usdt = 0
+        
+        try:
+            if self._user_email:
+                history = db.get_worker_project_history(self._user_email)
+                for h in history:
+                    total_payout_krw += (h.get("payout_amount") or 0)
+                    
+                withdrawals = db.get_worker_withdrawals(self._user_email)
+                for w in withdrawals:
+                    total_withdrawn_usdt += (w.get("amount") or 0)
+        except Exception as e:
+            self.logger.error(f"Error calculating balance: {e}")
+            
+        total_generated_usdt = round(total_payout_krw / 1400.0, 2)
+        current_balance = round(total_generated_usdt - total_withdrawn_usdt, 2)
+        if current_balance < 0:
+            current_balance = 0
+            
+        # [MIGRATION] Sync actual balance to Supabase in the background
+        if self._user_email:
+            try:
+                import threading
+                from services.web_admin_client import web_admin_client
+                address = wallet_data.get("address", "")
+                threading.Thread(target=web_admin_client.sync_wallet_info, args=(self._user_email, current_balance, address), daemon=True).start()
+            except Exception as e:
+                self.logger.error(f"Error syncing balance to Supabase: {e}")
+                
+        return {
+            "address": wallet_data.get("address", ""),
+            "balance": current_balance,
+            "saved_external_wallet": wallet_data.get("saved_external_wallet", "")
+        }
+
 auth_service = AuthService()

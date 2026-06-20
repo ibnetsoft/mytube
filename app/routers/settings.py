@@ -133,6 +133,9 @@ async def get_global_settings_api():
         "wp_url": db.get_global_setting("wp_url", ""),
         "wp_username": db.get_global_setting("wp_username", ""),
         "wp_password": db.get_global_setting("wp_password", ""),
+        "binance_api_key": db.get_global_setting("binance_api_key", ""),
+        "binance_api_secret": db.get_global_setting("binance_api_secret", ""),
+        "min_withdrawal_usdt": db.get_global_setting("min_withdrawal_usdt", "10"),
         # [NEW] User Info
         "user_name": db.get_global_setting("user_name", ""),
         "user_nationality": db.get_global_setting("user_nationality", ""),
@@ -422,7 +425,8 @@ async def export_settlement_csv(
     for row in stats:
         approved_projects = int(row.get("completed_projects") or 0)
         success_ai_tasks = int(row.get("success_ai_tasks") or 0)
-        project_earnings = approved_projects * int(project_pay or 0)
+        total_project_payout = int(row.get("total_project_payout") or 0)
+        project_earnings = total_project_payout if total_project_payout > 0 else (approved_projects * int(project_pay or 0))
         ai_earnings = success_ai_tasks * int(ai_pay or 0)
         writer.writerow([
             row.get("worker") or "unknown",
@@ -965,3 +969,145 @@ async def crop_grid_image(
         return StreamingResponse(output_stream, media_type="image/png")
     except Exception as e:
         raise HTTPException(500, f"이미지 자르기 실패: {str(e)}")
+
+from pydantic import BaseModel
+class WithdrawalRequest(BaseModel):
+    amount: float
+    destination_address: str
+
+@router.post("/api/withdrawal/request")
+async def request_withdrawal(req: WithdrawalRequest):
+    try:
+        from services.auth_service import auth_service
+        from services.web_admin_client import web_admin_client
+        
+        email = auth_service._user_email
+        if not email:
+            return {"success": False, "error": "로그인이 필요합니다."}
+
+        profile = web_admin_client.fetch_profile_by_email(email)
+        if not profile:
+            return {"success": False, "error": "사용자 정보를 찾을 수 없습니다."}
+
+        current_balance = float(profile.get("usdt_balance", 0) or 0)
+        amount = float(req.amount)
+        
+        import database as db
+        min_withdrawal = float(db.get_global_setting("min_withdrawal_usdt", "10"))
+        
+        if amount <= 0:
+            return {"success": False, "error": "출금 수량은 0보다 커야 합니다."}
+        if amount < min_withdrawal:
+            return {"success": False, "error": f"최소 출금 가능 금액은 {min_withdrawal} USDT 입니다."}
+        if current_balance < amount:
+            return {"success": False, "error": "잔액이 부족합니다."}
+
+        withdrawal_id = web_admin_client.submit_withdrawal_request(email, amount, req.destination_address)
+        if not withdrawal_id:
+            return {"success": False, "error": "출금 신청 기록 중 오류가 발생했습니다. (테이블이 존재하는지 확인하세요)"}
+
+        new_balance = round(max(0.0, current_balance - amount), 2)
+        success = web_admin_client.sync_wallet_info(email, new_balance, req.destination_address)
+        if not success:
+            return {"success": False, "error": "출금 신청 후 잔액 동기화 중 오류가 발생했습니다."}
+
+        return {"success": True, "new_balance": new_balance, "id": withdrawal_id}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+
+@router.get("/api/settings/history")
+async def get_my_history():
+    from services.auth_service import auth_service
+    import database as db
+    
+    email = auth_service.get_user_email()
+    if not email:
+        return {"status": "error", "message": "Not logged in"}
+        
+    history = db.get_worker_project_history(email)
+    
+    # Process history data to return structured format
+    result = []
+    for h in history:
+        video_clip_ratio = h.get("video_clip_ratio") or "0/0"
+        try:
+            parts = video_clip_ratio.split('/')
+            video_clips = int(parts[0])
+            total_scenes = int(parts[1])
+            image_clips = total_scenes - video_clips
+        except:
+            video_clips = 0
+            image_clips = 0
+            
+        result.append({
+            "project_id": h.get("project_id"),
+            "project_name": h.get("project_name") or "Unnamed",
+            "completion_date": h.get("completion_date")[:10] if h.get("completion_date") else "",
+            "duration_seconds": h.get("duration_seconds") or 0,
+            "video_clips": video_clips,
+            "image_clips": image_clips,
+            "payout_amount": h.get("payout_amount") or 0
+        })
+        
+    return {"status": "success", "history": result}
+
+
+
+class WithdrawalRequest(BaseModel):
+    amount: float
+    dest_address: str
+
+@router.post("/withdrawal")
+async def request_withdrawal(req: WithdrawalRequest):
+    from services.auth_service import auth_service
+    email = auth_service.get_user_email()
+    if not email:
+        raise HTTPException(status_code=401, detail="이메일 정보가 없습니다. 관리자에게 문의하세요.")
+        
+    wallet_info = auth_service.get_or_create_wallet_info()
+    current_balance = wallet_info.get("balance", 0)
+    
+    if req.amount <= 0:
+        raise HTTPException(status_code=400, detail="출금 수량은 0보다 커야 합니다.")
+        
+    if req.amount > current_balance:
+        raise HTTPException(status_code=400, detail=f"출금 가능 잔액({current_balance} USDT)이 부족합니다.")
+        
+    # Save destination address to global setting for convenience
+    db.set_global_setting(f"wallet_dest_{email}", req.dest_address)
+        
+    # [MIGRATION] Send to Supabase Web Admin
+    from services.web_admin_client import web_admin_client
+    if web_admin_client.has_supabase():
+        withdrawal_id = web_admin_client.submit_withdrawal_request(email, req.amount, req.dest_address)
+        if not withdrawal_id:
+            raise HTTPException(status_code=500, detail="출금 신청을 서버로 전송하는 중 오류가 발생했습니다.")
+        new_balance = round(max(0.0, current_balance - req.amount), 2)
+        web_admin_client.sync_wallet_info(email, new_balance, req.dest_address)
+    else:
+        withdrawal_id = db.create_withdrawal(email, req.amount, req.dest_address)
+        if not withdrawal_id:
+            raise HTTPException(status_code=500, detail="출금 신청 처리 중 오류가 발생했습니다.")
+        
+    # Update local wallet_info cache to trigger balance refresh or just let next fetch recalculate
+    return {"status": "success", "message": "출금 신청이 완료되었습니다.", "id": withdrawal_id}
+
+@router.get("/withdrawal-history")
+async def get_withdrawal_history():
+    from services.auth_service import auth_service
+    email = auth_service.get_user_email()
+    if not email:
+        return {"status": "success", "history": []}
+        
+    from services.web_admin_client import web_admin_client
+    if web_admin_client.has_supabase():
+        history = web_admin_client.get_withdrawal_history(email)
+        # Fallback to local if empty or error
+        if not history:
+            history = db.get_worker_withdrawals(email)
+    else:
+        history = db.get_worker_withdrawals(email)
+    return {"status": "success", "history": history}
+
