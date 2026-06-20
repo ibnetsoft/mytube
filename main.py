@@ -1176,6 +1176,13 @@ async def youtube_search(req: SearchRequest):
 async def auto_upload_youtube(project_id: int):
     """유튜브 원클릭 자동 업로드 (영상 + 메타데이터 + 썸네일)"""
     from services.youtube_upload_service import youtube_upload_service
+    from services.auth_service import auth_service
+
+    if not auth_service.is_independent():
+        raise HTTPException(
+            status_code=403,
+            detail="Standard worker accounts must register rendered videos in web-admin publishing instead of uploading to YouTube locally.",
+        )
 
     # 1. 데이터 조회
     project = db.get_project(project_id)
@@ -1259,6 +1266,13 @@ async def auto_upload_youtube(project_id: int):
 async def publicize_youtube_video(project_id: int):
     """유튜브 영상을 '공개(public)' 상태로 전환"""
     from services.youtube_upload_service import youtube_upload_service
+    from services.auth_service import auth_service
+
+    if not auth_service.is_independent():
+        raise HTTPException(
+            status_code=403,
+            detail="Standard worker accounts cannot change YouTube visibility locally. Use web-admin publishing.",
+        )
     
     settings = db.get_project_settings(project_id)
     if not settings or not settings.get('youtube_video_id'):
@@ -3123,6 +3137,12 @@ async def upload_external_to_youtube(
     # [NEW] Membership Check
     from services.auth_service import auth_service
     is_independent = auth_service.is_independent()
+
+    if not is_independent:
+        raise HTTPException(
+            status_code=403,
+            detail="Standard worker accounts must use web-admin publishing. Register the rendered video with /api/projects/{project_id}/admin-publish-request.",
+        )
     
     # Force private if not independent
     final_privacy = "private"
