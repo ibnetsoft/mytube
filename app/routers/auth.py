@@ -21,6 +21,15 @@ class LoginRequest(BaseModel):
     pin_code: str
 
 
+class RegisterRequest(BaseModel):
+    full_name: str
+    contact: str
+    email: str
+    nationality: str
+    terms_accepted: bool = False
+    privacy_accepted: bool = False
+
+
 def _supabase_headers():
     supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -117,12 +126,48 @@ async def get_login_page(request: Request):
 @router.get("/api/auth/emails")
 async def get_auth_emails():
     try:
-        profiles = web_admin_client.fetch_profiles(select="email")
-        emails = [item["email"] for item in profiles if item.get("email")]
+        profiles = web_admin_client.fetch_profiles(select="email,is_approved")
+        emails = [
+            item["email"]
+            for item in profiles
+            if item.get("email") and str(item.get("is_approved")).lower() in ("true", "1", "yes")
+        ]
         return {"emails": emails}
     except Exception as e:
         print(f"[API] Failed to fetch emails: {e}")
         return {"emails": []}
+
+
+@router.post("/api/auth/register")
+async def post_auth_register(req: RegisterRequest):
+    try:
+        if not web_admin_client.has_supabase():
+            return {"success": False, "error": "서버 DB 연동 설정이 누락되었습니다."}
+
+        full_name = req.full_name.strip()
+        contact = req.contact.strip()
+        email = req.email.strip().lower()
+        nationality = req.nationality.strip()
+        if not all([full_name, contact, email, nationality]):
+            return {"success": False, "error": "이름, 연락처, 이메일, 국가는 모두 입력해야 합니다."}
+        if "@" not in email or "." not in email:
+            return {"success": False, "error": "이메일 형식이 올바르지 않습니다."}
+        if not req.terms_accepted or not req.privacy_accepted:
+            return {"success": False, "error": "약관과 개인정보처리방침에 모두 동의해야 합니다."}
+
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+        return web_admin_client.submit_worker_registration({
+            "full_name": full_name,
+            "contact": contact,
+            "email": email,
+            "nationality": nationality,
+            "terms_accepted_at": now,
+            "privacy_accepted_at": now,
+        })
+    except Exception as e:
+        return {"success": False, "error": f"가입 신청 오류: {str(e)}"}
 
 
 @router.post("/api/auth/login")
@@ -133,6 +178,13 @@ async def post_auth_login(req: LoginRequest):
 
         profile = web_admin_client.fetch_profile_by_email(req.email)
         if profile:
+            # [WHITELIST SECURITY CHECK]
+            # profiles 테이블의 is_approved 컬럼 검증 (True이거나, 'approved' 상태만 로그인 허용)
+            is_approved = profile.get("is_approved")
+            # is_approved 컬럼이 없거나 명시적으로 False인 경우 차단
+            if is_approved is False or is_approved is None or str(is_approved).lower() in ("false", "0", "none"):
+                return {"success": False, "error": "어드민 승인 대기 중이거나 비활성화된 계정입니다."}
+
             db_pin = str(profile.get("pin_code") or "").strip()
             input_pin = str(req.pin_code).strip()
 

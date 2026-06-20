@@ -55,6 +55,19 @@
             box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
             transform: scale(1.25);
         }
+        .auth-tab.active {
+            background: rgba(59, 130, 246, 0.18);
+            color: #bfdbfe;
+            border-color: rgba(59, 130, 246, 0.35);
+        }
+        .auth-input {
+            background: rgba(15, 23, 42, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .policy-box {
+            background: rgba(2, 6, 23, 0.42);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
     </style>
 </head>
 
@@ -72,50 +85,86 @@
             </div>
             <h1 class="text-2xl font-black text-white mb-6">Đăng nhập nhân viên</h1>
 
+            <div class="grid grid-cols-2 gap-2 w-full mb-6">
+                <button id="tab-login" onclick="showAuthMode('login')" class="auth-tab active rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">로그인</button>
+                <button id="tab-register" onclick="showAuthMode('register')" class="auth-tab rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">회원가입 신청</button>
+            </div>
+
             <!-- Step 1: Email Selection -->
-            <div id="step-email" class="w-full flex flex-col gap-4">
-                <label class="text-sm font-semibold text-gray-400">Vui lòng chọn Email</label>
-                <div id="email-list" class="max-h-60 overflow-y-auto pr-1 flex flex-col gap-2">
-                    <!-- Loading skeleton -->
-                    <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
-                    <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
+            <div id="login-panel" class="w-full">
+                <div id="step-email" class="w-full flex flex-col gap-4">
+                    <label class="text-sm font-semibold text-gray-400">Vui lòng chọn Email</label>
+                    <div id="email-list" class="max-h-60 overflow-y-auto pr-1 flex flex-col gap-2">
+                        <!-- Loading skeleton -->
+                        <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
+                        <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
+                    </div>
+                </div>
+
+                <!-- Step 2: PIN Input -->
+                <div id="step-pin" class="w-full hidden flex flex-col items-center">
+                    <!-- Selected User Back Button -->
+                    <button onclick="backToEmail()" class="self-start text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 mb-4 transition">
+                        ← Chọn Email khác
+                    </button>
+
+                    <span id="selected-email" class="text-sm font-bold text-blue-400 mb-6 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full"></span>
+
+                    <!-- Display Dots -->
+                    <div class="flex gap-4 mb-8">
+                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
+                    </div>
+
+                    <!-- Error Message -->
+                    <div id="error-msg" class="text-red-400 text-xs font-semibold h-4 mb-4 text-center"></div>
+
+                    <!-- Numeric Keypad Grid -->
+                    <div class="grid grid-cols-3 gap-3 w-full max-w-[280px]">
+                        <button onclick="pressKey('1')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">1</button>
+                        <button onclick="pressKey('2')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">2</button>
+                        <button onclick="pressKey('3')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">3</button>
+                        <button onclick="pressKey('4')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">4</button>
+                        <button onclick="pressKey('5')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">5</button>
+                        <button onclick="pressKey('6')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">6</button>
+                        <button onclick="pressKey('7')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">7</button>
+                        <button onclick="pressKey('8')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">8</button>
+                        <button onclick="pressKey('9')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">9</button>
+                        <button onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">Đặt lại</button>
+                        <button onclick="pressKey('0')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">0</button>
+                        <button onclick="pressKey('backspace')" class="key-btn aspect-square rounded-2xl text-lg flex items-center justify-center">⌫</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Step 2: PIN Input -->
-            <div id="step-pin" class="w-full hidden flex flex-col items-center">
-                <!-- Selected User Back Button -->
-                <button onclick="backToEmail()" class="self-start text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 mb-4 transition">
-                    ← Chọn Email khác
-                </button>
-                
-                <span id="selected-email" class="text-sm font-bold text-blue-400 mb-6 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full"></span>
+            <div id="register-panel" class="w-full hidden">
+                <div class="space-y-3">
+                    <input id="reg-name" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="이름 / Full name">
+                    <input id="reg-contact" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="연락처 / Phone, Zalo, Kakao">
+                    <input id="reg-email" type="email" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="이메일 주소 / Email">
+                    <input id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="국가 / Country">
 
-                <!-- Display Dots -->
-                <div class="flex gap-4 mb-8">
-                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                    <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                </div>
+                    <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
+                        <summary class="cursor-pointer text-blue-300 font-bold">서비스 이용약관 보기</summary>
+                        <p class="mt-3">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다. 완료 수당은 어드민 검수 및 승인된 작업 기준으로 정산됩니다.</p>
+                    </details>
+                    <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
+                        <summary class="cursor-pointer text-blue-300 font-bold">개인정보처리방침 보기</summary>
+                        <p class="mt-3">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용되며 관리자가 승인 여부를 판단할 때 확인합니다.</p>
+                    </details>
 
-                <!-- Error Message -->
-                <div id="error-msg" class="text-red-400 text-xs font-semibold h-4 mb-4 text-center"></div>
-
-                <!-- Numeric Keypad Grid -->
-                <div class="grid grid-cols-3 gap-3 w-full max-w-[280px]">
-                    <button onclick="pressKey('1')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">1</button>
-                    <button onclick="pressKey('2')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">2</button>
-                    <button onclick="pressKey('3')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">3</button>
-                    <button onclick="pressKey('4')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">4</button>
-                    <button onclick="pressKey('5')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">5</button>
-                    <button onclick="pressKey('6')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">6</button>
-                    <button onclick="pressKey('7')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">7</button>
-                    <button onclick="pressKey('8')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">8</button>
-                    <button onclick="pressKey('9')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">9</button>
-                    <button onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">Đặt lại</button>
-                    <button onclick="pressKey('0')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">0</button>
-                    <button onclick="pressKey('backspace')" class="key-btn aspect-square rounded-2xl text-lg flex items-center justify-center">⌫</button>
+                    <label class="flex items-start gap-3 text-xs text-gray-300">
+                        <input id="reg-terms" type="checkbox" class="mt-1">
+                        <span>서비스 이용약관에 동의합니다.</span>
+                    </label>
+                    <label class="flex items-start gap-3 text-xs text-gray-300">
+                        <input id="reg-privacy" type="checkbox" class="mt-1">
+                        <span>개인정보 수집 및 이용에 동의합니다.</span>
+                    </label>
+                    <button id="register-btn" onclick="submitRegister()" class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">회원가입 신청</button>
+                    <div id="register-msg" class="min-h-5 text-center text-xs font-bold"></div>
                 </div>
             </div>
         </div>
@@ -127,6 +176,15 @@
 
         // Load emails on start
         window.addEventListener('DOMContentLoaded', loadEmails);
+
+        function showAuthMode(mode) {
+            const loginMode = mode === 'login';
+            document.getElementById('login-panel').classList.toggle('hidden', !loginMode);
+            document.getElementById('register-panel').classList.toggle('hidden', loginMode);
+            document.getElementById('tab-login').classList.toggle('active', loginMode);
+            document.getElementById('tab-register').classList.toggle('active', !loginMode);
+            document.getElementById('register-msg').textContent = '';
+        }
 
         async function loadEmails() {
             try {
@@ -227,6 +285,43 @@
                 document.getElementById('error-msg').textContent = 'Kết nối máy chủ thất bại.';
                 currentPin = '';
                 setTimeout(updateDots, 300);
+            }
+        }
+
+        async function submitRegister() {
+            const btn = document.getElementById('register-btn');
+            const msg = document.getElementById('register-msg');
+            msg.className = 'min-h-5 text-center text-xs font-bold text-gray-400';
+            msg.textContent = '신청 중...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        full_name: document.getElementById('reg-name').value,
+                        contact: document.getElementById('reg-contact').value,
+                        email: document.getElementById('reg-email').value,
+                        nationality: document.getElementById('reg-country').value,
+                        terms_accepted: document.getElementById('reg-terms').checked,
+                        privacy_accepted: document.getElementById('reg-privacy').checked
+                    })
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || '가입 신청 실패');
+
+                msg.className = 'min-h-5 text-center text-xs font-bold text-emerald-400';
+                msg.textContent = '가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.';
+                ['reg-name', 'reg-contact', 'reg-email', 'reg-country'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('reg-terms').checked = false;
+                document.getElementById('reg-privacy').checked = false;
+                await loadEmails();
+            } catch (e) {
+                msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
+                msg.textContent = e.message || '가입 신청 실패';
+            } finally {
+                btn.disabled = false;
             }
         }
     </script>

@@ -34,13 +34,26 @@ export async function GET() {
             const membership = normMembership(rawMembership)
 
             console.log(`[Users API] ${user.email} | membership=${membership} | full_name=${user.user_metadata?.full_name}`)
+            const userMetadata = {
+                ...(user.user_metadata || {}),
+                full_name: user.user_metadata?.full_name || profileData.full_name || '',
+                contact: user.user_metadata?.contact || profileData.contact || '',
+                nationality: user.user_metadata?.nationality || profileData.nationality || '',
+            }
             return {
                 ...user,
+                user_metadata: userMetadata,
                 profile: {
                     token_balance: profileData.token_balance || 0,
                     membership_tier: membership,
                     membership: membership,
                     pin_code: profileData.pin_code || '1234',
+                    is_approved: profileData.is_approved === true,
+                    signup_status: profileData.signup_status || (profileData.is_approved ? 'approved' : 'pending'),
+                    signup_source: profileData.signup_source || '',
+                    full_name: profileData.full_name || '',
+                    contact: profileData.contact || '',
+                    nationality: profileData.nationality || '',
                 }
             }
         })
@@ -57,12 +70,22 @@ export async function GET() {
                 email_confirmed_at: null,
                 last_sign_in_at: null,
                 app_metadata: {},
-                user_metadata: { full_name: p.full_name || '' },
+                user_metadata: {
+                    full_name: p.full_name || '',
+                    contact: p.contact || '',
+                    nationality: p.nationality || '',
+                },
                 profile: {
                     token_balance: p.token_balance || 0,
                     membership_tier: membership,
                     membership: membership,
                     pin_code: p.pin_code || '1234',
+                    is_approved: p.is_approved === true,
+                    signup_status: p.signup_status || (p.is_approved ? 'approved' : 'pending'),
+                    signup_source: p.signup_source || '',
+                    full_name: p.full_name || '',
+                    contact: p.contact || '',
+                    nationality: p.nationality || '',
                 }
             } as any)
         }

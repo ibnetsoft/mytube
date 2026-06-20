@@ -15,6 +15,12 @@ interface UserProfile {
     app_metadata: Record<string, any>
     profile?: {
         token_balance: number
+        is_approved?: boolean
+        signup_status?: string
+        signup_source?: string
+        full_name?: string
+        contact?: string
+        nationality?: string
     }
 }
 
@@ -513,6 +519,34 @@ export default function DashboardContent() {
                 alert('蹂寃??ㅽ뙣: ' + (data.error || '서버 오류'));
             }
         } catch (e) { alert('서버 통신 오류'); }
+    }
+
+    const handleApprovalChange = async (userId: string, approved: boolean) => {
+        if (!confirm(approved ? '이 사용자를 승인할까요?' : '이 사용자를 승인 대기 상태로 돌릴까요?')) return;
+        try {
+            const res = await fetch('/api/admin/users/approval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, approved })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'approval update failed');
+            }
+            setUsers(prev => prev.map(u => u.id === userId
+                ? {
+                    ...u,
+                    profile: {
+                        ...u.profile,
+                        is_approved: approved,
+                        signup_status: approved ? 'approved' : 'pending'
+                    }
+                }
+                : u
+            ));
+        } catch (e: any) {
+            alert('승인 상태 변경 실패: ' + (e?.message || String(e)));
+        }
     }
 
     const handleSaveUserInfo = async () => {
@@ -2385,6 +2419,9 @@ export default function DashboardContent() {
                                             <div className="flex gap-1 mt-0.5 flex-wrap">
                                                 {u.email === SUPER_ADMIN_EMAIL && <span className="px-1 py-0.5 bg-blue-600 text-[7px] font-black rounded text-white">理쒓퀬愿由ъ옄</span>}
                                                 {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1 py-0.5 bg-indigo-500 text-[7px] font-black rounded text-white">遺愿由ъ옄</span>}
+                                                <span className={`px-1 py-0.5 text-[7px] font-black rounded border ${u.profile?.is_approved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
+                                                    {u.profile?.is_approved ? 'APPROVED' : 'PENDING'}
+                                                </span>
                                             </div>
                                         </td>
                                         {/* ?곕씫泥?*/}
@@ -2428,6 +2465,9 @@ export default function DashboardContent() {
                                                     ? <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-1.5 py-1 rounded text-[7px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
                                                     : <span />
                                                 }
+                                                <button onClick={() => handleApprovalChange(u.id, !u.profile?.is_approved)} className={`px-1.5 py-1 text-[7px] font-black rounded border transition-all whitespace-nowrap ${u.profile?.is_approved ? 'bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white border-yellow-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border-emerald-500/20'}`}>
+                                                    {u.profile?.is_approved ? '????' : '??'}
+                                                </button>
                                                 <button onClick={() => handleRecharge(u.id)} className="px-1.5 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[7px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
                                                 <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '' }); }} className="px-1.5 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[7px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
                                                 <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-1.5 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[7px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>

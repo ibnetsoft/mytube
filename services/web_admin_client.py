@@ -1,5 +1,6 @@
 import os
 import re
+import secrets
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -124,6 +125,82 @@ class WebAdminClient:
             verify=False,
             proxies={"http": None, "https": None},
         )
+
+    def create_auth_user(self, *, email: str, metadata: Dict[str, Any]) -> Optional[str]:
+        if not self.has_supabase():
+            return None
+        self._disable_warnings()
+        response = requests.post(
+            f"{self.supabase_url}/auth/v1/admin/users",
+            headers=self.headers(content_type=True),
+            json={
+                "email": email,
+                "password": secrets.token_urlsafe(24),
+                "email_confirm": True,
+                "user_metadata": metadata,
+            },
+            timeout=self.timeout,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+        if response.status_code not in (200, 201):
+            print(f"[WebAdmin] auth user create failed: HTTP {response.status_code} {response.text[:300]}")
+            return None
+        return (response.json() or {}).get("id")
+
+    def submit_worker_registration(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        email = (payload.get("email") or "").strip().lower()
+        if not email:
+            return {"success": False, "error": "email is required"}
+
+        existing = self.fetch_profile_by_email(email)
+        if existing and str(existing.get("is_approved")).lower() in ("true", "1", "yes"):
+            return {"success": False, "error": "이미 승인된 이메일입니다. 로그인 화면에서 PIN으로 접속해주세요."}
+
+        profile_id = (existing or {}).get("id")
+        metadata = {
+            "full_name": payload.get("full_name") or "",
+            "contact": payload.get("contact") or "",
+            "nationality": payload.get("nationality") or "",
+            "signup_status": "pending",
+            "signup_source": "desktop_client",
+        }
+        if not profile_id:
+            profile_id = self.create_auth_user(email=email, metadata=metadata)
+        if not profile_id:
+            return {"success": False, "error": "가입 신청 계정을 생성하지 못했습니다. 관리자에게 문의해주세요."}
+
+        profile_payload = {
+            "email": email,
+            "full_name": metadata["full_name"],
+            "contact": metadata["contact"],
+            "nationality": metadata["nationality"],
+            "is_approved": False,
+            "signup_status": "pending",
+            "signup_source": "desktop_client",
+            "terms_accepted_at": payload.get("terms_accepted_at"),
+            "privacy_accepted_at": payload.get("privacy_accepted_at"),
+            "pin_code": (existing or {}).get("pin_code") or "1234",
+            "membership": (existing or {}).get("membership") or "std",
+            "membership_tier": (existing or {}).get("membership_tier") or "standard",
+        }
+
+        response = self.supabase_patch("profiles", profile_payload, params={"id": f"eq.{profile_id}"}, timeout=8)
+        if response is None:
+            return {"success": False, "error": "서버 DB 연동 설정이 누락되었습니다."}
+        if response.status_code >= 400:
+            print(f"[WebAdmin] profile registration patch failed: HTTP {response.status_code} {response.text[:300]}")
+            return {"success": False, "error": "가입 신청 정보 저장에 실패했습니다. profiles 컬럼 마이그레이션이 필요할 수 있습니다."}
+        try:
+            updated_rows = response.json() or []
+        except Exception:
+            updated_rows = []
+        if not updated_rows:
+            create_response = self.supabase_post("profiles", {"id": profile_id, **profile_payload}, timeout=8)
+            if create_response is not None and create_response.status_code >= 400:
+                print(f"[WebAdmin] profile registration insert failed: HTTP {create_response.status_code} {create_response.text[:300]}")
+                return {"success": False, "error": "가입 신청 프로필 생성에 실패했습니다."}
+        return {"success": True, "status": "pending"}
 
     def fetch_profiles(self, select: str = "*") -> List[Dict[str, Any]]:
         response = self.supabase_get("profiles", params={"select": select}, timeout=5)
