@@ -968,11 +968,28 @@ SYNC_KEYS = ['visual_style', 'image_style', 'image_style_prompt', 'thumbnail_sty
              'script_style', 'voice_provider', 'voice_id', 'voice_name', 'voice_language',
              'character_ref_text', 'character_ref_image_path', 'duration_seconds']
 
+
+def _is_truthy_setting(value: Any) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _apply_longform_duration_lock(project_id: int, settings: Dict[str, Any]) -> Dict[str, Any]:
+    current = db.get_project_settings(project_id) or {}
+    app_mode = current.get("app_mode") or db.get_global_setting("app_mode", "longform")
+    if app_mode != "longform" or not _is_truthy_setting(current.get("duration_locked")):
+        return settings
+
+    assigned_seconds = current.get("assigned_duration_seconds") or current.get("duration_seconds")
+    if assigned_seconds:
+        settings["duration_seconds"] = int(assigned_seconds)
+    return settings
+
 @app.post("/api/projects/{project_id}/settings")
 async def save_project_settings(project_id: int, req: ProjectSettingsSave):
     """프로젝트 핵심 설정 저장"""
     try:
         settings = {k: v for k, v in req.dict().items() if v is not None}
+        settings = _apply_longform_duration_lock(project_id, settings)
         db.save_project_settings(project_id, settings)
         
         # [FIX] Sync to Global Settings (Project 1)
@@ -1013,7 +1030,10 @@ async def update_project_setting(project_id: int, key: str, value: str):
         value = int(value)
     elif key in ['subtitle_font_size', 'subtitle_stroke_width', 'subtitle_line_spacing', 'subtitle_bg_opacity']:
         value = float(value)
-        
+
+    if key == 'duration_seconds':
+        value = _apply_longform_duration_lock(project_id, {'duration_seconds': value})['duration_seconds']
+
     result = db.update_project_setting(project_id, key, value)
     
     # [FIX] Sync to Global Settings (Project 1)

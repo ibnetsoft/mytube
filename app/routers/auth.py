@@ -1,3 +1,4 @@
+import json
 import os
 
 import requests
@@ -63,6 +64,40 @@ def _apply_category_upload_channel(project_id: int, category_row: dict):
         db.update_project_setting(project_id, "youtube_channel_id", resolved_channel["id"])
     elif upload_channel_id:
         db.update_project_setting(project_id, "youtube_channel_id", upload_channel_id)
+
+
+def _to_int(value, default: int) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _calculate_longform_payout(minutes: int, policy: dict) -> int:
+    min_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
+    base_pay = max(0, _to_int(policy.get("sys_api_longform_base_payout"), 10000))
+    extra_pay = max(0, _to_int(policy.get("sys_api_longform_extra_minute_payout"), 500))
+    return base_pay + max(0, minutes - min_minutes) * extra_pay
+
+
+def _fetch_longform_policy(supabase_url: str, headers: dict) -> dict:
+    defaults = {
+        "sys_api_longform_min_duration_minutes": "15",
+        "sys_api_longform_base_payout": "10000",
+        "sys_api_longform_extra_minute_payout": "500",
+        "sys_api_longform_duration_lock_enabled": "true",
+    }
+    try:
+        keys = ",".join(defaults.keys())
+        url = f"{supabase_url}/rest/v1/global_settings?select=key,value&key=in.({keys})"
+        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
+        if r.status_code == 200:
+            for row in r.json() or []:
+                if row.get("key"):
+                    defaults[row["key"]] = row.get("value")
+    except Exception as e:
+        print(f"[Queue API Warning] Failed to fetch longform policy: {e}")
+    return defaults
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -196,6 +231,22 @@ async def get_daily_topic():
         category_script_style = None
         category_image_style = None
         category_row = None
+        category_video_type = "longform"
+        policy = _fetch_longform_policy(supabase_url, headers)
+        min_duration_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
+        assigned_duration_minutes = max(
+            min_duration_minutes,
+            _to_int(
+                item.get("assigned_duration_minutes")
+                or item.get("recommended_duration_minutes"),
+                min_duration_minutes,
+            ),
+        )
+        estimated_payout = _to_int(
+            item.get("estimated_payout"),
+            _calculate_longform_payout(assigned_duration_minutes, policy),
+        )
+        duration_locked = str(item.get("duration_locked", policy.get("sys_api_longform_duration_lock_enabled", "true"))).lower() not in ("false", "0", "none")
 
         if category_id:
             try:
@@ -205,6 +256,7 @@ async def get_daily_topic():
                     cat_data = cat_r.json()
                     if cat_data:
                         category_row = cat_data[0]
+                        category_video_type = category_row.get("video_type") or "longform"
                         category_script_style = category_row.get("default_script_style")
                         category_image_style = category_row.get("default_image_style")
             except Exception as e:
@@ -227,7 +279,7 @@ async def get_daily_topic():
         project_id = db.create_project(
             name=topic_name,
             topic=topic_name,
-            app_mode="longform",
+            app_mode=category_video_type,
             language="ko",
             employee_email=email,
             script_style=category_script_style,
@@ -239,6 +291,19 @@ async def get_daily_topic():
 
         db.update_project_setting(project_id, "topic_queue_id", topic_id)
         db.update_project_setting(project_id, "topic_queue_category_id", category_id or "")
+        if category_video_type == "longform":
+            db.update_project_setting(project_id, "duration_seconds", assigned_duration_minutes * 60)
+            db.update_project_setting(project_id, "assigned_duration_minutes", assigned_duration_minutes)
+            db.update_project_setting(project_id, "assigned_duration_seconds", assigned_duration_minutes * 60)
+            db.update_project_setting(project_id, "duration_locked", "1" if duration_locked else "0")
+            db.update_project_setting(project_id, "estimated_payout", estimated_payout)
+            db.update_project_setting(project_id, "duration_reason", item.get("duration_reason") or "")
+            db.update_project_setting(project_id, "difficulty_level", item.get("difficulty_level") or "")
+            db.update_project_setting(project_id, "payout_policy_json", json.dumps({
+                "min_duration_minutes": min_duration_minutes,
+                "base_payout": _to_int(policy.get("sys_api_longform_base_payout"), 10000),
+                "extra_minute_payout": _to_int(policy.get("sys_api_longform_extra_minute_payout"), 500),
+            }, ensure_ascii=False))
         try:
             sync_topic_progress(project_id, topic_id)
         except Exception as sync_err:

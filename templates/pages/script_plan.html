@@ -185,6 +185,7 @@
                                 value="10" min="1" step="1">
                             <span id="durationUnit" class="atl-field-label shrink-0">{{ t('plan_duration_unit_min') }}</span>
                         </div>
+                        <p id="durationPolicyText" class="text-[10px] text-emerald-300 mt-1 hidden"></p>
                     </div>
                     <div class="space-y-1.5">
                         <label class="atl-field-label block">{{ t('plan_style_label') }}</label>
@@ -531,6 +532,77 @@
     };
 
     let lastAppMode = window.APP_MODE || 'longform';
+    let longformPolicy = {
+        minDurationMinutes: 15,
+        basePayout: 10000,
+        extraMinutePayout: 500,
+        lockEnabled: true
+    };
+    let currentProjectSettings = {};
+
+    function truthySetting(value) {
+        return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
+    }
+
+    function formatWon(value) {
+        return `${Number(value || 0).toLocaleString('ko-KR')}원`;
+    }
+
+    function calculateLongformPayout(minutes) {
+        const minMinutes = Number(longformPolicy.minDurationMinutes || 15);
+        const basePay = Number(longformPolicy.basePayout || 0);
+        const extraPay = Number(longformPolicy.extraMinutePayout || 0);
+        return basePay + Math.max(0, Number(minutes || minMinutes) - minMinutes) * extraPay;
+    }
+
+    function getAssignedLongformMinutes(settings = currentProjectSettings) {
+        const minMinutes = Math.max(15, Number(longformPolicy.minDurationMinutes || 15));
+        const assigned = Number(settings.assigned_duration_minutes || 0);
+        const assignedSeconds = Number(settings.assigned_duration_seconds || 0);
+        const durationSeconds = Number(settings.duration_seconds || 0);
+
+        if (assigned > 0) return Math.max(minMinutes, assigned);
+        if (assignedSeconds > 0) return Math.max(minMinutes, Math.round(assignedSeconds / 60));
+        if (durationSeconds > 0) return Math.max(minMinutes, Math.round(durationSeconds / 60));
+        return minMinutes;
+    }
+
+    function applyLongformDurationPolicy(settings = currentProjectSettings) {
+        currentProjectSettings = settings || {};
+        const input = document.getElementById('durationInput');
+        const text = document.getElementById('durationPolicyText');
+        if (!input || !text || window.APP_MODE === 'shorts') {
+            if (text) text.classList.add('hidden');
+            if (input) input.disabled = false;
+            return;
+        }
+
+        const minMinutes = Math.max(15, Number(longformPolicy.minDurationMinutes || 15));
+        const assignedMinutes = getAssignedLongformMinutes(currentProjectSettings);
+        const locked = truthySetting(currentProjectSettings.duration_locked) || truthySetting(longformPolicy.lockEnabled);
+        const payout = Number(currentProjectSettings.estimated_payout || calculateLongformPayout(assignedMinutes));
+
+        input.min = minMinutes;
+        input.value = assignedMinutes;
+        input.disabled = locked;
+        input.classList.toggle('opacity-60', locked);
+        input.title = locked ? 'Admin assigned duration' : '';
+
+        const reason = currentProjectSettings.duration_reason ? ` · ${currentProjectSettings.duration_reason}` : '';
+        text.textContent = `LONGFORM ${assignedMinutes} min · payout ${formatWon(payout)} · min ${minMinutes} min${reason}`;
+        text.classList.remove('hidden');
+    }
+
+    function getEffectiveDurationSeconds() {
+        const input = document.getElementById('durationInput');
+        const raw = parseInt(input?.value || '0', 10) || 60;
+        if (window.APP_MODE === 'shorts') return raw;
+        const minMinutes = Math.max(15, Number(longformPolicy.minDurationMinutes || 15));
+        const minutes = truthySetting(currentProjectSettings.duration_locked)
+            ? getAssignedLongformMinutes(currentProjectSettings)
+            : Math.max(minMinutes, raw);
+        return minutes * 60;
+    }
 
     // 페이지 로드 시 분석 데이터 확인
     // 페이지 로드 시 분석 데이터 확인
@@ -584,6 +656,12 @@
             const res = await fetch('/api/settings');
             const settings = await res.json();
             window.APP_MODE = settings.app_mode || 'longform';
+            longformPolicy = {
+                minDurationMinutes: Math.max(15, Number(settings.longform_min_duration_minutes || 15)),
+                basePayout: Number(settings.longform_base_payout || 10000),
+                extraMinutePayout: Number(settings.longform_extra_minute_payout || 500),
+                lockEnabled: truthySetting(settings.longform_duration_lock_enabled ?? true)
+            };
 
             if (window.APP_MODE === 'shorts') {
                 const durUnit = document.getElementById('durationUnit');
@@ -601,6 +679,10 @@
                     badge.innerText = "Shorts";
                     title.appendChild(badge);
                 }
+            } else {
+                const durInput = document.getElementById('durationInput');
+                if (durInput) durInput.min = longformPolicy.minDurationMinutes;
+                applyLongformDurationPolicy(currentProjectSettings);
             }
         } catch (e) { console.error(e); }
 
@@ -644,6 +726,7 @@
             if (s.script_style) {
                 document.getElementById('scriptStyleSelect').value = s.script_style;
             }
+            applyLongformDurationPolicy(s);
         }
 
         if (data) {
@@ -702,6 +785,7 @@
                 if (s.script_style) {
                     document.getElementById('scriptStyleSelect').value = s.script_style;
                 }
+                applyLongformDurationPolicy(s);
 
                 renderAnalysisSection(fullData);
 
@@ -913,8 +997,7 @@
 
         try {
             const topic = document.getElementById('topicInput').value.trim();
-            const durationVal = parseInt(document.getElementById('durationInput').value) || 60;
-            let durationSeconds = (window.APP_MODE === 'shorts') ? durationVal : durationVal * 60;
+            const durationSeconds = getEffectiveDurationSeconds();
             const scriptStyle = document.getElementById('scriptStyleSelect').value;
 
             // 1. Update project topic and target language (projects table)
@@ -968,12 +1051,7 @@
         }
 
         // 분 단위 입력 -> 초 단위 변환 (Longform) / 초 단위 유지 (Shorts)
-        const durationVal = parseInt(document.getElementById('durationInput').value) || 60;
-        let duration = durationVal * 60; // Default Longform (min -> sec)
-
-        if (window.APP_MODE === 'shorts') {
-            duration = durationVal; // Shorts (sec -> sec)
-        }
+        const duration = getEffectiveDurationSeconds();
         const tone = "professional"; // Simplified or removed if not needed, as style prompt covers it.
         const scriptStyle = document.getElementById('scriptStyleSelect').value;
         const notes = document.getElementById('additionalNotes').value;
@@ -1446,8 +1524,7 @@
             if (forceAutoPlan) {
                 const topic = document.getElementById('topicInput').value.trim();
                 const style = document.getElementById('scriptStyleSelect').value;
-                const durVal = parseInt(document.getElementById('durationInput').value) || 60;
-                const duration = (window.APP_MODE === 'shorts') ? durVal : durVal * 60;
+                const duration = getEffectiveDurationSeconds();
 
                 bodyData.topic = topic;
                 bodyData.script_style = style;
@@ -1594,8 +1671,7 @@
         const projectId = getCurrentProject();
         if (!projectId) return;
 
-        const durationVal = parseInt(document.getElementById('durationInput').value) || 60;
-        let duration = (window.APP_MODE === 'shorts') ? durationVal : durationVal * 60;
+        const duration = getEffectiveDurationSeconds();
         const notes = document.getElementById('additionalNotes').value;
 
         const btn = document.getElementById('deepDiveBtn');
@@ -1712,9 +1788,11 @@
     function clearScriptPlanUI() {
         // 입력 필드 초기화
         document.getElementById('topicInput').value = '';
-        document.getElementById('durationInput').value = '10';
+        document.getElementById('durationInput').value = window.APP_MODE === 'shorts' ? '60' : String(longformPolicy.minDurationMinutes || 15);
         document.getElementById('titleKeywordInput').value = '';
         document.getElementById('scriptStyleSelect').value = 'basic';
+        currentProjectSettings = {};
+        applyLongformDurationPolicy(currentProjectSettings);
 
         // 시크릿 아이디어 초기화
         const nurseryPanel = document.getElementById('nurseryIdeasPanel');

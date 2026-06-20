@@ -8,7 +8,9 @@ const KEYS = [
     'suno', 'suno_base_url', 'music_provider',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'use_external_render', 'drive_path_ko', 'drive_path_en', 'drive_path_ja', 'drive_active_lang',
-    'remote_render_drive_folder_id', 'remote_render_google_token_path'
+    'remote_render_drive_folder_id', 'remote_render_google_token_path',
+    'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',
+    'longform_duration_lock_enabled'
 ]
 
 const getAdmin = () => createClient(

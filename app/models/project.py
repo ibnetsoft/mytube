@@ -32,6 +32,13 @@ class ProjectSettingsSave(BaseModel):
     thumbnail_text: Optional[str] = None
     thumbnail_url: Optional[str] = None
     duration_seconds: Optional[int] = None
+    assigned_duration_minutes: Optional[int] = None
+    assigned_duration_seconds: Optional[int] = None
+    duration_locked: Optional[Any] = None
+    estimated_payout: Optional[int] = None
+    duration_reason: Optional[str] = None
+    difficulty_level: Optional[str] = None
+    payout_policy_json: Optional[str] = None
     aspect_ratio: Optional[str] = None
     script: Optional[str] = None
     hashtags: Optional[str] = None

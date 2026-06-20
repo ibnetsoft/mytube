@@ -8,6 +8,20 @@ const getAdmin = () => createClient(
     { auth: { persistSession: false } }
 )
 
+function toInt(value: any, fallback: number) {
+    const parsed = Number.parseInt(String(value ?? ''), 10)
+    return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function clampDuration(value: any, minMinutes: number) {
+    const parsed = toInt(value, minMinutes)
+    return Math.max(minMinutes, Math.min(60, parsed))
+}
+
+function payoutForMinutes(minutes: number, minMinutes: number, basePay: number, extraPerMinute: number) {
+    return basePay + Math.max(0, minutes - minMinutes) * extraPerMinute
+}
+
 // GET: 대기열 주제 목록 조회
 export async function GET(req: Request) {
     try {
@@ -104,6 +118,22 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Gemini API Key is not configured on the server (Neither environment variable nor sys_api_gemini is present in global_settings)' }, { status: 500 })
         }
 
+        const { data: policyRows } = await supabase
+            .from('global_settings')
+            .select('key,value')
+            .in('key', [
+                'sys_api_longform_min_duration_minutes',
+                'sys_api_longform_base_payout',
+                'sys_api_longform_extra_minute_payout',
+                'sys_api_longform_duration_lock_enabled'
+            ])
+        const policy = Object.fromEntries((policyRows || []).map((row: any) => [row.key, row.value]))
+        const minDurationMinutes = Math.max(15, toInt(policy.sys_api_longform_min_duration_minutes, 15))
+        const basePayout = Math.max(0, toInt(policy.sys_api_longform_base_payout, 10000))
+        const extraMinutePayout = Math.max(0, toInt(policy.sys_api_longform_extra_minute_payout, 500))
+        const durationLockEnabled = String(policy.sys_api_longform_duration_lock_enabled ?? 'true') !== 'false'
+        const isLongformCategory = (category.video_type || 'longform') === 'longform'
+
         console.log(`Running AI Auto-Topic Generator for category: ${category.name}`);
         const nowInKst = new Date()
         const currentDateKst = new Intl.DateTimeFormat('en-CA', {
@@ -135,7 +165,18 @@ export async function POST(req: Request) {
         - If a year is mentioned in a current-affairs or market topic, prefer ${currentYearKst}. Do not generate stale present-tense titles anchored to 2024 or 2025 unless the topic is explicitly retrospective or historical.
         - If the input keywords contain older years, treat them only as weak reference context and rewrite the final title so it matches ${currentYearKst}.
 
-        Provide the output in Korean as a JSON list of strings, with absolutely no markdown formatting.
+        ${isLongformCategory ? `
+        For each LONGFORM topic, also choose a realistic target video duration in minutes.
+        Rules:
+        - Minimum duration is ${minDurationMinutes} minutes.
+        - Use 15 minutes for compact, simple stories.
+        - Use 20-25 minutes for normal narrative/explainer topics.
+        - Use 30-40 minutes only for complex history, multi-case, deep-investigation, or documentary topics.
+        - Do not choose a duration just to increase pay; choose based on natural content depth.
+        Return a JSON list of objects with keys: topic, recommended_duration_minutes, difficulty_level, duration_reason.
+        ` : ''}
+
+        Provide the output in Korean as JSON, with absolutely no markdown formatting.
         Example output format:
         [
           "첫 번째 실제 동영상 주제",
@@ -159,16 +200,46 @@ export async function POST(req: Request) {
         }
 
         // 4. Supabase topics_queue 에 적재
-        const inserts = topics.map(topic => ({
-            category_id: category.id,
-            topic: String(topic),
-            assigned_employee_email: category.assigned_employee_email,
-            status: 'pending'
-        }))
+        const inserts = topics.map(item => {
+            const topic = typeof item === 'string' ? item : item?.topic
+            const assignedDuration = isLongformCategory
+                ? clampDuration(item?.recommended_duration_minutes, minDurationMinutes)
+                : null
+            const estimatedPayout = assignedDuration
+                ? payoutForMinutes(assignedDuration, minDurationMinutes, basePayout, extraMinutePayout)
+                : null
+            return {
+                category_id: category.id,
+                topic: String(topic || '').trim(),
+                assigned_employee_email: category.assigned_employee_email,
+                status: 'pending',
+                ...(isLongformCategory ? {
+                    recommended_duration_minutes: assignedDuration,
+                    assigned_duration_minutes: assignedDuration,
+                    duration_locked: durationLockEnabled,
+                    estimated_payout: estimatedPayout,
+                    payout_policy: {
+                        min_duration_minutes: minDurationMinutes,
+                        base_payout: basePayout,
+                        extra_minute_payout: extraMinutePayout
+                    },
+                    duration_reason: typeof item === 'string' ? '' : (item?.duration_reason || ''),
+                    difficulty_level: typeof item === 'string' ? 'normal' : (item?.difficulty_level || 'normal')
+                } : {})
+            }
+        }).filter(item => item.topic)
 
-        const { error: insertError } = await supabase
+        let { error: insertError } = await supabase
             .from('topics_queue')
             .insert(inserts)
+
+        if (insertError && /column|schema|cache|duration|payout|difficulty/i.test(insertError.message || '')) {
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, ...rest }: any) => rest)
+            const retry = await supabase
+                .from('topics_queue')
+                .insert(fallbackInserts)
+            insertError = retry.error
+        }
 
         if (insertError) throw insertError
 

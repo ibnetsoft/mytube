@@ -32,6 +32,10 @@ class WebAdminClient:
         "sys_api_topview_uid": "TOPVIEW_UID",
         "sys_api_remote_render_drive_folder_id": "REMOTE_RENDER_DRIVE_FOLDER_ID",
         "sys_api_remote_render_google_token_path": "REMOTE_RENDER_GOOGLE_TOKEN_PATH",
+        "sys_api_longform_min_duration_minutes": "LONGFORM_MIN_DURATION_MINUTES",
+        "sys_api_longform_base_payout": "LONGFORM_BASE_PAYOUT",
+        "sys_api_longform_extra_minute_payout": "LONGFORM_EXTRA_MINUTE_PAYOUT",
+        "sys_api_longform_duration_lock_enabled": "LONGFORM_DURATION_LOCK_ENABLED",
     }
 
     def __init__(self):

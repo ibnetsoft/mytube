@@ -146,7 +146,11 @@ async def get_global_settings_api():
         "drive_path_ja": db.get_global_setting("drive_path_ja", config.DRIVE_PATH_JA),
         "drive_active_lang": db.get_global_setting("drive_active_lang", config.DRIVE_ACTIVE_LANG),
         "remote_render_drive_folder_id": db.get_global_setting("remote_render_drive_folder_id", config.REMOTE_RENDER_DRIVE_FOLDER_ID),
-        "remote_render_google_token_path": db.get_global_setting("remote_render_google_token_path", config.REMOTE_RENDER_GOOGLE_TOKEN_PATH)
+        "remote_render_google_token_path": db.get_global_setting("remote_render_google_token_path", config.REMOTE_RENDER_GOOGLE_TOKEN_PATH),
+        "longform_min_duration_minutes": os.getenv("LONGFORM_MIN_DURATION_MINUTES") or db.get_global_setting("longform_min_duration_minutes", "15"),
+        "longform_base_payout": os.getenv("LONGFORM_BASE_PAYOUT") or db.get_global_setting("longform_base_payout", "10000"),
+        "longform_extra_minute_payout": os.getenv("LONGFORM_EXTRA_MINUTE_PAYOUT") or db.get_global_setting("longform_extra_minute_payout", "500"),
+        "longform_duration_lock_enabled": os.getenv("LONGFORM_DURATION_LOCK_ENABLED") or db.get_global_setting("longform_duration_lock_enabled", "true")
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -203,6 +207,10 @@ async def get_global_settings_api():
     merged["drive_active_lang"] = global_conf["drive_active_lang"]
     merged["remote_render_drive_folder_id"] = global_conf["remote_render_drive_folder_id"]
     merged["remote_render_google_token_path"] = global_conf["remote_render_google_token_path"]
+    merged["longform_min_duration_minutes"] = global_conf["longform_min_duration_minutes"]
+    merged["longform_base_payout"] = global_conf["longform_base_payout"]
+    merged["longform_extra_minute_payout"] = global_conf["longform_extra_minute_payout"]
+    merged["longform_duration_lock_enabled"] = global_conf["longform_duration_lock_enabled"]
     
     # [NEW] Add Current API Keys Status
     api_status = config.get_api_keys_status()

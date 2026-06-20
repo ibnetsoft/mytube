@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS public.topics_queue (
     topic TEXT NOT NULL,
     assigned_employee_email TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'assigned' | 'completed'
+    recommended_duration_minutes INT,
+    assigned_duration_minutes INT,
+    duration_locked BOOLEAN DEFAULT TRUE,
+    estimated_payout INT,
+    payout_policy JSONB,
+    duration_reason TEXT,
+    difficulty_level TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     assigned_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ

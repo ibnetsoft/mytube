@@ -180,7 +180,11 @@ export default function DashboardContent() {
         topview: '', topview_uid: '',
         use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko',
         remote_render_drive_folder_id: '',
-        remote_render_google_token_path: ''
+        remote_render_google_token_path: '',
+        longform_min_duration_minutes: '15',
+        longform_base_payout: '10000',
+        longform_extra_minute_payout: '500',
+        longform_duration_lock_enabled: 'true'
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
@@ -788,7 +792,11 @@ export default function DashboardContent() {
                 drive_path_ja: data.drive_path_ja || '',
                 drive_active_lang: data.drive_active_lang || 'ko',
                 remote_render_drive_folder_id: data.remote_render_drive_folder_id || '',
-                remote_render_google_token_path: data.remote_render_google_token_path || ''
+                remote_render_google_token_path: data.remote_render_google_token_path || '',
+                longform_min_duration_minutes: data.longform_min_duration_minutes || '15',
+                longform_base_payout: data.longform_base_payout || '10000',
+                longform_extra_minute_payout: data.longform_extra_minute_payout || '500',
+                longform_duration_lock_enabled: data.longform_duration_lock_enabled || 'true'
             });
         } catch (e) { console.error('fetchSysKeys error:', e); }
     }, []);
@@ -2636,6 +2644,54 @@ export default function DashboardContent() {
                             </div>
 
                             {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">저장 완료</p>}
+
+                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
+                                <div>
+                                    <h4 className="text-xs font-black text-emerald-300 uppercase tracking-widest">Longform Work Policy</h4>
+                                    <p className="text-[10px] text-gray-500 mt-1">롱폼 직원 작업시간 잠금과 예상 수당 계산 기준입니다.</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">최소 영상 길이(분)</label>
+                                        <input
+                                            type="number"
+                                            min="15"
+                                            value={sysKeys.longform_min_duration_minutes}
+                                            onChange={e => setSysKeys(prev => ({ ...prev, longform_min_duration_minutes: e.target.value }))}
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">기본 수당</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={sysKeys.longform_base_payout}
+                                            onChange={e => setSysKeys(prev => ({ ...prev, longform_base_payout: e.target.value }))}
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">추가 1분당 수당</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={sysKeys.longform_extra_minute_payout}
+                                            onChange={e => setSysKeys(prev => ({ ...prev, longform_extra_minute_payout: e.target.value }))}
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
+                                        />
+                                    </div>
+                                </div>
+                                <label className="flex items-center gap-3 text-xs font-bold text-gray-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={String(sysKeys.longform_duration_lock_enabled) !== 'false'}
+                                        onChange={e => setSysKeys(prev => ({ ...prev, longform_duration_lock_enabled: String(e.target.checked) }))}
+                                        className="w-4 h-4 rounded text-emerald-500 bg-black border-white/10 cursor-pointer"
+                                    />
+                                    롱폼 배정시간을 직원 화면에서 수정 불가로 고정
+                                </label>
+                            </div>
 
                             <button
                                 onClick={saveSysKeys}
