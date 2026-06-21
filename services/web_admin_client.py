@@ -37,6 +37,8 @@ class WebAdminClient:
         "sys_api_longform_base_payout": "LONGFORM_BASE_PAYOUT",
         "sys_api_longform_extra_minute_payout": "LONGFORM_EXTRA_MINUTE_PAYOUT",
         "sys_api_longform_duration_lock_enabled": "LONGFORM_DURATION_LOCK_ENABLED",
+        "latest_app_version": "LATEST_APP_VERSION",
+        "latest_app_url": "LATEST_APP_URL",
     }
 
     def __init__(self):

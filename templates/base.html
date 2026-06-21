@@ -1433,12 +1433,110 @@
             await applyAppModeToNav();
             await loadProjects();
             checkApiStatus();
+            checkForUpdates(); // [NEW] Auto-update check
         }
         initApp();
+
+        // [NEW] Auto-updater Logic
+        async function checkForUpdates() {
+            try {
+                const res = await fetch('/api/update/check');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.has_update) {
+                    showUpdateModal(data.latest_version);
+                }
+            } catch (e) {
+                console.error("Update check failed:", e);
+            }
+        }
+
+        function showUpdateModal(newVersion) {
+            // Create modal dynamically
+            const overlay = document.createElement('div');
+            overlay.className = "fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center backdrop-blur-sm";
+            overlay.innerHTML = `
+                <div class="bg-[#1c2027] rounded-2xl shadow-2xl p-8 max-w-md w-full border border-gray-700 text-center mx-4">
+                    <div class="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">🚀</div>
+                    <h2 class="text-xl font-bold text-white mb-2">새로운 업데이트 발견!</h2>
+                    <p class="text-gray-400 text-sm mb-6">최신 버전(v${newVersion})이 출시되었습니다.<br>안정적인 작업 환경을 위해 지금 업데이트해 주세요.</p>
+                    <div id="updateProgressContainer" class="hidden mb-6 text-left">
+                        <div class="flex justify-between text-xs text-gray-400 mb-1">
+                            <span>다운로드 중...</span>
+                            <span id="updateProgressText">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div id="updateProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <button id="btnStartUpdate" onclick="startUpdate()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+                        <span>업데이트 다운로드 및 재시작</span>
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
+        async function startUpdate() {
+            const btn = document.getElementById('btnStartUpdate');
+            const progressContainer = document.getElementById('updateProgressContainer');
+            const progressText = document.getElementById('updateProgressText');
+            const progressBar = document.getElementById('updateProgressBar');
+
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.innerHTML = '<span class="animate-spin text-xl">⏳</span> 처리 중...';
+            progressContainer.classList.remove('hidden');
+
+            try {
+                // Get URL again or just send empty to let backend use global_settings
+                // But wait, the check API gave us the URL, let's fetch it again
+                const checkRes = await fetch('/api/update/check');
+                const checkData = await checkRes.json();
+                
+                const dlRes = await fetch('/api/update/download', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url: checkData.download_url})
+                });
+                
+                if (!dlRes.ok) throw new Error("Download start failed");
+
+                // Poll status
+                const interval = setInterval(async () => {
+                    const statusRes = await fetch('/api/update/status');
+                    const statusData = await statusRes.json();
+                    
+                    if (statusData.error) {
+                        clearInterval(interval);
+                        alert("업데이트 오류: " + statusData.error);
+                        window.location.reload();
+                        return;
+                    }
+
+                    progressText.innerText = statusData.progress + '%';
+                    progressBar.style.width = statusData.progress + '%';
+
+                    if (!statusData.is_downloading && statusData.progress === 100) {
+                        clearInterval(interval);
+                        progressText.innerText = "설치 중...";
+                        btn.innerHTML = '<span class="animate-spin text-xl">🔄</span> 앱을 재시작합니다...';
+                        
+                        // Apply and Restart
+                        await fetch('/api/update/apply', { method: 'POST' });
+                        setTimeout(() => { window.location.reload(); }, 4000);
+                    }
+                }, 1000);
+
+            } catch(e) {
+                console.error(e);
+                alert("업데이트를 시작할 수 없습니다.");
+            }
+        }
     </script>
     <script>
         // 사이드바 토큰 잔액 및 멤버십 실시간 동기화 (서버사이드 캐시가 0일 경우 보정)
-        (async function syncTokenBalance() {
+        async function syncTokenBalance() {
             try {
                 const res = await fetch('/api/auth/sync', { method: 'POST' });
                 if (!res.ok) return;
@@ -1450,6 +1548,12 @@
                             el.innerHTML = data.token_balance.toLocaleString() + ' <span class="text-[10px] text-gray-500">TK</span>';
                         }
                     }
+                    
+                    // [NEW] 백그라운드 싱크 중 업데이트가 감지되면 즉시 팝업 표시
+                    if (data.has_update) {
+                        checkForUpdates();
+                    }
+
                     // 멤버십 등급 변경 감지 시 즉시 페이지 리로드하여 화면 갱신
                     const currentMembership = '{{ membership }}'.trim().toLowerCase();
                     const newMembership = (data.membership || '').trim().toLowerCase();
@@ -1458,7 +1562,11 @@
                     }
                 }
             } catch (e) { /* 네트워크 오류 시 무시 */ }
-        })();
+        }
+        
+        // 초기 1회 실행 후 30초마다 반복 실행
+        syncTokenBalance();
+        setInterval(syncTokenBalance, 30000);
     </script>
 </body>
 

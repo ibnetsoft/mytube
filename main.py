@@ -289,7 +289,9 @@ from app.routers import gemini as gemini_router
 from app.routers import image as image_router
 from app.routers import thumbnails as thumbnails_router
 from app.routers import auth as auth_router
+from app.routers import update as update_router
 
+app.include_router(update_router.router)
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
 app.include_router(commerce_router.router)

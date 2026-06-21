@@ -399,6 +399,10 @@ async def post_auth_logout():
 @router.post("/api/auth/sync")
 async def sync_auth():
     try:
+        from services.updater_service import updater_service
+        update_info = updater_service.check_for_update()
+        has_update = update_info.get("has_update", False)
+        
         email = auth_service.get_user_email()
         if email:
             profile = web_admin_client.fetch_profile_by_email(email)
@@ -416,9 +420,10 @@ async def sync_auth():
                     "success": True,
                     "membership": auth_service.get_membership(),
                     "token_balance": auth_service.get_token_balance(),
+                    "has_update": has_update,
                 }
 
-            return {"success": False, "error": "Supabase ?숆린???ㅽ뙣"}
+            return {"success": False, "error": "Supabase 동기화 실패"}
 
         success = auth_service.verify_license()
 
@@ -427,6 +432,7 @@ async def sync_auth():
                 "success": True,
                 "membership": auth_service.get_membership(),
                 "token_balance": auth_service.get_token_balance(),
+                "has_update": has_update,
             }
         return {"success": False, "error": "Verification failed"}
     except Exception as e:
