@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -148,7 +148,6 @@ export default function DashboardContent() {
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
-    const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
     const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals'>('topics')
@@ -869,36 +868,7 @@ export default function DashboardContent() {
         }
     }
 
-    
-    const fetchWithdrawals = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('withdrawals')
-            .select('*, profiles(email)')
-            .order('created_at', { ascending: false })
-            .limit(100)
-        
-        if (data && !error) {
-            setWithdrawals(data)
-        }
-    }, [])
-
-    const updateWithdrawalStatus = async (id: string, newStatus: 'completed' | 'rejected') => {
-        if (!confirm(`정말로 이 출금 요청을 ${newStatus === 'completed' ? '완료' : '거절'} 처리하시겠습니까?`)) return
-        
-        const { error } = await supabase
-            .from('withdrawals')
-            .update({ status: newStatus, processed_at: new Date().toISOString() })
-            .eq('id', id)
-            
-        if (error) {
-            alert('상태 업데이트 실패: ' + error.message)
-        } else {
-            alert('출금 상태가 업데이트 되었습니다.')
-            fetchWithdrawals()
-        }
-    }
-
-    const fetchPublishingRequests = useCallback(async () => {
+        const fetchPublishingRequests = useCallback(async () => {
         if (!isAdmin) return;
         try {
             const res = await fetch(`/api/admin/publishing?t=${Date.now()}`);
