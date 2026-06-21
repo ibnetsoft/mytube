@@ -1564,9 +1564,9 @@
             } catch (e) { /* 네트워크 오류 시 무시 */ }
         }
         
-        // 초기 1회 실행 후 30초마다 반복 실행
+        // 초기 1회 실행 후 30분(1,800,000ms)마다 반복 실행
         syncTokenBalance();
-        setInterval(syncTokenBalance, 30000);
+        setInterval(syncTokenBalance, 1800000);
     </script>
 </body>
 
