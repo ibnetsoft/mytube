@@ -1355,13 +1355,6 @@ export default function DashboardContent() {
         }
     }, [activeTab, fetchWithdrawals]);
 
-    
-    useEffect(() => {
-        if (activeTab === 'withdrawals') {
-            fetchWithdrawals();
-        }
-    }, [activeTab, fetchWithdrawals]);
-
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueue();
@@ -2527,58 +2520,6 @@ export default function DashboardContent() {
                     </div>
                 )}
 
-                
-                {activeTab === 'withdrawals' && (
-                    <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
-                            <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">수당 출금 요청 리스트</h3>
-                            <button onClick={fetchWithdrawals} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
-                        </div>
-                        <table className="w-full text-left">
-                            <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-widest">
-                                <tr>
-                                    <th className="px-4 py-4 whitespace-nowrap">신청일자</th>
-                                    <th className="px-4 py-4 whitespace-nowrap">이메일</th>
-                                    <th className="px-4 py-4 whitespace-nowrap">출금 주소</th>
-                                    <th className="px-4 py-4 text-right whitespace-nowrap">금액 (USDT)</th>
-                                    <th className="px-4 py-4 text-center whitespace-nowrap">상태</th>
-                                    <th className="px-4 py-4 text-center whitespace-nowrap">액션</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/20">
-                                {withdrawals.map(w => (
-                                    <tr key={w.id} className="hover:bg-white/[0.03] transition-colors group">
-                                        <td className="px-4 py-4 text-xs text-gray-400">{new Date(w.created_at).toLocaleString()}</td>
-                                        <td className="px-4 py-4 text-sm font-bold text-blue-400">{users.find(u => u.id === w.user_id)?.email || 'N/A'}</td>
-                                        <td className="px-4 py-4 text-xs font-mono text-gray-300 max-w-[200px] truncate">{w.dest_address}</td>
-                                        <td className="px-4 py-4 text-right text-sm font-black text-green-400">{w.amount} USDT</td>
-                                        <td className="px-4 py-4 text-center">
-                                            {w.status === 'pending' && <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs font-bold">대기중</span>}
-                                            {w.status === 'completed' && <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold">완료</span>}
-                                            {w.status === 'rejected' && <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold">거절</span>}
-                                        </td>
-                                        <td className="px-4 py-4 text-center">
-                                            {w.status === 'pending' && (
-                                                <div className="flex justify-center gap-2">
-                                                    <button onClick={() => updateWithdrawalStatus(w.id, 'completed')} className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-[10px] font-bold rounded-lg transition-colors">승인완료</button>
-                                                    <button onClick={() => updateWithdrawalStatus(w.id, 'rejected')} className="px-3 py-1 bg-red-600/50 hover:bg-red-500 text-white text-[10px] font-bold rounded-lg transition-colors">거절</button>
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {withdrawals.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm font-bold">출금 신청 내역이 없습니다.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                
-                
                 {activeTab === 'withdrawals' && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
