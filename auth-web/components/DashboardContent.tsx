@@ -1194,7 +1194,7 @@ export default function DashboardContent() {
             })
             const data = await res.json()
             if (data.success) {
-                const generatedTopics = Array.isArray(data.topics) ? data.topics.map((topic: any) => String(topic)).slice(0, 10) : []
+                const generatedTopics = Array.isArray(data.topics) ? data.topics.map((topic: any) => typeof topic === 'string' ? topic : (topic?.topic || '')).slice(0, 10) : []
                 setGeneratedTopicsByCat(prev => ({ ...prev, [catId]: generatedTopics }))
                 fetchTopics()
                 alert(`AI媛 ?덈줈???몃? ?곸긽 二쇱젣 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)

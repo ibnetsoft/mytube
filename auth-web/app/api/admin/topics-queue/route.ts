@@ -198,11 +198,23 @@ export async function POST(req: Request) {
         ` : ''}
 
         Provide the output in Korean as JSON, with absolutely no markdown formatting.
+        ${isLongformCategory ? `
+        Example output format:
+        [
+          {
+            "topic": "첫 번째 실제 동영상 주제",
+            "recommended_duration_minutes": 20,
+            "difficulty_level": "normal",
+            "duration_reason": "스토리의 깊이와 역사적 배경 설명이 필요한 주제"
+          }
+        ]
+        ` : `
         Example output format:
         [
           "첫 번째 실제 동영상 주제",
           "두 번째 실제 동영상 주제"
         ]
+        `}
         `
 
         const response = await ai.models.generateContent({
