@@ -396,6 +396,18 @@ def package_music_project_assets(project_id: int, track_file_paths, playlist_tit
             background_filename = f"background{os.path.splitext(background_path)[1].lower()}"
             shutil.copy2(background_path, os.path.join(temp_dir, background_filename))
 
+        intro_filename = None
+        intro_path = p_settings.get("intro_video_path")
+        if intro_path and os.path.exists(intro_path):
+            intro_filename = f"intro{os.path.splitext(intro_path)[1].lower() or '.mp4'}"
+            shutil.copy2(intro_path, os.path.join(temp_dir, intro_filename))
+
+        intro_bgm_filename = None
+        intro_bgm_path = _resolve_packaged_asset_path(p_settings.get("intro_bgm_path"))
+        if intro_bgm_path and os.path.exists(intro_bgm_path):
+            intro_bgm_filename = f"intro_bgm{os.path.splitext(intro_bgm_path)[1].lower() or '.mp3'}"
+            shutil.copy2(intro_bgm_path, os.path.join(temp_dir, intro_bgm_filename))
+
         thumbnail_filename = None
         thumbnail_path = _resolve_packaged_asset_path(p_settings.get("thumbnail_url"))
         if thumbnail_path and os.path.exists(thumbnail_path):
@@ -413,6 +425,10 @@ def package_music_project_assets(project_id: int, track_file_paths, playlist_tit
             'track_entries': track_entries,
             'cover_filename': cover_filename,
             'background_filename': background_filename,
+            'intro_filename': intro_filename,
+            'intro_bgm_filename': intro_bgm_filename,
+            'intro_bgm_prompt': p_settings.get("intro_bgm_prompt"),
+            'intro_video_prompt': p_settings.get("intro_video_prompt"),
             'thumbnail_filename': thumbnail_filename,
             'project_upload_metadata': _build_project_upload_metadata(project_id, project_obj, p_settings),
         }

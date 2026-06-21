@@ -176,6 +176,13 @@
                     class="btn-secondary text-sm px-4 flex items-center gap-2">
                     <span id="selectAllIcon">☐</span> {{ t('btn_select_all') }}
                 </button>
+                <!-- [NEW] Bulk Upload Trigger Button -->
+                <button onclick="document.getElementById('bulk-media-input-top').click()" id="bulkUploadTopBtn"
+                    class="btn-secondary text-sm px-4 flex items-center gap-2 text-blue-400 border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10">
+                    <span>📤</span> <span>이미지 일괄등록</span>
+                </button>
+                <input type="file" id="bulk-media-input-top" class="hidden" accept="image/*,video/*" multiple onchange="handleBulkSelectTop(event)">
+
                 <button onclick="downloadAllImages()" class="btn-secondary text-sm px-4 flex items-center gap-2">
                     {{ t('btn_bulk_download') }}
                 </button>
@@ -201,6 +208,36 @@
         </div>
 
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+
+        <!-- AI Smart Bulk Upload Area -->
+        <div class="mt-8 border-t border-white/5 pt-6">
+            <h4 class="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2">
+                <span>📤</span> <span>AI 이미지/영상 벌크 자동 배정 업로드</span>
+            </h4>
+            <div id="bulk-upload-zone" 
+                 class="border-2 border-dashed border-white/10 hover:border-blue-500/40 bg-[#232832]/35 hover:bg-[#232832]/60 transition-all rounded-2xl p-6 text-center cursor-pointer flex flex-col items-center justify-center min-h-[140px] relative overflow-hidden group"
+                 onclick="document.getElementById('bulk-media-input').click()"
+                 ondragover="handleBulkDragOver(event)"
+                 ondragleave="handleBulkDragLeave(event)"
+                 ondrop="handleBulkDrop(event)">
+                <input type="file" id="bulk-media-input" class="absolute inset-0 opacity-0 cursor-pointer" accept="image/*,video/*" multiple onchange="handleBulkSelect(event)">
+                
+                <div id="bulk-upload-prompt" class="space-y-2 flex flex-col items-center">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-lg text-blue-400 group-hover:scale-110 transition-transform">
+                        📥
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-gray-200">여러 파일(이미지 및 영상 혼합 가능)을 마우스로 드롭하거나 클릭하여 선택</p>
+                        <p class="text-[10px] text-gray-400 mt-1">AI가 각 파일의 내용을 분석하여 대본과 매칭되는 가장 알맞은 씬 번호에 자동으로 배정합니다.</p>
+                    </div>
+                </div>
+                
+                <div id="bulk-upload-loading" class="hidden flex flex-col items-center gap-2">
+                    <div class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
+                    <p class="text-xs text-blue-400 font-bold" id="bulk-upload-status-text">AI 분석 및 자동 배정 매칭 진행 중...</p>
+                </div>
+            </div>
+        </div>
 
         <div id="nextStepSection" class="hidden"></div>
 
@@ -4120,6 +4157,108 @@
             Utils.showToast('DNA Saved Successfully', 'success');
             closeCharacterDnaModal();
             renderCharacters(chars);
+        }
+    }
+
+    // [NEW] AI Smart Bulk Upload Event Handlers
+    function handleBulkDragOver(e) {
+        e.preventDefault();
+        document.getElementById('bulk-upload-zone').classList.add('border-blue-500/50', 'bg-[#232832]/85');
+    }
+
+    function handleBulkDragLeave(e) {
+        e.preventDefault();
+        document.getElementById('bulk-upload-zone').classList.remove('border-blue-500/50', 'bg-[#232832]/85');
+    }
+
+    function handleBulkDrop(e) {
+        e.preventDefault();
+        document.getElementById('bulk-upload-zone').classList.remove('border-blue-500/50', 'bg-[#232832]/85');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            processBulkFiles(files);
+        }
+    }
+
+    function handleBulkSelect(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+            processBulkFiles(files);
+        }
+    }
+
+    function handleBulkSelectTop(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+            processBulkFiles(files);
+        }
+    }
+
+    async function processBulkFiles(files) {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('프로젝트를 먼저 선택해 주세요.', 'warning');
+            return;
+        }
+
+        const dropPrompt = document.getElementById('bulk-upload-prompt');
+        const dropLoading = document.getElementById('bulk-upload-loading');
+        const topBtn = document.getElementById('bulkUploadTopBtn');
+        const originalTopHtml = topBtn ? topBtn.innerHTML : '';
+        
+        if (dropPrompt) dropPrompt.classList.add('hidden');
+        if (dropLoading) dropLoading.classList.remove('hidden');
+        if (topBtn) {
+            topBtn.innerHTML = '<span>⏳</span> 일괄등록 중...';
+            topBtn.disabled = true;
+        }
+
+        const formData = new FormData();
+        formData.append('project_id', projectId);
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files', files[i]);
+        }
+
+        try {
+            const response = await fetch('/api/image/bulk-match', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Server error occurred during matching');
+            }
+
+            const result = await response.json();
+            if (result.status === 'ok') {
+                Utils.showToast(`성공: AI가 ${result.matched_count}개 파일을 자동 배정 매칭했습니다.`, 'success');
+                
+                // 로컬 변수 prompts를 업데이트
+                if (result.scenes) {
+                    prompts = result.scenes;
+                    Utils.storage.set('imagePrompts', prompts);
+                    
+                    // UI 그리기 (스크롤 위치 유지)
+                    const scrollY = window.scrollY;
+                    drawPromptsUI(prompts);
+                    window.scrollTo(0, scrollY);
+                }
+            } else {
+                throw new Error(result.error || 'Matching failed');
+            }
+        } catch (e) {
+            console.error('Bulk match error:', e);
+            Utils.showToast('벌크 자동 매칭 실패: ' + e.message, 'error');
+        } finally {
+            if (dropLoading) dropLoading.classList.add('hidden');
+            if (dropPrompt) dropPrompt.classList.remove('hidden');
+            if (topBtn) {
+                topBtn.innerHTML = originalTopHtml;
+                topBtn.disabled = false;
+            }
+            document.getElementById('bulk-media-input').value = ''; // Reset input
+            document.getElementById('bulk-media-input-top').value = ''; // Reset top input
         }
     }
 

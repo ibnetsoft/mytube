@@ -12,6 +12,9 @@ google-antigravity==0.1.4
 elevenlabs>=1.50.0
 gTTS>=2.5.1
 google-cloud-texttospeech>=2.16.3
+whisper-timestamped>=1.15.4
+torch>=2.0.0
+torchaudio>=2.0.0
 
 # 영상 처리
 moviepy>=2.1.2
@@ -38,3 +41,4 @@ pydub
 openai>=1.0.0
 psd-tools>=1.12.1
 
+eth-account

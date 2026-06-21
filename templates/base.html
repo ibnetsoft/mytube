@@ -110,7 +110,7 @@
                             <span>{{ t('nav_topic') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode == 'longform_music' %}hidden{% endif %}">
+                    <li class="hidden">
                         <a href="/repository" id="nav-repository"
                             class="sidebar-item {% if page == 'repository' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -139,7 +139,7 @@
                             <span>{{ t('nav_title_desc') }}</span>
                         </a>
                     </li>
-                    <li class="hidden">
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">
                         <a href="/video-gen" id="nav-intro"
                             class="sidebar-item {% if page == 'video-gen' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -870,7 +870,7 @@
                     const option = document.createElement('option');
                     option.value = p.id;
                     let displayName = p.name;
-                    if (window.currentLang === 'vi' && p.name_vi) {
+                    if ((window.currentLang === 'vi' || window.currentLang === 'en') && p.name_vi) {
                         displayName = `${p.name} (${p.name_vi})`;
                     }
                     option.textContent = `${displayName} (${i18n.status_labels[p.status] || p.status})`;
@@ -959,7 +959,7 @@
                             nameViEl.className = 'text-xs font-semibold text-purple-400 mt-1';
                             headerDisplay.parentNode.appendChild(nameViEl);
                         }
-                        if (window.currentLang === 'vi' && project.name_vi) {
+                        if ((window.currentLang === 'vi' || window.currentLang === 'en') && project.name_vi) {
                             nameViEl.textContent = project.name_vi;
                             nameViEl.classList.remove('hidden');
                         } else {
@@ -1362,7 +1362,7 @@
 
                     setVisible(navPlan, true);
                     setVisible(navScript, true);
-                    setVisible(navIntro, false);
+                    setVisible(navIntro, true);
                     setVisible(navImage, true);
                     setVisible(navImageCrop, true);
                     setVisible(navAudio, false);

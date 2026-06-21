@@ -68,11 +68,23 @@
             background: rgba(2, 6, 23, 0.42);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
+        .lang-btn.active {
+            background-color: rgba(59, 130, 246, 0.25);
+            border-color: rgba(59, 130, 246, 0.5);
+            color: #60a5fa;
+        }
     </style>
 </head>
 
 <body class="text-gray-100 min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-md glass-card rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        <!-- Floating Language Switcher -->
+        <div class="absolute top-4 right-4 z-20 flex gap-1.5">
+            <button onclick="setLanguage('ko')" id="lang-ko" class="lang-btn text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 font-bold transition">KO</button>
+            <button onclick="setLanguage('en')" id="lang-en" class="lang-btn text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 font-bold transition">EN</button>
+            <button onclick="setLanguage('vi')" id="lang-vi" class="lang-btn text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 font-bold transition">VI</button>
+        </div>
+
         <!-- Background Blur Accents -->
         <div class="absolute -right-16 -top-16 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl"></div>
         <div class="absolute -left-16 -bottom-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-3xl"></div>
@@ -83,7 +95,7 @@
                 <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
                 <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Picadilly Studio</span>
             </div>
-            <h1 class="text-2xl font-black text-white mb-6">Đăng nhập nhân viên</h1>
+            <h1 id="page-title" class="text-2xl font-black text-white mb-6">직원 로그인</h1>
 
             <div class="grid grid-cols-2 gap-2 w-full mb-6">
                 <button id="tab-login" onclick="showAuthMode('login')" class="auth-tab active rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">로그인</button>
@@ -93,7 +105,7 @@
             <!-- Step 1: Email Selection -->
             <div id="login-panel" class="w-full">
                 <div id="step-email" class="w-full flex flex-col gap-4">
-                    <label class="text-sm font-semibold text-gray-400">Vui lòng chọn Email</label>
+                    <label id="label-select-email" class="text-sm font-semibold text-gray-400">이메일을 선택해 주세요</label>
                     <div id="email-list" class="max-h-60 overflow-y-auto pr-1 flex flex-col gap-2">
                         <!-- Loading skeleton -->
                         <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
@@ -104,8 +116,8 @@
                 <!-- Step 2: PIN Input -->
                 <div id="step-pin" class="w-full hidden flex flex-col items-center">
                     <!-- Selected User Back Button -->
-                    <button onclick="backToEmail()" class="self-start text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 mb-4 transition">
-                        ← Chọn Email khác
+                    <button id="btn-back-email" onclick="backToEmail()" class="self-start text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 mb-4 transition">
+                        ← 다른 이메일 선택
                     </button>
 
                     <span id="selected-email" class="text-sm font-bold text-blue-400 mb-6 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full"></span>
@@ -132,36 +144,38 @@
                         <button onclick="pressKey('7')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">7</button>
                         <button onclick="pressKey('8')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">8</button>
                         <button onclick="pressKey('9')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">9</button>
-                        <button onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">Đặt lại</button>
+                        <button id="btn-keypad-clear" onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">재설정</button>
                         <button onclick="pressKey('0')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">0</button>
                         <button onclick="pressKey('backspace')" class="key-btn aspect-square rounded-2xl text-lg flex items-center justify-center">⌫</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Registration Panel -->
             <div id="register-panel" class="w-full hidden">
                 <div class="space-y-3">
                     <input id="reg-name" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="이름 / Full name">
                     <input id="reg-contact" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="연락처 / Phone, Zalo, Kakao">
                     <input id="reg-email" type="email" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="이메일 주소 / Email">
                     <input id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="국가 / Country">
+                    <input id="reg-referral" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="추천인 코드 (선택사항) / Referral Code (Optional)">
 
                     <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
-                        <summary class="cursor-pointer text-blue-300 font-bold">서비스 이용약관 보기</summary>
-                        <p class="mt-3">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다. 완료 수당은 어드민 검수 및 승인된 작업 기준으로 정산됩니다.</p>
+                        <summary id="summary-terms" class="cursor-pointer text-blue-300 font-bold">서비스 이용약관 보기</summary>
+                        <p id="text-terms-body" class="mt-3">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다. 완료 수당은 어드민 검수 및 승인된 작업 기준으로 정산됩니다.</p>
                     </details>
                     <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
-                        <summary class="cursor-pointer text-blue-300 font-bold">개인정보처리방침 보기</summary>
-                        <p class="mt-3">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용되며 관리자가 승인 여부를 판단할 때 확인합니다.</p>
+                        <summary id="summary-privacy" class="cursor-pointer text-blue-300 font-bold">개인정보처리방침 보기</summary>
+                        <p id="text-privacy-body" class="mt-3">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용되며 관리자가 승인 여부를 판단할 때 확인합니다.</p>
                     </details>
 
                     <label class="flex items-start gap-3 text-xs text-gray-300">
                         <input id="reg-terms" type="checkbox" class="mt-1">
-                        <span>서비스 이용약관에 동의합니다.</span>
+                        <span id="label-agree-terms">서비스 이용약관에 동의합니다.</span>
                     </label>
                     <label class="flex items-start gap-3 text-xs text-gray-300">
                         <input id="reg-privacy" type="checkbox" class="mt-1">
-                        <span>개인정보 수집 및 이용에 동의합니다.</span>
+                        <span id="label-agree-privacy">개인정보 수집 및 이용에 동의합니다.</span>
                     </label>
                     <button id="register-btn" onclick="submitRegister()" class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">회원가입 신청</button>
                     <div id="register-msg" class="min-h-5 text-center text-xs font-bold"></div>
@@ -173,20 +187,175 @@
     <script>
         let currentEmail = '';
         let currentPin = '';
+        let activeTab = 'login';
+        window.currentLang = 'ko';
+
+        const TRANSLATIONS = {
+            ko: {
+                title_login: "직원 로그인",
+                title_register: "회원가입 신청",
+                tab_login: "로그인",
+                tab_register: "회원가입 신청",
+                select_email: "이메일을 선택해 주세요",
+                back_email: "← 다른 이메일 선택",
+                reg_name: "이름 / Full name",
+                reg_contact: "연락처 / Phone, Zalo, Kakao",
+                reg_email: "이메일 주소 / Email",
+                reg_country: "국가 / Country",
+                reg_referral: "추천인 코드 (선택사항) / Referral Code",
+                terms_title: "서비스 이용약관 보기",
+                terms_body: "작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다. 완료 수당은 어드민 검수 및 승인된 작업 기준으로 정산됩니다.",
+                privacy_title: "개인정보처리방침 보기",
+                privacy_body: "가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용되며 관리자가 승인 여부를 판단할 때 확인합니다.",
+                terms_agree: "서비스 이용약관에 동의합니다.",
+                privacy_agree: "개인정보 수집 및 이용에 동의합니다.",
+                reg_btn: "회원가입 신청",
+                reg_loading: "신청 중...",
+                reg_success: "가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.",
+                reg_fail: "가입 신청 실패",
+                login_btn_reset: "재설정",
+                no_emails: "등록된 이메일이 없거나 승인된 계정이 없습니다.",
+                err_load_emails: "이메일 목록을 불러오지 못했습니다.",
+                err_login_fail: "로그인 실패",
+                err_conn_fail: "서버 연결 실패",
+                choose: "선택 →"
+            },
+            en: {
+                title_login: "Worker Login",
+                title_register: "Register Account",
+                tab_login: "Login",
+                tab_register: "Register",
+                select_email: "Please select your Email",
+                back_email: "← Choose another Email",
+                reg_name: "Name / Full name",
+                reg_contact: "Contact / Phone, Zalo, Kakao",
+                reg_email: "Email Address",
+                reg_country: "Country",
+                terms_title: "View Terms of Service",
+                terms_body: "Workers perform assigned content creation tasks using the Picadilly Studio client. Accounts are strictly personal; unauthorized sharing, API abuse, data leakage, and false work submissions are prohibited. Payments are settled based on works reviewed and approved by the administrator.",
+                privacy_title: "View Privacy Policy",
+                privacy_body: "We collect name, contact info, email, and country for registration. Collected data is used solely for account approval, task assignment, settlement, and security verification, and is reviewed by the admin during the approval process.",
+                terms_agree: "I agree to the Terms of Service.",
+                privacy_agree: "I agree to the collection and use of personal information.",
+                reg_btn: "Submit Registration",
+                reg_loading: "Submitting...",
+                reg_success: "Your application has been received. You can log in once approved by the administrator.",
+                reg_fail: "Registration failed",
+                login_btn_reset: "Reset",
+                no_emails: "No emails registered or approved yet.",
+                err_load_emails: "Failed to load email list.",
+                err_login_fail: "Login failed",
+                err_conn_fail: "Server connection failed",
+                choose: "Choose →"
+            },
+            vi: {
+                title_login: "Đăng nhập nhân viên",
+                title_register: "Đăng ký thành viên",
+                tab_login: "Đăng nhập",
+                tab_register: "Đăng ký",
+                select_email: "Vui lòng chọn Email",
+                back_email: "← Chọn Email khác",
+                reg_name: "Họ và tên",
+                reg_contact: "Thông tin liên hệ (Phone, Zalo, Kakao)",
+                reg_email: "Địa chỉ Email",
+                reg_country: "Quốc gia",
+                reg_referral: "Mã giới thiệu (Tùy chọn)",
+                terms_title: "Xem điều khoản dịch vụ",
+                terms_body: "Nhân viên thực hiện nhiệm vụ sản xuất nội dung được giao bằng cách sử dụng ứng dụng khách Picadilly Studio. Tài khoản chỉ dành cho mục đích cá nhân; nghiêm cấm chia sẻ trái phép, lạm dụng API, rò rỉ dữ liệu và gửi tác phẩm giả mạo. Các khoản thanh toán được thanh toán dựa trên các công việc được quản trị viên xem xét và phê duyệt.",
+                privacy_title: "Xem chính sách bảo mật",
+                privacy_body: "Chúng tôi thu thập tên, thông tin liên hệ, email và quốc gia để đăng ký. Dữ liệu thu thập được chỉ sử dụng cho mục đích phê duyệt tài khoản, phân công nhiệm vụ, quyết toán và xác minh bảo mật, và được quản trị viên xem xét trong quá trình phê duyệt.",
+                terms_agree: "Tôi đồng ý với Điều khoản Dịch vụ.",
+                privacy_agree: "Tôi đồng ý với việc thu thập và sử dụng thông tin cá nhân.",
+                reg_btn: "Đăng ký ngay",
+                reg_loading: "Đang gửi đăng ký...",
+                reg_success: "Đăng ký của bạn đã được tiếp nhận. Bạn có thể đăng nhập sau khi được quản trị viên phê duyệt.",
+                reg_fail: "Đăng ký thất bại",
+                login_btn_reset: "Đặt lại",
+                no_emails: "Không có email nào được đăng ký hoặc phê duyệt.",
+                err_load_emails: "Không thể lấy danh sách email.",
+                err_login_fail: "Đăng nhập thất bại",
+                err_conn_fail: "Kết nối máy chủ thất bại.",
+                choose: "Chọn →"
+            }
+        };
 
         // Load emails on start
-        window.addEventListener('DOMContentLoaded', loadEmails);
+        window.addEventListener('DOMContentLoaded', () => {
+            // Check browser language or default to ko
+            const lang = navigator.language || navigator.userLanguage;
+            if (lang.startsWith('vi')) {
+                setLanguage('vi');
+            } else if (lang.startsWith('en')) {
+                setLanguage('en');
+            } else {
+                setLanguage('ko');
+            }
+            loadEmails();
+        });
+
+        function setLanguage(lang) {
+            window.currentLang = lang;
+            
+            // Toggle active styles on buttons
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const activeBtn = document.getElementById(`lang-${lang}`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            updateLanguageUI();
+            loadEmails(); // Refresh emails (with current translation for error states)
+        }
+
+        function updateLanguageUI() {
+            const t = TRANSLATIONS[window.currentLang];
+            
+            // Header / Tabs
+            document.getElementById('page-title').textContent = activeTab === 'login' ? t.title_login : t.title_register;
+            document.getElementById('tab-login').textContent = t.tab_login;
+            document.getElementById('tab-register').textContent = t.tab_register;
+
+            // Step 1: Select Email
+            document.getElementById('label-select-email').textContent = t.select_email;
+            
+            // Step 2: Keypad
+            document.getElementById('btn-back-email').textContent = t.back_email;
+            document.getElementById('btn-keypad-clear').textContent = t.login_btn_reset;
+
+            // Registration Placeholders
+            document.getElementById('reg-name').placeholder = t.reg_name;
+            document.getElementById('reg-contact').placeholder = t.reg_contact;
+            document.getElementById('reg-email').placeholder = t.reg_email;
+            document.getElementById('reg-country').placeholder = t.reg_country;
+            document.getElementById('reg-referral').placeholder = t.reg_referral;
+
+            // Policies
+            document.getElementById('summary-terms').textContent = t.terms_title;
+            document.getElementById('text-terms-body').textContent = t.terms_body;
+            document.getElementById('summary-privacy').textContent = t.privacy_title;
+            document.getElementById('text-privacy-body').textContent = t.privacy_body;
+
+            // Checkboxes & Buttons
+            document.getElementById('label-agree-terms').textContent = t.terms_agree;
+            document.getElementById('label-agree-privacy').textContent = t.privacy_agree;
+            document.getElementById('register-btn').textContent = t.reg_btn;
+        }
 
         function showAuthMode(mode) {
+            activeTab = mode;
             const loginMode = mode === 'login';
             document.getElementById('login-panel').classList.toggle('hidden', !loginMode);
             document.getElementById('register-panel').classList.toggle('hidden', loginMode);
             document.getElementById('tab-login').classList.toggle('active', loginMode);
             document.getElementById('tab-register').classList.toggle('active', !loginMode);
             document.getElementById('register-msg').textContent = '';
+            
+            const t = TRANSLATIONS[window.currentLang];
+            document.getElementById('page-title').textContent = loginMode ? t.title_login : t.title_register;
         }
 
         async function loadEmails() {
+            const t = TRANSLATIONS[window.currentLang];
             try {
                 const response = await fetch('/api/auth/emails');
                 const data = await response.json();
@@ -199,17 +368,17 @@
                         btn.className = 'w-full text-left px-5 py-4 rounded-xl border border-white/5 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition duration-200 font-semibold text-sm flex justify-between items-center group active:scale-[0.99]';
                         btn.innerHTML = `
                             <span>${email}</span>
-                            <span class="text-xs text-gray-500 group-hover:text-blue-400 transition">Chọn →</span>
+                            <span class="text-xs text-gray-500 group-hover:text-blue-400 transition">${t.choose}</span>
                         `;
                         btn.onclick = () => selectEmail(email);
                         container.appendChild(btn);
                     });
                 } else {
-                    container.innerHTML = '<div class="text-center text-xs text-gray-500 py-6">Không có email nào được đăng ký.</div>';
+                    container.innerHTML = `<div class="text-center text-xs text-gray-500 py-6">${t.no_emails}</div>`;
                 }
             } catch (e) {
                 console.error(e);
-                document.getElementById('email-list').innerHTML = '<div class="text-center text-xs text-red-400 py-6">Không thể lấy danh sách email.</div>';
+                document.getElementById('email-list').innerHTML = `<div class="text-center text-xs text-red-400 py-6">${t.err_load_emails}</div>`;
             }
         }
 
@@ -263,6 +432,7 @@
         }
 
         async function submitLogin() {
+            const t = TRANSLATIONS[window.currentLang];
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -275,24 +445,25 @@
                     // Success, redirect to home
                     window.location.href = '/';
                 } else {
-                    document.getElementById('error-msg').textContent = data.error || 'Đăng nhập thất bại';
+                    document.getElementById('error-msg').textContent = data.error || t.err_login_fail;
                     // Shake and clear pin code
                     currentPin = '';
                     setTimeout(updateDots, 300);
                 }
             } catch (e) {
                 console.error(e);
-                document.getElementById('error-msg').textContent = 'Kết nối máy chủ thất bại.';
+                document.getElementById('error-msg').textContent = t.err_conn_fail;
                 currentPin = '';
                 setTimeout(updateDots, 300);
             }
         }
 
         async function submitRegister() {
+            const t = TRANSLATIONS[window.currentLang];
             const btn = document.getElementById('register-btn');
             const msg = document.getElementById('register-msg');
             msg.className = 'min-h-5 text-center text-xs font-bold text-gray-400';
-            msg.textContent = '신청 중...';
+            msg.textContent = t.reg_loading;
             btn.disabled = true;
 
             try {
@@ -309,17 +480,17 @@
                     })
                 });
                 const data = await response.json();
-                if (!data.success) throw new Error(data.error || '가입 신청 실패');
+                if (!data.success) throw new Error(data.error || t.reg_fail);
 
                 msg.className = 'min-h-5 text-center text-xs font-bold text-emerald-400';
-                msg.textContent = '가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.';
+                msg.textContent = t.reg_success;
                 ['reg-name', 'reg-contact', 'reg-email', 'reg-country'].forEach(id => document.getElementById(id).value = '');
                 document.getElementById('reg-terms').checked = false;
                 document.getElementById('reg-privacy').checked = false;
                 await loadEmails();
             } catch (e) {
                 msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
-                msg.textContent = e.message || '가입 신청 실패';
+                msg.textContent = e.message || t.reg_fail;
             } finally {
                 btn.disabled = false;
             }

@@ -956,10 +956,24 @@ class VideoService:
             bgm_path = subtitle_settings.get("bgm_path") # Passed through settings or direct param
             if bgm_path and os.path.exists(bgm_path):
                 try:
-                    bgm_clip = AudioFileClip(bgm_path).with_duration(audio.duration).with_volume(0.3) # 30% volume
+                    # [QA Mixer] Dynamic BGM Volume Integration
+                    vol_val = subtitle_settings.get("bgm_volume")
+                    if vol_val is None and project_id:
+                        try:
+                            proj_settings = db.get_project_settings(project_id) or {}
+                            vol_val = proj_settings.get("bgm_volume")
+                        except Exception:
+                            pass
+                    
+                    try:
+                        bgm_volume = float(vol_val) if vol_val is not None else 0.3
+                    except ValueError:
+                        bgm_volume = 0.3
+                    
+                    bgm_clip = AudioFileClip(bgm_path).with_duration(audio.duration).with_volume(bgm_volume)
                     from moviepy.audio.AudioClip import CompositeAudioClip
                     audio = CompositeAudioClip([audio, bgm_clip])
-                    print(f"🎵 [BGM] Mixed into final: {os.path.basename(bgm_path)}")
+                    print(f"🎵 [BGM QA Mixer] Mixed into final: {os.path.basename(bgm_path)} at volume {bgm_volume}")
                 except Exception as bge:
                     print(f"BGM Mixing Error: {bge}")
 
@@ -1080,6 +1094,11 @@ class VideoService:
             # [FIX] Handle 0 font size (Disable Subtitles)
             if f_size <= 0:
                 print("DEBUG_RENDER: Subtitle font size 0 detected. Disabling subtitles.")
+                subtitles = []
+                
+            # [NEW] Disable subtitles for English mode
+            if s_settings.get("target_language") == "en":
+                print("DEBUG_RENDER: Target language is 'en'. Disabling English subtitles.")
                 subtitles = []
 
             print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (target_h: {target_h}px, video.h: {video.h}px)")

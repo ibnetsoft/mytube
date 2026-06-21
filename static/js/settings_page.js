@@ -1,6 +1,6 @@
 // Tab switching
     function switchTab(tabName) {
-        if (IS_STANDARD_MEMBER && tabName !== 'api') {
+        if (IS_STANDARD_MEMBER && !['api', 'history', 'withdrawal'].includes(tabName)) {
             tabName = 'api';
         }
         console.log('Switching to tab:', tabName);
@@ -33,7 +33,10 @@
             loadScriptStylePresets();
         } else if (tabName === 'thumbnail-styles') {
             loadThumbnailStylePresets();
-
+        } else if (tabName === 'withdrawal') {
+            if (typeof fetchWithdrawalHistory === 'function') {
+                fetchWithdrawalHistory();
+            }
         }
     }
 

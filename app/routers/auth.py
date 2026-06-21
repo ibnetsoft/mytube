@@ -28,6 +28,7 @@ class RegisterRequest(BaseModel):
     nationality: str
     terms_accepted: bool = False
     privacy_accepted: bool = False
+    referral_code: str | None = None
 
 
 def _supabase_headers():
@@ -158,6 +159,9 @@ async def post_auth_register(req: RegisterRequest):
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc).isoformat()
+        import random
+        my_referral_code = str(random.randint(100000, 999999))
+        
         return web_admin_client.submit_worker_registration({
             "full_name": full_name,
             "contact": contact,
@@ -165,6 +169,8 @@ async def post_auth_register(req: RegisterRequest):
             "nationality": nationality,
             "terms_accepted_at": now,
             "privacy_accepted_at": now,
+            "my_referral_code": my_referral_code,
+            "referred_by_code": req.referral_code.strip() if req.referral_code else "",
         })
     except Exception as e:
         return {"success": False, "error": f"가입 신청 오류: {str(e)}"}

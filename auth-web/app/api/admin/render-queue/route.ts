@@ -26,6 +26,12 @@ function normalizeQueueItem(row: any) {
         appMode === 'longform_music' ||
         renderStyle === 'music_playlist' ||
         queueType === 'music_playlist_final'
+    const introVideoReady = metadata.intro_video_ready ?? null
+    const introBgmReady = metadata.intro_bgm_ready ?? null
+    const introVideoPromptReady = metadata.intro_video_prompt_ready ?? null
+    const introBgmPromptReady = metadata.intro_bgm_prompt_ready ?? null
+    const introMode = metadata.intro_mode ?? null
+    const introBgmUsage = metadata.intro_bgm_usage ?? null
 
     return {
         ...row,
@@ -45,6 +51,12 @@ function normalizeQueueItem(row: any) {
             track_count: trackCount,
             track_durations: trackDurations,
             total_duration_seconds: totalDurationSeconds,
+            intro_video_ready: introVideoReady,
+            intro_bgm_ready: introBgmReady,
+            intro_video_prompt_ready: introVideoPromptReady,
+            intro_bgm_prompt_ready: introBgmPromptReady,
+            intro_mode: introMode,
+            intro_bgm_usage: introBgmUsage,
         },
     }
 }

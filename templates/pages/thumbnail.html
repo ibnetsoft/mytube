@@ -78,6 +78,14 @@
             <button onclick="generateUnifiedIdea()" id="unifiedIdeaBtn" class="w-full mt-4 border border-gray-400 dark:border-gray-500 bg-transparent hover:bg-[#0a0f1d] text-white py-4 rounded-xl font-bold shadow-xl transition-all flex items-center justify-center">
                 {{ t('btn_gen_unified') }}
             </button>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+                <button type="button" onclick="regenerateThumbnailIdea('more_clicky')" id="moreClickyBtn" class="border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 py-2 rounded-xl text-xs font-bold transition-all">
+                    {% if current_lang == 'vi' %}Thu hút hơn{% elif current_lang == 'en' %}More Clicky{% else %}더 자극적{% endif %}
+                </button>
+                <button type="button" onclick="regenerateThumbnailIdea('more_clean')" id="moreCleanBtn" class="border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 py-2 rounded-xl text-xs font-bold transition-all">
+                    {% if current_lang == 'vi' %}Gọn hơn{% elif current_lang == 'en' %}More Clean{% else %}더 정돈됨{% endif %}
+                </button>
+            </div>
         </div>
 
         <!-- 중간: 레이아웃 스타일 -->
@@ -109,6 +117,20 @@
 <!-- 2단계: 생성 결과 (후킹 문구 및 아이디어) -->
 <div class="space-y-6 mb-6">
     <!-- AI 추천 후킹 문구 -->
+    <div id="referenceThumbSection" class="hidden card overflow-hidden border-l-4 border-emerald-500">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <div>
+                <h4 class="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                    {% if current_lang == 'vi' %}Thumbnail YouTube tham khảo{% elif current_lang == 'en' %}Reference YouTube Thumbnails{% else %}참고 유튜브 썸네일{% endif %}
+                </h4>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                    {% if current_lang == 'vi' %}Xem và tải thumbnail mẫu từ video YouTube đã dùng khi lập kế hoạch và phân tích kịch bản.{% elif current_lang == 'en' %}Review and download thumbnail samples from the YouTube video used during script planning and analysis.{% else %}대본 기획과 분석에 사용한 유튜브 영상의 썸네일을 참고용으로 확인하고 다운로드할 수 있습니다.{% endif %}
+                </p>
+            </div>
+        </div>
+        <div id="referenceThumbList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+    </div>
+
     <div id="hookTextsSection" class="hidden card overflow-hidden border-l-4 border-blue-500">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <h4 class="text-sm font-bold text-blue-800 dark:text-blue-300 flex items-center gap-2">
@@ -168,9 +190,9 @@
                 
                 <div id="previewContainer"
                     class="bg-pattern bg-[#1c2027] rounded-lg p-4 relative overflow-hidden flex items-center justify-center transition-all duration-300 mx-auto border-2 border-gray-300 dark:border-white/5 shadow-inner flex-1"
-                    style="width: 340px; min-height: 400px;">
+                    style="{% if app_mode == 'shorts' %}width: 340px; min-height: 400px; aspect-ratio: 9/16;{% else %}width: 100%; min-height: 260px; aspect-ratio: 16/9;{% endif %}">
                     <canvas id="thumbnailCanvas" 
-                        width="720" height="1280"
+                        {% if app_mode == 'shorts' %}width="720" height="1280"{% else %}width="1280" height="720"{% endif %}
                         class="max-w-full max-h-full rounded-sm shadow-2xl bg-[#1c2027] transition-transform duration-300"></canvas>
                     <div id="previewPlaceholder"
                         class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -229,6 +251,7 @@
                         class="px-2.5 py-1.5 border border-red-900 bg-transparent text-red-500 hover:bg-red-900 hover:text-white rounded-lg transition-all hidden font-bold text-xs">
                         DEL
                     </button>
+                    </div>
                 </div>
                 <div class="flex flex-col gap-2 pt-1">
                     <input type="text" id="shortsPresetName" 
@@ -320,6 +343,9 @@
 <script>
     // 기존 i18n 객체에 썸네일 전용 번역 추가 (SyntaxError/ReferenceError 방지)
     window.i18n = Object.assign(window.i18n || {}, {
+        thumb_reference_channel: `{% if current_lang == 'vi' %}Kênh{% elif current_lang == 'en' %}Channel{% else %}채널{% endif %}`,
+        thumb_reference_open_video: `{% if current_lang == 'vi' %}Mở video{% elif current_lang == 'en' %}Open Video{% else %}영상 열기{% endif %}`,
+        thumb_reference_download: `{% if current_lang == 'vi' %}Tải thumbnail{% elif current_lang == 'en' %}Download Thumbnail{% else %}썸네일 다운로드{% endif %}`,
         label_style_none: "{{ t('label_style_none') }}",
         loading_saving: "{{ t('loading_saving') }}",
         toast_style_font_saved: "{{ t('toast_style_font_saved') }}",
@@ -418,8 +444,22 @@
         toast_default_style_saved: "{{ t('toast_default_style_saved') }}",
         toast_all_settings_saved: "{{ t('toast_all_settings_saved') }}",
         confirm_delete_history: "{{ t('confirm_delete_history') }}",
+        thumb_reference_samples_title: "{{ t('thumb_reference_samples_title') }}",
+        thumb_reference_samples_desc: "{{ t('thumb_reference_samples_desc') }}",
+        thumb_reference_channel: "{{ t('thumb_reference_channel') }}",
+        thumb_reference_open_video: "{{ t('thumb_reference_open_video') }}",
+        thumb_reference_download: "{{ t('thumb_reference_download') }}",
         err_unknown: "{{ t('err_unknown') }}",
     });
+
+    window.i18n.thumb_reference_best_match = `{% if current_lang == 'vi' %}Phù hợp nhất{% elif current_lang == 'en' %}Best Match{% else %}가장 유사함{% endif %}`;
+    window.i18n.thumb_reference_viral = `{% if current_lang == 'vi' %}Độ viral{% elif current_lang == 'en' %}Viral{% else %}바이럴{% endif %}`;
+    window.i18n.thumb_reference_views = `{% if current_lang == 'vi' %}Lượt xem{% elif current_lang == 'en' %}Views{% else %}조회수{% endif %}`;
+    window.i18n.history_select = `{% if current_lang == 'vi' %}Chọn{% elif current_lang == 'en' %}Select{% else %}선택{% endif %}`;
+    window.i18n.history_more_clicky = `{% if current_lang == 'vi' %}Thu hút hơn{% elif current_lang == 'en' %}More Clicky{% else %}더 자극적{% endif %}`;
+    window.i18n.history_more_clean = `{% if current_lang == 'vi' %}Gọn hơn{% elif current_lang == 'en' %}More Clean{% else %}더 정돈됨{% endif %}`;
+    window.i18n.history_download = `{% if current_lang == 'vi' %}Tải xuống{% elif current_lang == 'en' %}Download{% else %}다운로드{% endif %}`;
+    window.i18n.history_delete = `{% if current_lang == 'vi' %}Xóa{% elif current_lang == 'en' %}Delete{% else %}삭제{% endif %}`;
 
     window.targetLang = "{{ current_lang }}";
     const appMode = "{{ app_mode }}";
@@ -427,9 +467,266 @@
     let selectedPrompt = null;
     let selectedIdeaIndex = -1;
     let generatedHistory = [];
+    let thumbnailRegenerationMode = 'default';
     let currentBackgroundPath = null; // 생성된 배경 이미지 경로 (백엔드용)
     let currentBackgroundUrl = null; // 생성된 배경 이미지 URL (프론트엔드용)
-    let currentAspectRatio = '9:16'; // Default: 세로 모드
+    let currentAspectRatio = appMode === 'shorts' ? '9:16' : '16:9';
+    let selectedReferenceSampleKey = null;
+
+    function getDefaultThumbnailAspectRatio() {
+        return appMode === 'shorts' ? '9:16' : '16:9';
+    }
+
+    function normalizeThumbnailAspectRatio(_ratio) {
+        return getDefaultThumbnailAspectRatio();
+    }
+
+    function normalizeReferenceText(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function tokenizeReferenceText(value) {
+        const normalized = normalizeReferenceText(value);
+        if (!normalized) return [];
+        return normalized.split(' ').filter((token) => token.length >= 2);
+    }
+
+    function calculateReferenceSimilarity(projectTitle, sample) {
+        const titleTokens = tokenizeReferenceText(projectTitle);
+        const sampleTokens = tokenizeReferenceText(sample?.video_title || '');
+        if (!titleTokens.length || !sampleTokens.length) return 0;
+
+        const titleSet = new Set(titleTokens);
+        const sampleSet = new Set(sampleTokens);
+        let overlap = 0;
+        titleSet.forEach((token) => {
+            if (sampleSet.has(token)) overlap += 1;
+        });
+
+        const coverageScore = overlap / Math.max(titleSet.size, 1);
+        const densityScore = overlap / Math.max(sampleSet.size, 1);
+        const viralScore = Number(sample?.viral_score || 0) / 100;
+        return (coverageScore * 0.6) + (densityScore * 0.25) + (viralScore * 0.15);
+    }
+
+    function sortReferenceSamples(items = []) {
+        const currentTitle = document.getElementById('videoTitle')?.value?.trim() || '';
+        return [...items].sort((a, b) => {
+            const aKey = a.video_id || a.thumbnail_url || '';
+            const bKey = b.video_id || b.thumbnail_url || '';
+
+            if (selectedReferenceSampleKey) {
+                if (aKey === selectedReferenceSampleKey && bKey !== selectedReferenceSampleKey) return -1;
+                if (bKey === selectedReferenceSampleKey && aKey !== selectedReferenceSampleKey) return 1;
+            }
+
+            const scoreDiff = calculateReferenceSimilarity(currentTitle, b) - calculateReferenceSimilarity(currentTitle, a);
+            if (Math.abs(scoreDiff) > 0.0001) return scoreDiff;
+
+            return Number(b?.viral_score || 0) - Number(a?.viral_score || 0);
+        });
+    }
+
+    function buildReferencePatternInstruction() {
+        const samples = getCurrentReferenceSamples().slice(0, 3);
+        if (!samples.length) return '';
+
+        const joinedTitles = samples
+            .map((item) => item?.video_title || '')
+            .filter(Boolean)
+            .join(' | ');
+
+        const avgViralScore = samples.reduce((sum, item) => sum + Number(item?.viral_score || 0), 0) / Math.max(samples.length, 1);
+        const highEnergy = avgViralScore >= 70;
+
+        return `\n\n[Reference Pattern Summary]
+- Top reference titles: ${joinedTitles}
+- Average viral score: ${avgViralScore.toFixed(1)}
+- Direction: ${highEnergy ? 'Prioritize stronger emotional tension, clearer contrast, and more aggressive click-driving composition.' : 'Keep the composition clear, readable, and curiosity-driven without overloading the frame.'}`;
+    }
+
+    function formatReferenceCount(value) {
+        const num = Number(value || 0);
+        if (!Number.isFinite(num) || num <= 0) return '0';
+        return new Intl.NumberFormat(window.targetLang || 'ko').format(num);
+    }
+
+    function buildRegenerationInstruction() {
+        if (thumbnailRegenerationMode === 'more_clicky') {
+            return `\n\n[Regeneration Direction]\nMake the concept more click-driving. Increase emotional contrast, visual tension, curiosity, and headline energy while keeping the composition clean enough for a YouTube thumbnail.`;
+        }
+        if (thumbnailRegenerationMode === 'more_clean') {
+            return `\n\n[Regeneration Direction]\nMake the concept more refined and organized. Reduce clutter, improve readability, simplify the frame, and keep the hook clear without becoming weak.`;
+        }
+        return '';
+    }
+
+    function getHistoryModeLabel(mode) {
+        if (mode === 'more_clicky') {
+            return window.targetLang === 'vi' ? 'Thu hút hơn' : (window.targetLang === 'en' ? 'More Clicky' : '더 자극적');
+        }
+        if (mode === 'more_clean') {
+            return window.targetLang === 'vi' ? 'Gọn hơn' : (window.targetLang === 'en' ? 'More Clean' : '더 정돈됨');
+        }
+        return window.targetLang === 'vi' ? 'Cơ bản' : (window.targetLang === 'en' ? 'Default' : '기본');
+    }
+
+    function normalizeHistoryItem(item) {
+        if (!item) return null;
+        if (typeof item === 'string') {
+            return { url: item, mode: 'default', referenceKey: '' };
+        }
+        if (typeof item === 'object' && item.url) {
+            return {
+                url: item.url,
+                mode: item.mode || 'default',
+                referenceKey: item.referenceKey || ''
+            };
+        }
+        return null;
+    }
+
+    function getReferenceSampleTitle(sampleKey) {
+        if (!sampleKey) return '';
+        const sample = getCurrentReferenceSamples().find((item) => {
+            const key = item.video_id || item.thumbnail_url;
+            return key === sampleKey;
+        });
+        return sample?.video_title || '';
+    }
+
+    function renderReferenceThumbnails(items = []) {
+        const section = document.getElementById('referenceThumbSection');
+        const list = document.getElementById('referenceThumbList');
+        if (!section || !list) return;
+
+        if (!items.length) {
+            section.classList.add('hidden');
+            list.innerHTML = '';
+            list.dataset.samples = '[]';
+            return;
+        }
+
+        const projectId = getCurrentProject();
+        const sortedItems = sortReferenceSamples(items);
+        list.dataset.samples = JSON.stringify(sortedItems);
+        list.innerHTML = sortedItems.map((item, index) => {
+            const thumb = item.thumbnail_url || '';
+            const title = item.video_title || '';
+            const channel = item.channel_title || '';
+            const watchUrl = item.video_id ? `https://www.youtube.com/watch?v=${item.video_id}` : '';
+            const downloadUrl = `/api/projects/${projectId}/analysis-thumbnail?url=${encodeURIComponent(thumb)}`;
+            const sampleKey = item.video_id || thumb;
+            const isSelected = selectedReferenceSampleKey && selectedReferenceSampleKey === sampleKey;
+            const applyLabel = isSelected ? i18n.btn_selected_state : i18n.btn_apply;
+            const showBestMatch = !isSelected && index === 0 && !selectedReferenceSampleKey;
+            const viralScore = Number(item.viral_score || 0);
+            const viewCount = formatReferenceCount(item.view_count || 0);
+            return `
+                <div class="rounded-xl border ${isSelected ? 'border-emerald-400 ring-2 ring-emerald-500/30' : 'border-gray-200 dark:border-gray-700'} overflow-hidden bg-[#1c2027] shadow-sm">
+                    <div class="aspect-video bg-[#11151b] overflow-hidden">
+                        <img src="${thumb}" alt="${title}" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-3 space-y-2">
+                        ${showBestMatch ? `<div class="inline-flex items-center rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-1 text-[10px] font-bold">${i18n.thumb_reference_best_match}</div>` : ''}
+                        <div class="text-xs font-bold text-white line-clamp-2">${title}</div>
+                        <div class="text-[11px] text-gray-400 line-clamp-1">${i18n.thumb_reference_channel}: ${channel}</div>
+                        <div class="flex flex-wrap gap-2 text-[10px]">
+                            <span class="inline-flex items-center rounded-full bg-[#11151b] border border-gray-700 px-2 py-1 text-gray-300">${i18n.thumb_reference_viral} ${viralScore}</span>
+                            <span class="inline-flex items-center rounded-full bg-[#11151b] border border-gray-700 px-2 py-1 text-gray-300">${i18n.thumb_reference_views} ${viewCount}</span>
+                        </div>
+                        <div class="flex gap-2 pt-1">
+                            <button type="button" onclick="applyReferenceSample('${String(sampleKey).replace(/'/g, "\\'")}', '${String(title).replace(/'/g, "\\'")}')" class="flex-1 border ${isSelected ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-blue-600 bg-transparent hover:bg-blue-600/10 text-blue-300'} text-center py-2 rounded-lg text-[11px] font-bold transition-all">${applyLabel}</button>
+                            ${watchUrl ? `<a href="${watchUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white text-center py-2 rounded-lg text-[11px] font-bold transition-all">${i18n.thumb_reference_open_video}</a>` : ''}
+                            <a href="${downloadUrl}" class="flex-1 border border-emerald-600 bg-transparent hover:bg-emerald-600/10 text-emerald-300 text-center py-2 rounded-lg text-[11px] font-bold transition-all">${i18n.thumb_reference_download}</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        section.classList.remove('hidden');
+    }
+
+    async function applyReferenceSample(sampleKey, title) {
+        selectedReferenceSampleKey = sampleKey || null;
+        const titleEl = document.getElementById('videoTitle');
+        if (titleEl && title) {
+            titleEl.value = title;
+        }
+        saveStateToLocal();
+        renderReferenceThumbnails(getCurrentReferenceSamples());
+        Utils.showToast(i18n.toast_title_applied || i18n.toast_idea_applied, 'success');
+
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            await API.project.saveSettings(projectId, {
+                thumbnail_reference_sample_key: selectedReferenceSampleKey || '',
+                title: title || ''
+            });
+        } catch (e) {
+            console.warn('Failed to save selected reference sample', e);
+        }
+    }
+
+    function getCurrentReferenceSamples() {
+        const raw = document.getElementById('referenceThumbList')?.dataset.samples;
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function buildReferencePromptInstruction() {
+        const samples = getCurrentReferenceSamples();
+        if (!samples.length) return '';
+
+        const selectedSample = samples.find((item) => {
+            const sampleKey = item.video_id || item.thumbnail_url;
+            return selectedReferenceSampleKey && sampleKey === selectedReferenceSampleKey;
+        });
+
+        const referenceSample = selectedSample || samples[0];
+        if (!referenceSample) return '';
+
+        const title = referenceSample.video_title || '';
+        const channel = referenceSample.channel_title || '';
+        const viralScore = referenceSample.viral_score ?? '';
+        const views = referenceSample.view_count ?? '';
+
+        return `\n\n[Reference Thumbnail Sample]
+- Reference video title: ${title}
+- Channel: ${channel}
+- Viral score: ${viralScore}
+- Views: ${views}
+- Instruction: Use this reference to match hook strength, emotional focus, framing density, and CTR style. Do not copy text exactly. Do not duplicate the composition exactly. Create a new thumbnail idea adapted to the current project topic.`;
+    }
+
+    function buildReferencePromptEnInstruction() {
+        const samples = getCurrentReferenceSamples();
+        if (!samples.length) return '';
+
+        const selectedSample = samples.find((item) => {
+            const sampleKey = item.video_id || item.thumbnail_url;
+            return selectedReferenceSampleKey && sampleKey === selectedReferenceSampleKey;
+        });
+
+        const referenceSample = selectedSample || samples[0];
+        if (!referenceSample) return '';
+
+        const title = referenceSample.video_title || '';
+        const channel = referenceSample.channel_title || '';
+
+        return ` Use the selected YouTube reference thumbnail as guidance for scene tension, crop tightness, subject emphasis, contrast hierarchy, and click-driving composition. Keep it original. Do not replicate the same text, face, objects, or exact layout. Reference source title: ${title}. Reference channel: ${channel}.`;
+    }
 
     // 텍스트 레이어 상태 (동적 관리) — text는 빈 문자열로 초기화하여 캔버스 공백 유지
     let textLayers = [
@@ -458,8 +755,7 @@
 
     // 프로젝트 데이터 로드
     document.addEventListener('DOMContentLoaded', async () => {
-        // [FIX] 기본값 세로(9:16) — appMode 무관하게 항상 세로 모드로 시작
-        setAspectRatio('9:16', false);
+        setAspectRatio(getDefaultThumbnailAspectRatio(), false);
 
         const projectId = getCurrentProject();
         initCanvasEvents(); // 캔버스 이벤트 초기화
@@ -505,6 +801,20 @@
                 // 기존 저장된 썸네일 URL 로드
                 // 기존 저장된 썸네일 URL 로드
                 const settings = await API.project.getSettings(projectId);
+                let referenceSamples = [];
+                if (settings?.youtube_reference_samples_json) {
+                    try {
+                        const parsed = JSON.parse(settings.youtube_reference_samples_json);
+                        if (Array.isArray(parsed)) referenceSamples = parsed;
+                    } catch (e) {
+                        console.warn('Failed to parse youtube_reference_samples_json', e);
+                    }
+                }
+                selectedReferenceSampleKey = settings?.thumbnail_reference_sample_key || null;
+                if (!referenceSamples.length && analysis?.thumbnail_url) {
+                    referenceSamples = [analysis];
+                }
+                renderReferenceThumbnails(referenceSamples);
                 let thumbUrl = settings?.thumbnail_url;
 
                 // [Fallback] URL 없으면 경로 기반 추적
@@ -529,8 +839,8 @@
                     document.getElementById('resultSection').classList.remove('hidden');
 
                     // 이력에 없으면 추가
-                    if (!generatedHistory.includes(thumbUrl)) {
-                        generatedHistory.unshift(thumbUrl);
+                    if (!generatedHistory.some((item) => normalizeHistoryItem(item)?.url === thumbUrl)) {
+                        generatedHistory.unshift({ url: thumbUrl, mode: 'default', referenceKey: selectedReferenceSampleKey || '' });
                     }
                     updateHistory();
                 }
@@ -545,13 +855,7 @@
                 const savedImageStyle = settings?.image_style || 'realistic';
                 await loadImageStyles(savedImageStyle);
 
-                // [NEW] Auto Aspect Ratio based on Project Settings
-                if (settings?.aspect_ratio) {
-                    setAspectRatio(settings.aspect_ratio);
-                } else {
-                    // No saved ratio, use mode default
-                    setAspectRatio(appMode === 'shorts' ? '9:16' : '16:9');
-                }
+                setAspectRatio(getDefaultThumbnailAspectRatio());
 
                 // [NEW] Apply Saved Font Preferences to Default Layer
                 if (settings?.thumbnail_font || settings?.thumbnail_font_size || settings?.thumbnail_color) {
@@ -975,6 +1279,10 @@
         const artStyleInstruction = artStylePrompt
             ? `\n\n[Art Style (Critical! Include in prompt_en)]\n${artStylePrompt}\n* Include this art style as a prefix in prompt_en.`
             : '';
+        const referenceInstruction = buildReferencePromptInstruction();
+        const referencePatternInstruction = buildReferencePatternInstruction();
+        const referencePromptEnInstruction = buildReferencePromptEnInstruction();
+        const regenerationInstruction = buildRegenerationInstruction();
 
         const prompt = `As a YouTube thumbnail expert, generate high-CTR thumbnail ideas based on the following:
 
@@ -990,7 +1298,7 @@ ${style === 'japanese_viral' ? `
 - Typography: Extremely bold, heavy sans-serif fonts. Colors: White, Red, Yellow. High contrast strokes/outlines.
 - Imagery: Close-up, emotional face expression (surprise/shock/sadness).
 - Vibe: Viral, provocative, "Shocking Truth", "Reality".
-` : ''}${artStyleInstruction}
+` : ''}${artStyleInstruction}${referenceInstruction}${referencePatternInstruction}${regenerationInstruction}
 
 [Language Requirement]
 ${langInstruction}
@@ -1001,7 +1309,7 @@ Return in JSON format:
         {
             "concept": "Concept description (1-2 sentences)",
             "layout": "Layout description",
-            "prompt_en": "Detailed English prompt for image generation. ${artStylePrompt ? 'MUST START with art style prefix: ' + artStylePrompt.split(',').slice(0, 2).join(',') + ', ...' : 'Describe the visual scene in detail.'} DO NOT include names of real people. DO NOT include any text in the image. Background only."
+            "prompt_en": "Detailed English prompt for image generation. ${artStylePrompt ? 'MUST START with art style prefix: ' + artStylePrompt.split(',').slice(0, 2).join(',') + ', ...' : 'Describe the visual scene in detail.'}${referencePromptEnInstruction} DO NOT include names of real people. DO NOT include any text in the image. Background only."
         }
     ],
     "texts": ["Text Option 1 (max 10 chars)", "Option 2 (max 10 chars)", "Option 3 (max 10 chars)"]
@@ -1084,6 +1392,31 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         }
     }
 
+    async function regenerateThumbnailIdea(mode) {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast(i18n.warn_no_project_selected, 'warning');
+            return;
+        }
+
+        thumbnailRegenerationMode = mode || 'default';
+        const buttonId = mode === 'more_clicky' ? 'moreClickyBtn' : 'moreCleanBtn';
+        const btn = document.getElementById(buttonId);
+        if (btn) Utils.setLoading(btn, true, i18n.loading_ai_gen);
+
+        try {
+            await generateIdeas(buttonId);
+            Utils.showToast(i18n.toast_ideas_generated, 'success');
+            await autoSaveToServer();
+        } catch (e) {
+            console.error('Thumbnail regeneration error:', e);
+            Utils.showToast(i18n.toast_gen_error, 'error');
+        } finally {
+            thumbnailRegenerationMode = 'default';
+            if (btn) Utils.setLoading(btn, false);
+        }
+    }
+
     // 서버에 썸네일 상태 자동 저장 (설정 저장 버튼 없이도 유지)
     async function autoSaveToServer() {
         const projectId = getCurrentProject();
@@ -1093,9 +1426,11 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 title: document.getElementById('videoTitle').value,
                 style: document.getElementById('thumbnailStyle').value,
                 aspectRatio: currentAspectRatio,
+                thumbnailRegenerationMode,
                 thumbnailData,
                 selectedIdeaIndex,
                 selectedPrompt,
+                selectedReferenceSampleKey,
                 textLayers,
                 shapeLayers,
                 currentBackgroundPath,
@@ -2118,7 +2453,11 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                         document.getElementById('resultSection').classList.remove('hidden');
 
                         // 이력 추가
-                        generatedHistory.unshift(result.url);
+                        generatedHistory.unshift({
+                            url: result.url,
+                            mode: thumbnailRegenerationMode || 'default',
+                            referenceKey: selectedReferenceSampleKey || ''
+                        });
                         updateHistory();
 
                         Utils.showToast(i18n.toast_thumb_saved, 'success');
@@ -2156,24 +2495,84 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
     // 이력 업데이트
     function updateHistory() {
         const container = document.getElementById('historyList');
-        container.innerHTML = generatedHistory.slice(0, 12).map((url, i) => `
+        container.innerHTML = generatedHistory.slice(0, 12).map((entry, i) => {
+            const item = normalizeHistoryItem(entry);
+            if (!item) return '';
+            return `
             <div class="relative group aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 shadow-sm">
-                <img src="${url}" alt="History ${i}" class="w-full h-full object-cover">
+                <img src="${item.url}" alt="History ${i}" class="w-full h-full object-cover">
+                <div class="absolute left-1 top-1 flex flex-col gap-1 z-10">
+                    <div class="rounded-full bg-black/70 text-white px-2 py-1 text-[10px] font-bold">
+                        ${getHistoryModeLabel(item.mode)}
+                    </div>
+                    ${item.referenceKey ? `<div class="max-w-[90%] rounded-full bg-blue-900/70 text-blue-100 px-2 py-1 text-[10px] font-bold truncate">${getReferenceSampleTitle(item.referenceKey) || 'Reference'}</div>` : ''}
+                </div>
                 <!-- Hover actions overlay -->
-                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-200 flex items-center justify-center gap-3">
-                    <a href="${url}" download="thumbnail_${i}.png" 
-                        class="p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-bold transition shadow" 
-                        title="Download">
+                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-200 flex flex-col items-center justify-center gap-2 p-2">
+                    <div class="grid grid-cols-2 gap-2 w-full">
+                        <button onclick="regenerateFromHistory(${i}, 'more_clicky')"
+                            class="p-2 bg-amber-600 hover:bg-amber-700 rounded text-white text-[10px] font-bold transition shadow"
+                            title="${i18n.history_more_clicky}">
+                            ${i18n.history_more_clicky}
+                        </button>
+                        <button onclick="regenerateFromHistory(${i}, 'more_clean')"
+                            class="p-2 bg-cyan-600 hover:bg-cyan-700 rounded text-white text-[10px] font-bold transition shadow"
+                            title="${i18n.history_more_clean}">
+                            ${i18n.history_more_clean}
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-center gap-3">
+                    <button onclick="restoreHistoryItem(${i})"
+                        class="p-2 bg-emerald-600 hover:bg-emerald-700 rounded text-white text-xs font-bold transition shadow"
+                        title="${i18n.history_select}">
+                        ${i18n.history_select}
+                    </button>
+                    <a href="${item.url}" download="thumbnail_${i}.png"
+                        class="p-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs font-bold transition shadow"
+                        title="${i18n.history_download}">
                         📥
                     </a>
-                    <button onclick="deleteHistoryItem(${i})" 
-                        class="p-2 bg-red-600 hover:bg-red-700 rounded text-white text-xs font-bold transition shadow" 
-                        title="Delete">
+                    <button onclick="deleteHistoryItem(${i})"
+                        class="p-2 bg-red-600 hover:bg-red-700 rounded text-white text-xs font-bold transition shadow"
+                        title="${i18n.history_delete}">
                         🗑️
                     </button>
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
+    }
+
+    function restoreHistoryItem(index) {
+        const item = normalizeHistoryItem(generatedHistory[index]);
+        if (!item?.url) return;
+
+        document.getElementById('resultImage').src = item.url;
+        document.getElementById('downloadLink').href = item.url;
+        document.getElementById('resultSection').classList.remove('hidden');
+
+        currentBackgroundUrl = item.url;
+        currentBackgroundPath = item.url;
+        bgImage = null;
+
+        thumbnailRegenerationMode = item.mode || 'default';
+        if (item.referenceKey) {
+            selectedReferenceSampleKey = item.referenceKey;
+            renderReferenceThumbnails(getCurrentReferenceSamples());
+        } else {
+            selectedReferenceSampleKey = null;
+            renderReferenceThumbnails(getCurrentReferenceSamples());
+        }
+
+        drawPreview();
+        saveStateToLocal();
+        document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function regenerateFromHistory(index, mode) {
+        restoreHistoryItem(index);
+        await regenerateThumbnailIdea(mode);
     }
 
     function deleteHistoryItem(index) {
@@ -2200,10 +2599,11 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             title,
             style,
             aspectRatio,
-
+            thumbnailRegenerationMode,
             thumbnailData,
             selectedIdeaIndex,
             selectedPrompt,
+            selectedReferenceSampleKey,
             textLayers,
             shapeLayers,
             currentBackgroundPath,
@@ -2221,6 +2621,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
     // [NEW] Aspect Ratio Handler
     function setAspectRatio(ratio, save = true) {
+        ratio = normalizeThumbnailAspectRatio(ratio);
         currentAspectRatio = ratio;
         const canvas = document.getElementById('thumbnailCanvas');
         const previewContainer = document.getElementById('previewContainer');
@@ -2261,6 +2662,13 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         const btn169 = document.getElementById('ratio169Btn');
         const btn916 = document.getElementById('ratio916Btn');
         if (btn169 && btn916) {
+            const isShortsMode = appMode === 'shorts';
+            btn169.disabled = isShortsMode;
+            btn916.disabled = !isShortsMode;
+            btn169.classList.toggle('opacity-40', isShortsMode);
+            btn916.classList.toggle('opacity-40', !isShortsMode);
+            btn169.classList.toggle('cursor-not-allowed', isShortsMode);
+            btn916.classList.toggle('cursor-not-allowed', !isShortsMode);
             if (ratio === '9:16') {
                 btn916.classList.add('bg-[#1c2027]', 'bg-[#1c2027]/50', 'shadow-sm', 'font-bold');
                 btn169.classList.remove('bg-[#1c2027]', 'bg-[#1c2027]/50', 'shadow-sm', 'font-bold');
@@ -2626,8 +3034,10 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             title,
             style,
             aspectRatio,
+            thumbnailRegenerationMode,
             selectedIdeaIndex,
             selectedPrompt,
+            selectedReferenceSampleKey,
             textLayers,
             shapeLayers,
             currentBackgroundPath,
@@ -2706,7 +3116,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
         if (!state) {
             // 저장된 상태 없음 → 항상 세로(9:16) 기본값
-            setAspectRatio('9:16', false);
+            setAspectRatio(getDefaultThumbnailAspectRatio(), false);
             return;
         }
         try {
@@ -2731,7 +3141,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             // [MODIFIED] Do not apply defaults when restoring saved style
             if (state.style) selectThumbnailStyle(state.style, false);
             // Aspect Ratio — 항상 세로(9:16) 기본값 (저장된 값 무시)
-            setAspectRatio('9:16', false);
+            setAspectRatio(getDefaultThumbnailAspectRatio(), false);
 
 
 
@@ -2743,6 +3153,12 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 // [RESTORED] 상태 복구 시에도 아이디어 섹션 노출
                 document.getElementById('ideasSection').classList.remove('hidden');
             }
+
+            if (state.thumbnailRegenerationMode) {
+                thumbnailRegenerationMode = state.thumbnailRegenerationMode;
+            }
+
+            selectedReferenceSampleKey = state.selectedReferenceSampleKey || null;
 
             if (state.textLayers) {
                 // 저장된 텍스트 레이어 전체 복원 (스타일 + 내용)
@@ -2793,7 +3209,11 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
                 // [NEW] If history exists, restore the most recent one as main result
                 if (generatedHistory.length > 0) {
-                    const lastUrl = generatedHistory[0];
+                    const latestHistoryItem = normalizeHistoryItem(generatedHistory[0]);
+                    const lastUrl = latestHistoryItem?.url;
+                    if (!lastUrl) return;
+                    selectedReferenceSampleKey = latestHistoryItem.referenceKey || null;
+                    renderReferenceThumbnails(getCurrentReferenceSamples());
                     const img = document.getElementById('resultImage');
                     img.src = lastUrl;
                     document.getElementById('downloadLink').href = lastUrl;

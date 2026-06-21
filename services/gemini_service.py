@@ -86,6 +86,62 @@ class GeminiService:
         
         # 2. 마크다운 헤더 및 대괄호 플레이스홀더 제거: **[Header]**, [SUBJECT] 등
         text = re.sub(r'\*\*\[[^\]]+\]\*\*\s*', '', text)
+    def __init__(self):
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        self._client = None
+        self._client_key = None
+
+    @property
+    def client(self):
+        """키가 바뀌면 자동으로 재생성 (Supabase 원격 키 로드 후 반영)"""
+        current_key = config.GEMINI_API_KEY
+        if self._client is None or self._client_key != current_key:
+            if current_key:
+                self._client = genai.Client(api_key=current_key)
+                self._client_key = current_key
+        return self._client
+
+    @property
+    def api_key(self):
+        return config.GEMINI_API_KEY
+
+    def log_debug(self, msg: str):
+        """Write to debug.log for monitoring"""
+        try:
+            print(msg)
+        except Exception:
+            try:
+                import sys
+                enc = sys.stdout.encoding or 'utf-8'
+                print(msg.encode(enc, errors='replace').decode(enc))
+            except Exception:
+                pass
+        try:
+            from datetime import datetime
+            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now()}] [Gemini] {msg}\n")
+        except Exception:
+            pass
+
+    def _safe_format(self, template: str, **kwargs) -> str:
+        """format() safe version: replaces {key} placeholders, then converts {{ }} escapes to { }"""
+        result = template
+        for k, v in kwargs.items():
+            result = result.replace('{' + k + '}', str(v))
+        result = result.replace('{{', '{').replace('}}', '}')
+        return result
+
+    def _cleanup_prompt(self, text: str) -> str:
+        """프롬프트에서 템플릿 아티팩트(${VAR}, **[Header]**, 중복 쉼표 등) 제거"""
+        if not text: return ""
+        
+        # 1. 템플릿 변수 제거: ${SUBJECT}, ${[...]}, $[VAR] 등
+        # \$\{.*?\} : ${any} 형태 포괄
+        text = re.sub(r'\$\{.*?\}', '', text)
+        text = re.sub(r'\$\[.*?\]', '', text)
+        
+        # 2. 마크다운 헤더 및 대괄호 플레이스홀더 제거: **[Header]**, [SUBJECT] 등
+        text = re.sub(r'\*\*\[[^\]]+\]\*\*\s*', '', text)
         text = re.sub(r'\[[^\]]+\]\s*:', '', text) # "Subject: ..." 형태
         
         # [NEW] 모든 형태의 대괄호 헤더 제거 (Google Flow용 헤더 포함: [OPENING FRAME], [AMBIENT LIFE] 등)
@@ -101,7 +157,7 @@ class GeminiService:
         
         return text.strip().strip(',').strip()
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL) -> str:
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL, use_search: bool = False) -> str:
         """텍스트 생성"""
         if not self.api_key:
             raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
@@ -115,6 +171,9 @@ class GeminiService:
                 "maxOutputTokens": max_tokens
             }
         }
+
+        if use_search:
+            payload["tools"] = [{"googleSearch": {}}]
 
         start_time = _time.time()
         try:
@@ -785,10 +844,10 @@ class GeminiService:
 """
 
         # [NEW] 언어/문화적 맥락 설정
-        context_instruction = "Korean context."
-        if target_language == "ja": context_instruction = "Japanese context."
-        elif target_language == "en": context_instruction = "Global context."
-        elif target_language == "vi": context_instruction = "Vietnamese context."
+        context_instruction = "IMPORTANT: You MUST write the entire output script in Korean language."
+        if target_language == "ja": context_instruction = "IMPORTANT: You MUST write the entire output script in Japanese language (日本語)."
+        elif target_language == "en": context_instruction = "IMPORTANT: You MUST write the entire output script in English language."
+        elif target_language == "vi": context_instruction = "IMPORTANT: You MUST write the entire output script in Vietnamese language."
         
 
         
@@ -818,7 +877,8 @@ class GeminiService:
             knowledge_instruction=knowledge_instruction,
             success_strategy_json=json.dumps(success_strategy, ensure_ascii=False),
             target_language_context=context_instruction,
-            history_instruction=history_instruction
+            history_instruction=history_instruction,
+            available_image_styles_info=self._get_available_image_styles_info()
         )
 
         start_time = _time.time()
@@ -2544,6 +2604,17 @@ Motion prompt for this image:"""
             return json.loads(json_match.group())
         return {}
 
+
+    def _get_available_image_styles_info(self) -> str:
+        """Fetch available image styles for AI mapping."""
+        try:
+            import database as db
+            styles = db.get_style_presets()
+            info = "\n".join([f"- {s['style_key']}: {s.get('display_name_ko', '')}" for s in styles])
+            return info if info else "- realistic\n- cinematic"
+        except Exception:
+            return "- realistic\n- cinematic"
+
     async def generate_deep_dive_script(self, project_id: int, topic: str, duration_seconds: int = 180, target_language: str = "ko", user_notes: str = "없음", mode: str = "monologue") -> dict:
         """여러 소스를 학습하여 고품질 롱폼 대본 생성 (NotebookLM 스타일)"""
         
@@ -2561,10 +2632,10 @@ Motion prompt for this image:"""
             sources_text = "\n\n".join(sources_list)
 
         # 2. 언어 설정
-        context_instruction = "Korean context"
-        if target_language == "ja": context_instruction = "Japanese context"
-        elif target_language == "en": context_instruction = "Global context"
-        elif target_language == "vi": context_instruction = "Vietnamese context"
+        context_instruction = "IMPORTANT: You MUST write the entire output script in Korean language."
+        if target_language == "ja": context_instruction = "IMPORTANT: You MUST write the entire output script in Japanese language (日本語)."
+        elif target_language == "en": context_instruction = "IMPORTANT: You MUST write the entire output script in English language."
+        elif target_language == "vi": context_instruction = "IMPORTANT: You MUST write the entire output script in Vietnamese language."
 
         # 3. 프롬프트 구성 (모드에 따라 분기)
         prompt_template = prompts.GEMINI_DEEP_DIVE_SCRIPT
@@ -2576,7 +2647,8 @@ Motion prompt for this image:"""
             topic_keyword=topic,
             duration_seconds=duration_seconds,
             target_language_context=context_instruction,
-            user_notes=user_notes
+            user_notes=user_notes,
+            available_image_styles_info=self._get_available_image_styles_info()
         )
 
         text = await self.generate_text(prompt, temperature=0.4) # Slightly higher for dialogue flow

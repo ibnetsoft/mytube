@@ -42,6 +42,20 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: updateError.message }, { status: 500 });
         }
 
+        // 3. Update profiles table in Supabase to sync persona fields
+        const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .update({
+                persona_name: metadata.persona_name || null,
+                persona_style: metadata.persona_style || null,
+                persona_description: metadata.persona_description || null
+            })
+            .eq('id', userId);
+
+        if (profileError) {
+            console.error('profiles sync error:', profileError);
+        }
+
         console.log('Update success:', updateData.user.id);
         return NextResponse.json({ success: true, user: updateData.user });
     } catch (e: any) {

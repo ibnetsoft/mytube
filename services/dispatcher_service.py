@@ -6,6 +6,9 @@ from config import config
 from services.gemini_service import gemini_service
 import database as db
 
+
+# Dynamic EMPLOYEE_PERSONAS handled via Supabase profiles table
+
 class DispatcherService:
     def __init__(self):
         self.running = False
@@ -103,12 +106,60 @@ class DispatcherService:
                 
                 # [SDK Predicates] 활성 직원의 가용성 필터링 (워크로드가 3건 미만인 최적의 직원 탐색)
                 eligible_employees = [email for email, load in workloads.items() if load < 3]
-                if not eligible_employees:
-                    # 모든 직원이 바쁜 경우 기본 관리자 계정으로 백업 배정
-                    assigned_email = category.get("assigned_employee_email") or "ejsh0519@naver.com"
+                assigned_email = category.get("assigned_employee_email") or "ejsh0519@naver.com"
+                
+                if eligible_employees:
+                    # [Multi-Agent Persona Dispatcher] 직원별 페르소나 정보를 결합하여 Gemini로 자율 배정
+                    personas_info = []
+                    for email in eligible_employees:
+                        prof = next((u for u in users if (u.get("email") or "").lower() == email.lower()), {})
+                        personas_info.append({
+                            "email": email,
+                            "name": prof.get("persona_name") or prof.get("full_name") or email.split("@")[0],
+                            "style": prof.get("persona_style") or "general writing, standard explanation",
+                            "description": prof.get("persona_description") or "일반적인 유튜브 영상 기획 및 대본 작성을 수행합니다.",
+                            "workload": workloads.get(email, 0)
+                        })
+                    
+                    matching_prompt = f"""
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select the best sub-agent (employee) to write a video script for the following category.
+                    
+                    [Category Info]
+                    - Name: {cat_name}
+                    - Keywords: {keywords}
+                    - Target Market: {target_country}
+                    
+                    [Candidate Sub-Agents (Employees) & Personas]
+                    {json.dumps(personas_info, ensure_ascii=False, indent=2)}
+                    
+                    Instructions:
+                    1. Choose the candidate whose persona/writing style matches the theme/mood of the category best.
+                    2. Take current workload into consideration (prioritize lower workload, but style fit is very important).
+                    3. Output only a JSON object containing the assigned email and a short reason in Korean:
+                    {{"assigned_email": "candidate_email@domain.com", "reason": "이유 설명..."}}
+                    Do not include any code wrappers, markdown, or text other than the raw JSON.
+                    """
+                    
+                    try:
+                        import asyncio
+                        import json as _json
+                        match_res = asyncio.run(gemini_service.generate_text(matching_prompt, model="gemini-2.5-flash", temperature=0.3))
+                        cleaned_match = match_res.replace("```json", "").replace("```", "").strip()
+                        match_data = _json.loads(cleaned_match)
+                        selected_email = match_data.get("assigned_email")
+                        reason = match_data.get("reason", "")
+                        if selected_email in eligible_employees:
+                            assigned_email = selected_email
+                            print(f"🤖 [Dispatcher Agentic Bidding] Category '{cat_name}' matched to {assigned_email}. Reason: {reason}")
+                        else:
+                            print(f"🤖 [Dispatcher Agentic Bidding] LLM chose invalid email '{selected_email}', using workload default.")
+                            assigned_email = min(eligible_employees, key=lambda email: workloads[email])
+                    except Exception as match_err:
+                        print(f"⚠️ [Dispatcher Agentic Bidding] Failed to match via LLM: {match_err}. Falling back to workload min.")
+                        assigned_email = min(eligible_employees, key=lambda email: workloads[email])
                 else:
-                    # 가장 일이 적은(워크로드가 최솟값인) 직원을 정밀 자동 선별
-                    assigned_email = min(eligible_employees, key=lambda email: workloads[email])
+                    print(f"[Dispatcher] No eligible employees under threshold. Using backup: {assigned_email}")
 
                 print(f"[Dispatcher] Category: '{cat_name}' (Target: {target_country}) -> Assigned to: {assigned_email} (Current load: {workloads.get(assigned_email, 0)})")
 

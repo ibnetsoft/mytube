@@ -773,6 +773,53 @@ Return JSON only:
 
     async def _generate_script(self, project_id: int, analysis: dict, config_dict: dict):
         style_key = config_dict.get("script_style", "default")
+        topic_name = (db.get_project(project_id) or {}).get("topic") or config_dict.get("keyword") or "유튜브 콘텐츠"
+        
+        # 고성과 영상 벤치마크 분석 데이터베이스 연동
+        benchmarks = db.get_related_top_analyses(topic_name, limit=3)
+        if not benchmarks:
+            # 연관 검색결과가 없는 경우 전체 최고 바이럴 분석 결과 가져옴
+            raw_top = db.get_top_analyses(limit=3)
+            benchmarks = []
+            for item in raw_top:
+                try:
+                    res_raw = item.get("analysis_result")
+                    res = json.loads(res_raw) if isinstance(res_raw, str) else res_raw
+                    benchmarks.append({
+                        "video_title": "General Top Performer",
+                        "analysis_result": res,
+                        "viral_score": 90
+                    })
+                except Exception:
+                    pass
+
+        # 벤치마크 데이터를 프롬프트용 텍스트로 변환
+        benchmark_summaries = []
+        for idx, b in enumerate(benchmarks, 1):
+            title = b.get("video_title") or "우수 성과 영상"
+            score = b.get("viral_score") or "80+"
+            res = b.get("analysis_result") or {}
+            if isinstance(res, str):
+                try:
+                    res = json.loads(res)
+                except Exception:
+                    res = {}
+            
+            topics = res.get("topics", [])
+            needs = res.get("viewer_needs", "")
+            sentiment = res.get("sentiment", "")
+            
+            summary = f"Case #{idx}: {title} (viral score: {score})\n"
+            if topics:
+                summary += f"  - Topics: {', '.join(topics)}\n"
+            if needs:
+                summary += f"  - Viewer Needs/Hooking point: {needs}\n"
+            if sentiment:
+                summary += f"  - Emotional Sentiment: {sentiment}\n"
+            benchmark_summaries.append(summary)
+            
+        viral_benchmarks_str = "\n".join(benchmark_summaries) if benchmark_summaries else "No historical benchmarks found."
+        print(f"📊 [Auto-Pilot] Loaded {len(benchmarks)} high-performing benchmark videos from DB for referencing.")
         is_music_playlist = self._is_longform_music_config(config_dict)
         # Get script style description from DB presets if exists
         script_presets = db.get_script_style_presets()
@@ -814,8 +861,17 @@ Return JSON only:
   "description_angle": "..."
 }}"""
                   else:
-                      struct_prompt = f"Create a structured plan for a YouTube video...\nTopic: {topic_name}\nStyle: {style_desc}"
-                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning")
+                      struct_prompt = f"""Create a structured plan for a YouTube video.
+Topic: {topic_name}
+Style: {style_desc}
+
+[Benchmarked Successful Video Formulas from DB]
+{viral_benchmarks_str}
+
+Please refer to the benchmarked cases' topics and viewer needs to construct a high-performing video structure.
+Return JSON only:
+{{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "..."}}"""
+                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning", use_search=True)
                   
                   import re
                   match = re.search(r'\{[\s\S]*\}', result_text_s)
@@ -836,6 +892,9 @@ Return JSON only:
             
             prompt = f"""You are a professional YouTube scriptwriter.
 Write a full script based strictly on the following USER PLANNED STRUCTURE.
+
+[Benchmarked Successful Video Formulas from DB]
+{viral_benchmarks_str}
 
 [User Plan & Title]
 {plan_json}
@@ -866,6 +925,9 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
                 prompt = f"""You are a producer for longform YouTube music playlist videos.
 Create a production-ready playlist script/brief in Korean from this planning data.
 
+[Benchmarked Successful Video Formulas from DB]
+{viral_benchmarks_str}
+
 [Planning Data]
 {json.dumps(analysis, ensure_ascii=False)}
 
@@ -884,6 +946,7 @@ Create a production-ready playlist script/brief in Korean from this planning dat
                 prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
                     analysis_json=json.dumps(analysis, ensure_ascii=False)
                 )
+                prompt += f"\n\n[Benchmarked Successful Video Formulas from DB]\n{viral_benchmarks_str}\n\n[Instructions]\n- Make sure to copy the successful hook patterns and address the viewer needs highlighted in the benchmarked cases above to maximize viral potential." 
             if style_key != "default":
                 prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
 
@@ -893,7 +956,7 @@ Create a production-ready playlist script/brief in Korean from this planning dat
         for model_name in ["gemini-2.5-flash"]:
             try:
                 print(f"📄 [Auto-Pilot] Generating script with model={model_name}...")
-                script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name)
+                script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name, use_search=True)
                 if script and len(script.strip()) > 50:
                     break
             except Exception as e:

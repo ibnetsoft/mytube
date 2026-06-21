@@ -90,6 +90,7 @@ class ProjectSettingsSave(BaseModel):
     
     # Thumbnail
     thumbnail_style: Optional[str] = None
+    youtube_reference_samples_json: Optional[str] = None
 
 
 class StylePreset(BaseModel):

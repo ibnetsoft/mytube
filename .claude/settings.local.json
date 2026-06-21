@@ -16,7 +16,14 @@
       "Bash(grep -E \"\\\\.py$\")",
       "Bash(find /c/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기 -type f \\\\\\(-name *wordpress* -o -name *wp* -o -name *publish* \\\\\\) ! -path */venv/* ! -path */.git/*)",
       "Bash(ls -la /c/Users/kimse/Downloads/유튜브소재발굴기/롱폼생성기/*.py)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(dir)",
+      "Bash(dir /B)",
+      "Bash(dir C:\\\\Users\\\\kimse\\\\Downloads\\\\YoutubeSourceFinder\\\\LongformGenerator *)",
+      "Bash(dir app\\\\templates /B)",
+      "Bash(dir app\\\\templates)",
+      "Bash(python3)",
+      "Bash(python3 fix_subtitle_logic.py)"
     ]
   }
 }

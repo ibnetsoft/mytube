@@ -554,6 +554,12 @@ async def render_music_playlist(
                     "final_asset_bundle": True,
                     "thumbnail_ready": True,
                     "metadata_ready": True,
+                    "intro_video_ready": bool(settings.get("intro_video_path")),
+                    "intro_bgm_ready": bool(settings.get("intro_bgm_path")),
+                    "intro_video_prompt_ready": bool(settings.get("intro_video_prompt")),
+                    "intro_bgm_prompt_ready": bool(settings.get("intro_bgm_prompt")),
+                    "intro_mode": "final_video_only",
+                    "intro_bgm_usage": "reference_only",
                 },
             )
             return {

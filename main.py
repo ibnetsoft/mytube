@@ -23,6 +23,10 @@ from typing import List, Optional, Dict, Any, Union
 import uvicorn
 import httpx
 import time
+import pykakasi
+
+# Initialize kakasi globally
+kakasi = pykakasi.kakasi()
 import asyncio
 import json
 import re
@@ -447,7 +451,7 @@ class TranslateScriptRequest(BaseModel):
 
 @app.post("/api/projects/{project_id}/translate-script")
 async def translate_project_script(project_id: int, req: TranslateScriptRequest):
-    """대본 번역 (베트남어)"""
+    """대본 번역 (베트남어/영어 + 발음기호)"""
     script_data = db.get_script(project_id)
     if not script_data or not script_data.get("full_script"):
         raise HTTPException(400, "Original script not found. Please generate it first.")
@@ -455,13 +459,23 @@ async def translate_project_script(project_id: int, req: TranslateScriptRequest)
     original_script = script_data["full_script"]
     from services.gemini_service import gemini_service
     
+    if req.target_language == "en":
+        lang_prompt = "English"
+        phonetic_instruction = "Additionally, beneath each translated line, provide the Romanized phonetic pronunciation of the ORIGINAL language script (e.g., Romaji for Japanese, Romaja for Korean) in square brackets."
+        example_format = "4. Format: [Original Line] \\n [Phonetic Pronunciation] \\n [English Translation]"
+    else:
+        lang_prompt = "Vietnamese"
+        phonetic_instruction = "do NOT provide any phonetic pronunciation."
+        example_format = "4. Output ONLY the translated script text."
+
     prompt = (
-        f"Translate the following video script into Vietnamese.\n\n"
+        f"Translate the following video script into {lang_prompt}. {phonetic_instruction}\n\n"
         f"CRITICAL RULES:\n"
         f"1. Keep all speaker labels (e.g. '길동:', '철수:', 'Narrator:') exactly in their original form (do not translate names, but you can translate labels like 'Narrator:').\n"
         f"2. Keep all brackets containing emotion or direction tags in their original English form (e.g. keep '(excited)', '(whispering)', '(pause)' as is, do not translate them).\n"
         f"3. Keep the line-by-line structure, paragraphs, and blank lines exactly identical to the original.\n"
-        f"4. Output ONLY the translated script text. Do not add any greeting, introductory text, explanations, or wrapping block quotes.\n\n"
+        f"{example_format}\n"
+        f"5. Do not add any greeting, introductory text, explanations, or wrapping block quotes.\n\n"
         f"{original_script}"
     )
     
@@ -1071,11 +1085,24 @@ async def health_check():
             "youtube": bool(config.YOUTUBE_API_KEY),
             "gemini": bool(config.GEMINI_API_KEY),
             "elevenlabs": bool(config.ELEVENLABS_API_KEY),
-            "suno": bool(config.SUNO_API_KEY and config.SUNO_API_BASE_URL),
             "replicate": bool(config.REPLICATE_API_TOKEN),
             "typecast": bool(config.TYPECAST_API_KEY)
         }
     }
+
+@app.get("/api/utils/phonetic")
+def get_phonetic(text: str = "", target_lang: str = "en"):
+    """Generate phonetic romanization/romaji for given text."""
+    if not text:
+        return {"phonetic": ""}
+    
+    try:
+        result = kakasi.convert(text)
+        romaji = " ".join([item['hepburn'] for item in result])
+        return {"phonetic": romaji.strip()}
+    except Exception as e:
+        print("Kakasi error:", e)
+        return {"phonetic": text}
 
 
 # ===========================================

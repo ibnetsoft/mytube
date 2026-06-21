@@ -197,7 +197,7 @@
                     class="w-4 h-4 text-blue-600 bg-[#1c2027] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#1c2027]/50 dark:border-gray-600 cursor-pointer">
             </th>
             <th scope="col"
-                class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#1c2027]/50 border-r border-white/5 max-w-[140px] truncate"
+                class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#1c2027]/50 border-r border-white/5 max-w-[280px] truncate w-[20%]"
                 style="left: 40px;">
                 {{ t('th_project_name') }}
             </th>
@@ -211,19 +211,19 @@
             </th>
             <th scope="col"
                 class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                다음 작업
+                ${window.currentLang === 'vi' ? 'Tiếp theo' : (window.currentLang === 'en' ? 'Next Action' : '다음 작업')}
             </th>
             <th scope="col"
-                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[150px]">
-                ${isMusicMode ? '음악 제목' : `{{ t('th_video_title') }}`}
+                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[320px] w-[30%]">
+                ${isMusicMode ? (window.currentLang === 'vi' ? 'Tên bài hát' : (window.currentLang === 'en' ? 'Music Title' : '음악 제목')) : `{{ t('th_video_title') }}`}
             </th>
             ${statusColumns.map(label => `
                 <th scope="col"
-                    class="px-1 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap"
+                    class="px-0 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap max-w-[40px]"
                     title="${label}">${label}</th>
             `).join('')}
             <th scope="col"
-                class="px-2 py-2 text-center text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
+                class="px-0 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap max-w-[40px]">
                 {{ t('th_manage') }}
             </th>
         `;
@@ -400,23 +400,23 @@
             };
 
             const musicStatusCells = `
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_plan, 'music-plan', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_cover, 'image-gen', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_tracks, 'audio-gen', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_thumbnail, 'thumbnail', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_render, 'render', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_desc, 'title-desc', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.music_publish, 'render', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_plan, 'music-plan', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_cover, 'image-gen', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_tracks, 'audio-gen', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_render, 'render', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_desc, 'title-desc', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_publish, 'render', p.id)}</td>
             `;
 
             const defaultStatusCells = `
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.plan, planStep, p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.plan, planStep, p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
                     ${checkLink(s.upload, 'upload', p.id)}
                 </td>
@@ -448,14 +448,14 @@
                     <input type="checkbox" name="projectSelect" value="${p.id}" onchange="updateBulkActionState()" 
                         class="w-4 h-4 text-blue-600 bg-[#1c2027] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#1c2027]/50 dark:border-gray-600 cursor-pointer">
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-[#1c2027] group-hover:bg-[#0a0f1d] border-r border-white/5 max-w-[140px] truncate"
+                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-[#1c2027] group-hover:bg-[#0a0f1d] border-r border-white/5 max-w-[280px] truncate"
                     style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-1">
                         <span class="text-base">📁</span>
                         <div class="flex flex-col min-w-0">
                             <span class="truncate">${p.name}</span>
-                            ${p.name_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
+                            ${p.name_vi && (window.currentLang === 'vi' || window.currentLang === 'en') ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
                         </div>
                     </div>
                 </td>
@@ -464,11 +464,11 @@
                 <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[140px]">
                     ${renderNextActionCell(p)}
                 </td>
-                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[150px] truncate" 
+                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[320px] truncate" 
                     title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
                     <div class="flex flex-col min-w-0">
                         <span class="truncate">${p.video_title || '-'}</span>
-                        ${p.video_title_vi && window.currentLang === 'vi' ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
+                        ${p.video_title_vi && (window.currentLang === 'vi' || window.currentLang === 'en') ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
                     </div>
                 </td>
                 ${isMusicMode ? musicStatusCells : defaultStatusCells}
@@ -507,29 +507,33 @@
     function getNextAction(project) {
         const s = project.progress || {};
         const isMusic = project.app_mode === 'longform_music' || currentDisplayMode === 'longform_music';
+        const isVi = window.currentLang === 'vi';
+        const isEn = window.currentLang === 'en';
+        const t = (ko, en, vi) => isVi ? vi : (isEn ? en : ko);
+
         const steps = isMusic ? [
-            { key: 'music_plan', label: '음악 기획', route: 'music-plan' },
-            { key: 'music_cover', label: '커버 이미지', route: 'image-gen' },
-            { key: 'music_tracks', label: '트랙 생성', route: 'audio-gen' },
-            { key: 'music_thumbnail', label: '썸네일', route: 'thumbnail' },
-            { key: 'music_render', label: '영상 렌더링', route: 'render' },
-            { key: 'music_desc', label: '제목/설명', route: 'title-desc' },
-            { key: 'music_publish', label: '발행 준비', route: 'render' },
+            { key: 'music_plan', label: t('음악 기획', 'Music Plan', 'Kế hoạch nhạc'), route: 'music-plan' },
+            { key: 'music_cover', label: t('커버 이미지', 'Cover Image', 'Ảnh bìa'), route: 'image-gen' },
+            { key: 'music_tracks', label: t('트랙 생성', 'Generate Track', 'Tạo bài hát'), route: 'audio-gen' },
+            { key: 'music_thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ'), route: 'thumbnail' },
+            { key: 'music_render', label: t('영상 렌더링', 'Render Video', 'Kết xuất Video'), route: 'render' },
+            { key: 'music_desc', label: t('제목/설명', 'Title/Desc', 'Tiêu đề/Mô tả'), route: 'title-desc' },
+            { key: 'music_publish', label: t('발행 준비', 'Ready to Publish', 'Chuẩn bị xuất bản'), route: 'render' },
         ] : [
-            { key: 'plan', label: '기획', route: project.app_mode === 'longform_music' ? 'music-plan' : 'script-plan' },
-            { key: 'script', label: '대본', route: 'script-gen' },
-            { key: 'image', label: '이미지', route: 'image-gen' },
-            { key: 'tts', label: 'TTS', route: 'tts' },
-            { key: 'video', label: '영상', route: 'render' },
-            { key: 'thumbnail', label: '썸네일', route: 'thumbnail' },
-            { key: 'desc', label: '설명', route: 'title-desc' },
-            { key: 'upload', label: '발행대기 등록', route: 'upload' },
-            ...(isIndependent ? [{ key: 'publish', label: '웹어드민 발행', route: 'upload' }] : []),
+            { key: 'plan', label: t('기획', 'Plan', 'Kế hoạch'), route: project.app_mode === 'longform_music' ? 'music-plan' : 'script-plan' },
+            { key: 'script', label: t('대본', 'Script', 'Kịch bản'), route: 'script-gen' },
+            { key: 'image', label: t('이미지', 'Image', 'Hình ảnh'), route: 'image-gen' },
+            { key: 'tts', label: t('TTS', 'TTS', 'TTS'), route: 'tts' },
+            { key: 'video', label: t('영상', 'Video', 'Video'), route: 'render' },
+            { key: 'thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ'), route: 'thumbnail' },
+            { key: 'desc', label: t('설명', 'Description', 'Mô tả'), route: 'title-desc' },
+            { key: 'upload', label: t('발행대기 등록', 'Ready to Publish', 'Đăng ký chờ xuất bản'), route: 'upload' },
+            ...(isIndependent ? [{ key: 'publish', label: t('웹어드민 발행', 'Web Admin Publish', 'Xuất bản Web Admin'), route: 'upload' }] : []),
         ];
 
         const next = steps.find(step => !s[step.key]);
         if (!next) {
-            return { label: '완료', route: isMusic ? 'render' : 'upload', done: true };
+            return { label: t('완료', 'Done', 'Đã xong'), route: isMusic ? 'render' : 'upload', done: true };
         }
         return { ...next, done: false };
     }

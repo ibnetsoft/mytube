@@ -65,7 +65,7 @@
         <div class="flex-1"></div>
 
         <!-- Multi-Voice Toggle -->
-        <label class="inline-flex items-center cursor-pointer mr-2">
+        <label id="multiVoiceToggleLabel" class="inline-flex items-center cursor-pointer mr-2">
             <input type="checkbox" id="multiVoiceToggle" class="sr-only peer">
             <div
                 class="relative w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer bg-[#1c2027]/50 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-[#1c2027] after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600">
@@ -419,25 +419,22 @@
                 if (val) val.textContent = settings.voice_speed;
             }
             if (settings.voice_multi_enabled !== undefined) {
-                const toggle = document.getElementById('multiVoiceToggle');
-                if (toggle) {
-                    toggle.checked = !!settings.voice_multi_enabled;
-                    // Restore mapping
-                    if (settings.voice_mapping_json) {
-                        try {
-                            const parsed = JSON.parse(settings.voice_mapping_json);
-                            characterVoiceMap = {};
-                            for (let key in parsed) {
-                                if (parsed[key] && typeof parsed[key] === 'object' && parsed[key].id) {
-                                    characterVoiceMap[key] = parsed[key].id;
-                                } else {
-                                    characterVoiceMap[key] = parsed[key];
-                                }
+                if (settings.voice_mapping_json) {
+                    try {
+                        const parsed = JSON.parse(settings.voice_mapping_json);
+                        characterVoiceMap = {};
+                        for (let key in parsed) {
+                            if (parsed[key] && typeof parsed[key] === 'object' && parsed[key].id) {
+                                characterVoiceMap[key] = parsed[key].id;
+                            } else {
+                                characterVoiceMap[key] = parsed[key];
                             }
-                        } catch (e) { }
-                    }
-                    toggle.dispatchEvent(new Event('change'));
+                        }
+                    } catch (e) { }
                 }
+                setMultiVoiceMode(!!settings.voice_multi_enabled, true);
+            } else {
+                setMultiVoiceMode(false, false);
             }
         }
     });
@@ -504,8 +501,34 @@
     let characterVoiceMap = {};
     let availableVoices = [];
     let currentLanguage = 'ko';
+    let lockedMultiVoiceMode = null;
+
+    function applyMultiVoiceLockState() {
+        const toggle = document.getElementById('multiVoiceToggle');
+        const label = document.getElementById('multiVoiceToggleLabel');
+        if (!toggle || !label) return;
+
+        const isLocked = lockedMultiVoiceMode !== null;
+        toggle.disabled = isLocked;
+        label.classList.toggle('opacity-60', isLocked);
+        label.classList.toggle('cursor-not-allowed', isLocked);
+        label.classList.toggle('cursor-pointer', !isLocked);
+        label.title = isLocked ? "{{ t('tts_multivoice_locked_hint') }}" : '';
+    }
+
+    function setMultiVoiceMode(enabled, locked = false) {
+        const toggle = document.getElementById('multiVoiceToggle');
+        if (!toggle) return;
+        lockedMultiVoiceMode = locked ? !!enabled : null;
+        toggle.checked = !!enabled;
+        applyMultiVoiceLockState();
+        toggle.dispatchEvent(new Event('change'));
+    }
 
     document.getElementById('multiVoiceToggle').addEventListener('change', (e) => {
+        if (lockedMultiVoiceMode !== null && e.target.checked !== lockedMultiVoiceMode) {
+            e.target.checked = lockedMultiVoiceMode;
+        }
         const section = document.getElementById('voiceMappingSection');
         const singleControls = document.getElementById('singleVoiceControls');
 

@@ -51,14 +51,15 @@ async def bulk_copy_move(req: BulkCopyMoveRequest):
         raise HTTPException(500, str(e))
 
 
-async def translate_text_to_vi(text: str) -> str:
+async def translate_text_to_target(text: str, target_lang_code: str) -> str:
     if not text or not text.strip():
         return ""
     try:
         from services.gemini_service import gemini_service
+        lang_name = "English" if target_lang_code == 'en' else "Japanese" if target_lang_code == 'ja' else "Vietnamese"
         prompt = (
-            "Translate the following Korean text into Vietnamese. "
-            "Output ONLY the final translated Vietnamese text, without any explanations, markdown, quotes or surrounding text.\n\n"
+            f"Translate the following Korean text into {lang_name}. "
+            f"Output ONLY the final translated {lang_name} text, without any explanations, markdown, quotes or surrounding text.\n\n"
             f"Korean text: {text}"
         )
         res = await gemini_service.generate_text(prompt, temperature=0.2)
@@ -74,16 +75,19 @@ async def ensure_vietnamese_translations_bg(projects: list):
             if not pid:
                 continue
             
+            settings = db.get_project_settings(pid) or {}
+            target_lang_code = settings.get("target_language", "vi")
+
             # 1. Project Name
             if p.get("name") and not p.get("name_vi"):
-                translated_name = await translate_text_to_vi(p["name"])
+                translated_name = await translate_text_to_target(p["name"], target_lang_code)
                 if translated_name:
                     db.update_project(pid, name_vi=translated_name)
                     p["name_vi"] = translated_name
 
             # 2. Topic
             if p.get("topic") and not p.get("topic_vi"):
-                translated_topic = await translate_text_to_vi(p["topic"])
+                translated_topic = await translate_text_to_target(p["topic"], target_lang_code)
                 if translated_topic:
                     db.update_project(pid, topic_vi=translated_topic)
                     p["topic_vi"] = translated_topic

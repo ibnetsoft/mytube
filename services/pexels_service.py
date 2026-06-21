@@ -78,5 +78,9 @@ class PexelsService:
             print(f"Pexels Search Failed: {e}")
             return {"status": "error", "error": str(e)}
 
+
+
+
+
 # Singleton Instance
 pexels_service = PexelsService()

@@ -488,6 +488,16 @@ class TTSService:
                     except Exception as e:
                         print(f"[WARN] Failed to adjust audio speed: {e}")
 
+                # [NEW] Whisper-based Forced Alignment Override
+                if os.path.exists(output_path):
+                    whisper_alignment = self._align_with_whisper(output_path, text)
+                    if whisper_alignment:
+                        # 덮어쓰기 성공
+                        alignment_data = whisper_alignment
+                        audio_duration = alignment_data[-1]["end"] if alignment_data else audio_duration
+                    else:
+                        print("[ALIGN] Whisper alignment skipped or failed. Using native mathematical alignment.")
+
                 # 타이밍 정보 저장
                 alignment_path = output_path.replace(".mp3", "_alignment.json")
                 with open(alignment_path, "w", encoding="utf-8") as f:
@@ -569,6 +579,44 @@ class TTSService:
             except Exception as e:
                 print(f"❌ ElevenLabs SFX Exception: {e}")
                 return None
+    
+    def _align_with_whisper(self, audio_path: str, original_text: str) -> list:
+        """
+        Whisper-timestamped 기반 강제 정렬 (Forced Alignment)
+        생성된 TTS 오디오를 AI가 듣고 실제 파형 기준의 단어 타임스탬프를 반환.
+        """
+        try:
+            import whisper_timestamped as whisper
+            import torch
+        except ImportError:
+            print("[ALIGN] whisper-timestamped or torch not installed. Fallback to native alignment.")
+            return []
+
+        print("[ALIGN] Initializing Whisper model for Forced Alignment...")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        try:
+            # 렌더링용으로는 base 모델도 매우 정확하고 빠름
+            model = whisper.load_model("base", device=device)
+            audio = whisper.load_audio(audio_path)
+            
+            print(f"[{device.upper()}] Transcribing & Aligning audio for precise sync...")
+            result = whisper.transcribe(model, audio, language="ko")
+            
+            alignment_data = []
+            for segment in result.get("segments", []):
+                for word_info in segment.get("words", []):
+                    alignment_data.append({
+                        "word": word_info["text"],
+                        "start": word_info["start"],
+                        "end": word_info["end"]
+                    })
+                    
+            if alignment_data:
+                print(f"[SUCCESS] Whisper Alignment complete. {len(alignment_data)} words aligned.")
+            return alignment_data
+        except Exception as e:
+            print(f"[ERROR] Whisper Alignment failed: {e}")
+            return []
     
     def _chars_to_words_alignment(self, characters: list, start_times: list, end_times: list) -> list:
         """문자 단위 타이밍을 단어 단위로 변환"""

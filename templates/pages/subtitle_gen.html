@@ -329,6 +329,11 @@
                         class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
                         {{ t('btn_regen_all') }}
                     </button>
+                    <!-- [NEW] Translate Subtitles to UI Lang -->
+                    <button onclick="translateSubtitlesToUILang(this)" title="Translate text below phonetics to match your UI language"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all disabled:opacity-50">
+                        Translate
+                    </button>
                     <button id="saveBtn" onclick="saveSubtitles(this)" title="{{ t('tooltip_save_sync') }}"
                         class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
                         {{ t('btn_save') }}
@@ -574,13 +579,13 @@
                          title="Korean Pronunciation (Vietnamese phonetics)">
                     </div>
 
-                    <!-- Vietnamese Subtitle Input -->
+                    <!-- Vietnamese/English Subtitle Input -->
                     <textarea id="currentSubtitleTextVi"
                         class="w-full text-xs p-0 border-0 bg-transparent focus:ring-0 outline-none resize-none disabled:opacity-50 CustomScroll text-purple-500 dark:text-purple-400 font-medium"
                         style="height: auto; min-height: 20px;"
                         rows="1"
                         oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"
-                        placeholder="Vietnamese translation (Bản dịch tiếng Việt)"></textarea>
+                        placeholder="{{ 'English translation' if window_lang == 'en' else 'Vietnamese translation (Bản dịch tiếng Việt)' }}"></textarea>
                 </div>
 
                 <!-- DEBUG OVERLAY -->
@@ -907,8 +912,8 @@
 
         await waitForUtils();
 
-        // [NEW] Hide Vietnamese translation box and phonetic pronunciation if not in Vietnamese mode
-        if (window.currentLang !== 'vi') {
+        // [NEW] Hide translation box and phonetic pronunciation if not in VI or EN mode
+        if (window.currentLang !== 'vi' && window.currentLang !== 'en') {
             const viTextarea = document.getElementById('currentSubtitleTextVi');
             if (viTextarea) {
                 viTextarea.style.display = 'none';
@@ -1224,10 +1229,16 @@
                         <div class="text-xs text-green-500 dark:text-green-400 sub-text-pron font-bold break-words leading-tight">
                             ${koreanToVietnamesePhonetic(sub.text || '')}
                         </div>
+                        ` : window.currentLang === 'en' ? `
+                        <div class="text-xs text-green-500 dark:text-green-400 sub-text-pron font-bold break-words leading-tight" id="phonetic-row-${index}">
+                            ${koreanToEnglishPhonetic(sub.text || '')}
+                        </div>
                         ` : ''}
+                        ${['vi', 'en'].includes(window.currentLang) ? `
                         <div class="text-xs text-purple-600 dark:text-purple-400 sub-text-vi break-words leading-tight mt-0.5 font-medium">
                             ${sub.text_vi || ''}
                         </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>`;
@@ -1283,15 +1294,37 @@
         }
         const textFieldVi = document.getElementById('currentSubtitleTextVi');
         if (textFieldVi) {
-            textFieldVi.value = sub.text_vi || '';
-            textFieldVi.disabled = false;
-            textFieldVi.style.height = 'auto';
-            textFieldVi.style.height = textFieldVi.scrollHeight + 'px';
+            if (['vi', 'en'].includes(window.currentLang)) {
+                textFieldVi.style.display = 'block';
+                textFieldVi.value = sub.text_vi || '';
+                textFieldVi.disabled = false;
+                textFieldVi.style.height = 'auto';
+                textFieldVi.style.height = textFieldVi.scrollHeight + 'px';
+            } else {
+                textFieldVi.style.display = 'none';
+            }
         }
 
         const pronField = document.getElementById('currentSubtitlePronunciation');
         if (pronField) {
-            pronField.textContent = koreanToVietnamesePhonetic(sub.text || '');
+            if (window.currentLang === 'en') {
+                const text = sub.text || '';
+                // Check if Japanese characters are present
+                if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(text)) {
+                    pronField.textContent = "...";
+                    fetch(`/api/utils/phonetic?text=${encodeURIComponent(text)}`)
+                        .then(r => r.json())
+                        .then(d => {
+                            pronField.textContent = d.phonetic || koreanToEnglishPhonetic(text);
+                        }).catch(() => {
+                            pronField.textContent = koreanToEnglishPhonetic(text);
+                        });
+                } else {
+                    pronField.textContent = koreanToEnglishPhonetic(text);
+                }
+            } else {
+                pronField.textContent = koreanToVietnamesePhonetic(sub.text || '');
+            }
         }
 
         document.getElementById('currentStartTime').textContent = sub.start.toFixed(2);
@@ -2126,6 +2159,50 @@
         return result.trim().replace(/\s+([.,!?~])/g, '$1');
     }
 
+    function koreanToEnglishPhonetic(text) {
+        if (!text) return "";
+        
+        const CHOSEONG = [
+            "g", "kk", "n", "d", "tt", "r", "m", "b", "pp", 
+            "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"
+        ];
+        const JUNGSEONG = [
+            "a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", 
+            "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"
+        ];
+        const JONGSEONG = [
+            "", "k", "k", "t", "n", "n", "n", "t", "l", "l", "l", "l", 
+            "l", "l", "l", "l", "m", "p", "p", "t", "ng", "t", "t", "t", 
+            "t", "t", "p", "t"
+        ];
+
+        let result = "";
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const code = char.charCodeAt(0);
+            
+            if (code >= 0xAC00 && code <= 0xD7A3) {
+                const index = code - 0xAC00;
+                const cho = Math.floor(index / 588);
+                const jung = Math.floor((index % 588) / 28);
+                const jong = index % 28;
+                
+                let choV = CHOSEONG[cho];
+                let jungV = JUNGSEONG[jung];
+                let jongV = JONGSEONG[jong];
+                
+                result += choV + jungV + jongV + " ";
+            } else {
+                if (result.endsWith(" ") && char === " ") {
+                    // avoid duplicate
+                } else {
+                    result += char;
+                }
+            }
+        }
+        return result.trim().replace(/\s+([.,!?~])/g, '$1');
+    }
+
     function setupStyleListeners() {
         // Debounced or direct auto-save logic
         const update = async (key, val) => {
@@ -2402,6 +2479,32 @@
         } catch (e) { Utils.showToast('Error: ' + e.message, 'error'); }
     }
 
+    // [NEW] Translate directly to UI language
+    async function translateSubtitlesToUILang(btn) {
+        if (!confirm("This will overwrite existing translations with " + window.currentLang.toUpperCase() + " translations. Continue?")) return;
+        
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin">🔄</span>...`;
+
+        try {
+            const res = await fetch(`/api/projects/${projectId}/subtitles?ui_lang=${window.currentLang}&force_translate=true`);
+            if (!res.ok) throw new Error("Translation failed");
+            const data = await res.json();
+            if (data.subtitles) {
+                subtitles = data.subtitles;
+                renderSubtitles();
+                selectSubtitle(selectedIndex >= 0 ? selectedIndex : 0);
+                Utils.showToast("Translation successful", "success");
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("Translation failed", "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
 
 
 

@@ -1,85 +1,344 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card mb-6">
-    <div class="flex flex-wrap items-center gap-6 mb-6">
-        <h3 class="font-bold text-gray-800 dark:text-white shrink-0">{{ t('intro_settings_title') }}</h3>
-
-        <div class="flex flex-wrap items-center gap-4">
-            <!-- Video Options -->
-            <div id="videoOptions" class="flex flex-wrap items-center gap-4">
-                <!-- Search Controls -->
-                <div id="vidSearchControls" class="flex flex-wrap items-center gap-2">
-                    <div class="relative">
-                        <input type="text" id="videoSearchQuery" placeholder="{{ t('placeholder_video_search') }}"
-                            class="pl-3 pr-10 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027] focus:ring-2 focus:ring-blue-500 w-40">
-                        <button onclick="searchVideos()"
-                            class="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-blue-600 dark:text-gray-400">
-                            🔍
-                        </button>
-                    </div>
-
-                    <button onclick="searchVideos(true)" id="autoVideoBtn"
-                        class="btn-primary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-md bg-gradient-to-r from-teal-500 to-emerald-600">
-                        <span>{{ t('btn_auto') }}</span>
-                    </button>
-                </div>
-
-                <!-- Separator -->
-                <div class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
-
-                <!-- Upload Controls -->
-                <div class="flex items-center gap-2">
-                    <input type="file" id="introVideoInput" accept="video/*" class="hidden"
-                        onchange="uploadIntroVideo(this)">
-                    <button onclick="document.getElementById('introVideoInput').click()"
-                        class="btn-secondary py-1.5 px-3 flex items-center justify-center gap-2 text-xs font-bold shadow-sm">
-                        <span>{{ t('btn_video_upload') }}</span>
-                    </button>
-                    <span id="uploadStatus" class="text-xs text-gray-500 hidden dark:text-gray-400">{{ t('status_uploading') }}</span>
-                </div>
+<div class="space-y-6">
+    <div class="card">
+        <div class="flex items-center justify-between gap-4 mb-5">
+            <div>
+                <h3 class="font-bold text-gray-800 dark:text-white">{{ t('intro_plan_title') }}</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('intro_plan_desc') }}</p>
+            </div>
+            <div id="introReadyBadge" class="text-xs px-3 py-1.5 rounded-full bg-[#1c2027] text-gray-300 border border-gray-700">
+                {{ t('intro_status_not_ready') }}
             </div>
         </div>
 
-        <!-- Whisk Tool Link -->
-        <a href="https://labs.google/fx/ko/tools/flow" target="_blank"
-            class="ml-auto flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline bg-[#1c2027] dark:bg-[#1c2027] px-3 py-1.5 rounded-full border border-blue-100 dark:border-blue-800 transition">
-            <span>🎥 VideoFX (Flow)</span>
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-            </svg>
-        </a>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_channel_name') }}</label>
+                    <input id="channelName" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]" placeholder="{{ t('intro_channel_name_placeholder') }}">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_channel_identity') }}</label>
+                    <textarea id="channelIdentity" rows="3" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]" placeholder="{{ t('intro_channel_identity_placeholder') }}"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_audience') }}</label>
+                        <input id="targetAudience" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]" placeholder="{{ t('intro_audience_placeholder') }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_visual_style') }}</label>
+                        <input id="visualStyle" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]" placeholder="{{ t('intro_visual_style_placeholder') }}">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_mood') }}</label>
+                        <input id="introMood" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]" placeholder="{{ t('intro_mood_placeholder') }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_hook_text') }}</label>
+                        <input id="hookText" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]" placeholder="{{ t('intro_hook_text_placeholder') }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">{{ t('intro_duration') }}</label>
+                        <select id="introDuration" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027]">
+                            <option value="6">6s</option>
+                            <option value="8" selected>8s</option>
+                            <option value="10">10s</option>
+                            <option value="12">12s</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                    <input id="includeLogoText" type="checkbox" class="rounded border-gray-300" checked>
+                    <span>{{ t('intro_include_logo_text') }}</span>
+                </label>
+                <div class="flex flex-wrap gap-3 pt-2">
+                    <button id="generateIntroPlanBtn" class="btn-primary px-4 py-2 text-sm font-bold">{{ t('intro_generate_plan') }}</button>
+                    <button id="generateIntroBgmBtn" class="btn-secondary px-4 py-2 text-sm font-bold">{{ t('intro_generate_bgm') }}</button>
+                </div>
+            </section>
+
+            <section class="space-y-4">
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027] p-4">
+                    <div class="text-xs font-semibold text-gray-400 uppercase mb-2">{{ t('intro_video_prompt') }}</div>
+                    <textarea id="videoPrompt" rows="6" class="w-full px-3 py-2 rounded-lg border border-gray-700 bg-[#11151b] text-sm"></textarea>
+                </div>
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027] p-4">
+                    <div class="text-xs font-semibold text-gray-400 uppercase mb-2">{{ t('intro_bgm_prompt') }}</div>
+                    <textarea id="bgmPrompt" rows="4" class="w-full px-3 py-2 rounded-lg border border-gray-700 bg-[#11151b] text-sm"></textarea>
+                </div>
+                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027] p-4">
+                    <div class="text-xs font-semibold text-gray-400 uppercase mb-2">{{ t('intro_direction_notes') }}</div>
+                    <div id="directionNotes" class="text-sm text-gray-300 whitespace-pre-wrap min-h-[120px]"></div>
+                </div>
+            </section>
+        </div>
     </div>
-</div>
 
-<div id="resultSection">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-800 dark:text-white">{{ t('intro_background_music') }}</h3>
+                <span id="bgmStatus" class="text-xs text-gray-500 dark:text-gray-400">{{ t('intro_no_bgm') }}</span>
+            </div>
+            <audio id="bgmPlayer" class="w-full hidden" controls></audio>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">{{ t('intro_bgm_desc') }}</p>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-800 dark:text-white">{{ t('intro_final_upload') }}</h3>
+                <span id="uploadStatus" class="text-xs text-gray-500 dark:text-gray-400">{{ t('intro_no_upload') }}</span>
+            </div>
+            <input type="file" id="introVideoInput" accept="video/*" class="hidden">
+            <button id="uploadIntroBtn" class="btn-secondary px-4 py-2 text-sm font-bold">{{ t('intro_upload_video') }}</button>
+            <div id="uploadedIntroWrap" class="hidden mt-4">
+                <video id="uploadedIntroPlayer" class="w-full rounded-lg bg-[#1c2027]" controls></video>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">{{ t('intro_upload_desc') }}</p>
+        </div>
+    </div>
+
     <div class="card">
-        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
-            <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>🎬</span> {{ t('video_results_title') }}
-            </h3>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800 dark:text-white">{{ t('intro_reference_search') }}</h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('intro_optional') }}</span>
         </div>
-
-        <!-- Video Results Container -->
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <input type="text" id="videoSearchQuery" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-[#1c2027] w-64" placeholder="{{ t('placeholder_video_search') }}">
+            <button onclick="searchVideos()" class="btn-secondary px-4 py-2 text-sm font-bold">{{ t('intro_search') }}</button>
+            <button onclick="searchVideos(true)" id="autoVideoBtn" class="btn-secondary px-4 py-2 text-sm font-bold">{{ t('btn_auto') }}</button>
+        </div>
         <div id="videoResultsList" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
-
-        <!-- 다음 단계 버튼 (숨김 상태로 시작) -->
-        <div id="nextStepSection" class="hidden mt-6 p-4 bg-[#1c2027] dark:bg-[#1c2027] rounded-lg text-center">
-            <h4 class="font-bold text-lg mb-2 text-blue-800 dark:text-blue-300">{{ t('vgen_complete_title') }}</h4>
-            <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">{{ t('vgen_complete_desc') }}</p>
-            <a href="/tts" class="btn-primary inline-flex items-center gap-2">
-                <span>🔊</span> {{ t('btn_go_tts') }}
-            </a>
-        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    const introI18n = {
+        ready: "{{ t('intro_status_ready') }}",
+        notReady: "{{ t('intro_status_not_ready') }}",
+        sceneOutline: "{{ t('intro_scene_outline') }}",
+        editingNotes: "{{ t('intro_editing_notes') }}",
+        deliveryNotes: "{{ t('intro_delivery_notes') }}",
+        generated: "{{ t('intro_generated') }}",
+        noBgm: "{{ t('intro_no_bgm') }}",
+        uploaded: "{{ t('intro_uploaded') }}",
+        noUpload: "{{ t('intro_no_upload') }}",
+        generating: "{{ t('intro_generating') }}",
+        uploading: "{{ t('intro_uploading') }}",
+        uploadFailed: "{{ t('intro_upload_failed') }}",
+        introPlanSaved: "{{ t('intro_plan_saved') }}",
+        introBgmGenerated: "{{ t('intro_bgm_generated') }}",
+        introPlanFailed: "{{ t('intro_plan_failed') }}",
+        introBgmFailed: "{{ t('intro_bgm_failed') }}"
+    };
+
+    let introState = {
+        plan: {},
+        bgmUrl: '',
+        introVideoPath: '',
+        backgroundVideoUrl: ''
+    };
+
+    function introProjectId() {
+        return getCurrentProject();
+    }
+
+    function setIntroReadyState() {
+        const hasPlan = Boolean((document.getElementById('videoPrompt').value || '').trim());
+        const hasBgm = Boolean(introState.bgmUrl);
+        const hasVideo = Boolean(introState.introVideoPath || introState.backgroundVideoUrl);
+        const badge = document.getElementById('introReadyBadge');
+        const ready = hasPlan && hasBgm && hasVideo;
+        badge.textContent = ready ? introI18n.ready : introI18n.notReady;
+        badge.className = ready
+            ? 'text-xs px-3 py-1.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30'
+            : 'text-xs px-3 py-1.5 rounded-full bg-[#1c2027] text-gray-300 border border-gray-700';
+        if (window.updateStepStatus) window.updateStepStatus('intro', hasVideo || hasBgm || hasPlan);
+    }
+
+    function applyIntroPlan(plan = {}) {
+        introState.plan = plan || {};
+        document.getElementById('channelName').value = plan.channel_name || '';
+        document.getElementById('channelIdentity').value = plan.channel_identity || '';
+        document.getElementById('targetAudience').value = plan.target_audience || '';
+        document.getElementById('visualStyle').value = plan.visual_style || '';
+        document.getElementById('introMood').value = plan.mood || '';
+        document.getElementById('hookText').value = plan.hook_text || '';
+        if (plan.duration_seconds) document.getElementById('introDuration').value = String(plan.duration_seconds);
+        document.getElementById('videoPrompt').value = plan.video_prompt || '';
+        document.getElementById('bgmPrompt').value = plan.music_prompt || '';
+
+        const notes = [];
+        if (Array.isArray(plan.scene_outline) && plan.scene_outline.length) {
+            notes.push(introI18n.sceneOutline);
+            notes.push(plan.scene_outline.map(item => `- ${item}`).join('\n'));
+        }
+        if (Array.isArray(plan.editing_notes) && plan.editing_notes.length) {
+            notes.push(introI18n.editingNotes);
+            notes.push(plan.editing_notes.map(item => `- ${item}`).join('\n'));
+        }
+        if (plan.delivery_notes) {
+            notes.push(introI18n.deliveryNotes);
+            notes.push(plan.delivery_notes);
+        }
+        document.getElementById('directionNotes').textContent = notes.join('\n\n');
+        setIntroReadyState();
+    }
+
+    function applyBgm(url) {
+        introState.bgmUrl = url || '';
+        const player = document.getElementById('bgmPlayer');
+        const status = document.getElementById('bgmStatus');
+        if (url) {
+            player.src = url;
+            player.classList.remove('hidden');
+            status.textContent = introI18n.generated;
+        } else {
+            player.removeAttribute('src');
+            player.classList.add('hidden');
+            status.textContent = introI18n.noBgm;
+        }
+        setIntroReadyState();
+    }
+
+    function applyUploadedIntro(url) {
+        introState.introVideoPath = url || '';
+        introState.backgroundVideoUrl = url || '';
+        const wrap = document.getElementById('uploadedIntroWrap');
+        const player = document.getElementById('uploadedIntroPlayer');
+        const status = document.getElementById('uploadStatus');
+        if (url) {
+            player.src = url;
+            wrap.classList.remove('hidden');
+            status.textContent = introI18n.uploaded;
+        } else {
+            wrap.classList.add('hidden');
+            player.removeAttribute('src');
+            status.textContent = introI18n.noUpload;
+        }
+        setIntroReadyState();
+    }
+
+    async function loadIntroState() {
+        const projectId = introProjectId();
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/intro`);
+            const data = await res.json();
+            if (data.status !== 'ok') return;
+            applyIntroPlan(data.plan || {});
+            applyBgm(data.intro_bgm_path || '');
+            applyUploadedIntro(data.intro_video_path || data.background_video_url || '');
+        } catch (e) {
+            console.error('Failed to load intro state', e);
+        }
+    }
+
+    async function generateIntroPlan() {
+        const projectId = introProjectId();
+        if (!projectId) {
+            Utils.showToast(`${i18n.status_select_project_first}`, 'warning');
+            return;
+        }
+        const btn = document.getElementById('generateIntroPlanBtn');
+        Utils.setLoading(btn, true, introI18n.generating);
+        try {
+            const res = await fetch(`/api/projects/${projectId}/intro/plan`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channel_name: document.getElementById('channelName').value,
+                    channel_identity: document.getElementById('channelIdentity').value,
+                    target_audience: document.getElementById('targetAudience').value,
+                    visual_style: document.getElementById('visualStyle').value,
+                    mood: document.getElementById('introMood').value,
+                    hook_text: document.getElementById('hookText').value,
+                    duration_seconds: Number(document.getElementById('introDuration').value || 8),
+                    include_logo_text: document.getElementById('includeLogoText').checked
+                })
+            });
+            const data = await res.json();
+            if (data.status !== 'ok') throw new Error(data.error || 'Failed');
+            applyIntroPlan(data.plan || {});
+            Utils.showToast(introI18n.introPlanSaved, 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(`${introI18n.introPlanFailed}: ${e.message || e}`, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    async function generateIntroBgm() {
+        const projectId = introProjectId();
+        if (!projectId) {
+            Utils.showToast(`${i18n.status_select_project_first}`, 'warning');
+            return;
+        }
+        const btn = document.getElementById('generateIntroBgmBtn');
+        Utils.setLoading(btn, true, introI18n.generating);
+        try {
+            const res = await fetch(`/api/projects/${projectId}/intro/bgm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: document.getElementById('bgmPrompt').value,
+                    duration_seconds: Number(document.getElementById('introDuration').value || 8),
+                    force_instrumental: true
+                })
+            });
+            const data = await res.json();
+            if (data.status !== 'ok') throw new Error(data.error || 'Failed');
+            applyBgm(data.audio_url || '');
+            if (data.prompt) document.getElementById('bgmPrompt').value = data.prompt;
+            Utils.showToast(introI18n.introBgmGenerated, 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(`${introI18n.introBgmFailed}: ${e.message || e}`, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    async function uploadIntroVideo(input) {
+        if (!input.files || !input.files.length) return;
+        const projectId = introProjectId();
+        if (!projectId) {
+            Utils.showToast(`${i18n.status_select_project_first}`, 'warning');
+            input.value = '';
+            return;
+        }
+        const status = document.getElementById('uploadStatus');
+        status.textContent = introI18n.uploading;
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        try {
+            const response = await fetch(`/api/projects/${projectId}/intro/save`, {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (result.status !== 'ok') throw new Error(result.error || 'Upload failed');
+            applyUploadedIntro(result.url || '');
+            Utils.showToast(`${i18n.status_intro_uploaded}`, 'success');
+        } catch (e) {
+            console.error(e);
+            status.textContent = introI18n.uploadFailed;
+            Utils.showToast(`${i18n.status_failed_upload_err}`, 'error');
+        } finally {
+            input.value = '';
+        }
+    }
+
     async function searchVideos(isAuto = false) {
-        const projectId = getCurrentProject();
+        const projectId = introProjectId();
         let query = document.getElementById('videoSearchQuery').value;
         let script = "";
 
@@ -87,45 +346,33 @@
             const scriptData = Utils.storage.get('fullScript');
             if (scriptData && scriptData.script) {
                 script = scriptData.script;
-            } else {
-                // [FIX] Fallback to DB if local storage is empty
-                if (projectId) {
-                    try {
-                        const result = await API.project.getScript(projectId);
-                        if (result && result.full_script) {
-                            script = result.full_script;
-                            // Optionally save back to storage for next time
-                            Utils.storage.set('fullScript', { script: result.full_script });
-                        }
-                    } catch (e) {
-                        console.error("DB Script fetch failed:", e);
+            } else if (projectId) {
+                try {
+                    const result = await API.project.getScript(projectId);
+                    if (result && result.full_script) {
+                        script = result.full_script;
+                        Utils.storage.set('fullScript', { script: result.full_script });
                     }
-                }
-
-                if (!script) {
-                    Utils.showToast("{{ t('err_no_script') }}", 'warning');
-                    return;
+                } catch (e) {
+                    console.error("DB Script fetch failed:", e);
                 }
             }
-        } else {
-            if (!query) {
-                Utils.showToast(`${i18n.status_enter_search_query}`, 'warning');
+            if (!script) {
+                Utils.showToast("{{ t('err_no_script') }}", 'warning');
                 return;
             }
+        } else if (!query) {
+            Utils.showToast(`${i18n.status_enter_search_query}`, 'warning');
+            return;
         }
 
         const btn = isAuto ? document.getElementById('autoVideoBtn') : null;
         if (btn) Utils.setLoading(btn, true, `${i18n.status_searching}`);
 
         try {
-            // Style Default: realistic or cinematic
-            const style = 'cinematic';
-            const result = await API.video.search(script, style, isAuto ? null : query);
-
+            const result = await API.video.search(script, 'cinematic', isAuto ? null : query);
             if (result.status === 'ok') {
-                if (result.search_query) {
-                    document.getElementById('videoSearchQuery').value = result.search_query;
-                }
+                if (result.search_query) document.getElementById('videoSearchQuery').value = result.search_query;
                 renderVideoResults(result.videos);
                 Utils.showToast(`${result.videos.length}${i18n.status_videos_found}`, 'success');
             } else {
@@ -147,219 +394,36 @@
         }
 
         container.innerHTML = videos.map(v => `
-            <div class="group relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-all bg-[#1c2027] cursor-pointer" onclick="selectVideo('${v.url}', '${v.image}', ${v.id})">
+            <div class="group relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-all bg-[#1c2027] cursor-pointer" onclick="selectVideo('${v.url}', ${v.id})">
                 <div class="aspect-video relative">
                     <img src="${v.image}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity">
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-white text-3xl opacity-0 group-hover:opacity-100 transition-opacity">▶️</span>
-                    </div>
-                    <div class="absolute bottom-1 right-1 bg-[#1c2027]/70 text-white text-[10px] px-1 rounded">
-                        ${v.duration}s
-                    </div>
-                </div>
-                <!-- Selection Overlay -->
-                <div id="vid-selected-${v.id}" class="hidden absolute inset-0 bg-blue-500/30 border-4 border-blue-500 flex items-start justify-end p-2">
-                    <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg">✓</div>
+                    <div class="absolute bottom-1 right-1 bg-[#1c2027]/70 text-white text-[10px] px-1 rounded">${v.duration}s</div>
                 </div>
             </div>
         `).join('');
     }
 
-    async function selectVideo(url, image, id) {
-        // UI Selection Highlight
-        document.querySelectorAll('[id^="vid-selected-"]').forEach(el => el.classList.add('hidden'));
-
-        // Escape special chars handling
-        const el = document.getElementById(`vid-selected-${id}`);
-        if (el) el.classList.remove('hidden');
-
-        // Save to Project Settings
-        const projectId = getCurrentProject();
-        if (projectId) {
-            try {
-                await API.project.updateSetting(projectId, 'background_video_url', url);
-                await API.project.updateSetting(projectId, 'video_path', null); // Reset video path to force re-render perception
-                Utils.showToast(`${i18n.status_video_selected}`, 'success');
-
-                // [NEW] Update Stepper
-                if (window.updateStepStatus) window.updateStepStatus('intro', true);
-
-                document.getElementById('nextStepSection').classList.remove('hidden');
-            } catch (e) {
-                console.error(e);
-                Utils.showToast(`${i18n.status_failed_save}`, 'error');
-            }
-        }
-    }
-
-
-
-    async function uploadIntroVideo(input) {
-        if (!input.files || input.files.length === 0) return;
-
-        const file = input.files[0];
-        const projectId = getCurrentProject();
-
-        if (!projectId) {
-            Utils.showToast(`${i18n.status_select_project_first}`, "warning");
-            input.value = ''; // Reset
-            return;
-        }
-
-        const status = document.getElementById('uploadStatus');
-        status.textContent = `${i18n.status_uploading}`;
-        status.classList.remove('hidden');
-
-        const formData = new FormData();
-        formData.append('file', file);
-
+    async function selectVideo(url) {
+        const projectId = introProjectId();
+        if (!projectId) return;
         try {
-            const response = await fetch(`/api/projects/${projectId}/intro/save`, {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-
-            if (result.status === 'ok') {
-                Utils.showToast(`${i18n.status_intro_uploaded}`, 'success');
-                status.textContent = `${i18n.status_done}`;
-                setTimeout(() => status.classList.add('hidden'), 2000);
-
-                // [NEW] Update Stepper
-                if (window.updateStepStatus) window.updateStepStatus('intro', true);
-
-                // Show as a result card (Mock ID) - using a video tag for thumbnail could be complex, 
-                // so we just show a generic placeholder or the video itself.
-                const mockVideo = {
-                    id: 'uploaded_' + Date.now(),
-                    url: result.url,
-                    image: '/static/img/video_placeholder.png', // You might not have this, so use a data URI or just a colored box
-                    duration: `${i18n.label_uploaded}`
-                };
-
-                // If we don't have a placeholder image, let's use a colored div in render
-                // But renderVideoResults expects an image URL.
-                // Let's create a temporary card manually or just force selection state.
-
-                // Show Next Step
-                document.getElementById('nextStepSection').classList.remove('hidden');
-
-                // Optional: Render it to the list
-                const container = document.getElementById('videoResultsList');
-                container.innerHTML = `
-                    <div class="group relative rounded-lg overflow-hidden border border-blue-500 shadow-md bg-[#1c2027] cursor-pointer">
-                        <div class="aspect-video relative flex items-center justify-center bg-[#1c2027]">
-                             <video src="${result.url}" class="w-full h-full object-contain" muted onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;"></video>
-                            <div class="absolute bottom-1 right-1 bg-blue-600 text-white text-[10px] px-1 rounded">
-                                ${i18n.label_uploaded}
-                            </div>
-                        </div>
-                        <div class="absolute inset-0 bg-blue-500/30 border-4 border-blue-500 flex items-start justify-end p-2 pointer-events-none">
-                            <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg">✓</div>
-                        </div>
-                    </div>
-                `;
-
-            } else {
-                Utils.showToast(`${i18n.status_failed_upload}: ` + (result.error || 'Unknown'), 'error');
-                status.classList.add('hidden');
-            }
+            await API.project.updateSetting(projectId, 'background_video_url', url);
+            await API.project.updateSetting(projectId, 'video_path', null);
+            introState.backgroundVideoUrl = url;
+            setIntroReadyState();
+            Utils.showToast(`${i18n.status_video_selected}`, 'success');
         } catch (e) {
             console.error(e);
-            Utils.showToast(`${i18n.status_failed_upload_err}`, 'error');
-            status.classList.add('hidden');
-        } finally {
-            input.value = ''; // Reset input
+            Utils.showToast(`${i18n.status_failed_save}`, 'error');
         }
     }
 
-    function updateHeaderStatus(stepName, isComplete) {
-        const step = document.querySelector(`.step-item[data-step="${stepName}"]`);
-        if (step && isComplete) {
-            const circle = step.querySelector('.step-circle');
-            const text = step.querySelector('span');
-
-            if (circle) {
-                circle.classList.remove('bg-gray-200', 'bg-[#1c2027]/50', 'border-white', 'dark:border-white/5');
-                circle.classList.add('bg-green-500', 'border-green-500', 'text-white');
-                circle.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>';
-            }
-
-            if (text) {
-                text.classList.remove('text-gray-400');
-                text.classList.add('text-green-600', 'dark:text-green-400', 'font-bold');
-            }
-        }
-    }
-
-    // Auto-Search on Load if coming from "Old Story"
-    document.addEventListener('DOMContentLoaded', async () => {
-        const projectId = getCurrentProject();
-        if (projectId) {
-            try {
-                const fullData = await API.project.getFull(projectId);
-
-                // [NEW] Check Intro Video Persistence or Generic Background Persistence
-                let videoPath = fullData.settings && fullData.settings.intro_video_path;
-                let isIntroUpload = true;
-
-                if (!videoPath) {
-                    videoPath = fullData.settings && fullData.settings.background_video_url;
-                    isIntroUpload = false;
-                }
-
-                // [AUTOPILOT] 오토파일럿이 렌더링한 최종 영상 폴백
-                if (!videoPath) {
-                    videoPath = fullData.settings && fullData.settings.video_path;
-                    isIntroUpload = false;
-                }
-
-                if (videoPath) {
-                    // Normalize Path
-                    let webPath = videoPath;
-                    if (videoPath.includes('\\') || (videoPath.startsWith('uploads') && !videoPath.startsWith('/'))) {
-                        webPath = videoPath.replace(/\\/g, '/');
-                        if (!webPath.startsWith('/')) {
-                            webPath = '/' + webPath;
-                        }
-                    }
-
-                    // Render Card
-                    const container = document.getElementById('videoResultsList');
-                    if (container) {
-                        const label = isIntroUpload ? i18n.label_uploaded : (fullData.settings && fullData.settings.video_path && videoPath === fullData.settings.video_path ? i18n.label_rendered : i18n.label_selected);
-                        container.innerHTML = `
-                            <div class="group relative rounded-lg overflow-hidden border border-blue-500 shadow-md bg-[#1c2027] cursor-pointer">
-                                <div class="aspect-video relative flex items-center justify-center bg-[#1c2027]">
-                                    <video src="${webPath}" class="w-full h-full object-contain" muted onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0;"></video>
-                                    <div class="absolute bottom-1 right-1 bg-blue-600 text-white text-[10px] px-1 rounded">
-                                        ${label}
-                                    </div>
-                                </div>
-                                <div class="absolute inset-0 bg-blue-500/30 border-4 border-blue-500 flex items-start justify-end p-2 pointer-events-none">
-                                    <div class="bg-blue-500 text-white rounded-full p-1 shadow-lg">✓</div>
-                                </div>
-                            </div>
-                        `;
-                    }
-
-                    const nextSection = document.getElementById('nextStepSection');
-                    if (nextSection) nextSection.classList.remove('hidden');
-
-                    // Update Header Status (Green Light)
-                    updateHeaderStatus('intro', true);
-
-                    // Status Badge Update
-                    const status = document.getElementById('uploadStatus');
-                    if (status) {
-                        status.textContent = "{{ t('status_loading_video') }}";
-                        status.classList.remove('hidden');
-                    }
-                }
-            } catch (e) {
-                console.error("Load failed", e);
-            }
-        }
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('generateIntroPlanBtn').addEventListener('click', generateIntroPlan);
+        document.getElementById('generateIntroBgmBtn').addEventListener('click', generateIntroBgm);
+        document.getElementById('uploadIntroBtn').addEventListener('click', () => document.getElementById('introVideoInput').click());
+        document.getElementById('introVideoInput').addEventListener('change', function () { uploadIntroVideo(this); });
+        loadIntroState();
     });
 </script>
 {% endblock %}

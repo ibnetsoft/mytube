@@ -1328,6 +1328,116 @@ async def upload_scene_media(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@router.post("/api/image/bulk-match")
+async def bulk_match_scene_media(
+    project_id: int = Form(...),
+    files: List[UploadFile] = File(...)
+):
+    """
+    여러 이미지/비디오 파일을 업로드받아, 비디오는 중간 프레임을 추출하고,
+    Gemini Vision API를 활용해 가장 알맞은 씬 번호와 일괄 매칭합니다.
+    """
+    try:
+        from app.utils import get_project_output_dir, ALLOWED_IMAGE_EXT, ALLOWED_VIDEO_EXT
+        from services.video_matcher import video_matcher
+        import shutil
+
+        # 프로젝트 디렉터리 경로
+        abs_dir, web_dir = get_project_output_dir(project_id)
+        os.makedirs(abs_dir, exist_ok=True)
+
+        uploaded_assets = [] # List of (filename, file_bytes for gemini, mime_type)
+        saved_file_infos = [] # List of dict to reference saved files
+
+        for file in files:
+            ext = os.path.splitext(file.filename)[1].lower()
+            is_video = ext in ALLOWED_VIDEO_EXT
+            is_image = ext in ALLOWED_IMAGE_EXT
+
+            if not (is_video or is_image):
+                continue
+
+            # 파일 고유 이름 생성 및 저장
+            timestamp = int(datetime.datetime.now().timestamp())
+            unique_id = uuid.uuid4().hex[:6]
+            prefix = "bulk_vid" if is_video else "bulk_img"
+            filename = f"{prefix}_p{project_id}_{timestamp}_{unique_id}{ext}"
+            abs_path = os.path.join(abs_dir, filename)
+            web_url = f"{web_dir}/{filename}"
+
+            # 디스크 저장
+            content = await file.read()
+            async with aiofiles.open(abs_path, "wb") as f:
+                await f.write(content)
+
+            # Gemini 분석을 위한 바이트 추출
+            gemini_bytes = None
+            if is_video:
+                try:
+                    # 중간 프레임 이미지 추출
+                    gemini_bytes = video_matcher.extract_middle_frame_bytes(abs_path)
+                except Exception as ex:
+                    print(f"Failed extracting keyframe for {file.filename}: {ex}")
+                    # 실패 시 첫 프레임이라도 시도하거나 빈 이미지 전달 방지
+            else:
+                gemini_bytes = content
+
+            if gemini_bytes:
+                uploaded_assets.append((file.filename, gemini_bytes, "image/png"))
+
+            saved_file_infos.append({
+                "original_name": file.filename,
+                "url": web_url,
+                "is_video": is_video
+            })
+
+        if not uploaded_assets:
+            return {"status": "error", "error": "분석할 이미지나 비디오 파일이 없습니다."}
+
+        # 2. Gemini Vision을 통해 매칭 정보 가져오기
+        mapping = await video_matcher.match_assets_to_scenes(project_id, uploaded_assets)
+        print(f"[Bulk Match] Project {project_id} AI matching results: {mapping}")
+
+        # 3. 매칭 결과를 바탕으로 DB 업데이트
+        matched_count = 0
+        updates = []
+        for info in saved_file_infos:
+            orig_name = info["original_name"]
+            matched_scene = mapping.get(orig_name)
+            if matched_scene:
+                matched_scene = int(matched_scene)
+                # DB 저장
+                if info["is_video"]:
+                    db.update_image_prompt_video_url(project_id, matched_scene, info["url"])
+                else:
+                    db.update_image_prompt_url(project_id, matched_scene, info["url"])
+                
+                updates.append({
+                    "original_name": orig_name,
+                    "scene_number": matched_scene,
+                    "url": info["url"],
+                    "is_video": info["is_video"]
+                })
+                matched_count += 1
+
+        # 원본 이미지 프롬프트 상태 최신화 반환을 위해 씬 목록 가져오기
+        latest_scenes = db.get_image_prompts(project_id)
+
+        return {
+            "status": "ok",
+            "matched_count": matched_count,
+            "updates": updates,
+            "scenes": latest_scenes
+        }
+
+    except Exception as e:
+        print(f"Bulk match error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+
 @router.post("/api/system/open-output-folder")
 async def open_output_folder(project_id: int = Body(..., embed=True)):
     """

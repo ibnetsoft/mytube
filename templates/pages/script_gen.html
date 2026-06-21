@@ -134,7 +134,7 @@
             <div id="resultSection" class="hidden">
                 <div class="bg-[#1c2027] rounded-lg border border-gray-700 p-4">
                     <div class="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
-                        {% if current_lang == 'vi' %}
+                        {% if current_lang in ['vi', 'en'] %}
                         <div class="flex gap-2" id="scriptTabHeaders">
                             <button onclick="switchScriptTab('original')" id="tabScriptOriginal"
                                 class="px-4 py-2 text-sm font-bold border-b-2 border-blue-500 text-blue-400 focus:outline-none transition-all">
@@ -142,7 +142,7 @@
                             </button>
                             <button onclick="switchScriptTab('vietnamese')" id="tabScriptVietnamese"
                                 class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-white focus:outline-none transition-all">
-                                {{ t('tab_vietnamese') }}
+                                {{ 'Translation' if current_lang == 'en' else t('tab_vietnamese') }}
                             </button>
                         </div>
                         {% endif %}
@@ -853,7 +853,7 @@
             const res = await fetch(`/api/projects/${projectId}/translate-script`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target_language: 'vi' })
+                body: JSON.stringify({ target_language: window.currentLang === 'en' ? 'en' : 'vi' })
             });
             
             if (!res.ok) throw new Error('Translation failed');
@@ -1077,6 +1077,7 @@
 
         const projectFull = await API.project.getFull(projectId);
         const settings = projectFull.settings || {};
+        const projectLanguage = projectFull.project?.language || 'ko';
         const durationSeconds = settings.duration_seconds || 60;
         const isShorts = (window.APP_MODE === 'shorts') || (durationSeconds <= 60);
 
@@ -1202,6 +1203,9 @@ ${modeInstruction}
             if (currentScript) {
                 const charCount = currentScript.length;
                 const readTime = Math.ceil(charCount / 415);
+                await API.project.saveSettings(projectId, {
+                    voice_multi_enabled: isMulti ? 1 : 0
+                });
                 await API.project.saveScript(projectId, currentScript, charCount, readTime);
                 console.log("Script saved to DB");
             }
@@ -1239,6 +1243,10 @@ ${modeInstruction}
 
         if (projectId) {
             try {
+                const narrationMode = document.querySelector('input[name="narrationMode"]:checked')?.value || 'single';
+                await API.project.saveSettings(projectId, {
+                    voice_multi_enabled: narrationMode === 'multi' ? 1 : 0
+                });
                 await API.project.saveScript(projectId, text, text.length, Math.ceil(text.length / 415));
                 Utils.showToast(i18n.toast_script_saved, 'success');
                 refreshExplorer();

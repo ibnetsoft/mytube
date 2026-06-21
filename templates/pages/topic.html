@@ -666,6 +666,29 @@
     async function startAnalysis() { /* ... */ }
     function renderAnalysisResult(analysis, commentCount, hasTranscript) { /* ... */ }
 
+    async function saveReferenceThumbnailSamples(projectId) {
+        if (!projectId || !Array.isArray(currentVideos) || currentVideos.length === 0) return;
+
+        const samplePayload = currentVideos.slice(0, 12).map((video) => ({
+            video_id: video.id || '',
+            video_title: video.snippet?.title || '',
+            channel_title: video.snippet?.channelTitle || '',
+            thumbnail_url: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.default?.url || '',
+            view_count: parseInt(video.statistics?.viewCount || 0),
+            viral_score: parseInt(video.viralScore || 0)
+        })).filter((item) => item.thumbnail_url);
+
+        if (!samplePayload.length) return;
+
+        try {
+            await API.project.saveSettings(projectId, {
+                youtube_reference_samples_json: JSON.stringify(samplePayload)
+            });
+        } catch (e) {
+            console.warn('Failed to save youtube reference thumbnail samples', e);
+        }
+    }
+
     // 대본 기획으로 이동 (프로젝트 저장)
     async function goToScriptPlan() {
         if (!currentVideoForAnalysis || !currentAnalysisResult) {
@@ -705,6 +728,7 @@
 
         // 분석 결과를 DB에 저장
         try {
+            await saveReferenceThumbnailSamples(projectId);
             await API.project.saveAnalysis(projectId, currentVideoForAnalysis, currentAnalysisResult);
             Utils.showToast(i18n.status_analysis_saved, 'success');
 

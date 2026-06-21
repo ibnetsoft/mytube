@@ -51,8 +51,11 @@ async def page_music_plan(request: Request):
     return _render(request, "pages/music_plan.html", "music-plan", "음악 기획")
 
 @router.get("/script-gen", response_class=HTMLResponse)
-async def page_script_gen(request: Request):
-    return _render(request, "pages/script_gen.html", "script-gen", "대본 생성")
+async def page_script_gen(request: Request, project_id: Optional[int] = Query(None)):
+    project = None
+    if project_id:
+        project = db.get_project(project_id)
+    return _render(request, "pages/script_gen.html", "script-gen", "대본 생성", project=project)
 
 @router.get("/image-gen", response_class=HTMLResponse)
 async def page_image_gen(request: Request):
@@ -178,6 +181,9 @@ async def page_settings(request: Request):
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
             "youtube_channel": auth_service.get_youtube_channel(),
+                        "my_referral_code": auth_service.get_referral_code(),
+            "wallet_info": auth_service.get_or_create_wallet_info(),
+            "min_withdrawal_usdt": db.get_global_setting("min_withdrawal_usdt", "10"),
             "youtube_handle": auth_service.get_youtube_handle()
         }
     )
