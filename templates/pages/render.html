@@ -474,6 +474,25 @@
         }
         url += `?t=${Date.now()}`;
 
+        const isAdmin = {{ is_admin | tojson }};
+        if (!isAdmin) {
+            // 관리자가 아니면 플레이어 숨기고 승인 대기 메시지 표시
+            const placeholder = document.getElementById('videoPlaceholder');
+            placeholder.innerHTML = `
+                <span class="text-6xl mb-4 text-emerald-400">✅</span>
+                <p class="text-emerald-400 font-bold text-lg mb-2">렌더링 완료</p>
+                <p class="text-gray-400 text-xs text-center max-w-[80%]">최종 영상은 관리자만 확인 및 다운로드할 수 있습니다.<br>관리자가 검토 후 승인합니다.</p>
+            `;
+            placeholder.style.display = 'flex';
+            
+            const player = document.getElementById('mainVideoPlayer');
+            player.classList.add('hidden');
+            
+            const dlBtn = document.getElementById('downloadVideoBtn');
+            dlBtn.style.display = 'none';
+            return;
+        }
+
         const player = document.getElementById('mainVideoPlayer');
         player.src = url;
         player.load();

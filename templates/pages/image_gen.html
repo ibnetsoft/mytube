@@ -117,6 +117,11 @@
         <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('label_image_style') }}</label>
         <input type="hidden" id="imageStyle" value="realistic">
 
+        <!-- AI가 배정한 스타일이 잠겼을 때 표시되는 안내 -->
+        <div id="styleLockNotice" class="hidden mb-2 text-xs text-amber-300 flex items-center gap-1">
+            🔒 <span>이 프로젝트의 이미지 스타일은 AI가 주제에 맞게 배정했으며 변경할 수 없습니다.</span>
+        </div>
+
         <!-- [Modified] Styles loaded dynamically -->
         <div id="styleSelectorGrid" class="grid grid-cols-6 md:grid-cols-12 gap-3">
             <!-- Loaded via JS -->
@@ -2903,7 +2908,26 @@
 
     let _styleSaveTimer = null;
 
+    // AI가 배정한 이미지 스타일이 잠긴 경우 그리드를 비활성화한다.
+    let _imageStyleLocked = false;
+    function applyImageStyleLock(locked) {
+        _imageStyleLocked = !!locked;
+        const grid = document.getElementById('styleSelectorGrid');
+        const notice = document.getElementById('styleLockNotice');
+        if (notice) notice.classList.toggle('hidden', !_imageStyleLocked);
+        if (grid) {
+            grid.style.pointerEvents = _imageStyleLocked ? 'none' : '';
+            grid.style.opacity = _imageStyleLocked ? '0.55' : '';
+            grid.setAttribute('aria-disabled', _imageStyleLocked ? 'true' : 'false');
+        }
+    }
+
     function selectStyle(style, element, skipAutoSave = false) {
+        // AI가 배정해 잠긴 경우, 설정 로드(skipAutoSave=true)는 허용하되 사용자 클릭은 막는다.
+        if (_imageStyleLocked && !skipAutoSave) {
+            Utils.showToast("AI가 배정한 스타일은 변경할 수 없습니다.", "warning");
+            return;
+        }
         // 1. Update Hidden Input
         document.getElementById('imageStyle').value = style;
 
@@ -3020,11 +3044,13 @@
                 }
             }
             const savedStyle = data.settings.image_style_prompt
+                || data.settings.image_style
                 || Utils.storage.get(`imageStyle_${getCurrentProject()}`);
             if (savedStyle) {
                 const element = document.querySelector(`.style-card[data-value="${savedStyle}"]`);
                 if (element) selectStyle(savedStyle, element, true);
             }
+            applyImageStyleLock(String(data.settings.style_locked) === '1');
         }
 
 
@@ -3194,11 +3220,12 @@
                             if (area) { area.classList.remove('hidden'); area.classList.add('flex'); }
                         }
                     }
-                    if (fullData.settings.image_style_prompt) {
-                        const styleId = fullData.settings.image_style_prompt;
+                    if (fullData.settings.image_style_prompt || fullData.settings.image_style) {
+                        const styleId = fullData.settings.image_style_prompt || fullData.settings.image_style;
                         const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
                         if (element) selectStyle(styleId, element, true);
                     }
+                    applyImageStyleLock(String(fullData.settings.style_locked) === '1');
                     if (fullData.settings.character_ethnicity) {
                         const ethnicityEl = document.getElementById('charEthnicity');
                         if (ethnicityEl) {

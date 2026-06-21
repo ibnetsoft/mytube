@@ -155,16 +155,17 @@ class WebAdminClient:
 
         existing = self.fetch_profile_by_email(email)
         if existing and str(existing.get("is_approved")).lower() in ("true", "1", "yes"):
-            return {"success": False, "error": "이미 승인된 이메일입니다. 로그인 화면에서 PIN으로 접속해주세요."}
+            return {"success": False, "error": "이미 승인된 이메일입니다. 로그인 화면에서 접속해주세요."}
 
         profile_id = (existing or {}).get("id")
+        my_referral_code = payload.get("my_referral_code") or ""
         metadata = {
             "full_name": payload.get("full_name") or "",
             "contact": payload.get("contact") or "",
             "nationality": payload.get("nationality") or "",
             "signup_status": "pending",
             "signup_source": "desktop_client",
-            "my_referral_code": payload.get("my_referral_code") or "",
+            "my_referral_code": my_referral_code,
             "referred_by_code": payload.get("referred_by_code") or "",
             "preferred_category_ids": payload.get("preferred_category_ids") or [],
             "preferred_category_names": payload.get("preferred_category_names") or [],
@@ -186,6 +187,7 @@ class WebAdminClient:
             "terms_accepted_at": payload.get("terms_accepted_at"),
             "privacy_accepted_at": payload.get("privacy_accepted_at"),
             "pin_code": (existing or {}).get("pin_code") or "1234",
+            "password": payload.get("password") or (existing or {}).get("password") or "1234",
             "membership": (existing or {}).get("membership") or "std",
             "membership_tier": (existing or {}).get("membership_tier") or "standard",
             "preferred_category_ids": payload.get("preferred_category_ids") or [],

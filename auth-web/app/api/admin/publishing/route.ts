@@ -195,6 +195,55 @@ export async function PATCH(req: Request) {
             .select()
 
         if (error) throw error
+
+        // [NEW] Referral Reward Logic
+        if (status === 'approved' && existing?.status !== 'approved' && existing?.user_id) {
+            // Check if user has a referrer
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('referred_by')
+                .eq('id', existing.user_id)
+                .single()
+
+            if (profile?.referred_by) {
+                // Count approved videos
+                const { count } = await supabase
+                    .from('publishing_requests')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('user_id', existing.user_id)
+                    .eq('status', 'approved')
+
+                if (count === 2) {
+                    // Reward the referrer
+                    const { data: referrerProfile } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('my_referral_code', profile.referred_by)
+                        .single()
+                    
+                    if (referrerProfile) {
+                        const { data: existingReward } = await supabase
+                            .from('referral_rewards_log')
+                            .select('id')
+                            .eq('referred_user_id', existing.user_id)
+                            .single()
+                        
+                        if (!existingReward) {
+                            await supabase.rpc('increment_usdt_balance', {
+                                uid: referrerProfile.id,
+                                amount_to_add: 20
+                            })
+                            await supabase.from('referral_rewards_log').insert({
+                                referrer_id: referrerProfile.id,
+                                referred_user_id: existing.user_id,
+                                amount: 20
+                            })
+                        }
+                    }
+                }
+            }
+        }
+
         return NextResponse.json({ success: true, data: data[0] })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })

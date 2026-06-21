@@ -8,420 +8,546 @@
     <script src="/static/js/tailwind.min.js?v=2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Outfit', 'Noto Sans KR', 'sans-serif'],
-                    }
-                }
-            }
-        }
+        tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Outfit', 'Noto Sans KR', 'sans-serif'] } } } }
         document.documentElement.classList.add('dark');
     </script>
     <style>
-        body {
-            background-color: #0b0f19;
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(242,43%,12%,1) 0, transparent 50%),
-                radial-gradient(at 50% 100%, hsla(263,45%,20%,0.15) 0, transparent 50%);
-        }
-        .glass-card {
-            background: rgba(30, 41, 59, 0.45);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .key-btn {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .key-btn:hover {
-            background: rgba(59, 130, 246, 0.15);
-            border-color: rgba(59, 130, 246, 0.3);
-            transform: translateY(-2px);
-        }
-        .key-btn:active {
-            transform: scale(0.95);
-        }
-        .dot {
-            transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .dot.filled {
-            background-color: #3b82f6;
-            box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
-            transform: scale(1.25);
-        }
-        .auth-tab.active {
-            background: rgba(59, 130, 246, 0.18);
-            color: #bfdbfe;
-            border-color: rgba(59, 130, 246, 0.35);
-        }
-        .auth-input {
-            background: rgba(15, 23, 42, 0.78);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .policy-box {
-            background: rgba(2, 6, 23, 0.42);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
+        body { background-color:#0b0f19; background-image:radial-gradient(at 0% 0%,hsla(253,16%,7%,1) 0,transparent 50%),radial-gradient(at 50% 0%,hsla(225,39%,30%,.2) 0,transparent 50%),radial-gradient(at 100% 0%,hsla(242,43%,12%,1) 0,transparent 50%),radial-gradient(at 50% 100%,hsla(263,45%,20%,.15) 0,transparent 50%); }
+        .glass-card { background:rgba(30,41,59,.45); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.08); }
+        .auth-tab.active { background:rgba(59,130,246,.18); color:#bfdbfe; border-color:rgba(59,130,246,.35); }
+        .auth-input { background:rgba(15,23,42,.78); border:1px solid rgba(255,255,255,.08); transition:border-color .2s; }
+        .auth-input:focus { outline:none; border-color:rgba(59,130,246,.6); }
+        .auth-input.input-error { border-color:rgba(239,68,68,.6)!important; }
+        .auth-input.input-ok { border-color:rgba(16,185,129,.5); }
+        .policy-box { background:rgba(2,6,23,.42); border:1px solid rgba(255,255,255,.08); }
+        .pw-rule { display:flex; align-items:center; gap:6px; font-size:11px; color:#6b7280; transition:color .2s; }
+        .pw-rule.pass { color:#10b981; }
+        .pw-rule .dot-rule { width:7px; height:7px; border-radius:50%; background:#374151; transition:background .2s; flex-shrink:0; }
+        .pw-rule.pass .dot-rule { background:#10b981; }
+        #register-btn:disabled, #login-btn:disabled { opacity:.4; cursor:not-allowed; }
+        .eye-btn { position:absolute; right:14px; top:50%; transform:translateY(-50%); background:none; border:none; color:#6b7280; cursor:pointer; padding:0; line-height:1; transition:color .2s; }
+        .eye-btn:hover { color:#9ca3af; }
+        .input-wrap { position:relative; }
+        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+        .shake { animation:shake .3s ease; }
+
+        /* 모달 */
+        .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); z-index:50; display:flex; align-items:center; justify-content:center; }
+        .modal-box { background:#1e293b; border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:32px; width:100%; max-width:420px; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+        .modal-box { animation:fadeIn .25s ease; }
+
+        /* 인증 버튼 */
+        .verify-btn { background:rgba(59,130,246,.15); border:1px solid rgba(59,130,246,.3); color:#93c5fd; border-radius:8px; padding:0 12px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; transition:all .2s; height:46px; }
+        .verify-btn:hover { background:rgba(59,130,246,.25); }
+        .verify-btn:disabled { opacity:.4; cursor:not-allowed; }
+        .verify-btn.verified { background:rgba(16,185,129,.15); border-color:rgba(16,185,129,.3); color:#6ee7b7; cursor:default; }
     </style>
 </head>
 
 <body class="text-gray-100 min-h-screen flex items-center justify-center p-4">
-    <div class="w-full max-w-md glass-card rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-        <!-- Background Blur Accents -->
-        <div class="absolute -right-16 -top-16 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div class="absolute -left-16 -bottom-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-3xl"></div>
+<div class="w-full max-w-md glass-card rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+    <div class="absolute -right-16 -top-16 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute -left-16 -bottom-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-3xl"></div>
 
-        <div class="relative z-10 flex flex-col items-center">
-            <!-- Logo / Brand -->
-            <div class="flex items-center gap-2 mb-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-                <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Picadilly Studio</span>
-            </div>
-            <h1 class="text-2xl font-black text-white mb-6">Đăng nhập nhân viên</h1>
+    <div class="relative z-10 flex flex-col items-center">
+        <div class="flex items-center gap-2 mb-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+            <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Picadilly Studio</span>
+        </div>
+        <h1 class="text-2xl font-black text-white mb-6">직원 로그인</h1>
 
-            <div class="grid grid-cols-2 gap-2 w-full mb-6">
-                <button id="tab-login" onclick="showAuthMode('login')" class="auth-tab active rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">로그인</button>
-                <button id="tab-register" onclick="showAuthMode('register')" class="auth-tab rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">회원가입 신청</button>
-            </div>
+        <div class="grid grid-cols-2 gap-2 w-full mb-6">
+            <button id="tab-login" onclick="showAuthMode('login')" class="auth-tab active rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">로그인</button>
+            <button id="tab-register" onclick="showAuthMode('register')" class="auth-tab rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">회원가입 신청</button>
+        </div>
 
-            <!-- Step 1: Email Selection -->
-            <div id="login-panel" class="w-full">
-                <div id="step-email" class="w-full flex flex-col gap-4">
-                    <label class="text-sm font-semibold text-gray-400">Vui lòng chọn Email</label>
-                    <div id="email-list" class="max-h-60 overflow-y-auto pr-1 flex flex-col gap-2">
-                        <!-- Loading skeleton -->
-                        <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
-                        <div class="animate-pulse bg-white/5 h-12 rounded-xl"></div>
-                    </div>
+        <!-- ===== 로그인 패널 ===== -->
+        <div id="login-panel" class="w-full">
+            <div class="flex flex-col gap-4">
+                <div class="input-wrap">
+                    <input id="login-email" type="email" class="auth-input w-full rounded-xl px-4 py-3 text-sm"
+                        placeholder="이메일 주소 / Email"
+                        oninput="checkLoginBtn()"
+                        onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
                 </div>
-
-                <!-- Step 2: PIN Input -->
-                <div id="step-pin" class="w-full hidden flex flex-col items-center">
-                    <!-- Selected User Back Button -->
-                    <button onclick="backToEmail()" class="self-start text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-1 mb-4 transition">
-                        ← Chọn Email khác
+                <div class="input-wrap">
+                    <input id="login-password" type="password" class="auth-input w-full rounded-xl px-4 py-3 text-sm pr-10"
+                        placeholder="비밀번호 / Password"
+                        oninput="checkLoginBtn()"
+                        onkeydown="if(event.key==='Enter') submitLogin()">
+                    <button class="eye-btn" onclick="toggleVisibility('login-password',this)" tabindex="-1" type="button">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
-
-                    <span id="selected-email" class="text-sm font-bold text-blue-400 mb-6 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full"></span>
-
-                    <!-- Display Dots -->
-                    <div class="flex gap-4 mb-8">
-                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                        <div class="dot w-3.5 h-3.5 rounded-full bg-white/10 border border-white/5"></div>
-                    </div>
-
-                    <!-- Error Message -->
-                    <div id="error-msg" class="text-red-400 text-xs font-semibold h-4 mb-4 text-center"></div>
-
-                    <!-- Numeric Keypad Grid -->
-                    <div class="grid grid-cols-3 gap-3 w-full max-w-[280px]">
-                        <button onclick="pressKey('1')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">1</button>
-                        <button onclick="pressKey('2')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">2</button>
-                        <button onclick="pressKey('3')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">3</button>
-                        <button onclick="pressKey('4')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">4</button>
-                        <button onclick="pressKey('5')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">5</button>
-                        <button onclick="pressKey('6')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">6</button>
-                        <button onclick="pressKey('7')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">7</button>
-                        <button onclick="pressKey('8')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">8</button>
-                        <button onclick="pressKey('9')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">9</button>
-                        <button onclick="pressKey('clear')" class="key-btn aspect-square rounded-2xl text-xs font-semibold flex items-center justify-center text-gray-400">Đặt lại</button>
-                        <button onclick="pressKey('0')" class="key-btn aspect-square rounded-2xl text-xl font-bold flex items-center justify-center">0</button>
-                        <button onclick="pressKey('backspace')" class="key-btn aspect-square rounded-2xl text-lg flex items-center justify-center">⌫</button>
-                    </div>
                 </div>
-            </div>
 
-            <div id="register-panel" class="w-full hidden">
-                <div class="space-y-3">
-                    <input id="reg-name" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="이름 / Full name">
-                    <input id="reg-contact" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="연락처 / Phone, Zalo, Kakao">
-                    <input id="reg-email" type="email" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="이메일 주소 / Email">
-                    <input id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="국가 / Country">
-                    <input id="reg-referral" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60" placeholder="추천인 코드 / Referral Code (선택)">
+                <div id="login-error" class="text-red-400 text-xs font-semibold text-center min-h-4"></div>
 
-                    <div class="policy-box rounded-xl p-4 space-y-3">
-                        <div id="label-category-preference" class="text-xs font-bold text-gray-300">선호 영상 카테고리 (최소 1개 선택)</div>
-                        <div id="signup-category-list" class="grid grid-cols-1 gap-2">
-                            <div class="text-xs text-gray-500">카테고리 불러오는 중...</div>
-                        </div>
-                    </div>
+                <button id="login-btn" onclick="submitLogin()" disabled
+                    class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">
+                    로그인
+                </button>
 
-                    <div class="space-y-2">
-                        <label id="label-duration-preference" for="reg-video-length" class="block text-xs font-bold text-gray-300">선호 영상 길이</label>
-                        <select id="reg-video-length" class="auth-input w-full rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/60">
-                            <option value="">선호 영상 길이 선택</option>
-                        </select>
-                    </div>
-
-                    <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
-                        <summary class="cursor-pointer text-blue-300 font-bold">서비스 이용약관 보기</summary>
-                        <p class="mt-3">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다. 완료 수당은 어드민 검수 및 승인된 작업 기준으로 정산됩니다.</p>
-                    </details>
-                    <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
-                        <summary class="cursor-pointer text-blue-300 font-bold">개인정보처리방침 보기</summary>
-                        <p class="mt-3">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용되며 관리자가 승인 여부를 판단할 때 확인합니다.</p>
-                    </details>
-
-                    <label class="flex items-start gap-3 text-xs text-gray-300">
-                        <input id="reg-terms" type="checkbox" class="mt-1">
-                        <span>서비스 이용약관에 동의합니다.</span>
-                    </label>
-                    <label class="flex items-start gap-3 text-xs text-gray-300">
-                        <input id="reg-privacy" type="checkbox" class="mt-1">
-                        <span>개인정보 수집 및 이용에 동의합니다.</span>
-                    </label>
-                    <button id="register-btn" onclick="submitRegister()" class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">회원가입 신청</button>
-                    <div id="register-msg" class="min-h-5 text-center text-xs font-bold"></div>
+                <!-- 비밀번호 찾기 -->
+                <div class="text-center">
+                    <button onclick="openForgotModal()" class="text-xs text-gray-500 hover:text-blue-400 transition underline underline-offset-2">
+                        비밀번호를 잊으셨나요?
+                    </button>
                 </div>
             </div>
         </div>
+
+        <!-- ===== 회원가입 패널 ===== -->
+        <div id="register-panel" class="w-full hidden">
+            <div class="space-y-3">
+                <input id="reg-name" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="이름 / Full name" oninput="checkRegisterBtn()">
+                <input id="reg-contact" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="연락처 / Phone, Zalo, Kakao" oninput="checkRegisterBtn()">
+
+                <!-- 이메일 + 인증 -->
+                <div class="flex gap-2">
+                    <input id="reg-email" type="email" class="auth-input flex-1 rounded-xl px-4 py-3 text-sm" placeholder="이메일 주소 / Email"
+                        oninput="onEmailInput()">
+                    <button id="verify-send-btn" class="verify-btn" onclick="sendVerifyCode()" disabled>인증 발송</button>
+                </div>
+                <!-- 인증 코드 입력 (발송 후 표시) -->
+                <div id="verify-code-wrap" class="hidden flex gap-2">
+                    <input id="reg-verify-code" class="auth-input flex-1 rounded-xl px-4 py-3 text-sm tracking-widest" placeholder="인증 코드 6자리"
+                        maxlength="6" oninput="this.value=this.value.replace(/\D/g,'')">
+                    <button id="verify-check-btn" class="verify-btn" onclick="checkVerifyCode()">확인</button>
+                </div>
+                <div id="verify-msg" class="text-xs font-semibold min-h-4 px-1"></div>
+
+                <input id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="국가 / Country" oninput="checkRegisterBtn()">
+
+                <!-- 비밀번호 -->
+                <div class="input-wrap">
+                    <input id="reg-password" type="password" class="auth-input w-full rounded-xl px-4 py-3 text-sm pr-10"
+                        placeholder="비밀번호 / Password" oninput="onPasswordInput()">
+                    <button class="eye-btn" onclick="toggleVisibility('reg-password',this)" tabindex="-1" type="button">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
+                <div id="pw-rules" class="policy-box rounded-xl px-4 py-3 space-y-1.5">
+                    <div class="pw-rule" id="rule-length"><span class="dot-rule"></span>8자리 이상</div>
+                    <div class="pw-rule" id="rule-upper"><span class="dot-rule"></span>대문자 포함</div>
+                    <div class="pw-rule" id="rule-lower"><span class="dot-rule"></span>소문자 포함</div>
+                    <div class="pw-rule" id="rule-number"><span class="dot-rule"></span>숫자 포함</div>
+                    <div class="pw-rule" id="rule-special"><span class="dot-rule"></span>특수문자 포함</div>
+                </div>
+                <div class="input-wrap">
+                    <input id="reg-password-confirm" type="password" class="auth-input w-full rounded-xl px-4 py-3 text-sm pr-10"
+                        placeholder="비밀번호 확인 / Confirm Password" oninput="onPasswordConfirmInput()">
+                    <button class="eye-btn" onclick="toggleVisibility('reg-password-confirm',this)" tabindex="-1" type="button">
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
+                <div id="pw-confirm-msg" class="text-xs font-semibold min-h-4 -mt-1 px-1"></div>
+
+                <input id="reg-referral" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="추천인 코드 / Referral Code (선택)">
+
+                <div class="policy-box rounded-xl p-4 space-y-3">
+                    <div class="text-xs font-bold text-gray-300">선호 영상 카테고리 (최소 1개 선택)</div>
+                    <div id="signup-category-list" class="grid grid-cols-1 gap-2">
+                        <div class="text-xs text-gray-500">카테고리 불러오는 중...</div>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label for="reg-video-length" class="block text-xs font-bold text-gray-300">선호 영상 길이</label>
+                    <select id="reg-video-length" class="auth-input w-full rounded-xl px-4 py-3 text-sm" onchange="checkRegisterBtn()">
+                        <option value="">선호 영상 길이 선택</option>
+                    </select>
+                </div>
+
+                <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
+                    <summary class="cursor-pointer text-blue-300 font-bold">► 서비스 이용약관 보기</summary>
+                    <p class="mt-3">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.</p>
+                </details>
+                <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
+                    <summary class="cursor-pointer text-blue-300 font-bold">► 개인정보처리방침 보기</summary>
+                    <p class="mt-3">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용됩니다.</p>
+                </details>
+
+                <label class="flex items-start gap-3 text-xs text-gray-300">
+                    <input id="reg-terms" type="checkbox" class="mt-1" onchange="checkRegisterBtn()">
+                    <span>서비스 이용약관에 동의합니다.</span>
+                </label>
+                <label class="flex items-start gap-3 text-xs text-gray-300">
+                    <input id="reg-privacy" type="checkbox" class="mt-1" onchange="checkRegisterBtn()">
+                    <span>개인정보 수집 및 이용에 동의합니다.</span>
+                </label>
+
+                <button id="register-btn" onclick="submitRegister()" disabled
+                    class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">
+                    회원가입 신청
+                </button>
+                <div id="register-msg" class="min-h-5 text-center text-xs font-bold"></div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <script>
-        let currentEmail = '';
-        let currentPin = '';
-        let signupCategories = [];
-        let signupDurationOptions = [];
+<!-- ===== 비밀번호 찾기 모달 ===== -->
+<div id="forgot-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeForgotModal()">
+    <div class="modal-box">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-black text-white">비밀번호 찾기</h2>
+            <button onclick="closeForgotModal()" class="text-gray-500 hover:text-white transition text-xl leading-none">✕</button>
+        </div>
+        <p class="text-xs text-gray-400 mb-5 leading-relaxed">
+            가입 시 등록한 이메일 주소를 입력하면<br>
+            임시 비밀번호를 발송해 드립니다.
+        </p>
+        <div class="input-wrap mb-4">
+            <input id="forgot-email" type="email" class="auth-input w-full rounded-xl px-4 py-3 text-sm"
+                placeholder="이메일 주소 / Email"
+                oninput="document.getElementById('forgot-send-btn').disabled=!this.value.trim()"
+                onkeydown="if(event.key==='Enter') submitForgotPassword()">
+        </div>
+        <div id="forgot-msg" class="text-xs font-semibold text-center min-h-5 mb-4"></div>
+        <button id="forgot-send-btn" onclick="submitForgotPassword()" disabled
+            class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">
+            임시 비밀번호 발송
+        </button>
+    </div>
+</div>
 
-        // Load emails on start
-        window.addEventListener('DOMContentLoaded', () => {
-            loadEmails();
-            loadSignupOptions();
-        });
+<script>
+    let signupCategories = [], signupDurationOptions = [];
+    let pwValid = false, pwConfirmValid = false, emailVerified = false;
+    let verifyCountdown = null;
 
-        function showAuthMode(mode) {
-            const loginMode = mode === 'login';
-            document.getElementById('login-panel').classList.toggle('hidden', !loginMode);
-            document.getElementById('register-panel').classList.toggle('hidden', loginMode);
-            document.getElementById('tab-login').classList.toggle('active', loginMode);
-            document.getElementById('tab-register').classList.toggle('active', !loginMode);
-            document.getElementById('register-msg').textContent = '';
-        }
+    window.addEventListener('DOMContentLoaded', () => { loadSignupOptions(); });
 
-        async function loadEmails() {
-            try {
-                const response = await fetch('/api/auth/emails');
-                const data = await response.json();
-                const container = document.getElementById('email-list');
-                container.innerHTML = '';
+    function showAuthMode(mode) {
+        const isLogin = mode === 'login';
+        document.getElementById('login-panel').classList.toggle('hidden', !isLogin);
+        document.getElementById('register-panel').classList.toggle('hidden', isLogin);
+        document.getElementById('tab-login').classList.toggle('active', isLogin);
+        document.getElementById('tab-register').classList.toggle('active', !isLogin);
+        document.getElementById('register-msg').textContent = '';
+        document.getElementById('login-error').textContent = '';
+    }
 
-                if (data.emails && data.emails.length > 0) {
-                    data.emails.forEach(email => {
-                        const btn = document.createElement('button');
-                        btn.className = 'w-full text-left px-5 py-4 rounded-xl border border-white/5 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/30 transition duration-200 font-semibold text-sm flex justify-between items-center group active:scale-[0.99]';
-                        btn.innerHTML = `
-                            <span>${email}</span>
-                            <span class="text-xs text-gray-500 group-hover:text-blue-400 transition">Chọn →</span>
-                        `;
-                        btn.onclick = () => selectEmail(email);
-                        container.appendChild(btn);
-                    });
-                } else {
-                    container.innerHTML = '<div class="text-center text-xs text-gray-500 py-6">Không có email nào được đăng ký.</div>';
-                }
-            } catch (e) {
-                console.error(e);
-                document.getElementById('email-list').innerHTML = '<div class="text-center text-xs text-red-400 py-6">Không thể lấy danh sách email.</div>';
+    // ===== 로그인 =====
+    function checkLoginBtn() {
+        const email = document.getElementById('login-email').value.trim();
+        const pass = document.getElementById('login-password').value.trim();
+        document.getElementById('login-btn').disabled = !(email && pass);
+    }
+
+    async function submitLogin() {
+        const btn = document.getElementById('login-btn');
+        const errEl = document.getElementById('login-error');
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        if (!email || !password) return;
+        errEl.textContent = '';
+        btn.disabled = true;
+        btn.textContent = '로그인 중...';
+        try {
+            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password}) });
+            const data = await r.json();
+            if (data.success) { window.location.href = '/'; }
+            else {
+                errEl.textContent = data.error || '로그인 실패';
+                const panel = document.getElementById('login-panel');
+                panel.classList.add('shake');
+                setTimeout(() => panel.classList.remove('shake'), 400);
+                btn.disabled = false;
+                btn.textContent = '로그인';
             }
+        } catch(e) {
+            errEl.textContent = '서버 연결 실패.';
+            btn.disabled = false;
+            btn.textContent = '로그인';
         }
+    }
 
-        function renderSignupCategories() {
-            const container = document.getElementById('signup-category-list');
-            if (!container) return;
+    // ===== 비밀번호 찾기 모달 =====
+    function openForgotModal() {
+        document.getElementById('forgot-modal').classList.remove('hidden');
+        document.getElementById('forgot-email').value = document.getElementById('login-email').value;
+        document.getElementById('forgot-msg').textContent = '';
+        document.getElementById('forgot-msg').className = 'text-xs font-semibold text-center min-h-5 mb-4';
+        document.getElementById('forgot-send-btn').disabled = !document.getElementById('forgot-email').value.trim();
+        setTimeout(() => document.getElementById('forgot-email').focus(), 100);
+    }
 
-            if (!signupCategories.length) {
-                container.innerHTML = '<div class="text-xs text-gray-500">현재 선택 가능한 카테고리가 없습니다.</div>';
-                return;
-            }
+    function closeForgotModal() {
+        document.getElementById('forgot-modal').classList.add('hidden');
+    }
 
-            container.innerHTML = signupCategories.map((category) => {
-                const typeLabel = category.video_type === 'shorts'
-                    ? '쇼츠'
-                    : category.video_type === 'longform_music'
-                        ? '뮤직'
-                        : '롱폼';
-                return `
-                    <label class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-200">
-                        <input type="checkbox" name="reg-category" value="${category.id}" class="mt-0.5">
-                        <span class="flex-1">
-                            <span class="block font-bold text-white">${category.name}</span>
-                            <span class="block mt-1 text-[10px] text-gray-500 uppercase tracking-wider">${typeLabel}</span>
-                        </span>
-                    </label>
-                `;
-            }).join('');
-        }
-
-        function renderSignupDurationOptions() {
-            const select = document.getElementById('reg-video-length');
-            if (!select) return;
-            const currentValue = select.value;
-            select.innerHTML = [
-                '<option value="">선호 영상 길이 선택</option>',
-                ...signupDurationOptions.map((option) => `<option value="${option.value}">${option.label}</option>`)
-            ].join('');
-            if (currentValue) select.value = currentValue;
-        }
-
-        async function loadSignupOptions() {
-            const container = document.getElementById('signup-category-list');
-            if (container) {
-                container.innerHTML = '<div class="text-xs text-gray-500">카테고리 불러오는 중...</div>';
-            }
-
-            try {
-                const response = await fetch('/api/auth/signup-options');
-                const data = await response.json();
-                signupCategories = Array.isArray(data.categories) ? data.categories : [];
-                signupDurationOptions = Array.isArray(data.duration_options) ? data.duration_options : [];
-            } catch (e) {
-                signupCategories = [];
-                signupDurationOptions = [];
-            }
-
-            renderSignupCategories();
-            renderSignupDurationOptions();
-        }
-
-        function selectEmail(email) {
-            currentEmail = email;
-            document.getElementById('selected-email').textContent = email;
-            document.getElementById('step-email').classList.add('hidden');
-            document.getElementById('step-pin').classList.remove('hidden');
-            currentPin = '';
-            updateDots();
-        }
-
-        function backToEmail() {
-            currentEmail = '';
-            currentPin = '';
-            document.getElementById('error-msg').textContent = '';
-            document.getElementById('step-pin').classList.add('hidden');
-            document.getElementById('step-email').classList.remove('hidden');
-        }
-
-        function pressKey(key) {
-            document.getElementById('error-msg').textContent = '';
-            
-            if (key === 'clear') {
-                currentPin = '';
-            } else if (key === 'backspace') {
-                currentPin = currentPin.slice(0, -1);
+    async function submitForgotPassword() {
+        const btn = document.getElementById('forgot-send-btn');
+        const msgEl = document.getElementById('forgot-msg');
+        const email = document.getElementById('forgot-email').value.trim();
+        if (!email) return;
+        btn.disabled = true;
+        btn.textContent = '발송 중...';
+        msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-gray-400';
+        msgEl.textContent = '이메일 발송 중...';
+        try {
+            const r = await fetch('/api/auth/forgot-password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email}) });
+            const data = await r.json();
+            if (data.success) {
+                msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-emerald-400';
+                msgEl.textContent = '✓ ' + (data.message || '임시 비밀번호를 발송했습니다.');
+                btn.textContent = '발송 완료';
+                setTimeout(() => closeForgotModal(), 3000);
             } else {
-                if (currentPin.length < 4) {
-                    currentPin += key;
-                }
+                msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-red-400';
+                msgEl.textContent = data.error || '발송 실패';
+                btn.disabled = false;
+                btn.textContent = '임시 비밀번호 발송';
             }
-
-            updateDots();
-
-            if (currentPin.length === 4) {
-                // Auto trigger login when 4 digits are typed
-                submitLogin();
-            }
+        } catch(e) {
+            msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-red-400';
+            msgEl.textContent = '서버 연결 실패.';
+            btn.disabled = false;
+            btn.textContent = '임시 비밀번호 발송';
         }
+    }
 
-        function updateDots() {
-            const dots = document.querySelectorAll('.dot');
-            dots.forEach((dot, idx) => {
-                if (idx < currentPin.length) {
-                    dot.classList.add('filled');
-                } else {
-                    dot.classList.remove('filled');
-                }
-            });
+    // ===== 이메일 인증 =====
+    function onEmailInput() {
+        const email = document.getElementById('reg-email').value.trim();
+        const hasAt = email.includes('@') && email.includes('.');
+        document.getElementById('verify-send-btn').disabled = !hasAt;
+        // 이메일 변경 시 인증 초기화
+        if (emailVerified) {
+            emailVerified = false;
+            document.getElementById('verify-send-btn').className = 'verify-btn';
+            document.getElementById('verify-send-btn').textContent = '인증 발송';
+            document.getElementById('verify-code-wrap').classList.add('hidden');
+            document.getElementById('verify-msg').textContent = '';
         }
+        checkRegisterBtn();
+    }
 
-        async function submitLogin() {
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentEmail, pin_code: currentPin })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    // Success, redirect to home
-                    window.location.href = '/';
-                } else {
-                    document.getElementById('error-msg').textContent = data.error || 'Đăng nhập thất bại';
-                    // Shake and clear pin code
-                    currentPin = '';
-                    setTimeout(updateDots, 300);
-                }
-            } catch (e) {
-                console.error(e);
-                document.getElementById('error-msg').textContent = 'Kết nối máy chủ thất bại.';
-                currentPin = '';
-                setTimeout(updateDots, 300);
-            }
-        }
-
-        async function submitRegister() {
-            const btn = document.getElementById('register-btn');
-            const msg = document.getElementById('register-msg');
-            const selectedCategoryIds = Array.from(document.querySelectorAll('input[name="reg-category"]:checked')).map((el) => el.value);
-            const preferredVideoLength = document.getElementById('reg-video-length').value;
-            msg.className = 'min-h-5 text-center text-xs font-bold text-gray-400';
-
-            if (selectedCategoryIds.length === 0) {
-                msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
-                msg.textContent = '선호 카테고리를 최소 1개 선택해주세요.';
-                return;
-            }
-            if (!preferredVideoLength) {
-                msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
-                msg.textContent = '선호 영상 길이를 선택해주세요.';
-                return;
-            }
-
-            msg.textContent = '신청 중...';
-            btn.disabled = true;
-
-            try {
-                const response = await fetch('/api/auth/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        full_name: document.getElementById('reg-name').value,
-                        contact: document.getElementById('reg-contact').value,
-                        email: document.getElementById('reg-email').value,
-                        nationality: document.getElementById('reg-country').value,
-                        referral_code: document.getElementById('reg-referral').value,
-                        preferred_category_ids: selectedCategoryIds,
-                        preferred_video_length: preferredVideoLength,
-                        terms_accepted: document.getElementById('reg-terms').checked,
-                        privacy_accepted: document.getElementById('reg-privacy').checked
-                    })
-                });
-                const data = await response.json();
-                if (!data.success) throw new Error(data.error || '가입 신청 실패');
-
-                msg.className = 'min-h-5 text-center text-xs font-bold text-emerald-400';
-                msg.textContent = '가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.';
-                ['reg-name', 'reg-contact', 'reg-email', 'reg-country', 'reg-referral'].forEach(id => document.getElementById(id).value = '');
-                document.getElementById('reg-terms').checked = false;
-                document.getElementById('reg-privacy').checked = false;
-                document.querySelectorAll('input[name="reg-category"]').forEach((el) => { el.checked = false; });
-                document.getElementById('reg-video-length').value = '';
-                await loadEmails();
-            } catch (e) {
-                msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
-                msg.textContent = e.message || '가입 신청 실패';
-            } finally {
+    async function sendVerifyCode() {
+        const btn = document.getElementById('verify-send-btn');
+        const msgEl = document.getElementById('verify-msg');
+        const email = document.getElementById('reg-email').value.trim();
+        btn.disabled = true;
+        msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-gray-400';
+        msgEl.textContent = '발송 중...';
+        try {
+            const r = await fetch('/api/auth/send-verify-code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email}) });
+            const data = await r.json();
+            if (data.success) {
+                document.getElementById('verify-code-wrap').classList.remove('hidden');
+                msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-blue-400';
+                msgEl.textContent = '✉ 인증 코드를 발송했습니다. 이메일을 확인해주세요.';
+                startVerifyCountdown(btn, 60);
+            } else {
+                msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
+                msgEl.textContent = data.error || '발송 실패';
                 btn.disabled = false;
             }
+        } catch(e) {
+            msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
+            msgEl.textContent = '서버 연결 실패.';
+            btn.disabled = false;
         }
-    </script>
-</body>
+    }
 
+    function startVerifyCountdown(btn, sec) {
+        if (verifyCountdown) clearInterval(verifyCountdown);
+        btn.textContent = `재전송 (${sec}초)`;
+        verifyCountdown = setInterval(() => {
+            sec--;
+            if (sec <= 0) {
+                clearInterval(verifyCountdown);
+                btn.textContent = '재전송';
+                btn.disabled = false;
+            } else {
+                btn.textContent = `재전송 (${sec}초)`;
+            }
+        }, 1000);
+    }
+
+    async function checkVerifyCode() {
+        const checkBtn = document.getElementById('verify-check-btn');
+        const msgEl = document.getElementById('verify-msg');
+        const email = document.getElementById('reg-email').value.trim();
+        const code = document.getElementById('reg-verify-code').value.trim();
+        if (!code) return;
+        checkBtn.disabled = true;
+        try {
+            const r = await fetch('/api/auth/verify-code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, code}) });
+            const data = await r.json();
+            if (data.success) {
+                emailVerified = true;
+                msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-emerald-400';
+                msgEl.textContent = '✓ 이메일 인증이 완료되었습니다.';
+                document.getElementById('verify-code-wrap').classList.add('hidden');
+                const sendBtn = document.getElementById('verify-send-btn');
+                sendBtn.textContent = '✓ 인증완료';
+                sendBtn.className = 'verify-btn verified';
+                sendBtn.disabled = true;
+                if (verifyCountdown) clearInterval(verifyCountdown);
+                checkRegisterBtn();
+            } else {
+                msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
+                msgEl.textContent = data.error || '인증 실패';
+                checkBtn.disabled = false;
+            }
+        } catch(e) {
+            msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
+            msgEl.textContent = '서버 연결 실패.';
+            checkBtn.disabled = false;
+        }
+    }
+
+    // ===== 비밀번호 유효성 =====
+    function toggleVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        btn.innerHTML = isHidden
+            ? `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+            : `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    }
+
+    function onPasswordInput() {
+        const val = document.getElementById('reg-password').value;
+        const rules = {
+            'rule-length': val.length >= 8,
+            'rule-upper': /[A-Z]/.test(val),
+            'rule-lower': /[a-z]/.test(val),
+            'rule-number': /\d/.test(val),
+            'rule-special': /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
+        };
+        let allPass = true;
+        for (const [id, pass] of Object.entries(rules)) {
+            document.getElementById(id).classList.toggle('pass', pass);
+            if (!pass) allPass = false;
+        }
+        pwValid = allPass;
+        const input = document.getElementById('reg-password');
+        input.classList.toggle('input-ok', val.length > 0 && allPass);
+        input.classList.toggle('input-error', val.length > 0 && !allPass);
+        onPasswordConfirmInput();
+        checkRegisterBtn();
+    }
+
+    function onPasswordConfirmInput() {
+        const pw = document.getElementById('reg-password').value;
+        const confirm = document.getElementById('reg-password-confirm').value;
+        const msgEl = document.getElementById('pw-confirm-msg');
+        const confirmInput = document.getElementById('reg-password-confirm');
+        if (!confirm) {
+            msgEl.textContent = '';
+            confirmInput.classList.remove('input-ok','input-error');
+            pwConfirmValid = false;
+        } else if (pw === confirm) {
+            msgEl.textContent = '✓ 비밀번호가 일치합니다.';
+            msgEl.className = 'text-xs font-semibold min-h-4 -mt-1 px-1 text-emerald-400';
+            confirmInput.classList.add('input-ok'); confirmInput.classList.remove('input-error');
+            pwConfirmValid = true;
+        } else {
+            msgEl.textContent = '✗ 비밀번호가 일치하지 않습니다.';
+            msgEl.className = 'text-xs font-semibold min-h-4 -mt-1 px-1 text-red-400';
+            confirmInput.classList.add('input-error'); confirmInput.classList.remove('input-ok');
+            pwConfirmValid = false;
+        }
+        checkRegisterBtn();
+    }
+
+    // ===== 회원가입 버튼 활성화 조건 =====
+    function checkRegisterBtn() {
+        const name = document.getElementById('reg-name').value.trim();
+        const contact = document.getElementById('reg-contact').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const country = document.getElementById('reg-country').value.trim();
+        const videoLength = document.getElementById('reg-video-length').value;
+        const terms = document.getElementById('reg-terms').checked;
+        const privacy = document.getElementById('reg-privacy').checked;
+        const categoryChecked = document.querySelectorAll('input[name="reg-category"]:checked').length > 0;
+        const allOk = name && contact && email && emailVerified && country && pwValid && pwConfirmValid && videoLength && terms && privacy && categoryChecked;
+        document.getElementById('register-btn').disabled = !allOk;
+    }
+
+    // ===== 회원가입 제출 =====
+    async function submitRegister() {
+        const btn = document.getElementById('register-btn');
+        const msg = document.getElementById('register-msg');
+        const selectedCategoryIds = Array.from(document.querySelectorAll('input[name="reg-category"]:checked')).map(el => el.value);
+        msg.className = 'min-h-5 text-center text-xs font-bold text-gray-400';
+        msg.textContent = '신청 중...';
+        btn.disabled = true;
+        try {
+            const r = await fetch('/api/auth/register', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    full_name: document.getElementById('reg-name').value,
+                    contact: document.getElementById('reg-contact').value,
+                    email: document.getElementById('reg-email').value,
+                    nationality: document.getElementById('reg-country').value,
+                    password: document.getElementById('reg-password').value,
+                    referral_code: document.getElementById('reg-referral').value,
+                    preferred_category_ids: selectedCategoryIds,
+                    preferred_video_length: document.getElementById('reg-video-length').value,
+                    terms_accepted: document.getElementById('reg-terms').checked,
+                    privacy_accepted: document.getElementById('reg-privacy').checked
+                })
+            });
+            const data = await r.json();
+            if (!data.success) throw new Error(data.error || '가입 신청 실패');
+            msg.className = 'min-h-5 text-center text-xs font-bold text-emerald-400';
+            msg.textContent = '가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.';
+            // 폼 초기화
+            ['reg-name','reg-contact','reg-email','reg-country','reg-referral','reg-password','reg-password-confirm'].forEach(id => {
+                const el = document.getElementById(id); if(el){el.value='';el.classList.remove('input-ok','input-error');}
+            });
+            document.getElementById('reg-terms').checked = false;
+            document.getElementById('reg-privacy').checked = false;
+            document.querySelectorAll('input[name="reg-category"]').forEach(el=>el.checked=false);
+            document.getElementById('reg-video-length').value = '';
+            document.getElementById('verify-msg').textContent = '';
+            document.getElementById('verify-code-wrap').classList.add('hidden');
+            document.getElementById('verify-send-btn').className = 'verify-btn';
+            document.getElementById('verify-send-btn').textContent = '인증 발송';
+            document.getElementById('pw-confirm-msg').textContent = '';
+            ['rule-length','rule-upper','rule-lower','rule-number','rule-special'].forEach(id=>document.getElementById(id).classList.remove('pass'));
+            pwValid = false; pwConfirmValid = false; emailVerified = false;
+            btn.disabled = true;
+        } catch(e) {
+            msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
+            msg.textContent = e.message || '가입 신청 실패';
+            btn.disabled = false;
+        }
+    }
+
+    // ===== 카테고리/옵션 =====
+    function renderSignupCategories() {
+        const container = document.getElementById('signup-category-list');
+        if (!signupCategories.length) { container.innerHTML='<div class="text-xs text-gray-500">현재 선택 가능한 카테고리가 없습니다.</div>'; return; }
+        container.innerHTML = signupCategories.map(c => {
+            const label = c.video_type==='shorts'?'쇼츠':c.video_type==='longform_music'?'뮤직':'롱폼';
+            return `<label class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-200 cursor-pointer hover:border-blue-500/30 transition">
+                <input type="checkbox" name="reg-category" value="${c.id}" class="mt-0.5" onchange="checkRegisterBtn()">
+                <span class="flex-1"><span class="block font-bold text-white">${c.name}</span><span class="block mt-1 text-[10px] text-gray-500 uppercase tracking-wider">${label}</span></span>
+            </label>`;
+        }).join('');
+    }
+
+    function renderSignupDurationOptions() {
+        const select = document.getElementById('reg-video-length');
+        select.innerHTML = ['<option value="">선호 영상 길이 선택</option>', ...signupDurationOptions.map(o=>`<option value="${o.value}">${o.label}</option>`)].join('');
+    }
+
+    async function loadSignupOptions() {
+        try {
+            const r = await fetch('/api/auth/signup-options');
+            const data = await r.json();
+            signupCategories = Array.isArray(data.categories)?data.categories:[];
+            signupDurationOptions = Array.isArray(data.duration_options)?data.duration_options:[];
+        } catch(e) { signupCategories=[]; signupDurationOptions=[]; }
+        renderSignupCategories();
+        renderSignupDurationOptions();
+    }
+</script>
+</body>
 </html>

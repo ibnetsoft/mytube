@@ -13,6 +13,31 @@ function toInt(value: any, fallback: number) {
     return Number.isFinite(parsed) ? parsed : fallback
 }
 
+// 앱이 지원하는 스타일 키 목록 (로컬 SQLite style_presets/script_style_presets와 동기화).
+// Next.js 라우트는 Supabase만 접근하므로 로컬 DB를 직접 읽을 수 없어 여기에 하드코딩한다.
+// script_plan.html / image_gen.html 의 스타일 옵션이 바뀌면 이 목록도 함께 갱신해야 한다.
+const SCRIPT_STYLE_KEYS = [
+    'default', 'news', 'story', 'senior_story', 'bgm',
+    'classic_50s', 'joseon_sageuk', 'north_korean_drama', 'silent_20s', 'camcorder_90s', 'modern_drama',
+    'mystery_thriller', 'horror_suspense', 'melodrama', 'crime_drama', 'cyberpunk_neon',
+    'k_manhwa', 'watercolor_analog', 'k_webtoon', 'graphite_sketch', 'joseon_2d_anime',
+    'oriental_ink', 'neonsign_citypop', 'buddhist_minimal', 'renaissance_sacred', 'cute_animal_char',
+    'nursery_rhyme'
+]
+
+const IMAGE_STYLE_KEYS = [
+    'realistic', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch',
+    'pixel_art', '3d', 'k_webtoon', 'ghibli', 'k_manhwa', 'minimal', 'nursery_rhyme'
+]
+
+const DEFAULT_SCRIPT_STYLE = 'default'
+const DEFAULT_IMAGE_STYLE = 'realistic'
+
+function pickValidStyle(value: any, allowed: string[], fallback: string): string {
+    const key = String(value ?? '').trim()
+    return allowed.includes(key) ? key : fallback
+}
+
 function clampDuration(value: any, minMinutes: number) {
     const parsed = toInt(value, minMinutes)
     return Math.max(minMinutes, Math.min(60, parsed))
@@ -45,6 +70,15 @@ function durationPreferenceBucket(minutes: number | null) {
     if (minutes <= 15) return '15m'
     if (minutes <= 30) return '30m'
     return '60m_plus'
+}
+
+// 유저의 preferred_video_length 버킷에 맞게 duration을 보정
+function adjustToBucket(duration: number, bucket: string, minMinutes: number): number {
+    if (!bucket) return duration
+    if (bucket === '15m') return Math.max(minMinutes, Math.min(15, duration))
+    if (bucket === '30m') return Math.max(minMinutes, Math.min(30, duration))
+    if (bucket === '60m_plus') return Math.max(Math.max(minMinutes, 30), Math.min(60, duration))
+    return duration
 }
 
 type PreferredWorker = {
@@ -88,19 +122,19 @@ async function loadPreferredWorkers(supabase: ReturnType<typeof getAdmin>): Prom
         })
 }
 
-function pickPreferredWorkerEmail(
+function pickPreferredWorker(
     workers: PreferredWorker[],
     fallbackEmail: string,
     categoryId: any,
     durationMinutes: number | null,
     isLongformCategory: boolean
-) {
+): PreferredWorker | null {
     const fallback = String(fallbackEmail || '').trim().toLowerCase()
     const targetCategoryId = String(categoryId ?? '').trim()
-    if (!targetCategoryId) return fallback
+    if (!targetCategoryId) return null
 
     const categoryMatched = workers.filter((worker) => worker.preferredCategoryIds.includes(targetCategoryId))
-    if (!categoryMatched.length) return fallback
+    if (!categoryMatched.length) return null
 
     const targetBucket = isLongformCategory ? durationPreferenceBucket(durationMinutes) : ''
     const ranked = [...categoryMatched].sort((a, b) => {
@@ -125,7 +159,7 @@ function pickPreferredWorkerEmail(
         return a.email.localeCompare(b.email)
     })
 
-    return ranked[0]?.email || fallback
+    return ranked[0] || null
 }
 
 function normalizeTopicQueueRow(topic: any) {
@@ -301,25 +335,39 @@ export async function POST(req: Request) {
         - Use 20-25 minutes for normal narrative/explainer topics.
         - Use 30-40 minutes only for complex history, multi-case, deep-investigation, or documentary topics.
         - Do not choose a duration just to increase pay; choose based on natural content depth.
-        Return a JSON list of objects with keys: topic, recommended_duration_minutes, difficulty_level, duration_reason.
         ` : ''}
+
+        STYLE SELECTION (REQUIRED for every topic):
+        - For each topic, also choose the BEST matching script_style and image_style for that specific topic.
+        - script_style MUST be exactly one of: ${SCRIPT_STYLE_KEYS.join(', ')}.
+        - image_style MUST be exactly one of: ${IMAGE_STYLE_KEYS.join(', ')}.
+        - Choose styles that fit the topic's mood, era, and genre (e.g. horror/thriller topics -> mystery_thriller/horror_suspense + cinematic; Joseon-era history -> joseon_sageuk + oriental_ink; children's content -> nursery_rhyme + nursery_rhyme; modern news/economy -> news + realistic).
+        - If unsure, use "${DEFAULT_SCRIPT_STYLE}" for script_style and "${DEFAULT_IMAGE_STYLE}" for image_style.
+        - Use ONLY the exact keys from the lists above. Never invent new style keys.
 
         Provide the output in Korean as JSON, with absolutely no markdown formatting.
         ${isLongformCategory ? `
+        Return a JSON list of objects with keys: topic, recommended_duration_minutes, difficulty_level, duration_reason, script_style, image_style.
         Example output format:
         [
           {
             "topic": "첫 번째 실제 동영상 주제",
             "recommended_duration_minutes": 20,
             "difficulty_level": "normal",
-            "duration_reason": "스토리의 깊이와 역사적 배경 설명이 필요한 주제"
+            "duration_reason": "스토리의 깊이와 역사적 배경 설명이 필요한 주제",
+            "script_style": "story",
+            "image_style": "cinematic"
           }
         ]
         ` : `
+        Return a JSON list of objects with keys: topic, script_style, image_style.
         Example output format:
         [
-          "첫 번째 실제 동영상 주제",
-          "두 번째 실제 동영상 주제"
+          {
+            "topic": "첫 번째 실제 동영상 주제",
+            "script_style": "default",
+            "image_style": "realistic"
+          }
         ]
         `}
         `
@@ -342,23 +390,45 @@ export async function POST(req: Request) {
         // 4. Supabase topics_queue 에 적재
         const inserts = topics.map(item => {
             const topic = typeof item === 'string' ? item : item?.topic
-            const assignedDuration = isLongformCategory
+            const geminiDuration = isLongformCategory
                 ? clampDuration(item?.recommended_duration_minutes, minDurationMinutes)
                 : null
-            const estimatedPayout = assignedDuration
-                ? payoutForMinutes(assignedDuration, minDurationMinutes, basePayout, extraMinutePayout)
-                : null
-            const assignedEmployeeEmail = pickPreferredWorkerEmail(
+
+            // AI가 주제에 맞게 고른 스타일 (허용 목록 검증 + 기본값 fallback)
+            const assignedScriptStyle = pickValidStyle(
+                typeof item === 'string' ? null : item?.script_style,
+                SCRIPT_STYLE_KEYS,
+                DEFAULT_SCRIPT_STYLE
+            )
+            const assignedImageStyle = pickValidStyle(
+                typeof item === 'string' ? null : item?.image_style,
+                IMAGE_STYLE_KEYS,
+                DEFAULT_IMAGE_STYLE
+            )
+
+            // 배정 대상 워커를 먼저 결정한 뒤, 그 워커의 선호 영상 길이에 맞게 duration을 보정한다.
+            const worker = pickPreferredWorker(
                 preferredWorkers,
                 category.assigned_employee_email,
                 category.id,
-                assignedDuration,
+                geminiDuration,
                 isLongformCategory
             )
+            const assignedEmployeeEmail = worker?.email || String(category.assigned_employee_email || '').trim().toLowerCase()
+
+            const assignedDuration = (isLongformCategory && geminiDuration != null)
+                ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)
+                : geminiDuration
+            const estimatedPayout = assignedDuration
+                ? payoutForMinutes(assignedDuration, minDurationMinutes, basePayout, extraMinutePayout)
+                : null
+
             return {
                 category_id: category.id,
                 topic: String(topic || '').trim(),
                 assigned_employee_email: assignedEmployeeEmail,
+                assigned_script_style: assignedScriptStyle,
+                assigned_image_style: assignedImageStyle,
                 status: 'pending',
                 ...(isLongformCategory ? {
                     recommended_duration_minutes: assignedDuration,
@@ -380,8 +450,8 @@ export async function POST(req: Request) {
             .from('topics_queue')
             .insert(inserts)
 
-        if (insertError && /column|schema|cache|duration|payout|difficulty/i.test(insertError.message || '')) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, ...rest }: any) => rest)
+        if (insertError && /column|schema|cache|duration|payout|difficulty|style/i.test(insertError.message || '')) {
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)

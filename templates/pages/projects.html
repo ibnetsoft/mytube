@@ -49,6 +49,14 @@
             <span class="text-sm group-hover:translate-x-0.5 transition-transform duration-300">⚡</span>
         </button>
 
+        <!-- AI Style Optimization Buttons -->
+        <button onclick="optimizeStyle('image')" class="px-4 py-2 rounded-xl text-xs font-bold border border-purple-500/50 bg-purple-900/20 hover:bg-purple-900/40 text-purple-200 transition-all shadow-[0_0_15px_rgba(168,85,247,0.15)] flex items-center gap-1.5">
+            <span class="relative z-10">🪄 이미지 스타일 최적화</span>
+        </button>
+        <button onclick="optimizeStyle('script')" class="px-4 py-2 rounded-xl text-xs font-bold border border-green-500/50 bg-green-900/20 hover:bg-green-900/40 text-green-200 transition-all shadow-[0_0_15px_rgba(34,197,94,0.15)] flex items-center gap-1.5">
+            <span class="relative z-10">✍️ 대본 스타일 최적화</span>
+        </button>
+
         <button onclick="openProjectModal()" class="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
             {{ t('btn_new_project') }}
         </button>
@@ -818,6 +826,18 @@
     }
 
     document.addEventListener('DOMContentLoaded', loadProjectList);
+
+    // AI Style Optimization Function
+    async function optimizeStyle(targetType) {
+        if (!confirm(`AI를 통해 새로운 피드백을 기반으로 ${targetType === 'image' ? '이미지' : '대본'} 스타일을 최적화하시겠습니까? (최적화 후 현재 대기열에 즉시 적용됩니다)`)) return;
+        
+        Utils.showToast(`${targetType === 'image' ? '이미지' : '대본'} 스타일 최적화를 백그라운드에서 시작했습니다.`, 'success');
+        try {
+            await fetch(`/styles/optimize-${targetType}`, { method: 'POST' });
+        } catch (e) {
+            console.error('Optimization error:', e);
+        }
+    }
 </script>
 {% endblock %}
 

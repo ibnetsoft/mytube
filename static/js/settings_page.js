@@ -1,6 +1,6 @@
 // Tab switching
     function switchTab(tabName) {
-        if (IS_STANDARD_MEMBER && !['api', 'history', 'withdrawal'].includes(tabName)) {
+        if (IS_STANDARD_MEMBER && !['api', 'history', 'withdrawal', 'referral'].includes(tabName)) {
             tabName = 'api';
         }
         console.log('Switching to tab:', tabName);
@@ -36,6 +36,18 @@
         } else if (tabName === 'withdrawal') {
             if (typeof fetchWithdrawalHistory === 'function') {
                 fetchWithdrawalHistory();
+            }
+        } else if (tabName === 'referral') {
+            if (typeof loadReferralData === 'function') {
+                loadReferralData();
+            }
+        } else if (tabName === 'history') {
+            if (typeof fetchWorkHistory === 'function') {
+                fetchWorkHistory();
+            }
+        } else if (tabName === 'settlement') {
+            if (typeof fetchSettlementData === 'function') {
+                fetchSettlementData();
             }
         }
     }
@@ -1734,6 +1746,210 @@
         }
     }
 
+    // [NEW] Withdrawal and History Functions
+    async function fetchWithdrawalHistory() {
+        const tbody = document.getElementById('withdrawalHistoryBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">${window.i18n?.msg_loading_data || 'Loading data...'}</td></tr>`;
+
+        try {
+            const res = await fetch('/api/settings/withdrawal-history');
+            if (!res.ok) throw new Error('Failed to load withdrawal history');
+
+            const data = await res.json();
+
+            if (data.withdrawals && data.withdrawals.length > 0) {
+                tbody.innerHTML = data.withdrawals.map(w => {
+                    const date = new Date(w.created_at).toLocaleDateString();
+                    const status = w.status === 'completed'
+                        ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-bold">${window.i18n?.status_completed || 'Completed'}</span>`
+                        : `<span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-[9px] font-bold">${window.i18n?.status_pending || 'Pending'}</span>`;
+
+                    return `
+                        <tr class="border-b border-gray-700 hover:bg-[#1c2027] transition-colors">
+                            <td class="px-4 py-3 text-center text-gray-300">${date}</td>
+                            <td class="px-4 py-3 text-center text-gray-400 font-mono text-[10px]">${w.destination_address.substring(0, 10)}...${w.destination_address.substring(-6)}</td>
+                            <td class="px-4 py-3 text-right text-green-400 font-bold">${w.amount} USDT</td>
+                            <td class="px-4 py-3 text-center">${status}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">${window.i18n?.msg_no_withdrawals || 'No withdrawal history'}</td></tr>`;
+            }
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">${window.i18n?.err_load_fail || 'Failed to load'}</td></tr>`;
+        }
+    }
+
+    async function fetchWorkHistory() {
+        const tbody = document.getElementById('history-tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">${window.i18n?.msg_loading_data || 'Loading data...'}</td></tr>`;
+
+        try {
+            const res = await fetch('/api/settings/work-history');
+            if (!res.ok) throw new Error('Failed to load work history');
+
+            const data = await res.json();
+
+            if (data.history && data.history.length > 0) {
+                tbody.innerHTML = data.history.map(h => {
+                    const date = new Date(h.created_at).toLocaleDateString();
+                    return `
+                        <tr class="border-b border-gray-700 hover:bg-[#2a323d] transition-colors">
+                            <td class="px-4 py-3 text-gray-300">${date}</td>
+                            <td class="px-4 py-3 text-gray-300">${h.project_name || 'N/A'}</td>
+                            <td class="px-4 py-3 text-center text-gray-300">${h.video_duration || 0} min</td>
+                            <td class="px-4 py-3 text-center text-gray-300">${h.video_scenes || 0}</td>
+                            <td class="px-4 py-3 text-center text-gray-300">${h.image_scenes || 0}</td>
+                            <td class="px-4 py-3 text-right text-green-400 font-bold">${h.estimated_payout || 0} USDT</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">${window.i18n?.msg_no_history || 'No work history'}</td></tr>`;
+            }
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-red-500">${window.i18n?.err_load_fail || 'Failed to load'}</td></tr>`;
+        }
+    }
+
+    async function requestWithdrawal() {
+        const address = document.getElementById('wdDestAddress').value.trim();
+        const amount = parseFloat(document.getElementById('wdAmount').value || '0');
+
+        if (!address) {
+            Utils.showToast(window.i18n?.err_missing_address || 'Please enter withdrawal wallet address.', 'warning');
+            return;
+        }
+
+        if (amount <= 0) {
+            Utils.showToast(window.i18n?.err_invalid_amount || 'Please enter a valid withdrawal amount.', 'warning');
+            return;
+        }
+
+        if (amount < 10) {
+            Utils.showToast((window.i18n?.label_minimum_withdrawal || 'Minimum withdrawal') + ': 10 USDT', 'warning');
+            return;
+        }
+
+        if (!confirm(window.i18n?.msg_withdrawal_confirm || 'Proceed with withdrawal request?')) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/settings/withdrawal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: amount,
+                    dest_address: address
+                })
+            });
+
+            if (res.ok) {
+                Utils.showToast(window.i18n?.msg_withdrawal_success || 'Withdrawal request completed.', 'success');
+                document.getElementById('wdAmount').value = '';
+                fetchWithdrawalHistory();
+            } else {
+                const err = await res.json();
+                Utils.showToast(window.i18n?.msg_withdrawal_failed || 'Withdrawal request failed', 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(window.i18n?.err_occurred || 'An error occurred', 'error');
+        }
+    }
+
+    async function pasteWithdrawalAddress() {
+        try {
+            const text = await navigator.clipboard.readText();
+            document.getElementById('wdDestAddress').value = text;
+        } catch (e) {
+            Utils.showToast(window.i18n?.msg_clipboard_error || 'Failed to read address from clipboard.', 'warning');
+        }
+    }
+
+    // Settlement tab functions for admin
+    async function fetchSettlementData() {
+        const startDate = document.getElementById('settlementStartDate')?.value;
+        const endDate = document.getElementById('settlementEndDate')?.value;
+        const tbody = document.getElementById('settlementTableBody');
+
+        if (!tbody) return;
+
+        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">${window.i18n?.msg_loading_data || 'Loading data...'}</td></tr>`;
+
+        try {
+            let url = '/api/settings/settlement-summary';
+            const params = new URLSearchParams();
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            if (params.toString()) url += '?' + params.toString();
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Failed to load settlement data');
+
+            const data = await res.json();
+
+            if (data.summary && data.summary.length > 0) {
+                tbody.innerHTML = data.summary.map(s => `
+                    <tr class="border-b border-gray-700 hover:bg-[#2a323d] transition-colors">
+                        <td class="px-4 py-3 text-gray-300">${s.worker}</td>
+                        <td class="px-4 py-3 text-center text-gray-300">${s.total_projects || 0}</td>
+                        <td class="px-4 py-3 text-center text-green-400">${s.completed_projects || 0}</td>
+                        <td class="px-4 py-3 text-center text-gray-300">${s.total_ai_tasks || 0}</td>
+                        <td class="px-4 py-3 text-center text-green-400">${s.success_ai_tasks || 0}</td>
+                        <td class="px-4 py-3 text-center text-gray-300">${s.tts_tasks || 0}</td>
+                        <td class="px-4 py-3 text-center text-gray-300">${s.media_tasks || 0}</td>
+                        <td class="px-4 py-3 text-right text-yellow-400 font-bold">${s.total_estimated_payout.toFixed(2)} USDT</td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-4 text-center text-gray-500">${window.i18n?.msg_no_data || 'No data found'}</td></tr>`;
+            }
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-4 text-center text-red-500">${window.i18n?.err_load_fail || 'Failed to load'}</td></tr>`;
+        }
+    }
+
+    async function exportSettlementCSV() {
+        const startDate = document.getElementById('settlementStartDate')?.value;
+        const endDate = document.getElementById('settlementEndDate')?.value;
+
+        try {
+            let url = '/api/settings/settlement-export';
+            const params = new URLSearchParams();
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            if (params.toString()) url += '?' + params.toString();
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Failed to export');
+
+            const blob = await res.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `settlement_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(downloadUrl);
+            document.body.removeChild(a);
+
+            Utils.showToast('Settlement exported successfully', 'success');
+        } catch (e) {
+            console.error(e);
+            Utils.showToast('Failed to export settlement', 'error');
+        }
+    }
+
     // 초기화
     document.addEventListener('DOMContentLoaded', () => {
         populateOptions();
@@ -1742,4 +1958,12 @@
         loadStylePresets(); // [NEW] 스타일 프리셋 로드
         loadThumbnailStylePresets();
         loadWebtoonRules();
+
+        // Load history on tab switch
+        if (document.getElementById('history-tbody')) {
+            fetchWorkHistory();
+        }
+        if (document.getElementById('withdrawalHistoryBody')) {
+            fetchWithdrawalHistory();
+        }
     });

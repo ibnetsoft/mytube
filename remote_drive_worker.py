@@ -166,15 +166,20 @@ class RemoteDriveWorker:
         email = (job.get("email") or "").strip()
         if not email:
             email = "unknown-user"
+            
+        metadata = job.get("metadata") or {}
+        category_name = metadata.get("category_name")
+        folder_category = category_name if category_name else email
+        
         project_name = (job.get("project_name") or "").strip() or f"project_{job.get('project_id') or job.get('id')}"
         folder = google_drive_service.ensure_project_folder(
-            email,
+            folder_category,
             project_name,
             token_path=self.google_token_path or None,
             root_folder_id=self.output_folder_id or None,
         )
         if not folder or not folder.get("id"):
-            raise RuntimeError(f"Failed to prepare Drive project folder for email/project: {email} / {project_name}")
+            raise RuntimeError(f"Failed to prepare Drive project folder for category/project: {folder_category} / {project_name}")
         return folder
 
     def process_job(self, job):

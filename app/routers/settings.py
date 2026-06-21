@@ -10,6 +10,9 @@ import httpx
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
 from config import config
 from app.modes import DEFAULT_APP_MODE, normalize_app_mode
+import csv
+import io
+from datetime import datetime
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
@@ -1099,8 +1102,8 @@ async def get_withdrawal_history():
     from services.auth_service import auth_service
     email = auth_service.get_user_email()
     if not email:
-        return {"status": "success", "history": []}
-        
+        return {"status": "success", "withdrawals": []}
+
     from services.web_admin_client import web_admin_client
     if web_admin_client.has_supabase():
         history = web_admin_client.get_withdrawal_history(email)
@@ -1109,5 +1112,251 @@ async def get_withdrawal_history():
             history = db.get_worker_withdrawals(email)
     else:
         history = db.get_worker_withdrawals(email)
-    return {"status": "success", "history": history}
 
+    # Convert to frontend format
+    withdrawals = []
+    if history and isinstance(history, list):
+        for w in history:
+            withdrawals.append({
+                "created_at": w.get("created_at") or w.get("date"),
+                "destination_address": w.get("dest_address") or w.get("destination_address"),
+                "amount": w.get("amount"),
+                "status": w.get("status") or "completed"
+            })
+
+    return {"status": "success", "withdrawals": withdrawals}
+
+
+@router.get("/settlement-summary")
+async def get_settlement_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    email: Optional[str] = None
+):
+    """Get settlement summary for admin (requires admin permission)"""
+    try:
+        from services.auth_service import auth_service
+        from services.web_admin_client import web_admin_client
+
+        user_email = auth_service.get_user_email()
+        if not user_email:
+            return {"status": "error", "message": "Not authenticated"}
+
+        # Check if user is admin
+        if web_admin_client.has_supabase():
+            is_admin = web_admin_client.is_admin_user(user_email)
+        else:
+            is_admin = db.is_user_admin(user_email)
+
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+        # Get settlement data
+        if web_admin_client.has_supabase():
+            stats = web_admin_client.get_settlement_summary(start_date, end_date, email)
+        else:
+            stats = db.get_settlement_summary(start_date, end_date, email)
+
+        return {"status": "success", "summary": stats}
+
+    except HTTPException as he:
+        return {"status": "error", "detail": he.detail}
+    except Exception as e:
+        print(f"Error fetching settlement summary: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
+
+
+@router.get("/settlement-export")
+async def export_settlement(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    email: Optional[str] = None,
+    project_pay: int = 10000,
+    ai_pay: int = 500
+):
+    """Export settlement data as CSV (admin only)"""
+    try:
+        from services.auth_service import auth_service
+        from services.web_admin_client import web_admin_client
+        import csv
+        import io
+
+        user_email = auth_service.get_user_email()
+        if not user_email:
+            return {"status": "error", "message": "Not authenticated"}
+
+        # Check if user is admin
+        if web_admin_client.has_supabase():
+            is_admin = web_admin_client.is_admin_user(user_email)
+        else:
+            is_admin = db.is_user_admin(user_email)
+
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Admin access required")
+
+        # Get settlement data
+        if web_admin_client.has_supabase():
+            stats = web_admin_client.get_settlement_summary(start_date, end_date, email)
+        else:
+            stats = db.get_settlement_summary(start_date, end_date, email)
+
+        # Create CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Header
+        writer.writerow([
+            'Worker Email',
+            'Total Projects',
+            'Completed Projects',
+            'Total AI Tasks',
+            'Success AI Tasks',
+            'TTS Tasks',
+            'Media Tasks',
+            'Project Payout (KRW)',
+            'AI Image Payout (KRW)',
+            'Total Payout (KRW)'
+        ])
+
+        # Data rows
+        for stat in stats:
+            worker_email = stat.get('worker', '')
+            completed_projects = stat.get('completed_projects', 0)
+            success_ai_tasks = stat.get('success_ai_tasks', 0)
+
+            project_earnings = completed_projects * project_pay
+            ai_earnings = success_ai_tasks * ai_pay
+            total_payout = project_earnings + ai_earnings
+
+            writer.writerow([
+                worker_email,
+                stat.get('total_projects', 0),
+                completed_projects,
+                stat.get('total_ai_tasks', 0),
+                success_ai_tasks,
+                stat.get('tts_tasks', 0),
+                stat.get('media_tasks', 0),
+                project_earnings,
+                ai_earnings,
+                total_payout
+            ])
+
+        csv_content = output.getvalue()
+
+        # Return as downloadable file
+        from fastapi.responses import StreamingResponse
+        from datetime import datetime
+
+        filename = f"settlement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+        return StreamingResponse(
+            iter([csv_content]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except HTTPException as he:
+        return {"status": "error", "detail": he.detail}
+    except Exception as e:
+        print(f"Error exporting settlement: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
+
+
+# Alias endpoint for frontend compatibility
+@router.get("/work-history")
+async def get_work_history():
+    """Get worker project history - alias for /history"""
+    from services.auth_service import auth_service
+
+    email = auth_service.get_user_email()
+    if not email:
+        return {"status": "error", "message": "Not logged in"}
+
+    history = db.get_worker_project_history(email)
+
+    result = []
+    for h in history:
+        video_clip_ratio = h.get("video_clip_ratio") or "0/0"
+        try:
+            parts = video_clip_ratio.split('/')
+            video_clips = int(parts[0])
+            total_scenes = int(parts[1])
+            image_clips = total_scenes - video_clips
+        except:
+            video_clips = 0
+            image_clips = 0
+
+        result.append({
+            "project_id": h.get("project_id"),
+            "project_name": h.get("project_name") or "Unnamed",
+            "created_at": h.get("completion_date") or datetime.now().isoformat(),
+            "video_duration": h.get("duration_seconds") or 0,
+            "video_scenes": video_clips,
+            "image_scenes": image_clips,
+            "estimated_payout": h.get("payout_amount") or 0
+        })
+
+    return {"status": "success", "history": result}
+
+@router.get("/referrals")
+def get_referral_info():
+    """웹어드민에서 내 코드로 가입한 회원 목록 및 누적 보상금 조회"""
+    from services.auth_service import auth_service
+    from services.web_admin_client import web_admin_client
+    
+    my_code = auth_service.get_referral_code()
+    if not my_code:
+        return {"status": "success", "total_usdt": 0, "users": []}
+
+    email = auth_service.get_user_email()
+    if not email:
+        return {"status": "success", "total_usdt": 0, "users": []}
+
+    profile = web_admin_client.fetch_profile_by_email(email)
+    total_usdt = float(profile.get("usdt_balance") or 0) if profile else 0
+
+    # Fetch users who used my code
+    # We can fetch from profiles where referred_by = my_code
+    response = web_admin_client.supabase_get("profiles", params={"select": "email,created_at,id", "referred_by": f"eq.{my_code}"}, timeout=8)
+    users_data = []
+    if response and response.status_code == 200:
+        referred_profiles = response.json() or []
+        for p in referred_profiles:
+            # Mask email
+            p_email = p.get("email", "")
+            if "@" in p_email:
+                parts = p_email.split("@")
+                if len(parts[0]) > 3:
+                    masked = parts[0][:3] + "***@" + parts[1]
+                else:
+                    masked = parts[0][:1] + "***@" + parts[1]
+            else:
+                masked = "unknown"
+
+            # Check their completed videos count
+            # Since local app doesn't have direct access to their publishing_requests easily without RLS bypass,
+            # We will fetch count from publishing_requests via service role or just show what we can.
+            # Actually, web_admin_client uses service_role key, so we can fetch it!
+            count_res = web_admin_client.supabase_get(
+                "publishing_requests", 
+                params={"select": "id", "user_id": f"eq.{p.get('id')}", "status": "eq.approved"}, 
+                timeout=5
+            )
+            completed_count = len(count_res.json()) if count_res and count_res.status_code == 200 else 0
+            
+            users_data.append({
+                "email": masked,
+                "created_at": p.get("created_at"),
+                "completed_count": completed_count,
+                "rewarded": completed_count >= 2
+            })
+
+    return {
+        "status": "success",
+        "total_usdt": total_usdt,
+        "users": users_data
+    }

@@ -235,6 +235,12 @@ class RemoteDriveRenderService:
         if not drive_file or not drive_file.get("id"):
             raise RuntimeError("Failed to upload remote render asset package to Google Drive.")
 
+        # [NEW] Generate referral code upon first rendering if not exists
+        try:
+            auth_service.ensure_referral_code_generated()
+        except Exception as e:
+            print(f"Failed to generate referral code: {e}")
+
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         queue_metadata = dict(metadata or {})
         queue_metadata.setdefault("queue_scope", "remote_render")
@@ -244,6 +250,12 @@ class RemoteDriveRenderService:
         queue_metadata.setdefault("visibility_control", "web_admin_pending")
         queue_metadata.setdefault("package_transport", "google_drive_api")
         queue_metadata.setdefault("job_stage", "pending")
+        
+        settings = db.get_project_settings(project_id) or {}
+        category_name = settings.get("preferred_youtube_channel_name") or settings.get("preferred_youtube_channel_handle")
+        if category_name:
+            queue_metadata["category_name"] = category_name
+
         queue_metadata.update(
             {
                 "asset_file_id": drive_file.get("id"),

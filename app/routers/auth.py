@@ -1,5 +1,7 @@
-﻿import json
+import json
 import os
+import re
+import time
 
 import requests
 from fastapi import APIRouter, HTTPException, Request
@@ -9,16 +11,20 @@ from pydantic import BaseModel
 import database as db
 from services.app_state import get_templates
 from services.auth_service import auth_service
+from services.email_service import send_temp_password, send_verify_code, generate_temp_password, generate_verify_code
 from services.topic_queue_sync_service import sync_topic_progress
 from services.web_admin_client import web_admin_client
 
+
+# 인증 코드 임시 저장소: {email: {code, expires_at}}
+_verify_store: dict = {}
 
 router = APIRouter(tags=["Auth"])
 
 
 class LoginRequest(BaseModel):
     email: str
-    pin_code: str
+    password: str
 
 
 class RegisterRequest(BaseModel):
@@ -26,6 +32,7 @@ class RegisterRequest(BaseModel):
     contact: str
     email: str
     nationality: str
+    password: str = ""
     preferred_category_ids: list[int | str] = []
     preferred_video_length: str = ""
     terms_accepted: bool = False
@@ -141,11 +148,29 @@ async def get_auth_emails():
         return {"emails": []}
 
 
+_DEFAULT_CATEGORIES = [
+    {"id": "default_1", "name": "옛날이야기", "video_type": "longform"},
+    {"id": "default_2", "name": "건강/의학", "video_type": "longform"},
+    {"id": "default_3", "name": "경제/재테크", "video_type": "longform"},
+    {"id": "default_4", "name": "역사/다큐", "video_type": "longform"},
+    {"id": "default_5", "name": "뷰티/패션", "video_type": "longform"},
+    {"id": "default_6", "name": "음식/요리", "video_type": "longform"},
+    {"id": "default_7", "name": "쇼츠/밈", "video_type": "shorts"},
+    {"id": "default_8", "name": "뮤직비디오", "video_type": "longform_music"},
+]
+
+_DURATION_OPTIONS = [
+    {"value": "15m", "label": "15 min"},
+    {"value": "30m", "label": "30 min"},
+    {"value": "60m_plus", "label": "60+ min"},
+]
+
+
 @router.get("/api/auth/signup-options")
 async def get_signup_options():
+    normalized_categories = []
     try:
         categories = web_admin_client.fetch_categories(select="id,name,video_type")
-        normalized_categories = []
         for item in categories:
             category_id = item.get("id")
             category_name = str(item.get("name") or "").strip()
@@ -157,18 +182,13 @@ async def get_signup_options():
                 "name": category_name,
                 "video_type": video_type,
             })
-
-        return {
-            "categories": normalized_categories,
-            "duration_options": [
-                {"value": "15m", "label": "15 min"},
-                {"value": "30m", "label": "30 min"},
-                {"value": "60m_plus", "label": "60+ min"},
-            ],
-        }
     except Exception as e:
-        print(f"[API] Failed to fetch signup options: {e}")
-        return {"categories": [], "duration_options": []}
+        print(f"[API] Failed to fetch signup options from Supabase: {e}")
+
+    if not normalized_categories:
+        normalized_categories = _DEFAULT_CATEGORIES
+
+    return {"categories": normalized_categories, "duration_options": _DURATION_OPTIONS}
 
 
 @router.post("/api/auth/register")
@@ -181,12 +201,18 @@ async def post_auth_register(req: RegisterRequest):
         contact = req.contact.strip()
         email = req.email.strip().lower()
         nationality = req.nationality.strip()
+        password = req.password.strip()
         preferred_video_length = str(req.preferred_video_length or "").strip()
         requested_category_ids = [str(item).strip() for item in (req.preferred_category_ids or []) if str(item).strip()]
         if not all([full_name, contact, email, nationality]):
             return {"success": False, "error": "이름, 연락처, 이메일, 국적은 모두 입력해야 합니다."}
         if "@" not in email or "." not in email:
             return {"success": False, "error": "이메일 형식이 올바르지 않습니다."}
+        if not password:
+            return {"success": False, "error": "비밀번호를 입력해주세요."}
+        password_pattern = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]).{8,}$')
+        if not password_pattern.match(password):
+            return {"success": False, "error": "비밀번호는 대문자, 소문자, 숫자, 특수문자를 포함한 8자리 이상이어야 합니다."}
         if not req.terms_accepted or not req.privacy_accepted:
             return {"success": False, "error": "약관과 개인정보처리방침에 모두 동의해야 합니다."}
         if not requested_category_ids:
@@ -212,9 +238,11 @@ async def post_auth_register(req: RegisterRequest):
         from datetime import datetime, timezone
 
         now = datetime.now(timezone.utc).isoformat()
-        import random
-        my_referral_code = str(random.randint(100000, 999999))
         
+        existing = web_admin_client.fetch_profile_by_email(email)
+        if existing and str(existing.get("is_approved")).lower() in ("true", "1", "yes"):
+            return {"success": False, "error": "이미 승인된 이메일입니다. 로그인 화면에서 접속해주세요."}
+
         return web_admin_client.submit_worker_registration({
             "full_name": full_name,
             "contact": contact,
@@ -222,11 +250,11 @@ async def post_auth_register(req: RegisterRequest):
             "nationality": nationality,
             "terms_accepted_at": now,
             "privacy_accepted_at": now,
-            "my_referral_code": my_referral_code,
-            "referred_by_code": req.referral_code.strip() if req.referral_code else "",
+            "password": password,
             "preferred_category_ids": preferred_category_ids,
             "preferred_category_names": preferred_category_names,
             "preferred_video_length": preferred_video_length,
+            "referred_by_code": req.referral_code.strip() if req.referral_code else "",
         })
     except Exception as e:
         return {"success": False, "error": f"가입 신청 오류: {str(e)}"}
@@ -247,10 +275,13 @@ async def post_auth_login(req: LoginRequest):
             if is_approved is False or is_approved is None or str(is_approved).lower() in ("false", "0", "none"):
                 return {"success": False, "error": "어드민 승인 대기 중이거나 비활성화된 계정입니다."}
 
-            db_pin = str(profile.get("pin_code") or "").strip()
-            input_pin = str(req.pin_code).strip()
+            # 비밀번호 검증: password 컬럼 우선, 없으면 pin_code, 그것도 없으면 기본값 '1234'
+            db_password = str(profile.get("password") or "").strip()
+            if not db_password:
+                db_password = str(profile.get("pin_code") or "1234").strip()
+            input_password = str(req.password).strip()
 
-            if db_pin == input_pin:
+            if db_password == input_password:
                 auth_service.login_user(req.email)
                 response = JSONResponse({"success": True})
                 response.set_cookie(
@@ -261,11 +292,100 @@ async def post_auth_login(req: LoginRequest):
                 )
                 return response
 
-            return {"success": False, "error": "PIN 번호가 일치하지 않습니다."}
+            return {"success": False, "error": "비밀번호가 일치하지 않습니다."}
 
         return {"success": False, "error": "등록되지 않은 직원 이메일입니다."}
     except Exception as e:
         return {"success": False, "error": f"로그인 오류: {str(e)}"}
+
+
+# ===== 비밀번호 찾기 =====
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+@router.post("/api/auth/forgot-password")
+async def post_forgot_password(req: ForgotPasswordRequest):
+    try:
+        email = req.email.strip().lower()
+        if not email:
+            return {"success": False, "error": "이메일을 입력해주세요."}
+
+        profile = web_admin_client.fetch_profile_by_email(email)
+        if not profile:
+            # 보안상 동일 응답 (이메일 열거 방지)
+            return {"success": True, "message": "입력한 이메일로 임시 비밀번호를 발송했습니다."}
+
+        # 임시 비밀번호 생성
+        temp_pw = generate_temp_password()
+
+        # DB 업데이트
+        web_admin_client.supabase_patch(
+            "profiles",
+            {"password": temp_pw},
+            params={"email": f"eq.{email}"},
+            timeout=5,
+        )
+
+        # 이메일 발송
+        ok = send_temp_password(email, temp_pw)
+        if not ok:
+            return {"success": False, "error": "이메일 발송에 실패했습니다. SMTP 설정을 확인해주세요."}
+
+        return {"success": True, "message": "임시 비밀번호를 이메일로 발송했습니다."}
+    except Exception as e:
+        print(f"[ForgotPassword] Error: {e}")
+        return {"success": False, "error": f"오류: {str(e)}"}
+
+
+# ===== 이메일 인증 코드 발송 =====
+class SendVerifyCodeRequest(BaseModel):
+    email: str
+
+@router.post("/api/auth/send-verify-code")
+async def post_send_verify_code(req: SendVerifyCodeRequest):
+    try:
+        email = req.email.strip().lower()
+        if not email or "@" not in email:
+            return {"success": False, "error": "이메일 형식이 올바르지 않습니다."}
+
+        # 이미 등록된 이메일 안내
+        existing = web_admin_client.fetch_profile_by_email(email)
+        if existing and str(existing.get("is_approved")).lower() in ("true", "1", "yes"):
+            return {"success": False, "error": "이미 승인된 이메일입니다. 로그인 화면에서 접속해주세요."}
+
+        code = generate_verify_code()
+        expires_at = time.time() + 600  # 10분
+        _verify_store[email] = {"code": code, "expires_at": expires_at}
+
+        ok = send_verify_code(email, code)
+        if not ok:
+            return {"success": False, "error": "이메일 발송에 실패했습니다."}
+
+        return {"success": True, "message": "인증 코드를 이메일로 발송했습니다. 10분 내 입력해주세요."}
+    except Exception as e:
+        print(f"[SendVerifyCode] Error: {e}")
+        return {"success": False, "error": f"오류: {str(e)}"}
+
+
+# ===== 이메일 인증 코드 확인 =====
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
+
+@router.post("/api/auth/verify-code")
+async def post_verify_code(req: VerifyCodeRequest):
+    email = req.email.strip().lower()
+    code = req.code.strip()
+    entry = _verify_store.get(email)
+    if not entry:
+        return {"success": False, "error": "인증 코드를 먼저 발송해주세요."}
+    if time.time() > entry["expires_at"]:
+        del _verify_store[email]
+        return {"success": False, "error": "인증 코드가 만료되었습니다. 다시 발송해주세요."}
+    if entry["code"] != code:
+        return {"success": False, "error": "인증 코드가 일치하지 않습니다."}
+    del _verify_store[email]
+    return {"success": True, "message": "이메일 인증이 완료되었습니다."}
 
 
 @router.post("/api/auth/logout")
@@ -376,6 +496,10 @@ async def get_daily_topic():
             except Exception as e:
                 print(f"[Queue API Warning] Failed to fetch category default styles: {e}")
 
+        # AI가 주제에 맞게 배정한 스타일을 우선 사용하고, 없으면 카테고리 기본 스타일로 폴백한다.
+        assigned_script_style = item.get("assigned_script_style") or category_script_style
+        assigned_image_style = item.get("assigned_image_style") or category_image_style
+
         update_url = f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_id}"
         patch_headers = headers.copy()
         patch_headers["Prefer"] = "return=representation"
@@ -396,8 +520,8 @@ async def get_daily_topic():
             app_mode=category_video_type,
             language="ko",
             employee_email=email,
-            script_style=category_script_style,
-            image_style=category_image_style,
+            script_style=assigned_script_style,
+            image_style=assigned_image_style,
         )
 
         if category_row:
@@ -405,6 +529,8 @@ async def get_daily_topic():
 
         db.update_project_setting(project_id, "topic_queue_id", topic_id)
         db.update_project_setting(project_id, "topic_queue_category_id", category_id or "")
+        # AI가 정한 스타일을 워커가 임의로 바꾸지 못하도록 잠근다.
+        db.update_project_setting(project_id, "style_locked", "1")
         if category_video_type == "longform":
             db.update_project_setting(project_id, "duration_seconds", assigned_duration_minutes * 60)
             db.update_project_setting(project_id, "assigned_duration_minutes", assigned_duration_minutes)

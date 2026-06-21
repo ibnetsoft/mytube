@@ -423,6 +423,37 @@ class AuthService:
     def get_referral_code(self):
         return getattr(self, "_my_referral_code", "")
 
+    def ensure_referral_code_generated(self):
+        """첫 렌더링 큐 전송 시 호출되어 추천코드가 없다면 생성 및 Supabase 갱신"""
+        current_code = self.get_referral_code()
+        if current_code:
+            return current_code
+
+        email = self.get_user_email()
+        if not email:
+            return ""
+
+        import random
+        from services.web_admin_client import web_admin_client
+        
+        new_code = str(random.randint(100000, 999999))
+        
+        # 1. Update user_metadata in auth.users
+        profile = web_admin_client.fetch_profile_by_email(email)
+        if profile and profile.get("id"):
+            user_id = profile["id"]
+            # Fetch current metadata to merge
+            # Actually, web_admin_client.update_user_metadata replaces it or merges it depending on how supabase does it.
+            # Supabase auth.admin.updateUser merges user_metadata.
+            web_admin_client.update_user_metadata(user_id, {"my_referral_code": new_code})
+
+            # 2. Update profiles table if it also has my_referral_code column
+            web_admin_client.supabase_patch("profiles", {"my_referral_code": new_code}, params={"id": f"eq.{user_id}"})
+            
+        self._my_referral_code = new_code
+        self.logger.info(f"Generated and assigned new referral code: {new_code}")
+        return new_code
+
     def get_or_create_wallet_info(self):
         import json
         import database as db

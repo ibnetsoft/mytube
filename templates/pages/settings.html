@@ -26,13 +26,16 @@
     <div class="mb-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex space-x-1 overflow-x-auto custom-scrollbar">
             <button onclick="switchTab('api')" id="tab-api" class="tab-button active">
-                🎫 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấu hình cơ bản{% else %}기본 설정{% endif %}
+                {{ t('label_tab_basic_settings') }}
             </button>
                         <button onclick="switchTab('history')" id="tab-history" class="tab-button">
-                수당 내역 (History)
+                {{ t('label_work_history') }}
             </button>
             <button onclick="switchTab('withdrawal')" id="tab-withdrawal" class="tab-button">
-                USDT 출금 신청 (Withdrawal)
+                {{ t('label_wallet_and_withdrawal') }}
+            </button>
+            <button onclick="switchTab('referral')" id="tab-referral" class="tab-button">
+                👥 추천인 관리
             </button>
                     {% if not is_standard_member %}
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
@@ -49,10 +52,10 @@
             </button>
 
             <button onclick="switchTab('video-engine')" id="tab-video-engine" class="tab-button">
-                🎬 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Động cơ AI Video{% else %}영상AI엔진{% endif %}
+                {{ t('label_tab_video_engine') }}
             </button>
             <button onclick="switchTab('settlement')" id="tab-settlement" class="tab-button">
-                💰 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quản lý quyết toán{% else %}직원 정산 관리{% endif %}
+                {{ t('label_settlement_mgmt') }}
             </button>
             {% endif %}
         </div>
@@ -71,14 +74,14 @@
                         <!-- License Key View -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mã cấp phép hiện tại{% else %}현재 라이선스 키{% endif %}
+                                {{ t('label_license_key') }}
                             </label>
                             <div class="flex items-center gap-2 bg-[#1c2027]/50 p-3 rounded-xl border border-gray-100 dark:border-white/5">
                                 <span class="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">
                                     {% if get_license_key() %}
                                         {{ get_license_key()[:4] }}****{{ get_license_key()[-4:] if get_license_key()|length > 8 else '' }}
                                     {% else %}
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trạng thái vô hiệu hóa{% else %}비활성 상태{% endif %}
+                                        {{ t('label_inactive_status') }}
                                     {% endif %}
                                 </span>
                                 <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold ml-auto">ACTIVE</span>
@@ -89,14 +92,14 @@
                         <!-- Membership Tier -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cấp độ thành viên{% else %}멤버십 등급{% endif %}
+                                {{ t('label_membership_tier') }}
                             </label>
                             <div class="flex items-center gap-2 bg-[#1c2027]/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase italic">
                                     {{ membership | default('Standard', true) }}
                                 </span>
                                 <span class="text-[10px] text-gray-400 ml-auto">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đang đăng ký{% else %}구독 중{% endif %}
+                                    {{ t('label_subscribed') }}
                                 </span>
                             </div>
                         </div>
@@ -105,7 +108,7 @@
                     <!-- Platform Mode (Relocated to Basic Settings) -->
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            💻 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chế độ nền tảng{% else %}플랫폼 모드 설정{% endif %}
+                            💻 {{ t('label_platform_mode_settings') }}
                         </h4>
                         <div class="mb-5 pb-2">
                             <input type="hidden" id="appMode" value="longform">
@@ -130,7 +133,7 @@
                             </div>
                             <div class="mt-2 space-y-1">
                                 <p class="text-[10px] text-gray-500 dark:text-gray-400">
-                                    * 모드를 변경하면 메뉴 구성과 영상 생성 설정이 해당 포맷에 최적화됩니다.
+                                    {{ t('hint_mode_switch_desc') }}
                                 </p>
                                 <p class="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
                                     {{ t('warn_mode_switch') }}
@@ -141,42 +144,42 @@
 
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            👤 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Thông tin người dùng{% else %}사용자 정보{% endif %}
+                            👤 {{ t('label_user_info') }}
                         </h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tên{% else %}이름{% endif %}
+                                    {{ t('label_name') }}
                                 </label>
-                                <input type="text" id="userName" class="input-field w-full text-xs" placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vui lòng nhập tên{% else %}이름을 입력하세요{% endif %}">
+                                <input type="text" id="userName" class="input-field w-full text-xs" placeholder="{{ t('placeholder_enter_name') }}">
                             </div>
                             <div>
                                 <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quốc tịch{% else %}국적{% endif %}
+                                    {{ t('label_nationality') }}
                                 </label>
-                                <input type="text" id="userNationality" class="input-field w-full text-xs" placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vui lòng nhập quốc gia (Ví dụ: Việt Nam){% else %}국가를 입력하세요 (예: 대한민국){% endif %}">
+                                <input type="text" id="userNationality" class="input-field w-full text-xs" placeholder="{{ t('placeholder_enter_nationality') }}">
                             </div>
                             <div>
                                 <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Số điện thoại{% else %}연락처{% endif %}
+                                    {{ t('label_phone') }}
                                 </label>
                                 <input type="text" id="userPhone" class="input-field w-full text-xs" placeholder="010-0000-0000">
                             </div>
                             <div>
                                 <label class="text-[10px] font-bold text-gray-500 mb-1 block">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email{% else %}이메일{% endif %}
+                                    {{ t('label_email') }}
                                 </label>
                                 <input type="email" id="userEmail" class="input-field w-full text-xs" placeholder="example@email.com" readonly>
                             </div>
                             <!-- Referral Code -->
                             <div>
                                 <label class="text-[10px] font-bold text-blue-400 mb-1 block">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mã giới thiệu của tôi{% else %}내 추천인 코드{% endif %}
+                                    {{ t('label_my_referral_code') }}
                                 </label>
                                 <div class="flex items-center gap-2">
-                                    <input type="text" id="myReferralCode" class="input-field w-full text-xs font-mono font-bold text-blue-300 bg-gray-800/50" value="{{ my_referral_code }}" readonly placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chưa có mã{% else %}발급된 코드 없음{% endif %}">
+                                    <input type="text" id="myReferralCode" class="input-field w-full text-xs font-mono font-bold text-blue-300 bg-gray-800/50" value="{{ my_referral_code }}" readonly placeholder="{{ t('placeholder_no_code') }}">
                                     <button type="button" onclick="const c = document.getElementById('myReferralCode').value; if(c) { navigator.clipboard.writeText(c); alert('복사되었습니다. / Copied.'); }" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao chép{% else %}복사{% endif %}
+                                        {{ t('btn_copy_short') }}
                                     </button>
                                 </div>
                             </div>
@@ -202,18 +205,18 @@
             <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 bg-[#1c2027] text-white">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
                     <span class="material-icons text-blue-400">history</span>
-                    작업 수당 내역 (History)
+                    {{ t('label_work_history') }}
                 </h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left text-gray-300">
                         <thead class="text-xs uppercase bg-[#2a323d] text-gray-400 border-b border-gray-700">
                             <tr>
-                                <th scope="col" class="px-4 py-3">작업일 (Date)</th>
-                                <th scope="col" class="px-4 py-3">프로젝트명</th>
-                                <th scope="col" class="px-4 py-3 text-center">영상시간</th>
-                                <th scope="col" class="px-4 py-3 text-center">비디오 씬</th>
-                                <th scope="col" class="px-4 py-3 text-center">이미지 씬</th>
-                                <th scope="col" class="px-4 py-3 text-right">수당(USDT 예상)</th>
+                                <th scope="col" class="px-4 py-3">{{ t('label_work_date') }}</th>
+                                <th scope="col" class="px-4 py-3">{{ t('label_project_name') }}</th>
+                                <th scope="col" class="px-4 py-3 text-center">{{ t('label_video_duration') }}</th>
+                                <th scope="col" class="px-4 py-3 text-center">{{ t('label_video_scenes') }}</th>
+                                <th scope="col" class="px-4 py-3 text-center">{{ t('label_image_scenes') }}</th>
+                                <th scope="col" class="px-4 py-3 text-right">{{ t('label_estimated_payout') }}</th>
                             </tr>
                         </thead>
                         <tbody id="history-tbody">
@@ -238,19 +241,19 @@
                                             <path fill="#fff" d="M17.9 14.1v-2.3h5.4V8.3H8.7v3.5h5.4v2.3c-4.4.2-7.7 1-7.7 2s3.3 1.8 7.7 2v7.3h3.8V18c4.4-.2 7.7-1 7.7-2s-3.3-1.8-7.7-1.9Zm0 3.3v0c-.1 0-1 .1-2 .1-.8 0-1.4 0-1.6-.1v0c-3.1-.1-5.4-.6-5.4-1.1s2.3-1 5.4-1.1v1.8c.2 0 .8.1 1.6.1 1 0 1.9 0 2-.1v-1.8c3.1.1 5.4.6 5.4 1.1s-2.3 1-5.4 1.1Z"></path>
                                         </svg>
                                     </span>
-                                    <span>USDT <span class="text-yellow-300 font-black">(BEP20)</span> 지갑 및 출금</span>
+                                    <span>USDT <span class="text-yellow-300 font-black">(BEP20)</span> {{ t('label_wallet_section_title') }}</span>
                                 </h5>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">내 앱 지갑 주소 (자동 생성)</label>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_my_wallet_address') }}</label>
                                         <div class="flex items-center gap-2">
-                                            <input type="text" id="myWalletAddress" class="input-field w-full text-xs font-mono text-gray-400" value="{{ wallet_info.address }}" readonly placeholder="지갑 자동생성 중...">
-                                            <button type="button" onclick="const c = document.getElementById('myWalletAddress').value; if(c) { navigator.clipboard.writeText(c); alert('복사되었습니다.'); }" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">복사</button>
+                                            <input type="text" id="myWalletAddress" class="input-field w-full text-xs font-mono text-gray-400" value="{{ wallet_info.address }}" readonly placeholder="{{ t('placeholder_wallet_generating') }}">
+                                            <button type="button" onclick="const c = document.getElementById('myWalletAddress').value; if(c) { navigator.clipboard.writeText(c); alert('{{ t('msg_copied') }}'); }" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_copy') }}</button>
                                         </div>
-                                        <p class="text-[9px] text-gray-500 mt-1">* 가입 시 최초 자동 생성된 고유 <span class="text-yellow-300 font-bold">BEP20</span> 지갑 주소입니다.</p>
+                                        <p class="text-[9px] text-gray-500 mt-1">* {{ t('hint_wallet_address') }} <span class="text-yellow-300 font-bold">BEP20</span></p>
                                     </div>
                                     <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">현재 출금 가능 수당 (USDT 잔액)</label>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_available_balance') }}</label>
                                         <input type="text" id="myUsdtBalance" class="input-field w-full text-sm font-bold text-green-400" value="{{ wallet_info.balance|default(0) }} USDT" readonly>
                                     </div>
                                 </div>
@@ -263,47 +266,47 @@
                                                 <path fill="#fff" d="M17.9 14.1v-2.3h5.4V8.3H8.7v3.5h5.4v2.3c-4.4.2-7.7 1-7.7 2s3.3 1.8 7.7 2v7.3h3.8V18c4.4-.2 7.7-1 7.7-2s-3.3-1.8-7.7-1.9Zm0 3.3v0c-.1 0-1 .1-2 .1-.8 0-1.4 0-1.6-.1v0c-3.1-.1-5.4-.6-5.4-1.1s2.3-1 5.4-1.1v1.8c.2 0 .8.1 1.6.1 1 0 1.9 0 2-.1v-1.8c3.1.1 5.4.6 5.4 1.1s-2.3 1-5.4 1.1Z"></path>
                                             </svg>
                                         </span>
-                                        <span>📤 USDT 출금 신청 (외부 지갑으로 전송)</span>
+                                        <span>📤 {{ t('label_withdrawal_request') }}</span>
                                     </h6>
                                     <div>
                                         <label class="text-[10px] font-bold text-gray-500 mb-1 block flex items-center justify-between">
-                                            <span>받을 지갑 주소 <span class="text-yellow-300 font-black">(BEP20 형식)</span></span>
-                                            <span class="text-blue-400 font-normal">자동 저장됨</span>
+                                            <span>{{ t('label_destination_wallet') }} <span class="text-yellow-300 font-black">(BEP20)</span></span>
+                                            <span class="text-blue-400 font-normal">{{ t('label_auto_saved') }}</span>
                                         </label>
                                         <div class="flex items-center gap-2">
                                             <input type="text" id="wdDestAddress" class="input-field w-full text-xs" placeholder="0x..." value="{{ wallet_info.saved_external_wallet }}">
-                                            <button type="button" onclick="pasteWithdrawalAddress()" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">붙여넣기</button>
+                                            <button type="button" onclick="pasteWithdrawalAddress()" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_paste') }}</button>
                                         </div>
                                     </div>
                                     <div class="flex gap-3 items-end">
                                         <div class="flex-1">
                                             <label class="text-[10px] font-bold text-gray-500 mb-1 block flex justify-between">
-                                                <span>출금 수량 (USDT)</span>
-                                                <span class="text-orange-400">최소 출금: {{ min_withdrawal_usdt|default('10') }} USDT</span>
+                                                <span>{{ t('label_withdrawal_amount') }}</span>
+                                                <span class="text-orange-400">{{ t('label_minimum_withdrawal') }}: {{ min_withdrawal_usdt|default('10') }} USDT</span>
                                             </label>
                                             <input type="number" id="wdAmount" class="input-field w-full text-xs" placeholder="0.0">
                                         </div>
-                                        <button type="button" onclick="document.getElementById('wdAmount').value = '{{ wallet_info.balance|default(0) }}';" class="px-3 py-2 bg-[#2d3340] border border-gray-600 hover:bg-[#3d4455] rounded text-xs font-bold text-white transition">최대</button>
-                                        <button type="button" onclick="requestWithdrawal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white whitespace-nowrap transition">출금 신청</button>
+                                        <button type="button" onclick="document.getElementById('wdAmount').value = '{{ wallet_info.balance|default(0) }}';" class="px-3 py-2 bg-[#2d3340] border border-gray-600 hover:bg-[#3d4455] rounded text-xs font-bold text-white transition">{{ t('btn_max') }}</button>
+                                        <button type="button" onclick="requestWithdrawal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_request_withdrawal') }}</button>
                                     </div>
 
                                 <!-- Transaction History -->
                                 <div class="mt-6">
                                     <h5 class="text-xs font-bold text-gray-300 mb-2 flex items-center gap-2">
-                                        <span class="text-sm">📜</span> 트랜잭션 히스토리
+                                        <span class="text-sm">📜</span> {{ t('label_transaction_history') }}
                                     </h5>
                                     <div class="overflow-x-auto bg-[#15191f] rounded-lg border border-gray-700">
                                         <table class="w-full text-left text-xs whitespace-nowrap">
                                             <thead class="bg-[#242b35] text-gray-400 border-b border-gray-700">
                                                 <tr>
-                                                    <th class="px-4 py-2 font-bold text-center">날짜</th>
-                                                    <th class="px-4 py-2 font-bold text-center">출금 지갑 주소</th>
-                                                    <th class="px-4 py-2 font-bold text-right">금액 (USDT)</th>
-                                                    <th class="px-4 py-2 font-bold text-center">상태</th>
+                                                    <th class="px-4 py-2 font-bold text-center">{{ t('label_date') }}</th>
+                                                    <th class="px-4 py-2 font-bold text-center">{{ t('label_withdrawal_address') }}</th>
+                                                    <th class="px-4 py-2 font-bold text-right">{{ t('label_amount_usdt') }}</th>
+                                                    <th class="px-4 py-2 font-bold text-center">{{ t('label_status') }}</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="withdrawalHistoryBody" class="text-gray-300 divide-y divide-gray-700">
-                                                <tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">데이터를 불러오는 중입니다...</td></tr>
+                                                <tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">{{ t('msg_loading_data') }}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -314,6 +317,62 @@
         </div>
 
 {% if not is_standard_member %}
+        <!-- Referral Tab -->
+        <div id="tab-content-referral" class="tab-content">
+            <!-- Notice Banner -->
+            <div class="mb-4 p-3 rounded-xl border border-blue-500/30 bg-blue-500/10 flex flex-col gap-1 shadow-sm">
+                <p class="text-sm font-bold text-blue-300 m-0 flex items-center gap-2">
+                    <span class="text-lg">📢</span>
+                    {{ t('msg_referral_reward_condition') }}
+                </p>
+                <p class="text-[11px] font-bold text-blue-200/80 m-0 pl-7">
+                    * {{ t('msg_referral_issue_condition') }}
+                </p>
+            </div>
+            <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027]">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <!-- My Referral Code -->
+                    <div class="space-y-2 p-4 rounded-xl border border-purple-500/30 bg-purple-500/5">
+                        <h5 class="text-xs font-bold text-purple-400 flex items-center gap-2">
+                            <span>🔑 내 추천 코드</span>
+                        </h5>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="referralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="첫 영상을 렌더링하면 발급됩니다">
+                            <button type="button" onclick="const c = document.getElementById('referralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert('복사되었습니다.'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">복사</button>
+                        </div>
+                        <p class="text-[10px] text-gray-400 mt-2">* 이 코드로 가입한 회원이 영상을 2개 이상 렌더링 완성 시 보상이 지급됩니다.</p>
+                    </div>
+
+                    <!-- Cumulative Reward -->
+                    <div class="space-y-2 p-4 rounded-xl border border-green-500/30 bg-green-500/5 flex flex-col justify-center items-center">
+                        <h5 class="text-xs font-bold text-green-400 mb-1">총 누적 보상금</h5>
+                        <div class="text-3xl font-black text-green-300" id="referralTotalUsdt">0 <span class="text-sm font-bold text-gray-400">USDT</span></div>
+                    </div>
+                </div>
+
+                <!-- Referred Users List -->
+                <h5 class="text-xs font-bold text-gray-300 mb-3 flex items-center gap-2">
+                    <span class="text-sm">👥</span> 내 추천으로 가입한 회원 목록
+                </h5>
+                <div class="overflow-x-auto bg-[#15191f] rounded-lg border border-gray-700">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="bg-[#242b35] text-gray-400 border-b border-gray-700">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">가입 이메일</th>
+                                <th class="px-4 py-3 font-medium">가입 일자</th>
+                                <th class="px-4 py-3 font-medium text-center">완성된 영상 수</th>
+                                <th class="px-4 py-3 font-medium text-center">상태</th>
+                            </tr>
+                        </thead>
+                        <tbody id="referralUsersTableBody" class="divide-y divide-gray-700 text-gray-300">
+                            <!-- JS Injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- End Referral Tab -->
+
         <!-- Image Styles Tab -->
         <div id="tab-content-image-styles" class="tab-content">
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -990,7 +1049,18 @@
         style_display_black_cartoon: "블랙 카툰",
         style_display_object_char: "사물 캐릭터",
         style_display_philosophical: "역사/철학 다큐",
-        style_display_bald_hoodie: "후드티 민머리"
+        style_display_bald_hoodie: "후드티 민머리",
+        // Withdrawal & History
+        msg_copied: "{{ t('msg_copied') }}",
+        msg_withdrawal_confirm: "{{ t('msg_withdrawal_confirm') }}",
+        msg_withdrawal_failed: "{{ t('msg_withdrawal_failed') }}",
+        msg_withdrawal_success: "{{ t('msg_withdrawal_success') }}",
+        err_invalid_amount: "{{ t('err_invalid_amount') }}",
+        err_missing_address: "{{ t('err_missing_address') }}",
+        msg_clipboard_error: "{{ t('msg_clipboard_error') }}",
+        msg_no_clipboard: "{{ t('msg_no_clipboard') }}",
+        status_pending: "{{ t('status_pending') }}",
+        status_completed: "{{ t('status_completed') }}"
     };
 
     const DEFAULT_STYLE_KEYS = ['realistic', 'ghibli', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa', 'minimal', 'nursery_rhyme', '2d웹', '블랙카툰', '사물캐릭터', '역사/동양철/다큐', '후드티민머리'];
@@ -1019,18 +1089,18 @@
             const res = await fetch(url);
             const data = await res.json();
 
-            if (data.status !== 'success' || !data.stats) {
+            if (data.status !== 'success' || !data.summary) {
                 tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-red-500">❌ 데이터를 가져오지 못했습니다.</td></tr>`;
                 return;
             }
 
-            if (data.stats.length === 0) {
+            if (data.summary.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">해당 조건의 정산 데이터가 없습니다.</td></tr>`;
                 return;
             }
 
             let html = '';
-            for (const s of data.stats) {
+            for (const s of data.summary) {
                 const projectEarnings = (s.total_estimated_payout != null && s.total_estimated_payout > 0) ? s.total_estimated_payout : (s.completed_projects * projectPay);
                 const aiEarnings = s.success_ai_tasks * aiPay;
                 const totalPayout = projectEarnings + aiEarnings;
@@ -1094,6 +1164,48 @@
             }
         }
     });
+
+    // Referral Data Loading
+    async function loadReferralData() {
+        const tbody = document.getElementById('referralUsersTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">데이터를 불러오는 중...</td></tr>';
+        
+        try {
+            const res = await fetch('/api/settings/referrals');
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                document.getElementById('referralTotalUsdt').innerHTML = `${data.total_usdt} <span class="text-sm font-bold text-gray-400">USDT</span>`;
+                
+                if (data.users && data.users.length > 0) {
+                    tbody.innerHTML = '';
+                    data.users.forEach(u => {
+                        const date = new Date(u.created_at).toLocaleDateString();
+                        const statusBadge = u.rewarded 
+                            ? `<span class="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-[10px] font-bold">지급 완료</span>`
+                            : `<span class="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">진행 중 (2개 필요)</span>`;
+                            
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="px-4 py-3">${u.email}</td>
+                            <td class="px-4 py-3">${date}</td>
+                            <td class="px-4 py-3 text-center">${u.completed_count}개</td>
+                            <td class="px-4 py-3 text-center">${statusBadge}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">아직 추천으로 가입한 회원이 없습니다.</td></tr>';
+                }
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-500">데이터를 불러오지 못했습니다.</td></tr>';
+            }
+        } catch (e) {
+            console.error('Error loading referrals:', e);
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-500">오류가 발생했습니다.</td></tr>';
+        }
+    }
 
     async function requestWithdrawal() {
         const amount = parseFloat(document.getElementById('wdAmount').value);

@@ -132,6 +132,43 @@ async def get_current_project(background_tasks: BackgroundTasks):
         background_tasks.add_task(ensure_vietnamese_translations_bg, [p])
         return p
     return {"id": None, "name": "No Project"}
+from pydantic import BaseModel
+
+class FeedbackRequest(BaseModel):
+    category: str
+    rating: int
+    comments: str = ""
+
+@router.post("/projects/{project_id}/feedback")
+async def submit_project_feedback(project_id: int, request: FeedbackRequest):
+    try:
+        import database as db
+        db.save_project_feedback(project_id, request.category, request.rating, request.comments)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/styles/optimize-image")
+async def optimize_image_style():
+    try:
+        from services.ai_style_service import run_optimization_and_deploy
+        import asyncio
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, run_optimization_and_deploy, "image")
+        return {"status": "success", "message": "Image style optimization started in background."}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/styles/optimize-script")
+async def optimize_script_style():
+    try:
+        from services.ai_style_service import run_optimization_and_deploy
+        import asyncio
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, run_optimization_and_deploy, "script")
+        return {"status": "success", "message": "Script style optimization started in background."}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @router.get("/projects")

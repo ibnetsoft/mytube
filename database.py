@@ -66,9 +66,8 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
-    # 프로젝트 테이블
-    cursor.execute("""
-        # [MIGRATION] withdrawals 테이블 생성
+    # [MIGRATION] withdrawals 테이블 생성
+    try:
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +78,11 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         ''')
+    except Exception:
+        pass
 
+    # 프로젝트 테이블
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -544,6 +547,31 @@ def migrate_db():
             key TEXT PRIMARY KEY,
             value TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # [NEW] AI Style System Tables
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_style_prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL,
+            type TEXT NOT NULL, -- 'image' or 'script'
+            version REAL DEFAULT 1.0,
+            prompt_content TEXT NOT NULL,
+            performance_score REAL DEFAULT 0.0,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            category TEXT,
+            rating INTEGER NOT NULL, -- e.g., 1 (bad), 5 (good)
+            comments TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -1130,6 +1158,11 @@ scene_type별 구조:
     
     try:
         cursor.execute("ALTER TABLE project_settings ADD COLUMN sfx_mapping_json TEXT")
+    except sqlite3.OperationalError: pass
+
+    # [NEW] AI가 배정한 대본/이미지 스타일을 워커가 변경하지 못하도록 잠그는 플래그
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN style_locked INTEGER DEFAULT 0")
     except sqlite3.OperationalError: pass
 
     # [NEW] Thumbnail Style Persistence
@@ -3937,3 +3970,73 @@ def get_worker_withdrawals(employee_email: str):
     finally:
         conn.close()
 
+
+
+def is_user_admin(email: str) -> bool:
+    """Check if user is admin"""
+    try:
+        result = db.query_single(
+            "SELECT is_admin FROM users WHERE email = ?",
+            (email,)
+        )
+        return result[0] if result else False
+    except:
+        return False
+
+
+def get_settlement_summary(start_date=None, end_date=None, email=None):
+    """Get settlement summary for workers"""
+    try:
+        query = """
+            SELECT
+                w.email as worker,
+                COUNT(DISTINCT p.id) as total_projects,
+                SUM(CASE WHEN p.status = 'completed' THEN 1 ELSE 0 END) as completed_projects,
+                COUNT(DISTINCT ai.id) as total_ai_tasks,
+                SUM(CASE WHEN ai.status = 'success' THEN 1 ELSE 0 END) as success_ai_tasks,
+                COUNT(DISTINCT t.id) as tts_tasks,
+                COUNT(DISTINCT m.id) as media_tasks,
+                COALESCE(SUM(p.estimated_payout), 0) as total_estimated_payout
+            FROM workers w
+            LEFT JOIN projects p ON w.email = p.worker_email
+            LEFT JOIN ai_tasks ai ON w.email = ai.worker_email
+            LEFT JOIN tts_tasks t ON w.email = t.worker_email
+            LEFT JOIN media_tasks m ON w.email = m.worker_email
+            WHERE 1=1
+        """
+
+        params = []
+
+        if start_date:
+            query += " AND p.created_at >= ?"
+            params.append(start_date)
+
+        if end_date:
+            query += " AND p.created_at <= ?"
+            params.append(end_date)
+
+        if email:
+            query += " AND w.email = ?"
+            params.append(email)
+
+        query += " GROUP BY w.email ORDER BY w.email"
+
+        results = db.query(query, tuple(params))
+
+        stats = []
+        for row in results:
+            stats.append({
+                "worker": row[0],
+                "total_projects": row[1] or 0,
+                "completed_projects": row[2] or 0,
+                "total_ai_tasks": row[3] or 0,
+                "success_ai_tasks": row[4] or 0,
+                "tts_tasks": row[5] or 0,
+                "media_tasks": row[6] or 0,
+                "total_estimated_payout": row[7] or 0
+            })
+
+        return stats
+    except Exception as e:
+        print(f"Error getting settlement summary: {e}")
+        return []

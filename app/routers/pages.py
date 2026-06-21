@@ -19,6 +19,8 @@ def init_pages(templates: Jinja2Templates):
 
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
+    email = auth_service.get_user_email()
+    is_admin = db.is_user_admin(email) if email else False
     return _templates.TemplateResponse(
         request=request,
         name=template,
@@ -27,13 +29,14 @@ def _render(request, template, page, title, **extra):
             "title": title,
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
+            "is_admin": is_admin,
             **extra
         }
     )
 
 @router.get("/", response_class=HTMLResponse)
 async def page_index(request: Request):
-    return _render(request, "pages/topic.html", "topic", "주제 찾기")
+    return RedirectResponse(url="/projects", status_code=302)
 
 @router.get("/projects", response_class=HTMLResponse)
 async def page_projects(request: Request):

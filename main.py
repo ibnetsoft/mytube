@@ -312,7 +312,23 @@ pages_router.init_pages(templates)
 
 # output 폴더
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
-app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
+# app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
+
+@app.get("/output/{file_path:path}")
+async def serve_output_file(file_path: str):
+    from services.auth_service import auth_service
+    import database as db
+    
+    full_path = os.path.join(config.OUTPUT_DIR, file_path)
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if full_path.lower().endswith(".mp4"):
+        email = auth_service.get_user_email()
+        if not db.is_user_admin(email):
+            raise HTTPException(status_code=403, detail="Only admins can access rendered videos.")
+            
+    return FileResponse(full_path)
 
 # uploads 폴더 (인트로 등 업로드용)
 os.makedirs("uploads", exist_ok=True)
