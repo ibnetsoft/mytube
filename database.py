@@ -2086,7 +2086,7 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('subtitle_color', 'white'),
             settings.get('target_language', 'ko'),
             settings.get('subtitle_style_enum', 'Basic_White'),
-            settings.get('subtitle_font_size', 80),
+            settings.get('subtitle_font_size', 5.4),
             settings.get('subtitle_stroke_color', 'black'),
             settings.get('subtitle_stroke_width', 0.15),
             settings.get('subtitle_position_y'),

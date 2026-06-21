@@ -163,10 +163,12 @@ class AuthService:
                     if data.get("status") == "restricted":
                         self._is_restricted = True
                         self._verified = False
-                        self.logger.warning(f"ACCESS RESTRICTED BY ADMIN for {user_id}")
+                        self.logger.warning(f"User {self._user_email} has been restricted by admin.")
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] User account restricted by administrator.")
                     else:
                         self._is_restricted = False
                         self._verified = True
+                        self.enforce_app_mode()
                         self._last_verified = datetime.now()
                         # [RECHARGE DETECTION] Check if balance increased without recent spent
                         old_balance = self._token_balance
@@ -281,6 +283,7 @@ class AuthService:
                 self._token_balance = profile.get("token_balance", 0)
                 self._verified = True
                 print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
+                self.enforce_app_mode()
 
             sys_keys = web_admin_client.fetch_global_api_keys()
             if sys_keys:
@@ -479,7 +482,28 @@ class AuthService:
             except Exception as e:
                 self.logger.error(f"Error generating wallet: {e}")
                 wallet_data = {"address": ""}
+                
+        return wallet_data
+
+    def enforce_app_mode(self):
+        """멤버십 등급에 따라 강제로 앱 모드를 세팅하여 무단 전환을 막음"""
+        import database as db
+        allowed_mode = None
+        if self._membership == "std":
+            allowed_mode = "longform"
+        elif self._membership == "music":
+            allowed_mode = "longform_music"
+        elif self._membership == "shorts":
+            allowed_mode = "shorts"
+        elif self._membership == "commerce":
+            allowed_mode = "commerce"
         
+        if allowed_mode:
+            current_mode = db.get_global_setting("app_mode", "longform")
+            if current_mode != allowed_mode:
+                db.update_global_setting("app_mode", allowed_mode)
+                print(f"[Auth] Enforced app_mode to '{allowed_mode}' for membership '{self._membership}'")
+
         # 3. Calculate actual balance
         total_payout_krw = 0
         total_withdrawn_usdt = 0

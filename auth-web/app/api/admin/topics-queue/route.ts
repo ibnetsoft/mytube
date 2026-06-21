@@ -450,7 +450,22 @@ export async function POST(req: Request) {
             .from('topics_queue')
             .insert(inserts)
 
-        if (insertError && /column|schema|cache|duration|payout|difficulty|style/i.test(insertError.message || '')) {
+        // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
+        // 기존 정규식은 "duration"/"style" 같은 단어가 들어간 무관한 오류까지 잡아 데이터를 누락시켰다.
+        // PostgREST 스키마 캐시 누락(PGRST204) / Postgres undefined_column(42703) / 명시적 컬럼 부재 메시지만 매칭한다.
+        const isMissingColumnError = (err: any): boolean => {
+            if (!err) return false
+            const code = String(err.code || '')
+            if (code === 'PGRST204' || code === '42703') return true
+            const msg = String(err.message || '').toLowerCase()
+            return (
+                msg.includes('schema cache') ||
+                /could not find the .* column/.test(msg) ||
+                /column .* does not exist/.test(msg)
+            )
+        }
+
+        if (isMissingColumnError(insertError)) {
             const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')

@@ -2,8 +2,11 @@ import os
 import json
 import base64
 import re
-from typing import List, Dict, Any, Tuple
-from moviepy.editor import VideoFileClip
+from typing import List, Dict, Tuple
+try:
+    from moviepy import VideoFileClip
+except ImportError:
+    from moviepy.editor import VideoFileClip
 from PIL import Image
 import io
 
@@ -93,10 +96,12 @@ Example output:
         parts = [{"text": prompt}]
         for filename, img_bytes, mime in uploaded_assets:
             encoded = base64.b64encode(img_bytes).decode("utf-8")
+            ext = os.path.splitext(filename)[1].lower()
+            derived_mime = {"jpg": "image/jpeg", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}.get(ext, mime or "image/png")
             parts.append({"text": f"Filename: {filename}"})
             parts.append({
                 "inline_data": {
-                    "mime_type": "image/png", # 프레임 추출본이나 이미지는 PNG 형식으로 규격화
+                    "mime_type": derived_mime,
                     "data": encoded
                 }
             })

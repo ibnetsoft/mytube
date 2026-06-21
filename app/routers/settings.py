@@ -239,6 +239,22 @@ async def save_global_settings_api(settings: GlobalSettings):
     
     if settings.app_mode:
         settings.app_mode = normalize_app_mode(settings.app_mode)
+        
+        # [NEW] 멤버십 기반 강제 검증 (서버 사이드 방어)
+        try:
+            from services.auth_service import auth_service
+            m = auth_service.get_membership()
+            allowed = None
+            if m == "std": allowed = "longform"
+            elif m == "music": allowed = "longform_music"
+            elif m == "shorts": allowed = "shorts"
+            elif m == "commerce": allowed = "commerce"
+            
+            if allowed and settings.app_mode != allowed:
+                settings.app_mode = allowed  # 무단 전환 시도 강제 롤백
+        except Exception:
+            pass
+
         db.save_global_setting("app_mode", settings.app_mode)
         # 템플릿 전역 변수 즉시 업데이트
         from services import app_state

@@ -1014,12 +1014,37 @@ def _apply_longform_duration_lock(project_id: int, settings: Dict[str, Any]) -> 
         settings["duration_seconds"] = int(assigned_seconds)
     return settings
 
+
+# AI가 배정한 스타일이 잠긴 프로젝트(style_locked=1)에서는 워커가 대본/이미지 스타일을
+# 바꾸지 못하도록, 들어온 설정 dict에서 스타일 키를 현재 저장값으로 되돌린다.
+_STYLE_LOCK_KEYS = ("script_style", "image_style", "visual_style")
+
+def _apply_style_lock(project_id: int, settings: Dict[str, Any]) -> Dict[str, Any]:
+    if not any(k in settings for k in _STYLE_LOCK_KEYS):
+        return settings
+    current = db.get_project_settings(project_id) or {}
+    if not _is_truthy_setting(current.get("style_locked")):
+        return settings
+    for key in _STYLE_LOCK_KEYS:
+        if key in settings:
+            saved = current.get(key)
+            if saved is not None:
+                settings[key] = saved
+            else:
+                settings.pop(key, None)
+    return settings
+
+def _is_style_locked(project_id: int) -> bool:
+    current = db.get_project_settings(project_id) or {}
+    return _is_truthy_setting(current.get("style_locked"))
+
 @app.post("/api/projects/{project_id}/settings")
 async def save_project_settings(project_id: int, req: ProjectSettingsSave):
     """프로젝트 핵심 설정 저장"""
     try:
         settings = {k: v for k, v in req.dict().items() if v is not None}
         settings = _apply_longform_duration_lock(project_id, settings)
+        settings = _apply_style_lock(project_id, settings)
         db.save_project_settings(project_id, settings)
         
         # [FIX] Sync to Global Settings (Project 1)
@@ -1063,6 +1088,10 @@ async def update_project_setting(project_id: int, key: str, value: str):
 
     if key == 'duration_seconds':
         value = _apply_longform_duration_lock(project_id, {'duration_seconds': value})['duration_seconds']
+
+    # AI가 배정한 스타일이 잠긴 경우 스타일 키 변경을 무시한다.
+    if key in _STYLE_LOCK_KEYS and _is_style_locked(project_id):
+        return {"status": "locked", "message": "AI가 배정한 스타일은 변경할 수 없습니다.", "key": key}
 
     result = db.update_project_setting(project_id, key, value)
     

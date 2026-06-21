@@ -550,6 +550,8 @@ async def get_daily_topic():
             print(f"[Queue API Warning] Failed to sync initial topic progress: {sync_err}")
 
         return {"status": "success", "project_id": project_id, "topic": topic_name}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[Queue API Error] {e}")
         return {"status": "error", "error": str(e)}

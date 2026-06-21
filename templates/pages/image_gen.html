@@ -3046,11 +3046,14 @@
             const savedStyle = data.settings.image_style_prompt
                 || data.settings.image_style
                 || Utils.storage.get(`imageStyle_${getCurrentProject()}`);
-            if (savedStyle) {
-                const element = document.querySelector(`.style-card[data-value="${savedStyle}"]`);
-                if (element) selectStyle(savedStyle, element, true);
-            }
-            applyImageStyleLock(String(data.settings.style_locked) === '1');
+            // [FIX] 스타일 카드가 렌더된 뒤에 복원/잠금을 적용한다 (핸들러가 async가 아니므로 then 사용).
+            Promise.resolve(window._stylesLoadedPromise).then(() => {
+                if (savedStyle) {
+                    const element = document.querySelector(`.style-card[data-value="${savedStyle}"]`);
+                    if (element) selectStyle(savedStyle, element, true);
+                }
+                applyImageStyleLock(String(data.settings.style_locked) === '1');
+            });
         }
 
 
@@ -3222,6 +3225,8 @@
                     }
                     if (fullData.settings.image_style_prompt || fullData.settings.image_style) {
                         const styleId = fullData.settings.image_style_prompt || fullData.settings.image_style;
+                        // [FIX] 스타일 카드 렌더 완료를 기다린 뒤 복원한다.
+                        await Promise.resolve(window._stylesLoadedPromise);
                         const element = document.querySelector(`.style-card[data-value="${styleId}"]`);
                         if (element) selectStyle(styleId, element, true);
                     }
@@ -3637,7 +3642,9 @@
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
         applyAppMode();
-        loadStyles(); // [NEW]
+        // [FIX] 스타일 카드 렌더 완료를 기다릴 수 있도록 promise를 전역에 노출한다.
+        // (저장된 스타일 복원이 카드 생성보다 먼저 실행되는 race condition 방지)
+        window._stylesLoadedPromise = loadStyles(); // [NEW]
 
         // 비율 변경 시 이미 렌더된 image-container들의 aspect-ratio 업데이트
         document.querySelectorAll('input[name="aspectRatio"]').forEach(radio => {

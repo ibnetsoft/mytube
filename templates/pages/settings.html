@@ -112,6 +112,7 @@
                         </h4>
                         <div class="mb-5 pb-2">
                             <input type="hidden" id="appMode" value="longform">
+                            {% if membership in ('pro', 'independent') %}
                             <div class="flex bg-[#1c2027] rounded-lg p-1 w-fit">
                                 <button id="btnModeLong" onclick="setAppMode('longform')"
                                     class="px-4 py-1.5 rounded-md text-xs font-bold transition-all bg-[#1c2027] dark:bg-gray-600 shadow text-gray-800 dark:text-white">
@@ -139,6 +140,27 @@
                                     {{ t('warn_mode_switch') }}
                                 </p>
                             </div>
+                            {% else %}
+                            <div class="flex bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 w-fit items-center gap-2">
+                                <span class="text-lg">🔒</span>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-blue-300">
+                                        {% if membership == 'std' %}
+                                            롱폼(Longform) 모드 전용
+                                        {% elif membership == 'music' %}
+                                            롱폼뮤직(Longform Music) 모드 전용
+                                        {% elif membership == 'shorts' %}
+                                            숏폼(Shorts) 모드 전용
+                                        {% elif membership == 'commerce' %}
+                                            쇼핑쇼츠(Commerce) 모드 전용
+                                        {% else %}
+                                            단일 모드 전용
+                                        {% endif %}
+                                    </span>
+                                    <span class="text-[10px] text-gray-400">현재 멤버십 등급에서는 모드 전환이 불가능합니다.</span>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
 

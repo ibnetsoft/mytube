@@ -20,6 +20,25 @@ class BulkCopyMoveRequest(BaseModel):
 
 router = APIRouter(prefix="/api", tags=["Projects"])
 
+# AI가 배정한 스타일이 잠긴 프로젝트(style_locked=1)에서는 워커가 대본/이미지 스타일을 바꾸지 못한다.
+_STYLE_LOCK_KEYS = ("script_style", "image_style", "visual_style")
+
+def _is_truthy(value) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+def _is_style_locked(project_id: int) -> bool:
+    current = db.get_project_settings(project_id) or {}
+    return _is_truthy(current.get("style_locked"))
+
+def _strip_locked_styles(project_id: int, settings_dict: dict) -> dict:
+    if not any(k in settings_dict for k in _STYLE_LOCK_KEYS):
+        return settings_dict
+    if not _is_style_locked(project_id):
+        return settings_dict
+    for key in _STYLE_LOCK_KEYS:
+        settings_dict.pop(key, None)
+    return settings_dict
+
 @router.post("/projects/bulk-delete")
 async def bulk_delete_projects(req: BulkDeleteRequest):
     try:
@@ -287,6 +306,7 @@ async def save_project_settings(project_id: int, settings: ProjectSettingsSave):
         settings_dict = settings.dict(exclude_unset=True)
         if "title" in settings_dict:
             settings_dict["title_vi"] = None
+        settings_dict = _strip_locked_styles(project_id, settings_dict)
         db.save_project_settings(project_id, settings_dict)
         return {"status": "success"}
     except Exception as e:
@@ -295,6 +315,8 @@ async def save_project_settings(project_id: int, settings: ProjectSettingsSave):
 @router.put("/project-settings/{project_id}")
 async def update_project_setting(project_id: int, data: ProjectSettingUpdate):
     try:
+        if data.key in _STYLE_LOCK_KEYS and _is_style_locked(project_id):
+            return {"status": "locked", "message": "AI가 배정한 스타일은 변경할 수 없습니다.", "key": data.key}
         db.update_project_setting(project_id, data.key, data.value)
         if data.key == "title":
             db.update_project_setting(project_id, "title_vi", None)

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -15,13 +15,33 @@ export async function GET() {
         auth: { persistSession: false }
     })
 
-    try {
-        // 전체 유저 조회 (페이지네이션 명시)
-        const { data: { users }, error: authError } = await supabaseAdmin.auth.admin.listUsers({
-            page: 1, perPage: 1000
-        })
-        if (authError) throw authError
+    // 페이지네이션 파라미터. 미지정 시 전체 유저를 자동으로 끝까지 순회한다.
+    const { searchParams } = new URL(req.url)
+    const pageParam = searchParams.get('page')
+    const perPageParam = searchParams.get('perPage')
+    const perPage = Math.max(1, Math.min(1000, Number.parseInt(perPageParam ?? '1000', 10) || 1000))
+    const requestedPage = pageParam != null ? Math.max(1, Number.parseInt(pageParam, 10) || 1) : null
 
+    try {
+        // 전체 유저 조회. page가 주어지면 해당 페이지만, 아니면 1000명 초과 환경을 위해 끝까지 순회한다.
+        let users: any[] = []
+        if (requestedPage != null) {
+            const { data, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+                page: requestedPage, perPage
+            })
+            if (authError) throw authError
+            users = data.users || []
+        } else {
+            for (let page = 1; ; page++) {
+                const { data, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+                    page, perPage
+                })
+                if (authError) throw authError
+                const batch = data.users || []
+                users = users.concat(batch)
+                if (batch.length < perPage) break
+            }
+        }
         const { data: profiles } = await supabaseAdmin.from('profiles').select('*')
 
         const normMembership = (v: string) => ({ standard: 'std', independent: 'pro' })[v] ?? v
