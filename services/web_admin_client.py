@@ -166,6 +166,9 @@ class WebAdminClient:
             "signup_source": "desktop_client",
             "my_referral_code": payload.get("my_referral_code") or "",
             "referred_by_code": payload.get("referred_by_code") or "",
+            "preferred_category_ids": payload.get("preferred_category_ids") or [],
+            "preferred_category_names": payload.get("preferred_category_names") or [],
+            "preferred_video_length": payload.get("preferred_video_length") or "",
         }
         if not profile_id:
             profile_id = self.create_auth_user(email=email, metadata=metadata)
@@ -185,6 +188,9 @@ class WebAdminClient:
             "pin_code": (existing or {}).get("pin_code") or "1234",
             "membership": (existing or {}).get("membership") or "std",
             "membership_tier": (existing or {}).get("membership_tier") or "standard",
+            "preferred_category_ids": payload.get("preferred_category_ids") or [],
+            "preferred_category_names": payload.get("preferred_category_names") or [],
+            "preferred_video_length": payload.get("preferred_video_length") or "",
         }
 
         response = self.supabase_patch("profiles", profile_payload, params={"id": f"eq.{profile_id}"}, timeout=8)
@@ -208,6 +214,19 @@ class WebAdminClient:
         response = self.supabase_get("profiles", params={"select": select}, timeout=5)
         if response is not None and response.status_code == 200:
             return response.json()
+        return []
+
+    def fetch_categories(self, select: str = "id,name,video_type") -> List[Dict[str, Any]]:
+        response = self.supabase_get(
+            "categories",
+            params={"select": select, "order": "created_at.desc"},
+            timeout=5,
+        )
+        if response is not None and response.status_code == 200:
+            try:
+                return response.json() or []
+            except Exception:
+                return []
         return []
 
     def insert_withdrawal_request(self, email: str, amount: float, destination_address: str) -> bool:

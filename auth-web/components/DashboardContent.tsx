@@ -17,8 +17,6 @@ interface UserProfile {
         token_balance?: number
         usdt_balance?: number
         wallet_address?: string
-        usdt_balance?: number
-        wallet_address?: string
         is_approved?: boolean
         signup_status?: string
         signup_source?: string
@@ -27,6 +25,9 @@ interface UserProfile {
         nationality?: string
         membership?: string
         membership_tier?: string
+        preferred_category_ids?: Array<number | string>
+        preferred_category_names?: string[]
+        preferred_video_length?: string
         pin_code?: string
         approved_hwid?: string
         device_hwid?: string
@@ -2582,6 +2583,8 @@ export default function DashboardContent() {
                                     <th className="px-6 py-5 whitespace-nowrap">이메일 / 등급</th>
                                     <th className="px-6 py-5 whitespace-nowrap">연락처</th>
                                     <th className="px-6 py-5 whitespace-nowrap">국적</th>
+                                    <th className="px-6 py-5 whitespace-nowrap">선호 카테고리</th>
+                                    <th className="px-6 py-5 whitespace-nowrap">선호 길이</th>
                                     <th className="px-6 py-5 whitespace-nowrap">추천인</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">토큰</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">멤버십</th>
@@ -2615,6 +2618,42 @@ export default function DashboardContent() {
                                         {/* 국적 */}
                                         <td className="px-6 py-5 text-sm text-gray-300 font-bold whitespace-nowrap">
                                             {u.user_metadata?.nationality || <span className="text-gray-700">-</span>}
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            {u.profile?.preferred_category_names?.length ? (
+                                                <div className="flex flex-wrap gap-1 max-w-[220px]">
+                                                    {u.profile.preferred_category_names.slice(0, 2).map((category) => (
+                                                        <span
+                                                            key={`${u.id}-${category}`}
+                                                            className="px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-xs font-bold"
+                                                        >
+                                                            {category}
+                                                        </span>
+                                                    ))}
+                                                    {u.profile.preferred_category_names.length > 2 && (
+                                                        <span className="px-2 py-1 rounded-md bg-white/5 text-gray-400 border border-white/10 text-xs font-bold">
+                                                            +{u.profile.preferred_category_names.length - 2}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-700">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-5 whitespace-nowrap">
+                                            {u.profile?.preferred_video_length ? (
+                                                <span className="px-2 py-1 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/20 text-xs font-bold">
+                                                    {u.profile.preferred_video_length === '15m'
+                                                        ? '15m'
+                                                        : u.profile.preferred_video_length === '30m'
+                                                            ? '30m'
+                                                            : u.profile.preferred_video_length === '60m_plus'
+                                                                ? '60m+'
+                                                                : u.profile.preferred_video_length}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-700">-</span>
+                                            )}
                                         </td>
                                         {/* 추천인 */}
                                         <td className="px-6 py-5 text-sm whitespace-nowrap">

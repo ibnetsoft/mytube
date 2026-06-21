@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 
 import requests
@@ -26,6 +26,8 @@ class RegisterRequest(BaseModel):
     contact: str
     email: str
     nationality: str
+    preferred_category_ids: list[int | str] = []
+    preferred_video_length: str = ""
     terms_accepted: bool = False
     privacy_accepted: bool = False
     referral_code: str | None = None
@@ -50,7 +52,7 @@ def _disable_insecure_warnings():
 
 
 def _apply_category_upload_channel(project_id: int, category_row: dict):
-    """카테고리에 고정된 업로드 채널이 있으면 프로젝트 설정에 반영"""
+    """移댄뀒怨좊━??怨좎젙???낅줈??梨꾨꼸???덉쑝硫??꾨줈?앺듃 ?ㅼ젙??諛섏쁺"""
     if not project_id or not category_row:
         return
 
@@ -139,6 +141,36 @@ async def get_auth_emails():
         return {"emails": []}
 
 
+@router.get("/api/auth/signup-options")
+async def get_signup_options():
+    try:
+        categories = web_admin_client.fetch_categories(select="id,name,video_type")
+        normalized_categories = []
+        for item in categories:
+            category_id = item.get("id")
+            category_name = str(item.get("name") or "").strip()
+            video_type = str(item.get("video_type") or "longform").strip() or "longform"
+            if category_id is None or not category_name:
+                continue
+            normalized_categories.append({
+                "id": category_id,
+                "name": category_name,
+                "video_type": video_type,
+            })
+
+        return {
+            "categories": normalized_categories,
+            "duration_options": [
+                {"value": "15m", "label": "15 min"},
+                {"value": "30m", "label": "30 min"},
+                {"value": "60m_plus", "label": "60+ min"},
+            ],
+        }
+    except Exception as e:
+        print(f"[API] Failed to fetch signup options: {e}")
+        return {"categories": [], "duration_options": []}
+
+
 @router.post("/api/auth/register")
 async def post_auth_register(req: RegisterRequest):
     try:
@@ -149,12 +181,33 @@ async def post_auth_register(req: RegisterRequest):
         contact = req.contact.strip()
         email = req.email.strip().lower()
         nationality = req.nationality.strip()
+        preferred_video_length = str(req.preferred_video_length or "").strip()
+        requested_category_ids = [str(item).strip() for item in (req.preferred_category_ids or []) if str(item).strip()]
         if not all([full_name, contact, email, nationality]):
-            return {"success": False, "error": "이름, 연락처, 이메일, 국가는 모두 입력해야 합니다."}
+            return {"success": False, "error": "이름, 연락처, 이메일, 국적은 모두 입력해야 합니다."}
         if "@" not in email or "." not in email:
             return {"success": False, "error": "이메일 형식이 올바르지 않습니다."}
         if not req.terms_accepted or not req.privacy_accepted:
             return {"success": False, "error": "약관과 개인정보처리방침에 모두 동의해야 합니다."}
+        if not requested_category_ids:
+            return {"success": False, "error": "최소 1개 이상의 선호 카테고리를 선택해야 합니다."}
+        if preferred_video_length not in {"15m", "30m", "60m_plus"}:
+            return {"success": False, "error": "선호 영상 길이를 선택해야 합니다."}
+
+        categories = web_admin_client.fetch_categories(select="id,name")
+        category_map = {str(item.get("id")): item for item in categories if item.get("id") is not None}
+        preferred_category_ids: list[int | str] = []
+        preferred_category_names: list[str] = []
+        for category_id in requested_category_ids:
+            row = category_map.get(category_id)
+            if not row:
+                continue
+            preferred_category_ids.append(row.get("id"))
+            category_name = str(row.get("name") or "").strip()
+            if category_name:
+                preferred_category_names.append(category_name)
+        if not preferred_category_ids:
+            return {"success": False, "error": "선택한 카테고리 정보를 찾을 수 없습니다. 다시 시도해주세요."}
 
         from datetime import datetime, timezone
 
@@ -171,6 +224,9 @@ async def post_auth_register(req: RegisterRequest):
             "privacy_accepted_at": now,
             "my_referral_code": my_referral_code,
             "referred_by_code": req.referral_code.strip() if req.referral_code else "",
+            "preferred_category_ids": preferred_category_ids,
+            "preferred_category_names": preferred_category_names,
+            "preferred_video_length": preferred_video_length,
         })
     except Exception as e:
         return {"success": False, "error": f"가입 신청 오류: {str(e)}"}
@@ -185,7 +241,7 @@ async def post_auth_login(req: LoginRequest):
         profile = web_admin_client.fetch_profile_by_email(req.email)
         if profile:
             # [WHITELIST SECURITY CHECK]
-            # profiles 테이블의 is_approved 컬럼 검증 (True이거나, 'approved' 상태만 로그인 허용)
+            # profiles 테이블의 is_approved 컬럼 검증 (True 또는 'approved' 상태만 로그인 허용)
             is_approved = profile.get("is_approved")
             # is_approved 컬럼이 없거나 명시적으로 False인 경우 차단
             if is_approved is False or is_approved is None or str(is_approved).lower() in ("false", "0", "none"):
@@ -242,7 +298,7 @@ async def sync_auth():
                     "token_balance": auth_service.get_token_balance(),
                 }
 
-            return {"success": False, "error": "Supabase 동기화 실패"}
+            return {"success": False, "error": "Supabase ?숆린???ㅽ뙣"}
 
         success = auth_service.verify_license()
 
@@ -262,11 +318,11 @@ async def get_daily_topic():
     try:
         email = auth_service.get_user_email()
         if not email:
-            raise HTTPException(401, "로그인이 필요합니다.")
+            raise HTTPException(401, "濡쒓렇?몄씠 ?꾩슂?⑸땲??")
 
         supabase_url, headers = _supabase_headers()
         if not supabase_url:
-            raise HTTPException(500, "Supabase 설정 누락")
+            raise HTTPException(500, "Supabase ?ㅼ젙 ?꾨씫")
 
         _disable_insecure_warnings()
         url = (
@@ -276,11 +332,11 @@ async def get_daily_topic():
         r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
 
         if r.status_code != 200:
-            raise HTTPException(500, f"Supabase 호출 오류: {r.text}")
+            raise HTTPException(500, f"Supabase ?몄텧 ?ㅻ쪟: {r.text}")
 
         data = r.json()
         if not data:
-            return {"status": "error", "error": "배정 대기 중인 오늘의 주제가 없습니다."}
+            return {"status": "error", "error": "諛곗젙 ?湲?以묒씤 ?ㅻ뒛??二쇱젣媛 ?놁뒿?덈떎."}
 
         item = data[0]
         topic_id = item["id"]

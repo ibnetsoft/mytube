@@ -22,6 +22,112 @@ function payoutForMinutes(minutes: number, minMinutes: number, basePay: number, 
     return basePay + Math.max(0, minutes - minMinutes) * extraPerMinute
 }
 
+function toStringArray(value: any): string[] {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item ?? '').trim()).filter(Boolean)
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (!trimmed) return []
+        try {
+            const parsed = JSON.parse(trimmed)
+            if (Array.isArray(parsed)) {
+                return parsed.map((item) => String(item ?? '').trim()).filter(Boolean)
+            }
+        } catch {}
+        return trimmed.split(',').map((item) => item.trim()).filter(Boolean)
+    }
+    return []
+}
+
+function durationPreferenceBucket(minutes: number | null) {
+    if (!minutes || minutes <= 0) return ''
+    if (minutes <= 15) return '15m'
+    if (minutes <= 30) return '30m'
+    return '60m_plus'
+}
+
+type PreferredWorker = {
+    email: string
+    preferredCategoryIds: string[]
+    preferredVideoLength: string
+    activeLoad: number
+}
+
+async function loadPreferredWorkers(supabase: ReturnType<typeof getAdmin>): Promise<PreferredWorker[]> {
+    const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('email,is_approved,preferred_category_ids,preferred_video_length')
+
+    if (profilesError) throw profilesError
+
+    const { data: queueRows, error: queueError } = await supabase
+        .from('topics_queue')
+        .select('assigned_employee_email,status')
+        .in('status', ['pending', 'assigned'])
+
+    if (queueError) throw queueError
+
+    const loadMap = new Map<string, number>()
+    for (const row of queueRows || []) {
+        const email = String(row.assigned_employee_email || '').trim().toLowerCase()
+        if (!email) continue
+        loadMap.set(email, (loadMap.get(email) || 0) + 1)
+    }
+
+    return (profiles || [])
+        .filter((profile: any) => profile?.email && profile?.is_approved === true)
+        .map((profile: any) => {
+            const email = String(profile.email || '').trim().toLowerCase()
+            return {
+                email,
+                preferredCategoryIds: toStringArray(profile.preferred_category_ids),
+                preferredVideoLength: String(profile.preferred_video_length || '').trim(),
+                activeLoad: loadMap.get(email) || 0,
+            }
+        })
+}
+
+function pickPreferredWorkerEmail(
+    workers: PreferredWorker[],
+    fallbackEmail: string,
+    categoryId: any,
+    durationMinutes: number | null,
+    isLongformCategory: boolean
+) {
+    const fallback = String(fallbackEmail || '').trim().toLowerCase()
+    const targetCategoryId = String(categoryId ?? '').trim()
+    if (!targetCategoryId) return fallback
+
+    const categoryMatched = workers.filter((worker) => worker.preferredCategoryIds.includes(targetCategoryId))
+    if (!categoryMatched.length) return fallback
+
+    const targetBucket = isLongformCategory ? durationPreferenceBucket(durationMinutes) : ''
+    const ranked = [...categoryMatched].sort((a, b) => {
+        const aDurationRank = !isLongformCategory
+            ? 0
+            : a.preferredVideoLength === targetBucket
+            ? 0
+            : !a.preferredVideoLength
+            ? 1
+            : 2
+        const bDurationRank = !isLongformCategory
+            ? 0
+            : b.preferredVideoLength === targetBucket
+            ? 0
+            : !b.preferredVideoLength
+            ? 1
+            : 2
+        if (aDurationRank !== bDurationRank) return aDurationRank - bDurationRank
+        if (a.activeLoad !== b.activeLoad) return a.activeLoad - b.activeLoad
+        if (a.email === fallback) return -1
+        if (b.email === fallback) return 1
+        return a.email.localeCompare(b.email)
+    })
+
+    return ranked[0]?.email || fallback
+}
+
 function normalizeTopicQueueRow(topic: any) {
     const assetMix = topic?.asset_mix_summary && typeof topic.asset_mix_summary === 'object'
         ? topic.asset_mix_summary
@@ -154,6 +260,7 @@ export async function POST(req: Request) {
         const extraMinutePayout = Math.max(0, toInt(policy.sys_api_longform_extra_minute_payout, 500))
         const durationLockEnabled = String(policy.sys_api_longform_duration_lock_enabled ?? 'true') !== 'false'
         const isLongformCategory = (category.video_type || 'longform') === 'longform'
+        const preferredWorkers = await loadPreferredWorkers(supabase)
 
         console.log(`Running AI Auto-Topic Generator for category: ${category.name}`);
         const nowInKst = new Date()
@@ -241,10 +348,17 @@ export async function POST(req: Request) {
             const estimatedPayout = assignedDuration
                 ? payoutForMinutes(assignedDuration, minDurationMinutes, basePayout, extraMinutePayout)
                 : null
+            const assignedEmployeeEmail = pickPreferredWorkerEmail(
+                preferredWorkers,
+                category.assigned_employee_email,
+                category.id,
+                assignedDuration,
+                isLongformCategory
+            )
             return {
                 category_id: category.id,
                 topic: String(topic || '').trim(),
-                assigned_employee_email: category.assigned_employee_email,
+                assigned_employee_email: assignedEmployeeEmail,
                 status: 'pending',
                 ...(isLongformCategory ? {
                     recommended_duration_minutes: assignedDuration,
