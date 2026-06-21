@@ -1435,6 +1435,7 @@
             const settings = {
                 // Base Settings
                 app_mode: safeVal('appMode'),
+                scene_transition_enabled: safeCheck('sceneTransitionEnabled'),
 
                 // Gemini TTS
                 gemini_tts: {
@@ -1563,6 +1564,10 @@
             // Base Settings
             if (data.app_mode) setAppMode(data.app_mode);
             if (data.template_image_url) updateTemplatePreview(data.template_image_url);
+            if (data.scene_transition_enabled !== undefined) {
+                const el = document.getElementById('sceneTransitionEnabled');
+                if (el) el.checked = data.scene_transition_enabled;
+            }
 
             // User Info
             if (document.getElementById('userName')) document.getElementById('userName').value = data.user_name || '';

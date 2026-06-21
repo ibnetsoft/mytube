@@ -164,6 +164,34 @@
                         </div>
                     </div>
 
+                    <!-- [NEW] Scene Transition Toggle -->
+                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                            🎬 씬 전환 효과 (Scene Transition)
+                        </h4>
+                        <div class="mb-5 pb-2">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <div class="relative">
+                                    <input type="checkbox" id="sceneTransitionEnabled" class="sr-only">
+                                    <div class="block bg-gray-600 w-10 h-6 rounded-full transition-colors duration-300"></div>
+                                    <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300"></div>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-gray-200">크로스페이드(디졸브) 효과 켜기</span>
+                                    <span class="text-[10px] text-gray-400">장면이 부드럽게 겹쳐서 전환됩니다. (렌더링 시간이 약간 증가할 수 있습니다)</span>
+                                </div>
+                            </label>
+                            <style>
+                                input:checked ~ .block {
+                                    background-color: #3b82f6; /* bg-blue-500 */
+                                }
+                                input:checked ~ .dot {
+                                    transform: translateX(100%);
+                                }
+                            </style>
+                        </div>
+                    </div>
+
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
                             👤 {{ t('label_user_info') }}

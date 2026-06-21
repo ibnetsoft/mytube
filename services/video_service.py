@@ -927,10 +927,43 @@ class VideoService:
             else:
                 try:
                     import datetime
+                    import database as db
+                    use_transition = db.get_global_setting("scene_transition_enabled", True, value_type="bool")
+                    
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
-                        _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose\n")
-                    # Use method="compose" for mixed types (VideoAsset + Effects + Images)
-                    video_slideshow = concatenate_videoclips(valid_clips, method="compose")
+                        _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose, transition={use_transition}\n")
+                    
+                    if use_transition and len(valid_clips) > 1:
+                        # [NEW] 크로스페이드(디졸브) 씬 전환 로직
+                        # 오디오 싱크를 맞추기 위해 전환시간만큼 영상 길이를 강제로 늘립니다.
+                        TRANSITION_DUR = 0.5
+                        processed_clips = []
+                        start_time = 0.0
+                        
+                        for i, c in enumerate(valid_clips):
+                            # 마지막 클립이 아니면 다음 클립과 겹칠 시간을 위해 길이를 늘림
+                            if i < len(valid_clips) - 1:
+                                extended_dur = c.duration + TRANSITION_DUR
+                                c = c.with_duration(extended_dur)
+                            
+                            # 첫 클립이 아니면 시작 시 크로스페이드 적용
+                            if i > 0:
+                                c = c.with_start(start_time).crossfadein(TRANSITION_DUR)
+                            else:
+                                c = c.with_start(start_time)
+                                
+                            processed_clips.append(c)
+                            
+                            # 다음 클립 시작 지점 (현재 클립의 '원래' 오디오 길이만큼만 이동)
+                            if i < len(valid_clips) - 1:
+                                start_time += (c.duration - TRANSITION_DUR)
+                            else:
+                                start_time += c.duration
+                                
+                        from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+                        video_slideshow = CompositeVideoClip(processed_clips, size=(target_w, target_h))
+                    else:
+                        video_slideshow = concatenate_videoclips(valid_clips, method="compose")
                 except Exception as ce:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
                         _df.write(f"[{datetime.datetime.now()}] Concatenate (compose) FAILED, trying chain: {str(ce)}\n")
