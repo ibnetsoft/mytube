@@ -32,7 +32,7 @@
                 수당 내역 (History)
             </button>
             <button onclick="switchTab('withdrawal')" id="tab-withdrawal" class="tab-button">
-                수당 출금 (Withdrawal)
+                USDT 출금 신청 (Withdrawal)
             </button>
                     {% if not is_standard_member %}
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
@@ -232,7 +232,13 @@
                             <!-- USDT Wallet & Withdrawal -->
                             <div class="col-span-1 md:col-span-2 mt-4 p-4 rounded-xl border border-blue-500/30 bg-blue-500/5">
                                 <h5 class="text-xs font-bold text-blue-400 mb-3 flex items-center gap-2">
-                                    <span class="text-sm">🪙</span> USDT (BEP20) 지갑 및 출금
+                                    <span class="inline-flex items-center justify-center w-4 h-4">
+                                        <svg viewBox="0 0 32 32" class="w-4 h-4" aria-hidden="true">
+                                            <circle cx="16" cy="16" r="16" fill="#26A17B"></circle>
+                                            <path fill="#fff" d="M17.9 14.1v-2.3h5.4V8.3H8.7v3.5h5.4v2.3c-4.4.2-7.7 1-7.7 2s3.3 1.8 7.7 2v7.3h3.8V18c4.4-.2 7.7-1 7.7-2s-3.3-1.8-7.7-1.9Zm0 3.3v0c-.1 0-1 .1-2 .1-.8 0-1.4 0-1.6-.1v0c-3.1-.1-5.4-.6-5.4-1.1s2.3-1 5.4-1.1v1.8c.2 0 .8.1 1.6.1 1 0 1.9 0 2-.1v-1.8c3.1.1 5.4.6 5.4 1.1s-2.3 1-5.4 1.1Z"></path>
+                                        </svg>
+                                    </span>
+                                    <span>USDT <span class="text-yellow-300 font-black">(BEP20)</span> 지갑 및 출금</span>
                                 </h5>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -241,7 +247,7 @@
                                             <input type="text" id="myWalletAddress" class="input-field w-full text-xs font-mono text-gray-400" value="{{ wallet_info.address }}" readonly placeholder="지갑 자동생성 중...">
                                             <button type="button" onclick="const c = document.getElementById('myWalletAddress').value; if(c) { navigator.clipboard.writeText(c); alert('복사되었습니다.'); }" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">복사</button>
                                         </div>
-                                        <p class="text-[9px] text-gray-500 mt-1">* 가입 시 최초 자동 생성된 고유 BEP20 지갑 주소입니다.</p>
+                                        <p class="text-[9px] text-gray-500 mt-1">* 가입 시 최초 자동 생성된 고유 <span class="text-yellow-300 font-bold">BEP20</span> 지갑 주소입니다.</p>
                                     </div>
                                     <div>
                                         <label class="text-[10px] font-bold text-gray-500 mb-1 block">현재 출금 가능 수당 (USDT 잔액)</label>
@@ -250,13 +256,24 @@
                                 </div>
                                 <hr class="border-gray-700 my-4">
                                 <div class="space-y-3">
-                                    <h6 class="text-xs font-bold text-gray-300">📤 수당 출금 신청 (외부 지갑으로 전송)</h6>
+                                    <h6 class="text-xs font-bold text-gray-300 flex items-center gap-2">
+                                        <span class="inline-flex items-center justify-center w-4 h-4">
+                                            <svg viewBox="0 0 32 32" class="w-4 h-4" aria-hidden="true">
+                                                <circle cx="16" cy="16" r="16" fill="#26A17B"></circle>
+                                                <path fill="#fff" d="M17.9 14.1v-2.3h5.4V8.3H8.7v3.5h5.4v2.3c-4.4.2-7.7 1-7.7 2s3.3 1.8 7.7 2v7.3h3.8V18c4.4-.2 7.7-1 7.7-2s-3.3-1.8-7.7-1.9Zm0 3.3v0c-.1 0-1 .1-2 .1-.8 0-1.4 0-1.6-.1v0c-3.1-.1-5.4-.6-5.4-1.1s2.3-1 5.4-1.1v1.8c.2 0 .8.1 1.6.1 1 0 1.9 0 2-.1v-1.8c3.1.1 5.4.6 5.4 1.1s-2.3 1-5.4 1.1Z"></path>
+                                            </svg>
+                                        </span>
+                                        <span>📤 USDT 출금 신청 (외부 지갑으로 전송)</span>
+                                    </h6>
                                     <div>
                                         <label class="text-[10px] font-bold text-gray-500 mb-1 block flex items-center justify-between">
-                                            <span>받을 지갑 주소 (BEP20 형식)</span>
+                                            <span>받을 지갑 주소 <span class="text-yellow-300 font-black">(BEP20 형식)</span></span>
                                             <span class="text-blue-400 font-normal">자동 저장됨</span>
                                         </label>
-                                        <input type="text" id="wdDestAddress" class="input-field w-full text-xs" placeholder="0x..." value="{{ wallet_info.saved_external_wallet }}">
+                                        <div class="flex items-center gap-2">
+                                            <input type="text" id="wdDestAddress" class="input-field w-full text-xs" placeholder="0x..." value="{{ wallet_info.saved_external_wallet }}">
+                                            <button type="button" onclick="pasteWithdrawalAddress()" class="px-3 py-2 bg-[#2d3340] hover:bg-[#3d4455] border border-gray-600 rounded text-xs font-bold text-white whitespace-nowrap transition">붙여넣기</button>
+                                        </div>
                                     </div>
                                     <div class="flex gap-3 items-end">
                                         <div class="flex-1">
@@ -1113,6 +1130,24 @@
         } catch (e) {
             console.error(e);
             alert('오류가 발생했습니다: ' + e.message);
+        }
+    }
+
+    async function pasteWithdrawalAddress() {
+        try {
+            if (!navigator.clipboard || !navigator.clipboard.readText) {
+                alert('이 브라우저에서는 붙여넣기를 지원하지 않습니다.');
+                return;
+            }
+            const text = (await navigator.clipboard.readText()).trim();
+            if (!text) {
+                alert('클립보드에 붙여넣을 주소가 없습니다.');
+                return;
+            }
+            document.getElementById('wdDestAddress').value = text;
+        } catch (e) {
+            console.error(e);
+            alert('클립보드에서 주소를 읽지 못했습니다.');
         }
     }
 
