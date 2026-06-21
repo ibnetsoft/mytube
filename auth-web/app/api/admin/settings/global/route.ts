@@ -13,6 +13,10 @@ const KEYS = [
     'longform_duration_lock_enabled'
 ]
 
+const EXACT_KEYS = [
+    'binance_api_key', 'binance_api_secret'
+]
+
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -21,10 +25,10 @@ const getAdmin = () => createClient(
 export async function GET() {
     try {
         const sb = getAdmin()
-        const { data } = await sb.from('global_settings').select('key, value').in('key', KEYS.map(k => `sys_api_${k}`))
+        const { data } = await sb.from('global_settings').select('key, value').in('key', [...KEYS.map(k => `sys_api_${k}`), ...EXACT_KEYS])
         const result: Record<string, string> = {}
         for (const row of (data || [])) {
-            const k = row.key.replace('sys_api_', '')
+            const k = row.key.startsWith('sys_api_') ? row.key.replace('sys_api_', '') : row.key
             result[k] = row.value || ''
         }
         return NextResponse.json(result)
@@ -40,6 +44,10 @@ export async function POST(req: Request) {
         for (const k of KEYS) {
             if (body[k] === undefined) continue
             await sb.from('global_settings').upsert({ key: `sys_api_${k}`, value: body[k] }, { onConflict: 'key' })
+        }
+        for (const k of EXACT_KEYS) {
+            if (body[k] === undefined) continue
+            await sb.from('global_settings').upsert({ key: k, value: body[k] }, { onConflict: 'key' })
         }
         return NextResponse.json({ success: true })
     } catch (e: any) {

@@ -2687,11 +2687,13 @@ export default function DashboardContent() {
                                 </select>
                             </div>
                             {([
-                                { key: 'gemini', label: '??Gemini API Key' },
-                                { key: 'youtube', label: '?띰툘 YouTube Data API Key' },
-                                { key: 'elevenlabs', label: '?럺截?ElevenLabs API Key' },
-                                { key: 'topview', label: '?썟 TopView API Key' },
-                                { key: 'topview_uid', label: '?썟 TopView UID' },
+                                { key: 'gemini', label: 'Gemini API Key' },
+                                { key: 'youtube', label: 'YouTube Data API Key' },
+                                { key: 'elevenlabs', label: 'ElevenLabs API Key' },
+                                { key: 'topview', label: 'TopView API Key' },
+                                { key: 'topview_uid', label: 'TopView UID' },
+                                { key: 'binance_api_key', label: 'Binance API Key (출금용)' },
+                                { key: 'binance_api_secret', label: 'Binance API Secret (출금용)' },
                             ] as { key: keyof typeof sysKeys; label: string }[]).map(({ key, label }) => (
                                 <div key={key}>
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
