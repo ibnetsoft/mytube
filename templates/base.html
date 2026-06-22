@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - {{ t('app_name') }}</title>
+    <title>{{ t(title) }} - {{ t('app_name') }}</title>
     <script src="/static/js/tailwind.min.js?v=2"></script>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" type="image/png" href="/static/img/favicon.png">
@@ -1144,7 +1144,6 @@
                             <span class="w-2 h-2 rounded-full bg-green-500"></span>
                             <span class="text-green-600 dark:text-green-400">{{ t('api_connected') }}</span>
                         </div>
-                        <div class="text-gray-400">${activeApis.join(', ')}</div>
                     `;
                 }
             } catch (e) {

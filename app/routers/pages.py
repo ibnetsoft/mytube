@@ -40,58 +40,58 @@ async def page_index(request: Request):
 
 @router.get("/projects", response_class=HTMLResponse)
 async def page_projects(request: Request):
-    return _render(request, "pages/projects.html", "projects", "프로젝트")
+    return _render(request, "pages/projects.html", "projects", "nav_my_projects")
 
 @router.get("/script-plan", response_class=HTMLResponse)
 async def page_script_plan(request: Request):
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
         return RedirectResponse(url="/music-plan", status_code=302)
-    return _render(request, "pages/script_plan.html", "script-plan", "대본 기획")
+    return _render(request, "pages/script_plan.html", "script-plan", "nav_plan")
 
 @router.get("/music-plan", response_class=HTMLResponse)
 async def page_music_plan(request: Request):
-    return _render(request, "pages/music_plan.html", "music-plan", "음악 기획")
+    return _render(request, "pages/music_plan.html", "music-plan", "nav_music_plan")
 
 @router.get("/script-gen", response_class=HTMLResponse)
 async def page_script_gen(request: Request, project_id: Optional[int] = Query(None)):
     project = None
     if project_id:
         project = db.get_project(project_id)
-    return _render(request, "pages/script_gen.html", "script-gen", "대본 생성", project=project)
+    return _render(request, "pages/script_gen.html", "script-gen", "nav_script", project=project)
 
 @router.get("/image-gen", response_class=HTMLResponse)
 async def page_image_gen(request: Request):
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
-        return _render(request, "pages/music_cover.html", "image-gen", "커버 이미지")
-    return _render(request, "pages/image_gen.html", "image-gen", "이미지 생성")
+        return _render(request, "pages/music_cover.html", "image-gen", "nav_cover_image")
+    return _render(request, "pages/image_gen.html", "image-gen", "nav_image")
 
 @router.get("/image-crop", response_class=HTMLResponse)
 async def page_image_crop(request: Request):
-    return _render(request, "pages/image_crop.html", "image-crop", "이미지 자르기")
+    return _render(request, "pages/image_crop.html", "image-crop", "nav_image_crop")
 
 @router.get("/audio-gen", response_class=HTMLResponse)
 async def page_audio_gen(request: Request):
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
-        return _render(request, "pages/music_tracks.html", "audio-gen", "트랙 관리")
-    return _render(request, "pages/audio_gen.html", "audio-gen", "오디오 생성")
+        return _render(request, "pages/music_tracks.html", "audio-gen", "nav_track_generation")
+    return _render(request, "pages/audio_gen.html", "audio-gen", "nav_audio")
 
 @router.get("/video-gen", response_class=HTMLResponse)
 async def page_video_gen(request: Request):
-    return _render(request, "pages/video_gen.html", "video-gen", "영상 생성")
+    return _render(request, "pages/video_gen.html", "video-gen", "nav_intro")
 
 @router.get("/tts", response_class=HTMLResponse)
 async def page_tts(request: Request):
-    return _render(request, "pages/tts.html", "tts", "TTS 생성")
+    return _render(request, "pages/tts.html", "tts", "nav_tts")
 
 @router.get("/render", response_class=HTMLResponse)
 async def page_render(request: Request):
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
-        return _render(request, "pages/music_render.html", "render", "렌더링")
-    return _render(request, "pages/render.html", "render", "영상 렌더링")
+        return _render(request, "pages/music_render.html", "render", "nav_render")
+    return _render(request, "pages/render.html", "render", "nav_render")
 
 @router.get("/video-upload", response_class=HTMLResponse)
 async def page_video_upload(request: Request):
@@ -106,7 +106,7 @@ async def page_video_upload(request: Request):
             name="pages/music_video_upload.html",
             context={
                 "page": "video-upload",
-                "title": "예약 업로드",
+                "title": "nav_reserve",
                 "is_independent": auth_service.is_independent(),
                 "membership": auth_service.get_membership(),
                 "token_balance": auth_service.get_token_balance()
@@ -117,7 +117,7 @@ async def page_video_upload(request: Request):
         name="pages/video_upload.html",
         context={
             "page": "video-upload",
-            "title": "영상 업로드",
+            "title": "nav_upload",
             "is_independent": auth_service.is_independent(),
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance()
@@ -136,7 +136,7 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
         name="pages/subtitle_gen.html",
         context={
             "page": "subtitle-gen",
-            "title": "자막 편집",
+            "title": "nav_subtitle",
             "project": project,
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance()
@@ -147,26 +147,26 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
 async def page_title_desc(request: Request):
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
-        return _render(request, "pages/music_title_desc.html", "title-desc", "제목/설명 생성")
-    return _render(request, "pages/title_desc.html", "title-desc", "제목/설명 생성")
+        return _render(request, "pages/music_title_desc.html", "title-desc", "nav_title_desc")
+    return _render(request, "pages/title_desc.html", "title-desc", "nav_title_desc")
 
 @router.get("/thumbnail", response_class=HTMLResponse)
 async def page_thumbnail(request: Request, project_id: Optional[int] = Query(None)):
     app_mode = db.get_global_setting("app_mode", "longform")
-    return _render(request, "pages/thumbnail.html", "thumbnail", "썸네일 생성", project_id=project_id, app_mode=app_mode)
+    return _render(request, "pages/thumbnail.html", "thumbnail", "nav_thumbnail", project_id=project_id, app_mode=app_mode)
 
 @router.get("/template", response_class=HTMLResponse)
 async def page_template(request: Request, project_id: Optional[int] = Query(None)):
     app_mode = db.get_global_setting("app_mode", "longform")
-    return _render(request, "pages/template.html", "template", "템플릿", project_id=project_id, app_mode=app_mode)
+    return _render(request, "pages/template.html", "template", "nav_shorts_template", project_id=project_id, app_mode=app_mode)
 
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
-    return _render(request, "pages/shorts.html", "shorts", "쇼츠 생성")
+    return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
 
 @router.get("/commerce-shorts", response_class=HTMLResponse)
 async def page_commerce_shorts(request: Request):
-    return _render(request, "pages/commerce_shorts.html", "commerce-shorts", "커머스 쇼츠")
+    return _render(request, "pages/commerce_shorts.html", "commerce-shorts", "nav_commerce_shorts")
 
 @router.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):
@@ -179,7 +179,7 @@ async def page_settings(request: Request):
         name="pages/settings.html",
         context={
             "page": "settings",
-            "title": "설정",
+            "title": "nav_settings",
             "now": datetime.datetime.now(),
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
@@ -193,9 +193,9 @@ async def page_settings(request: Request):
 
 @router.get("/logs", response_class=HTMLResponse)
 async def page_logs(request: Request):
-    return _render(request, "pages/logs.html", "logs", "로그")
+    return _render(request, "pages/logs.html", "logs", "nav_logs")
 
 @router.get("/autopilot", response_class=HTMLResponse)
 async def page_autopilot(request: Request):
-    return _render(request, "pages/autopilot.html", "autopilot", "오토파일럿")
+    return _render(request, "pages/autopilot.html", "autopilot", "nav_autopilot")
 

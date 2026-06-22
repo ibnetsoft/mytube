@@ -35,7 +35,7 @@
                 {{ t('label_wallet_and_withdrawal') }}
             </button>
             <button onclick="switchTab('referral')" id="tab-referral" class="tab-button">
-                👥 추천인 관리
+                {{ t('label_referral_mgmt') }}
             </button>
                     {% if not is_standard_member %}
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
@@ -146,18 +146,18 @@
                                 <div class="flex flex-col">
                                     <span class="text-xs font-bold text-blue-300">
                                         {% if membership == 'std' %}
-                                            롱폼(Longform) 모드 전용
+                                            {{ t('label_mode_long_only') }}
                                         {% elif membership == 'music' %}
-                                            롱폼뮤직(Longform Music) 모드 전용
+                                            {{ t('label_mode_music_only') }}
                                         {% elif membership == 'shorts' %}
-                                            숏폼(Shorts) 모드 전용
+                                            {{ t('label_mode_shorts_only') }}
                                         {% elif membership == 'commerce' %}
-                                            쇼핑쇼츠(Commerce) 모드 전용
+                                            {{ t('label_mode_commerce_only') }}
                                         {% else %}
-                                            단일 모드 전용
+                                            {{ t('label_mode_single_only') }}
                                         {% endif %}
                                     </span>
-                                    <span class="text-[10px] text-gray-400">현재 멤버십 등급에서는 모드 전환이 불가능합니다.</span>
+                                    <span class="text-[10px] text-gray-400">{{ t('label_membership_no_switch') }}</span>
                                 </div>
                             </div>
                             {% endif %}
@@ -167,20 +167,20 @@
                     <!-- [NEW] Scene Transition Dropdown -->
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            🎬 씬 전환 효과 (Scene Transition)
+                            {{ t('label_scene_transition') }}
                         </h4>
                         <div class="mb-5 pb-2">
-                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">효과 모드 선택</label>
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">{{ t('label_select_effect_mode') }}</label>
                             <select id="sceneTransitionMode" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                <option value="ai_auto">✨ AI 자동 선택 (장면 맥락에 맞게 최적의 효과 적용)</option>
-                                <option value="none">없음 (컷 전환)</option>
-                                <option value="crossfade">디졸브 (크로스페이드)</option>
-                                <option value="slide_left">왼쪽으로 슬라이드 (밀어내기)</option>
-                                <option value="fade_to_black">블랙아웃 (어두워졌다 밝아짐)</option>
-                                <option value="zoom_in">줌 인 (확대되며 등장)</option>
+                                <option value="ai_auto">{{ t('label_ai_auto_effect') }}</option>
+                                <option value="none">{{ t('label_none_cut') }}</option>
+                                <option value="crossfade">{{ t('label_crossfade') }}</option>
+                                <option value="slide_left">{{ t('label_slide_left') }}</option>
+                                <option value="fade_to_black">{{ t('label_fade_to_black') }}</option>
+                                <option value="zoom_in">{{ t('label_zoom_in') }}</option>
                             </select>
                             <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
-                                AI 자동 선택 시 대본 분위기에 따라 AI가 가장 어울리는 전환 효과를 알아서 적용합니다. (렌더링 시간이 약간 증가할 수 있습니다)
+                                {{ t('label_ai_auto_effect_desc') }}
                             </p>
                         </div>
                     </div>
@@ -227,6 +227,15 @@
                                 </div>
                             </div>
 
+                            <!-- Withdrawal Section -->
+                            <div class="col-span-1 md:col-span-2 mt-6 pt-4 border-t border-gray-700/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div class="text-[11px] text-gray-400">
+                                    ⚠️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Khi rút tài khoản, tất cả dự án, lịch sử thanh toán và dữ liệu ví sẽ bị xóa vĩnh viễn.{% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Upon withdrawal, all active projects, payout histories, and wallet data will be permanently deleted.{% else %}회원 탈퇴 시 모든 프로젝트 작업 내역, 수당 정보 및 지갑 주소가 영구적으로 삭제되며 복구할 수 없습니다.{% endif %}
+                                </div>
+                                <button type="button" onclick="handleWithdrawal()" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+                                    🗑️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Rút tài khoản (Withdraw){% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Withdraw Account{% else %}회원 탈퇴 (Delete Account){% endif %}
+                                </button>
+                            </div>
 
                         </div>
                     </div>
@@ -1342,6 +1351,43 @@
         } catch (e) {
             console.error(e);
             tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">에러 발생: ${e.message}</td></tr>`;
+        }
+    }
+
+    async function handleWithdrawal() {
+        const lang = "{{ window_lang or (current_lang | default('ko', true)) }}";
+        
+        let msg1, msg2;
+        if (lang === 'vi') {
+            msg1 = "⚠️ [CẢNH BÁO MẤT DỮ LIỆU]\nKhi rút tài khoản, tất cả dự án đã làm, lịch sử thanh toán/thu nhập 및 ví sẽ bị XÓA VĨNH VIỄN khỏi hệ thống.\nBạn có chắc chắn muốn xóa toàn bộ dữ liệu?";
+            msg2 = "🔴 [XÁC NHẬN CUỐI CÙNG]\nHành động này KHÔNG THỂ HOÀN TÁC.\nXác nhận rút tài khoản 및 xóa mọi dữ liệu?";
+        } else if (lang === 'en') {
+            msg1 = "⚠️ [DATA LOSS WARNING]\nUpon withdrawal, all active projects, payout histories, and wallet details will be PERMANENTLY DELETED.\nAre you sure you want to delete all your data?";
+            msg2 = "🔴 [FINAL CONFIRMATION]\nThis action is IRREVERSIBLE.\nDo you really want to delete your account and all data?";
+        } else {
+            msg1 = "⚠️ [데이터 영구 삭제 경고]\n회원 탈퇴 시 지금까지 작업했던 모든 프로젝트 내역, 획득한 수당 정보 및 지갑 주소 등 모든 내역이 영구적으로 삭제되며 절대로 복구할 수 없습니다.\n정말 탈퇴를 진행하시겠습니까?";
+            msg2 = "🔴 [최종 확인]\n이 작업은 되돌릴 수 없습니다.\n정말로 모든 데이터를 삭제하고 탈퇴하시겠습니까?";
+        }
+        
+        if (!confirm(msg1)) return;
+        if (!confirm(msg2)) return;
+        
+        try {
+            const response = await fetch('/api/settings/withdraw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            if (response.ok && data.success) {
+                alert(lang === 'vi' ? 'Đã rút tài khoản thành công.' : (lang === 'en' ? 'Account successfully withdrawn.' : '회원 탈퇴 처리가 완료되었습니다.'));
+                window.location.href = '/login';
+            } else {
+                alert(data.detail || (lang === 'vi' ? 'Lỗi khi rút tài khoản.' : (lang === 'en' ? 'Failed to withdraw account.' : '회원 탈퇴 처리 중 오류가 발생했습니다.')));
+            }
+        } catch (err) {
+            console.error(err);
+            alert(lang === 'vi' ? 'Lỗi kết nối.' : (lang === 'en' ? 'Connection error.' : '서버와의 통신에 실패했습니다.'));
         }
     }
 

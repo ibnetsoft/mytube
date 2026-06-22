@@ -457,7 +457,8 @@
                         <span class="text-base">📁</span>
                         <div class="flex flex-col min-w-0">
                             <span class="truncate">${p.name}</span>
-                            ${p.name_vi && (window.currentLang === 'vi' || window.currentLang === 'en') ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
+                            ${window.currentLang === 'vi' && p.name_vi ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
+                            ${window.currentLang === 'en' && p.name_en ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_en}">${p.name_en}</span>` : ''}
                         </div>
                     </div>
                 </td>
@@ -470,7 +471,8 @@
                     title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
                     <div class="flex flex-col min-w-0">
                         <span class="truncate">${p.video_title || '-'}</span>
-                        ${p.video_title_vi && (window.currentLang === 'vi' || window.currentLang === 'en') ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
+                        ${window.currentLang === 'vi' && p.video_title_vi ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
+                        ${window.currentLang === 'en' && p.video_title_en ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_en}">${p.video_title_en}</span>` : ''}
                     </div>
                 </td>
                 ${isMusicMode ? musicStatusCells : defaultStatusCells}

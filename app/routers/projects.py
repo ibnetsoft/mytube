@@ -106,7 +106,7 @@ async def translate_text_to_target(text: str, target_lang_code: str) -> str:
         print(f"[I18n Translation Error] {e}")
         return ""
 
-async def ensure_vietnamese_translations_bg(projects: list):
+async def ensure_translations_bg(projects: list):
     for p in projects:
         try:
             pid = p.get("id")
@@ -116,29 +116,51 @@ async def ensure_vietnamese_translations_bg(projects: list):
             settings = db.get_project_settings(pid) or {}
             target_lang_code = settings.get("target_language", "vi")
 
-            # 1. Project Name
+            # 1. Project Name (Vietnamese)
             if p.get("name") and not p.get("name_vi"):
                 translated_name = await translate_text_to_target(p["name"], target_lang_code)
                 if translated_name:
                     db.update_project(pid, name_vi=translated_name)
                     p["name_vi"] = translated_name
 
-            # 2. Topic
+            # 1-2. Project Name (English)
+            if p.get("name") and not p.get("name_en"):
+                translated_name_en = await translate_text_to_target(p["name"], "en")
+                if translated_name_en:
+                    db.update_project(pid, name_en=translated_name_en)
+                    p["name_en"] = translated_name_en
+
+            # 2. Topic (Vietnamese)
             if p.get("topic") and not p.get("topic_vi"):
                 translated_topic = await translate_text_to_target(p["topic"], target_lang_code)
                 if translated_topic:
                     db.update_project(pid, topic_vi=translated_topic)
                     p["topic_vi"] = translated_topic
 
-            # 3. Video Title
+            # 2-2. Topic (English)
+            if p.get("topic") and not p.get("topic_en"):
+                translated_topic_en = await translate_text_to_target(p["topic"], "en")
+                if translated_topic_en:
+                    db.update_project(pid, topic_en=translated_topic_en)
+                    p["topic_en"] = translated_topic_en
+
+            # 3. Video Title (Vietnamese)
             title_key = "video_title" if "video_title" in p else ("title" if "title" in p else None)
             title_vi_key = "video_title_vi" if "video_title" in p else ("title_vi" if "title" in p else None)
+            title_en_key = "video_title_en" if "video_title" in p else ("title_en" if "title" in p else None)
             
             if title_key and p.get(title_key) and not p.get(title_vi_key):
-                translated_title = await translate_text_to_vi(p[title_key])
+                translated_title = await translate_text_to_target(p[title_key], target_lang_code)
                 if translated_title:
                     db.update_project_setting(pid, "title_vi", translated_title)
                     p[title_vi_key] = translated_title
+
+            # 3-2. Video Title (English)
+            if title_key and p.get(title_key) and not p.get(title_en_key):
+                translated_title_en = await translate_text_to_target(p[title_key], "en")
+                if translated_title_en:
+                    db.update_project_setting(pid, "title_en", translated_title_en)
+                    p[title_en_key] = translated_title_en
 
             # 4. Image Prompts Scene Script Context
             try:
@@ -146,9 +168,14 @@ async def ensure_vietnamese_translations_bg(projects: list):
                 for pm in prompts:
                     pm_id = pm.get("id")
                     if pm_id and pm.get("scene_text") and not pm.get("scene_text_vi"):
-                        translated_scene_text = await translate_text_to_vi(pm["scene_text"])
+                        translated_scene_text = await translate_text_to_target(pm["scene_text"], target_lang_code)
                         if translated_scene_text:
                             db.update_image_prompt_scene_text_vi(pm_id, translated_scene_text)
+                    
+                    if pm_id and pm.get("scene_text") and not pm.get("scene_text_en"):
+                        translated_scene_text_en = await translate_text_to_target(pm["scene_text"], "en")
+                        if translated_scene_text_en:
+                            db.update_image_prompt_scene_text_en(pm_id, translated_scene_text_en)
             except Exception as e_prompts:
                 print(f"[BG Translation Error - Prompts] {e_prompts}")
         except Exception as e:
@@ -167,7 +194,7 @@ async def get_current_project(background_tasks: BackgroundTasks):
     ][:1]
     if recent:
         p = recent[0]
-        background_tasks.add_task(ensure_vietnamese_translations_bg, [p])
+        background_tasks.add_task(ensure_translations_bg, [p])
         return p
     return {"id": None, "name": "No Project"}
 from pydantic import BaseModel
@@ -217,7 +244,7 @@ async def get_projects(background_tasks: BackgroundTasks):
         projects = db.get_projects_with_status(employee_email=email)
         
         # Run translations sequentially in the background
-        background_tasks.add_task(ensure_vietnamese_translations_bg, projects)
+        background_tasks.add_task(ensure_translations_bg, projects)
         
         return {"status": "success", "projects": projects}
     except Exception as e:
@@ -274,7 +301,7 @@ async def get_project(project_id: int, background_tasks: BackgroundTasks):
     project["app_mode"] = settings.get("app_mode") or DEFAULT_APP_MODE
     project["video_title"] = settings.get("title")
     project["duration_seconds"] = settings.get("duration_seconds")
-    background_tasks.add_task(ensure_vietnamese_translations_bg, [project])
+    background_tasks.add_task(ensure_translations_bg, [project])
     return project
 
 @router.get("/projects/{project_id}/script-structure")

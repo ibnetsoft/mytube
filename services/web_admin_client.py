@@ -458,4 +458,71 @@ class WebAdminClient:
             
         return hist_res.json()
 
+    def delete_auth_user(self, user_id: str) -> bool:
+        """Supabase auth.users에서 사용자 계정 삭제 (Admin API)"""
+        if not self.has_supabase() or not user_id:
+            return False
+        self._disable_warnings()
+        try:
+            response = requests.delete(
+                f"{self.supabase_url}/auth/v1/admin/users/{user_id}",
+                headers=self.headers(),
+                timeout=self.timeout,
+                verify=False,
+                proxies={"http": None, "https": None},
+            )
+            if response.status_code in (200, 204):
+                print(f"[WebAdmin] Successfully deleted auth user {user_id}")
+                return True
+            else:
+                print(f"[WebAdmin] Failed to delete auth user {user_id}: HTTP {response.status_code} {response.text}")
+                return False
+        except Exception as e:
+            print(f"[WebAdmin] Error deleting auth user: {e}")
+            return False
+
+    def delete_profile(self, user_id: str) -> bool:
+        """Supabase profiles 테이블에서 프로필 삭제"""
+        if not self.has_supabase() or not user_id:
+            return False
+        self._disable_warnings()
+        try:
+            response = requests.delete(
+                f"{self.supabase_url}/rest/v1/profiles",
+                headers=self.headers(),
+                params={"id": f"eq.{user_id}"},
+                timeout=self.timeout,
+                verify=False,
+                proxies={"http": None, "https": None},
+            )
+            if response.status_code in (200, 204):
+                print(f"[WebAdmin] Successfully deleted profile {user_id}")
+                return True
+            else:
+                print(f"[WebAdmin] Failed to delete profile {user_id}: HTTP {response.status_code} {response.text}")
+                return False
+        except Exception as e:
+            print(f"[WebAdmin] Error deleting profile: {e}")
+            return False
+
+    def delete_withdrawals(self, user_id: str) -> bool:
+        """Supabase withdrawals 테이블에서 해당 유저의 출금 신청 기록 삭제"""
+        if not self.has_supabase() or not user_id:
+            return False
+        self._disable_warnings()
+        try:
+            response = requests.delete(
+                f"{self.supabase_url}/rest/v1/withdrawals",
+                headers=self.headers(),
+                params={"user_id": f"eq.{user_id}"},
+                timeout=self.timeout,
+                verify=False,
+                proxies={"http": None, "https": None},
+            )
+            return response.status_code in (200, 204)
+        except Exception as e:
+            print(f"[WebAdmin] Error deleting withdrawals: {e}")
+            return False
+
+
 web_admin_client = WebAdminClient()

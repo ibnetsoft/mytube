@@ -306,13 +306,16 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("wp_password", settings.wp_password)
     # [NEW] User Info
     if settings.user_name is not None:
+    # [NEW] User Info
+    if settings.user_name is not None:
         db.save_global_setting("user_name", settings.user_name)
     if settings.user_nationality is not None:
         db.save_global_setting("user_nationality", settings.user_nationality)
     if settings.user_phone is not None:
         db.save_global_setting("user_phone", settings.user_phone)
-    if settings.user_email is not None:
-        db.save_global_setting("user_email", settings.user_email)
+    # 이메일은 수정이 제한됩니다.
+    # if settings.user_email is not None:
+    #     db.save_global_setting("user_email", settings.user_email)
     
     # [NEW] Sync to SaaS server (값이 있을 때만 전송)
     from services.auth_service import auth_service
@@ -1381,3 +1384,59 @@ def get_referral_info():
         "total_usdt": total_usdt,
         "users": users_data
     }
+
+@router.post("/withdraw")
+async def withdraw_account_api():
+    """회원 탈퇴 처리 (로컬/Supabase 데이터 영구 삭제, 메일 전송, 로그아웃)"""
+    from services.auth_service import auth_service
+    from services.web_admin_client import web_admin_client
+    from services.email_service import send_withdrawal_email
+    import os
+    
+    email = auth_service.get_user_email()
+    if not email:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+        
+    try:
+        # 1. Supabase 원격 데이터 삭제
+        profile = web_admin_client.fetch_profile_by_email(email)
+        if profile and profile.get("id"):
+            user_id = profile["id"]
+            web_admin_client.delete_withdrawals(user_id)
+            web_admin_client.delete_profile(user_id)
+            web_admin_client.delete_auth_user(user_id)
+            
+        # 2. 로컬 DB 데이터 영구 삭제
+        db.delete_user_data(email)
+        
+        # 3. 이메일 자동 메일 발송
+        send_withdrawal_email(email)
+        
+        # 4. 클라이언트 자격 증명 파일 삭제 (라이선스 키, 토큰 캐시, 지갑 등)
+        license_path = auth_service.license_file
+        if os.path.exists(license_path):
+            try:
+                os.remove(license_path)
+            except Exception as e:
+                print(f"[Withdraw] Failed to remove license file: {e}")
+                
+        try:
+            from config import config
+            balance_path = config.BALANCE_CACHE_PATH
+            if os.path.exists(balance_path):
+                os.remove(balance_path)
+            
+            wallet_path = config.WALLET_KEY_PATH
+            if os.path.exists(wallet_path):
+                os.remove(wallet_path)
+        except Exception as e:
+            print(f"[Withdraw] Failed to remove cache files: {e}")
+            
+        # 5. 로컬 세션 로그아웃
+        auth_service.logout_user()
+        
+        return {"success": True, "message": "회원 탈퇴 처리가 완료되었습니다."}
+        
+    except Exception as e:
+        print(f"[Withdraw] Error during withdrawal: {e}")
+        raise HTTPException(status_code=500, detail=f"회원 탈퇴 처리 중 오류 발생: {str(e)}")

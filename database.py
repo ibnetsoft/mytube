@@ -299,6 +299,24 @@ def init_db():
     except Exception:
         pass
 
+    # [MIGRATION] Add English translation columns
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN name_en TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN topic_en TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN title_en TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE image_prompts ADD COLUMN scene_text_en TEXT")
+    except Exception:
+        pass
+
     # [NEW] 웹툰 수동 처리 학습 시스템
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS webtoon_learning_rules (
@@ -1543,6 +1561,7 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         p.id, p.name, p.topic, p.status as project_status, p.created_at, p.updated_at,
         ps.title as video_title,
         p.name_vi, p.topic_vi, ps.title_vi as video_title_vi,
+        p.name_en, p.topic_en, ps.title_en as video_title_en,
         CASE WHEN s.id IS NOT NULL THEN 1 ELSE 0 END as has_script,
         CASE WHEN ss.id IS NOT NULL THEN 1 ELSE 0 END as has_structure,
         CASE WHEN ps.longform_music_plan_json IS NOT NULL AND ps.longform_music_plan_json != '' THEN 1 ELSE 0 END as has_music_plan,
@@ -3195,6 +3214,14 @@ def update_image_prompt_scene_text_vi(prompt_id: int, scene_text_vi: str):
     conn.commit()
     conn.close()
 
+def update_image_prompt_scene_text_en(prompt_id: int, scene_text_en: str):
+    """장면 스크립트 영어 번역 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE image_prompts SET scene_text_en = ? WHERE id = ?", (scene_text_en, prompt_id))
+    conn.commit()
+    conn.close()
+
 def get_image_prompts(project_id: int):
     import json
     conn = get_db()
@@ -4339,3 +4366,41 @@ def get_settlement_summary(start_date=None, end_date=None, email=None):
     except Exception as e:
         print(f"Error getting settlement summary: {e}")
         return []
+
+def delete_user_data(email: str) -> bool:
+    """탈퇴 회원의 모든 로컬 데이터를 삭제한다."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # 1. 사용자의 프로젝트 id 리스트 가져오기
+        cursor.execute("SELECT id FROM projects WHERE employee_email = ?", (email,))
+        project_ids = [row[0] for row in cursor.fetchall()]
+        
+        if project_ids:
+            placeholders = ",".join("?" for _ in project_ids)
+            
+            child_tables = [
+                "project_settings", "music_track_plans", "analysis", "script_structure",
+                "project_sources", "scripts", "image_prompts", "tts_audio", "metadata",
+                "thumbnails", "shorts", "project_characters", "project_feedback", "ai_generation_logs"
+            ]
+            for table in child_tables:
+                try:
+                    cursor.execute(f"DELETE FROM {table} WHERE project_id IN ({placeholders})", tuple(project_ids))
+                except Exception as e:
+                    print(f"[DB Delete] Failed to delete from {table}: {e}")
+                    
+        # 2. projects 테이블 삭제
+        cursor.execute("DELETE FROM projects WHERE employee_email = ?", (email,))
+        
+        # 3. withdrawals 테이블 삭제
+        cursor.execute("DELETE FROM withdrawals WHERE employee_email = ?", (email,))
+        
+        conn.commit()
+        print(f"[DB Delete] Successfully deleted all data for user: {email}")
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"[DB Delete] Error deleting user data for {email}: {e}")
+        return False
+

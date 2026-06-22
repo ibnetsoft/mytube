@@ -30,8 +30,10 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_render_location') }}</span>
             <select id="renderTarget" onchange="toggleRemoteUrl()"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
-                <option value="local" {% if (membership | lower) not in ['std', 'standard'] %}selected{% endif %}>{{ t('opt_local_pc') }}</option>
-                <option value="drive_api" {% if (membership | lower) in ['std', 'standard'] %}selected{% endif %}>그래픽서버</option>
+                {% if (membership | lower) not in ['std', 'standard'] %}
+                <option value="local" selected>{{ t('opt_local_pc') }}</option>
+                {% endif %}
+                <option value="drive_api" {% if (membership | lower) in ['std', 'standard'] %}selected{% endif %}>{{ t('opt_graphics_server') }}</option>
             </select>
         </div>
 
@@ -271,7 +273,7 @@
         const isStandard = '{{ membership }}'.trim().toLowerCase() === 'std' || '{{ membership }}'.trim().toLowerCase() === 'standard';
         const defaultTarget = isStandard ? 'drive_api' : 'local';
         const storedTargetRaw = localStorage.getItem('remote_render_target') || defaultTarget;
-        const storedTarget = storedTargetRaw === 'remote' ? 'local' : storedTargetRaw;
+        const storedTarget = isStandard ? 'drive_api' : (storedTargetRaw === 'remote' ? 'local' : storedTargetRaw);
         const renderTargetSelect = document.getElementById('renderTarget');
         if (renderTargetSelect) renderTargetSelect.value = storedTarget;
         toggleRemoteUrl();

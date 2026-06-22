@@ -144,3 +144,48 @@ def send_verify_code(to: str, code: str) -> bool:
 </html>
 """
     return _send_email(to, subject, html)
+
+
+def send_withdrawal_email(to: str) -> bool:
+    """회원 탈퇴 완료 이메일 발송"""
+    subject = "[Picadilly Studio] 회원 탈퇴 처리 완료 안내"
+    html = f"""
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0b0f19;font-family:'Noto Sans KR',sans-serif;">
+  <div style="max-width:480px;margin:40px auto;background:#1e293b;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+    <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px;text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:#f87171;display:inline-block;"></span>
+        <span style="color:#fee2e2;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">PICADILLY STUDIO</span>
+      </div>
+      <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0;">회원 탈퇴 완료</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="color:#94a3b8;font-size:14px;line-height:1.7;margin:0 0 24px;">
+        안녕하세요.<br>
+        요청하신 회원 탈퇴 처리가 완료되었습니다.
+      </p>
+      <div style="background:#0f172a;border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="color:#f87171;font-size:13px;font-weight:bold;margin:0 0 8px;">삭제 완료된 데이터 내역</p>
+        <ul style="color:#94a3b8;font-size:12px;margin:0;padding-left:20px;line-height:1.6;">
+          <li>작업했던 모든 프로젝트 및 설정 내역</li>
+          <li>수당 내역 및 정산 정보</li>
+          <li>지갑 정보 및 추천인 혜택</li>
+        </ul>
+      </div>
+      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:14px;margin-bottom:24px;">
+        <p style="color:#fbbf24;font-size:12px;margin:0;">
+          ⚠️ 탈퇴된 계정의 데이터는 즉시 파기되며, 영구적으로 복구할 수 없습니다.
+        </p>
+      </div>
+      <p style="color:#475569;font-size:11px;text-align:center;margin:0;">
+        이 메일은 발신 전용입니다. 회신하지 마세요.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+"""
+    return _send_email(to, subject, html)
+
