@@ -137,25 +137,25 @@
 
                 <!-- ── Trends / Language Selection ── -->
                 <div class="space-y-2 pb-2">
-                    <label class="atl-field-label block">{{ t('label_trend_market') if t('label_trend_market') != 'label_trend_market' else 'Trend Market' }}</label>
+                    <label class="atl-field-label block">
+                        {{ t('label_trend_market') if t('label_trend_market') != 'label_trend_market' else 'Trend Market' }}
+                        <span class="text-[8px] text-gray-500 font-normal lowercase tracking-normal"> (주제 자동 배정)</span>
+                    </label>
                     <div class="grid grid-cols-3 gap-2">
-                        <button onclick="setGenerationLanguage('ko')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-white/10 bg-transparent text-white"
-                                style="font-size: 10px; font-weight: 800;"
+                        <button class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all border border-white/10 bg-transparent text-white"
+                                style="font-size: 10px; font-weight: 800; pointer-events: none;"
                                 id="langBtn-ko">
                             <span>🇰🇷</span>
                             <span>{{ t('plan_kr_trend').split(' ')[1] if t('plan_kr_trend') and ' ' in t('plan_kr_trend') else 'KOREAN' }}</span>
                         </button>
-                        <button onclick="setGenerationLanguage('ja')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-white/10 bg-transparent text-white"
-                                style="font-size: 10px; font-weight: 800;"
+                        <button class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all border border-white/10 bg-transparent text-white"
+                                style="font-size: 10px; font-weight: 800; pointer-events: none;"
                                 id="langBtn-ja">
                             <span>🇯🇵</span>
                             <span>{{ t('plan_jp_trend').split(' ')[1] if t('plan_jp_trend') and ' ' in t('plan_jp_trend') else 'JAPANESE' }}</span>
                         </button>
-                        <button onclick="setGenerationLanguage('en')" 
-                                class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all hover:scale-105 active:scale-95 border border-white/10 bg-transparent text-white"
-                                style="font-size: 10px; font-weight: 800;"
+                        <button class="py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all border border-white/10 bg-transparent text-white"
+                                style="font-size: 10px; font-weight: 800; pointer-events: none;"
                                 id="langBtn-en">
                             <span>🇺🇸</span>
                             <span>{{ t('plan_us_trend').split(' ')[1] if t('plan_us_trend') and ' ' in t('plan_us_trend') else 'ENGLISH' }}</span>
