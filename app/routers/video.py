@@ -1557,6 +1557,18 @@ async def render_project_video(
                         duration_per_image = audio_duration / num_img
                 
                 # Thumbnail Path for Shorts
+                fade_in_flags = []
+                image_effects = []
+                transition_effects = []
+                
+                try:
+                    prompts_data = db.get_image_prompts(project_id)
+                    if prompts_data and prompts_data.get('prompts'):
+                        fade_in_flags = [p.get('fade_in', False) for p in prompts_data['prompts']]
+                        transition_effects = [p.get('transition_effect', 'none') for p in prompts_data['prompts']]
+                except Exception as e:
+                    print(f"Failed to load prompts: {e}")
+
                 thumbnail_path_arg = None
                 p_settings = db.get_project_settings(project_id) or {}
 
@@ -1577,16 +1589,6 @@ async def render_project_video(
                             thumbnail_path_arg = t_path
 
                 # Load fade-in and effects
-                fade_in_flags = []
-                image_effects = []
-                
-                try:
-                    prompts_data = db.get_image_prompts(project_id)
-                    if prompts_data and prompts_data.get('prompts'):
-                        fade_in_flags = [p.get('fade_in', False) for p in prompts_data['prompts']]
-                except Exception as e:
-                    print(f"Failed to load prompts: {e}")
-
                 try:
                     ef_path = p_settings.get('image_effects_path')
                     if ef_path and os.path.exists(ef_path):
@@ -1745,6 +1747,7 @@ async def render_project_video(
                         "duration_per_image": duration_per_image,
                         "fade_in_flags": fade_in_flags,
                         "image_effects": image_effects,
+                        "transition_effects": transition_effects,
                         "intro_video_path": new_intro
                     }
                     

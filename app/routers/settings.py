@@ -65,7 +65,7 @@ class GlobalSettings(BaseModel):
     app_mode: Optional[str] = None
     gemini_tts: Optional[Dict[str, Any]] = None
     script_styles: Optional[Dict[str, Any]] = None
-    scene_transition_enabled: Optional[bool] = None
+    scene_transition_mode: Optional[str] = None
     # [NEW] Webtoon Settings
     webtoon_auto_split: Optional[bool] = None
     webtoon_smart_pan: Optional[bool] = None
@@ -117,7 +117,7 @@ async def get_global_settings_api():
         "gemini_tts": db.get_global_setting("gemini_tts", {}),
         "script_styles": db.get_global_setting("script_styles", {}),
         "template_image_url": db.get_global_setting("template_image_url"),
-        "scene_transition_enabled": db.get_global_setting("scene_transition_enabled", True, value_type="bool"),
+        "scene_transition_mode": db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str"),
         # [NEW] Webtoon
         "webtoon_auto_split": db.get_global_setting("webtoon_auto_split", True, value_type="bool"),
         "webtoon_smart_pan": db.get_global_setting("webtoon_smart_pan", True, value_type="bool"),
@@ -182,7 +182,7 @@ async def get_global_settings_api():
     merged["gemini_tts"] = global_conf["gemini_tts"]
     merged["script_styles"] = global_conf["script_styles"]
     merged["template_image_url"] = global_conf["template_image_url"]
-    merged["scene_transition_enabled"] = global_conf["scene_transition_enabled"]
+    merged["scene_transition_mode"] = global_conf["scene_transition_mode"]
 
     # [NEW] Webtoon
     merged["webtoon_auto_split"] = global_conf["webtoon_auto_split"]
@@ -266,8 +266,8 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("gemini_tts", settings.gemini_tts)
     if settings.script_styles:
         db.save_global_setting("script_styles", settings.script_styles)
-    if settings.scene_transition_enabled is not None:
-        db.save_global_setting("scene_transition_enabled", settings.scene_transition_enabled)
+    if settings.scene_transition_mode is not None:
+        db.save_global_setting("scene_transition_mode", settings.scene_transition_mode)
 
     # [NEW] Webtoon Save
     if settings.webtoon_auto_split is not None:

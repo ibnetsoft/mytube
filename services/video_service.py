@@ -115,6 +115,7 @@ class VideoService:
         template_overlay_path: Optional[str] = None, # [NEW] Persistent Overlay (Start to End)
         fade_in_flags: Optional[List[bool]] = None,  # [NEW] Fade-in effect per image
         image_effects: Optional[List[str]] = None,   # [NEW] Ken Burns Effects
+        transition_effects: Optional[List[str]] = None, # [NEW] Scene transitions
         intro_video_path: Optional[str] = None,   # [NEW] Intro Video Prepend
         sfx_map: Optional[dict] = None,          # [NEW] Scene SFX Map {scene_num: sfx_path}
         focal_point_ys: Optional[List[float]] = None, # [NEW] Smart Focus Point (0.0 - 1.0)
@@ -928,35 +929,59 @@ class VideoService:
                 try:
                     import datetime
                     import database as db
-                    use_transition = db.get_global_setting("scene_transition_enabled", True, value_type="bool")
+                    transition_mode = db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str")
                     
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
-                        _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose, transition={use_transition}\n")
+                        _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose, mode={transition_mode}\n")
                     
-                    if use_transition and len(valid_clips) > 1:
-                        # [NEW] 크로스페이드(디졸브) 씬 전환 로직
-                        # 오디오 싱크를 맞추기 위해 전환시간만큼 영상 길이를 강제로 늘립니다.
+                    if len(valid_clips) > 1 and transition_mode != "none":
                         TRANSITION_DUR = 0.5
                         processed_clips = []
                         start_time = 0.0
+                        target_w, target_h = resolution
                         
                         for i, c in enumerate(valid_clips):
-                            # 마지막 클립이 아니면 다음 클립과 겹칠 시간을 위해 길이를 늘림
-                            if i < len(valid_clips) - 1:
-                                extended_dur = c.duration + TRANSITION_DUR
-                                c = c.with_duration(extended_dur)
-                            
-                            # 첫 클립이 아니면 시작 시 크로스페이드 적용
-                            if i > 0:
-                                c = c.with_start(start_time).crossfadein(TRANSITION_DUR)
+                            current_effect = 'none'
+                            if transition_mode == "ai_auto":
+                                if transition_effects and i < len(transition_effects):
+                                    current_effect = transition_effects[i]
                             else:
+                                current_effect = transition_mode
+                                
+                            if i == 0:
+                                current_effect = 'none'
+
+                            if current_effect == 'none':
+                                overlap_dur = 0.0
+                                c = c.with_start(start_time)
+                            else:
+                                overlap_dur = TRANSITION_DUR
+                                if i < len(valid_clips) - 1:
+                                    c = c.with_duration(c.duration + TRANSITION_DUR)
+                                
                                 c = c.with_start(start_time)
                                 
+                                if current_effect == 'crossfade':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'fade_to_black':
+                                    if i > 0 and len(processed_clips) > 0:
+                                        prev_c = processed_clips[-1]
+                                        processed_clips[-1] = prev_c.crossfadeout(TRANSITION_DUR)
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'slide_left':
+                                    # MoviePy requires the function to have exact signature, lambda can be tricky.
+                                    # We use a simple lambda. t is relative to clip start.
+                                    c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * (1.0 - (t / td))), 'center') if t < td else ('center', 'center'))
+                                elif current_effect == 'zoom_in':
+                                    # Crossfadein over the background, since dynamic resize is complex in standard moviepy.
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                else:
+                                    c = c.crossfadein(TRANSITION_DUR) # Fallback
+                            
                             processed_clips.append(c)
                             
-                            # 다음 클립 시작 지점 (현재 클립의 '원래' 오디오 길이만큼만 이동)
                             if i < len(valid_clips) - 1:
-                                start_time += (c.duration - TRANSITION_DUR)
+                                start_time += (c.duration - overlap_dur)
                             else:
                                 start_time += c.duration
                                 

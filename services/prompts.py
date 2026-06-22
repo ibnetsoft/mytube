@@ -247,6 +247,14 @@ JSON만 반환하세요."""
 3. Layer 3 (SCENE TYPE): 씬 성격(Portrait/Wide/Action)에 따른 품질 보강 토큰
 4. Layer 4 (STYLE EXCLUSION): 현재 스타일과 반대되는 톤 배제 (예: 실사면 cartoon 배제)
 
+[🎬 지침 3. 씬 전환 효과 (Transition Effect)]
+이전 씬에서 현재 씬으로 넘어올 때 가장 잘 어울리는 화면 전환 효과를 다음 5가지 중 하나로 선택하세요. (1번 씬의 경우 기본값 'none' 사용)
+1. "none": 딱딱 끊어지는 컷 전환 (대부분의 일반적인 상황, 빠른 템포, 대화)
+2. "crossfade": 디졸브, 부드럽게 겹치며 전환 (시간 경과, 공간의 부드러운 이동, 감상적인 분위기)
+3. "slide_left": 오른쪽에서 왼쪽으로 밀어내기 (역동적인 전개, 장소의 빠른 변화, 비교 설명)
+4. "fade_to_black": 화면이 까매졌다가 밝아짐 (완전한 국면 전환, 충격적인 반전 후 시작, 회상 끝)
+5. "zoom_in": 화면이 커지며 전환 (특정 사물이나 인물에 집중, 몰입감 부여)
+
 [출력 형식 (JSON)]
 {{
     "scenes": [
@@ -283,12 +291,13 @@ JSON만 반환하세요."""
             "prompt_en": "Gemini가 작성한 기본 영어 프롬프트 (참고용)",
             "negative_prompt": "Gemini가 작성한 기본 네거티브 프롬프트 (참고용)",
             "flow_prompt": "[Google Veo용 5-Layer Cinematic Framework 적용 영어 단락]",
+            "transition_effect": "none | crossfade | slide_left | fade_to_black | zoom_in",
             "estimated_seconds": 15
         }}
     ]
 }}
 
-[📐 지침 3. 듀얼 키프레임 (Dual Keyframe) 생성 규칙]
+[📐 지침 4. 듀얼 키프레임 (Dual Keyframe) 생성 규칙]
 - **is_dual**: 기본적으로 항상 비활성(`false`)이 기본값입니다. 특별히 역동적인 움직임이나 장면 전환(A에서 B로)이 명시적으로 필요한 경우를 제외하고는 항상 `false`로 설정하십시오.
 - **start_frame / end_frame**: `is_dual`이 `true`일 때만 작성하세요. 
   - `start_frame`은 영상의 0초 시점 상태, `end_frame`은 영상의 마지막 시점 상태를 묘사합니다.

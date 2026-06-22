@@ -164,31 +164,24 @@
                         </div>
                     </div>
 
-                    <!-- [NEW] Scene Transition Toggle -->
+                    <!-- [NEW] Scene Transition Dropdown -->
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
                             🎬 씬 전환 효과 (Scene Transition)
                         </h4>
                         <div class="mb-5 pb-2">
-                            <label class="flex items-center gap-3 cursor-pointer">
-                                <div class="relative">
-                                    <input type="checkbox" id="sceneTransitionEnabled" class="sr-only">
-                                    <div class="block bg-gray-600 w-10 h-6 rounded-full transition-colors duration-300"></div>
-                                    <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300"></div>
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-xs font-bold text-gray-200">크로스페이드(디졸브) 효과 켜기</span>
-                                    <span class="text-[10px] text-gray-400">장면이 부드럽게 겹쳐서 전환됩니다. (렌더링 시간이 약간 증가할 수 있습니다)</span>
-                                </div>
-                            </label>
-                            <style>
-                                input:checked ~ .block {
-                                    background-color: #3b82f6; /* bg-blue-500 */
-                                }
-                                input:checked ~ .dot {
-                                    transform: translateX(100%);
-                                }
-                            </style>
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">효과 모드 선택</label>
+                            <select id="sceneTransitionMode" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                <option value="ai_auto">✨ AI 자동 선택 (장면 맥락에 맞게 최적의 효과 적용)</option>
+                                <option value="none">없음 (컷 전환)</option>
+                                <option value="crossfade">디졸브 (크로스페이드)</option>
+                                <option value="slide_left">왼쪽으로 슬라이드 (밀어내기)</option>
+                                <option value="fade_to_black">블랙아웃 (어두워졌다 밝아짐)</option>
+                                <option value="zoom_in">줌 인 (확대되며 등장)</option>
+                            </select>
+                            <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
+                                AI 자동 선택 시 대본 분위기에 따라 AI가 가장 어울리는 전환 효과를 알아서 적용합니다. (렌더링 시간이 약간 증가할 수 있습니다)
+                            </p>
                         </div>
                     </div>
 
