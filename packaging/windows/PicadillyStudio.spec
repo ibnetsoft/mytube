@@ -1,13 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
-from PyInstaller.utils.hooks import collect_submodules
-
+from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 
 block_cipher = None
 root = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 
 datas = []
+datas += copy_metadata("replicate")
+try:
+    datas += copy_metadata("google-generativeai")
+except Exception:
+    pass
 for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
