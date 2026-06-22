@@ -141,11 +141,11 @@
                     </button>
                 </div>
                 <div id="pw-rules" class="policy-box rounded-xl px-4 py-2 text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
-                    <span id="rule-length" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>8자리 이상</span>
-                    <span id="rule-upper" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>대문자 포함</span>
-                    <span id="rule-lower" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>소문자 포함</span>
-                    <span id="rule-number" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>숫자 포함</span>
-                    <span id="rule-special" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>특수문자 포함</span>
+                    <span id="rule-length" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">8자리 이상</span></span>
+                    <span id="rule-upper" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">대문자 포함</span></span>
+                    <span id="rule-lower" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">소문자 포함</span></span>
+                    <span id="rule-number" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">숫자 포함</span></span>
+                    <span id="rule-special" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">특수문자 포함</span></span>
                 </div>
                 <div class="input-wrap">
                     <input id="reg-password-confirm" type="password" class="auth-input w-full rounded-xl px-4 py-3 text-sm pr-10"
@@ -159,26 +159,26 @@
                 <input id="reg-referral" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="추천인 코드 / Referral Code (선택)">
 
                 <div class="policy-box rounded-xl p-4 space-y-2">
-                    <div class="text-xs font-bold text-gray-300 mb-2" data-i18n="label_topic">선호 영상 주제 (복수 선택 가능)</div>
+                    <div class="text-xs font-bold text-gray-300 mb-2" id="label-topic">선호 영상 주제 (복수 선택 가능)</div>
                     <div id="signup-category-list" class="flex flex-wrap gap-2">
-                        <div class="text-xs text-gray-500">카테고리 불러오는 중...</div>
+                        <div class="text-xs text-gray-500" id="loading-categories">카테고리 불러오는 중...</div>
                     </div>
                 </div>
 
                 <div class="space-y-2">
-                    <label for="reg-video-length" class="block text-xs font-bold text-gray-300">선호 영상 길이</label>
+                    <label for="reg-video-length" class="block text-xs font-bold text-gray-300" id="label-video-length">선호 영상 길이</label>
                     <select id="reg-video-length" class="auth-input w-full rounded-xl px-4 py-3 text-sm" onchange="checkRegisterBtn()">
-                        <option value="">선호 영상 길이 선택</option>
+                        <option value="" id="ph-video-length">선호 영상 길이 선택</option>
                     </select>
                 </div>
 
                 <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
-                    <summary class="cursor-pointer text-blue-300 font-bold">► 서비스 이용약관 보기</summary>
-                    <p class="mt-3">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.</p>
+                    <summary class="cursor-pointer text-blue-300 font-bold" id="summary-terms">► 서비스 이용약관 보기</summary>
+                    <p class="mt-3" id="desc-terms">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.</p>
                 </details>
                 <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
-                    <summary class="cursor-pointer text-blue-300 font-bold">► 개인정보처리방침 보기</summary>
-                    <p class="mt-3">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용됩니다.</p>
+                    <summary class="cursor-pointer text-blue-300 font-bold" id="summary-privacy">► 개인정보처리방침 보기</summary>
+                    <p class="mt-3" id="desc-privacy">가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용됩니다.</p>
                 </details>
 
                 <label class="flex items-start gap-3 text-xs text-gray-300">
@@ -242,7 +242,7 @@
             country_ko: '한국', country_vn: '베트남', country_bd: '방글라데시아', country_ng: '나이지리아',
             ph_password: '비밀번호 / Password',
             ph_password_confirm: '비밀번호 확인 / Confirm Password',
-            ph_referral: '추청인 코드 / Referral Code (선택)',
+            ph_referral: '추천인 코드 / Referral Code (선택)',
             label_topic: '선호 영상 주제 (복수 선택 가능)',
             label_video_length: '선호 영상 길이',
             ph_video_length: '선호 영상 길이 선택',
@@ -257,6 +257,36 @@
             forgot_title: '비밀번호 찾기',
             forgot_desc: '가입 시 등록한 이메일 주소를 입력하면<br>임시 비밀번호를 발송해 드립니다.',
             forgot_btn: '임시 비밀번호 발송',
+            summary_terms: '► 서비스 이용약관 보기',
+            summary_privacy: '► 개인정보처리방침 보기',
+            desc_terms: '작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.',
+            desc_privacy: '가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용됩니다.',
+            msg_sending: '발송 중...',
+            msg_sent: '✉ 인증 코드를 발송했습니다. 이메일을 확인해주세요.',
+            msg_send_failed: '발송 실패',
+            msg_conn_failed: '서버 연결 실패.',
+            msg_verified: '✓ 이메일 인증이 완료되었습니다.',
+            btn_verified: '✓ 인증완료',
+            msg_verify_failed: '인증 실패',
+            msg_pw_match: '✓ 비밀번호가 일치합니다.',
+            msg_pw_mismatch: '✗ 비밀번호가 일치하지 않습니다.',
+            msg_submitting: '신청 중...',
+            msg_submit_success: '가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.',
+            msg_submit_failed: '가입 신청 실패',
+            msg_resend: '재전송',
+            msg_resend_sec: '재전송 ({sec}초)',
+            msg_logging_in: '로그인 중...',
+            msg_login_failed: '로그인 실패',
+            loading_categories: '카테고리 불러오는 중...',
+            no_categories: '현재 선택 가능한 주제가 없습니다.',
+            cat_economy: '경제',
+            cat_defector: '탈북사연',
+            cat_korean: '한국사연',
+            cat_global_touching: '해외감동',
+            cat_martial_arts: '무협',
+            cat_retirement_finance: '노후금융',
+            cat_twilight_19: '황혼19금',
+            cat_old_stories: '옛날이야기'
         },
         en: {
             tab_login: 'Login',
@@ -287,6 +317,36 @@
             forgot_title: 'Forgot Password',
             forgot_desc: 'Enter your registered email to<br>receive a temporary password.',
             forgot_btn: 'Send Temporary Password',
+            summary_terms: '► View Terms of Service',
+            summary_privacy: '► View Privacy Policy',
+            desc_terms: 'Workers use the Picadilly Studio client to perform assigned content production duties. Accounts are for personal use only; unauthorized sharing, API misuse, data leaks, and submitting false work are prohibited.',
+            desc_privacy: 'We collect name, contact information, email, and country details for registration applications. Collected information is only used for account approval, job assignment, settlement, and security checks.',
+            msg_sending: 'Sending...',
+            msg_sent: '✉ Verification code sent. Please check your email.',
+            msg_send_failed: 'Sending failed',
+            msg_conn_failed: 'Server connection failed.',
+            msg_verified: '✓ Email verification completed.',
+            btn_verified: '✓ Verified',
+            msg_verify_failed: 'Verification failed',
+            msg_pw_match: '✓ Passwords match.',
+            msg_pw_mismatch: '✗ Passwords do not match.',
+            msg_submitting: 'Submitting...',
+            msg_submit_success: 'Registration application submitted. You can log in once approved by the admin.',
+            msg_submit_failed: 'Registration failed',
+            msg_resend: 'Resend',
+            msg_resend_sec: 'Resend ({sec}s)',
+            msg_logging_in: 'Logging in...',
+            msg_login_failed: 'Login failed',
+            loading_categories: 'Loading categories...',
+            no_categories: 'No topics currently available.',
+            cat_economy: 'Economy',
+            cat_defector: 'Defector Stories',
+            cat_korean: 'Korean Stories',
+            cat_global_touching: 'Global Touching',
+            cat_martial_arts: 'Martial Arts',
+            cat_retirement_finance: 'Retirement Finance',
+            cat_twilight_19: 'Twilight 19+',
+            cat_old_stories: 'Old Stories'
         },
         vi: {
             tab_login: 'Đăng nhập',
@@ -317,9 +377,60 @@
             forgot_title: 'Quên mật khẩu',
             forgot_desc: 'Nhập email đăng ký để<br>nhận mật khẩu tạm thời.',
             forgot_btn: 'Gửi mật khẩu tạm',
+            summary_terms: '► Xem điều khoản dịch vụ',
+            summary_privacy: '► Xem chính sách bảo mật',
+            desc_terms: 'Nhân viên sử dụng ứng dụng khách Picadilly Studio để thực hiện các công việc sản xuất nội dung được giao. Tài khoản chỉ dành cho mục đích sử dụng cá nhân; Nghiêm cấm chia sẻ trái phép, lạm dụng API, rò rỉ dữ liệu và gửi công việc sai lệch.',
+            desc_privacy: 'Chúng tôi thu thập thông tin tên, chi tiết liên hệ, email và quốc gia cho các đơn xin đăng ký. Thông tin thu thập được chỉ dùng để phê duyệt tài khoản, phân công công việc, quyết toán và kiểm tra bảo mật.',
+            msg_sending: 'Đang gửi...',
+            msg_sent: '✉ Đã gửi mã xác nhận. Vui lòng kiểm tra email của bạn.',
+            msg_send_failed: 'Gửi thất bại',
+            msg_conn_failed: 'Kết nối máy chủ thất bại.',
+            msg_verified: '✓ Xác minh email hoàn tất.',
+            btn_verified: '✓ Đã xác minh',
+            msg_verify_failed: 'Xác minh thất bại',
+            msg_pw_match: '✓ Mật khẩu trùng khớp.',
+            msg_pw_mismatch: '✗ Mật khẩu không trùng khớp.',
+            msg_submitting: 'Đang gửi...',
+            msg_submit_success: 'Đơn đăng ký thành viên đã được ghi nhận. Bạn có thể đăng nhập sau khi quản trị viên phê duyệt.',
+            msg_submit_failed: 'Đăng ký thất bại',
+            msg_resend: 'Gửi lại',
+            msg_resend_sec: 'Gửi lại ({sec} giây)',
+            msg_logging_in: 'Đang đăng nhập...',
+            msg_login_failed: 'Đăng nhập thất bại',
+            loading_categories: 'Đang tải danh mục...',
+            no_categories: 'Không có chủ đề nào khả dụng.',
+            cat_economy: 'Kinh tế',
+            cat_defector: 'Chuyện vượt biên',
+            cat_korean: 'Chuyện Hàn Quốc',
+            cat_global_touching: 'Cảm động nước ngoài',
+            cat_martial_arts: 'Kiếm hiệp',
+            cat_retirement_finance: 'Tài chính tuổi già',
+            cat_twilight_19: 'Hoàng hôn 19+',
+            cat_old_stories: 'Chuyện ngày xưa'
         }
     };
     let currentLang = localStorage.getItem('login_lang') || 'ko';
+
+    const CATEGORY_TRANSLATIONS = {
+        '경제': 'cat_economy',
+        '탈북사연': 'cat_defector',
+        '국내사연': 'cat_korean',
+        '한국사연': 'cat_korean',
+        '해외감동': 'cat_global_touching',
+        '무협': 'cat_martial_arts',
+        '노후금융': 'cat_retirement_finance',
+        '황혼19금': 'cat_twilight_19',
+        '옛날이야기': 'cat_old_stories'
+    };
+
+    function translateCategoryName(name) {
+        const L = LANGS[currentLang] || LANGS.ko;
+        const key = CATEGORY_TRANSLATIONS[name];
+        if (key && L[key]) {
+            return L[key];
+        }
+        return name;
+    }
 
     function setLang(lang) {
         currentLang = lang;
@@ -357,11 +468,40 @@
         set('login-password', L.ph_login_pw);
         // Buttons text
         const setTxt = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-        setTxt('verify-send-btn', L.btn_verify);
+        
+        const sendBtn = document.getElementById('verify-send-btn');
+        if (sendBtn) {
+            if (emailVerified) {
+                sendBtn.textContent = L.btn_verified;
+            } else if (verifyCountdown) {
+            } else {
+                sendBtn.textContent = L.btn_verify;
+            }
+        }
+
         setTxt('verify-check-btn', L.btn_confirm);
-        setTxt('login-btn', L.btn_login);
-        setTxt('register-btn', L.btn_register);
-        setTxt('forgot-send-btn', L.forgot_btn);
+        
+        const loginBtn = document.getElementById('login-btn');
+        if (loginBtn && loginBtn.textContent.includes('...')) {
+            loginBtn.textContent = L.msg_logging_in;
+        } else if (loginBtn) {
+            loginBtn.textContent = L.btn_login;
+        }
+
+        const registerBtn = document.getElementById('register-btn');
+        if (registerBtn && registerBtn.textContent.includes('...')) {
+            registerBtn.textContent = L.msg_submitting;
+        } else if (registerBtn) {
+            registerBtn.textContent = L.btn_register;
+        }
+
+        const forgotSendBtn = document.getElementById('forgot-send-btn');
+        if (forgotSendBtn && forgotSendBtn.textContent.includes('...')) {
+            forgotSendBtn.textContent = L.msg_sending;
+        } else if (forgotSendBtn) {
+            forgotSendBtn.textContent = L.forgot_btn;
+        }
+
         // Forgot link
         const fl = document.getElementById('forgot-link'); if(fl) fl.textContent = L.btn_forgot;
         // Country select
@@ -378,7 +518,17 @@
         const ruleKeys = ['rule_length','rule_upper','rule_lower','rule_number','rule_special'];
         rules.forEach((r,i) => {
             const el = document.getElementById('rule-'+r);
-            if(el) { const dot = el.querySelector('.dot-rule'); if(dot) { el.textContent=''; el.appendChild(dot); el.appendChild(document.createTextNode(' '+L[ruleKeys[i]])); } }
+            if(el) { 
+                const dot = el.querySelector('.dot-rule'); 
+                const txtEl = el.querySelector('.rule-txt');
+                if (txtEl) {
+                    txtEl.textContent = L[ruleKeys[i]];
+                } else if(dot) { 
+                    el.textContent=''; 
+                    el.appendChild(dot); 
+                    el.appendChild(document.createTextNode(' '+L[ruleKeys[i]])); 
+                } 
+            }
         });
         // Labels
         const lt = document.getElementById('label-terms'); if(lt) lt.textContent = L.label_terms;
@@ -386,9 +536,48 @@
         const lvl = document.getElementById('label-video-length'); if(lvl) lvl.textContent = L.label_video_length;
         const pvl = document.getElementById('reg-video-length'); if(pvl && pvl.options[0]) pvl.options[0].text = L.ph_video_length;
         const ltopic = document.getElementById('label-topic'); if(ltopic) ltopic.textContent = L.label_topic;
+        const loadCat = document.getElementById('loading-categories'); if(loadCat) loadCat.textContent = L.loading_categories;
+        
+        // Terms & Policy
+        const sTerms = document.getElementById('summary-terms'); if(sTerms) sTerms.textContent = L.summary_terms;
+        const sPrivacy = document.getElementById('summary-privacy'); if(sPrivacy) sPrivacy.textContent = L.summary_privacy;
+        const dTerms = document.getElementById('desc-terms'); if(dTerms) dTerms.textContent = L.desc_terms;
+        const dPrivacy = document.getElementById('desc-privacy'); if(dPrivacy) dPrivacy.textContent = L.desc_privacy;
+
         // Forgot modal
         const fTitle = document.getElementById('forgot-title'); if(fTitle) fTitle.textContent = L.forgot_title;
         const fDesc = document.getElementById('forgot-desc'); if(fDesc) fDesc.innerHTML = L.forgot_desc;
+
+        // Dynamic Verification Message update if exists
+        const verifyMsg = document.getElementById('verify-msg');
+        if (verifyMsg && verifyMsg.textContent) {
+            if (verifyMsg.textContent.includes('발송 중') || verifyMsg.textContent.includes('Sending') || verifyMsg.textContent.includes('Đang gửi')) {
+                verifyMsg.textContent = L.msg_sending;
+            } else if (verifyMsg.textContent.includes('인증 코드를 발송') || verifyMsg.textContent.includes('Verification code sent') || verifyMsg.textContent.includes('Đã gửi mã')) {
+                verifyMsg.textContent = L.msg_sent;
+            } else if (verifyMsg.textContent.includes('완료') || verifyMsg.textContent.includes('completed') || verifyMsg.textContent.includes('hoàn tất')) {
+                verifyMsg.textContent = L.msg_verified;
+            } else if (verifyMsg.textContent.includes('실패') || verifyMsg.textContent.includes('failed') || verifyMsg.textContent.includes('thất bại')) {
+                if (emailVerified) {
+                    verifyMsg.textContent = L.msg_verified;
+                } else {
+                    verifyMsg.textContent = L.msg_verify_failed;
+                }
+            }
+        }
+
+        // Passwords match message update
+        const pwMsg = document.getElementById('pw-confirm-msg');
+        if (pwMsg && pwMsg.textContent) {
+            if (pwMsg.textContent.includes('일치합니다') || pwMsg.textContent.includes('match.')) {
+                pwMsg.textContent = L.msg_pw_match;
+            } else if (pwMsg.textContent.includes('일치하지') || pwMsg.textContent.includes('do not match')) {
+                pwMsg.textContent = L.msg_pw_mismatch;
+            }
+        }
+
+        renderSignupCategories();
+        renderSignupDurationOptions();
     }
 
     let signupCategories = [], signupDurationOptions = [];
@@ -424,26 +613,27 @@
         const errEl = document.getElementById('login-error');
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value.trim();
+        const L = LANGS[currentLang] || LANGS.ko;
         if (!email || !password) return;
         errEl.textContent = '';
         btn.disabled = true;
-        btn.textContent = '로그인 중...';
+        btn.textContent = L.msg_logging_in;
         try {
             const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password}) });
             const data = await r.json();
             if (data.success) { window.location.href = '/'; }
             else {
-                errEl.textContent = data.error || '로그인 실패';
+                errEl.textContent = data.error || L.msg_login_failed;
                 const panel = document.getElementById('login-panel');
                 panel.classList.add('shake');
                 setTimeout(() => panel.classList.remove('shake'), 400);
                 btn.disabled = false;
-                btn.textContent = '로그인';
+                btn.textContent = L.btn_login;
             }
         } catch(e) {
-            errEl.textContent = '서버 연결 실패.';
+            errEl.textContent = L.msg_conn_failed;
             btn.disabled = false;
-            btn.textContent = '로그인';
+            btn.textContent = L.btn_login;
         }
     }
 
@@ -465,30 +655,31 @@
         const btn = document.getElementById('forgot-send-btn');
         const msgEl = document.getElementById('forgot-msg');
         const email = document.getElementById('forgot-email').value.trim();
+        const L = LANGS[currentLang] || LANGS.ko;
         if (!email) return;
         btn.disabled = true;
-        btn.textContent = '발송 중...';
+        btn.textContent = L.msg_sending;
         msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-gray-400';
-        msgEl.textContent = '이메일 발송 중...';
+        msgEl.textContent = L.msg_sending;
         try {
             const r = await fetch('/api/auth/forgot-password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email}) });
             const data = await r.json();
             if (data.success) {
                 msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-emerald-400';
-                msgEl.textContent = '✓ ' + (data.message || '임시 비밀번호를 발송했습니다.');
-                btn.textContent = '발송 완료';
+                msgEl.textContent = '✓ ' + (currentLang === 'ko' ? (data.message || '임시 비밀번호를 발송했습니다.') : 'Temporary password sent.');
+                btn.textContent = '✓';
                 setTimeout(() => closeForgotModal(), 3000);
             } else {
                 msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-red-400';
-                msgEl.textContent = data.error || '발송 실패';
+                msgEl.textContent = data.error || L.msg_send_failed;
                 btn.disabled = false;
-                btn.textContent = '임시 비밀번호 발송';
+                btn.textContent = L.forgot_btn;
             }
         } catch(e) {
             msgEl.className = 'text-xs font-semibold text-center min-h-5 mb-4 text-red-400';
-            msgEl.textContent = '서버 연결 실패.';
+            msgEl.textContent = L.msg_conn_failed;
             btn.disabled = false;
-            btn.textContent = '임시 비밀번호 발송';
+            btn.textContent = L.forgot_btn;
         }
     }
 
@@ -496,12 +687,12 @@
     function onEmailInput() {
         const email = document.getElementById('reg-email').value.trim();
         const hasAt = email.includes('@') && email.includes('.');
+        const L = LANGS[currentLang] || LANGS.ko;
         document.getElementById('verify-send-btn').disabled = !hasAt;
-        // 이메일 변경 시 인증 초기화
         if (emailVerified) {
             emailVerified = false;
             document.getElementById('verify-send-btn').className = 'verify-btn';
-            document.getElementById('verify-send-btn').textContent = '인증 발송';
+            document.getElementById('verify-send-btn').textContent = L.btn_verify;
             document.getElementById('verify-code-wrap').classList.add('hidden');
             document.getElementById('verify-msg').textContent = '';
         }
@@ -512,40 +703,42 @@
         const btn = document.getElementById('verify-send-btn');
         const msgEl = document.getElementById('verify-msg');
         const email = document.getElementById('reg-email').value.trim();
+        const L = LANGS[currentLang] || LANGS.ko;
         btn.disabled = true;
         msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-gray-400';
-        msgEl.textContent = '발송 중...';
+        msgEl.textContent = L.msg_sending;
         try {
             const r = await fetch('/api/auth/send-verify-code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email}) });
             const data = await r.json();
             if (data.success) {
                 document.getElementById('verify-code-wrap').classList.remove('hidden');
                 msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-blue-400';
-                msgEl.textContent = '✉ 인증 코드를 발송했습니다. 이메일을 확인해주세요.';
+                msgEl.textContent = L.msg_sent;
                 startVerifyCountdown(btn, 60);
             } else {
                 msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
-                msgEl.textContent = data.error || '발송 실패';
+                msgEl.textContent = data.error || L.msg_send_failed;
                 btn.disabled = false;
             }
         } catch(e) {
             msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
-            msgEl.textContent = '서버 연결 실패.';
+            msgEl.textContent = L.msg_conn_failed;
             btn.disabled = false;
         }
     }
 
     function startVerifyCountdown(btn, sec) {
+        const L = LANGS[currentLang] || LANGS.ko;
+        btn.textContent = L.msg_resend_sec.replace('{sec}', sec);
         if (verifyCountdown) clearInterval(verifyCountdown);
-        btn.textContent = `재전송 (${sec}초)`;
         verifyCountdown = setInterval(() => {
             sec--;
             if (sec <= 0) {
                 clearInterval(verifyCountdown);
-                btn.textContent = '재전송';
+                btn.textContent = L.msg_resend;
                 btn.disabled = false;
             } else {
-                btn.textContent = `재전송 (${sec}초)`;
+                btn.textContent = L.msg_resend_sec.replace('{sec}', sec);
             }
         }, 1000);
     }
@@ -555,6 +748,7 @@
         const msgEl = document.getElementById('verify-msg');
         const email = document.getElementById('reg-email').value.trim();
         const code = document.getElementById('reg-verify-code').value.trim();
+        const L = LANGS[currentLang] || LANGS.ko;
         if (!code) return;
         checkBtn.disabled = true;
         try {
@@ -563,22 +757,22 @@
             if (data.success) {
                 emailVerified = true;
                 msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-emerald-400';
-                msgEl.textContent = '✓ 이메일 인증이 완료되었습니다.';
+                msgEl.textContent = L.msg_verified;
                 document.getElementById('verify-code-wrap').classList.add('hidden');
                 const sendBtn = document.getElementById('verify-send-btn');
-                sendBtn.textContent = '✓ 인증완료';
+                sendBtn.textContent = L.btn_verified;
                 sendBtn.className = 'verify-btn verified';
                 sendBtn.disabled = true;
                 if (verifyCountdown) clearInterval(verifyCountdown);
                 checkRegisterBtn();
             } else {
                 msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
-                msgEl.textContent = data.error || '인증 실패';
+                msgEl.textContent = data.error || L.msg_verify_failed;
                 checkBtn.disabled = false;
             }
         } catch(e) {
             msgEl.className = 'text-xs font-semibold min-h-4 px-1 text-red-400';
-            msgEl.textContent = '서버 연결 실패.';
+            msgEl.textContent = L.msg_conn_failed;
             checkBtn.disabled = false;
         }
     }
@@ -620,17 +814,18 @@
         const confirm = document.getElementById('reg-password-confirm').value;
         const msgEl = document.getElementById('pw-confirm-msg');
         const confirmInput = document.getElementById('reg-password-confirm');
+        const L = LANGS[currentLang] || LANGS.ko;
         if (!confirm) {
             msgEl.textContent = '';
             confirmInput.classList.remove('input-ok','input-error');
             pwConfirmValid = false;
         } else if (pw === confirm) {
-            msgEl.textContent = '✓ 비밀번호가 일치합니다.';
+            msgEl.textContent = L.msg_pw_match;
             msgEl.className = 'text-xs font-semibold min-h-4 -mt-1 px-1 text-emerald-400';
             confirmInput.classList.add('input-ok'); confirmInput.classList.remove('input-error');
             pwConfirmValid = true;
         } else {
-            msgEl.textContent = '✗ 비밀번호가 일치하지 않습니다.';
+            msgEl.textContent = L.msg_pw_mismatch;
             msgEl.className = 'text-xs font-semibold min-h-4 -mt-1 px-1 text-red-400';
             confirmInput.classList.add('input-error'); confirmInput.classList.remove('input-ok');
             pwConfirmValid = false;
@@ -657,8 +852,9 @@
         const btn = document.getElementById('register-btn');
         const msg = document.getElementById('register-msg');
         const selectedIds = Array.from(selectedCategoryIds);
+        const L = LANGS[currentLang] || LANGS.ko;
         msg.className = 'min-h-5 text-center text-xs font-bold text-gray-400';
-        msg.textContent = '신청 중...';
+        msg.textContent = L.msg_submitting;
         btn.disabled = true;
         try {
             const r = await fetch('/api/auth/register', {
@@ -677,45 +873,51 @@
                 })
             });
             const data = await r.json();
-            if (!data.success) throw new Error(data.error || '가입 신청 실패');
+            if (!data.success) throw new Error(data.error || L.msg_submit_failed);
             msg.className = 'min-h-5 text-center text-xs font-bold text-emerald-400';
-            msg.textContent = '가입 신청이 접수되었습니다. 관리자가 승인하면 로그인할 수 있습니다.';
+            msg.textContent = L.msg_submit_success;
             // 폼 초기화
             ['reg-name','reg-contact','reg-email','reg-country','reg-referral','reg-password','reg-password-confirm'].forEach(id => {
                 const el = document.getElementById(id); if(el){el.value='';el.classList.remove('input-ok','input-error');}
             });
             document.getElementById('reg-terms').checked = false;
             document.getElementById('reg-privacy').checked = false;
-            document.querySelectorAll('input[name="reg-category"]').forEach(el=>el.checked=false);
+            selectedCategoryIds.clear();
             document.getElementById('reg-video-length').value = '';
             document.getElementById('verify-msg').textContent = '';
             document.getElementById('verify-code-wrap').classList.add('hidden');
             document.getElementById('verify-send-btn').className = 'verify-btn';
-            document.getElementById('verify-send-btn').textContent = '인증 발송';
+            document.getElementById('verify-send-btn').textContent = L.btn_verify;
             document.getElementById('pw-confirm-msg').textContent = '';
             ['rule-length','rule-upper','rule-lower','rule-number','rule-special'].forEach(id=>document.getElementById(id).classList.remove('pass'));
             pwValid = false; pwConfirmValid = false; emailVerified = false;
             btn.disabled = true;
+            renderSignupCategories();
         } catch(e) {
             msg.className = 'min-h-5 text-center text-xs font-bold text-red-400';
-            msg.textContent = e.message || '가입 신청 실패';
+            msg.textContent = e.message || L.msg_submit_failed;
             btn.disabled = false;
         }
     }
 
     // ===== 카테고리/옵션 =====
-    // ===== 카테고리 렌더링 (버튼 방식, 클릭 버그 수정) =====
     function renderSignupCategories() {
         const container = document.getElementById('signup-category-list');
+        const L = LANGS[currentLang] || LANGS.ko;
         if (!signupCategories.length) {
-            container.innerHTML = '<div class="text-xs text-gray-500">현재 선택 가능한 주제가 없습니다.</div>';
+            container.innerHTML = `<div class="text-xs text-gray-500">${L.no_categories}</div>`;
             return;
         }
-        container.innerHTML = signupCategories.map(c =>
-            `<button type="button"
-                class="cat-btn px-3 py-1.5 rounded-full border border-white/15 bg-white/5 text-xs text-gray-300 font-medium hover:border-blue-400/50 hover:text-white transition-all active:scale-95"
-                data-id="${c.id}" onclick="toggleCategory(this)">${c.name}</button>`
-        ).join('');
+        container.innerHTML = signupCategories.map(c => {
+            const displayName = translateCategoryName(c.name);
+            const isSelected = selectedCategoryIds.has(c.id);
+            const btnClass = isSelected 
+                ? "cat-btn px-3 py-1.5 rounded-full border border-blue-500 bg-blue-600/30 text-xs text-white font-medium hover:border-blue-400/50 hover:text-white transition-all active:scale-95 cat-selected"
+                : "cat-btn px-3 py-1.5 rounded-full border border-white/15 bg-white/5 text-xs text-gray-300 font-medium hover:border-blue-400/50 hover:text-white transition-all active:scale-95";
+            return `<button type="button"
+                class="${btnClass}"
+                data-id="${c.id}" onclick="toggleCategory(this)">${displayName}</button>`;
+        }).join('');
     }
 
     function toggleCategory(btn) {
@@ -735,7 +937,11 @@
 
     function renderSignupDurationOptions() {
         const select = document.getElementById('reg-video-length');
-        select.innerHTML = ['<option value="">선호 영상 길이 선택</option>', ...signupDurationOptions.map(o=>`<option value="${o.value}">${o.label}</option>`)].join('');
+        if (!select) return;
+        const L = LANGS[currentLang] || LANGS.ko;
+        const val = select.value;
+        select.innerHTML = [`<option value="">${L.ph_video_length}</option>`, ...signupDurationOptions.map(o=>`<option value="${o.value}">${o.label}</option>`)].join('');
+        select.value = val;
     }
 
     async function loadSignupOptions() {

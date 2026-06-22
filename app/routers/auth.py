@@ -151,7 +151,7 @@ async def get_auth_emails():
 _DEFAULT_CATEGORIES = [
     {"id": "default_1", "name": "경제", "video_type": "longform"},
     {"id": "default_2", "name": "탈북사연", "video_type": "longform"},
-    {"id": "default_3", "name": "국내사연", "video_type": "longform"},
+    {"id": "default_3", "name": "한국사연", "video_type": "longform"},
     {"id": "default_4", "name": "해외감동", "video_type": "longform"},
     {"id": "default_5", "name": "무협", "video_type": "longform"},
     {"id": "default_6", "name": "노후금융", "video_type": "longform"},

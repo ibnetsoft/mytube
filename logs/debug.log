@@ -16509,3 +16509,22 @@ AttributeError: 'AuthService' object has no attribute 'get_referral_code'
                 You are Google Antigravity SDK Smart Video Planner.
                 Target Country:...)
 [2026-06-22 20:39:53.977291] [Gemini] ✅ [Gemini Text] Success (7.1s, finish=STOP, thinking=0)
+[2026-06-22 21:39:58.530513] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 21:40:02.678295] [Gemini] ✅ [Gemini Text] Success (4.1s, finish=STOP, thinking=0)
+[2026-06-22 21:40:02.683100] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 21:40:10.928270] [Gemini] ✅ [Gemini Text] Success (8.2s, finish=STOP, thinking=0)
+[2026-06-22 21:40:11.745628] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 21:40:16.093505] [Gemini] ✅ [Gemini Text] Success (4.3s, finish=STOP, thinking=0)
+[2026-06-22 21:40:16.097193] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 21:40:24.104044] [Gemini] ✅ [Gemini Text] Success (8.0s, finish=STOP, thinking=0)
+[2026-06-22 21:40:24.918546] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
