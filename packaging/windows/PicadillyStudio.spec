@@ -1,16 +1,31 @@
-from PyInstaller.utils.hooks import collect_submodules, copy_metadata, collect_data_files
+import os
+
+from PyInstaller.utils.hooks import (
+    collect_all,
+    collect_submodules,
+    copy_metadata,
+    collect_data_files,
+)
 
 block_cipher = None
 root = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 
 datas = []
+binaries = []
 datas += copy_metadata("replicate")
 try:
     datas += copy_metadata("google-generativeai")
 except Exception:
     pass
 
+pykakasi_datas, pykakasi_binaries, pykakasi_hiddenimports = collect_all("pykakasi")
+datas += pykakasi_datas
+binaries += pykakasi_binaries
 datas += collect_data_files("pykakasi")
+try:
+    datas += copy_metadata("pykakasi")
+except Exception:
+    pass
 
 for src, dest in [
     ("templates", "templates"),
@@ -34,13 +49,15 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "pydub",
 ]
+hiddenimports += pykakasi_hiddenimports
+hiddenimports += collect_submodules("pykakasi")
 hiddenimports += collect_submodules("app")
 hiddenimports += collect_submodules("services")
 
 a = Analysis(
     [os.path.join(root, "main.py")],
     pathex=[root],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

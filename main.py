@@ -3596,11 +3596,15 @@ if __name__ == "__main__":
     print(f"[*] 서버 주소: http://{config.HOST}:{config.PORT}")
     print("=" * 50)
 
+    is_frozen = getattr(sys, "frozen", False)
+    uvicorn_target = app if is_frozen else "main:app"
+    enable_reload = bool(config.DEBUG and not is_frozen)
+
     uvicorn.run(
-        "main:app",
+        uvicorn_target,
         host=config.HOST,
         port=config.PORT,
-        reload=config.DEBUG,
+        reload=enable_reload,
         log_level="info"
     )
 

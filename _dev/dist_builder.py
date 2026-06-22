@@ -20,7 +20,7 @@ def build():
         shutil.rmtree("build")
     
     # 3. Define Build Options
-    app_name = "MyTubeStudio"
+    app_name = "PicadillyStudio"
     main_script = "main.py"
     
     # Hidden imports required for Uvicorn/FastAPI/MoviePy
@@ -37,7 +37,8 @@ def build():
         "engineio.async_drivers.asgi",
         "moviepy.audio.fx.all",
         "moviepy.video.fx.all",
-        "pydub"
+        "pydub",
+        "pykakasi",
     ]
     
     # [FIX] Use python -m PyInstaller to avoid PATH issues
@@ -53,6 +54,8 @@ def build():
     # Add hidden imports
     for hidden in hidden_imports:
         cmd.extend(["--hidden-import", hidden])
+
+    cmd.extend(["--collect-all", "pykakasi"])
         
     # Add Data Files (Safe check)
     sep = ";" if os.name == 'nt' else ":"
