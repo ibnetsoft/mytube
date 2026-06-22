@@ -35,9 +35,6 @@
                 class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027]/50 dark:text-white w-40 bg-[#1c2027] text-white">
                 <option value="">{{ t('status_loading') }}</option>
             </select>
-            <button id="addVoiceBtn" onclick="openAddVoiceModal()" class="hidden px-2 py-1 text-[10px] font-bold border border-purple-500 text-purple-400 hover:bg-purple-500/10 rounded transition-all whitespace-nowrap">
-                + 목소리 등록
-            </button>
         </div>
 
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
@@ -53,11 +50,11 @@
 
         <!-- ElevenLabs Stability & Style -->
         <div class="hidden items-center gap-2 border-l border-gray-700 pl-3" id="elSettingsContainer">
-            <span class="text-xs font-bold text-gray-300">안정도 <span id="stabilityValue" class="text-purple-400">0.35</span></span>
+            <span class="text-xs font-bold text-gray-300">{{ t('label_stability') }} <span id="stabilityValue" class="text-purple-400">0.35</span></span>
             <input type="range" id="elStability" min="0.0" max="1.0" step="0.05" value="0.35"
                 class="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
             
-            <span class="text-xs font-bold text-gray-300 ml-1">스타일 과장 <span id="styleValue" class="text-purple-400">0.45</span></span>
+            <span class="text-xs font-bold text-gray-300 ml-1">{{ t('label_style_exaggeration') }} <span id="styleValue" class="text-purple-400">0.45</span></span>
             <input type="range" id="elStyle" min="0.0" max="1.0" step="0.05" value="0.45"
                 class="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500">
         </div>
@@ -270,7 +267,6 @@
     function updateProviderSettingsVisibility() {
         const provider = document.getElementById('providerSelect').value;
         const container = document.getElementById('elSettingsContainer');
-        const addVoiceBtn = document.getElementById('addVoiceBtn');
         if (container) {
             if (provider === 'elevenlabs') {
                 container.classList.remove('hidden');
@@ -278,13 +274,6 @@
             } else {
                 container.classList.add('hidden');
                 container.classList.remove('flex');
-            }
-        }
-        if (addVoiceBtn) {
-            if (provider === 'elevenlabs') {
-                addVoiceBtn.classList.remove('hidden');
-            } else {
-                addVoiceBtn.classList.add('hidden');
             }
         }
     }
@@ -900,102 +889,5 @@
     // Browser TTS functions remain similar...
     function playBrowserTTS() { /* ... */ }
 
-    // ElevenLabs 목소리 등록 모달 관련 JS
-    window.openAddVoiceModal = function() {
-        const modal = document.getElementById('addVoiceModal');
-        if (modal) {
-            modal.classList.remove('hidden');
-            document.getElementById('newVoiceName').value = '';
-            document.getElementById('newVoiceId').value = '';
-        }
-    };
-
-    window.closeAddVoiceModal = function() {
-        const modal = document.getElementById('addVoiceModal');
-        if (modal) modal.classList.add('hidden');
-    };
-
-    window.submitAddVoice = async function(e) {
-        e.preventDefault();
-        const name = document.getElementById('newVoiceName').value.trim();
-        const voiceId = document.getElementById('newVoiceId').value.trim();
-        const btn = document.getElementById('addVoiceSubmitBtn');
-
-        if (!name) return Utils.showToast("목소리 이름을 입력해주세요.", "warning");
-        if (!voiceId) return Utils.showToast("Voice ID를 입력해주세요.", "warning");
-
-        Utils.setLoading(btn, true, "등록 중...");
-        
-        const formData = new FormData();
-        formData.append("name", name);
-        formData.append("voice_id", voiceId);
-
-        try {
-            const response = await fetch("/api/tts/voices/add", {
-                method: "POST",
-                body: formData
-            });
-
-            const result = await response.json();
-            if (response.ok && result.status === 'ok') {
-                Utils.showToast(`'${name}' 목소리가 성공적으로 등록되었습니다.`, "success");
-                closeAddVoiceModal();
-                
-                // 목소리 목록 새로고침
-                await loadVoices();
-                
-                // 새로 만든 목소리를 바로 선택하게 설정
-                const select = document.getElementById('voiceSelect');
-                if (select) {
-                    select.value = voiceId;
-                    select.dispatchEvent(new Event('change'));
-                }
-            } else {
-                Utils.showToast(result.detail || "목소리 등록에 실패했습니다.", "error");
-            }
-        } catch (error) {
-            console.error(error);
-            Utils.showToast("네트워크 오류가 발생했습니다.", "error");
-        } finally {
-            Utils.setLoading(btn, false, "등록하기");
-        }
-    };
 </script>
-
-<!-- ElevenLabs Voice Add Modal -->
-<div id="addVoiceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity">
-    <div class="bg-[#1c2027] border border-gray-700 w-full max-w-sm p-6 rounded-xl shadow-2xl flex flex-col gap-4 text-gray-200">
-        <div class="flex items-center justify-between border-b border-gray-700 pb-3">
-            <h3 class="text-sm font-bold flex items-center gap-2">
-                <span>🎙️</span> ElevenLabs 목소리 등록
-            </h3>
-            <button onclick="closeAddVoiceModal()" class="text-gray-400 hover:text-white transition-colors">&times;</button>
-        </div>
-        
-        <form id="addVoiceForm" onsubmit="submitAddVoice(event)" class="flex flex-col gap-4">
-            <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-bold text-gray-400">목소리 이름 <span class="text-red-500">*</span></label>
-                <input type="text" id="newVoiceName" required placeholder="예: 시어머니 (Sian)"
-                    class="text-xs bg-[#0f1115] border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-purple-500 outline-none w-full">
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-bold text-gray-400">Voice ID <span class="text-red-500">*</span></label>
-                <input type="text" id="newVoiceId" required placeholder="ElevenLabs에서 복사한 Voice ID 입력"
-                    class="text-xs bg-[#0f1115] border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-purple-500 outline-none w-full">
-            </div>
-
-            <div class="flex gap-2 justify-end border-t border-gray-700 pt-3 mt-2">
-                <button type="button" onclick="closeAddVoiceModal()"
-                    class="px-3 py-1.5 text-xs border border-gray-600 bg-transparent hover:bg-gray-800 text-white rounded transition-all">
-                    취소
-                </button>
-                <button type="submit" id="addVoiceSubmitBtn"
-                    class="px-4 py-1.5 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white rounded transition-all shadow-md active:scale-95">
-                    등록하기
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
 {% endblock %}

@@ -1620,7 +1620,7 @@ export default function DashboardContent() {
                                                     ? '🔌'
                                                     : tab === 'render-queue'
                                                         ? '🖥️'
-                                                        : '🎨'} {tab === 'topics' ? '주제 큐 관리' : tab === 'overview' ? '현황 요약' : tab === 'users' ? '유저 관리' : tab === 'withdrawals' ? '출금 관리' : tab === 'api' ? 'API Key 관리' : tab === 'render-queue' ? '리모트 렌더 큐' : '스타일 세팅'}
+                                                        : '🎨'} {tab === 'topics' ? '주제 큐 관리' : tab === 'overview' ? '현황 요약' : tab === 'users' ? '유저 관리' : tab === 'withdrawals' ? '출금 관리' : tab === 'api' ? 'API KEY & 시스템 설정' : tab === 'render-queue' ? '리모트 렌더 큐' : '스타일 세팅'}
                             </button>
                         ))}
                     </div>
@@ -3003,7 +3003,7 @@ export default function DashboardContent() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">기본 수당</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">기본 수당 (USDT)</label>
                                         <input
                                             type="number"
                                             min="0"
@@ -3013,7 +3013,7 @@ export default function DashboardContent() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">추가 1분당 수당</label>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">추가 1분당 수당 (USDT)</label>
                                         <input
                                             type="number"
                                             min="0"

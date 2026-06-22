@@ -9,7 +9,7 @@
                 <span>✂️</span> {{ t('crop_title') }}
             </h1>
             <p class="text-xs text-gray-400 mt-1" id="page-desc-text">
-                2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.
+                {{ t('crop_desc') }}
             </p>
         </div>
     </div>
@@ -28,7 +28,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-bold text-gray-200" id="upload-title-text">{{ t('crop_upload_title') }}</p>
-                        <p class="text-xs text-gray-400 mt-1" id="upload-desc-text">마우스로 드래그하거나 클릭하여 다중 선택</p>
+                        <p class="text-xs text-gray-400 mt-1" id="upload-desc-text">{{ t('crop_upload_desc') }}</p>
                     </div>
                 </div>
             </div>
@@ -36,8 +36,8 @@
             <!-- Uploaded Files List -->
             <div id="files-list-card" class="hidden bg-[#232832] rounded-2xl p-5 border border-white/5 space-y-4">
                 <h4 class="text-xs font-black uppercase tracking-wider text-gray-400 flex justify-between items-center">
-                    <span id="uploaded-files-title">업로드된 파일 목록 (<span id="files-count">0</span>)</span>
-                    <button onclick="clearAllFiles()" class="text-[10px] text-red-400 hover:text-red-300" id="clear-all-btn-text">전체 삭제</button>
+                    <span id="uploaded-files-title">{{ t('crop_list_title') }} (<span id="files-count">0</span>)</span>
+                    <button onclick="clearAllFiles()" class="text-[10px] text-red-400 hover:text-red-300" id="clear-all-btn-text">{{ t('crop_clear_all') }}</button>
                 </h4>
                 
                 <div id="files-container" class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
@@ -46,7 +46,7 @@
 
                 <div class="flex gap-3 pt-2">
                     <button onclick="cropAllMultipleFiles()" id="btn-crop-all" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition duration-200 flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/15">
-                        <span>⚡</span> <span id="btn-crop-all-text">모든 파일 한 번에 자르기</span>
+                        <span>⚡</span> <span id="btn-crop-all-text">{{ t('crop_batch_btn') }}</span>
                     </button>
                 </div>
             </div>
@@ -61,16 +61,16 @@
                 <!-- Empty State -->
                 <div id="result-empty" class="flex-1 flex flex-col items-center justify-center text-center text-gray-500 p-8 space-y-2">
                     <span class="text-4xl">✨</span>
-                    <p class="text-sm font-bold text-gray-400" id="empty-title-text">일괄 자르기 결과</p>
-                    <p class="text-xs" id="empty-desc-text">왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.</p>
+                    <p class="text-sm font-bold text-gray-400" id="empty-title-text">{{ t('crop_empty_title') }}</p>
+                    <p class="text-xs" id="empty-desc-text">{{ t('crop_empty_desc') }}</p>
                 </div>
 
                 <!-- Loaded State / Active Preview of selected file -->
                 <div id="result-loaded" class="hidden flex-1 flex flex-col justify-between h-full space-y-4">
                     <div class="space-y-3">
                         <h4 class="text-xs font-black uppercase tracking-wider text-gray-400 flex justify-between items-center">
-                            <span id="preview-filename-title" class="truncate max-w-[200px]">선택된 파일 미리보기</span>
-                            <span class="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-[9px] font-bold" id="badge-raw-text">2x2 원본</span>
+                            <span id="preview-filename-title" class="truncate max-w-[200px]">{{ t('crop_preview_selected') }}</span>
+                            <span class="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-[9px] font-bold" id="badge-raw-text">{{ t('crop_raw_badge') }}</span>
                         </h4>
                         <!-- Output Preview Frame -->
                         <div class="aspect-video w-full rounded-2xl bg-[#1c2027] overflow-hidden border border-white/10 shadow-inner flex items-center justify-center relative group">
@@ -86,10 +86,10 @@
     <div id="crop-all-section" class="hidden mt-12 border-t border-white/5 pt-8 space-y-6">
         <div class="flex items-center justify-between">
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                <span>📦</span> <span id="batch-results-heading-text">잘라낸 모든 이미지 결과 목록</span>
+                <span>📦</span> <span id="batch-results-heading-text">{{ t('crop_batch_result_list') }}</span>
             </h3>
             <button onclick="downloadAllZip()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/15">
-                <span>📥</span> <span id="download-all-zip-btn-text">잘라낸 모든 파일 다운로드 (.zip)</span>
+                <span>📥</span> <span id="download-all-zip-btn-text">{{ t('crop_download_all_zip') }}</span>
             </button>
         </div>
 
@@ -122,26 +122,115 @@
     const batchFilesResultsContainer = document.getElementById('batch-files-results-container');
 
     // i18n dynamic mapping for JS
-    const isVi = (window.currentLang === 'vi');
+    const lang = window.currentLang || 'ko';
     const i18nCrop = {
-        pageDesc: isVi ? "Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần." : "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
-        dragDropDesc: isVi ? "Kéo và thả hoặc nhấp để chọn nhiều tệp" : "마우스로 드래그하거나 클릭하여 다중 선택",
-        listTitle: isVi ? "Danh sách tệp đã tải lên" : "업로드된 파일 목록",
-        clearAll: isVi ? "Xóa tất cả" : "전체 삭제",
-        cropAllBtn: isVi ? "Cắt tất cả các tệp cùng lúc" : "모든 파일 한 번에 자르기",
-        batchResultTitle: isVi ? "Kết quả cắt hàng loạt" : "일괄 자르기 결과",
-        batchResultDesc: isVi ? "Vui lòng tải ảnh lưới ở phía bên trái và nhấp vào nút cắt." : "왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.",
-        previewSelected: isVi ? "Xem trước tệp đã chọn" : "선택된 파일 미리보기",
-        rawGridBadge: isVi ? "Ảnh gốc 2x2" : "2x2 원본",
-        batchResultHeading: isVi ? "Danh sách kết quả cắt ảnh" : "잘라낸 모든 이미지 결과 목록",
-        downloadZipBtn: isVi ? "Tải xuống tất cả (.zip)" : "잘라낸 모든 파일 다운로드 (.zip)",
-        processing: isVi ? "Đang cắt toàn bộ tệp..." : "전체 파일 자르는 중...",
-        panelDone: isVi ? "Cắt xong 4 ô ảnh" : "4개 패널 자르기 완료",
-        download: isVi ? "Tải xuống" : "다운로드",
-        successToast: isVi ? "Đã cắt hàng loạt toàn bộ ảnh thành công!" : "모든 이미지의 일괄 자르기가 완료되었습니다!",
-        errorToast: isVi ? "Lỗi khi cắt hàng loạt: " : "일괄 자르기 오류 발생: ",
-        zipProcessing: isVi ? "Đang tạo tệp nén (.zip)..." : "압축 파일(.zip) 생성 중...",
-        zipSuccess: isVi ? "Tải xuống hàng loạt hoàn tất!" : "일괄 다운로드가 완료되었습니다!"
+        pageDesc: {
+            ko: "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
+            en: "Upload multiple 2x2 grid images at once to batch crop them, and download all cropped images at once.",
+            vi: "Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần."
+        }[lang] || "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
+        
+        dragDropDesc: {
+            ko: "마우스로 드래그하거나 클릭하여 다중 선택",
+            en: "Drag & drop or click to select multiple files",
+            vi: "Kéo và thả hoặc nhấp để chọn nhiều tệp"
+        }[lang] || "마우스로 드래그하거나 클릭하여 다중 선택",
+        
+        listTitle: {
+            ko: "업로드된 파일 목록",
+            en: "Uploaded Files List",
+            vi: "Danh sách tệp đã tải lên"
+        }[lang] || "업로드된 파일 목록",
+        
+        clearAll: {
+            ko: "전체 삭제",
+            en: "Clear All",
+            vi: "Xóa tất cả"
+        }[lang] || "전체 삭제",
+        
+        cropAllBtn: {
+            ko: "모든 파일 한 번에 자르기",
+            en: "Batch Crop All Files",
+            vi: "Cắt tất cả các tệp cùng lúc"
+        }[lang] || "모든 파일 한 번에 자르기",
+        
+        batchResultTitle: {
+            ko: "일괄 자르기 결과",
+            en: "Batch Crop Results",
+            vi: "Kết quả cắt hàng loạt"
+        }[lang] || "일괄 자르기 결과",
+        
+        batchResultDesc: {
+            ko: "왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.",
+            en: "Please register grid images on the left and click the crop button.",
+            vi: "Vui lòng tải ảnh lưới ở phía bên trái và nhấp vào nút cắt."
+        }[lang] || "왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.",
+        
+        previewSelected: {
+            ko: "선택된 파일 미리보기",
+            en: "Selected File Preview",
+            vi: "Xem trước tệp đã chọn"
+        }[lang] || "선택된 파일 미리보기",
+        
+        rawGridBadge: {
+            ko: "2x2 원본",
+            en: "2x2 Raw Grid",
+            vi: "Ảnh gốc 2x2"
+        }[lang] || "2x2 원본",
+        
+        batchResultHeading: {
+            ko: "잘라낸 모든 이미지 결과 목록",
+            en: "Cropped Images Result List",
+            vi: "Danh sách kết quả cắt ảnh"
+        }[lang] || "잘라낸 모든 이미지 결과 목록",
+        
+        downloadZipBtn: {
+            ko: "잘라낸 모든 파일 다운로드 (.zip)",
+            en: "Download All Cropped Files (.zip)",
+            vi: "Tải xuống tất cả (.zip)"
+        }[lang] || "잘라낸 모든 파일 다운로드 (.zip)",
+        
+        processing: {
+            ko: "전체 파일 자르는 중...",
+            en: "Cropping all files...",
+            vi: "Đang cắt toàn bộ tệp..."
+        }[lang] || "전체 파일 자르는 중...",
+        
+        panelDone: {
+            ko: "4개 패널 자르기 완료",
+            en: "4 panels cropped successfully",
+            vi: "Cắt xong 4 ô ảnh"
+        }[lang] || "4개 패널 자르기 완료",
+        
+        download: {
+            ko: "다운로드",
+            en: "Download",
+            vi: "Tải xuống"
+        }[lang] || "다운로드",
+        
+        successToast: {
+            ko: "모든 이미지의 일괄 자르기가 완료되었습니다!",
+            en: "Batch cropping of all images completed successfully!",
+            vi: "Đã cắt hàng loạt toàn bộ ảnh thành công!"
+        }[lang] || "모든 이미지의 일괄 자르기가 완료되었습니다!",
+        
+        errorToast: {
+            ko: "일괄 자르기 오류 발생: ",
+            en: "Error during batch cropping: ",
+            vi: "Lỗi khi cắt hàng loạt: "
+        }[lang] || "일괄 자르기 오류 발생: ",
+        
+        zipProcessing: {
+            ko: "압축 파일(.zip) 생성 중...",
+            en: "Generating zip file...",
+            vi: "Đang tạo tệp nén (.zip)..."
+        }[lang] || "압축 파일(.zip) 생성 중...",
+        
+        zipSuccess: {
+            ko: "일괄 다운로드가 완료되었습니다!",
+            en: "Batch download completed!",
+            vi: "Tải xuống hàng loạt hoàn tất!"
+        }[lang] || "일괄 다운로드가 완료되었습니다!"
     };
 
     // Apply translations on load
@@ -157,9 +246,11 @@
     document.getElementById('batch-results-heading-text').textContent = i18nCrop.batchResultHeading;
     document.getElementById('download-all-zip-btn-text').textContent = i18nCrop.downloadZipBtn;
 
-    const panelLabels = isVi 
-        ? ['Trên bên trái (P1)', 'Trên bên phải (P2)', 'Dưới bên trái (P3)', 'Dưới bên phải (P4)'] 
-        : ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'];
+    const panelLabels = {
+        ko: ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'],
+        en: ['Top-Left (P1)', 'Top-Right (P2)', 'Bottom-Left (P3)', 'Bottom-Right (P4)'],
+        vi: ['Trên bên trái (P1)', 'Trên bên phải (P2)', 'Dưới bên trái (P3)', 'Dưới bên phải (P4)']
+    }[lang] || ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'];
 
     // Drag and drop events
     uploadZone.addEventListener('dragover', (e) => {
@@ -278,7 +369,7 @@
         }
 
         const file = uploadedFiles[idx];
-        const rawName = isVi ? `${i18nCrop.previewSelected}: ${file.name}` : file.name;
+        const rawName = `${i18nCrop.previewSelected}: ${file.name}`;
         previewFilenameTitle.textContent = rawName;
 
         const reader = new FileReader();
