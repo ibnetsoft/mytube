@@ -14,19 +14,10 @@
 
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
-        <!-- Provider -->
-        <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_service') }}</span>
-            <select id="providerSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
-                <option value="gemini">Gemini ({{ t('label_free') }})</option>
-                <option value="openai">OpenAI ({{ t('label_paid') }})</option>
-                <option value="elevenlabs" selected>ElevenLabs</option>
-                <option value="google_cloud">Google Cloud</option>
-            </select>
-        </div>
-
-        <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+        <!-- Provider (Hidden, always elevenlabs) -->
+        <select id="providerSelect" class="hidden">
+            <option value="elevenlabs" selected>ElevenLabs</option>
+        </select>
 
         <!-- Voice (Single Mode) -->
         <div class="flex items-center gap-2" id="singleVoiceControls">
@@ -98,9 +89,9 @@
     <div class="grid grid-cols-12 gap-3 flex-1 min-h-0">
         <!-- Left Panel: Character Mapping / Info (Col-4) -->
         <div class="col-span-12 md:col-span-4 flex flex-col gap-3 min-h-0">
-            <!-- Information / Status -->
+            <!-- Information / Status (Hidden) -->
             <div id="apiStatus"
-                class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0 shadow-sm">
+                class="hidden bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0 shadow-sm">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-sm">🔑</span>
