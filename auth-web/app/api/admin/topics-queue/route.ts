@@ -414,7 +414,7 @@ export async function POST(req: Request) {
                 geminiDuration,
                 isLongformCategory
             )
-            const assignedEmployeeEmail = worker?.email || String(category.assigned_employee_email || '').trim().toLowerCase()
+            const assignedEmployeeEmail = worker?.email || String(category.assigned_employee_email || '').trim().toLowerCase() || null
 
             const assignedDuration = (isLongformCategory && geminiDuration != null)
                 ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)

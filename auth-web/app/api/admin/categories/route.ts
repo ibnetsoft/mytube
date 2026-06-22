@@ -40,23 +40,11 @@ export async function POST(req: Request) {
             upload_channel_handle,
         } = await req.json()
 
-        if (!name || !assigned_employee_email) {
-            return NextResponse.json({ error: 'Name and Employee email are required' }, { status: 400 })
+        if (!name) {
+            return NextResponse.json({ error: 'Name is required' }, { status: 400 })
         }
 
         const supabase = getAdmin()
-
-        // 하나의 카테고리가 직원에게 정해지면 그 직원은 계속 그 카테고리만 작업할 수 있도록 독점 매핑 검증
-        const { data: existingCat, error: checkError } = await supabase
-            .from('categories')
-            .select('name')
-            .eq('assigned_employee_email', assigned_employee_email)
-            .maybeSingle()
-
-        if (checkError) throw checkError
-        if (existingCat) {
-            return NextResponse.json({ error: `이 직원은 이미 '${existingCat.name}' 카테고리에 배정되어 있습니다. 한 직원은 하나의 카테고리만 담당할 수 있습니다.` }, { status: 400 })
-        }
 
         const { data, error } = await supabase
             .from('categories')
@@ -64,7 +52,7 @@ export async function POST(req: Request) {
                 name,
                 keywords: keywords || '',
                 benchmark_channel_url: benchmark_channel_url || '',
-                assigned_employee_email,
+                assigned_employee_email: assigned_employee_email || null,
                 default_script_style: default_script_style || 'default',
                 default_image_style: default_image_style || 'realistic',
                 video_type: video_type || 'longform',
@@ -88,7 +76,7 @@ export async function POST(req: Request) {
         const queueInserts = sampleTopics.map(topic => ({
             category_id: categoryId,
             topic,
-            assigned_employee_email,
+            assigned_employee_email: assigned_employee_email || null,
             assigned_script_style: default_script_style || 'default',
             assigned_image_style: default_image_style || 'realistic',
             status: 'pending'
@@ -155,26 +143,11 @@ export async function PUT(req: Request) {
 
         const supabase = getAdmin()
 
-        if (assigned_employee_email) {
-            // 해당 이메일의 직원이 이미 다른 카테고리에 배정되어 있는지 확인 (현재 카테고리 제외)
-            const { data: existingCat, error: checkError } = await supabase
-                .from('categories')
-                .select('id, name')
-                .eq('assigned_employee_email', assigned_employee_email)
-                .neq('id', id)
-                .maybeSingle()
-
-            if (checkError) throw checkError
-            if (existingCat) {
-                return NextResponse.json({ error: `이 직원은 이미 '${existingCat.name}' 카테고리에 배정되어 있습니다.` }, { status: 400 })
-            }
-        }
-
         const updateData: any = {}
         if (name !== undefined) updateData.name = name
         if (keywords !== undefined) updateData.keywords = keywords
         if (benchmark_channel_url !== undefined) updateData.benchmark_channel_url = benchmark_channel_url
-        if (assigned_employee_email !== undefined) updateData.assigned_employee_email = assigned_employee_email
+        if (assigned_employee_email !== undefined) updateData.assigned_employee_email = assigned_employee_email || null
         if (default_script_style !== undefined) updateData.default_script_style = default_script_style
         if (default_image_style !== undefined) updateData.default_image_style = default_image_style
         if (video_type !== undefined) updateData.video_type = video_type

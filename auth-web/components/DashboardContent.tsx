@@ -181,6 +181,8 @@ export default function DashboardContent() {
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
     const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | 'image' | null>(null)
 
+    const [showAdvanced, setShowAdvanced] = useState(false)
+
     // 移댄뀒怨좊━ 由ъ뒪??濡깊뤌/?륂뤌 ??援щ텇
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
 
@@ -1093,8 +1095,8 @@ export default function DashboardContent() {
 
     const handleCreateCategory = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!newCatName || !newCatEmployee) {
-            alert('카테고리명과 해당 직원 이메일은 필수입니다.')
+        if (!newCatName) {
+            alert('카테고리명은 필수입니다.')
             return
         }
         try {
@@ -1105,9 +1107,9 @@ export default function DashboardContent() {
                     name: newCatName,
                     keywords: newCatKeywords,
                     benchmark_channel_url: newCatChannel,
-                    assigned_employee_email: newCatEmployee,
-                    default_script_style: newCatScriptStyle,
-                    default_image_style: newCatImageStyle,
+                    assigned_employee_email: newCatEmployee || null,
+                    default_script_style: newCatScriptStyle || 'default',
+                    default_image_style: newCatImageStyle || 'realistic',
                     video_type: newCatVideoType,
                     upload_channel_id: newCatUploadChannelId,
                     upload_channel_name: newCatUploadChannelName,
@@ -1644,27 +1646,6 @@ export default function DashboardContent() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일 *</label>
-                                    <select
-                                        required
-                                        value={newCatEmployee}
-                                        onChange={e => setNewCatEmployee(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                    >
-                                        <option value="">-- 직원을 선택하세요 --</option>
-                                        {users.map(user => {
-                                            const email = user.email?.toLowerCase();
-                                            if (!email) return null;
-                                            const name = user.user_metadata?.full_name || '';
-                                            return (
-                                                <option key={user.id} value={email} className="bg-[#111] text-white">
-                                                    {email} {name ? `(${name})` : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-                                </div>
-                                <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
                                     <input 
                                         type="text" 
@@ -1714,39 +1695,6 @@ export default function DashboardContent() {
                                     </p>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일 *</label>
-                                    <select
-                                        required
-                                        value={newCatScriptStyle}
-                                        onChange={e => setNewCatScriptStyle(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                    >
-                                        <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
-                                        <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연 동화)</option>
-                                        <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
-                                        <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
-                                        <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
-                                        <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 이미지 스타일 *</label>
-                                    <select
-                                        required
-                                        value={newCatImageStyle}
-                                        onChange={e => setNewCatImageStyle(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                    >
-                                        <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
-                                        <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
-                                        <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
-                                        <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
-                                        <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
-                                        <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
-                                        <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
-                                    </select>
-                                </div>
-                                <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">영상 형식 (필수) *</label>
                                     <div className="flex gap-4 mt-2 bg-black/40 border border-white/10 rounded-xl px-4 py-3">
                                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
@@ -1773,6 +1721,72 @@ export default function DashboardContent() {
                                         </label>
                                     </div>
                                 </div>
+
+                                <div className="md:col-span-3 flex justify-start pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAdvanced(!showAdvanced)}
+                                        className="text-xs font-black text-gray-400 hover:text-white flex items-center gap-1.5 transition-all"
+                                    >
+                                        {showAdvanced ? '🔼 고급 설정 접기' : '🔽 고급 설정 (담당 직원 및 기본 스타일 수동 지정)'}
+                                    </button>
+                                </div>
+
+                                {showAdvanced && (
+                                    <>
+                                        <div>
+                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일</label>
+                                            <select
+                                                value={newCatEmployee}
+                                                onChange={e => setNewCatEmployee(e.target.value)}
+                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                            >
+                                                <option value="">-- AI 자동 배정 (선택 사항) --</option>
+                                                {users.map(user => {
+                                                    const email = user.email?.toLowerCase();
+                                                    if (!email) return null;
+                                                    const name = user.user_metadata?.full_name || '';
+                                                    return (
+                                                        <option key={user.id} value={email} className="bg-[#111] text-white">
+                                                            {email} {name ? `(${name})` : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일</label>
+                                            <select
+                                                value={newCatScriptStyle}
+                                                onChange={e => setNewCatScriptStyle(e.target.value)}
+                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                            >
+                                                <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
+                                                <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연 동화)</option>
+                                                <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
+                                                <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
+                                                <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
+                                                <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 이미지 스타일</label>
+                                            <select
+                                                value={newCatImageStyle}
+                                                onChange={e => setNewCatImageStyle(e.target.value)}
+                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                            >
+                                                <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
+                                                <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
+                                                <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
+                                                <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
+                                                <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
+                                                <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
+                                                <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
                                 <div className="md:col-span-3 mt-4 flex justify-end">
                                     <button 
                                         type="submit"
