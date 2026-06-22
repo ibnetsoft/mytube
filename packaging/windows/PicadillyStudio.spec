@@ -1,7 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
-
-import os
-from PyInstaller.utils.hooks import collect_submodules, copy_metadata
+from PyInstaller.utils.hooks import collect_submodules, copy_metadata, collect_data_files
 
 block_cipher = None
 root = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
@@ -12,6 +9,9 @@ try:
     datas += copy_metadata("google-generativeai")
 except Exception:
     pass
+
+datas += collect_data_files("pykakasi")
+
 for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
@@ -22,6 +22,7 @@ for src, dest in [
         datas.append((path, dest))
 
 hiddenimports = [
+    "pykakasi",
     "uvicorn.logging",
     "uvicorn.loops",
     "uvicorn.loops.auto",
