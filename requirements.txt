@@ -40,5 +40,6 @@ aiohttp
 pydub
 openai>=1.0.0
 psd-tools>=1.12.1
+pykakasi
 
 eth-account
