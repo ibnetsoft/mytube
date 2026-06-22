@@ -149,14 +149,14 @@ async def get_auth_emails():
 
 
 _DEFAULT_CATEGORIES = [
-    {"id": "default_1", "name": "옛날이야기", "video_type": "longform"},
-    {"id": "default_2", "name": "건강/의학", "video_type": "longform"},
-    {"id": "default_3", "name": "경제/재테크", "video_type": "longform"},
-    {"id": "default_4", "name": "역사/다큐", "video_type": "longform"},
-    {"id": "default_5", "name": "뷰티/패션", "video_type": "longform"},
-    {"id": "default_6", "name": "음식/요리", "video_type": "longform"},
-    {"id": "default_7", "name": "쇼츠/밈", "video_type": "shorts"},
-    {"id": "default_8", "name": "뮤직비디오", "video_type": "longform_music"},
+    {"id": "default_1", "name": "경제", "video_type": "longform"},
+    {"id": "default_2", "name": "탈북사연", "video_type": "longform"},
+    {"id": "default_3", "name": "국내사연", "video_type": "longform"},
+    {"id": "default_4", "name": "해외감동", "video_type": "longform"},
+    {"id": "default_5", "name": "무협", "video_type": "longform"},
+    {"id": "default_6", "name": "노후금융", "video_type": "longform"},
+    {"id": "default_7", "name": "황혼19금", "video_type": "longform"},
+    {"id": "default_8", "name": "옛날이야기", "video_type": "longform"},
 ]
 
 _DURATION_OPTIONS = [

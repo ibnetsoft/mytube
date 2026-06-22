@@ -10,6 +10,7 @@
     <script>
         tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Outfit', 'Noto Sans KR', 'sans-serif'] } } } }
         document.documentElement.classList.add('dark');
+
     </script>
     <style>
         body { background-color:#0b0f19; background-image:radial-gradient(at 0% 0%,hsla(253,16%,7%,1) 0,transparent 50%),radial-gradient(at 50% 0%,hsla(225,39%,30%,.2) 0,transparent 50%),radial-gradient(at 100% 0%,hsla(242,43%,12%,1) 0,transparent 50%),radial-gradient(at 50% 100%,hsla(263,45%,20%,.15) 0,transparent 50%); }
@@ -55,11 +56,17 @@
             <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
             <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Picadilly Studio</span>
         </div>
-        <h1 class="text-2xl font-black text-white mb-6">직원 로그인</h1>
+        <!-- 언어 선택 버튼 -->
+        <div class="absolute top-4 right-4 flex gap-1">
+            <button onclick="setLang('ko')" id="lang-ko" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">KO</button>
+            <button onclick="setLang('en')" id="lang-en" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">EN</button>
+            <button onclick="setLang('vi')" id="lang-vi" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">VI</button>
+        </div>
+        <h1 class="text-2xl font-black text-white mb-6" id="page-title">직원 로그인</h1>
 
         <div class="grid grid-cols-2 gap-2 w-full mb-6">
-            <button id="tab-login" onclick="showAuthMode('login')" class="auth-tab active rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">로그인</button>
-            <button id="tab-register" onclick="showAuthMode('register')" class="auth-tab rounded-xl border border-white/10 px-4 py-2 text-xs font-black text-gray-400 transition">회원가입 신청</button>
+            <button id="tab-login" onclick="showAuthMode('login')" class="auth-tab active rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-gray-300 transition" data-i18n="tab_login">로그인</button>
+            <button id="tab-register" onclick="showAuthMode('register')" class="auth-tab rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-gray-300 transition" data-i18n="tab_register">회원가입 신청</button>
         </div>
 
         <!-- ===== 로그인 패널 ===== -->
@@ -67,13 +74,13 @@
             <div class="flex flex-col gap-4">
                 <div class="input-wrap">
                     <input id="login-email" type="email" class="auth-input w-full rounded-xl px-4 py-3 text-sm"
-                        placeholder="이메일 주소 / Email"
+                        data-i18n-placeholder="ph_login_email" placeholder="이메일 주소 / Email"
                         oninput="checkLoginBtn()"
                         onkeydown="if(event.key==='Enter') document.getElementById('login-password').focus()">
                 </div>
                 <div class="input-wrap">
                     <input id="login-password" type="password" class="auth-input w-full rounded-xl px-4 py-3 text-sm pr-10"
-                        placeholder="비밀번호 / Password"
+                        data-i18n-placeholder="ph_login_pw" placeholder="비밀번호 / Password"
                         oninput="checkLoginBtn()"
                         onkeydown="if(event.key==='Enter') submitLogin()">
                     <button class="eye-btn" onclick="toggleVisibility('login-password',this)" tabindex="-1" type="button">
@@ -84,13 +91,13 @@
                 <div id="login-error" class="text-red-400 text-xs font-semibold text-center min-h-4"></div>
 
                 <button id="login-btn" onclick="submitLogin()" disabled
-                    class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">
+                    class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition" data-i18n="btn_login">
                     로그인
                 </button>
 
                 <!-- 비밀번호 찾기 -->
                 <div class="text-center">
-                    <button onclick="openForgotModal()" class="text-xs text-gray-500 hover:text-blue-400 transition underline underline-offset-2">
+                    <button id="forgot-link" onclick="openForgotModal()" class="text-xs text-gray-500 hover:text-blue-400 transition underline underline-offset-2" data-i18n="btn_forgot">
                         비밀번호를 잊으셨나요?
                     </button>
                 </div>
@@ -100,8 +107,8 @@
         <!-- ===== 회원가입 패널 ===== -->
         <div id="register-panel" class="w-full hidden">
             <div class="space-y-3">
-                <input id="reg-name" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="이름 / Full name" oninput="checkRegisterBtn()">
-                <input id="reg-contact" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="연락처 / Phone, Zalo, Kakao" oninput="checkRegisterBtn()">
+                <input id="reg-name" class="auth-input w-full rounded-xl px-4 py-3 text-sm" data-i18n-placeholder="ph_name" placeholder="이름 / Full name" oninput="checkRegisterBtn()">
+                <input id="reg-contact" class="auth-input w-full rounded-xl px-4 py-3 text-sm" data-i18n-placeholder="ph_contact" placeholder="연락처 / Phone, Zalo, Kakao" oninput="checkRegisterBtn()">
 
                 <!-- 이메일 + 인증 -->
                 <div class="flex gap-2">
@@ -117,7 +124,13 @@
                 </div>
                 <div id="verify-msg" class="text-xs font-semibold min-h-4 px-1"></div>
 
-                <input id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="국가 / Country" oninput="checkRegisterBtn()">
+                <select id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm" onchange="checkRegisterBtn()">
+                    <option value="">국가 / Country 선택</option>
+                    <option value="한국">한국</option>
+                    <option value="베트남">베트남</option>
+                    <option value="방글라데시아">방글라데시아</option>
+                    <option value="나이지리아">나이지리아</option>
+                </select>
 
                 <!-- 비밀번호 -->
                 <div class="input-wrap">
@@ -127,12 +140,12 @@
                         <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
                 </div>
-                <div id="pw-rules" class="policy-box rounded-xl px-4 py-3 space-y-1.5">
-                    <div class="pw-rule" id="rule-length"><span class="dot-rule"></span>8자리 이상</div>
-                    <div class="pw-rule" id="rule-upper"><span class="dot-rule"></span>대문자 포함</div>
-                    <div class="pw-rule" id="rule-lower"><span class="dot-rule"></span>소문자 포함</div>
-                    <div class="pw-rule" id="rule-number"><span class="dot-rule"></span>숫자 포함</div>
-                    <div class="pw-rule" id="rule-special"><span class="dot-rule"></span>특수문자 포함</div>
+                <div id="pw-rules" class="policy-box rounded-xl px-4 py-2 text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
+                    <span id="rule-length" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>8자리 이상</span>
+                    <span id="rule-upper" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>대문자 포함</span>
+                    <span id="rule-lower" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>소문자 포함</span>
+                    <span id="rule-number" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>숫자 포함</span>
+                    <span id="rule-special" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span>특수문자 포함</span>
                 </div>
                 <div class="input-wrap">
                     <input id="reg-password-confirm" type="password" class="auth-input w-full rounded-xl px-4 py-3 text-sm pr-10"
@@ -145,9 +158,9 @@
 
                 <input id="reg-referral" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="추천인 코드 / Referral Code (선택)">
 
-                <div class="policy-box rounded-xl p-4 space-y-3">
-                    <div class="text-xs font-bold text-gray-300">선호 영상 카테고리 (최소 1개 선택)</div>
-                    <div id="signup-category-list" class="grid grid-cols-1 gap-2">
+                <div class="policy-box rounded-xl p-4 space-y-2">
+                    <div class="text-xs font-bold text-gray-300 mb-2" data-i18n="label_topic">선호 영상 주제 (복수 선택 가능)</div>
+                    <div id="signup-category-list" class="flex flex-wrap gap-2">
                         <div class="text-xs text-gray-500">카테고리 불러오는 중...</div>
                     </div>
                 </div>
@@ -170,11 +183,11 @@
 
                 <label class="flex items-start gap-3 text-xs text-gray-300">
                     <input id="reg-terms" type="checkbox" class="mt-1" onchange="checkRegisterBtn()">
-                    <span>서비스 이용약관에 동의합니다.</span>
+                    <span id="label-terms">서비스 이용약관에 동의합니다.</span>
                 </label>
                 <label class="flex items-start gap-3 text-xs text-gray-300">
                     <input id="reg-privacy" type="checkbox" class="mt-1" onchange="checkRegisterBtn()">
-                    <span>개인정보 수집 및 이용에 동의합니다.</span>
+                    <span id="label-privacy">개인정보 수집 및 이용에 동의합니다.</span>
                 </label>
 
                 <button id="register-btn" onclick="submitRegister()" disabled
@@ -191,10 +204,10 @@
 <div id="forgot-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeForgotModal()">
     <div class="modal-box">
         <div class="flex items-center justify-between mb-6">
-            <h2 class="text-lg font-black text-white">비밀번호 찾기</h2>
+            <h2 id="forgot-title" class="text-lg font-black text-white">비밀번호 찾기</h2>
             <button onclick="closeForgotModal()" class="text-gray-500 hover:text-white transition text-xl leading-none">✕</button>
         </div>
-        <p class="text-xs text-gray-400 mb-5 leading-relaxed">
+        <p id="forgot-desc" class="text-xs text-gray-400 mb-5 leading-relaxed">
             가입 시 등록한 이메일 주소를 입력하면<br>
             임시 비밀번호를 발송해 드립니다.
         </p>
@@ -213,11 +226,181 @@
 </div>
 
 <script>
+    // ===== i18n =====
+    const LANGS = {
+        ko: {
+            tab_login: '로그인',
+            tab_register: '회원가입 신청',
+            page_title: '직원 로그인',
+            ph_name: '이름 / Full name',
+            ph_contact: '연락처 / Phone, Zalo, Kakao',
+            ph_email: '이메일 주소 / Email',
+            btn_verify: '인증 발송',
+            ph_code: '인증 코드 6자리',
+            btn_confirm: '확인',
+            ph_country: '국가 / Country 선택',
+            country_ko: '한국', country_vn: '베트남', country_bd: '방글라데시아', country_ng: '나이지리아',
+            ph_password: '비밀번호 / Password',
+            ph_password_confirm: '비밀번호 확인 / Confirm Password',
+            ph_referral: '추청인 코드 / Referral Code (선택)',
+            label_topic: '선호 영상 주제 (복수 선택 가능)',
+            label_video_length: '선호 영상 길이',
+            ph_video_length: '선호 영상 길이 선택',
+            label_terms: '서비스 이용약관에 동의합니다.',
+            label_privacy: '개인정보 수집 및 이용에 동의합니다.',
+            btn_register: '회원가입 신청',
+            btn_login: '로그인',
+            btn_forgot: '비밀번호를 잊으셨나요?',
+            rule_length: '8자리 이상', rule_upper: '대문자 포함', rule_lower: '소문자 포함', rule_number: '숫자 포함', rule_special: '특수문자 포함',
+            ph_login_email: '이메일 / Email',
+            ph_login_pw: '비밀번호 / Password',
+            forgot_title: '비밀번호 찾기',
+            forgot_desc: '가입 시 등록한 이메일 주소를 입력하면<br>임시 비밀번호를 발송해 드립니다.',
+            forgot_btn: '임시 비밀번호 발송',
+        },
+        en: {
+            tab_login: 'Login',
+            tab_register: 'Sign Up',
+            page_title: 'Staff Login',
+            ph_name: 'Full name',
+            ph_contact: 'Phone / Zalo / Kakao',
+            ph_email: 'Email address',
+            btn_verify: 'Send Code',
+            ph_code: '6-digit code',
+            btn_confirm: 'Verify',
+            ph_country: 'Select Country',
+            country_ko: 'Korea', country_vn: 'Vietnam', country_bd: 'Bangladesh', country_ng: 'Nigeria',
+            ph_password: 'Password',
+            ph_password_confirm: 'Confirm Password',
+            ph_referral: 'Referral Code (optional)',
+            label_topic: 'Preferred Topics (multiple allowed)',
+            label_video_length: 'Preferred Video Length',
+            ph_video_length: 'Select video length',
+            label_terms: 'I agree to the Terms of Service.',
+            label_privacy: 'I agree to the Privacy Policy.',
+            btn_register: 'Apply for Membership',
+            btn_login: 'Login',
+            btn_forgot: 'Forgot password?',
+            rule_length: '8+ chars', rule_upper: 'Uppercase', rule_lower: 'Lowercase', rule_number: 'Number', rule_special: 'Special char',
+            ph_login_email: 'Email',
+            ph_login_pw: 'Password',
+            forgot_title: 'Forgot Password',
+            forgot_desc: 'Enter your registered email to<br>receive a temporary password.',
+            forgot_btn: 'Send Temporary Password',
+        },
+        vi: {
+            tab_login: 'Đăng nhập',
+            tab_register: 'Đăng ký',
+            page_title: 'Đăng nhập nhân viên',
+            ph_name: 'Họ và tên',
+            ph_contact: 'SĐT / Zalo / Kakao',
+            ph_email: 'Địa chỉ email',
+            btn_verify: 'Gửi mã',
+            ph_code: 'Mã xác nhận 6 số',
+            btn_confirm: 'Xác nhận',
+            ph_country: 'Chọn quốc gia',
+            country_ko: 'Hàn Quốc', country_vn: 'Việt Nam', country_bd: 'Bangladesh', country_ng: 'Nigeria',
+            ph_password: 'Mật khẩu',
+            ph_password_confirm: 'Xác nhận mật khẩu',
+            ph_referral: 'Mã giới thiệu (tùy chọn)',
+            label_topic: 'Chủ đề yêu thích (chọn nhiều)',
+            label_video_length: 'Độ dài video yêu thích',
+            ph_video_length: 'Chọn độ dài',
+            label_terms: 'Tôi đồng ý với điều khoản dịch vụ.',
+            label_privacy: 'Tôi đồng ý với chính sách bảo mật.',
+            btn_register: 'Nộp đơn đăng ký',
+            btn_login: 'Đăng nhập',
+            btn_forgot: 'Quên mật khẩu?',
+            rule_length: 'Tối thiểu 8 ký tự', rule_upper: 'Chữ hoa', rule_lower: 'Chữ thường', rule_number: 'Số', rule_special: 'Ký tự đặc biệt',
+            ph_login_email: 'Email',
+            ph_login_pw: 'Mật khẩu',
+            forgot_title: 'Quên mật khẩu',
+            forgot_desc: 'Nhập email đăng ký để<br>nhận mật khẩu tạm thời.',
+            forgot_btn: 'Gửi mật khẩu tạm',
+        }
+    };
+    let currentLang = localStorage.getItem('login_lang') || 'ko';
+
+    function setLang(lang) {
+        currentLang = lang;
+        localStorage.setItem('login_lang', lang);
+        applyLang();
+    }
+
+    function applyLang() {
+        const L = LANGS[currentLang] || LANGS.ko;
+        // Title
+        document.getElementById('page-title').textContent = L.page_title;
+        // Tab buttons
+        const tl = document.getElementById('tab-login'); if(tl) tl.textContent = L.tab_login;
+        const tr = document.getElementById('tab-register'); if(tr) tr.textContent = L.tab_register;
+        // Highlight active lang btn
+        ['ko','en','vi'].forEach(l => {
+            const b = document.getElementById('lang-'+l);
+            if(!b) return;
+            b.classList.toggle('text-blue-400', l===currentLang);
+            b.classList.toggle('border-blue-500/40', l===currentLang);
+            b.classList.toggle('text-gray-400', l!==currentLang);
+        });
+        // Placeholders
+        const set = (id, val) => { const el = document.getElementById(id); if(el) el.placeholder = val; };
+        set('reg-name', L.ph_name);
+        set('reg-contact', L.ph_contact);
+        set('reg-email', L.ph_email);
+        set('reg-verify-code', L.ph_code);
+        set('reg-password', L.ph_password);
+        set('reg-password-confirm', L.ph_password_confirm);
+        set('reg-referral', L.ph_referral);
+        set('forgot-email', L.ph_login_email);
+        // Login panel
+        set('login-email', L.ph_login_email);
+        set('login-password', L.ph_login_pw);
+        // Buttons text
+        const setTxt = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+        setTxt('verify-send-btn', L.btn_verify);
+        setTxt('verify-check-btn', L.btn_confirm);
+        setTxt('login-btn', L.btn_login);
+        setTxt('register-btn', L.btn_register);
+        setTxt('forgot-send-btn', L.forgot_btn);
+        // Forgot link
+        const fl = document.getElementById('forgot-link'); if(fl) fl.textContent = L.btn_forgot;
+        // Country select
+        const cs = document.getElementById('reg-country');
+        if(cs && cs.options.length > 0) {
+            cs.options[0].text = L.ph_country;
+            if(cs.options[1]) cs.options[1].text = L.country_ko;
+            if(cs.options[2]) cs.options[2].text = L.country_vn;
+            if(cs.options[3]) cs.options[3].text = L.country_bd;
+            if(cs.options[4]) cs.options[4].text = L.country_ng;
+        }
+        // PW rules
+        const rules = ['length','upper','lower','number','special'];
+        const ruleKeys = ['rule_length','rule_upper','rule_lower','rule_number','rule_special'];
+        rules.forEach((r,i) => {
+            const el = document.getElementById('rule-'+r);
+            if(el) { const dot = el.querySelector('.dot-rule'); if(dot) { el.textContent=''; el.appendChild(dot); el.appendChild(document.createTextNode(' '+L[ruleKeys[i]])); } }
+        });
+        // Labels
+        const lt = document.getElementById('label-terms'); if(lt) lt.textContent = L.label_terms;
+        const lp = document.getElementById('label-privacy'); if(lp) lp.textContent = L.label_privacy;
+        const lvl = document.getElementById('label-video-length'); if(lvl) lvl.textContent = L.label_video_length;
+        const pvl = document.getElementById('reg-video-length'); if(pvl && pvl.options[0]) pvl.options[0].text = L.ph_video_length;
+        const ltopic = document.getElementById('label-topic'); if(ltopic) ltopic.textContent = L.label_topic;
+        // Forgot modal
+        const fTitle = document.getElementById('forgot-title'); if(fTitle) fTitle.textContent = L.forgot_title;
+        const fDesc = document.getElementById('forgot-desc'); if(fDesc) fDesc.innerHTML = L.forgot_desc;
+    }
+
     let signupCategories = [], signupDurationOptions = [];
+    let selectedCategoryIds = new Set();
     let pwValid = false, pwConfirmValid = false, emailVerified = false;
     let verifyCountdown = null;
 
-    window.addEventListener('DOMContentLoaded', () => { loadSignupOptions(); });
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSignupOptions();
+        applyLang();
+    });
+
 
     function showAuthMode(mode) {
         const isLogin = mode === 'login';
@@ -464,7 +647,7 @@
         const videoLength = document.getElementById('reg-video-length').value;
         const terms = document.getElementById('reg-terms').checked;
         const privacy = document.getElementById('reg-privacy').checked;
-        const categoryChecked = document.querySelectorAll('input[name="reg-category"]:checked').length > 0;
+        const categoryChecked = selectedCategoryIds.size > 0;
         const allOk = name && contact && email && emailVerified && country && pwValid && pwConfirmValid && videoLength && terms && privacy && categoryChecked;
         document.getElementById('register-btn').disabled = !allOk;
     }
@@ -473,7 +656,7 @@
     async function submitRegister() {
         const btn = document.getElementById('register-btn');
         const msg = document.getElementById('register-msg');
-        const selectedCategoryIds = Array.from(document.querySelectorAll('input[name="reg-category"]:checked')).map(el => el.value);
+        const selectedIds = Array.from(selectedCategoryIds);
         msg.className = 'min-h-5 text-center text-xs font-bold text-gray-400';
         msg.textContent = '신청 중...';
         btn.disabled = true;
@@ -487,7 +670,7 @@
                     nationality: document.getElementById('reg-country').value,
                     password: document.getElementById('reg-password').value,
                     referral_code: document.getElementById('reg-referral').value,
-                    preferred_category_ids: selectedCategoryIds,
+                    preferred_category_ids: selectedIds,
                     preferred_video_length: document.getElementById('reg-video-length').value,
                     terms_accepted: document.getElementById('reg-terms').checked,
                     privacy_accepted: document.getElementById('reg-privacy').checked
@@ -521,16 +704,33 @@
     }
 
     // ===== 카테고리/옵션 =====
+    // ===== 카테고리 렌더링 (버튼 방식, 클릭 버그 수정) =====
     function renderSignupCategories() {
         const container = document.getElementById('signup-category-list');
-        if (!signupCategories.length) { container.innerHTML='<div class="text-xs text-gray-500">현재 선택 가능한 카테고리가 없습니다.</div>'; return; }
-        container.innerHTML = signupCategories.map(c => {
-            const label = c.video_type==='shorts'?'쇼츠':c.video_type==='longform_music'?'뮤직':'롱폼';
-            return `<label class="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-200 cursor-pointer hover:border-blue-500/30 transition">
-                <input type="checkbox" name="reg-category" value="${c.id}" class="mt-0.5" onchange="checkRegisterBtn()">
-                <span class="flex-1"><span class="block font-bold text-white">${c.name}</span><span class="block mt-1 text-[10px] text-gray-500 uppercase tracking-wider">${label}</span></span>
-            </label>`;
-        }).join('');
+        if (!signupCategories.length) {
+            container.innerHTML = '<div class="text-xs text-gray-500">현재 선택 가능한 주제가 없습니다.</div>';
+            return;
+        }
+        container.innerHTML = signupCategories.map(c =>
+            `<button type="button"
+                class="cat-btn px-3 py-1.5 rounded-full border border-white/15 bg-white/5 text-xs text-gray-300 font-medium hover:border-blue-400/50 hover:text-white transition-all active:scale-95"
+                data-id="${c.id}" onclick="toggleCategory(this)">${c.name}</button>`
+        ).join('');
+    }
+
+    function toggleCategory(btn) {
+        const isSelected = btn.classList.contains('cat-selected');
+        btn.classList.toggle('cat-selected', !isSelected);
+        if (!isSelected) {
+            btn.classList.add('border-blue-500', 'bg-blue-600/30', 'text-white');
+            btn.classList.remove('border-white/15', 'bg-white/5', 'text-gray-300');
+            selectedCategoryIds.add(btn.dataset.id);
+        } else {
+            btn.classList.remove('border-blue-500', 'bg-blue-600/30', 'text-white');
+            btn.classList.add('border-white/15', 'bg-white/5', 'text-gray-300');
+            selectedCategoryIds.delete(btn.dataset.id);
+        }
+        checkRegisterBtn();
     }
 
     function renderSignupDurationOptions() {

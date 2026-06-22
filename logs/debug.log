@@ -16445,3 +16445,67 @@ Traceback (most recent call last):
                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'AuthService' object has no attribute 'get_referral_code'
 
+[2026-06-22 20:38:04.575227] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:38:08.347193] [Gemini] ✅ [Gemini Text] Success (3.8s, finish=STOP, thinking=0)
+[2026-06-22 20:38:08.355082] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:38:15.479695] [Gemini] ✅ [Gemini Text] Success (7.1s, finish=STOP, thinking=0)
+[2026-06-22 20:38:16.245262] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:38:20.180894] [Gemini] ✅ [Gemini Text] Success (3.9s, finish=STOP, thinking=0)
+[2026-06-22 20:38:20.183965] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:38:30.519762] [Gemini] ✅ [Gemini Text] Success (10.3s, finish=STOP, thinking=0)
+[2026-06-22 20:38:31.233933] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:38:35.799695] [Gemini] ✅ [Gemini Text] Success (4.6s, finish=STOP, thinking=0)
+[2026-06-22 20:38:35.813002] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:38:41.778431] [Gemini] ✅ [Gemini Text] Success (6.0s, finish=STOP, thinking=0)
+[2026-06-22 20:38:42.514995] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:38:47.420672] [Gemini] ✅ [Gemini Text] Success (4.9s, finish=STOP, thinking=0)
+[2026-06-22 20:38:47.424940] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:38:56.554208] [Gemini] ✅ [Gemini Text] Success (9.1s, finish=STOP, thinking=0)
+[2026-06-22 20:38:57.287225] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:39:02.396813] [Gemini] ✅ [Gemini Text] Success (5.1s, finish=STOP, thinking=0)
+[2026-06-22 20:39:02.400509] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:39:10.757170] [Gemini] ✅ [Gemini Text] Success (8.4s, finish=STOP, thinking=0)
+[2026-06-22 20:39:11.478840] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:39:15.177928] [Gemini] ✅ [Gemini Text] Success (3.7s, finish=STOP, thinking=0)
+[2026-06-22 20:39:15.181354] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:39:25.319655] [Gemini] ✅ [Gemini Text] Success (10.1s, finish=STOP, thinking=0)
+[2026-06-22 20:39:26.076543] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:39:32.501249] [Gemini] ✅ [Gemini Text] Success (6.4s, finish=STOP, thinking=0)
+[2026-06-22 20:39:32.504937] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:39:41.518060] [Gemini] ✅ [Gemini Text] Success (9.0s, finish=STOP, thinking=0)
+[2026-06-22 20:39:42.632179] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                    You are Google Antigravity Dispatcher Agent.
+                    Please select ...)
+[2026-06-22 20:39:46.897429] [Gemini] ✅ [Gemini Text] Success (4.3s, finish=STOP, thinking=0)
+[2026-06-22 20:39:46.900613] [Gemini] 💬 [Gemini Text] Starting generation (model=gemini-2.5-flash, prompt=
+                You are Google Antigravity SDK Smart Video Planner.
+                Target Country:...)
+[2026-06-22 20:39:53.977291] [Gemini] ✅ [Gemini Text] Success (7.1s, finish=STOP, thinking=0)
