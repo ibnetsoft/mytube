@@ -89,10 +89,18 @@ export async function POST(req: Request) {
             category_id: categoryId,
             topic,
             assigned_employee_email,
+            assigned_script_style: default_script_style || 'default',
+            assigned_image_style: default_image_style || 'realistic',
             status: 'pending'
         }))
 
-        await supabase.from('topics_queue').insert(queueInserts)
+        let { error: queueInsertError } = await supabase.from('topics_queue').insert(queueInserts)
+        if (queueInsertError && (queueInsertError.code === 'PGRST204' || queueInsertError.code === '42703' || String(queueInsertError.message || '').toLowerCase().includes('schema cache'))) {
+            const fallbackInserts = queueInserts.map(({ assigned_script_style, assigned_image_style, ...rest }) => rest)
+            const retry = await supabase.from('topics_queue').insert(fallbackInserts)
+            queueInsertError = retry.error
+        }
+        if (queueInsertError) throw queueInsertError
 
         return NextResponse.json({ success: true, category: data[0] })
     } catch (e: any) {

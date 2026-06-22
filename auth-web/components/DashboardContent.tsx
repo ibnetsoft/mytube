@@ -179,7 +179,8 @@ export default function DashboardContent() {
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
-    
+    const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | 'image' | null>(null)
+
     // 移댄뀒怨좊━ 由ъ뒪??濡깊뤌/?륂뤌 ??援щ텇
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
 
@@ -1349,7 +1350,43 @@ export default function DashboardContent() {
         }
     }
 
-    
+    const handleAssignTopicStyles = async (targetType: 'script' | 'image') => {
+        const label = targetType === 'script' ? '대본 스타일' : '이미지 스타일'
+        const categoryLabel = topicQueueCategoryFilter === 'all' ? '전체 카테고리' : '선택한 카테고리'
+        if (!confirm(`${categoryLabel}의 대기중 주제에 ${label}을 AI로 재배정할까요?`)) return
+
+        setTopicStyleAssigningType(targetType)
+        try {
+            const res = await fetch('/api/admin/topics-queue', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    targetType,
+                    categoryId: topicQueueCategoryFilter,
+                    limit: 100,
+                })
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert(`${label} 자동배정 실패: ` + (data.error || `HTTP ${res.status}`))
+                return
+            }
+
+            const styleField = targetType === 'script' ? 'assigned_script_style' : 'assigned_image_style'
+            const updateMap = new Map((data.updates || []).map((item: any) => [String(item.id), item.style]))
+            setTopics(prev => prev.map(item => {
+                const nextStyle = updateMap.get(String(item.id))
+                return nextStyle ? { ...item, [styleField]: nextStyle } : item
+            }))
+            alert(`${label} 자동배정 완료: ${data.updatedCount || 0}개 주제`)
+        } catch (err: any) {
+            alert(`${label} 자동배정 오류: ` + (err?.message || String(err)))
+        } finally {
+            setTopicStyleAssigningType(null)
+        }
+    }
+
+
     useEffect(() => {
         if (activeTab === 'withdrawals') {
             fetchWithdrawals();
@@ -2010,6 +2047,22 @@ export default function DashboardContent() {
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={topicStyleAssigningType !== null}
+                                            onClick={() => handleAssignTopicStyles('script')}
+                                            className="px-4 py-2 rounded-xl text-[11px] font-black border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
+                                        >
+                                            {topicStyleAssigningType === 'script' ? '대본 스타일 배정 중...' : '대본 스타일 자동배정'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={topicStyleAssigningType !== null}
+                                            onClick={() => handleAssignTopicStyles('image')}
+                                            className="px-4 py-2 rounded-xl text-[11px] font-black border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
+                                        >
+                                            {topicStyleAssigningType === 'image' ? '이미지 스타일 배정 중...' : '이미지 스타일 자동배정'}
+                                        </button>
                                         {[
                                             { key: 'working', label: '작업중' },
                                             { key: 'pending', label: '대기중' },
@@ -2159,6 +2212,16 @@ export default function DashboardContent() {
                                                                             {topicVideoClipRatio(item) && (
                                                                                 <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-300">
                                                                                     CLIP {topicVideoClipRatio(item)}
+                                                                                </span>
+                                                                            )}
+                                                                            {item.assigned_script_style && (
+                                                                                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-300">
+                                                                                    SCRIPT {item.assigned_script_style}
+                                                                                </span>
+                                                                            )}
+                                                                            {item.assigned_image_style && (
+                                                                                <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-1 text-[10px] font-black text-purple-300">
+                                                                                    IMAGE {item.assigned_image_style}
                                                                                 </span>
                                                                             )}
                                                                             {topicSceneSummary(item) && (

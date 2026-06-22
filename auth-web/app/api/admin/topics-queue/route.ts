@@ -603,3 +603,116 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
 }
+
+// PATCH: 대기중 주제의 대본/이미지 스타일을 AI로 재배정
+export async function PATCH(req: Request) {
+    try {
+        const { targetType, categoryId, limit } = await req.json()
+        const normalizedTarget = String(targetType || '').trim().toLowerCase()
+
+        if (!['script', 'image'].includes(normalizedTarget)) {
+            return NextResponse.json({ error: 'targetType must be script or image' }, { status: 400 })
+        }
+
+        const supabase = getAdmin()
+        let geminiApiKey = process.env.GEMINI_API_KEY
+        if (!geminiApiKey) {
+            const { data: dbKey } = await supabase
+                .from('global_settings')
+                .select('value')
+                .eq('key', 'sys_api_gemini')
+                .maybeSingle()
+            if (dbKey?.value) {
+                geminiApiKey = dbKey.value
+            }
+        }
+
+        if (!geminiApiKey) {
+            return NextResponse.json({ error: 'Gemini API Key is not configured.' }, { status: 500 })
+        }
+
+        const batchLimit = Math.max(1, Math.min(100, toInt(limit, 50)))
+        let query = supabase
+            .from('topics_queue')
+            .select('id, topic, category_id, assigned_script_style, assigned_image_style, categories(name, keywords)')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(batchLimit)
+
+        if (categoryId && String(categoryId) !== 'all') {
+            query = query.eq('category_id', categoryId)
+        }
+
+        const { data: rows, error: loadError } = await query
+        if (loadError) throw loadError
+
+        const topics = rows || []
+        if (!topics.length) {
+            return NextResponse.json({ success: true, updatedCount: 0, updates: [] })
+        }
+
+        const allowedStyles = normalizedTarget === 'script' ? SCRIPT_STYLE_KEYS : IMAGE_STYLE_KEYS
+        const fallbackStyle = normalizedTarget === 'script' ? DEFAULT_SCRIPT_STYLE : DEFAULT_IMAGE_STYLE
+        const styleColumn = normalizedTarget === 'script' ? 'assigned_script_style' : 'assigned_image_style'
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+        const prompt = `
+You are assigning the best ${normalizedTarget}_style for queued YouTube topics.
+Return ONLY valid JSON. No markdown.
+
+Allowed style keys: ${allowedStyles.join(', ')}
+Fallback style: ${fallbackStyle}
+
+Rules:
+- Choose exactly one allowed key for each topic.
+- Match the topic's mood, era, genre, and target audience.
+- If uncertain, use the fallback style.
+- Do not invent style keys.
+
+Topics:
+${topics.map((item: any, index: number) => {
+            const category = item.categories?.name || ''
+            const keywords = item.categories?.keywords || ''
+            return `${index + 1}. id=${item.id}; category=${category}; keywords=${keywords}; topic=${item.topic}`
+        }).join('\n')}
+
+Return format:
+[
+  {"id":"topic id", "style":"one_allowed_key"}
+]
+        `.trim()
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        })
+
+        const parsed = JSON.parse(response.text || '[]')
+        if (!Array.isArray(parsed)) {
+            throw new Error('AI returned an invalid style assignment format.')
+        }
+
+        const byId = new Map(parsed.map((item: any) => [String(item?.id), pickValidStyle(item?.style, allowedStyles, fallbackStyle)]))
+        const updates = topics.map((item: any) => ({
+            id: item.id,
+            style: byId.get(String(item.id)) || fallbackStyle
+        }))
+
+        await Promise.all(updates.map(item =>
+            supabase
+                .from('topics_queue')
+                .update({ [styleColumn]: item.style })
+                .eq('id', item.id)
+        ))
+
+        return NextResponse.json({
+            success: true,
+            targetType: normalizedTarget,
+            updatedCount: updates.length,
+            updates,
+        })
+    } catch (e: any) {
+        console.error('Failed to assign topic styles:', e)
+        return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+}

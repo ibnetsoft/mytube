@@ -99,6 +99,51 @@ CREATE POLICY "desktop_project_metadata_self_read" ON public.desktop_project_met
     FOR SELECT USING (auth.uid() = user_id);
 
 -- ─────────────────────────────────────────────
+-- topic assignment style columns: 웹어드민 주제배정 대기열 스타일 표시/재배정
+-- 기존 테이블에 안전하게 컬럼만 추가합니다.
+-- ─────────────────────────────────────────────
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'categories'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'categories' AND column_name = 'default_script_style'
+        ) THEN
+            ALTER TABLE public.categories ADD COLUMN default_script_style TEXT DEFAULT 'default';
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'categories' AND column_name = 'default_image_style'
+        ) THEN
+            ALTER TABLE public.categories ADD COLUMN default_image_style TEXT DEFAULT 'realistic';
+        END IF;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'topics_queue'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'topics_queue' AND column_name = 'assigned_script_style'
+        ) THEN
+            ALTER TABLE public.topics_queue ADD COLUMN assigned_script_style TEXT DEFAULT 'default';
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'topics_queue' AND column_name = 'assigned_image_style'
+        ) THEN
+            ALTER TABLE public.topics_queue ADD COLUMN assigned_image_style TEXT DEFAULT 'realistic';
+        END IF;
+    END IF;
+END $$;
+
+-- ─────────────────────────────────────────────
 -- 4. RLS (Row Level Security) 정책
 -- ─────────────────────────────────────────────
 

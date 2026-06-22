@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS public.categories (
     keywords TEXT,
     benchmark_channel_url TEXT,
     assigned_employee_email TEXT NOT NULL,
+    default_script_style TEXT DEFAULT 'default',
+    default_image_style TEXT DEFAULT 'realistic',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -53,6 +55,8 @@ CREATE TABLE IF NOT EXISTS public.topics_queue (
     payout_policy JSONB,
     duration_reason TEXT,
     difficulty_level TEXT,
+    assigned_script_style TEXT DEFAULT 'default',
+    assigned_image_style TEXT DEFAULT 'realistic',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     assigned_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ
