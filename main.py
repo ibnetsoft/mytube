@@ -74,6 +74,7 @@ from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
 from services.drive_bundle_service import drive_bundle_service
 from services.topic_queue_sync_service import sync_topic_progress
+from services.project_sync_service import sync_project_metadata
 
 # 공유 헬퍼/상수 — app/utils.py 에서 임포트
 from app.utils import (
@@ -95,6 +96,16 @@ app = FastAPI(
     description="AI 기반 YouTube 영상 자동화 제작 플랫폼",
     version="2.0.0"
 )
+
+
+def _queue_project_sync(background_tasks: BackgroundTasks, project_id: int):
+    """프로젝트 저장 후 Supabase 메타데이터 동기화를 best-effort로 예약."""
+    try:
+        if background_tasks is not None and project_id:
+            background_tasks.add_task(sync_project_metadata, project_id)
+    except Exception as e:
+        print(f"[ProjectSync] Queue warning for {project_id}: {e}")
+
 
 from fastapi.responses import RedirectResponse
 
@@ -155,7 +166,7 @@ async def check_login_middleware(request: Request, call_next):
 async def serve_output_file(file_path: str):
     if file_path.startswith("external/"):
         rel = file_path.replace("external/", "", 1)
-        appdata_base = os.path.join(os.path.expanduser("~"), "AppData", "Local", "picadilly")
+        appdata_base = config.LOCAL_APP_DATA_DIR
         abs_path = os.path.normpath(os.path.join(appdata_base, rel))
         if os.path.exists(abs_path):
             return FileResponse(abs_path)
@@ -189,8 +200,9 @@ os.makedirs("uploads", exist_ok=True)
 
 # [EXE] Ensure DB is initialized BEFORE accessing globals
 try:
+    db.ensure_local_db_migrated()
     db.migrate_db()
-    print("[Main] Database migration checked.")
+    print(f"[Main] Database migration checked: {db.get_db_path()}")
 except Exception as e:
     print(f"[Main] Database initialization warning: {e}")
 
@@ -346,9 +358,16 @@ async def startup_event():
         Config.load_remote_keys_from_supabase()
         auth_service.verify_license()
 
+        db.ensure_local_db_migrated()
         db.init_db()
         db.migrate_db()
         db.reset_rendering_status() # [FIX] Stuck rendering status reset
+
+        try:
+            from services.project_sync_service import sync_dirty_projects
+            asyncio.create_task(asyncio.to_thread(sync_dirty_projects, limit=20))
+        except Exception as sync_e:
+            print(f"[ProjectSync] Startup dirty sync warning: {sync_e}")
 
         # [NEW] Start Autopilot Batch Worker
         asyncio.create_task(autopilot_service.start_batch_worker())
@@ -438,25 +457,27 @@ async def recommend_titles(
 
 
 @app.patch("/api/projects/{project_id}")
-async def patch_project(project_id: int, body: dict = Body(...)):
+async def patch_project(project_id: int, background_tasks: BackgroundTasks, body: dict = Body(...)):
     """프로젝트 기본 정보 업데이트 (이름, 주제 등)"""
     try:
         allowed = {k: v for k, v in body.items() if k in ('name', 'topic', 'status')}
         if allowed:
             db.update_project(project_id, **allowed)
+            _queue_project_sync(background_tasks, project_id)
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @app.post("/api/projects/{project_id}/script")
-async def save_script(project_id: int, req: ScriptSave):
+async def save_script(project_id: int, req: ScriptSave, background_tasks: BackgroundTasks):
     """대본 저장"""
     if req.language == "vi":
         db.update_project_setting(project_id, "script_vi", req.full_script)
     else:
         db.save_script(project_id, req.full_script, req.word_count, req.estimated_duration)
         db.update_project(project_id, status="scripted")
+    _queue_project_sync(background_tasks, project_id)
     return {"status": "ok"}
 
 @app.get("/api/projects/{project_id}/script")

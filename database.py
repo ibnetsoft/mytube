@@ -2,16 +2,186 @@
 import sqlite3
 import json
 import os
+import shutil
+import sys
 import threading
 import time as _time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-DB_PATH = Path(__file__).parent / "data" / "wingsai.db"
+try:
+    from config import config
+except Exception:
+    config = None
+
+LEGACY_DB_PATH = Path(__file__).parent / "data" / "wingsai.db"
+DB_PATH = Path(getattr(config, "DB_PATH", LEGACY_DB_PATH))
 
 # 스레드별 연결 캐시 (매 호출마다 새 연결 생성하는 오버헤드 제거)
 _local = threading.local()
+_migration_lock = threading.Lock()
+_migration_checked = False
+
+
+def get_db_path() -> Path:
+    """현재 앱이 사용할 canonical SQLite DB 경로."""
+    return Path(getattr(config, "DB_PATH", DB_PATH))
+
+
+def close_db_connections():
+    """스레드 로컬 SQLite 연결을 실제로 닫고 캐시를 비운다."""
+    wrapper = getattr(_local, "conn", None)
+    if wrapper is not None:
+        try:
+            wrapper._conn.close()
+        except Exception:
+            pass
+        try:
+            delattr(_local, "conn")
+        except Exception:
+            pass
+
+
+def _legacy_db_candidates() -> List[Path]:
+    candidates = [LEGACY_DB_PATH]
+    try:
+        if getattr(sys, "frozen", False):
+            candidates.append(Path(sys.executable).parent / "data" / "wingsai.db")
+        elif config is not None:
+            candidates.append(Path(getattr(config, "BASE_DIR", Path(__file__).parent)) / "data" / "wingsai.db")
+    except Exception:
+        pass
+
+    target = get_db_path().resolve()
+    unique = []
+    seen = set()
+    for path in candidates:
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        key = str(resolved).lower()
+        if key not in seen and key != str(target).lower():
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def _count_projects(db_path: Path) -> int:
+    if not db_path.exists():
+        return 0
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
+        if not row or not row[0]:
+            return 0
+        row = conn.execute("SELECT COUNT(*) FROM projects").fetchone()
+        return int(row[0] or 0)
+    except Exception:
+        return 0
+    finally:
+        conn.close()
+
+
+def ensure_local_db_migrated():
+    """기존 repo/exe 옆 DB를 AppData canonical DB로 1회 안전 이전."""
+    global _migration_checked
+    if _migration_checked:
+        return
+    with _migration_lock:
+        if _migration_checked:
+            return
+
+        target = get_db_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        if not target.exists():
+            for source in _legacy_db_candidates():
+                if source.exists():
+                    try:
+                        source_conn = sqlite3.connect(str(source))
+                        try:
+                            target_conn = sqlite3.connect(str(target))
+                            try:
+                                source_conn.backup(target_conn)
+                            finally:
+                                target_conn.close()
+                        finally:
+                            source_conn.close()
+                        print(f"[DB] Migrated local DB to AppData: {source} -> {target}")
+                    except Exception as e:
+                        print(f"[DB] SQLite backup migration failed ({e}); trying file copy")
+                        shutil.copy2(str(source), str(target))
+                        print(f"[DB] Copied local DB to AppData: {source} -> {target}")
+                    break
+        else:
+            target_count = _count_projects(target)
+            for source in _legacy_db_candidates():
+                source_count = _count_projects(source)
+                if source_count and target_count == 0:
+                    try:
+                        backup = target.with_name(f"{target.stem}.empty-before-migration-{datetime.now().strftime('%Y%m%d-%H%M%S')}{target.suffix}")
+                        shutil.copy2(str(target), str(backup))
+                    except Exception:
+                        pass
+                    try:
+                        close_db_connections()
+                        source_conn = sqlite3.connect(str(source))
+                        try:
+                            target_conn = sqlite3.connect(str(target))
+                            try:
+                                source_conn.backup(target_conn)
+                            finally:
+                                target_conn.close()
+                        finally:
+                            source_conn.close()
+                        print(f"[DB] Replaced empty AppData DB from legacy DB: {source} -> {target}")
+                    except Exception as e:
+                        print(f"[DB] Empty-target migration skipped: {e}")
+                    break
+                if source_count and target_count:
+                    print(
+                        f"[DB] AppData DB already exists ({target_count} projects); "
+                        f"legacy DB not merged ({source_count} projects at {source})"
+                    )
+                    break
+
+        _migration_checked = True
+
+
+def record_local_db_migration_marker():
+    """마이그레이션 출처를 global_settings에 기록 (테이블 생성 후 호출)."""
+    try:
+        legacy_source = next((str(p) for p in _legacy_db_candidates() if p.exists()), "")
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS global_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        markers = {
+            "local_db_path_migrated_v1": "true",
+            "local_db_current_path": str(get_db_path()),
+            "local_db_legacy_source": legacy_source,
+            "local_db_migrated_at": datetime.utcnow().isoformat(),
+        }
+        for key, value in markers.items():
+            cursor.execute("""
+                INSERT INTO global_settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (key, value))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[DB] Failed to record DB migration marker: {e}")
 
 class _ReuseConn:
     """conn.close() 호출 시 실제로 닫지 않고 연결을 유지하는 래퍼"""
@@ -31,10 +201,15 @@ class _ReuseConn:
 
 def get_db() -> _ReuseConn:
     """스레드별 DB 연결 반환 (재사용)"""
+    ensure_local_db_migrated()
+    db_path = get_db_path()
     wrapper = getattr(_local, "conn", None)
+    if wrapper is not None and getattr(wrapper, "_db_path", None) != str(db_path):
+        close_db_connections()
+        wrapper = None
     if wrapper is None:
-        DB_PATH.parent.mkdir(exist_ok=True)
-        raw = sqlite3.connect(str(DB_PATH), timeout=60.0, check_same_thread=False)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        raw = sqlite3.connect(str(db_path), timeout=60.0, check_same_thread=False)
         raw.row_factory = sqlite3.Row
         # WAL 모드는 연결 생성 시 한 번만 설정
         try:
@@ -44,6 +219,7 @@ def get_db() -> _ReuseConn:
         except Exception:
             pass
         wrapper = _ReuseConn(raw)
+        wrapper._db_path = str(db_path)
         _local.conn = wrapper
     return wrapper
 
@@ -89,6 +265,11 @@ def init_db():
             topic TEXT,
             status TEXT DEFAULT 'draft',
             language TEXT DEFAULT 'ko',
+            employee_email TEXT,
+            sync_id TEXT,
+            last_synced_at TEXT,
+            sync_dirty INTEGER DEFAULT 1,
+            remote_deleted_at TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -1251,10 +1432,35 @@ scene_type별 구조:
         except sqlite3.OperationalError:
             pass  # Already exists
 
+    # [SYNC] Supabase project metadata sync state
+    for col, col_type in [
+        ("sync_id", "TEXT"),
+        ("last_synced_at", "TEXT"),
+        ("sync_dirty", "INTEGER DEFAULT 1"),
+        ("remote_deleted_at", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE projects ADD COLUMN {col} {col_type}")
+            print(f"[Migration] Added {col} to projects")
+        except sqlite3.OperationalError:
+            pass  # Already exists
+
+    try:
+        cursor.execute("SELECT id FROM projects WHERE sync_id IS NULL OR sync_id = ''")
+        for row in cursor.fetchall():
+            cursor.execute(
+                "UPDATE projects SET sync_id = ?, sync_dirty = 1 WHERE id = ?",
+                (str(uuid.uuid4()), row[0]),
+            )
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_sync_id ON projects(sync_id)")
+    except Exception as e:
+        print(f"[Migration] Project sync backfill warning: {e}")
+
     conn.commit()
     print("[DB] Migration completed")
 
     conn.close()
+    record_local_db_migration_marker()
 
 # ============ 프로젝트 CRUD ============
 
@@ -1268,8 +1474,8 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO projects (name, topic, language, employee_email) VALUES (?, ?, ?, ?)",
-        (name, topic, language, employee_email)
+        "INSERT INTO projects (name, topic, language, employee_email, sync_id, sync_dirty) VALUES (?, ?, ?, ?, ?, 1)",
+        (name, topic, language, employee_email, str(uuid.uuid4()))
     )
     project_id = cursor.lastrowid
     
@@ -1440,16 +1646,98 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         })
     return results
 
-def update_project(project_id: int, **kwargs):
-    """프로젝트 업데이트"""
+def mark_project_dirty(project_id: int):
+    """Supabase project metadata sync 대상 표시."""
+    if not project_id:
+        return
     conn = get_db()
     cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE projects SET sync_dirty = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (project_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_project_synced(project_id: int, synced_at: str = None):
+    """Supabase project metadata sync 성공 표시."""
+    if not project_id:
+        return
+    synced_at = synced_at or datetime.utcnow().isoformat()
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE projects SET sync_dirty = 0, last_synced_at = ? WHERE id = ?",
+            (synced_at, project_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_project_remote_deleted(project_id: int, deleted_at: str = None):
+    """Supabase row soft-delete 성공 표시."""
+    if not project_id:
+        return
+    deleted_at = deleted_at or datetime.utcnow().isoformat()
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE projects SET remote_deleted_at = ?, sync_dirty = 0, last_synced_at = ? WHERE id = ?",
+            (deleted_at, deleted_at, project_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_dirty_projects(employee_email: str = None, limit: int = 20) -> List[Dict]:
+    """Supabase metadata sync가 필요한 프로젝트 목록."""
+    conn = get_db()
+    cursor = conn.cursor()
+    if employee_email:
+        cursor.execute(
+            """
+            SELECT * FROM projects
+            WHERE (sync_dirty = 1 OR last_synced_at IS NULL OR last_synced_at = '')
+              AND (employee_email = ? OR employee_email IS NULL OR employee_email = '')
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (employee_email, limit),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT * FROM projects
+            WHERE sync_dirty = 1 OR last_synced_at IS NULL OR last_synced_at = ''
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def update_project(project_id: int, **kwargs):
+    """프로젝트 업데이트"""
+    if not kwargs:
+        return
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if "target_language" in kwargs and "language" not in kwargs:
+        kwargs["language"] = kwargs.pop("target_language")
 
     updates = ", ".join([f"{k} = ?" for k in kwargs.keys()])
     values = list(kwargs.values()) + [project_id]
 
     cursor.execute(
-        f"UPDATE projects SET {updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        f"UPDATE projects SET {updates}, sync_dirty = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         values
     )
     conn.commit()
@@ -1457,6 +1745,7 @@ def update_project(project_id: int, **kwargs):
 
 def delete_project(project_id: int):
     """프로젝트 삭제 (관련 데이터도 삭제)"""
+    mark_project_dirty(project_id)
     conn = get_db()
     cursor = conn.cursor()
 
@@ -1654,11 +1943,12 @@ def save_script(project_id: int, script: str, word_count: int, duration: int):
 
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 def update_project_render_status(project_id: int, status: str):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE projects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (status, project_id))
+    cursor.execute("UPDATE projects SET status = ?, sync_dirty = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (status, project_id))
     conn.commit()
     conn.close()
 
@@ -1771,6 +2061,7 @@ def save_script_structure(project_id: int, structure: Dict):
     
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 def get_script_structure(project_id: int) -> Optional[Dict]:
     """대본 구조 조회"""
@@ -1833,6 +2124,7 @@ def update_image_prompt_url(project_id: int, scene_number: int, image_url: str):
         
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 def update_image_prompt_video_url(project_id: int, scene_number: int, video_url: str):
     """특정 장면의 비디오 URL 업데이트 (Wan 2.2 Motion)"""
@@ -1856,6 +2148,7 @@ def update_image_prompt_video_url(project_id: int, scene_number: int, video_url:
         
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 # ============ TTS ============
 
@@ -1879,6 +2172,7 @@ def save_tts(project_id: int, voice_id: str, voice_name: str, audio_path: str, d
                 """, (project_id, voice_id, voice_name, audio_path, duration))
 
                 conn.commit()
+                mark_project_dirty(project_id)
                 return True
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower():
@@ -1934,6 +2228,7 @@ def save_metadata(project_id: int, titles: List[str], description: str,
 
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 def get_metadata(project_id: int) -> Optional[Dict]:
     """메타데이터 조회"""
@@ -1996,6 +2291,7 @@ def save_thumbnails(project_id: int, ideas: List[Dict], texts: List[str], full_s
 
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 def get_thumbnails(project_id: int) -> Optional[Dict]:
     """썸네일 아이디어 조회"""
@@ -2124,6 +2420,7 @@ def save_project_settings(project_id: int, settings: Dict):
         ))
     conn.commit()
     conn.close()
+    mark_project_dirty(project_id)
 
 # ============ 프로젝트 소스 (NotebookLM 기능) ============
 
@@ -2228,6 +2525,7 @@ def update_project_setting(project_id: int, key: str, value: Any):
 
             conn.commit()
             conn.close()
+            mark_project_dirty(project_id)
             return True
 
         except sqlite3.OperationalError as e:
@@ -2883,6 +3181,7 @@ def save_image_prompts(project_id: int, prompts: list):
                 prompt.get('scene_text_vi', '')
             ))
         conn.commit()
+        mark_project_dirty(project_id)
     except Exception as e:
         print(f"[DB Error] save_image_prompts: {e}")
     finally:

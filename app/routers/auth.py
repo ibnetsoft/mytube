@@ -59,7 +59,7 @@ def _disable_insecure_warnings():
 
 
 def _apply_category_upload_channel(project_id: int, category_row: dict):
-    """移댄뀒怨좊━??怨좎젙???낅줈??梨꾨꼸???덉쑝硫??꾨줈?앺듃 ?ㅼ젙??諛섏쁺"""
+    """카테고리에 고정 업로드 채널이 있으면 프로젝트 설정에 반영."""
     if not project_id or not category_row:
         return
 
@@ -444,11 +444,11 @@ async def get_daily_topic():
     try:
         email = auth_service.get_user_email()
         if not email:
-            raise HTTPException(401, "濡쒓렇?몄씠 ?꾩슂?⑸땲??")
+            raise HTTPException(401, "로그인이 필요합니다.")
 
         supabase_url, headers = _supabase_headers()
         if not supabase_url:
-            raise HTTPException(500, "Supabase ?ㅼ젙 ?꾨씫")
+            raise HTTPException(500, "Supabase 설정 누락")
 
         _disable_insecure_warnings()
         url = (
@@ -458,11 +458,11 @@ async def get_daily_topic():
         r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
 
         if r.status_code != 200:
-            raise HTTPException(500, f"Supabase ?몄텧 ?ㅻ쪟: {r.text}")
+            raise HTTPException(500, f"Supabase 호출 오류: {r.text}")
 
         data = r.json()
         if not data:
-            return {"status": "error", "error": "諛곗젙 ?湲?以묒씤 ?ㅻ뒛??二쇱젣媛 ?놁뒿?덈떎."}
+            return {"status": "error", "error": "배정 대기 중인 오늘의 주제가 없습니다."}
 
         item = data[0]
         topic_id = item["id"]

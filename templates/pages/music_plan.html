@@ -1013,7 +1013,7 @@ const musicI18n = {
         const playlistTitle = config.playlist_title?.trim();
 
         try {
-            // ?꾨줈?앺듃媛 ?놁쑝硫??먮룞 ?앹꽦
+            // 프로젝트가 없으면 자동 생성
             if (!projectId) {
                 if (!playlistTitle) {
                     Utils.showToast('{{ t("status_enter_playlist_title") }}', 'warning');
@@ -1062,7 +1062,7 @@ const musicI18n = {
         btn.textContent = musicI18n.generating;
 
         try {
-            // ?꾨줈?앺듃媛 ?놁쑝硫??먮룞 ?앹꽦
+            // 프로젝트가 없으면 자동 생성
             if (!projectId) {
                 if (!playlistTitle) {
                     Utils.showToast('{{ t("status_enter_playlist_title") }}', 'warning');

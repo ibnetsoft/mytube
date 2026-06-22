@@ -128,6 +128,41 @@ class WebAdminClient:
             proxies={"http": None, "https": None},
         )
 
+    def upsert_by_key(
+        self,
+        table: str,
+        key: str,
+        key_value: Any,
+        payload: Dict[str, Any],
+        *,
+        timeout: Optional[int] = None,
+    ) -> bool:
+        """Patch by key, insert if no row exists. Best-effort Supabase REST upsert."""
+        if not self.has_supabase() or key_value in (None, ""):
+            return False
+
+        response = self.supabase_patch(table, payload, params={key: f"eq.{key_value}"}, timeout=timeout)
+        if response is None:
+            return False
+        if response.status_code >= 400:
+            print(f"[WebAdmin] {table} patch failed: HTTP {response.status_code} {response.text[:300]}")
+            return False
+
+        try:
+            rows = response.json() or []
+        except Exception:
+            rows = []
+        if rows:
+            return True
+
+        create_response = self.supabase_post(table, payload, timeout=timeout)
+        if create_response is None:
+            return False
+        if create_response.status_code >= 400:
+            print(f"[WebAdmin] {table} insert failed: HTTP {create_response.status_code} {create_response.text[:300]}")
+            return False
+        return True
+
     def create_auth_user(self, *, email: str, metadata: Dict[str, Any]) -> Optional[str]:
         if not self.has_supabase():
             return None

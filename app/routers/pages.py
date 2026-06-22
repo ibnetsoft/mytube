@@ -1,6 +1,6 @@
 """
-?섏씠吏 ?쇱슦????HTML ?쒗뵆由??묐떟 ?꾩슜
-templates ?몄뒪?댁뒪??main.py?먯꽌 二쇱엯 (?쒗솚 import 諛⑹?)
+페이지 라우터와 HTML 템플릿 응답 전용.
+templates 인스턴스는 main.py에서 주입한다 (순환 import 방지).
 """
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,7 +10,7 @@ import database as db
 
 router = APIRouter(tags=["Pages"])
 
-# main.py?먯꽌 init_pages(templates) ?몄텧 ??二쇱엯
+# main.py에서 init_pages(templates) 호출 시 주입
 _templates: Optional[Jinja2Templates] = None
 
 def init_pages(templates: Jinja2Templates):

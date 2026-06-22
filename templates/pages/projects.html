@@ -57,7 +57,7 @@
     </div>
 </div>
 
-<!-- ?꾨줈?앺듃 紐⑸줉 -->
+<!-- 프로젝트 목록 -->
 <div id="loadingSection" class="hidden">
     <div class="card text-center py-12">
         <div class="loader mx-auto mb-4"></div>
@@ -95,7 +95,7 @@
 </div>
 
 <div id="emptySection" class="card text-center py-12 hidden">
-    <div class="text-5xl mb-4">?뱚</div>
+    <div class="text-5xl mb-4">📚</div>
     <h3 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ t('no_projects_title') }}</h3>
     <p class="text-gray-500 mb-6 dark:text-gray-400">{{ t('no_projects_desc') }}</p>
     <button onclick="openProjectModal()" class="btn-primary">
@@ -109,7 +109,7 @@
     const isIndependent = JSON.parse('{{ is_independent | tojson | safe }}');
     const licenseKey = '{{ get_license_key() }}';
 
-    // i18n for JS (var ?ъ슜 - base.html??var i18n怨??꾩뿭 異⑸룎 諛⑹?)
+    // i18n for JS (var 사용 - base.html의 전역 i18n과 충돌 방지)
     var i18n = {
         title_go_to: "{{ t('title_go_to') }}",
         title_page: "{{ t('title_page') }}",
@@ -605,7 +605,7 @@
                         if (field === 'name') {
                             cell.innerHTML = `
                                 <div class="flex items-center gap-2">
-                                    <span class="text-lg">?뱚</span>
+                                    <span class="text-lg">📚</span>
                                     <span>${newValue}</span>
                                 </div>
                             `;
@@ -645,7 +645,7 @@
             await API.project.delete(projectId);
             Utils.showToast(`${i18n.status_deleted}`, 'success');
             loadProjectList();
-            // ?ъ씠?쒕컮 紐⑸줉??媛깆떊
+            // 사이드바 목록 갱신
             if (window.loadProjects) window.loadProjects();
         } catch (e) {
             Utils.showToast(`${i18n.status_failed_delete}`, 'error');

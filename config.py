@@ -66,11 +66,28 @@ class Config:
 
     TEMPLATES_DIR = os.path.join(RESOURCE_DIR, "templates")
     STATIC_DIR = os.path.join(RESOURCE_DIR, "static")
-    
-    # Output/Logs/DB must live in BASE_DIR (Writeable)
-    OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-    LOG_DIR = os.path.join(BASE_DIR, "logs")
-    ASSETS_DIR = os.path.join(BASE_DIR, "assets") # [NEW] Added for templates/presets
+
+    # Writable local app storage shared by dev and installed builds.
+    # AppData is local Windows storage, not Supabase. Supabase sync is handled separately.
+    _LOCALAPPDATA = os.getenv("LOCALAPPDATA")
+    _USERPROFILE = os.getenv("USERPROFILE")
+    if _LOCALAPPDATA:
+        LOCAL_APP_DATA_DIR = os.path.join(_LOCALAPPDATA, "picadilly")
+    elif _USERPROFILE:
+        LOCAL_APP_DATA_DIR = os.path.join(_USERPROFILE, "AppData", "Local", "picadilly")
+    else:
+        LOCAL_APP_DATA_DIR = os.path.join(BASE_DIR, "picadilly_data")
+
+    DATA_DIR = os.path.join(LOCAL_APP_DATA_DIR, "data")
+    DB_DIR = DATA_DIR
+    DB_PATH = os.path.join(DB_DIR, "wingsai.db")
+    BALANCE_CACHE_PATH = os.path.join(LOCAL_APP_DATA_DIR, ".token_balance")
+    WALLET_KEY_PATH = os.path.join(LOCAL_APP_DATA_DIR, ".wallet_key")
+
+    # Default output/log dirs before login. login_user() switches these to per-email folders.
+    OUTPUT_DIR = os.path.join(LOCAL_APP_DATA_DIR, "output")
+    LOG_DIR = os.path.join(LOCAL_APP_DATA_DIR, "logs")
+    ASSETS_DIR = os.path.join(LOCAL_APP_DATA_DIR, "assets") # [NEW] Added for templates/presets
     MEDIA_DIR = OUTPUT_DIR # Alias for now
     
     # 하드코딩된 상수 관리
@@ -90,7 +107,7 @@ class Config:
     @classmethod
     def setup_directories(cls):
         """필요한 디렉토리 생성"""
-        for d in [cls.OUTPUT_DIR, cls.LOG_DIR, cls.ASSETS_DIR]:
+        for d in [cls.LOCAL_APP_DATA_DIR, cls.DATA_DIR, cls.DB_DIR, cls.OUTPUT_DIR, cls.LOG_DIR, cls.ASSETS_DIR]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
 

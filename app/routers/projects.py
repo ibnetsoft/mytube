@@ -39,12 +39,31 @@ def _strip_locked_styles(project_id: int, settings_dict: dict) -> dict:
         settings_dict.pop(key, None)
     return settings_dict
 
+
+def _queue_project_sync(background_tasks: Optional[BackgroundTasks], project_id: int):
+    """Supabase metadata sync는 local save 이후 best-effort background로 수행."""
+    try:
+        from services.project_sync_service import sync_project_metadata
+        if background_tasks is not None:
+            background_tasks.add_task(sync_project_metadata, project_id)
+        else:
+            sync_project_metadata(project_id)
+    except Exception as e:
+        print(f"[ProjectSync] Queue warning for {project_id}: {e}")
+
 @router.post("/projects/bulk-delete")
 async def bulk_delete_projects(req: BulkDeleteRequest):
     try:
         count = 0
         for pid in req.ids:
             try:
+                project = db.get_project(pid)
+                if project:
+                    try:
+                        from services.project_sync_service import sync_project_deleted
+                        sync_project_deleted(project)
+                    except Exception as sync_e:
+                        print(f"[ProjectSync] Bulk delete remote warning for {pid}: {sync_e}")
                 db.delete_project(pid)
                 count += 1
             except Exception: pass
@@ -205,7 +224,7 @@ async def get_projects(background_tasks: BackgroundTasks):
         raise HTTPException(500, str(e))
 
 @router.post("/projects")
-async def create_project(request: Request):
+async def create_project(request: Request, background_tasks: BackgroundTasks):
     try:
         # Pydantic 모델 대신 원본 JSON을 직접 읽어서 매핑 오류 원천 차단
         data = await request.json()
@@ -235,12 +254,13 @@ async def create_project(request: Request):
         email = auth_service.get_user_email()
 
         project_id = db.create_project(
-            name=name, 
-            topic=topic, 
-            app_mode=app_mode, 
+            name=name,
+            topic=topic,
+            app_mode=app_mode,
             language=target_lang,
             employee_email=email
         )
+        _queue_project_sync(background_tasks, project_id)
         return {"status": "success", "project_id": project_id}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -265,15 +285,17 @@ async def get_script_structure(project_id: int):
     return structure
 
 @router.post("/projects/{project_id}/script-structure")
-async def save_script_structure(project_id: int, data: dict):
+async def save_script_structure(project_id: int, data: dict, background_tasks: BackgroundTasks):
     try:
         db.save_script_structure(project_id, data)
+        db.mark_project_dirty(project_id)
+        _queue_project_sync(background_tasks, project_id)
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @router.put("/projects/{project_id}")
-async def update_project(project_id: int, data: ProjectUpdate):
+async def update_project(project_id: int, data: ProjectUpdate, background_tasks: BackgroundTasks):
     try:
         update_data = {}
         if data.name is not None:
@@ -288,6 +310,7 @@ async def update_project(project_id: int, data: ProjectUpdate):
             update_data["target_language"] = data.target_language
             
         db.update_project(project_id, **update_data)
+        _queue_project_sync(background_tasks, project_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -295,31 +318,40 @@ async def update_project(project_id: int, data: ProjectUpdate):
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: int):
     try:
+        project = db.get_project(project_id)
+        if project:
+            try:
+                from services.project_sync_service import sync_project_deleted
+                sync_project_deleted(project)
+            except Exception as sync_e:
+                print(f"[ProjectSync] Delete remote warning for {project_id}: {sync_e}")
         db.delete_project(project_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @router.post("/project-settings/{project_id}")
-async def save_project_settings(project_id: int, settings: ProjectSettingsSave):
+async def save_project_settings(project_id: int, settings: ProjectSettingsSave, background_tasks: BackgroundTasks):
     try:
         settings_dict = settings.dict(exclude_unset=True)
         if "title" in settings_dict:
             settings_dict["title_vi"] = None
         settings_dict = _strip_locked_styles(project_id, settings_dict)
         db.save_project_settings(project_id, settings_dict)
+        _queue_project_sync(background_tasks, project_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @router.put("/project-settings/{project_id}")
-async def update_project_setting(project_id: int, data: ProjectSettingUpdate):
+async def update_project_setting(project_id: int, data: ProjectSettingUpdate, background_tasks: BackgroundTasks):
     try:
         if data.key in _STYLE_LOCK_KEYS and _is_style_locked(project_id):
             return {"status": "locked", "message": "AI가 배정한 스타일은 변경할 수 없습니다.", "key": data.key}
         db.update_project_setting(project_id, data.key, data.value)
         if data.key == "title":
             db.update_project_setting(project_id, "title_vi", None)
+        _queue_project_sync(background_tasks, project_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -339,7 +371,7 @@ class MotionDescUpdate(BaseModel):
     motion_desc: str
 
 @router.post("/projects/{project_id}/update-motion")
-async def update_motion_desc(project_id: int, data: MotionDescUpdate):
+async def update_motion_desc(project_id: int, data: MotionDescUpdate, background_tasks: BackgroundTasks):
     """씬별 모션 프롬프트 업데이트"""
     try:
         # 1. Update project_settings (for fast lookup)
@@ -355,7 +387,9 @@ async def update_motion_desc(project_id: int, data: MotionDescUpdate):
         )
         conn.commit()
         conn.close()
-        
+        db.mark_project_dirty(project_id)
+        _queue_project_sync(background_tasks, project_id)
+
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))

@@ -64,15 +64,52 @@ CREATE TABLE IF NOT EXISTS public.usage_logs (
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON public.usage_logs(user_id, created_at DESC);
 
 -- ─────────────────────────────────────────────
+-- desktop_project_metadata: 로컬 앱 프로젝트 텍스트/메타데이터 동기화
+-- 이미지/영상/음성 파일 자체는 로컬에 유지하고, JSON payload에는 텍스트/상태/요약만 저장합니다.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.desktop_project_metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sync_id TEXT NOT NULL UNIQUE,
+    user_id UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+    employee_email TEXT,
+    local_project_id BIGINT,
+    name TEXT,
+    topic TEXT,
+    status TEXT,
+    language TEXT,
+    app_mode TEXT,
+    project_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    progress_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    synced_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_desktop_project_metadata_email
+ON public.desktop_project_metadata(employee_email);
+
+CREATE INDEX IF NOT EXISTS idx_desktop_project_metadata_local_project
+ON public.desktop_project_metadata(employee_email, local_project_id);
+
+ALTER TABLE public.desktop_project_metadata ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "desktop_project_metadata_self_read" ON public.desktop_project_metadata;
+CREATE POLICY "desktop_project_metadata_self_read" ON public.desktop_project_metadata
+    FOR SELECT USING (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────
 -- 4. RLS (Row Level Security) 정책
 -- ─────────────────────────────────────────────
 
 -- profiles: 본인 데이터만 읽기 / 관리자는 전체 읽기
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "profiles_self_read" ON public.profiles;
 CREATE POLICY "profiles_self_read" ON public.profiles
     FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "profiles_self_update" ON public.profiles;
 CREATE POLICY "profiles_self_update" ON public.profiles
     FOR UPDATE USING (auth.uid() = id);
 
@@ -81,12 +118,14 @@ CREATE POLICY "profiles_self_update" ON public.profiles
 -- user_licenses: 본인 라이선스만 읽기 (쓰기는 서버 전용)
 ALTER TABLE public.user_licenses ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "licenses_self_read" ON public.user_licenses;
 CREATE POLICY "licenses_self_read" ON public.user_licenses
     FOR SELECT USING (auth.uid() = user_id);
 
 -- usage_logs: 본인 로그 읽기 (삽입은 서버 전용)
 ALTER TABLE public.usage_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "logs_self_read" ON public.usage_logs;
 CREATE POLICY "logs_self_read" ON public.usage_logs
     FOR SELECT USING (auth.uid() = user_id);
 

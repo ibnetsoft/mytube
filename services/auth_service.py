@@ -38,16 +38,16 @@ class AuthService:
         """재시작 시 마지막 잔액 복원 — .token_balance 파일 우선, 없으면 로컬 DB에서 조회"""
         try:
             import sqlite3, os
-            base_dir = os.path.dirname(os.path.dirname(__file__))
+            from config import config
             # 1순위: 빠른 파일 캐시
-            balance_file = os.path.join(base_dir, ".token_balance")
+            balance_file = config.BALANCE_CACHE_PATH
             if os.path.exists(balance_file):
                 with open(balance_file) as f:
                     val = int(f.read().strip())
                     if val > 0:
                         return val
             # 2순위: 로컬 DB 최신 balance_after (wingsai.db 사용)
-            db_path = os.path.join(base_dir, "data", "wingsai.db")
+            db_path = config.DB_PATH
             if os.path.exists(db_path):
                 conn = sqlite3.connect(db_path)
                 # [FIX] 단순히 최신이 아니라, 0보다 큰 마지막 잔액을 가져오도록 수정 (오류로 인한 0원 초기화 방지)
@@ -64,7 +64,9 @@ class AuthService:
     def _save_persisted_balance(self, balance: int):
         """잔액을 별도 파일에 저장 (DB 없이도 복원 가능하도록 백업)"""
         try:
-            balance_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".token_balance")
+            from config import config
+            balance_file = config.BALANCE_CACHE_PATH
+            os.makedirs(os.path.dirname(balance_file), exist_ok=True)
             with open(balance_file, "w") as f:
                 f.write(str(balance))
         except Exception:
@@ -298,16 +300,25 @@ class AuthService:
             from config import config
             # 이메일 특수기호 안전하게 가공
             safe_email = "".join([c if c.isalnum() else "_" for c in email])
-            user_dir = os.path.join(
-                os.environ.get("USERPROFILE", "C:/Users/default"), 
-                "AppData", "Local", "picadilly", safe_email
-            ).replace("\\", "/")
+            user_dir = os.path.join(config.LOCAL_APP_DATA_DIR, safe_email).replace("\\", "/")
             config.OUTPUT_DIR = os.path.join(user_dir, "output").replace("\\", "/")
             config.LOG_DIR = os.path.join(user_dir, "logs").replace("\\", "/")
             config.ASSETS_DIR = os.path.join(user_dir, "assets").replace("\\", "/")
             config.MEDIA_DIR = config.OUTPUT_DIR
             config.setup_directories()
             print(f"[Auth] Switched output directory for {email} to: {config.OUTPUT_DIR}")
+
+            # Supabase project metadata dirty sync (best-effort, non-blocking)
+            try:
+                def _sync_dirty_projects_bg():
+                    try:
+                        from services.project_sync_service import sync_dirty_projects
+                        sync_dirty_projects(employee_email=email, limit=20)
+                    except Exception as sync_e:
+                        print(f"[ProjectSync] Login dirty sync warning: {sync_e}")
+                threading.Thread(target=_sync_dirty_projects_bg, daemon=True).start()
+            except Exception as sync_e:
+                print(f"[ProjectSync] Failed to start login dirty sync: {sync_e}")
 
             # 템플릿 환경 변수 갱신
             try:
@@ -461,7 +472,8 @@ class AuthService:
         import json
         import database as db
         
-        wallet_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".wallet_key")
+        from config import config
+        wallet_file = config.WALLET_KEY_PATH
         wallet_data = {}
         
         # 1. Try to load existing
