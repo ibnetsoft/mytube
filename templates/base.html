@@ -58,7 +58,38 @@
                     </span>
                     {% endif %}
                 </a>
-                                
+
+                <!-- 모드 표시 및 언어 선택 (사이드바로 이전하여 겹침 현상 원천 방지) -->
+                <div class="mt-4 px-3 py-3 bg-[#1c2027]/40 rounded-2xl border border-white/5 flex flex-col gap-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] font-black text-gray-400 uppercase tracking-tighter">{{ t('label_mode_suffix') }}</span>
+                        <span class="text-[9px] font-black uppercase bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">
+                            {% if app_mode == 'shorts' %}{{ t('mode_shortform') }}{% elif app_mode == 'longform_music' %}{{ t('mode_longform_music') }}{% elif app_mode == 'commerce' %}{{ t('mode_commerce_label') }}{% elif app_mode == 'webtoon' %}{{ t('mode_webtoon_label') }}{% else %}{{ t('mode_longform') }}{% endif %}
+                        </span>
+                    </div>
+                    <div class="h-px bg-white/5"></div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] font-black text-gray-400 uppercase tracking-tighter">{{ t('label_language') }}</span>
+                        <div class="flex gap-2">
+                            <button onclick="changeGlobalLanguage('ko')"
+                                class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'ko' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
+                                title="한국어">
+                                <img src="https://flagcdn.com/w40/kr.png" alt="Korean" class="w-full h-full object-cover">
+                            </button>
+                            <button onclick="changeGlobalLanguage('en')"
+                                class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'en' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
+                                title="English">
+                                <img src="https://flagcdn.com/w40/gb.png" alt="English" class="w-full h-full object-cover">
+                            </button>
+                            <button onclick="changeGlobalLanguage('vi')"
+                                class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'vi' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
+                                title="Tiếng Việt">
+                                <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {% if membership not in ['std', 'standard'] %}
                 <!-- [NEW] Token Balance Display -->
                 <div class="mt-3 px-3 py-2 bg-blue-500/5 rounded-2xl border border-white/5 flex items-center justify-between group hover:bg-blue-500/10 transition-all cursor-help" title="{{ t('tooltip_token_balance') }}">
@@ -504,36 +535,7 @@
     <script src="/static/js/api_v2.js?v={{ range(1, 100000) | random }}"></script>
     {% block scripts %}{% endblock %}
 
-    <div class="fixed top-3 right-6 z-50 flex items-center gap-3">
-        <!-- 모드 표시 (롱폼, 숏폼, 커머스, 블로그) -->
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-[#232832]/80 backdrop-blur rounded-full shadow-lg border border-white/5">
-            <span class="text-[10px] font-black uppercase tracking-tighter text-gray-300">
-                {% if app_mode == 'shorts' %}{{ t('mode_shortform') }}{% elif app_mode == 'longform_music' %}{{ t('mode_longform_music') }}{% elif app_mode == 'commerce' %}{{ t('mode_commerce_label') }}{% elif app_mode == 'webtoon' %}{{ t('mode_webtoon_label') }}{% else %}{{ t('mode_longform') }}{% endif %} {{ t('label_mode_suffix') }}
-            </span>
-        </div>
 
-        <!-- 언어 선택 -->
-        <div class="flex gap-2 bg-[#232832]/80 backdrop-blur p-1 rounded-full shadow-lg border border-white/5 transition-all hover:scale-105">
-            <button onclick="changeGlobalLanguage('ko')"
-                class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
-                title="한국어">
-                <img src="https://flagcdn.com/w40/kr.png" alt="Korean" class="w-full h-full object-cover">
-                <div class="absolute inset-0 bg-[#1c2027]/10 group-hover:bg-transparent transition"></div>
-            </button>
-            <button onclick="changeGlobalLanguage('en')"
-                class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
-                title="English">
-                <img src="https://flagcdn.com/w40/gb.png" alt="English" class="w-full h-full object-cover">
-                <div class="absolute inset-0 bg-[#1c2027]/10 group-hover:bg-transparent transition"></div>
-            </button>
-            <button onclick="changeGlobalLanguage('vi')"
-                class="w-6 h-6 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-500 transition-all transform hover:-translate-y-1 relative group"
-                title="Tiếng Việt">
-                <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
-                <div class="absolute inset-0 bg-[#1c2027]/10 group-hover:bg-transparent transition"></div>
-            </button>
-        </div>
-    </div>
 
     <script>
         // Global Language Switcher
