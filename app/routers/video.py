@@ -1793,7 +1793,30 @@ async def render_project_video(
                     db.update_project_setting(project_id, "video_path", web_video_path)
                     db.update_project(project_id, status="rendered")
                     print(f"프로젝트 {project_id} 렌더링 완료: {final_path}")
-                    
+
+                    # Upload QA Stage 1: technical checks + LUFS auto-normalization
+                    try:
+                        from services.qa_service import get_qa_settings, run_technical_qa
+                        qa_settings = get_qa_settings()
+                        qa_technical = run_technical_qa(project_id, final_path, qa_settings)
+                        qa_hold = qa_technical.get("status") == "failed" and qa_settings.get("qa_hold_on_technical_fail", True)
+                        qa_result = {
+                            "technical": qa_technical,
+                            "semantic": {"status": "pending"},
+                            "final_status": "blocked" if qa_hold else ("warning" if qa_technical.get("status") == "warning" else qa_technical.get("status", "passed")),
+                            "hold_upload": bool(qa_hold),
+                            "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        }
+                        db.update_project_setting(project_id, "qa_status", qa_result["final_status"])
+                        db.update_project_setting(project_id, "qa_hold_upload", "1" if qa_hold else "0")
+                        db.update_project_setting(project_id, "qa_checked_at", qa_result["checked_at"])
+                        db.update_project_setting(project_id, "qa_result_json", json.dumps(qa_result, ensure_ascii=False))
+                        if qa_hold:
+                            db.update_project_setting(project_id, "admin_publish_status", "qa_hold")
+                            print(f"[QA] Project {project_id} upload held: technical QA failed")
+                    except Exception as qa_err:
+                        print(f"[QA] Technical QA skipped due to error: {qa_err}")
+
                     # [NEW] 구글 드라이브 업로드 및 Supabase 동기화 백그라운드 구동
                     try:
                         from services.sync_service import start_upload_and_sync_background
@@ -2055,7 +2078,8 @@ async def delete_external_video(project_id: int):
 async def upload_project_to_youtube(
     project_id: int,
     privacy_status: str = "private", # public, unlisted, private
-    publish_at: Optional[str] = None # ISO 8601
+    publish_at: Optional[str] = None, # ISO 8601
+    force_upload: bool = Query(False)
 ):
     """프로젝트 영상 유튜브 업로드 (예약 발행 지원)"""
     from services.youtube_upload_service import youtube_upload_service
@@ -2078,7 +2102,18 @@ async def upload_project_to_youtube(
         
     if not os.path.exists(video_path):
         raise HTTPException(400, f"영상을 찾을 수 없습니다: {video_path}")
-    
+
+    from services.qa_service import is_upload_blocked, resolve_upload_video_path
+    blocked, qa_result = is_upload_blocked(project_id)
+    if blocked and not force_upload:
+        return JSONResponse(status_code=409, content={
+            "status": "qa_hold",
+            "message": "QA 경고로 업로드가 보류되었습니다. 경고 확인 후 수동 업로드로 강제 진행할 수 있습니다.",
+            "qa_result": qa_result,
+            "force_upload_available": True,
+        })
+    video_path = resolve_upload_video_path(project_id, video_path)
+
     # 2. 메타데이터 구성
     title = settings.get("title", f"Project {project_id}")
     description = ""

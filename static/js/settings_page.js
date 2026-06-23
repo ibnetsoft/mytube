@@ -1476,7 +1476,18 @@
                 user_name: safeVal('userName'),
                 user_nationality: safeVal('userNationality'),
                 user_phone: safeVal('userPhone'),
-                user_email: safeVal('userEmail')
+                user_email: safeVal('userEmail'),
+                qa_enable_pipeline: safeCheck('qaEnablePipeline'),
+                qa_enable_technical_check: safeCheck('qaEnableTechnicalCheck'),
+                qa_enable_semantic_check: safeCheck('qaEnableSemanticCheck'),
+                qa_auto_normalize_lufs: safeCheck('qaAutoNormalizeLufs'),
+                qa_hold_on_technical_fail: safeCheck('qaHoldOnTechnicalFail'),
+                qa_hold_on_semantic_fail: safeCheck('qaHoldOnSemanticFail'),
+                qa_target_lufs: parseFloat(safeVal('qaTargetLufs') || '-14'),
+                qa_lufs_tolerance: parseFloat(safeVal('qaLufsTolerance') || '2'),
+                qa_blackdetect_min_duration: parseFloat(safeVal('qaBlackdetectMinDuration') || '1.0'),
+                qa_min_width: parseInt(safeVal('qaMinWidth') || '1920', 10),
+                qa_min_height: parseInt(safeVal('qaMinHeight') || '1080', 10)
             };
 
             if (document.getElementById('useExternalRender')) {
@@ -1503,6 +1514,17 @@
                         'user_nationality',
                         'user_phone',
                         'user_email',
+                        'qa_enable_pipeline',
+                        'qa_enable_technical_check',
+                        'qa_enable_semantic_check',
+                        'qa_auto_normalize_lufs',
+                        'qa_hold_on_technical_fail',
+                        'qa_hold_on_semantic_fail',
+                        'qa_target_lufs',
+                        'qa_lufs_tolerance',
+                        'qa_blackdetect_min_duration',
+                        'qa_min_width',
+                        'qa_min_height',
                         'use_external_render',
                         'drive_path_ko',
                         'drive_path_en',
@@ -1574,6 +1596,21 @@
             if (document.getElementById('userNationality')) document.getElementById('userNationality').value = data.user_nationality || '';
             if (document.getElementById('userPhone')) document.getElementById('userPhone').value = data.user_phone || '';
             if (document.getElementById('userEmail')) document.getElementById('userEmail').value = data.user_email || '';
+
+            // Upload QA Settings
+            const setCheck = (id, value) => { const el = document.getElementById(id); if (el) el.checked = !!value; };
+            const setVal = (id, value, fallback) => { const el = document.getElementById(id); if (el) el.value = value ?? fallback; };
+            setCheck('qaEnablePipeline', data.qa_enable_pipeline !== false);
+            setCheck('qaEnableTechnicalCheck', data.qa_enable_technical_check !== false);
+            setCheck('qaEnableSemanticCheck', !!data.qa_enable_semantic_check);
+            setCheck('qaAutoNormalizeLufs', data.qa_auto_normalize_lufs !== false);
+            setCheck('qaHoldOnTechnicalFail', data.qa_hold_on_technical_fail !== false);
+            setCheck('qaHoldOnSemanticFail', data.qa_hold_on_semantic_fail !== false);
+            setVal('qaTargetLufs', data.qa_target_lufs, '-14');
+            setVal('qaLufsTolerance', data.qa_lufs_tolerance, '2');
+            setVal('qaBlackdetectMinDuration', data.qa_blackdetect_min_duration, '1.0');
+            setVal('qaMinWidth', data.qa_min_width, '1920');
+            setVal('qaMinHeight', data.qa_min_height, '1080');
 
             // Google Drive Queue Settings
             if (document.getElementById('useExternalRender')) document.getElementById('useExternalRender').checked = !!data.use_external_render;

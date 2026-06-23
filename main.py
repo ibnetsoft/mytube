@@ -1339,6 +1339,28 @@ async def auto_upload_youtube(project_id: int):
         if preferred_handle and not token_path:
             preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
             raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
+        from services.qa_service import is_upload_blocked, resolve_upload_video_path, run_pre_upload_qa
+        blocked, qa_result = is_upload_blocked(project_id)
+        if blocked:
+            raise HTTPException(status_code=409, detail={
+                "status": "qa_hold",
+                "message": "QA 경고로 자동 업로드가 보류되었습니다. 프로젝트 화면에서 경고를 확인한 뒤 수동 업로드로 강제 진행할 수 있습니다.",
+                "qa_result": qa_result,
+            })
+
+        video_path = resolve_upload_video_path(project_id, video_path)
+        qa_result = await run_pre_upload_qa(project_id, video_path, {
+            "title": title,
+            "description": description,
+            "tags": tags,
+        })
+        if qa_result.get("hold_upload"):
+            raise HTTPException(status_code=409, detail={
+                "status": "qa_hold",
+                "message": "업로드 전 QA 검사 결과 자동 업로드가 보류되었습니다.",
+                "qa_result": qa_result,
+            })
+
         response = youtube_upload_service.upload_video(
             file_path=video_path,
             title=title,
@@ -1373,6 +1395,8 @@ async def auto_upload_youtube(project_id: int):
             "url": f"https://youtu.be/{video_id}"
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Auto Upload Error: {e}")
         raise HTTPException(500, f"업로드 중 오류 발생: {str(e)}")

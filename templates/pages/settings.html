@@ -223,6 +223,69 @@
                         </div>
                     </div>
 
+                    <!-- Upload QA Settings -->
+                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                            🧪 업로드 전 QA 검사
+                        </h4>
+                        <div class="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
+                            <p class="text-[11px] text-gray-400 leading-relaxed">
+                                렌더링 완료 후 FFmpeg 기반 기술 검사와 업로드 직전 Gemini 정밀 검사를 수행합니다. LUFS가 기준을 벗어나면 자동 보정하고, 스펙 미달 영상은 자동 업로드를 보류합니다.
+                            </p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
+                                    <input type="checkbox" id="qaEnablePipeline" class="rounded border-gray-600 bg-gray-800">
+                                    QA 파이프라인 전체 활성화
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
+                                    <input type="checkbox" id="qaEnableTechnicalCheck" class="rounded border-gray-600 bg-gray-800">
+                                    Stage 1 기술 검사 활성화
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
+                                    <input type="checkbox" id="qaEnableSemanticCheck" class="rounded border-gray-600 bg-gray-800">
+                                    Stage 2 AI 정밀 검사 활성화
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
+                                    <input type="checkbox" id="qaAutoNormalizeLufs" class="rounded border-gray-600 bg-gray-800">
+                                    LUFS 자동 보정 적용
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
+                                    <input type="checkbox" id="qaHoldOnTechnicalFail" class="rounded border-gray-600 bg-gray-800">
+                                    기술 스펙 미달 시 자동 업로드 보류
+                                </label>
+                                <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
+                                    <input type="checkbox" id="qaHoldOnSemanticFail" class="rounded border-gray-600 bg-gray-800">
+                                    AI 검사 실패 시 자동 업로드 보류
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">목표 LUFS</label>
+                                    <input type="number" id="qaTargetLufs" class="input-field w-full text-xs" value="-14" step="0.5">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">LUFS 허용오차</label>
+                                    <input type="number" id="qaLufsTolerance" class="input-field w-full text-xs" value="2" step="0.5" min="0">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">검은화면 기준(초)</label>
+                                    <input type="number" id="qaBlackdetectMinDuration" class="input-field w-full text-xs" value="1.0" step="0.1" min="0.1">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">최소 가로</label>
+                                    <input type="number" id="qaMinWidth" class="input-field w-full text-xs" value="1920" step="1" min="1">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">최소 세로</label>
+                                    <input type="number" id="qaMinHeight" class="input-field w-full text-xs" value="1080" step="1" min="1">
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
+                                스펙 미달 영상은 자동 업로드만 보류됩니다. 사용자는 경고 확인 후 수동 업로드로 강제 진행할 수 있습니다.
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- [NEW] Scene Transition Dropdown -->
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">

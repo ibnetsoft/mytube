@@ -112,6 +112,18 @@ def publish_project_to_youtube(
         if not video_path or not os.path.exists(video_path):
             raise FileNotFoundError(f"Uploadable video file not found for project {project_id}")
 
+        from services.qa_service import is_upload_blocked, resolve_upload_video_path
+        qa_blocked, qa_result = is_upload_blocked(project_id)
+        if qa_blocked:
+            db.update_project_setting(project_id, "admin_publish_status", "qa_hold")
+            return {
+                "status": "qa_hold",
+                "project_id": project_id,
+                "message": "QA 경고로 유튜브 발행이 보류되었습니다.",
+                "qa_result": qa_result,
+            }
+        video_path = resolve_upload_video_path(project_id, video_path)
+
         if drive_assets:
             title = drive_assets.get("title") or project.get("name") or f"Project {project_id}"
             description = drive_assets.get("description") or ""
@@ -255,23 +267,30 @@ def queue_project_for_admin_publish(
         "total_duration_seconds": total_duration_seconds,
         "app_mode": settings.get("app_mode") or "longform_music",
     }
+    from services.qa_service import is_upload_blocked
+    qa_blocked, qa_result = is_upload_blocked(project_id)
+    queue_status = "qa_hold" if qa_blocked else "pending"
+    if qa_blocked:
+        payload_metadata["qa_result"] = qa_result
+
     response = upsert_web_admin_publishing_request(
         project_id,
         video_url=video_file.get("webViewLink"),
-        status="pending",
+        status=queue_status,
         metadata_payload=payload_metadata,
     )
     if response is None or response.status_code not in (200, 201, 204):
         raise RuntimeError("Failed to register project in web-admin publishing queue.")
 
+    admin_status = "qa_hold" if qa_blocked else "pending_review"
     db.update_project_setting(project_id, "admin_publish_ready", "1")
-    db.update_project_setting(project_id, "admin_publish_status", "pending_review")
+    db.update_project_setting(project_id, "admin_publish_status", admin_status)
     db.update_project_setting(project_id, "is_uploaded", 1)
 
     return {
-        "status": "ok",
+        "status": "qa_hold" if qa_blocked else "ok",
         "project_id": project_id,
-        "queue_status": "pending_review",
+        "queue_status": admin_status,
         "video_url": video_file.get("webViewLink"),
         "url": video_file.get("webViewLink"),
         "title": title,

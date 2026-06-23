@@ -436,6 +436,18 @@ def init_db():
         except Exception:
             pass
 
+    for col, col_type in [
+        ("qa_status", "TEXT"),
+        ("qa_hold_upload", "TEXT DEFAULT '0'"),
+        ("qa_checked_at", "TEXT"),
+        ("qa_result_json", "TEXT"),
+        ("qa_normalized_video_path", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass
+
     # 분석 데이터 (주제 찾기 결과)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS analysis (
@@ -1612,6 +1624,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         ps.admin_publish_ready,
         ps.admin_publish_status,
         ps.youtube_video_id,
+        ps.qa_status,
+        ps.qa_hold_upload,
+        ps.qa_checked_at,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
         ps.app_mode,
         m.description,
@@ -1700,6 +1715,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "updated_at": r["updated_at"],
             "video_title": r["video_title"],
             "status": r["project_status"], # String status
+            "qa_status": r.get("qa_status") or "",
+            "qa_hold_upload": r.get("qa_hold_upload") or "0",
+            "qa_checked_at": r.get("qa_checked_at") or "",
             "app_mode": r["app_mode"], # [NEW]
             "progress": progress
         })

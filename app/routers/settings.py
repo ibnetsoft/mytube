@@ -59,6 +59,17 @@ ADVANCED_GLOBAL_SETTING_FIELDS = {
     "pexels_api_key",
     "replicate_api_token",
     "openai_api_key",
+    "qa_enable_pipeline",
+    "qa_enable_technical_check",
+    "qa_enable_semantic_check",
+    "qa_auto_normalize_lufs",
+    "qa_hold_on_technical_fail",
+    "qa_hold_on_semantic_fail",
+    "qa_target_lufs",
+    "qa_lufs_tolerance",
+    "qa_blackdetect_min_duration",
+    "qa_min_width",
+    "qa_min_height",
 }
 
 class GlobalSettings(BaseModel):
@@ -107,6 +118,18 @@ class GlobalSettings(BaseModel):
     drive_active_lang: Optional[str] = None
     remote_render_drive_folder_id: Optional[str] = None
     remote_render_google_token_path: Optional[str] = None
+    # Upload QA Settings
+    qa_enable_pipeline: Optional[bool] = None
+    qa_enable_technical_check: Optional[bool] = None
+    qa_enable_semantic_check: Optional[bool] = None
+    qa_auto_normalize_lufs: Optional[bool] = None
+    qa_hold_on_technical_fail: Optional[bool] = None
+    qa_hold_on_semantic_fail: Optional[bool] = None
+    qa_target_lufs: Optional[float] = None
+    qa_lufs_tolerance: Optional[float] = None
+    qa_blackdetect_min_duration: Optional[float] = None
+    qa_min_width: Optional[int] = None
+    qa_min_height: Optional[int] = None
 
 @router.get("")
 async def get_global_settings_api():
@@ -155,6 +178,18 @@ async def get_global_settings_api():
         "drive_active_lang": db.get_global_setting("drive_active_lang", config.DRIVE_ACTIVE_LANG),
         "remote_render_drive_folder_id": db.get_global_setting("remote_render_drive_folder_id", config.REMOTE_RENDER_DRIVE_FOLDER_ID),
         "remote_render_google_token_path": db.get_global_setting("remote_render_google_token_path", config.REMOTE_RENDER_GOOGLE_TOKEN_PATH),
+        # Upload QA defaults
+        "qa_enable_pipeline": db.get_global_setting("qa_enable_pipeline", True, value_type="bool"),
+        "qa_enable_technical_check": db.get_global_setting("qa_enable_technical_check", True, value_type="bool"),
+        "qa_enable_semantic_check": db.get_global_setting("qa_enable_semantic_check", False, value_type="bool"),
+        "qa_auto_normalize_lufs": db.get_global_setting("qa_auto_normalize_lufs", True, value_type="bool"),
+        "qa_hold_on_technical_fail": db.get_global_setting("qa_hold_on_technical_fail", True, value_type="bool"),
+        "qa_hold_on_semantic_fail": db.get_global_setting("qa_hold_on_semantic_fail", True, value_type="bool"),
+        "qa_target_lufs": db.get_global_setting("qa_target_lufs", "-14"),
+        "qa_lufs_tolerance": db.get_global_setting("qa_lufs_tolerance", "2"),
+        "qa_blackdetect_min_duration": db.get_global_setting("qa_blackdetect_min_duration", "1.0"),
+        "qa_min_width": db.get_global_setting("qa_min_width", "1920"),
+        "qa_min_height": db.get_global_setting("qa_min_height", "1080"),
         "longform_min_duration_minutes": os.getenv("LONGFORM_MIN_DURATION_MINUTES") or db.get_global_setting("longform_min_duration_minutes", "15"),
         "longform_base_payout": os.getenv("LONGFORM_BASE_PAYOUT") or db.get_global_setting("longform_base_payout", "10000"),
         "longform_extra_minute_payout": os.getenv("LONGFORM_EXTRA_MINUTE_PAYOUT") or db.get_global_setting("longform_extra_minute_payout", "500"),
@@ -216,6 +251,17 @@ async def get_global_settings_api():
     merged["drive_active_lang"] = global_conf["drive_active_lang"]
     merged["remote_render_drive_folder_id"] = global_conf["remote_render_drive_folder_id"]
     merged["remote_render_google_token_path"] = global_conf["remote_render_google_token_path"]
+    merged["qa_enable_pipeline"] = global_conf["qa_enable_pipeline"]
+    merged["qa_enable_technical_check"] = global_conf["qa_enable_technical_check"]
+    merged["qa_enable_semantic_check"] = global_conf["qa_enable_semantic_check"]
+    merged["qa_auto_normalize_lufs"] = global_conf["qa_auto_normalize_lufs"]
+    merged["qa_hold_on_technical_fail"] = global_conf["qa_hold_on_technical_fail"]
+    merged["qa_hold_on_semantic_fail"] = global_conf["qa_hold_on_semantic_fail"]
+    merged["qa_target_lufs"] = global_conf["qa_target_lufs"]
+    merged["qa_lufs_tolerance"] = global_conf["qa_lufs_tolerance"]
+    merged["qa_blackdetect_min_duration"] = global_conf["qa_blackdetect_min_duration"]
+    merged["qa_min_width"] = global_conf["qa_min_width"]
+    merged["qa_min_height"] = global_conf["qa_min_height"]
     merged["longform_min_duration_minutes"] = global_conf["longform_min_duration_minutes"]
     merged["longform_base_payout"] = global_conf["longform_base_payout"]
     merged["longform_extra_minute_payout"] = global_conf["longform_extra_minute_payout"]
@@ -360,6 +406,25 @@ async def save_global_settings_api(settings: GlobalSettings):
     if settings.remote_render_google_token_path is not None:
         db.save_global_setting("remote_render_google_token_path", settings.remote_render_google_token_path)
         config.update_api_key("REMOTE_RENDER_GOOGLE_TOKEN_PATH", settings.remote_render_google_token_path)
+
+    # Upload QA Settings Save
+    qa_setting_keys = [
+        "qa_enable_pipeline",
+        "qa_enable_technical_check",
+        "qa_enable_semantic_check",
+        "qa_auto_normalize_lufs",
+        "qa_hold_on_technical_fail",
+        "qa_hold_on_semantic_fail",
+        "qa_target_lufs",
+        "qa_lufs_tolerance",
+        "qa_blackdetect_min_duration",
+        "qa_min_width",
+        "qa_min_height",
+    ]
+    for key in qa_setting_keys:
+        value = getattr(settings, key, None)
+        if value is not None:
+            db.save_global_setting(key, value)
 
     # Automatically resolve DRIVE_RENDER_QUEUE_PATH
     active_lang = settings.drive_active_lang or db.get_global_setting("drive_active_lang", "ko")
