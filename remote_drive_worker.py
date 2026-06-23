@@ -216,7 +216,7 @@ class RemoteDriveWorker:
                 folder_id=result_folder.get("id"),
                 filename=result_filename,
                 mimetype="video/mp4",
-                description=f"Picadiri remote render result for queue job {job_id}",
+                description=f"AIR remote render result for queue job {job_id}",
                 make_public=False,
             )
             if not drive_file or not drive_file.get("id"):
@@ -240,7 +240,7 @@ class RemoteDriveWorker:
                         folder_id=result_folder.get("id"),
                         filename=thumbnail_filename,
                         mimetype="image/png" if thumbnail_filename.lower().endswith(".png") else "image/jpeg",
-                        description=f"Picadiri thumbnail for queue job {job_id}",
+                        description=f"AIR thumbnail for queue job {job_id}",
                         make_public=False,
                     )
 
@@ -267,7 +267,7 @@ class RemoteDriveWorker:
                     folder_id=result_folder.get("id"),
                     filename="metadata.json",
                     mimetype="application/json",
-                    description=f"Picadiri metadata for queue job {job_id}",
+                    description=f"AIR metadata for queue job {job_id}",
                     make_public=False,
                 )
 
@@ -335,7 +335,7 @@ class RemoteDriveWorker:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Picadiri Google Drive API remote render worker")
+    parser = argparse.ArgumentParser(description="AIR Google Drive API remote render worker")
     parser.add_argument("--once", action="store_true", help="process at most one pending job and exit")
     parser.add_argument("--check", action="store_true", help="check settings and pending queue, then exit")
     args = parser.parse_args()

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireSuperAdmin } from '../_auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,9 @@ const getAdmin = () => createClient(
 // GET: 스타일 프리셋 목록 조회
 export async function GET(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { searchParams } = new URL(req.url)
         const type = searchParams.get('type') // optional filter: 'image' | 'script' | 'thumbnail'
 
@@ -36,6 +40,9 @@ export async function GET(req: Request) {
 // POST: 스타일 프리셋 추가/수정 (key_code 기준 upsert)
 export async function POST(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const body = await req.json()
         const { id, preset_type, key_code, display_name_ko, display_name_vi, prompt_template, gemini_instruction, image_url } = body
 
@@ -77,6 +84,9 @@ export async function POST(req: Request) {
 // DELETE: 스타일 프리셋 삭제
 export async function DELETE(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { searchParams } = new URL(req.url)
         const id = searchParams.get('id')
         const keyCode = searchParams.get('key_code')

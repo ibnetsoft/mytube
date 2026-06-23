@@ -170,7 +170,7 @@ def upload_and_sync_video(project_id: int, local_video_path: str):
             folder_id=project_folder.get("id"),
             filename=video_filename,
             mimetype="video/mp4",
-            description=f"Picadiri rendered video for project {project_id}",
+            description=f"AIR rendered video for project {project_id}",
             make_public=False,
         )
         if not video_file:
@@ -188,7 +188,7 @@ def upload_and_sync_video(project_id: int, local_video_path: str):
                 folder_id=project_folder.get("id"),
                 filename=thumbnail_file_name,
                 mimetype=f"image/{ext.lower().lstrip('.')}" if ext.lower() != ".jpg" else "image/jpeg",
-                description=f"Picadiri thumbnail for project {project_id}",
+                description=f"AIR thumbnail for project {project_id}",
                 make_public=False,
             )
 
@@ -202,7 +202,7 @@ def upload_and_sync_video(project_id: int, local_video_path: str):
                 folder_id=project_folder.get("id"),
                 filename="metadata.json",
                 mimetype="application/json",
-                description=f"Picadiri metadata for project {project_id}",
+                description=f"AIR metadata for project {project_id}",
                 make_public=False,
             )
         finally:

@@ -66,7 +66,7 @@ def generate_verify_code() -> str:
 
 def send_temp_password(to: str, temp_pw: str) -> bool:
     """임시 비밀번호 이메일 발송"""
-    subject = "[Picadilly Studio] 임시 비밀번호 안내"
+    subject = "[AIR] 임시 비밀번호 안내"
     html = f"""
 <!DOCTYPE html>
 <html>
@@ -75,7 +75,7 @@ def send_temp_password(to: str, temp_pw: str) -> bool:
     <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);padding:32px;text-align:center;">
       <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="width:10px;height:10px;border-radius:50%;background:#60a5fa;display:inline-block;"></span>
-        <span style="color:#bfdbfe;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">PICADILLY STUDIO</span>
+        <span style="color:#bfdbfe;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">AIR STUDIO</span>
       </div>
       <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0;">임시 비밀번호 안내</h1>
     </div>
@@ -107,7 +107,7 @@ def send_temp_password(to: str, temp_pw: str) -> bool:
 
 def send_verify_code(to: str, code: str) -> bool:
     """이메일 인증 코드 발송"""
-    subject = "[Picadilly Studio] 이메일 인증 코드"
+    subject = "[AIR] 이메일 인증 코드"
     html = f"""
 <!DOCTYPE html>
 <html>
@@ -116,7 +116,7 @@ def send_verify_code(to: str, code: str) -> bool:
     <div style="background:linear-gradient(135deg,#1e40af,#3b82f6);padding:32px;text-align:center;">
       <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="width:10px;height:10px;border-radius:50%;background:#60a5fa;display:inline-block;"></span>
-        <span style="color:#bfdbfe;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">PICADILLY STUDIO</span>
+        <span style="color:#bfdbfe;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">AIR STUDIO</span>
       </div>
       <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0;">이메일 인증 코드</h1>
     </div>
@@ -148,7 +148,7 @@ def send_verify_code(to: str, code: str) -> bool:
 
 def send_withdrawal_email(to: str) -> bool:
     """회원 탈퇴 완료 이메일 발송"""
-    subject = "[Picadilly Studio] 회원 탈퇴 처리 완료 안내"
+    subject = "[AIR] 회원 탈퇴 처리 완료 안내"
     html = f"""
 <!DOCTYPE html>
 <html>
@@ -157,7 +157,7 @@ def send_withdrawal_email(to: str) -> bool:
     <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px;text-align:center;">
       <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="width:10px;height:10px;border-radius:50%;background:#f87171;display:inline-block;"></span>
-        <span style="color:#fee2e2;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">PICADILLY STUDIO</span>
+        <span style="color:#fee2e2;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">AIR STUDIO</span>
       </div>
       <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0;">회원 탈퇴 완료</h1>
     </div>

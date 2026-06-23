@@ -721,7 +721,7 @@ async def reset_subtitle_timeline(project_id: int):
 
 
 @router.get("/projects/{project_id}/subtitles")
-async def get_project_subtitles(project_id: int, force_refresh: bool = False):
+async def get_project_subtitles(project_id: int, force_refresh: bool = False, ui_lang: str = "vi", force_translate: bool = False):
     """프로젝트 자막 및 이미지 싱크 데이터 조회"""
     try:
         settings = db.get_project_settings(project_id) or {}
@@ -779,33 +779,39 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False):
              with open(subtitle_path, "r", encoding="utf-8") as f:
                   subtitles = json.load(f)
 
-             # Auto-translate to Vietnamese if text_vi is missing and subtitles exist
-             needs_translation = False
+             # Auto-translate companion subtitle line to the current UI language.
+             # The frontend uses text_vi as the generic translated line for VI/EN/TH modes.
+             lang_map = {
+                 "vi": "Vietnamese",
+                 "en": "English",
+                 "th": "Thai",
+             }
+             target_lang = ui_lang if ui_lang in lang_map else "vi"
+             needs_translation = force_translate or target_lang != "vi"
              for sub in subtitles:
-                 if 'text_vi' not in sub:
+                 if not sub.get('text_vi'):
                      needs_translation = True
                      break
 
              if needs_translation and subtitles:
-                 print(f"DEBUG_SUB: Subtitles missing text_vi. Requesting translation for project {project_id}")
-                 script_vi = settings.get('script_vi')
+                 print(f"DEBUG_SUB: Requesting {lang_map[target_lang]} subtitle translation for project {project_id}")
+                 script_reference = settings.get('script_vi') if target_lang == 'vi' else None
                  try:
                      from services.gemini_service import gemini_service
                      texts = [sub.get('text', '') for sub in subtitles]
 
-                     prompt = f"""You are a professional translator. Translate the following list of video subtitles (in Korean/English/Japanese) into Vietnamese.
+                     prompt = f"""You are a professional translator. Translate the following list of video subtitles (in Korean/English/Japanese) into {lang_map[target_lang]}.
 Maintain the exact same number of items and order.
 Return the result strictly as a JSON list of strings.
 
 Subtitles to translate:
 {json.dumps(texts, ensure_ascii=False)}
 """
-                     if script_vi:
-                          prompt += f"\nUse this full Vietnamese script as a reference for context and style:\n{script_vi}"
+                     if script_reference:
+                          prompt += f"\nUse this full {lang_map[target_lang]} script as a reference for context and style:\n{script_reference}"
                      prompt += "\n\nJSON output:"
 
                      res_text = await gemini_service.generate_text(prompt, temperature=0.3, project_id=project_id, task_type="translation", model="gemini-2.5-flash")
-                     import re
                      res_text = re.sub(r'^```json\s*', '', res_text, flags=re.MULTILINE)
                      res_text = re.sub(r'\s*```$', '', res_text, flags=re.MULTILINE)
                      translations = json.loads(res_text.strip())

@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 
 export async function POST(req: Request) {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 

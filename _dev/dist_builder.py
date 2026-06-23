@@ -20,7 +20,7 @@ def build():
         shutil.rmtree("build")
     
     # 3. Define Build Options
-    app_name = "PicadillyStudio"
+    app_name = "AIRStudio"
     main_script = "main.py"
     
     # Hidden imports required for Uvicorn/FastAPI/MoviePy

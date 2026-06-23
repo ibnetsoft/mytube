@@ -1390,7 +1390,8 @@
                                 <span class="font-bold text-gray-800 dark:text-white">Scene ${i + 1}</span>
                                 <span class="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline-block truncate max-w-[200px]">🎬 ${firstText || i18n.no_script_desc}</span>
                             </div>
-                            ${p.scene_text_vi ? `<div class="text-[10px] text-purple-500 dark:text-purple-400 font-semibold truncate max-w-[240px] mt-0.5" title="${p.scene_text_vi}">${p.scene_text_vi}</div>` : ''}
+                            ${window.currentLang === 'vi' && p.scene_text_vi ? `<div class="text-[10px] text-purple-500 dark:text-purple-400 font-semibold truncate max-w-[240px] mt-0.5" title="${p.scene_text_vi}">${p.scene_text_vi}</div>` : ''}
+                            ${window.currentLang === 'th' && p.scene_text_th ? `<div class="text-[10px] text-purple-500 dark:text-purple-400 font-semibold truncate max-w-[240px] mt-0.5" title="${p.scene_text_th}">${p.scene_text_th}</div>` : ''}
                         </div>
                     </div>
                     <div class="flex items-center gap-2">

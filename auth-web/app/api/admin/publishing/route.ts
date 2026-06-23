@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +79,9 @@ function normalizePublishingRequest(request: any) {
 
 export async function GET(req: Request) {
     try {
+        const requester = await requireAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const supabase = getAdmin()
         const { searchParams } = new URL(req.url)
         const userId = searchParams.get('userId')
@@ -168,13 +172,16 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { requestId, status, publish_visibility } = await req.json()
         if (!requestId || !status) return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
 
         const supabase = getAdmin()
         const { data: existing, error: existingError } = await supabase
             .from('publishing_requests')
-            .select('id, metadata')
+            .select('id, metadata, status, user_id')
             .eq('id', requestId)
             .single()
 
@@ -218,7 +225,7 @@ export async function PATCH(req: Request) {
                     const { data: referrerProfile } = await supabase
                         .from('profiles')
                         .select('id')
-                        .eq('my_referral_code', profile.referred_by)
+                        .eq('id', profile.referred_by)
                         .single()
                     
                     if (referrerProfile) {

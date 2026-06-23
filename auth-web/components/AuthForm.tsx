@@ -9,7 +9,9 @@ import LanguageSelector from './LanguageSelector';
 
 export default function AuthForm() {
     const router = useRouter();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
+    const isThai = language === 'th';
+    const isKor = language === 'ko';
     const [mounted, setMounted] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -29,10 +31,13 @@ export default function AuthForm() {
         { value: 'ko', label: '한국어' },
         { value: 'en', label: 'English' },
         { value: 'ja', label: '日本語' },
+        { value: 'th', label: 'ภาษาไทย' },
     ];
 
     useEffect(() => {
         setMounted(true);
+        const refCode = new URLSearchParams(window.location.search).get('ref');
+        if (refCode) setReferrer(refCode.toUpperCase());
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN') {
                 router.replace('/dashboard');
@@ -67,10 +72,10 @@ export default function AuthForm() {
             if (isSignUp) {
                 // Validation
                 if (password !== passwordConfirm) {
-                    throw new Error(t.passwordConfirm + '이 일치하지 않습니다.');
+                    throw new Error(isThai ? 'รหัสผ่านยืนยันไม่ตรงกัน' : isKor ? '비밀번호 확인이 일치하지 않습니다.' : 'Password confirmation does not match.');
                 }
                 if (!fullName || !nationality || !contact) {
-                    throw new Error('모든 필수 정보를 입력해주세요.');
+                    throw new Error(isThai ? 'กรุณากรอกข้อมูลที่จำเป็นทั้งหมด' : isKor ? '모든 필수 정보를 입력해주세요.' : 'Please fill in all required information.');
                 }
                 const normalizedPreferredLanguages = preferredLanguages.length ? preferredLanguages : ['ko'];
 
@@ -82,7 +87,9 @@ export default function AuthForm() {
                             full_name: fullName,
                             nationality: nationality,
                             contact: contact,
-                            referrer: referrer,
+                            referrer: referrer.trim().toUpperCase(),
+                            referral_code: referrer.trim().toUpperCase(),
+                            country_code: nationality.trim().slice(0, 2).toUpperCase() || 'KR',
                             preferred_languages: normalizedPreferredLanguages
                         },
                         emailRedirectTo: `${window.location.origin}/dashboard`
@@ -90,7 +97,14 @@ export default function AuthForm() {
                 });
 
                 if (error) throw error;
-                setMessage({ type: 'success', text: '회원가입 확인 메일이 발송되었습니다. 이메일을 확인해주세요!' });
+                setMessage({
+                    type: 'success',
+                    text: isThai
+                        ? 'ส่งอีเมลยืนยันการสมัครแล้ว กรุณาตรวจสอบอีเมลของคุณ!'
+                        : isKor
+                            ? '회원가입 확인 메일이 발송되었습니다. 이메일을 확인해주세요!'
+                            : 'A confirmation email has been sent. Please check your inbox!'
+                });
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
@@ -107,10 +121,6 @@ export default function AuthForm() {
 
     return (
         <div className="max-w-md w-full mx-auto relative group">
-            <div className="absolute -top-12 right-0">
-                <LanguageSelector />
-            </div>
-
             <div className="p-8 bg-black/40 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border border-white/10 relative overflow-hidden transition-all duration-500">
                 {/* Decorative gradients */}
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[100px] rounded-full" />
@@ -130,26 +140,30 @@ export default function AuthForm() {
                         className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all font-bold text-sm shadow-lg active:scale-[0.98]"
                     >
                         <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
-                        Sign in with Google
+                        {isThai ? 'เข้าสู่ระบบด้วย Google' : 'Sign in with Google'}
                     </button>
                     {/* Github removed as per request */}
                 </div>
 
+                <div className="flex justify-center mb-6">
+                    <LanguageSelector />
+                </div>
+
                 <div className="relative flex items-center py-4 mb-4">
                     <div className="flex-grow border-t border-white/10"></div>
-                    <span className="flex-shrink mx-4 text-white/20 text-[10px] uppercase tracking-widest font-bold">OR</span>
+                    <span className="flex-shrink mx-4 text-white/20 text-[10px] uppercase tracking-widest font-bold">{isThai ? 'หรือ' : 'OR'}</span>
                     <div className="flex-grow border-t border-white/10"></div>
                 </div>
 
                 <form onSubmit={handleAuth} className="space-y-4">
                     <div>
                         <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                            Email Address
+                            {isThai ? 'อีเมล' : 'Email Address'}
                         </label>
                         <input
                             type="email"
                             required
-                            placeholder="Your email address"
+                            placeholder={isThai ? 'อีเมลของคุณ' : 'Your email address'}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -203,7 +217,7 @@ export default function AuthForm() {
 
                             <div>
                                 <label className="text-xs font-bold text-gray-400 mb-2 ml-1 block uppercase tracking-wider">
-                                    제작 가능 언어
+                                    {isThai ? 'ภาษาที่สามารถผลิตได้' : '제작 가능 언어'}
                                 </label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {contentLanguageOptions.map(option => (
@@ -260,7 +274,7 @@ export default function AuthForm() {
                     {isSignUp && (
                         <div>
                             <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                {t.referrer}
+                                {t.referrer} 코드
                             </label>
                             <input
                                 type="text"

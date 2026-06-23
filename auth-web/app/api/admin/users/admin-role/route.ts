@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-const SUPER_ADMIN = 'ejsh0519@naver.com'
+import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,6 +10,9 @@ const getAdmin = () => createClient(
 
 export async function POST(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { userId, isAdmin } = await req.json()
 
         if (!userId) {
@@ -18,10 +20,19 @@ export async function POST(req: Request) {
         }
 
         const supabase = getAdmin()
+        const { data: { user: existingUser }, error: fetchError } = await supabase.auth.admin.getUserById(userId)
+        if (fetchError) throw fetchError
+
+        const currentMetadata = existingUser?.app_metadata || {}
+        const nextMetadata = {
+            ...currentMetadata,
+            is_admin: userId === requester.user.id ? currentMetadata.is_admin : false,
+            role: isAdmin ? 'sub_admin' : null,
+        }
 
         const { data, error } = await supabase.auth.admin.updateUserById(
             userId,
-            { app_metadata: { is_admin: isAdmin } }
+            { app_metadata: nextMetadata }
         )
 
         if (error) throw error

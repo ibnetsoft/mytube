@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,9 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: Request) {
   try {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     const { userId, apiKeys } = await req.json()
     if (!userId || !apiKeys) return NextResponse.json({ error: 'Missing data' }, { status: 400 })
 

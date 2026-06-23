@@ -50,7 +50,7 @@
                     </div>
                     <span class="text-base font-black text-gray-800 dark:text-blue-400 flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                        PICADILLY STUDIO
+                        AIR STUDIO
                     </span>
                     {% if user_email %}
                     <span class="text-[10px] text-gray-400 dark:text-gray-500 pl-4 block truncate -mt-0.5 font-medium" title="{{ user_email }}">
@@ -85,6 +85,11 @@
                                 class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'vi' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
                                 title="Tiếng Việt">
                                 <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
+                            </button>
+                            <button onclick="changeGlobalLanguage('th')"
+                                class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'th' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
+                                title="ภาษาไทย">
+                                <img src="https://flagcdn.com/w40/th.png" alt="Thai" class="w-full h-full object-cover">
                             </button>
                         </div>
                     </div>
@@ -874,8 +879,12 @@
                     const option = document.createElement('option');
                     option.value = p.id;
                     let displayName = p.name;
-                    if ((window.currentLang === 'vi' || window.currentLang === 'en') && p.name_vi) {
+                    if (window.currentLang === 'vi' && p.name_vi) {
                         displayName = `${p.name} (${p.name_vi})`;
+                    } else if (window.currentLang === 'en' && p.name_en) {
+                        displayName = `${p.name} (${p.name_en})`;
+                    } else if (window.currentLang === 'th' && p.name_th) {
+                        displayName = `${p.name} (${p.name_th})`;
                     }
                     option.textContent = `${displayName} (${i18n.status_labels[p.status] || p.status})`;
                     if (p.id == currentId) option.selected = true;
@@ -955,19 +964,27 @@
                         const statusText = i18n.status_labels[project.status] || project.status;
                         headerDisplay.textContent = `${project.name} (${statusText})`;
                         
-                        // Show/Hide Vietnamese Project Name in purple underneath
-                        let nameViEl = document.getElementById('currentProjectNameDisplayVi');
-                        if (!nameViEl) {
-                            nameViEl = document.createElement('div');
-                            nameViEl.id = 'currentProjectNameDisplayVi';
-                            nameViEl.className = 'text-xs font-semibold text-purple-400 mt-1';
-                            headerDisplay.parentNode.appendChild(nameViEl);
+                        // Show/Hide localized Project Name in purple underneath
+                        let localizedNameEl = document.getElementById('currentProjectNameDisplayLocalized');
+                        if (!localizedNameEl) {
+                            localizedNameEl = document.createElement('div');
+                            localizedNameEl.id = 'currentProjectNameDisplayLocalized';
+                            localizedNameEl.className = 'text-xs font-semibold text-purple-400 mt-1';
+                            headerDisplay.parentNode.appendChild(localizedNameEl);
                         }
-                        if ((window.currentLang === 'vi' || window.currentLang === 'en') && project.name_vi) {
-                            nameViEl.textContent = project.name_vi;
-                            nameViEl.classList.remove('hidden');
+                        let localizedName = '';
+                        if (window.currentLang === 'vi' && project.name_vi) {
+                            localizedName = project.name_vi;
+                        } else if (window.currentLang === 'en' && project.name_en) {
+                            localizedName = project.name_en;
+                        } else if (window.currentLang === 'th' && project.name_th) {
+                            localizedName = project.name_th;
+                        }
+                        if (localizedName) {
+                            localizedNameEl.textContent = localizedName;
+                            localizedNameEl.classList.remove('hidden');
                         } else {
-                            nameViEl.classList.add('hidden');
+                            localizedNameEl.classList.add('hidden');
                         }
                         
                         document.getElementById('projectProgressHeader').classList.remove('hidden');

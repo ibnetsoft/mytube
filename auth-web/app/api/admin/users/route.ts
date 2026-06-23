@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireAdmin } from '../_auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
+    const requester = await requireAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -83,6 +87,12 @@ export async function GET(req: Request) {
                     persona_name: profileData.persona_name || '',
                     persona_style: profileData.persona_style || '',
                     persona_description: profileData.persona_description || '',
+                    referral_code: profileData.referral_code || '',
+                    referred_by: profileData.referred_by || null,
+                    referral_depth: profileData.referral_depth || 0,
+                    country_code: profileData.country_code || 'KR',
+                    referral_country: profileData.referral_country || profileData.country_code || '',
+                    commission_rate: profileData.commission_rate || 0,
                 }
             }
         })
@@ -124,6 +134,12 @@ export async function GET(req: Request) {
                     persona_name: p.persona_name || '',
                     persona_style: p.persona_style || '',
                     persona_description: p.persona_description || '',
+                    referral_code: p.referral_code || '',
+                    referred_by: p.referred_by || null,
+                    referral_depth: p.referral_depth || 0,
+                    country_code: p.country_code || 'KR',
+                    referral_country: p.referral_country || p.country_code || '',
+                    commission_rate: p.commission_rate || 0,
                 }
             } as any)
         }

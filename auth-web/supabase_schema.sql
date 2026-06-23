@@ -14,6 +14,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     current_usage   INT  NOT NULL DEFAULT 0,            -- 이번 달 사용량
     usage_reset_at  TIMESTAMPTZ DEFAULT date_trunc('month', NOW()) + INTERVAL '1 month',
     preferred_languages TEXT[] DEFAULT ARRAY['ko'::text],
+    referral_code   TEXT UNIQUE,
+    referred_by     UUID REFERENCES public.profiles(id),
+    referral_depth  INT DEFAULT 0,
+    country_code    TEXT DEFAULT 'KR',
+    referral_country TEXT,
+    commission_rate NUMERIC(5,2) DEFAULT 0,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
@@ -24,6 +30,10 @@ RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
     raw_preferred_languages TEXT[];
     clean_preferred_languages TEXT[];
+    raw_referral_code TEXT;
+    generated_referral_code TEXT;
+    referrer_profile public.profiles%ROWTYPE;
+    normalized_country TEXT;
 BEGIN
     SELECT ARRAY(
         SELECT DISTINCT lang
@@ -32,12 +42,48 @@ BEGIN
     ) INTO raw_preferred_languages;
 
     clean_preferred_languages := COALESCE(NULLIF(raw_preferred_languages, ARRAY[]::TEXT[]), ARRAY['ko'::TEXT]);
+    raw_referral_code := upper(trim(COALESCE(NEW.raw_user_meta_data->>'referral_code', NEW.raw_user_meta_data->>'referrer', '')));
+    normalized_country := upper(left(regexp_replace(COALESCE(NEW.raw_user_meta_data->>'country_code', NEW.raw_user_meta_data->>'nationality', 'KR'), '[^A-Za-z]', '', 'g'), 2));
+    IF normalized_country = '' THEN
+        normalized_country := 'KR';
+    END IF;
 
-    INSERT INTO public.profiles (id, email, preferred_languages)
-    VALUES (NEW.id, NEW.email, clean_preferred_languages)
+    IF raw_referral_code <> '' THEN
+        SELECT * INTO referrer_profile
+        FROM public.profiles
+        WHERE upper(referral_code) = raw_referral_code
+        LIMIT 1;
+    END IF;
+
+    LOOP
+        generated_referral_code := upper(substr(md5(random()::text || clock_timestamp()::text || NEW.id::text), 1, 8));
+        EXIT WHEN NOT EXISTS (SELECT 1 FROM public.profiles WHERE referral_code = generated_referral_code);
+    END LOOP;
+
+    INSERT INTO public.profiles (
+        id, email, preferred_languages, referral_code, referred_by,
+        referral_depth, country_code, referral_country, commission_rate
+    )
+    VALUES (
+        NEW.id,
+        NEW.email,
+        clean_preferred_languages,
+        generated_referral_code,
+        referrer_profile.id,
+        COALESCE(referrer_profile.referral_depth + 1, 0),
+        normalized_country,
+        COALESCE(referrer_profile.referral_country, referrer_profile.country_code, normalized_country),
+        0
+    )
     ON CONFLICT (id) DO UPDATE SET
         email = EXCLUDED.email,
-        preferred_languages = COALESCE(public.profiles.preferred_languages, EXCLUDED.preferred_languages);
+        preferred_languages = COALESCE(public.profiles.preferred_languages, EXCLUDED.preferred_languages),
+        referral_code = COALESCE(public.profiles.referral_code, EXCLUDED.referral_code),
+        referred_by = COALESCE(public.profiles.referred_by, EXCLUDED.referred_by),
+        referral_depth = COALESCE(public.profiles.referral_depth, EXCLUDED.referral_depth),
+        country_code = COALESCE(public.profiles.country_code, EXCLUDED.country_code),
+        referral_country = COALESCE(public.profiles.referral_country, EXCLUDED.referral_country),
+        commission_rate = COALESCE(public.profiles.commission_rate, EXCLUDED.commission_rate);
     RETURN NEW;
 END;
 $$;
@@ -76,6 +122,26 @@ CREATE TABLE IF NOT EXISTS public.usage_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_logs_user ON public.usage_logs(user_id, created_at DESC);
+
+-- ─────────────────────────────────────────────
+-- 3-1. referral_commissions: 추천인 커미션 적립/정산 이력
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.referral_commissions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    beneficiary_id  UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    source_user_id  UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    commission_type TEXT NOT NULL DEFAULT 'direct', -- direct | level2 | country | payout
+    base_tokens     BIGINT NOT NULL DEFAULT 0,
+    rate_percent    NUMERIC(5,2) NOT NULL DEFAULT 0,
+    commission_tokens BIGINT NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'pending', -- pending | paid | cancelled
+    metadata        JSONB DEFAULT '{}',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    paid_at         TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_referral_commissions_beneficiary ON public.referral_commissions(beneficiary_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_referral_commissions_status ON public.referral_commissions(status, created_at DESC);
 
 -- ─────────────────────────────────────────────
 -- desktop_project_metadata: 로컬 앱 프로젝트 텍스트/메타데이터 동기화
@@ -180,6 +246,37 @@ BEGIN
         ) THEN
             ALTER TABLE public.profiles ADD COLUMN preferred_languages TEXT[] DEFAULT ARRAY['ko'::text];
         END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'referral_code') THEN
+            ALTER TABLE public.profiles ADD COLUMN referral_code TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'referred_by') THEN
+            ALTER TABLE public.profiles ADD COLUMN referred_by UUID REFERENCES public.profiles(id);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'referral_depth') THEN
+            ALTER TABLE public.profiles ADD COLUMN referral_depth INT DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'country_code') THEN
+            ALTER TABLE public.profiles ADD COLUMN country_code TEXT DEFAULT 'KR';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'referral_country') THEN
+            ALTER TABLE public.profiles ADD COLUMN referral_country TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'commission_rate') THEN
+            ALTER TABLE public.profiles ADD COLUMN commission_rate NUMERIC(5,2) DEFAULT 0;
+        END IF;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'profiles_referral_code_unique') THEN
+        CREATE UNIQUE INDEX profiles_referral_code_unique ON public.profiles(referral_code) WHERE referral_code IS NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_profiles_referred_by') THEN
+        CREATE INDEX idx_profiles_referred_by ON public.profiles(referred_by);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_profiles_referral_country') THEN
+        CREATE INDEX idx_profiles_referral_country ON public.profiles(referral_country);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'categories_language_check') THEN
@@ -221,6 +318,12 @@ ALTER TABLE public.usage_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "logs_self_read" ON public.usage_logs;
 CREATE POLICY "logs_self_read" ON public.usage_logs
     FOR SELECT USING (auth.uid() = user_id);
+
+ALTER TABLE public.referral_commissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "referral_commissions_self_read" ON public.referral_commissions;
+CREATE POLICY "referral_commissions_self_read" ON public.referral_commissions
+    FOR SELECT USING (auth.uid() = beneficiary_id);
 
 -- ─────────────────────────────────────────────
 -- 5. 라이선스 키 검증 함수 (로컬 앱에서 호출)

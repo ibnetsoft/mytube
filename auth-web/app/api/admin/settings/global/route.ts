@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,8 +14,8 @@ const KEYS = [
 
 const EXACT_KEYS = [
     'binance_api_key', 'binance_api_secret',
-    'terms_ko', 'terms_en', 'terms_vi',
-    'privacy_ko', 'privacy_en', 'privacy_vi'
+    'terms_ko', 'terms_en', 'terms_vi', 'terms_th',
+    'privacy_ko', 'privacy_en', 'privacy_vi', 'privacy_th'
 ]
 
 const getAdmin = () => createClient(
@@ -22,8 +23,11 @@ const getAdmin = () => createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const sb = getAdmin()
         const { data } = await sb.from('global_settings').select('key, value').in('key', [...KEYS.map(k => `sys_api_${k}`), ...EXACT_KEYS])
         const result: Record<string, string> = {}
@@ -39,6 +43,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const body = await req.json()
         const sb = getAdmin()
         for (const k of KEYS) {

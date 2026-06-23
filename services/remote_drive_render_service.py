@@ -229,7 +229,7 @@ class RemoteDriveRenderService:
             token_path=token_path,
             folder_id=folder_id,
             mimetype="application/zip",
-            description=f"Picadiri remote render asset package for project {project_id}",
+            description=f"AIR remote render asset package for project {project_id}",
             make_public=False,
         )
         if not drive_file or not drive_file.get("id"):

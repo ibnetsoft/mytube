@@ -35,6 +35,12 @@ interface UserProfile {
         persona_name?: string
         persona_style?: string
         persona_description?: string
+        referral_code?: string
+        referred_by?: string | null
+        referral_depth?: number
+        country_code?: string
+        referral_country?: string
+        commission_rate?: number
     }
 }
 
@@ -163,7 +169,12 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals'>('topics')
+    const [authToken, setAuthToken] = useState('')
+    const [referralReport, setReferralReport] = useState<any>(null)
+    const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
+    const [referralLoading, setReferralLoading] = useState(false)
+    const [referralDays, setReferralDays] = useState(30)
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
@@ -266,12 +277,13 @@ export default function DashboardContent() {
         longform_base_payout: '10000',
         longform_extra_minute_payout: '500',
         longform_duration_lock_enabled: 'true',
-        terms_ko: '', terms_en: '', terms_vi: '',
-        privacy_ko: '', privacy_en: '', privacy_vi: ''
+        binance_api_key: '', binance_api_secret: '',
+        terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
+        privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: ''
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
-    const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi'>('ko')
+    const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi' | 'th'>('ko')
     const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'music' | 'video' | 'legal' | 'policy'>('ai')
 
     // Style Presets state
@@ -289,7 +301,66 @@ export default function DashboardContent() {
 
     // Auth & Access
     const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
-    const isAdmin = user?.app_metadata?.is_admin || isSuperAdmin;
+    const isSubAdmin = user?.app_metadata?.role === 'sub_admin';
+    const isAdmin = isSuperAdmin || isSubAdmin;
+    const canManageSystemSettings = isSuperAdmin;
+    const canManageStyles = isSuperAdmin;
+    const canManageRenderQueue = isSuperAdmin;
+    const canManageTopics = isSuperAdmin;
+    const canManageSensitiveUserSettings = isSuperAdmin;
+    const ui = useMemo(() => {
+        if (language === 'th') {
+            return {
+                adminDashboard: 'แดชบอร์ดผู้ดูแลระบบ',
+                topics: 'จัดการคิวหัวข้อ',
+                overview: 'ภาพรวม',
+                users: 'จัดการผู้ใช้',
+                organization: 'จัดการองค์กร',
+                withdrawals: 'จัดการการถอนเงิน',
+                api: 'API KEY และการตั้งค่าระบบ',
+                renderQueue: 'คิวเรนเดอร์ระยะไกล',
+                styles: 'ตั้งค่าสไตล์',
+                superAdmin: 'ผู้ดูแลสูงสุด',
+                subAdminMode: '👤 โหมดผู้ดูแลย่อย',
+                logout: 'ออกจากระบบ',
+                authenticating: 'กำลังตรวจสอบสิทธิ์ผู้ดูแล...',
+                noPermission: 'ไม่มีสิทธิ์เข้าถึง',
+                refresh: 'รีเฟรช',
+                save: 'บันทึก',
+                edit: 'แก้ไข',
+                delete: 'ลบ',
+                approve: 'อนุมัติ',
+                reject: 'ปฏิเสธ',
+            }
+        }
+        return {
+            adminDashboard: '관리자 대시보드',
+            topics: '주제 큐 관리',
+            overview: '현황 요약',
+            users: '유저 관리',
+            organization: '조직 관리',
+            withdrawals: '출금 관리',
+            api: 'API KEY & 시스템 설정',
+            renderQueue: '리모트 렌더 큐',
+            styles: '스타일 세팅',
+            superAdmin: '최고 관리자',
+            subAdminMode: '👤 부관리자 모드',
+            logout: '로그아웃',
+            authenticating: '관리자 인증 중...',
+            noPermission: '접근 권한이 없습니다.',
+            refresh: '새로고침',
+            save: '저장',
+            edit: '수정',
+            delete: '삭제',
+            approve: '승인',
+            reject: '거절',
+        }
+    }, [language]);
+    const adminFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+        const headers = new Headers(init.headers || {});
+        if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+        return fetch(input, { ...init, headers });
+    }, [authToken]);
 
     // Derived Stats
     const memberCount = useMemo(() => (users || []).length, [users]);
@@ -318,6 +389,7 @@ export default function DashboardContent() {
 
     // Admin Action Handlers
     const handleRecharge = async (userId: string) => {
+        if (!canManageSensitiveUserSettings) return;
         const amountStr = prompt(isKor ? '충전할 토큰 수를 입력하세요.' : 'Enter token amount to recharge', '50000');
         if (!amountStr) return;
         const parsedAmount = parseInt(amountStr);
@@ -326,7 +398,7 @@ export default function DashboardContent() {
             return;
         }
         try {
-            const res = await fetch('/api/admin/users/recharge', {
+            const res = await adminFetch('/api/admin/users/recharge', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, amount: parsedAmount, description: 'Admin Manual Recharge' })
@@ -348,9 +420,10 @@ export default function DashboardContent() {
     }
 
     const handleUpdateApiKeys = async () => {
+        if (!canManageSensitiveUserSettings) return;
         if (!apiViewUser) return;
         try {
-            const res = await fetch('/api/admin/users/api-keys', {
+            const res = await adminFetch('/api/admin/users/api-keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: apiViewUser.id, apiKeys: tempApiKeys })
@@ -372,7 +445,7 @@ export default function DashboardContent() {
         setSavingChannel(true);
         try {
             console.log('Saving channel for user:', channelViewUser.id, tempChannelInfo);
-            const res = await fetch('/api/admin/users/update-metadata', {
+            const res = await adminFetch('/api/admin/users/update-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -443,7 +516,7 @@ export default function DashboardContent() {
         } finally {
             setLocalChannelsLoading(false)
         }
-    }, [])
+    }, [adminFetch])
 
     const applySelectedChannelToCreateForm = (channelId: number | null) => {
         if (!channelId) {
@@ -560,7 +633,7 @@ export default function DashboardContent() {
             upload_channel_handle: channelConfigForm.handle.trim(),
         }
         try {
-            const res = await fetch('/api/admin/categories', {
+            const res = await adminFetch('/api/admin/categories', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -579,10 +652,11 @@ export default function DashboardContent() {
     }
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
+        if (!canManageSensitiveUserSettings) return;
         const newRole = currentRole === 'pro' ? 'std' : 'pro';
         if (!confirm(isKor ? `등급을 ${newRole === 'pro' ? '프로' : '스탠다드'}로 변경하시겠습니까?` : `Change membership to ${newRole === 'pro' ? 'PRO' : 'STANDARD'}?`)) return;
         try {
-            const res = await fetch('/api/admin/users/role', {
+            const res = await adminFetch('/api/admin/users/role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, membership: newRole })
@@ -603,7 +677,7 @@ export default function DashboardContent() {
     const handleApprovalChange = async (userId: string, approved: boolean) => {
         if (!confirm(approved ? '이 사용자를 승인할까요?' : '이 사용자를 승인 대기 상태로 돌릴까요?')) return;
         try {
-            const res = await fetch('/api/admin/users/approval', {
+            const res = await adminFetch('/api/admin/users/approval', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, approved })
@@ -631,7 +705,7 @@ export default function DashboardContent() {
     const handleSaveUserInfo = async () => {
         if (!editInfoUser) return;
         try {
-            const res = await fetch('/api/admin/users/update-metadata', {
+            const res = await adminFetch('/api/admin/users/update-metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -676,7 +750,7 @@ export default function DashboardContent() {
         const action = currentIsAdmin ? '해제' : '지정';
         if (!confirm(`해당 유저를 부관리자로 ${action}하시겠습니까?`)) return;
         try {
-            const res = await fetch('/api/admin/users/admin-role', {
+            const res = await adminFetch('/api/admin/users/admin-role', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, isAdmin: !currentIsAdmin })
@@ -688,7 +762,7 @@ export default function DashboardContent() {
     const handlePublishVideo = async (requestId: string) => {
         if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Would you like to switch this video to Public on YouTube?')) return;
         try {
-            const res = await fetch('/api/admin/publishing', {
+            const res = await adminFetch('/api/admin/publishing', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ requestId, status: 'approved' })
@@ -759,7 +833,7 @@ export default function DashboardContent() {
                     ) : null}
                 </div>
                 <div className="mb-3 flex justify-end">
-                    {req.status === 'pending' && !req.metadata?.is_invalid_request && (
+                    {isSuperAdmin && req.status === 'pending' && !req.metadata?.is_invalid_request && (
                         <button
                             onClick={() => handlePublishVideo(req.id)}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black rounded-xl shadow-lg transition-all uppercase tracking-widest"
@@ -863,55 +937,62 @@ export default function DashboardContent() {
         if (!isAdmin) return;
         setGlobalLoading(true);
         try {
-            const res = await fetch(`/api/admin/logs?days=${days}&t=${Date.now()}`);
+            const res = await adminFetch(`/api/admin/logs?days=${days}&t=${Date.now()}`);
             const data = await res.json();
             setGlobalLogs(data.logs || []);
             setGlobalStats(calcGeneralStats(data.logs || [], days));
         } finally { setGlobalLoading(false); }
-    }, [isAdmin]);
+    }, [isAdmin, adminFetch]);
 
     
     const fetchWithdrawals = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('withdrawals')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(100)
-        
-        if (data && !error) {
-            setWithdrawals(data)
+        try {
+            const res = await adminFetch(`/api/admin/withdrawals?t=${Date.now()}`);
+            const data = await res.json();
+            if (data.withdrawals) {
+                setWithdrawals(data.withdrawals);
+            }
+        } catch (e) {
+            console.error("fetchWithdrawals error:", e);
         }
-    }, [])
+    }, [adminFetch]);
 
     const updateWithdrawalStatus = async (id: string, newStatus: 'completed' | 'rejected') => {
-        if (!confirm(`정말로 이 출금 요청을 ${newStatus === 'completed' ? '완료' : '거절'} 처리하시겠습니까?`)) return
+        const actionText = newStatus === 'completed' ? '완료' : '거절';
+        if (!confirm(`정말로 이 출금 요청을 ${actionText} 처리하시겠습니까?`)) return
         
-        const { error } = await supabase
-            .from('withdrawals')
-            .update({ status: newStatus, processed_at: new Date().toISOString() })
-            .eq('id', id)
-            
-        if (error) {
-            alert('상태 업데이트 실패: ' + error.message)
-        } else {
-            alert('출금 상태가 업데이트 되었습니다.')
-            fetchWithdrawals()
+        try {
+            const res = await adminFetch('/api/admin/withdrawals', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, status: newStatus })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert('출금 상태가 업데이트 되었습니다.')
+                fetchWithdrawals()
+            } else {
+                alert('상태 업데이트 실패: ' + (data.error || '알 수 없는 오류'))
+            }
+        } catch (e) {
+            console.error("updateWithdrawalStatus error:", e);
+            alert('오류가 발생했습니다.')
         }
     }
 
         const fetchPublishingRequests = useCallback(async () => {
         if (!isAdmin) return;
         try {
-            const res = await fetch(`/api/admin/publishing?t=${Date.now()}`);
+            const res = await adminFetch(`/api/admin/publishing?t=${Date.now()}`);
             const data = await res.json();
             if (data.requests) setPublishingRequests(data.requests);
         } catch (e) {}
-    }, [isAdmin]);
+    }, [isAdmin, adminFetch]);
 
     const fetchUserLogs = async (userId: string, days: number) => {
         setLogsLoading(true);
         try {
-            const res = await fetch(`/api/admin/users/${userId}/logs?days=${days}&t=${Date.now()}`);
+            const res = await adminFetch(`/api/admin/users/${userId}/logs?days=${days}&t=${Date.now()}`);
             const data = await res.json();
             setUserLogs(data.logs || []);
             setLogStats(calcGeneralStats(data.logs || [], days));
@@ -921,15 +1002,80 @@ export default function DashboardContent() {
     const fetchUsers = useCallback(async () => {
         if (!isAdmin) return;
         try {
-            const res = await fetch(`/api/admin/users?t=${Date.now()}`);
+            const res = await adminFetch(`/api/admin/users?t=${Date.now()}`);
             const data = await res.json();
             if (data.users) setUsers(data.users);
         } catch (e) { console.error("FetchUsers Error:", e); }
-    }, [isAdmin]);
+    }, [isAdmin, adminFetch]);
+
+    const fetchReferralReport = useCallback(async (days: number = referralDays) => {
+        if (!isAdmin) return;
+        setReferralLoading(true);
+        try {
+            const res = await adminFetch(`/api/admin/referrals?days=${days}&t=${Date.now()}`);
+            const data = await res.json();
+            if (res.ok) setReferralReport(data);
+        } catch (e) {
+            console.error('fetchReferralReport error:', e);
+        } finally {
+            setReferralLoading(false);
+        }
+    }, [isAdmin, adminFetch, referralDays]);
+
+    const copyReferralCode = async (code: string) => {
+        if (!code) return;
+        const link = `${window.location.origin}/?ref=${code}`;
+        await navigator.clipboard?.writeText(link);
+        alert(isKor ? '추천 링크가 복사되었습니다.' : 'Referral link copied.');
+    }
+
+    const handleCountryManagerUpdate = async (profile: any) => {
+        if (!isSuperAdmin) return;
+        const country = prompt('관리 국가 코드(예: VN, KR)', profile.referral_country || profile.country_code || 'KR');
+        if (!country) return;
+        const rateText = prompt('국가 책임자 커미션율(%)', String(profile.commission_rate || 1));
+        if (rateText === null) return;
+        const res = await adminFetch('/api/admin/referrals', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: profile.id,
+                country_code: country,
+                referral_country: country,
+                commission_rate: Number(rateText) || 0,
+                make_country_manager: true,
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert('국가 책임자 지정 실패: ' + (data.error || `HTTP ${res.status}`));
+            return;
+        }
+        alert('국가 책임자로 지정되었습니다.');
+        fetchReferralReport(referralDays);
+        fetchUsers();
+    }
+
+    const buildReferralTreeRows = (profiles: any[]) => {
+        const byId = new Map((profiles || []).map(profile => [String(profile.id), profile]));
+        const depthOf = (profile: any) => {
+            let depth = Number(profile?.referral_depth || 0);
+            let parentId = profile?.referred_by ? String(profile.referred_by) : '';
+            let guard = 0;
+            while (parentId && byId.has(parentId) && guard < 10) {
+                depth += 1;
+                parentId = byId.get(parentId)?.referred_by ? String(byId.get(parentId).referred_by) : '';
+                guard += 1;
+            }
+            return Math.min(depth, 8);
+        };
+        return [...(profiles || [])].sort((a, b) => depthOf(a) - depthOf(b) || String(a.email || '').localeCompare(String(b.email || '')));
+    }
 
     const fetchSysKeys = useCallback(async () => {
+        if (!canManageSystemSettings) return;
         try {
-            const res = await fetch('/api/admin/settings/global');
+            const res = await adminFetch('/api/admin/settings/global');
             if (!res.ok) return;
             const data = await res.json();
             setSysKeys({
@@ -949,20 +1095,24 @@ export default function DashboardContent() {
                 longform_base_payout: data.longform_base_payout || '10000',
                 longform_extra_minute_payout: data.longform_extra_minute_payout || '500',
                 longform_duration_lock_enabled: data.longform_duration_lock_enabled || 'true',
+                binance_api_key: data.binance_api_key || '',
+                binance_api_secret: data.binance_api_secret || '',
                 terms_ko: data.terms_ko || '',
                 terms_en: data.terms_en || '',
                 terms_vi: data.terms_vi || '',
+                terms_th: data.terms_th || '',
                 privacy_ko: data.privacy_ko || '',
                 privacy_en: data.privacy_en || '',
-                privacy_vi: data.privacy_vi || ''
+                privacy_vi: data.privacy_vi || '',
+                privacy_th: data.privacy_th || ''
             });
         } catch (e) { console.error('fetchSysKeys error:', e); }
-    }, []);
+    }, [canManageSystemSettings, adminFetch]);
 
     const saveSysKeys = async () => {
         setSysKeysSaving(true); setSysKeysSaved(false);
         try {
-            const res = await fetch('/api/admin/settings/global', { 
+            const res = await adminFetch('/api/admin/settings/global', {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ ...sysKeys }) 
@@ -976,7 +1126,7 @@ export default function DashboardContent() {
         if (!isAdmin) return;
         setQueueLoading(true);
         try {
-            const res = await fetch(`/api/admin/render-queue?t=${Date.now()}`);
+            const res = await adminFetch(`/api/admin/render-queue?t=${Date.now()}`);
             const data = await res.json();
             if (data.success && data.queue) setRenderQueue(data.queue);
         } catch (e) {
@@ -984,12 +1134,12 @@ export default function DashboardContent() {
         } finally {
             setQueueLoading(false);
         }
-    }, [isAdmin]);
+    }, [isAdmin, adminFetch]);
 
     const handleDeleteQueueTask = async (id: string) => {
         if (!confirm(isKor ? '이 작업을 대기열에서 삭제하시겠습니까?' : 'Delete this render task from the queue?')) return;
         try {
-            const res = await fetch(`/api/admin/render-queue?id=${id}`, { method: 'DELETE' });
+            const res = await adminFetch(`/api/admin/render-queue?id=${id}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
                 alert(isKor ? '삭제되었습니다.' : 'Deleted successfully');
@@ -1005,7 +1155,7 @@ export default function DashboardContent() {
     const fetchCategories = useCallback(async () => {
         try {
             setCategoriesLoading(true)
-            const res = await fetch('/api/admin/categories')
+            const res = await adminFetch('/api/admin/categories')
             const data = await res.json()
             if (data.categories) setCategories(data.categories)
         } catch (e) {
@@ -1013,22 +1163,22 @@ export default function DashboardContent() {
         } finally {
             setCategoriesLoading(false)
         }
-    }, [])
+    }, [adminFetch])
 
     const fetchTopics = useCallback(async () => {
         try {
-            const res = await fetch('/api/admin/topics-queue')
+            const res = await adminFetch('/api/admin/topics-queue')
             const data = await res.json()
             if (data.topics) setTopics(data.topics)
         } catch (e) {
             console.error("Failed to load topics:", e)
         }
-    }, [])
+    }, [adminFetch])
 
     const fetchStylePresets = async () => {
         try {
             setPresetsLoading(true)
-            const res = await fetch('/api/admin/style-presets')
+            const res = await adminFetch('/api/admin/style-presets')
             const data = await res.json()
             if (data.presets) setStylePresets(data.presets)
         } catch (e) {
@@ -1046,7 +1196,7 @@ export default function DashboardContent() {
         }
         try {
             setIsSavingPreset(true)
-            const res = await fetch('/api/admin/style-presets', {
+            const res = await adminFetch('/api/admin/style-presets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1101,7 +1251,7 @@ export default function DashboardContent() {
     const handleDeletePreset = async (id: string, keyCode: string) => {
         if (!confirm(`"${keyCode}" 스타일 프리셋을 삭제하시겠습니까?`)) return
         try {
-            const res = await fetch(`/api/admin/style-presets?id=${id}`, {
+            const res = await adminFetch(`/api/admin/style-presets?id=${id}`, {
                 method: 'DELETE'
             })
             const data = await res.json()
@@ -1118,12 +1268,13 @@ export default function DashboardContent() {
 
     const handleCreateCategory = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!canManageTopics) return
         if (!newCatName) {
             alert('카테고리명은 필수입니다.')
             return
         }
         try {
-            const res = await fetch('/api/admin/categories', {
+            const res = await adminFetch('/api/admin/categories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1166,9 +1317,10 @@ export default function DashboardContent() {
     }
 
     const handleDeleteCategory = async (id: number) => {
+        if (!canManageTopics) return
         if (!confirm('정말 이 카테고리를 삭제하시겠습니까? 관련된 데이터도 함께 삭제됩니다.')) return
         try {
-            const res = await fetch(`/api/admin/categories?id=${id}`, {
+            const res = await adminFetch(`/api/admin/categories?id=${id}`, {
                 method: 'DELETE'
             })
             const data = await res.json()
@@ -1184,13 +1336,14 @@ export default function DashboardContent() {
     }
 
     const handleSaveCategory = async () => {
+        if (!canManageTopics) return
         if (!editCategory) return
         if (!editCatForm.name || !editCatForm.assigned_employee_email) {
             alert('카테고리명과 해당 직원 이메일은 필수입니다.')
             return
         }
         try {
-            const res = await fetch('/api/admin/categories', {
+            const res = await adminFetch('/api/admin/categories', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1214,9 +1367,10 @@ export default function DashboardContent() {
     }
 
     const handleTriggerAiTopics = async (catId: number) => {
+        if (!canManageTopics) return
         setGeneratingCatId(catId)
         try {
-            const res = await fetch('/api/admin/topics-queue', {
+            const res = await adminFetch('/api/admin/topics-queue', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ categoryId: catId })
@@ -1239,6 +1393,7 @@ export default function DashboardContent() {
     }
 
     const startEditingTopic = (topicItem: any) => {
+        if (!canManageTopics) return
         const currentTopic = String(topicItem?.topic || '').trim()
         if (!topicItem?.id || !currentTopic) return
         setEditingTopicId(String(topicItem.id))
@@ -1268,6 +1423,7 @@ export default function DashboardContent() {
     }
 
     const handleEditTopic = async (topicItem: any) => {
+        if (!canManageTopics) return
         const currentTopic = String(topicItem?.topic || '').trim()
         if (!topicItem?.id || !currentTopic) return
 
@@ -1281,7 +1437,7 @@ export default function DashboardContent() {
 
         setTopicActionLoadingId(String(topicItem.id))
         try {
-            const res = await fetch('/api/admin/topics-queue', {
+            const res = await adminFetch('/api/admin/topics-queue', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: topicItem.id, topic: trimmed })
@@ -1310,12 +1466,13 @@ export default function DashboardContent() {
     }
 
     const handleDeleteTopic = async (topicItem: any) => {
+        if (!canManageTopics) return
         if (!topicItem?.id) return
         if (!confirm('이 대기중 주제를 삭제할까요?')) return
 
         setTopicActionLoadingId(String(topicItem.id))
         try {
-            const res = await fetch(`/api/admin/topics-queue?id=${topicItem.id}`, {
+            const res = await adminFetch(`/api/admin/topics-queue?id=${topicItem.id}`, {
                 method: 'DELETE'
             })
             const data = await res.json()
@@ -1344,6 +1501,7 @@ export default function DashboardContent() {
     }
 
     const handleDeleteTopicsByYears = async (categoryId: number, years: string[] = ['2024', '2025']) => {
+        if (!canManageTopics) return
         const label = years.join(', ')
         if (!confirm(`이 카테고리의 대기중 주제 중 ${label} 연도가 들어간 항목을 일괄 삭제할까요?`)) return
 
@@ -1353,7 +1511,7 @@ export default function DashboardContent() {
                 categoryId: String(categoryId),
                 years: years.join(','),
             })
-            const res = await fetch(`/api/admin/topics-queue?${params.toString()}`, {
+            const res = await adminFetch(`/api/admin/topics-queue?${params.toString()}`, {
                 method: 'DELETE'
             })
             const data = await res.json()
@@ -1378,13 +1536,14 @@ export default function DashboardContent() {
     }
 
     const handleAssignTopicStyles = async (targetType: 'script' | 'image') => {
+        if (!canManageTopics) return
         const label = targetType === 'script' ? '대본 스타일' : '이미지 스타일'
         const categoryLabel = topicQueueCategoryFilter === 'all' ? '전체 카테고리' : '선택한 카테고리'
         if (!confirm(`${categoryLabel}의 대기중 주제에 ${label}을 AI로 재배정할까요?`)) return
 
         setTopicStyleAssigningType(targetType)
         try {
-            const res = await fetch('/api/admin/topics-queue', {
+            const res = await adminFetch('/api/admin/topics-queue', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1431,23 +1590,35 @@ export default function DashboardContent() {
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) router.push('/');
-            else setUser(session.user);
+            else {
+                setUser(session.user);
+                setAuthToken(session.access_token || '');
+            }
             setLoading(false);
         });
     }, [router]);
+
+    useEffect(() => {
+        if (!user || isAdmin || !authToken) return;
+        adminFetch('/api/referrals')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => { if (data) setUserReferralInfo(data); })
+            .catch(err => console.error('user referral fetch error:', err));
+    }, [user, isAdmin, authToken, adminFetch]);
 
     // 초기 데이터 로딩을 위한 Effect
     useEffect(() => {
         if (isAdmin && !loading) {
             fetchUsers();
+            fetchReferralReport(referralDays);
             fetchGlobalStats(globalPeriod);
             fetchPublishingRequests();
-            fetchSysKeys();
+            if (canManageSystemSettings) fetchSysKeys();
             fetchCategories();
             fetchTopics();
-            fetchStylePresets();
+            if (canManageStyles) fetchStylePresets();
         }
-    }, [isAdmin, loading, fetchCategories, fetchTopics]);
+    }, [isAdmin, loading, globalPeriod, referralDays, fetchUsers, fetchReferralReport, fetchGlobalStats, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, canManageSystemSettings, canManageStyles]);
 
     // 기간 변경 시에만 별도 호출
     useEffect(() => {
@@ -1456,8 +1627,47 @@ export default function DashboardContent() {
         }
     }, [globalPeriod]);
 
-    if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">관리자 인증 중...</div>;
-    if (!isAdmin) return <div className="min-h-screen bg-[#050505] text-red-500 flex items-center justify-center font-black">접근 권한이 없습니다.</div>;
+    if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">{ui.authenticating}</div>;
+    if (!isAdmin) return (
+        <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
+            <div className="max-w-2xl w-full rounded-[2.5rem] border border-white/10 bg-[#0f172a]/70 p-8 shadow-2xl">
+                <div className="mb-6 flex items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-black tracking-tight">{language === 'th' ? 'รหัสแนะนำของฉัน' : '내 추천 코드'}</h1>
+                        <p className="mt-2 text-xs font-bold text-gray-500">{language === 'th' ? 'แชร์ลิงก์แนะนำและตรวจสอบผลงานผู้ใช้ที่คุณแนะนำโดยตรง' : '추천 링크를 공유하고 직속 추천인 성과를 확인하세요.'}</p>
+                    </div>
+                    <button onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="rounded-xl border border-white/10 bg-white/5 px-5 py-2 text-[10px] font-black text-gray-300 hover:bg-white/10">{ui.logout}</button>
+                </div>
+                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300">Referral Code</div>
+                    <div className="mt-2 flex items-center gap-3">
+                        <span className="text-4xl font-black text-white tracking-widest">{userReferralInfo?.profile?.referral_code || '준비 중'}</span>
+                        {userReferralInfo?.profile?.referral_code && (
+                            <button onClick={() => copyReferralCode(userReferralInfo.profile.referral_code)} className="rounded-xl bg-cyan-500 px-4 py-2 text-[10px] font-black text-white">{language === 'th' ? 'คัดลอก' : '복사'}</button>
+                        )}
+                    </div>
+                    <div className="mt-3 text-xs font-bold text-cyan-100/70 break-all">{userReferralInfo?.summary?.referralLink || ''}</div>
+                </div>
+                <div className="mt-6 grid grid-cols-3 gap-4">
+                    <StatCard label={language === 'th' ? 'ผู้ใช้ที่แนะนำ' : '추천 유저'} value={userReferralInfo?.summary?.directCount || 0} unit={language === 'th' ? 'คน' : '명'} color="blue" />
+                    <StatCard label={language === 'th' ? 'การใช้โทเค็นของทีม' : '하위 토큰 사용'} value={(userReferralInfo?.summary?.referralTokenUsage || 0).toLocaleString()} unit="TK" color="orange" />
+                    <StatCard label={language === 'th' ? 'ค่าคอมมิชชันโดยประมาณ' : '예상 커미션'} value={(userReferralInfo?.summary?.estimatedCommissionTokens || 0).toLocaleString()} unit="TK" color="green" />
+                </div>
+                <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">직속 하위자</h2>
+                    <div className="mt-4 space-y-2">
+                        {(userReferralInfo?.directReferrals || []).map((item: any) => (
+                            <div key={item.id} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3 text-xs font-bold text-gray-300">
+                                <span>{item.email || item.id}</span>
+                                <span className="text-gray-500">{formatDate(item.created_at)}</span>
+                            </div>
+                        ))}
+                        {(!userReferralInfo?.directReferrals || userReferralInfo.directReferrals.length === 0) && <div className="py-8 text-center text-xs font-black text-gray-600">아직 추천한 유저가 없습니다.</div>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 
     function formatDate(d: string | null) {
         if (!d) return '-';
@@ -1753,43 +1963,62 @@ export default function DashboardContent() {
                     <div className="flex gap-6 items-center">
                         <LanguageSelector />
                         <div className="text-right">
-                            <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">
-                                {isSuperAdmin ? '최고 관리자' : '부관리자'}
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest leading-none ${isSuperAdmin ? 'border-blue-500/30 bg-blue-500/10 text-blue-300' : 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'}`}>
+                                {isSuperAdmin ? ui.superAdmin : ui.subAdminMode}
                             </span>
-                            <span className="text-sm font-black text-blue-400">{user?.email}</span>
+                            <span className="mt-1 block text-sm font-black text-blue-400">{user?.email}</span>
                         </div>
-                        <button onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">로그아웃</button>
+                        <button onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">{ui.logout}</button>
                     </div>
                 </div>
             </nav>
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-4xl font-black uppercase tracking-tighter">관리자 대시보드</h2>
+                    <h2 className="text-4xl font-black uppercase tracking-tighter">{ui.adminDashboard}</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
-                        {['topics', 'overview', 'users', 'withdrawals', 'api', 'render-queue', 'styles'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:text-white'}`}>
-                                                                {tab === 'topics'
-                                    ? '🤖'
-                                    : tab === 'overview'
-                                        ? '📊'
-                                        : tab === 'users'
-                                            ? '👥'
-                                            : tab === 'withdrawals'
-                                                ? '💰'
-                                                : tab === 'api'
-                                                    ? '🔌'
-                                                    : tab === 'render-queue'
-                                                        ? '🖥️'
-                                                        : '🎨'} {tab === 'topics' ? '주제 큐 관리' : tab === 'overview' ? '현황 요약' : tab === 'users' ? '유저 관리' : tab === 'withdrawals' ? '출금 관리' : tab === 'api' ? 'API KEY & 시스템 설정' : tab === 'render-queue' ? '리모트 렌더 큐' : '스타일 세팅'}
-                            </button>
-                        ))}
+                        {[
+                            { id: 'topics', icon: '🤖', label: ui.topics, superOnly: false },
+                            { id: 'overview', icon: '📊', label: ui.overview, superOnly: false },
+                            { id: 'users', icon: '👥', label: ui.users, superOnly: false },
+                            { id: 'organization', icon: '📊', label: ui.organization, superOnly: false },
+                            { id: 'withdrawals', icon: '💰', label: ui.withdrawals, superOnly: false },
+                            { id: 'api', icon: '🔌', label: ui.api, superOnly: true },
+                            { id: 'render-queue', icon: '🖥️', label: ui.renderQueue, superOnly: true },
+                            { id: 'styles', icon: '🎨', label: ui.styles, superOnly: true },
+                        ].map(tab => {
+                            const locked = tab.superOnly && !isSuperAdmin;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    disabled={locked}
+                                    title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
+                                    onClick={() => !locked && setActiveTab(tab.id as any)}
+                                    className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${
+                                        activeTab === tab.id
+                                            ? 'bg-blue-600 text-white shadow-xl'
+                                            : locked
+                                                ? 'text-gray-700 opacity-30 cursor-not-allowed'
+                                                : 'text-gray-500 hover:text-white'
+                                    }`}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
 
                 {activeTab === 'topics' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 1. 카테고리 추가 */}
+                        {!canManageTopics && (
+                            <div className="rounded-[2rem] border border-indigo-500/20 bg-indigo-500/10 px-8 py-5 text-sm font-bold text-indigo-200">
+                                👤 부관리자는 카테고리/주제 조회만 가능합니다. 생성·삭제·자동배정은 최고 관리자만 실행할 수 있습니다.
+                            </div>
+                        )}
+                        {canManageTopics && (
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
                             <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
                                 카테고리 및 직원 매핑 추가
@@ -1989,6 +2218,7 @@ export default function DashboardContent() {
                                 </div>
                             </form>
                         </div>
+                        )}
 
                         {/* 2. 등록된 카테고리 및 매핑 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
@@ -2050,6 +2280,7 @@ export default function DashboardContent() {
                                                 <div>
                                                     <div className="flex justify-between items-start mb-4">
                                                         <h3 className="text-lg font-black text-white">{cat.name}</h3>
+                                                        {canManageTopics && (
                                                         <div className="flex gap-2">
                                                         <button 
                                                                 onClick={() => {
@@ -2080,6 +2311,7 @@ export default function DashboardContent() {
                                                                 삭제
                                                             </button>
                                                         </div>
+                                                        )}
                                                     </div>
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
                                                         <p>담당 직원: <strong className="text-gray-200">{cat.assigned_employee_email}</strong></p>
@@ -2089,8 +2321,9 @@ export default function DashboardContent() {
                                                             업로드 채널:{' ' }
                                                             <button
                                                                 type="button"
-                                                                onClick={() => openCategoryChannelConfig(cat)}
-                                                                className="text-blue-400 underline hover:text-blue-300"
+                                                                disabled={!canManageTopics}
+                                                                onClick={() => canManageTopics && openCategoryChannelConfig(cat)}
+                                                                className={`text-blue-400 underline hover:text-blue-300 ${!canManageTopics ? 'cursor-not-allowed opacity-50' : ''}`}
                                                             >
                                                                 {cat.upload_channel_name || cat.upload_channel_handle || '미지정'}
                                                         </button>
@@ -2108,13 +2341,15 @@ export default function DashboardContent() {
                                                     </div>
                                                 </div>
 
-                                                <button 
+                                                {canManageTopics && (
+                                                <button
                                                     disabled={generatingCatId === cat.id}
                                                     onClick={() => handleTriggerAiTopics(cat.id)}
                                                     className="w-full py-2.5 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/20 hover:border-transparent text-blue-400 hover:text-white rounded-xl text-xs font-black tracking-wider transition-all disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed uppercase"
                                                 >
                                                     {generatingCatId === cat.id ? 'AI 주제 생성 중...' : 'AI 주제 자판기 생성 (10개)'}
                                                 </button>
+                                                )}
 
                                                 {previewTopicItems.length > 0 && (
                                                     <div className="mt-4 rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4">
@@ -2130,7 +2365,7 @@ export default function DashboardContent() {
                                                                 )}
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                {staleYearPendingCount > 0 && (
+                                                                {canManageTopics && staleYearPendingCount > 0 && (
                                                                     <button
                                                                         type="button"
                                                                         disabled={topicActionLoadingId === `cleanup-${cat.id}`}
@@ -2188,24 +2423,26 @@ export default function DashboardContent() {
                                                                         ) : (
                                                                             <div className="flex items-start gap-2">
                                                                                 <span className="min-w-0 flex-1 break-words">{topicItem.topic}</span>
-                                                                                <div className="shrink-0 flex items-center gap-2">
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        disabled={topicActionLoadingId === String(topicItem.id)}
-                                                                                        onClick={() => startEditingTopic(topicItem)}
-                                                                                        className="text-[10px] font-black text-blue-300 hover:text-white disabled:opacity-50"
-                                                                                    >
-                                                                                        수정
-                                                                                    </button>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        disabled={topicActionLoadingId === String(topicItem.id)}
-                                                                                        onClick={() => handleDeleteTopic(topicItem)}
-                                                                                        className="text-[10px] font-black text-red-300 hover:text-red-200 disabled:opacity-50"
-                                                                                    >
-                                                                                        삭제
-                                                                                    </button>
-                                                                                </div>
+                                                                                {canManageTopics && (
+                                                                                    <div className="shrink-0 flex items-center gap-2">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                            onClick={() => startEditingTopic(topicItem)}
+                                                                                            className="text-[10px] font-black text-blue-300 hover:text-white disabled:opacity-50"
+                                                                                        >
+                                                                                            수정
+                                                                                        </button>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                            onClick={() => handleDeleteTopic(topicItem)}
+                                                                                            className="text-[10px] font-black text-red-300 hover:text-red-200 disabled:opacity-50"
+                                                                                        >
+                                                                                            삭제
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -2494,7 +2731,7 @@ export default function DashboardContent() {
                                                     </span>
                                                 </td>
                                                 <td className="px-10 py-6 text-right">
-                                                    {item.status === 'pending' ? (
+                                                    {canManageTopics && item.status === 'pending' ? (
                                                         <div className="flex items-center justify-end gap-3 text-[11px] font-black">
                                                             <button
                                                                 type="button"
@@ -2896,7 +3133,7 @@ export default function DashboardContent() {
                                                 <div className="font-bold text-blue-400 text-xs tracking-tight truncate" title={u.email}>{u.email?.toLowerCase()}</div>
                                                 <div className="flex gap-1 mt-1 flex-wrap">
                                                     {u.email === SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-blue-600 text-[9px] font-black rounded text-white">최고관리자</span>}
-                                                    {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-indigo-500 text-[9px] font-black rounded text-white">부관리자</span>}
+                                                    {u.app_metadata?.role === 'sub_admin' && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-indigo-500 text-[9px] font-black rounded text-white">부관리자</span>}
                                                     <span className={`px-1.5 py-0.5 text-[9px] font-black rounded border ${u.profile?.is_approved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
                                                         {u.profile?.is_approved ? '승인됨' : '승인대기'}
                                                     </span>
@@ -2960,6 +3197,12 @@ export default function DashboardContent() {
                                                 {u.user_metadata?.referrer
                                                     ? <span className="text-yellow-400 font-bold">{u.user_metadata.referrer}</span>
                                                     : <span className="text-gray-700">-</span>}
+                                                <div className="mt-1 text-[10px] font-bold text-gray-500">
+                                                    내 코드: <span className="text-cyan-300">{u.profile?.referral_code || '-'}</span>
+                                                </div>
+                                                <div className="text-[10px] font-bold text-gray-600">
+                                                    국가: {u.profile?.referral_country || u.profile?.country_code || '-'} · Lv{u.profile?.referral_depth || 0}
+                                                </div>
                                             </td>
                                             {/* 보유 토큰 */}
                                             <td className="px-3 py-3 text-center font-black text-white text-sm tabular-nums whitespace-nowrap">
@@ -2967,9 +3210,15 @@ export default function DashboardContent() {
                                             </td>
                                             {/* 멤버십 */}
                                             <td className="px-3 py-3 text-center">
-                                                <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-2 py-1 rounded-lg text-[10px] font-black border uppercase tracking-wider transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
-                                                    {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? 'PRO' : '스탠다드'}
-                                                </button>
+                                                {canManageSensitiveUserSettings ? (
+                                                    <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-2 py-1 rounded-lg text-[10px] font-black border uppercase tracking-wider transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
+                                                        {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? 'PRO' : '스탠다드'}
+                                                    </button>
+                                                ) : (
+                                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black border uppercase tracking-wider whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}>
+                                                        {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? 'PRO' : '스탠다드'}
+                                                    </span>
+                                                )}
                                             </td>
                                             {/* 가입 / 최근접속 */}
                                             <td className="px-3 py-3 text-center whitespace-nowrap">
@@ -2984,15 +3233,17 @@ export default function DashboardContent() {
                                             <td className="px-3 py-3">
                                                 <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto">
                                                     {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
-                                                        <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-2 py-1 rounded text-[10px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
+                                                        <button onClick={() => handleAdminRoleToggle(u.id, u.app_metadata?.role === 'sub_admin')} className={`px-2 py-1 rounded text-[10px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.role === 'sub_admin' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>부관리자</button>
                                                     )}
                                                     <button onClick={() => handleApprovalChange(u.id, !u.profile?.is_approved)} className={`px-2 py-1 text-[10px] font-black rounded border transition-all whitespace-nowrap ${u.profile?.is_approved ? 'bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white border-yellow-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border-emerald-500/20'}`}>
                                                         {u.profile?.is_approved ? '대기전환' : '승인'}
                                                     </button>
-                                                    <button onClick={() => handleRecharge(u.id)} className="px-2 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[10px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
+                                                    {canManageSensitiveUserSettings && (
+                                                        <button onClick={() => handleRecharge(u.id)} className="px-2 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[10px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
+                                                    )}
                                                     <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', preferred_languages: u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko'], persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-2 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[10px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
                                                     <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-2 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
-                                                    {u.app_metadata?.membership?.toLowerCase() === 'pro' && (
+                                                    {canManageSensitiveUserSettings && u.app_metadata?.membership?.toLowerCase() === 'pro' && (
                                                         <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-2 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[10px] font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
                                                     )}
                                                 </div>
@@ -3005,7 +3256,107 @@ export default function DashboardContent() {
                     </div>
                 )}
 
-                {activeTab === 'api' && (
+                {activeTab === 'organization' && (
+                    <div className="space-y-6 animate-in fade-in duration-500">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <h3 className="text-2xl font-black tracking-tight">📊 조직 관리</h3>
+                                <p className="mt-1 text-xs font-bold text-gray-500">
+                                    추천인 트리, 국가 태그, 토큰 사용량 기준 커미션 예상치를 확인합니다.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {[7, 30, 90].map(days => (
+                                    <button
+                                        key={`ref-days-${days}`}
+                                        type="button"
+                                        onClick={() => { setReferralDays(days); fetchReferralReport(days); }}
+                                        className={`rounded-xl px-4 py-2 text-[10px] font-black border transition-all ${referralDays === days ? 'bg-blue-600 text-white border-blue-500' : 'bg-white/5 text-gray-400 border-white/10 hover:text-white'}`}
+                                    >
+                                        {days}일
+                                    </button>
+                                ))}
+                                <button onClick={() => fetchReferralReport(referralDays)} className="rounded-xl border border-blue-500/20 bg-blue-600/10 px-5 py-2 text-[10px] font-black text-blue-300 hover:bg-blue-600 hover:text-white">
+                                    {referralLoading ? '로딩 중...' : '새로고침'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <StatCard label="ORG USERS" value={(referralReport?.summary?.users || 0).toLocaleString()} unit="명" color="white" />
+                            <StatCard label="TOKEN USAGE" value={(referralReport?.summary?.totalTokenUsage || 0).toLocaleString()} unit="TK" color="orange" />
+                            <StatCard label="EST. COMMISSION" value={(referralReport?.summary?.totalCommissionTokens || 0).toLocaleString()} unit="TK" color="green" />
+                            <StatCard label="COUNTRIES" value={(referralReport?.summary?.countries?.length || 0).toLocaleString()} unit="EA" color="blue" />
+                        </div>
+
+                        <div className="rounded-[2.5rem] border border-white/10 bg-[#0f172a]/60 overflow-hidden shadow-2xl">
+                            <div className="border-b border-white/10 bg-black/20 px-8 py-5 flex items-center justify-between">
+                                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-blue-400">Referral Tree</h4>
+                                <span className="text-[11px] font-bold text-gray-500">
+                                    Lv1 5% · Lv2 2% · 국가 책임자 별도 커미션율
+                                </span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-black/30 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                        <tr>
+                                            <th className="px-8 py-5">유저 / 트리</th>
+                                            <th className="px-8 py-5">추천 코드</th>
+                                            <th className="px-8 py-5">국가</th>
+                                            <th className="px-8 py-5 text-right">직속</th>
+                                            <th className="px-8 py-5 text-right">Lv2</th>
+                                            <th className="px-8 py-5 text-right">토큰 사용량</th>
+                                            <th className="px-8 py-5 text-right">예상 커미션</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {buildReferralTreeRows(referralReport?.profiles || []).map((profile: any) => {
+                                            const totalCommission = (profile.direct_commission_tokens || 0) + (profile.level2_commission_tokens || 0) + (profile.country_commission_tokens || 0)
+                                            return (
+                                                <tr key={profile.id} className="hover:bg-white/[0.03]">
+                                                    <td className="px-8 py-5">
+                                                        <div className="font-black text-white" style={{ paddingLeft: `${Math.min(Number(profile.referral_depth || 0), 6) * 18}px` }}>
+                                                            {Number(profile.referral_depth || 0) > 0 && <span className="mr-2 text-gray-600">└</span>}
+                                                            {profile.email || profile.id}
+                                                        </div>
+                                                        <div className="mt-1 text-[10px] font-bold text-gray-600">Depth {profile.referral_depth || 0}</div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <button onClick={() => copyReferralCode(profile.referral_code)} className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-black text-cyan-300 hover:bg-cyan-500/20">
+                                                            {profile.referral_code || '-'}
+                                                        </button>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-xs font-bold text-gray-300">
+                                                        {profile.referral_country || profile.country_code || 'KR'}
+                                                        {Number(profile.commission_rate || 0) > 0 && <span className="ml-2 rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">국가 {profile.commission_rate}%</span>}
+                                                        {isSuperAdmin && (
+                                                            <button onClick={() => handleCountryManagerUpdate(profile)} className="ml-2 rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-1 text-[10px] font-black text-indigo-300 hover:bg-indigo-500/20">
+                                                                책임자 지정
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-8 py-5 text-right font-black text-white">{profile.direct_referrals || 0}</td>
+                                                    <td className="px-8 py-5 text-right font-black text-white">{profile.level2_referrals || 0}</td>
+                                                    <td className="px-8 py-5 text-right font-black text-orange-300">{Number(profile.token_usage || 0).toLocaleString()}</td>
+                                                    <td className="px-8 py-5 text-right font-black text-emerald-300">{Number(totalCommission || 0).toLocaleString()} TK</td>
+                                                </tr>
+                                            )
+                                        })}
+                                        {(!referralReport?.profiles || referralReport.profiles.length === 0) && (
+                                            <tr>
+                                                <td colSpan={7} className="px-8 py-20 text-center text-xs font-black uppercase tracking-widest text-gray-600">
+                                                    조직 데이터가 없습니다.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'api' && canManageSystemSettings && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-7xl mx-auto">
                         {/* 헤더 */}
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -3241,7 +3592,8 @@ export default function DashboardContent() {
                                             {([
                                                 { key: 'ko', label: '🇰🇷 KO' },
                                                 { key: 'en', label: '🇺🇸 EN' },
-                                                { key: 'vi', label: '🇻🇳 VI' }
+                                                { key: 'vi', label: '🇻🇳 VI' },
+                                                { key: 'th', label: '🇹🇭 TH' }
                                             ] as const).map(l => (
                                                 <button
                                                     key={l.key}
@@ -3263,11 +3615,13 @@ export default function DashboardContent() {
                                                 value={
                                                     legalActiveTab === 'ko' ? sysKeys.terms_ko :
                                                     legalActiveTab === 'en' ? sysKeys.terms_en :
+                                                    legalActiveTab === 'th' ? sysKeys.terms_th :
                                                     sysKeys.terms_vi
                                                 }
                                                 onChange={e => setSysKeys(prev => {
                                                     if (legalActiveTab === 'ko') return { ...prev, terms_ko: e.target.value };
                                                     if (legalActiveTab === 'en') return { ...prev, terms_en: e.target.value };
+                                                    if (legalActiveTab === 'th') return { ...prev, terms_th: e.target.value };
                                                     return { ...prev, terms_vi: e.target.value };
                                                 })}
                                                 rows={12}
@@ -3283,11 +3637,13 @@ export default function DashboardContent() {
                                                 value={
                                                     legalActiveTab === 'ko' ? sysKeys.privacy_ko :
                                                     legalActiveTab === 'en' ? sysKeys.privacy_en :
+                                                    legalActiveTab === 'th' ? sysKeys.privacy_th :
                                                     sysKeys.privacy_vi
                                                 }
                                                 onChange={e => setSysKeys(prev => {
                                                     if (legalActiveTab === 'ko') return { ...prev, privacy_ko: e.target.value };
                                                     if (legalActiveTab === 'en') return { ...prev, privacy_en: e.target.value };
+                                                    if (legalActiveTab === 'th') return { ...prev, privacy_th: e.target.value };
                                                     return { ...prev, privacy_vi: e.target.value };
                                                 })}
                                                 rows={12}
@@ -3364,7 +3720,7 @@ export default function DashboardContent() {
                         </div>
                     </div>
                 )}
-                {activeTab === 'render-queue' && (
+                {activeTab === 'render-queue' && canManageRenderQueue && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
                             <div>
@@ -3534,7 +3890,7 @@ export default function DashboardContent() {
                         </div>
                     </div>
                 )}
-                {activeTab === 'styles' && (
+                {activeTab === 'styles' && canManageStyles && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 1. 스타일 추가/수정 */}
                         <div ref={presetFormRef} className={`rounded-[2.5rem] border p-8 shadow-2xl scroll-mt-24 transition-all duration-300 ${presetId ? 'bg-blue-950/40 border-blue-500/40' : 'bg-[#0f172a]/60 border-white/10'}`}>

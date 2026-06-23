@@ -867,8 +867,8 @@ async def delete_thumbnail_style_preset(style_key: str):
 
 @router.post("/language")
 async def set_language(lang: str = Body(..., embed=True)):
-    """언어 설정 저장 및 즉시 적용 (ko / en / vi)"""
-    allowed = {"ko", "en", "vi"}
+    """언어 설정 저장 및 즉시 적용 (ko / en / vi / th)"""
+    allowed = {"ko", "en", "vi", "th"}
     if lang not in allowed:
         raise HTTPException(400, f"지원하지 않는 언어입니다: {lang}. 허용값: {allowed}")
     try:

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +28,9 @@ function isMissingColumnError(err: any): boolean {
 // GET: 카테고리 목록 조회
 export async function GET(req: Request) {
     try {
+        const requester = await requireAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const supabase = getAdmin()
         const { data, error } = await supabase
             .from('categories')
@@ -49,6 +53,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const {
             name,
             keywords,
@@ -153,6 +160,9 @@ export async function POST(req: Request) {
 // DELETE: 카테고리 삭제
 export async function DELETE(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { searchParams } = new URL(req.url)
         const id = searchParams.get('id')
         if (!id) return NextResponse.json({ error: 'Missing category id' }, { status: 400 })
@@ -175,6 +185,9 @@ export async function DELETE(req: Request) {
 // PUT: 카테고리 수정
 export async function PUT(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const body = await req.json()
         const {
             id,

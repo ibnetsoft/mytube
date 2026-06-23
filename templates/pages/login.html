@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>직원 로그인 - PICADILLY STUDIO</title>
+    <title>직원 로그인 - AIR STUDIO</title>
     <script src="/static/js/tailwind.min.js?v=2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script>
@@ -55,13 +55,14 @@
     <div class="relative z-10 flex flex-col items-center">
         <div class="flex items-center gap-2 mb-2">
             <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-            <span class="text-xs font-bold uppercase tracking-widest text-blue-400">Picadilly Studio</span>
+            <span class="text-xs font-bold uppercase tracking-widest text-blue-400">AIR Studio</span>
         </div>
         <!-- 언어 선택 버튼 -->
-        <div class="absolute top-4 right-4 flex gap-1">
+        <div class="flex gap-1 justify-center mb-5">
             <button onclick="setLang('ko')" id="lang-ko" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">KO</button>
             <button onclick="setLang('en')" id="lang-en" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">EN</button>
             <button onclick="setLang('vi')" id="lang-vi" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">VI</button>
+            <button onclick="setLang('th')" id="lang-th" class="lang-btn text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10 text-gray-400 hover:text-white transition active:scale-95">TH</button>
         </div>
         <h1 class="text-2xl font-black text-white mb-6" id="page-title">직원 로그인</h1>
 
@@ -175,7 +176,7 @@
 
                 <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
                     <summary class="cursor-pointer text-blue-300 font-bold" id="summary-terms">► 서비스 이용약관 보기</summary>
-                    <p class="mt-3" id="desc-terms">작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.</p>
+                    <p class="mt-3" id="desc-terms">작업자는 AIR Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.</p>
                 </details>
                 <details class="policy-box rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
                     <summary class="cursor-pointer text-blue-300 font-bold" id="summary-privacy">► 개인정보처리방침 보기</summary>
@@ -260,7 +261,7 @@
             forgot_btn: '임시 비밀번호 발송',
             summary_terms: '► 서비스 이용약관 보기',
             summary_privacy: '► 개인정보처리방침 보기',
-            desc_terms: '작업자는 Picadilly Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.',
+            desc_terms: '작업자는 AIR Studio 클라이언트를 사용하여 배정된 콘텐츠 제작 업무를 수행합니다. 계정은 본인만 사용할 수 있으며, 무단 공유, API 오용, 자료 유출, 허위 작업 제출은 금지됩니다.',
             desc_privacy: '가입 신청을 위해 이름, 연락처, 이메일, 국가 정보를 수집합니다. 수집 정보는 계정 승인, 작업 배정, 정산, 보안 확인 목적으로만 사용됩니다.',
             msg_sending: '발송 중...',
             msg_sent: '✉ 인증 코드를 발송했습니다. 이메일을 확인해주세요.',
@@ -288,6 +289,66 @@
             cat_retirement_finance: '노후금융',
             cat_twilight_19: '황혼19금',
             cat_old_stories: '옛날이야기'
+        },
+        th: {
+            tab_login: 'เข้าสู่ระบบ',
+            tab_register: 'สมัครสมาชิก',
+            page_title: 'เข้าสู่ระบบพนักงาน',
+            ph_name: 'ชื่อ-นามสกุล',
+            ph_contact: 'เบอร์โทร / Zalo / Kakao',
+            ph_email: 'ที่อยู่อีเมล',
+            btn_verify: 'ส่งรหัส',
+            ph_code: 'รหัสยืนยัน 6 หลัก',
+            btn_confirm: 'ยืนยัน',
+            ph_country: 'เลือกประเทศ',
+            country_ko: 'เกาหลี', country_vn: 'เวียดนาม', country_bd: 'บังกลาเทศ', country_ng: 'ไนจีเรีย',
+            ph_password: 'รหัสผ่าน',
+            ph_password_confirm: 'ยืนยันรหัสผ่าน',
+            ph_referral: 'รหัสแนะนำ (ไม่บังคับ)',
+            label_topic: 'หัวข้อวิดีโอที่ต้องการ (เลือกได้หลายข้อ)',
+            label_video_length: 'ความยาววิดีโอที่ต้องการ',
+            ph_video_length: 'เลือกความยาววิดีโอ',
+            label_terms: 'ฉันยอมรับข้อกำหนดการให้บริการ',
+            label_privacy: 'ฉันยอมรับนโยบายความเป็นส่วนตัว',
+            btn_register: 'สมัครสมาชิก',
+            btn_login: 'เข้าสู่ระบบ',
+            btn_forgot: 'ลืมรหัสผ่าน?',
+            rule_length: 'อย่างน้อย 8 ตัวอักษร', rule_upper: 'มีตัวพิมพ์ใหญ่', rule_lower: 'มีตัวพิมพ์เล็ก', rule_number: 'มีตัวเลข', rule_special: 'มีอักขระพิเศษ',
+            ph_login_email: 'อีเมล',
+            ph_login_pw: 'รหัสผ่าน',
+            forgot_title: 'ลืมรหัสผ่าน',
+            forgot_desc: 'กรอกอีเมลที่ลงทะเบียนไว้เพื่อ<br>รับรหัสผ่านชั่วคราว',
+            forgot_btn: 'ส่งรหัสผ่านชั่วคราว',
+            summary_terms: '► ดูข้อกำหนดการให้บริการ',
+            summary_privacy: '► ดูนโยบายความเป็นส่วนตัว',
+            desc_terms: 'พนักงานใช้ไคลเอนต์ Picadilly Studio เพื่อทำงานผลิตคอนเทนต์ที่ได้รับมอบหมาย บัญชีมีไว้เพื่อใช้งานส่วนตัวเท่านั้น ห้ามแชร์โดยไม่ได้รับอนุญาต ใช้ API ในทางที่ผิด รั่วไหลข้อมูล และส่งงานที่ไม่ถูกต้อง',
+            desc_privacy: 'เรารวบรวมชื่อ ข้อมูลติดต่อ อีเมล และประเทศสำหรับการสมัครสมาชิก ข้อมูลที่รวบรวมจะใช้สำหรับการอนุมัติบัญชี การมอบหมายงาน การคำนวณ และการตรวจสอบความปลอดภัยเท่านั้น',
+            msg_sending: 'กำลังส่ง...',
+            msg_sent: '✉ ส่งรหัสยืนยันแล้ว โปรดตรวจสอบอีเมลของคุณ',
+            msg_send_failed: 'ส่งไม่สำเร็จ',
+            msg_conn_failed: 'การเชื่อมต่อเซิร์ฟเวอร์ล้มเหลว',
+            msg_verified: '✓ ยืนยันอีเมลเรียบร้อยแล้ว',
+            btn_verified: '✓ ยืนยันแล้ว',
+            msg_verify_failed: 'การยืนยันล้มเหลว',
+            msg_pw_match: '✓ รหัสผ่านตรงกัน',
+            msg_pw_mismatch: '✗ รหัสผ่านไม่ตรงกัน',
+            msg_submitting: 'กำลังส่ง...',
+            msg_submit_success: 'ส่งคำขอสมัครสมาชิกแล้ว คุณสามารถเข้าสู่ระบบได้หลังจากผู้ดูแลอนุมัติ',
+            msg_submit_failed: 'สมัครสมาชิกไม่สำเร็จ',
+            msg_resend: 'ส่งอีกครั้ง',
+            msg_resend_sec: 'ส่งอีกครั้ง ({sec} วินาที)',
+            msg_logging_in: 'กำลังเข้าสู่ระบบ...',
+            msg_login_failed: 'เข้าสู่ระบบไม่สำเร็จ',
+            loading_categories: 'กำลังโหลดหมวดหมู่...',
+            no_categories: 'ไม่มีหัวข้อที่สามารถเลือกได้ในขณะนี้',
+            cat_economy: 'เศรษฐกิจ',
+            cat_defector: 'เรื่องเล่าผู้แปรพักตร์',
+            cat_korean: 'เรื่องเล่าเกาหลี',
+            cat_global_touching: 'เรื่องซึ้งต่างประเทศ',
+            cat_martial_arts: 'กำลังภายใน',
+            cat_retirement_finance: 'การเงินวัยเกษียณ',
+            cat_twilight_19: 'ยามเย็น 19+',
+            cat_old_stories: 'เรื่องเล่าเก่า'
         },
         en: {
             tab_login: 'Login',
@@ -320,7 +381,7 @@
             forgot_btn: 'Send Temporary Password',
             summary_terms: '► View Terms of Service',
             summary_privacy: '► View Privacy Policy',
-            desc_terms: 'Workers use the Picadilly Studio client to perform assigned content production duties. Accounts are for personal use only; unauthorized sharing, API misuse, data leaks, and submitting false work are prohibited.',
+            desc_terms: 'Workers use the AIR Studio client to perform assigned content production duties. Accounts are for personal use only; unauthorized sharing, API misuse, data leaks, and submitting false work are prohibited.',
             desc_privacy: 'We collect name, contact information, email, and country details for registration applications. Collected information is only used for account approval, job assignment, settlement, and security checks.',
             msg_sending: 'Sending...',
             msg_sent: '✉ Verification code sent. Please check your email.',
@@ -447,7 +508,7 @@
         const tl = document.getElementById('tab-login'); if(tl) tl.textContent = L.tab_login;
         const tr = document.getElementById('tab-register'); if(tr) tr.textContent = L.tab_register;
         // Highlight active lang btn
-        ['ko','en','vi'].forEach(l => {
+        ['ko','en','vi','th'].forEach(l => {
             const b = document.getElementById('lang-'+l);
             if(!b) return;
             b.classList.toggle('text-blue-400', l===currentLang);

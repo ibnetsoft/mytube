@@ -203,7 +203,7 @@ class AutoPilotService:
             "id": "longform_music_playlist",
             "snippet": {
                 "title": keyword,
-                "channelTitle": "Picadilly Longform Music",
+                "channelTitle": "AIR Longform Music",
                 "thumbnails": {"high": {"url": ""}},
             },
             "statistics": {"viewCount": 0, "likeCount": 0, "commentCount": 0},

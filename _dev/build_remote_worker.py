@@ -5,7 +5,7 @@ import sys
 
 
 def build():
-    app_name = "PicadiriRemoteWorker"
+    app_name = "AIRRemoteWorker"
     main_script = "remote_drive_worker.py"
 
     try:

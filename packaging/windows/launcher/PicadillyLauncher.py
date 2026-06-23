@@ -8,7 +8,7 @@ import urllib.request
 from pathlib import Path
 
 
-APP_EXE = "PicadillyStudio.exe"
+APP_EXE = "AIRStudio.exe"
 CONFIG_FILE = "update_config.json"
 VERSION_FILE = "current.json"
 
@@ -94,12 +94,12 @@ def check_for_update(root: Path) -> None:
             return
 
         temp_dir = Path(tempfile.mkdtemp(prefix="picadilly_update_"))
-        package_path = temp_dir / f"PicadillyStudio-{latest}.zip"
+        package_path = temp_dir / f"AIRStudio-{latest}.zip"
         download_file(package_url, package_path)
         if expected_hash and sha256(package_path) != expected_hash:
             return
 
-        updater = launcher_dir() / "PicadillyUpdater.exe"
+        updater = launcher_dir() / "AIRUpdater.exe"
         if not updater.exists():
             return
         subprocess.Popen([

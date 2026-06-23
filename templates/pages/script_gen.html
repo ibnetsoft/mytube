@@ -70,6 +70,9 @@
                     {% if current_lang == 'vi' %}
                     <div id="structureTopicVi" class="text-xs font-semibold text-purple-400 mt-2 px-1"></div>
                     {% endif %}
+                    {% if current_lang == 'th' %}
+                    <div id="structureTopicTh" class="text-xs font-semibold text-purple-400 mt-2 px-1"></div>
+                    {% endif %}
                 </div>
 
 
@@ -461,7 +464,7 @@
 
             // Always prepare to show the editor
             document.getElementById('resultSection').classList.remove('hidden');
-            document.getElementById('currentFileIndicator').textContent = full?.project?.name || i18n.indicator_new_script;
+            setCurrentFileIndicator(full?.project);
 
             console.log("Full Data loaded:", full);
 
@@ -517,8 +520,7 @@
                 Utils.storage.set('scriptStructure', full.script_structure);
                 document.getElementById('analysisInfo').classList.remove('hidden');
                 document.getElementById('structureTopic').value = full.project?.topic || '';
-                const viEl = document.getElementById('structureTopicVi');
-                if (viEl) viEl.textContent = full.project?.name_vi || '';
+                updateStructureTopicLocalization(full.project);
             } else {
                 document.getElementById('analysisInfo').classList.add('hidden');
             }
@@ -657,7 +659,7 @@
                     currentFileId = null;
                     document.getElementById('scriptContent').value = '';
                     document.getElementById('resultSection').classList.add('hidden');
-                    document.getElementById('currentFileIndicator').textContent = i18n.indicator_new_script;
+                    setCurrentFileIndicator(null);
                 }
 
                 Utils.showToast(`"${projectName}" ${i18n.status_deleted}`, 'success');
@@ -877,7 +879,30 @@
         }
     }
 
-    function goToImageGen() { window.location.href = '/image-gen'; }
+    function setCurrentFileIndicator(project) {
+        const indicator = document.getElementById('currentFileIndicator');
+        if (!indicator) return;
+        if (!project) {
+            indicator.textContent = i18n.indicator_new_script;
+            return;
+        }
+        if (window.currentLang === 'en' && project.name_en) {
+            indicator.textContent = project.name_en;
+        } else if (window.currentLang === 'vi' && project.name_vi) {
+            indicator.textContent = project.name_vi;
+        } else if (window.currentLang === 'th' && project.name_th) {
+            indicator.textContent = project.name_th;
+        } else {
+            indicator.textContent = project.name || i18n.indicator_new_script;
+        }
+    }
+
+    function updateStructureTopicLocalization(project) {
+        const viEl = document.getElementById('structureTopicVi');
+        if (viEl) viEl.textContent = project?.topic_vi || project?.name_vi || '';
+        const thEl = document.getElementById('structureTopicTh');
+        if (thEl) thEl.textContent = project?.topic_th || project?.name_th || '';
+    }
     function goToTTS() { window.location.href = '/tts'; }
 
     async function postScriptToBlog() {
@@ -998,8 +1023,7 @@
                     Utils.storage.set('scriptStructure', projectFull.script_structure);
                     document.getElementById('analysisInfo').classList.remove('hidden');
                     document.getElementById('structureTopic').value = projectFull.project?.topic || '';
-                    const viEl = document.getElementById('structureTopicVi');
-                    if (viEl) viEl.textContent = projectFull.project?.name_vi || '';
+                    updateStructureTopicLocalization(projectFull.project);
 
                     // Safe check for style
                     if (projectFull.script_structure.script_style) {
@@ -1015,7 +1039,7 @@
                     currentFileId = projectId;
                     document.getElementById('scriptContent').value = currentScript;
                     document.getElementById('resultSection').classList.remove('hidden');
-                    document.getElementById('currentFileIndicator').textContent = projectFull.project?.name || i18n.indicator_new_script;
+                    setCurrentFileIndicator(projectFull.project);
                     updateStats();
                 }
             } catch (e) {
@@ -1371,8 +1395,7 @@ ${modeInstruction}
                     analysisInfo.classList.remove('hidden');
                     const topicInput = document.getElementById('structureTopic');
                     if (topicInput) topicInput.value = fullData.project?.topic || '';
-                    const viEl = document.getElementById('structureTopicVi');
-                    if (viEl) viEl.textContent = fullData.project?.name_vi || '';
+                    updateStructureTopicLocalization(fullData.project);
                 } else {
                     analysisInfo.classList.add('hidden');
                 }

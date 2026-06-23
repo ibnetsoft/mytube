@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { isAuthResponse, requireAdmin } from '../../_auth';
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +27,9 @@ function isMissingColumnError(err: any): boolean {
 
 export async function POST(req: Request) {
     try {
+        const requester = await requireAdmin(req);
+        if (isAuthResponse(requester)) return requester;
+
         const { userId, metadata } = await req.json();
 
         if (!userId || !metadata) {

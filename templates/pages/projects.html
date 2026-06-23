@@ -215,11 +215,11 @@
             </th>
             <th scope="col"
                 class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                ${window.currentLang === 'vi' ? 'Tiếp theo' : (window.currentLang === 'en' ? 'Next Action' : '다음 작업')}
+                ${window.currentLang === 'th' ? 'งานถัดไป' : (window.currentLang === 'vi' ? 'Tiếp theo' : (window.currentLang === 'en' ? 'Next Action' : '다음 작업'))}
             </th>
             <th scope="col"
                 class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[320px] w-[30%]">
-                ${isMusicMode ? (window.currentLang === 'vi' ? 'Tên bài hát' : (window.currentLang === 'en' ? 'Music Title' : '음악 제목')) : `{{ t('th_video_title') }}`}
+                ${isMusicMode ? (window.currentLang === 'th' ? 'ชื่อเพลง' : (window.currentLang === 'vi' ? 'Tên bài hát' : (window.currentLang === 'en' ? 'Music Title' : '음악 제목'))) : `{{ t('th_video_title') }}`}
             </th>
             ${statusColumns.map(label => `
                 <th scope="col"
@@ -444,7 +444,7 @@
                     </button>
                     <button onclick="event.stopPropagation(); deleteProject('${p.id}')" 
                         class="text-red-400 hover:text-red-500 transition p-1.5 rounded-lg hover:bg-red-500/10 dark:hover:bg-red-500/20 active:scale-95 flex items-center justify-center bg-transparent border-0 cursor-pointer"
-                        title="${window.currentLang === 'vi' ? 'Xóa' : (window.currentLang === 'en' ? 'Delete' : '삭제')}">
+                        title="${window.currentLang === 'th' ? 'ลบ' : (window.currentLang === 'vi' ? 'Xóa' : (window.currentLang === 'en' ? 'Delete' : '삭제'))}">
                         ${deleteIconSvg}
                     </button>
                 </div>
@@ -471,6 +471,7 @@
                             <span class="truncate">${p.name}</span>
                             ${window.currentLang === 'vi' && p.name_vi ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_vi}">${p.name_vi}</span>` : ''}
                             ${window.currentLang === 'en' && p.name_en ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_en}">${p.name_en}</span>` : ''}
+                            ${window.currentLang === 'th' && p.name_th ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.name_th}">${p.name_th}</span>` : ''}
                         </div>
                     </div>
                 </td>
@@ -485,6 +486,7 @@
                         <span class="truncate">${p.video_title || '-'}</span>
                         ${window.currentLang === 'vi' && p.video_title_vi ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_vi}">${p.video_title_vi}</span>` : ''}
                         ${window.currentLang === 'en' && p.video_title_en ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_en}">${p.video_title_en}</span>` : ''}
+                        ${window.currentLang === 'th' && p.video_title_th ? `<span class="text-[10px] text-purple-400 font-semibold truncate" title="${p.video_title_th}">${p.video_title_th}</span>` : ''}
                     </div>
                 </td>
                 ${isMusicMode ? musicStatusCells : defaultStatusCells}
@@ -525,31 +527,32 @@
         const isMusic = project.app_mode === 'longform_music' || currentDisplayMode === 'longform_music';
         const isVi = window.currentLang === 'vi';
         const isEn = window.currentLang === 'en';
-        const t = (ko, en, vi) => isVi ? vi : (isEn ? en : ko);
+        const isTh = window.currentLang === 'th';
+        const t = (ko, en, vi, th) => isTh ? th : (isVi ? vi : (isEn ? en : ko));
 
         const steps = isMusic ? [
-            { key: 'music_plan', label: t('음악 기획', 'Music Plan', 'Kế hoạch nhạc'), route: 'music-plan' },
-            { key: 'music_cover', label: t('커버 이미지', 'Cover Image', 'Ảnh bìa'), route: 'image-gen' },
-            { key: 'music_tracks', label: t('트랙 생성', 'Generate Track', 'Tạo bài hát'), route: 'audio-gen' },
-            { key: 'music_thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ'), route: 'thumbnail' },
-            { key: 'music_render', label: t('영상 렌더링', 'Render Video', 'Kết xuất Video'), route: 'render' },
-            { key: 'music_desc', label: t('제목/설명', 'Title/Desc', 'Tiêu đề/Mô tả'), route: 'title-desc' },
-            { key: 'music_publish', label: t('발행 준비', 'Ready to Publish', 'Chuẩn bị xuất bản'), route: 'render' },
+            { key: 'music_plan', label: t('음악 기획', 'Music Plan', 'Kế hoạch nhạc', 'วางแผนเพลง'), route: 'music-plan' },
+            { key: 'music_cover', label: t('커버 이미지', 'Cover Image', 'Ảnh bìa', 'ภาพปก'), route: 'image-gen' },
+            { key: 'music_tracks', label: t('트랙 생성', 'Generate Track', 'Tạo bài hát', 'สร้างแทร็ก'), route: 'audio-gen' },
+            { key: 'music_thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ', 'ภาพขนาดย่อ'), route: 'thumbnail' },
+            { key: 'music_render', label: t('영상 렌더링', 'Render Video', 'Kết xuất Video', 'เรนเดอร์วิดีโอ'), route: 'render' },
+            { key: 'music_desc', label: t('제목/설명', 'Title/Desc', 'Tiêu đề/Mô tả', 'ชื่อ/คำอธิบาย'), route: 'title-desc' },
+            { key: 'music_publish', label: t('발행 준비', 'Ready to Publish', 'Chuẩn bị xuất bản', 'เตรียมเผยแพร่'), route: 'render' },
         ] : [
-            { key: 'plan', label: t('기획', 'Plan', 'Kế hoạch'), route: project.app_mode === 'longform_music' ? 'music-plan' : 'script-plan' },
-            { key: 'script', label: t('대본', 'Script', 'Kịch bản'), route: 'script-gen' },
-            { key: 'image', label: t('이미지', 'Image', 'Hình ảnh'), route: 'image-gen' },
-            { key: 'tts', label: t('TTS', 'TTS', 'TTS'), route: 'tts' },
-            { key: 'video', label: t('영상', 'Video', 'Video'), route: 'render' },
-            { key: 'thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ'), route: 'thumbnail' },
-            { key: 'desc', label: t('설명', 'Description', 'Mô tả'), route: 'title-desc' },
-            { key: 'upload', label: t('발행대기 등록', 'Ready to Publish', 'Đăng ký chờ xuất bản'), route: 'upload' },
-            ...(isIndependent ? [{ key: 'publish', label: t('웹어드민 발행', 'Web Admin Publish', 'Xuất bản Web Admin'), route: 'upload' }] : []),
+            { key: 'plan', label: t('기획', 'Plan', 'Kế hoạch', 'วางแผน'), route: project.app_mode === 'longform_music' ? 'music-plan' : 'script-plan' },
+            { key: 'script', label: t('대본', 'Script', 'Kịch bản', 'บท'), route: 'script-gen' },
+            { key: 'image', label: t('이미지', 'Image', 'Hình ảnh', 'รูปภาพ'), route: 'image-gen' },
+            { key: 'tts', label: t('TTS', 'TTS', 'TTS', 'TTS'), route: 'tts' },
+            { key: 'video', label: t('영상', 'Video', 'Video', 'วิดีโอ'), route: 'render' },
+            { key: 'thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ', 'ภาพขนาดย่อ'), route: 'thumbnail' },
+            { key: 'desc', label: t('설명', 'Description', 'Mô tả', 'คำอธิบาย'), route: 'title-desc' },
+            { key: 'upload', label: t('발행대기 등록', 'Ready to Publish', 'Đăng ký chờ xuất bản', 'ลงทะเบียนรอเผยแพร่'), route: 'upload' },
+            ...(isIndependent ? [{ key: 'publish', label: t('웹어드민 발행', 'Web Admin Publish', 'Xuất bản Web Admin', 'เผยแพร่ผ่านเว็บแอดมิน'), route: 'upload' }] : []),
         ];
 
         const next = steps.find(step => !s[step.key]);
         if (!next) {
-            return { label: t('완료', 'Done', 'Đã xong'), route: isMusic ? 'render' : 'upload', done: true };
+            return { label: t('완료', 'Done', 'Đã xong', 'เสร็จแล้ว'), route: isMusic ? 'render' : 'upload', done: true };
         }
         return { ...next, done: false };
     }

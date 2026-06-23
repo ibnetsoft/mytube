@@ -297,7 +297,7 @@ class GoogleDriveService:
             token_path=token_path,
             folder_id=folder_id,
             mimetype="video/mp4",
-            description="AI Generated Video by Picadiri Studio",
+            description="AI Generated Video by AIR Studio",
             make_public=True,
         )
         return file.get("webViewLink") if file else None

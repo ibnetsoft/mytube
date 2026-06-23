@@ -16,6 +16,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState<Language>('ko');
 
     useEffect(() => {
+        const urlLang = new URLSearchParams(window.location.search).get('lang') as Language | null;
+        if (urlLang && translations[urlLang]) {
+            setLanguageState(urlLang);
+            localStorage.setItem('pica_lang', urlLang);
+            return;
+        }
+
         const savedLang = localStorage.getItem('pica_lang') as Language;
         if (savedLang && translations[savedLang]) {
             setLanguageState(savedLang);

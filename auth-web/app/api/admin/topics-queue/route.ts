@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
+import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -267,6 +268,9 @@ function normalizeTopicQueueRow(topic: any) {
 // GET: 대기열 주제 목록 조회
 export async function GET(req: Request) {
     try {
+        const requester = await requireAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { searchParams } = new URL(req.url)
         const email = searchParams.get('email')
         const status = searchParams.get('status') || 'active'
@@ -303,6 +307,9 @@ export async function GET(req: Request) {
 // POST: AI를 활용한 카테고리별 주제 자동 생성 발굴 엔진 실행
 export async function POST(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { categoryId } = await req.json()
         if (!categoryId) {
             return NextResponse.json({ error: 'Missing categoryId' }, { status: 400 })
@@ -537,6 +544,9 @@ export async function POST(req: Request) {
 // PUT: 대기중 주제 제목 수정
 export async function PUT(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { id, topic } = await req.json()
 
         if (!id || !String(topic || '').trim()) {
@@ -577,6 +587,9 @@ export async function PUT(req: Request) {
 // DELETE: 대기중 주제 삭제
 export async function DELETE(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { searchParams } = new URL(req.url)
         const id = searchParams.get('id')
         const categoryId = searchParams.get('categoryId')
@@ -659,6 +672,9 @@ export async function DELETE(req: Request) {
 // PATCH: 대기중 주제의 대본/이미지 스타일을 AI로 재배정
 export async function PATCH(req: Request) {
     try {
+        const requester = await requireSuperAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
         const { targetType, categoryId, limit } = await req.json()
         const normalizedTarget = String(targetType || '').trim().toLowerCase()
 

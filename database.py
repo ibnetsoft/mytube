@@ -317,6 +317,24 @@ def init_db():
     except Exception:
         pass
 
+    # [MIGRATION] Add Thai UI translation columns (UI display only; production languages remain ko/en/ja)
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN name_th TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE projects ADD COLUMN topic_th TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN title_th TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE image_prompts ADD COLUMN scene_text_th TEXT")
+    except Exception:
+        pass
+
     # [NEW] 웹툰 수동 처리 학습 시스템
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS webtoon_learning_rules (
@@ -1577,6 +1595,7 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         ps.title as video_title,
         p.name_vi, p.topic_vi, ps.title_vi as video_title_vi,
         p.name_en, p.topic_en, ps.title_en as video_title_en,
+        p.name_th, p.topic_th, ps.title_th as video_title_th,
         CASE WHEN s.id IS NOT NULL THEN 1 ELSE 0 END as has_script,
         CASE WHEN ss.id IS NOT NULL THEN 1 ELSE 0 END as has_structure,
         CASE WHEN ps.longform_music_plan_json IS NOT NULL AND ps.longform_music_plan_json != '' THEN 1 ELSE 0 END as has_music_plan,
@@ -1674,6 +1693,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "name_en": r.get("name_en") or "",
             "topic_en": r.get("topic_en") or "",
             "video_title_en": r.get("video_title_en") or "",
+            "name_th": r.get("name_th") or "",
+            "topic_th": r.get("topic_th") or "",
+            "video_title_th": r.get("video_title_th") or "",
             "created_at": r["created_at"],
             "updated_at": r["updated_at"],
             "video_title": r["video_title"],
@@ -3239,6 +3261,15 @@ def update_image_prompt_scene_text_en(prompt_id: int, scene_text_en: str):
     cursor.execute("UPDATE image_prompts SET scene_text_en = ? WHERE id = ?", (scene_text_en, prompt_id))
     conn.commit()
     conn.close()
+
+def update_image_prompt_scene_text_th(prompt_id: int, scene_text_th: str):
+    """장면 스크립트 태국어 UI 번역 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE image_prompts SET scene_text_th = ? WHERE id = ?", (scene_text_th, prompt_id))
+    conn.commit()
+    conn.close()
+
 
 def get_image_prompts(project_id: int):
     import json

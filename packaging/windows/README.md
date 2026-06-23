@@ -11,22 +11,22 @@ GitHub Releases is a good free update host for this app. GitHub's release docs s
 The installed app is split into a stable launcher and replaceable app payload:
 
 ```text
-PicadillyStudio/
+AIRStudio/
   Launcher/
-    PicadillyLauncher.exe
-    PicadillyUpdater.exe
+    AIRLauncher.exe
+    AIRUpdater.exe
     update_config.json
   app/
-    PicadillyStudio.exe
+    AIRStudio.exe
     _internal/
   current.json
 ```
 
-`PicadillyLauncher.exe` checks the update manifest, downloads a newer zip when available, verifies SHA256, starts `PicadillyUpdater.exe`, and otherwise launches `app/PicadillyStudio.exe`.
+`AIRLauncher.exe` checks the update manifest, downloads a newer zip when available, verifies SHA256, starts `AIRUpdater.exe`, and otherwise launches `app/AIRStudio.exe`.
 
-`PicadillyUpdater.exe` replaces only the `app/` payload. Launcher updates can be delivered later by running the installer again.
+`AIRUpdater.exe` replaces only the `app/` payload. Launcher updates can be delivered later by running the installer again.
 
-The installer can also register `Launcher/PicadillyLauncher.exe` in the current user's Windows startup list. That means every Windows login opens the launcher first, the launcher checks `latest.json`, applies a newer app payload when available, and then starts the local app.
+The installer can also register `Launcher/AIRLauncher.exe` in the current user's Windows startup list. That means every Windows login opens the launcher first, the launcher checks `latest.json`, applies a newer app payload when available, and then starts the local app.
 
 ## Commands
 

@@ -577,16 +577,16 @@
                     <!-- [NEW] Korean Pronunciation in Vietnamese spelling (Green) -->
                     <div id="currentSubtitlePronunciation" 
                          class="w-full p-0 text-xs text-green-500 dark:text-green-400 font-bold bg-transparent select-text break-words leading-tight"
-                         title="Korean Pronunciation (Vietnamese phonetics)">
+                         title="Korean pronunciation for current language mode">
                     </div>
 
-                    <!-- Vietnamese/English Subtitle Input -->
+                    <!-- Vietnamese/English/Thai Subtitle Input -->
                     <textarea id="currentSubtitleTextVi"
                         class="w-full text-xs p-0 border-0 bg-transparent focus:ring-0 outline-none resize-none disabled:opacity-50 CustomScroll text-purple-500 dark:text-purple-400 font-medium"
                         style="height: auto; min-height: 20px;"
                         rows="1"
                         oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"
-                        placeholder="{{ 'English translation' if window_lang == 'en' else 'Vietnamese translation (Bản dịch tiếng Việt)' }}"></textarea>
+                        placeholder="{{ 'English translation' if window_lang == 'en' else ('Thai translation (คำแปลภาษาไทย)' if window_lang == 'th' else 'Vietnamese translation (Bản dịch tiếng Việt)') }}"></textarea>
                 </div>
 
                 <!-- DEBUG OVERLAY -->
@@ -913,8 +913,8 @@
 
         await waitForUtils();
 
-        // [NEW] Hide translation box and phonetic pronunciation if not in VI or EN mode
-        if (window.currentLang !== 'vi' && window.currentLang !== 'en') {
+        // [NEW] Hide translation box and phonetic pronunciation if not in VI, EN or TH mode
+        if (!['vi', 'en', 'th'].includes(window.currentLang)) {
             const viTextarea = document.getElementById('currentSubtitleTextVi');
             if (viTextarea) {
                 viTextarea.style.display = 'none';
@@ -1234,8 +1234,12 @@
                         <div class="text-xs text-green-500 dark:text-green-400 sub-text-pron font-bold break-words leading-tight" id="phonetic-row-${index}">
                             ${koreanToEnglishPhonetic(sub.text || '')}
                         </div>
+                        ` : window.currentLang === 'th' ? `
+                        <div class="text-xs text-green-500 dark:text-green-400 sub-text-pron font-bold break-words leading-tight">
+                            ${koreanToThaiPhonetic(sub.text || '')}
+                        </div>
                         ` : ''}
-                        ${['vi', 'en'].includes(window.currentLang) ? `
+                        ${['vi', 'en', 'th'].includes(window.currentLang) ? `
                         <div class="text-xs text-purple-600 dark:text-purple-400 sub-text-vi break-words leading-tight mt-0.5 font-medium">
                             ${sub.text_vi || ''}
                         </div>
@@ -1295,7 +1299,7 @@
         }
         const textFieldVi = document.getElementById('currentSubtitleTextVi');
         if (textFieldVi) {
-            if (['vi', 'en'].includes(window.currentLang)) {
+            if (['vi', 'en', 'th'].includes(window.currentLang)) {
                 textFieldVi.style.display = 'block';
                 textFieldVi.value = sub.text_vi || '';
                 textFieldVi.disabled = false;
@@ -1323,6 +1327,8 @@
                 } else {
                     pronField.textContent = koreanToEnglishPhonetic(text);
                 }
+            } else if (window.currentLang === 'th') {
+                pronField.textContent = koreanToThaiPhonetic(sub.text || '');
             } else {
                 pronField.textContent = koreanToVietnamesePhonetic(sub.text || '');
             }
@@ -2204,6 +2210,51 @@
         return result.trim().replace(/\s+([.,!?~])/g, '$1');
     }
 
+    function koreanToThaiPhonetic(text) {
+        if (!text) return "";
+
+        const CHOSEONG = [
+            "ค", "ก", "น", "ท", "ต", "ร", "ม", "พ", "ป",
+            "ซ", "ส", "", "จ", "จ", "ช", "ค", "ท", "พ", "ฮ"
+        ];
+        const JUNGSEONG = [
+            "า", "แอ", "ยา", "แย", "ออ", "เอ", "ยอ", "เย", "โอ", "วา",
+            "แว", "เว", "โย", "อู", "วอ", "เว", "วี", "ยู", "อือ", "อึย", "อี"
+        ];
+        const JONGSEONG = [
+            "", "ก", "ก", "ก", "น", "น", "น", "ด", "ล", "ล", "ล", "ล",
+            "ล", "ล", "ล", "ล", "ม", "บ", "บ", "ด", "ง", "ด", "ด", "ด",
+            "ด", "ด", "บ", "ด"
+        ];
+
+        let result = "";
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const code = char.charCodeAt(0);
+
+            if (code >= 0xAC00 && code <= 0xD7A3) {
+                const index = code - 0xAC00;
+                const cho = Math.floor(index / 588);
+                const jung = Math.floor((index % 588) / 28);
+                const jong = index % 28;
+                result += CHOSEONG[cho] + JUNGSEONG[jung] + JONGSEONG[jong] + " ";
+            } else {
+                if (result.endsWith(" ") && char === " ") {
+                    // avoid duplicate
+                } else {
+                    result += char;
+                }
+            }
+        }
+        return result.trim().replace(/\s+([.,!?~])/g, '$1');
+    }
+
+    function koreanToCurrentLangPhonetic(text) {
+        if (window.currentLang === 'th') return koreanToThaiPhonetic(text);
+        if (window.currentLang === 'en') return koreanToEnglishPhonetic(text);
+        return koreanToVietnamesePhonetic(text);
+    }
+
     function setupStyleListeners() {
         // Debounced or direct auto-save logic
         const update = async (key, val) => {
@@ -2272,11 +2323,11 @@
                         const subTextSpan = row.querySelector('.sub-text');
                         if (subTextSpan) subTextSpan.textContent = e.target.value;
                         const subTextPronSpan = row.querySelector('.sub-text-pron');
-                        if (subTextPronSpan) subTextPronSpan.textContent = koreanToVietnamesePhonetic(e.target.value);
+                        if (subTextPronSpan) subTextPronSpan.textContent = koreanToCurrentLangPhonetic(e.target.value);
                     }
                     const pronField = document.getElementById('currentSubtitlePronunciation');
                     if (pronField) {
-                        pronField.textContent = koreanToVietnamesePhonetic(e.target.value);
+                        pronField.textContent = koreanToCurrentLangPhonetic(e.target.value);
                     }
                 }
             });
@@ -3805,7 +3856,7 @@
         try {
             updateDebug('[Func] Fetching data...');
 
-            let url = `/api/projects/${projectId}/subtitles?t=${new Date().getTime()}`;
+            let url = `/api/projects/${projectId}/subtitles?t=${new Date().getTime()}&ui_lang=${window.currentLang}`;
             if (forceRefresh) {
                 url += '&force_refresh=true';
             }

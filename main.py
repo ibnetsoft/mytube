@@ -3662,7 +3662,7 @@ if __name__ == "__main__":
             
             # 독립 데스크톱 창 생성 (Edge Chromium 기반 WebView2 기동)
             webview.create_window(
-                "Picadilly Studio", 
+                "AIR Studio", 
                 f"http://{config.HOST}:{config.PORT}",
                 width=1280,
                 height=800,

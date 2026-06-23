@@ -8,13 +8,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Spec = Join-Path $Root "packaging\windows\PicadillyStudio.spec"
+$Spec = Join-Path $Root "packaging\windows\AIRStudio.spec"
 $ReleaseDir = Join-Path $Root "release"
-$DistDir = Join-Path $Root "dist\PicadillyStudio"
-$StagingRoot = Join-Path $ReleaseDir "staging\PicadillyStudio"
+$DistDir = Join-Path $Root "dist\AIRStudio"
+$StagingRoot = Join-Path $ReleaseDir "staging\AIRStudio"
 $StagingApp = Join-Path $StagingRoot "app"
 $StagingLauncher = Join-Path $StagingRoot "Launcher"
-$ZipPath = Join-Path $ReleaseDir "PicadillyStudio-$Version-win-x64.zip"
+$ZipPath = Join-Path $ReleaseDir "AIRStudio-$Version-win-x64.zip"
 $ManifestPath = Join-Path $ReleaseDir "latest.json"
 
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
@@ -55,19 +55,19 @@ try {
         --noconfirm `
         --clean `
         --onefile `
-        --name PicadillyLauncher `
+        --name AIRLauncher `
         --distpath $StagingLauncher `
-        --workpath (Join-Path $Root "build\PicadillyLauncher") `
-        (Join-Path $Root "packaging\windows\launcher\PicadillyLauncher.py")
+        --workpath (Join-Path $Root "build\AIRLauncher") `
+        (Join-Path $Root "packaging\windows\launcher\AIRLauncher.py")
 
     & "venv\Scripts\python.exe" -m PyInstaller `
         --noconfirm `
         --clean `
         --onefile `
-        --name PicadillyUpdater `
+        --name AIRUpdater `
         --distpath $StagingLauncher `
-        --workpath (Join-Path $Root "build\PicadillyUpdater") `
-        (Join-Path $Root "packaging\windows\launcher\PicadillyUpdater.py")
+        --workpath (Join-Path $Root "build\AIRUpdater") `
+        (Join-Path $Root "packaging\windows\launcher\AIRUpdater.py")
 
     @{
         manifest_url = "https://github.com/$GitHubRepo/releases/latest/download/latest.json"
@@ -87,10 +87,10 @@ try {
         version = $Version
         channel = "stable"
         mandatory = $false
-        installer_url = "https://github.com/$GitHubRepo/releases/download/v$Version/PicadillyStudioSetup-$Version.exe"
-        portable_url = "https://github.com/$GitHubRepo/releases/download/v$Version/PicadillyStudio-$Version-win-x64.zip"
+        installer_url = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudioSetup-$Version.exe"
+        portable_url = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudio-$Version-win-x64.zip"
         sha256 = $Hash
-        notes = "Picadilly Studio Windows build $Version"
+        notes = "AIR Studio Windows build $Version"
     }
     $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
 
@@ -100,7 +100,7 @@ try {
             Write-Warning "ISCC.exe was not found. Install Inno Setup or rerun with -SkipInstaller."
         } else {
             $env:PICADILLY_VERSION = $Version
-            & $Inno.Source (Join-Path $Root "packaging\windows\PicadillyStudio.iss")
+            & $Inno.Source (Join-Path $Root "packaging\windows\AIRStudio.iss")
         }
     }
 

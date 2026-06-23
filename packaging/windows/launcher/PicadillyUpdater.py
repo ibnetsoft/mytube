@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 
-APP_EXE = "PicadillyStudio.exe"
+APP_EXE = "AIRStudio.exe"
 
 
 def wait_for_app_to_exit(timeout_seconds: int = 30) -> None:

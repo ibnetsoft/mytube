@@ -2,8 +2,8 @@
   "version": "0.1.0",
   "channel": "stable",
   "mandatory": false,
-  "installer_url": "https://github.com/OWNER/REPO/releases/download/v0.1.0/PicadillyStudioSetup-0.1.0.exe",
-  "portable_url": "https://github.com/OWNER/REPO/releases/download/v0.1.0/PicadillyStudio-0.1.0-win-x64.zip",
+  "installer_url": "https://github.com/OWNER/REPO/releases/download/v0.1.0/AIRStudioSetup-0.1.0.exe",
+  "portable_url": "https://github.com/OWNER/REPO/releases/download/v0.1.0/AIRStudio-0.1.0-win-x64.zip",
   "sha256": "REPLACE_WITH_RELEASE_ZIP_SHA256",
   "notes": "Initial Windows launcher package build. The zip contains Launcher/, app/, and current.json."
 }
