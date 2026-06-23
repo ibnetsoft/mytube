@@ -1820,7 +1820,23 @@ export default function DashboardContent() {
                                         </div>
                                     </>
                                 )}
-                                <div className="md:col-span-3 mt-4 flex justify-end">
+                                <div className="md:col-span-3 mt-4 flex justify-end items-center gap-3">
+                                    <button
+                                        type="button"
+                                        disabled={topicStyleAssigningType !== null}
+                                        onClick={() => handleAssignTopicStyles('script')}
+                                        className="px-6 py-3 rounded-xl text-xs font-black border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
+                                    >
+                                        {topicStyleAssigningType === 'script' ? '대본 스타일 배정 중...' : '대본 스타일 자동배정'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={topicStyleAssigningType !== null}
+                                        onClick={() => handleAssignTopicStyles('image')}
+                                        className="px-6 py-3 rounded-xl text-xs font-black border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
+                                    >
+                                        {topicStyleAssigningType === 'image' ? '이미지 스타일 배정 중...' : '이미지 스타일 자동배정'}
+                                    </button>
                                     <button 
                                         type="submit"
                                         className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
@@ -2118,22 +2134,6 @@ export default function DashboardContent() {
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
-                                            disabled={topicStyleAssigningType !== null}
-                                            onClick={() => handleAssignTopicStyles('script')}
-                                            className="px-4 py-2 rounded-xl text-[11px] font-black border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
-                                        >
-                                            {topicStyleAssigningType === 'script' ? '대본 스타일 배정 중...' : '대본 스타일 자동배정'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={topicStyleAssigningType !== null}
-                                            onClick={() => handleAssignTopicStyles('image')}
-                                            className="px-4 py-2 rounded-xl text-[11px] font-black border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
-                                        >
-                                            {topicStyleAssigningType === 'image' ? '이미지 스타일 배정 중...' : '이미지 스타일 자동배정'}
-                                        </button>
                                         {[
                                             { key: 'working', label: '작업중' },
                                             { key: 'pending', label: '대기중' },
