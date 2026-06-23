@@ -10,6 +10,34 @@ import database as db
 
 # Dynamic EMPLOYEE_PERSONAS handled via Supabase profiles table
 
+SUPPORTED_CONTENT_LANGUAGES = {"ko", "en", "ja"}
+
+
+def normalize_content_language(value, default="ko"):
+    lang = (str(value or "").strip().lower() or default)
+    if lang.startswith("en"):
+        return "en"
+    if lang.startswith("ja") or lang.startswith("jp"):
+        return "ja"
+    if lang.startswith("ko"):
+        return "ko"
+    return default
+
+
+def content_language_label(value):
+    lang = normalize_content_language(value)
+    return {"ko": "Korean", "en": "English", "ja": "Japanese"}.get(lang, "Korean")
+
+
+def topic_language_instruction(value):
+    lang = normalize_content_language(value)
+    if lang == "en":
+        return "The topic MUST be written in natural English. Do not mix Korean or Japanese unless it is an unavoidable proper noun."
+    if lang == "ja":
+        return "The topic MUST be written in natural Japanese. Do not include Korean sentence fragments."
+    return "The topic MUST be written in natural Korean."
+
+
 class DispatcherService:
     def __init__(self):
         self.running = False
@@ -104,11 +132,25 @@ class DispatcherService:
                 keywords = category.get("keywords") or ""
                 benchmark_url = category.get("benchmark_channel_url") or ""
                 target_country = category.get("target_country", "KR")
-                
-                # [SDK Predicates] 활성 직원의 가용성 필터링 (워크로드가 3건 미만인 최적의 직원 탐색)
-                eligible_employees = [email for email, load in workloads.items() if load < 3]
-                assigned_email = category.get("assigned_employee_email") or "ejsh0519@naver.com"
-                
+                target_language = normalize_content_language(category.get("language"))
+
+                # [SDK Predicates] 활성 직원의 가용성 필터링 (워크로드가 3건 미만 + 콘텐츠 언어 지원)
+                language_capable_users = []
+                for user in users:
+                    email = user.get("email")
+                    if not email or workloads.get(email, 0) >= 3:
+                        continue
+                    raw_languages = user.get("preferred_languages") or ["ko"]
+                    if isinstance(raw_languages, str):
+                        raw_languages = [item.strip() for item in raw_languages.split(",") if item.strip()]
+                    preferred_languages = {normalize_content_language(item) for item in raw_languages}
+                    if target_language in preferred_languages:
+                        language_capable_users.append(user)
+
+                eligible_employees = [user.get("email") for user in language_capable_users if user.get("email")]
+                assigned_email = None
+                fallback_email = category.get("assigned_employee_email") or "ejsh0519@naver.com"
+
                 if eligible_employees:
                     # [Multi-Agent Persona Dispatcher] 직원별 페르소나 정보를 결합하여 Gemini로 자율 배정
                     personas_info = []
@@ -119,7 +161,8 @@ class DispatcherService:
                             "name": prof.get("persona_name") or prof.get("full_name") or email.split("@")[0],
                             "style": prof.get("persona_style") or "general writing, standard explanation",
                             "description": prof.get("persona_description") or "일반적인 유튜브 영상 기획 및 대본 작성을 수행합니다.",
-                            "workload": workloads.get(email, 0)
+                            "workload": workloads.get(email, 0),
+                            "preferred_languages": prof.get("preferred_languages") or ["ko"]
                         })
                     
                     matching_prompt = f"""
@@ -130,6 +173,7 @@ class DispatcherService:
                     - Name: {cat_name}
                     - Keywords: {keywords}
                     - Target Market: {target_country}
+                    - Target Content Language: {content_language_label(target_language)} ({target_language})
                     
                     [Candidate Sub-Agents (Employees) & Personas]
                     {json.dumps(personas_info, ensure_ascii=False, indent=2)}
@@ -160,20 +204,22 @@ class DispatcherService:
                         print(f"⚠️ [Dispatcher Agentic Bidding] Failed to match via LLM: {match_err}. Falling back to workload min.")
                         assigned_email = min(eligible_employees, key=lambda email: workloads[email])
                 else:
-                    print(f"[Dispatcher] No eligible employees under threshold. Using backup: {assigned_email}")
+                    print(f"[Dispatcher] No {content_language_label(target_language)}-capable employees under threshold. Topic will stay unassigned instead of falling back to {fallback_email}.")
 
-                print(f"[Dispatcher] Category: '{cat_name}' (Target: {target_country}) -> Assigned to: {assigned_email} (Current load: {workloads.get(assigned_email, 0)})")
+                print(f"[Dispatcher] Category: '{cat_name}' (Target: {target_country}, Language: {target_language}) -> Assigned to: {assigned_email or 'UNASSIGNED'} (Current load: {workloads.get(assigned_email, 0) if assigned_email else 0})")
 
                 # 4. LLM을 통한 바이럴 트렌드 주제 분석 (1개씩 정교하게 실시간 생성)
                 prompt = f"""
                 You are Google Antigravity SDK Smart Video Planner.
                 Target Country: {target_country}
+                Target Content Language: {content_language_label(target_language)} ({target_language})
                 Category Name: {cat_name}
                 Keywords: {keywords}
                 Benchmark Reference: {benchmark_url}
 
-                Based on these settings, please generate exactly one highly compelling, click-worthy, and trending video title or topic (Korean script style).
-                
+                Based on these settings, please generate exactly one highly compelling, click-worthy, and trending video title or topic.
+                {topic_language_instruction(target_language)}
+
                 CRITICAL INSTRUCTION:
                 - The result MUST be the actual video title itself. Do not generate meta production suggestions.
                 - Output only the plain title string inside a JSON object: {{"topic": "Generated Title"}}
@@ -206,15 +252,17 @@ class DispatcherService:
                     "category_id": cat_id,
                     "topic": topic_title,
                     "assigned_employee_email": assigned_email,
+                    "language": target_language,
                     "status": "pending",
                     "is_auto_generated": True
                 }
 
                 ins_res = requests.post(f"{supabase_url}/rest/v1/topics_queue", json=payload, headers=headers, timeout=10)
                 if ins_res.status_code in [200, 201]:
-                    print(f"[Dispatcher Success] Dispatched topic: '{topic_title}' -> {assigned_email}")
+                    print(f"[Dispatcher Success] Dispatched topic: '{topic_title}' -> {assigned_email or 'UNASSIGNED'}")
                     # 할당자의 워크로드 가상 카운트 가중치 증가
-                    workloads[assigned_email] = workloads.get(assigned_email, 0) + 1
+                    if assigned_email:
+                        workloads[assigned_email] = workloads.get(assigned_email, 0) + 1
                 else:
                     print(f"[Dispatcher Error] DB insert failed for topic '{topic_title}': {ins_res.text}")
 

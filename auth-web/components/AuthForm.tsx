@@ -23,6 +23,13 @@ export default function AuthForm() {
     const [nationality, setNationality] = useState('');
     const [contact, setContact] = useState('');
     const [referrer, setReferrer] = useState('');
+    const [preferredLanguages, setPreferredLanguages] = useState<string[]>(['ko']);
+
+    const contentLanguageOptions = [
+        { value: 'ko', label: '한국어' },
+        { value: 'en', label: 'English' },
+        { value: 'ja', label: '日本語' },
+    ];
 
     useEffect(() => {
         setMounted(true);
@@ -65,6 +72,7 @@ export default function AuthForm() {
                 if (!fullName || !nationality || !contact) {
                     throw new Error('모든 필수 정보를 입력해주세요.');
                 }
+                const normalizedPreferredLanguages = preferredLanguages.length ? preferredLanguages : ['ko'];
 
                 const { error } = await supabase.auth.signUp({
                     email,
@@ -74,7 +82,8 @@ export default function AuthForm() {
                             full_name: fullName,
                             nationality: nationality,
                             contact: contact,
-                            referrer: referrer
+                            referrer: referrer,
+                            preferred_languages: normalizedPreferredLanguages
                         },
                         emailRedirectTo: `${window.location.origin}/dashboard`
                     }
@@ -190,6 +199,29 @@ export default function AuthForm() {
                                     value={contact}
                                     onChange={(e) => setContact(e.target.value)}
                                 />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 mb-2 ml-1 block uppercase tracking-wider">
+                                    제작 가능 언어
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {contentLanguageOptions.map(option => (
+                                        <label key={`signup-language-${option.value}`} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-bold text-gray-300 cursor-pointer hover:bg-white/10">
+                                            <input
+                                                type="checkbox"
+                                                checked={preferredLanguages.includes(option.value)}
+                                                onChange={(e) => setPreferredLanguages(current => {
+                                                    const next = e.target.checked
+                                                        ? Array.from(new Set([...current, option.value]))
+                                                        : current.filter(lang => lang !== option.value)
+                                                    return next.length ? next : ['ko']
+                                                })}
+                                            />
+                                            <span>{option.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         </>
                     )}

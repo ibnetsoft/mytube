@@ -6,6 +6,24 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const CONTENT_LANGUAGES = ['ko', 'en', 'ja'] as const;
+
+function normalizePreferredLanguages(value: any): string[] {
+    const raw = Array.isArray(value) ? value : [];
+    const normalized = raw
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter((item) => CONTENT_LANGUAGES.includes(item as any));
+    return normalized.length ? Array.from(new Set(normalized)) : ['ko'];
+}
+
+function isMissingColumnError(err: any): boolean {
+    if (!err) return false;
+    const code = String(err.code || '');
+    if (code === 'PGRST204' || code === '42703') return true;
+    const msg = String(err.message || '').toLowerCase();
+    return msg.includes('schema cache') || /could not find the .* column/.test(msg) || /column .* does not exist/.test(msg);
+}
+
 export async function POST(req: Request) {
     try {
         const { userId, metadata } = await req.json();
@@ -42,15 +60,26 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: updateError.message }, { status: 500 });
         }
 
-        // 3. Update profiles table in Supabase to sync persona fields
-        const { error: profileError } = await supabaseAdmin
+        // 3. Update profiles table in Supabase to sync persona/language fields
+        const profileUpdate: any = {
+            persona_name: metadata.persona_name || null,
+            persona_style: metadata.persona_style || null,
+            persona_description: metadata.persona_description || null,
+            preferred_languages: normalizePreferredLanguages(metadata.preferred_languages),
+        };
+        let { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .update({
-                persona_name: metadata.persona_name || null,
-                persona_style: metadata.persona_style || null,
-                persona_description: metadata.persona_description || null
-            })
+            .update(profileUpdate)
             .eq('id', userId);
+
+        if (isMissingColumnError(profileError)) {
+            const { preferred_languages: _preferredLanguages, ...fallbackProfileUpdate } = profileUpdate;
+            const retry = await supabaseAdmin
+                .from('profiles')
+                .update(fallbackProfileUpdate)
+                .eq('id', userId);
+            profileError = retry.error;
+        }
 
         if (profileError) {
             console.error('profiles sync error:', profileError);

@@ -54,6 +54,7 @@ async def start_autopilot_api(
                 # 요청에서 명시적으로 보내지 않은 필드만 프리셋 값으로 채움
                 field_map = {
                     "subtitle_settings": "subtitle_settings",
+                    "target_language":   "target_language",
                     "image_style":       "image_style",
                     "thumbnail_style":   "thumbnail_style",
                     "script_style":      "script_style",
@@ -89,7 +90,7 @@ async def start_autopilot_api(
          return {"status": "error", "error": "Topic (or keyword) is required"}
 
     # 3. Create Project & Get ID (Atomic)
-    pid = db.create_project(name=f"[Auto] {topic}", topic=topic, app_mode=req.mode)
+    pid = db.create_project(name=f"[Auto] {topic}", topic=topic, app_mode=req.mode, language=req.target_language)
 
     # 4. Save Initial Settings to DB
     db.update_project_setting(pid, "upload_privacy", req.upload_privacy)
@@ -114,6 +115,7 @@ async def start_autopilot_api(
     db.update_project_setting(pid, "use_character_analysis", "1" if req.use_character_analysis else "0")
     db.update_project_setting(pid, "video_engine", req.video_engine or "wan")
     db.update_project_setting(pid, "app_mode", req.mode)
+    db.update_project_setting(pid, "target_language", req.target_language)
     db.update_project_setting(pid, "shorts_template_preset", req.shorts_template_preset) 
     if req.char_ethnicity:
         db.update_project_setting(pid, "char_ethnicity", req.char_ethnicity)

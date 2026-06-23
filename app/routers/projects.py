@@ -677,6 +677,7 @@ async def generate_tts_scenes(project_id: int, req: SceneTTSRequest):
     """씬 분할 TTS 생성 (오토파일럿과 동일한 방식 — 수동 워크플로우용)"""
     try:
         from services import tts_service
+        from services.tts_service import default_voice_name_for_language, edge_voice_for_language, language_code_for_tts
         from config import config
         import os, uuid
 
@@ -685,14 +686,20 @@ async def generate_tts_scenes(project_id: int, req: SceneTTSRequest):
         if not image_prompts:
             raise HTTPException(400, "이미지 프롬프트(씬 목록)가 없습니다. 먼저 이미지 프롬프트를 생성하세요.")
 
-        # 2. 보이스 설정 결정 (요청 → DB 설정 → 기본값 순)
+        # 2. 보이스 설정 결정 (요청 → DB 설정 → 프로젝트 언어 기본값 순)
         p_settings = db.get_project_settings(project_id) or {}
-        provider = req.voice_provider or p_settings.get("voice_provider") or "elevenlabs"
+        project = db.get_project(project_id) or {}
+        target_language = p_settings.get("target_language") or project.get("language") or "ko"
+        provider = req.voice_provider or p_settings.get("voice_provider") or ("elevenlabs" if str(target_language).startswith("ko") else "gemini")
         voice_id = req.voice_id or p_settings.get("voice_id") or p_settings.get("voice_name")
         if provider == "elevenlabs" and not voice_id:
             voice_id = "4JJwo477JUAx3HV0T7n7"
+        if provider in ["gemini", "openai"] and not voice_id:
+            voice_id = default_voice_name_for_language(target_language)
+        if provider == "google_cloud" and not voice_id:
+            voice_id = language_code_for_tts(target_language)
         if not voice_id:
-            voice_id = "ko-KR-Neural2-A"
+            voice_id = edge_voice_for_language(target_language)
 
         sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         results = []
@@ -739,9 +746,9 @@ async def generate_tts_scenes(project_id: int, req: SceneTTSRequest):
                     if provider == "openai":
                         s_out = await tts_service.generate_openai(text, current_voice, model="tts-1", filename=scene_filename)
                     elif provider == "gemini":
-                        s_out = await tts_service.generate_gemini(text, current_voice, filename=scene_filename)
+                        s_out = await tts_service.generate_gemini(text, current_voice, language_code_for_tts(target_language), filename=scene_filename)
                     else:
-                        s_out = await tts_service.generate_google_cloud(text, current_voice, filename=scene_filename)
+                        s_out = await tts_service.generate_google_cloud(text, current_voice, language_code_for_tts(target_language), filename=scene_filename)
 
                     if s_out and os.path.exists(s_out):
                         try:

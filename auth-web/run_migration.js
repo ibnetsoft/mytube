@@ -28,9 +28,10 @@ CREATE TABLE IF NOT EXISTS public.categories (
     name TEXT NOT NULL,
     keywords TEXT,
     benchmark_channel_url TEXT,
-    assigned_employee_email TEXT NOT NULL,
+    assigned_employee_email TEXT,
     default_script_style TEXT DEFAULT 'default',
     default_image_style TEXT DEFAULT 'realistic',
+    language VARCHAR(5) DEFAULT 'ko',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -40,7 +41,8 @@ CREATE TABLE IF NOT EXISTS public.topics_queue (
     id SERIAL PRIMARY KEY,
     category_id INT REFERENCES public.categories(id) ON DELETE SET NULL,
     topic TEXT NOT NULL,
-    assigned_employee_email TEXT NOT NULL,
+    assigned_employee_email TEXT,
+    language VARCHAR(5) DEFAULT 'ko',
     status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'assigned' | 'completed'
     recommended_duration_minutes INT,
     assigned_duration_minutes INT,
@@ -62,17 +64,27 @@ CREATE TABLE IF NOT EXISTS public.topics_queue (
     completed_at TIMESTAMPTZ
 );
 
--- 3. profiles 테이블에 핀 번호 컬럼 추가 (PIN 4자리)
+-- 3. profiles 테이블에 핀 번호/선호 언어 컬럼 추가
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_schema='public' 
-        AND table_name='profiles' 
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema='public'
+        AND table_name='profiles'
         AND column_name='pin_code'
     ) THEN
         ALTER TABLE public.profiles ADD COLUMN pin_code VARCHAR(4) DEFAULT '1234';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema='public'
+        AND table_name='profiles'
+        AND column_name='preferred_languages'
+    ) THEN
+        ALTER TABLE public.profiles ADD COLUMN preferred_languages TEXT[] DEFAULT ARRAY['ko'::text];
     END IF;
 END $$;
 

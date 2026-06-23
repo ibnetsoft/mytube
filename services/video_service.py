@@ -1153,17 +1153,19 @@ class VideoService:
             if f_size <= 0:
                 print("DEBUG_RENDER: Subtitle font size 0 detected. Disabling subtitles.")
                 subtitles = []
-                
-            # [NEW] Disable subtitles for English mode
-            if s_settings.get("target_language") == "en":
-                print("DEBUG_RENDER: Target language is 'en'. Disabling English subtitles.")
-                subtitles = []
 
             print(f"DEBUG_RENDER: Font size: {font_size_percent}% → {f_size}px (target_h: {target_h}px, video.h: {video.h}px)")
-            
+
             # [FIX] Enhanced Settings Retrieval (Support both 'subtitle_' prefix and shorthand)
             f_color = s_settings.get("subtitle_base_color") or s_settings.get("font_color", "white")
             f_name = s_settings.get("subtitle_font") or s_settings.get("font", config.DEFAULT_FONT_PATH)
+            target_language = str(s_settings.get("target_language") or s_settings.get("language") or "ko").lower()
+            explicit_font = bool(s_settings.get("subtitle_font") or s_settings.get("font"))
+            if not explicit_font or f_name == config.DEFAULT_FONT_PATH:
+                if target_language.startswith("ja"):
+                    f_name = "NotoSansJP"
+                elif target_language.startswith("en"):
+                    f_name = "Roboto"
             s_style = s_settings.get("style_name", "Basic_White")
             
             s_stroke_color = s_settings.get("subtitle_stroke_color") or s_settings.get("stroke_color", "black")

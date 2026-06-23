@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     video_limit     INT  NOT NULL DEFAULT 50,           -- 월 생성 가능 영상 수
     current_usage   INT  NOT NULL DEFAULT 0,            -- 이번 달 사용량
     usage_reset_at  TIMESTAMPTZ DEFAULT date_trunc('month', NOW()) + INTERVAL '1 month',
+    preferred_languages TEXT[] DEFAULT ARRAY['ko'::text],
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
@@ -20,10 +21,23 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- 신규 가입 시 profiles 자동 생성 트리거
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    raw_preferred_languages TEXT[];
+    clean_preferred_languages TEXT[];
 BEGIN
-    INSERT INTO public.profiles (id, email)
-    VALUES (NEW.id, NEW.email)
-    ON CONFLICT (id) DO NOTHING;
+    SELECT ARRAY(
+        SELECT DISTINCT lang
+        FROM jsonb_array_elements_text(COALESCE(NEW.raw_user_meta_data->'preferred_languages', '["ko"]'::jsonb)) AS lang
+        WHERE lang IN ('ko', 'en', 'ja')
+    ) INTO raw_preferred_languages;
+
+    clean_preferred_languages := COALESCE(NULLIF(raw_preferred_languages, ARRAY[]::TEXT[]), ARRAY['ko'::TEXT]);
+
+    INSERT INTO public.profiles (id, email, preferred_languages)
+    VALUES (NEW.id, NEW.email, clean_preferred_languages)
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        preferred_languages = COALESCE(public.profiles.preferred_languages, EXCLUDED.preferred_languages);
     RETURN NEW;
 END;
 $$;
@@ -121,6 +135,13 @@ BEGIN
         ) THEN
             ALTER TABLE public.categories ADD COLUMN default_image_style TEXT DEFAULT 'realistic';
         END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'categories' AND column_name = 'language'
+        ) THEN
+            ALTER TABLE public.categories ADD COLUMN language VARCHAR(5) DEFAULT 'ko';
+        END IF;
     END IF;
 
     IF EXISTS (
@@ -140,6 +161,33 @@ BEGIN
         ) THEN
             ALTER TABLE public.topics_queue ADD COLUMN assigned_image_style TEXT DEFAULT 'realistic';
         END IF;
+
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'topics_queue' AND column_name = 'language'
+        ) THEN
+            ALTER TABLE public.topics_queue ADD COLUMN language VARCHAR(5) DEFAULT 'ko';
+        END IF;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'profiles'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'preferred_languages'
+        ) THEN
+            ALTER TABLE public.profiles ADD COLUMN preferred_languages TEXT[] DEFAULT ARRAY['ko'::text];
+        END IF;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'categories_language_check') THEN
+        ALTER TABLE public.categories ADD CONSTRAINT categories_language_check CHECK (language IN ('ko', 'en', 'ja'));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'topics_queue_language_check') THEN
+        ALTER TABLE public.topics_queue ADD CONSTRAINT topics_queue_language_check CHECK (language IN ('ko', 'en', 'ja'));
     END IF;
 END $$;
 

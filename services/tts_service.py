@@ -11,6 +11,41 @@ from dotenv import load_dotenv
 
 from config import config
 
+CONTENT_LANGUAGE_CONFIG = {
+    "ko": {"gtts_lang": "ko", "google_lang": "ko-KR", "edge_voice": "ko-KR-SunHiNeural", "default_voice_name": "Puck"},
+    "en": {"gtts_lang": "en", "google_lang": "en-US", "edge_voice": "en-US-JennyNeural", "default_voice_name": "Kore"},
+    "ja": {"gtts_lang": "ja", "google_lang": "ja-JP", "edge_voice": "ja-JP-NanamiNeural", "default_voice_name": "Kore"},
+}
+
+ELEVENLABS_DEFAULT_VOICE_ID = "4JJwo477JUAx3HV0T7n7"
+
+
+def normalize_content_language(value: str = None) -> str:
+    lang = (str(value or "").strip().lower() or "ko")
+    if lang.startswith("ko"):
+        return "ko"
+    if lang.startswith("en"):
+        return "en"
+    if lang.startswith("ja") or lang.startswith("jp"):
+        return "ja"
+    return "ko"
+
+
+def language_code_for_tts(value: str = None, provider: str = "google") -> str:
+    lang = normalize_content_language(value)
+    config_key = "gtts_lang" if provider == "gtts" else "google_lang"
+    return CONTENT_LANGUAGE_CONFIG[lang][config_key]
+
+
+def edge_voice_for_language(value: str = None) -> str:
+    lang = normalize_content_language(value)
+    return CONTENT_LANGUAGE_CONFIG[lang]["edge_voice"]
+
+
+def default_voice_name_for_language(value: str = None) -> str:
+    lang = normalize_content_language(value)
+    return CONTENT_LANGUAGE_CONFIG[lang]["default_voice_name"]
+
 # gTTS
 try:
     from gtts import gTTS

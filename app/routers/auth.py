@@ -92,6 +92,11 @@ def _to_int(value, default: int) -> int:
         return default
 
 
+def _normalize_content_language(value, default: str = "ko") -> str:
+    lang = (str(value or "").strip().lower() or default)
+    return lang if lang in {"ko", "en", "ja"} else default
+
+
 def _calculate_longform_payout(minutes: int, policy: dict) -> int:
     min_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
     base_pay = max(0, _to_int(policy.get("sys_api_longform_base_payout"), 10000))
@@ -472,6 +477,7 @@ async def get_daily_topic():
         category_image_style = None
         category_row = None
         category_video_type = "longform"
+        assigned_language = _normalize_content_language(item.get("language"))
         policy = _fetch_longform_policy(supabase_url, headers)
         min_duration_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
         assigned_duration_minutes = max(
@@ -497,6 +503,7 @@ async def get_daily_topic():
                     if cat_data:
                         category_row = cat_data[0]
                         category_video_type = category_row.get("video_type") or "longform"
+                        assigned_language = _normalize_content_language(item.get("language") or category_row.get("language"))
                         category_script_style = category_row.get("default_script_style")
                         category_image_style = category_row.get("default_image_style")
             except Exception as e:
@@ -524,7 +531,7 @@ async def get_daily_topic():
             name=topic_name,
             topic=topic_name,
             app_mode=category_video_type,
-            language="ko",
+            language=assigned_language,
             employee_email=email,
             script_style=assigned_script_style,
             image_style=assigned_image_style,
@@ -535,6 +542,7 @@ async def get_daily_topic():
 
         db.update_project_setting(project_id, "topic_queue_id", topic_id)
         db.update_project_setting(project_id, "topic_queue_category_id", category_id or "")
+        db.update_project_setting(project_id, "target_language", assigned_language)
         # AI가 정한 스타일을 워커가 임의로 바꾸지 못하도록 잠근다.
         db.update_project_setting(project_id, "style_locked", "1")
         if category_video_type == "longform":
@@ -555,7 +563,7 @@ async def get_daily_topic():
         except Exception as sync_err:
             print(f"[Queue API Warning] Failed to sync initial topic progress: {sync_err}")
 
-        return {"status": "success", "project_id": project_id, "topic": topic_name}
+        return {"status": "success", "project_id": project_id, "topic": topic_name, "language": assigned_language}
     except HTTPException:
         raise
     except Exception as e:

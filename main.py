@@ -1563,7 +1563,17 @@ async def tts_generate(req: TTSRequest):
     from services.tts_service import tts_service
 
     now_kst = config.get_kst_time()
-    
+    from services.tts_service import language_code_for_tts
+    if req.project_id and (not req.language or req.language == "ko-KR"):
+        try:
+            project = db.get_project(req.project_id) or {}
+            settings = db.get_project_settings(req.project_id) or {}
+            project_lang = settings.get("target_language") or project.get("language")
+            if project_lang:
+                req.language = language_code_for_tts(project_lang)
+        except Exception as lang_e:
+            print(f"[TTS] Language fallback warning: {lang_e}")
+
     # Provider별 확장자 설정
     # [FIX] Gemini는 현재 EdgeTTS(mp3)로 fallback되므로 mp3 사용
     ext = "mp3" # "wav" if req.provider == "gemini" else "mp3"
@@ -1839,7 +1849,7 @@ async def tts_generate(req: TTSRequest):
             # 5. gTTS (Default)
             else:
                 output_path = await tts_service.generate_gtts(
-                    req.text, req.language, result_filename
+                    req.text, language_code_for_tts(req.language, "gtts"), result_filename
                 )
 
         # 공통: DB 저장 및 리턴 처리

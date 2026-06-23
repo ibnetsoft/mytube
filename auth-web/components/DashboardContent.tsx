@@ -28,6 +28,7 @@ interface UserProfile {
         preferred_category_ids?: Array<number | string>
         preferred_category_names?: string[]
         preferred_video_length?: string
+        preferred_languages?: string[]
         pin_code?: string
         approved_hwid?: string
         device_hwid?: string
@@ -41,6 +42,7 @@ interface EditInfoFormState {
     full_name: string
     nationality: string
     contact: string
+    preferred_languages: string[]
     persona_name: string
     persona_style: string
     persona_description: string
@@ -93,6 +95,14 @@ interface LocalUploadChannel {
 
 const SUPER_ADMIN_EMAIL = 'ejsh0519@naver.com'
 const LOCAL_APP_ORIGINS = ['http://127.0.0.1:8001', 'http://localhost:8001']
+const CONTENT_LANGUAGE_OPTIONS = [
+    { value: 'ko', label: '한국어' },
+    { value: 'en', label: 'English' },
+    { value: 'ja', label: '日本語' },
+] as const
+
+const normalizeContentLanguage = (value: any) => CONTENT_LANGUAGE_OPTIONS.some(option => option.value === value) ? value : 'ko'
+const contentLanguageLabel = (value: any) => CONTENT_LANGUAGE_OPTIONS.find(option => option.value === normalizeContentLanguage(value))?.label || '한국어'
 
 const typeMap: Record<string, string> = {
     'video': 'VIDEO',
@@ -167,6 +177,7 @@ export default function DashboardContent() {
     const [newCatEmployee, setNewCatEmployee] = useState('')
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
+    const [newCatLanguage, setNewCatLanguage] = useState('ko')
     const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
     const [newCatUploadChannelId, setNewCatUploadChannelId] = useState<number | null>(null)
     const [newCatUploadChannelName, setNewCatUploadChannelName] = useState('')
@@ -195,6 +206,7 @@ export default function DashboardContent() {
         assigned_employee_email: '',
         default_script_style: 'default',
         default_image_style: 'realistic',
+        language: 'ko',
         video_type: 'longform',
         upload_channel_id: null as number | null,
         upload_channel_name: '',
@@ -221,6 +233,7 @@ export default function DashboardContent() {
         full_name: '',
         nationality: '',
         contact: '',
+        preferred_languages: ['ko'],
         persona_name: '',
         persona_style: '',
         persona_description: '',
@@ -618,6 +631,7 @@ export default function DashboardContent() {
                         ...(editInfoForm.full_name  && { full_name:   editInfoForm.full_name }),
                         ...(editInfoForm.nationality && { nationality: editInfoForm.nationality }),
                         ...(editInfoForm.contact    && { contact:     editInfoForm.contact }),
+                        preferred_languages: editInfoForm.preferred_languages?.length ? editInfoForm.preferred_languages : ['ko'],
                         persona_name: editInfoForm.persona_name || '',
                         persona_style: editInfoForm.persona_style || '',
                         persona_description: editInfoForm.persona_description || ''
@@ -632,6 +646,7 @@ export default function DashboardContent() {
                         user_metadata: { ...u.user_metadata, ...editInfoForm },
                         profile: {
                             ...u.profile,
+                            preferred_languages: editInfoForm.preferred_languages?.length ? editInfoForm.preferred_languages : ['ko'],
                             persona_name: editInfoForm.persona_name || '',
                             persona_style: editInfoForm.persona_style || '',
                             persona_description: editInfoForm.persona_description || ''
@@ -1110,6 +1125,7 @@ export default function DashboardContent() {
                     assigned_employee_email: newCatEmployee || null,
                     default_script_style: newCatScriptStyle || 'default',
                     default_image_style: newCatImageStyle || 'realistic',
+                    language: normalizeContentLanguage(newCatLanguage),
                     video_type: newCatVideoType,
                     upload_channel_id: newCatUploadChannelId,
                     upload_channel_name: newCatUploadChannelName,
@@ -1124,6 +1140,7 @@ export default function DashboardContent() {
                 setNewCatEmployee('')
                 setNewCatScriptStyle('default')
                 setNewCatImageStyle('realistic')
+                setNewCatLanguage('ko')
                 setNewCatVideoType('longform')
                 setNewCatUploadChannelId(null)
                 setNewCatUploadChannelName('')
@@ -1695,6 +1712,21 @@ export default function DashboardContent() {
                                     </p>
                                 </div>
                                 <div>
+                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">콘텐츠 언어 *</label>
+                                    <select
+                                        required
+                                        value={newCatLanguage}
+                                        onChange={e => setNewCatLanguage(normalizeContentLanguage(e.target.value))}
+                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                                    >
+                                        {CONTENT_LANGUAGE_OPTIONS.map(option => (
+                                            <option key={`new-cat-language-${option.value}`} value={option.value} className="bg-[#111] text-white">
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">영상 형식 (필수) *</label>
                                     <div className="flex gap-4 mt-2 bg-black/40 border border-white/10 rounded-xl px-4 py-3">
                                         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
@@ -1847,6 +1879,7 @@ export default function DashboardContent() {
                                                                         assigned_employee_email: cat.assigned_employee_email || '',
                                                                         default_script_style: cat.default_script_style || 'default',
                                                                         default_image_style: cat.default_image_style || 'realistic',
+                                                                        language: normalizeContentLanguage(cat.language),
                                                                         video_type: cat.video_type || 'longform',
                                                                         upload_channel_id: cat.upload_channel_id || null,
                                                                         upload_channel_name: cat.upload_channel_name || '',
@@ -1882,6 +1915,7 @@ export default function DashboardContent() {
                                                     </p>
                                                         <p>대본 스타일: <strong className="text-gray-200">{cat.default_script_style || '기본'}</strong></p>
                                                         <p>이미지 스타일: <strong className="text-gray-200">{cat.default_image_style || '실사'}</strong></p>
+                                                        <p>콘텐츠 언어: <strong className="text-gray-200">{contentLanguageLabel(cat.language)}</strong></p>
                                                         <p>영상 포맷: <strong className="text-gray-200">{cat.video_type === 'shorts' ? '쇼츠 (Shorts)' : '롱폼 (Longform)'}</strong></p>
                                                     </div>
                                                      
@@ -2228,6 +2262,9 @@ export default function DashboardContent() {
                                                                                     CLIP {topicVideoClipRatio(item)}
                                                                                 </span>
                                                                             )}
+                                                                            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-300">
+                                                                                LANG {contentLanguageLabel(item.language || item.categories?.language)}
+                                                                            </span>
                                                                             {item.assigned_script_style && (
                                                                                 <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-300">
                                                                                     SCRIPT {item.assigned_script_style}
@@ -2662,6 +2699,7 @@ export default function DashboardContent() {
                                     <th className="px-6 py-5 whitespace-nowrap">국적</th>
                                     <th className="px-6 py-5 whitespace-nowrap">선호 카테고리</th>
                                     <th className="px-6 py-5 whitespace-nowrap">선호 길이</th>
+                                    <th className="px-6 py-5 whitespace-nowrap">제작 언어</th>
                                     <th className="px-6 py-5 whitespace-nowrap">추천인</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">토큰</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">멤버십</th>
@@ -2732,6 +2770,15 @@ export default function DashboardContent() {
                                                 <span className="text-gray-700">-</span>
                                             )}
                                         </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                                                {(u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko']).map(lang => (
+                                                    <span key={`${u.id}-lang-${lang}`} className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-bold">
+                                                        {contentLanguageLabel(lang)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </td>
                                         {/* 추천인 */}
                                         <td className="px-6 py-5 text-sm whitespace-nowrap">
                                             {u.user_metadata?.referrer
@@ -2767,7 +2814,7 @@ export default function DashboardContent() {
                                                     {u.profile?.is_approved ? '대기전환' : '승인'}
                                                 </button>
                                                 <button onClick={() => handleRecharge(u.id)} className="px-3 py-1.5 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-xs font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
-                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-3 py-1.5 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-xs font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
+                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', preferred_languages: u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko'], persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-3 py-1.5 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-xs font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
                                                 <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-xs font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
                                                 {u.app_metadata?.membership?.toLowerCase() === 'pro' && (
                                                     <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-3 py-1.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-xs font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
@@ -3434,6 +3481,28 @@ export default function DashboardContent() {
                                 <input value={editInfoForm.contact} onChange={e => setEditInfoForm(p => ({ ...p, contact: e.target.value }))}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="연락처 입력" />
                             </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-2">제작 가능 언어</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {CONTENT_LANGUAGE_OPTIONS.map(option => (
+                                        <label key={`edit-user-language-${option.value}`} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-bold text-gray-200 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={editInfoForm.preferred_languages.includes(option.value)}
+                                                onChange={e => setEditInfoForm(p => {
+                                                    const current = p.preferred_languages || []
+                                                    const next = e.target.checked
+                                                        ? Array.from(new Set([...current, option.value]))
+                                                        : current.filter(lang => lang !== option.value)
+                                                    return { ...p, preferred_languages: next.length ? next : ['ko'] }
+                                                })}
+                                                className="accent-yellow-400"
+                                            />
+                                            <span>{option.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
                             <div className="border-t border-white/10 my-2 pt-2">
                                 <div className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-2">🤖 AI 작가 페르소나 설정</div>
                             </div>
@@ -3628,6 +3697,20 @@ export default function DashboardContent() {
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
                                     placeholder="?좏뒠釉?梨꾨꼸 二쇱냼" 
                                 />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">콘텐츠 언어</label>
+                                <select
+                                    value={editCatForm.language}
+                                    onChange={e => setEditCatForm(p => ({ ...p, language: normalizeContentLanguage(e.target.value) }))}
+                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                                >
+                                    {CONTENT_LANGUAGE_OPTIONS.map(option => (
+                                        <option key={`edit-cat-language-${option.value}`} value={option.value} className="bg-[#111] text-white">
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">기본 대본 스타일</label>

@@ -32,6 +32,55 @@ const IMAGE_STYLE_KEYS = [
 
 const DEFAULT_SCRIPT_STYLE = 'default'
 const DEFAULT_IMAGE_STYLE = 'realistic'
+const CONTENT_LANGUAGES = ['ko', 'en', 'ja'] as const
+
+type ContentLanguage = typeof CONTENT_LANGUAGES[number]
+
+function normalizeContentLanguage(value: any): ContentLanguage {
+    const lang = String(value || '').trim().toLowerCase()
+    return CONTENT_LANGUAGES.includes(lang as ContentLanguage) ? lang as ContentLanguage : 'ko'
+}
+
+function contentLanguageLabel(value: any): string {
+    const lang = normalizeContentLanguage(value)
+    return lang === 'en' ? 'English' : lang === 'ja' ? '日本語' : '한국어'
+}
+
+function topicLanguageInstruction(targetLang: ContentLanguage): string {
+    if (targetLang === 'en') {
+        return `
+        LANGUAGE REQUIREMENTS:
+        - All output fields, especially "topic" and "duration_reason", MUST be written in natural, fluent English.
+        - Do not mix Korean or Japanese into the topic title unless it is a proper noun that must remain untranslated.
+        - Title examples: "The Untold Mystery of the Joseon Dynasty", "5 Life-Changing Money Habits of Self-Made Millionaires".
+        `
+    }
+    if (targetLang === 'ja') {
+        return `
+        LANGUAGE REQUIREMENTS:
+        - All output fields, especially "topic" and "duration_reason", MUST be written in natural Japanese.
+        - Use polished Japanese phrasing suitable for YouTube titles; avoid Korean sentence fragments.
+        - Title examples: "日本史を揺るがした本能寺の変の真実", "50代から始める、後悔しない人生設計のコツ".
+        `
+    }
+    return `
+        LANGUAGE REQUIREMENTS:
+        - 모든 출력 필드, 특히 "topic"과 "duration_reason"은 자연스럽고 흥미로운 한국어로 작성되어야 합니다.
+        - 예시: "조선 왕조를 뒤흔든 숨겨진 비화", "평생 고생한 자식에게 전하는 눈물 나는 인생 조언".
+        `
+}
+
+function isMissingColumnError(err: any): boolean {
+    if (!err) return false
+    const code = String(err.code || '')
+    if (code === 'PGRST204' || code === '42703') return true
+    const msg = String(err.message || '').toLowerCase()
+    return (
+        msg.includes('schema cache') ||
+        /could not find the .* column/.test(msg) ||
+        /column .* does not exist/.test(msg)
+    )
+}
 
 function pickValidStyle(value: any, allowed: string[], fallback: string): string {
     const key = String(value ?? '').trim()
@@ -85,13 +134,26 @@ type PreferredWorker = {
     email: string
     preferredCategoryIds: string[]
     preferredVideoLength: string
+    preferredLanguages: ContentLanguage[]
     activeLoad: number
 }
 
 async function loadPreferredWorkers(supabase: ReturnType<typeof getAdmin>): Promise<PreferredWorker[]> {
-    const { data: profiles, error: profilesError } = await supabase
+    let profiles: any[] | null = null
+    let profilesError: any = null
+    const initial = await supabase
         .from('profiles')
-        .select('email,is_approved,preferred_category_ids,preferred_video_length')
+        .select('email,is_approved,preferred_category_ids,preferred_video_length,preferred_languages')
+    profiles = initial.data as any[] | null
+    profilesError = initial.error
+
+    if (isMissingColumnError(profilesError)) {
+        const retry = await supabase
+            .from('profiles')
+            .select('email,is_approved,preferred_category_ids,preferred_video_length')
+        profiles = retry.data as any[] | null
+        profilesError = retry.error
+    }
 
     if (profilesError) throw profilesError
 
@@ -113,10 +175,17 @@ async function loadPreferredWorkers(supabase: ReturnType<typeof getAdmin>): Prom
         .filter((profile: any) => profile?.email && profile?.is_approved === true)
         .map((profile: any) => {
             const email = String(profile.email || '').trim().toLowerCase()
+            const rawLanguages = Array.isArray(profile.preferred_languages)
+                ? profile.preferred_languages
+                : toStringArray(profile.preferred_languages)
+            const preferredLanguages = rawLanguages
+                .map(normalizeContentLanguage)
+                .filter((lang: ContentLanguage, index: number, arr: ContentLanguage[]) => arr.indexOf(lang) === index)
             return {
                 email,
                 preferredCategoryIds: toStringArray(profile.preferred_category_ids),
                 preferredVideoLength: String(profile.preferred_video_length || '').trim(),
+                preferredLanguages: preferredLanguages.length ? preferredLanguages : ['ko'],
                 activeLoad: loadMap.get(email) || 0,
             }
         })
@@ -127,17 +196,26 @@ function pickPreferredWorker(
     fallbackEmail: string,
     categoryId: any,
     durationMinutes: number | null,
-    isLongformCategory: boolean
+    isLongformCategory: boolean,
+    targetLanguage: ContentLanguage = 'ko'
 ): PreferredWorker | null {
     const fallback = String(fallbackEmail || '').trim().toLowerCase()
     const targetCategoryId = String(categoryId ?? '').trim()
-    if (!targetCategoryId) return null
-
-    const categoryMatched = workers.filter((worker) => worker.preferredCategoryIds.includes(targetCategoryId))
-    if (!categoryMatched.length) return null
-
     const targetBucket = isLongformCategory ? durationPreferenceBucket(durationMinutes) : ''
-    const ranked = [...categoryMatched].sort((a, b) => {
+    const languageMatchedWorkers = workers.filter((worker) => worker.preferredLanguages.includes(targetLanguage))
+
+    // 언어 지원자가 없으면 오배정을 막기 위해 미배정 상태로 둔다.
+    if (!languageMatchedWorkers.length) return null
+
+    const designated = fallback ? languageMatchedWorkers.find((worker) => worker.email === fallback) : null
+    if (designated) return designated
+
+    const categoryMatched = targetCategoryId
+        ? languageMatchedWorkers.filter((worker) => worker.preferredCategoryIds.includes(targetCategoryId))
+        : []
+    const candidates = categoryMatched.length ? categoryMatched : languageMatchedWorkers
+
+    const ranked = [...candidates].sort((a, b) => {
         const aDurationRank = !isLongformCategory
             ? 0
             : a.preferredVideoLength === targetBucket
@@ -173,8 +251,11 @@ function normalizeTopicQueueRow(topic: any) {
     const fallbackRatio = totalScenes > 0 ? `${videoScenes}/${totalScenes}` : null
     const videoClipRatio = String(topic?.video_clip_ratio || assetMix?.video_clip_ratio || fallbackRatio || '').trim()
 
+    const language = normalizeContentLanguage(topic?.language || topic?.categories?.language)
     return {
         ...topic,
+        language,
+        language_label: contentLanguageLabel(language),
         total_scenes: totalScenes,
         video_scenes: videoScenes,
         image_scenes: imageScenes,
@@ -206,28 +287,7 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        let topics = data || []
-
-        // 카테고리 담당자 정보가 정답이다. 오래된 topics_queue row가 다른 이메일을 들고 있으면
-        // 관리자 화면과 실제 배당 기준이 어긋나므로 조회 시 자동으로 보정한다.
-        const mismatchedTopics = topics.filter((topic: any) => {
-            const categoryEmail = topic.categories?.assigned_employee_email
-            return categoryEmail && topic.assigned_employee_email !== categoryEmail
-        })
-
-        await Promise.all(
-            mismatchedTopics.map((topic: any) =>
-                supabase
-                    .from('topics_queue')
-                    .update({ assigned_employee_email: topic.categories.assigned_employee_email })
-                    .eq('id', topic.id)
-            )
-        )
-
-        topics = topics.map((topic: any) => normalizeTopicQueueRow({
-            ...topic,
-            assigned_employee_email: topic.categories?.assigned_employee_email || topic.assigned_employee_email
-        }))
+        let topics = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
 
         if (email) {
             topics = topics.filter((topic: any) => topic.assigned_employee_email === email)
@@ -294,6 +354,7 @@ export async function POST(req: Request) {
         const extraMinutePayout = Math.max(0, toInt(policy.sys_api_longform_extra_minute_payout, 500))
         const durationLockEnabled = String(policy.sys_api_longform_duration_lock_enabled ?? 'true') !== 'false'
         const isLongformCategory = (category.video_type || 'longform') === 'longform'
+        const targetLang = normalizeContentLanguage(category.language)
         const preferredWorkers = await loadPreferredWorkers(supabase)
 
         console.log(`Running AI Auto-Topic Generator for category: ${category.name}`);
@@ -312,17 +373,20 @@ export async function POST(req: Request) {
         You are an expert YouTube Content Planner.
         Today's date in Korea is ${currentDateKst}.
         The current year is ${currentYearKst}.
+        Target content language: ${contentLanguageLabel(targetLang)} (${targetLang}).
         Category Name: ${category.name}
         Keywords: ${category.keywords}
         Benchmark Channel: ${category.benchmark_channel_url}
 
         Generate exactly 10 high-performance, viral, click-worthy video topics for YouTube Shorts or Longform videos based on the category name, keywords, and benchmark references.
-        
+
+        ${topicLanguageInstruction(targetLang)}
+
         CRITICAL GUIDELINES:
         - The generated topics MUST be the actual titles or subjects of the video itself (e.g., actual traditional folktales, historical anecdotes, heartwarming life stories, legends) that the target viewers will watch and listen to directly.
-        - NEVER generate meta-topics, channel marketing strategies, target audience analysis, or video production tips (e.g., DO NOT generate topics like "조회수 터지는 옛날이야기 채널, 진짜 타겟은 누구일까?" or "유튜브 쇼츠 조회수 올리는 법").
-        - If the category is about storytelling, history, or old stories, generate actual compelling story titles or narrative topics (e.g., "은혜 갚은 호랑이와 나무꾼의 슬픈 사연", "조선 시대 백성들을 울린 희대의 판결", "평생 고생한 자식에게 전하는 눈물 나는 인생 조언").
-        
+        - NEVER generate meta-topics, channel marketing strategies, target audience analysis, or video production tips.
+        - If the category is about storytelling, history, or old stories, generate actual compelling story titles or narrative topics.
+
         - For finance, economy, investment, stock, real-estate, news, current-affairs, and trend-sensitive categories, use the present-time context of ${currentYearKst}.
         - If a year is mentioned in a current-affairs or market topic, prefer ${currentYearKst}. Do not generate stale present-tense titles anchored to 2024 or 2025 unless the topic is explicitly retrospective or historical.
         - If the input keywords contain older years, treat them only as weak reference context and rewrite the final title so it matches ${currentYearKst}.
@@ -345,16 +409,16 @@ export async function POST(req: Request) {
         - If unsure, use "${DEFAULT_SCRIPT_STYLE}" for script_style and "${DEFAULT_IMAGE_STYLE}" for image_style.
         - Use ONLY the exact keys from the lists above. Never invent new style keys.
 
-        Provide the output in Korean as JSON, with absolutely no markdown formatting.
+        Provide the output as JSON, with absolutely no markdown formatting.
         ${isLongformCategory ? `
         Return a JSON list of objects with keys: topic, recommended_duration_minutes, difficulty_level, duration_reason, script_style, image_style.
         Example output format:
         [
           {
-            "topic": "첫 번째 실제 동영상 주제",
+            "topic": "${targetLang === 'en' ? 'The Untold Story That Changed a Family Forever' : targetLang === 'ja' ? '家族の運命を変えた、知られざる物語' : '첫 번째 실제 동영상 주제'}",
             "recommended_duration_minutes": 20,
             "difficulty_level": "normal",
-            "duration_reason": "스토리의 깊이와 역사적 배경 설명이 필요한 주제",
+            "duration_reason": "${targetLang === 'en' ? 'The topic needs enough time for background and emotional payoff.' : targetLang === 'ja' ? '背景説明と感情の盛り上がりに十分な尺が必要なため。' : '스토리의 깊이와 배경 설명이 필요한 주제'}",
             "script_style": "story",
             "image_style": "cinematic"
           }
@@ -364,7 +428,7 @@ export async function POST(req: Request) {
         Example output format:
         [
           {
-            "topic": "첫 번째 실제 동영상 주제",
+            "topic": "${targetLang === 'en' ? 'A Short Story You Will Never Forget' : targetLang === 'ja' ? '忘れられない短い物語' : '첫 번째 실제 동영상 주제'}",
             "script_style": "default",
             "image_style": "realistic"
           }
@@ -412,9 +476,10 @@ export async function POST(req: Request) {
                 category.assigned_employee_email,
                 category.id,
                 geminiDuration,
-                isLongformCategory
+                isLongformCategory,
+                targetLang
             )
-            const assignedEmployeeEmail = worker?.email || String(category.assigned_employee_email || '').trim().toLowerCase() || null
+            const assignedEmployeeEmail = worker?.email || null
 
             const assignedDuration = (isLongformCategory && geminiDuration != null)
                 ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)
@@ -429,6 +494,7 @@ export async function POST(req: Request) {
                 assigned_employee_email: assignedEmployeeEmail,
                 assigned_script_style: assignedScriptStyle,
                 assigned_image_style: assignedImageStyle,
+                language: targetLang,
                 status: 'pending',
                 ...(isLongformCategory ? {
                     recommended_duration_minutes: assignedDuration,
@@ -451,22 +517,8 @@ export async function POST(req: Request) {
             .insert(inserts)
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
-        // 기존 정규식은 "duration"/"style" 같은 단어가 들어간 무관한 오류까지 잡아 데이터를 누락시켰다.
-        // PostgREST 스키마 캐시 누락(PGRST204) / Postgres undefined_column(42703) / 명시적 컬럼 부재 메시지만 매칭한다.
-        const isMissingColumnError = (err: any): boolean => {
-            if (!err) return false
-            const code = String(err.code || '')
-            if (code === 'PGRST204' || code === '42703') return true
-            const msg = String(err.message || '').toLowerCase()
-            return (
-                msg.includes('schema cache') ||
-                /could not find the .* column/.test(msg) ||
-                /column .* does not exist/.test(msg)
-            )
-        }
-
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
@@ -634,7 +686,7 @@ export async function PATCH(req: Request) {
         const batchLimit = Math.max(1, Math.min(100, toInt(limit, 50)))
         let query = supabase
             .from('topics_queue')
-            .select('id, topic, category_id, assigned_script_style, assigned_image_style, categories(name, keywords)')
+            .select('id, topic, category_id, language, assigned_script_style, assigned_image_style, categories(name, keywords, language)')
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
             .limit(batchLimit)
@@ -664,7 +716,7 @@ Fallback style: ${fallbackStyle}
 
 Rules:
 - Choose exactly one allowed key for each topic.
-- Match the topic's mood, era, genre, and target audience.
+- Match the topic's mood, era, genre, target audience, and content language.
 - If uncertain, use the fallback style.
 - Do not invent style keys.
 
@@ -672,7 +724,8 @@ Topics:
 ${topics.map((item: any, index: number) => {
             const category = item.categories?.name || ''
             const keywords = item.categories?.keywords || ''
-            return `${index + 1}. id=${item.id}; category=${category}; keywords=${keywords}; topic=${item.topic}`
+            const lang = normalizeContentLanguage(item.language || item.categories?.language)
+            return `${index + 1}. id=${item.id}; language=${contentLanguageLabel(lang)}; category=${category}; keywords=${keywords}; topic=${item.topic}`
         }).join('\n')}
 
 Return format:

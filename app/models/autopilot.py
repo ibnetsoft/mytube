@@ -6,6 +6,7 @@ class AutoPilotStartRequest(BaseModel):
     topic: Optional[str] = None
     preset_id: Optional[int] = None
     mode: str = "longform"
+    target_language: str = "ko"
     image_style: str = "realistic"
     thumbnail_style: str = "face"
     video_scene_count: int = 10

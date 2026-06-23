@@ -1486,8 +1486,23 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     """새 프로젝트 생성 + 기본 설정 초기화"""
     # DB 연결 전에 외부 설정값 미리 조회 (트랜잭션 중 별도 connection 방지)
     from services.settings_service import settings_service
+    from services.tts_service import default_voice_name_for_language, language_code_for_tts
     defaults = settings_service.get_gemini_tts_settings()
     sub_defaults = get_subtitle_defaults()
+    language = (str(language or 'ko').strip().lower() or 'ko')
+    if language.startswith('en'):
+        language = 'en'
+    elif language.startswith('ja') or language.startswith('jp'):
+        language = 'ja'
+    elif not language.startswith('ko'):
+        language = 'ko'
+    else:
+        language = 'ko'
+    default_voice_name = default_voice_name_for_language(language)
+    default_voice_language = language_code_for_tts(language)
+    settings_language = str(defaults.get("language_code") or "").lower()
+    settings_voice_name = defaults.get("voice_name") if settings_language.startswith(language) else None
+    default_voice_provider = 'elevenlabs' if language == 'ko' else 'gemini'
 
     conn = get_db()
     cursor = conn.cursor()
@@ -1513,15 +1528,15 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
            (project_id, title, voice_name, voice_language, voice_style_prompt,
             subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
             subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode,
-            script_style, image_style)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (project_id, name, defaults.get("voice_name", "Puck"),
-         defaults.get("language_code", "ko-KR"), defaults.get("style_prompt", ""),
+            target_language, script_style, image_style)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (project_id, name, settings_voice_name or default_voice_name,
+         default_voice_language, defaults.get("style_prompt", ""),
          initial_font, sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
          sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
-         1, 0, 'elevenlabs', 1.0, 0, app_mode,
-         script_style or 'default', image_style or 'realistic') # Default styles if not provided
+         1, 0, default_voice_provider, 1.0, 0, app_mode,
+         language, script_style or 'default', image_style or 'realistic') # Default styles if not provided
     )
 
     conn.commit()
