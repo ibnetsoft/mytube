@@ -2713,141 +2713,143 @@ export default function DashboardContent() {
                             <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">회원 관리 리스트</h3>
                             <button onClick={fetchUsers} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-sm font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
                         </div>
-                        <table className="w-full text-left">
-                            <thead className="bg-black/30 border-b border-white/20 text-sm font-black text-gray-400 uppercase tracking-widest">
-                                <tr>
-                                    <th className="px-6 py-5 whitespace-nowrap w-24">이름</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">이메일 / 등급</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">연락처</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">국적</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">선호 카테고리</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">선호 길이</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">제작 언어</th>
-                                    <th className="px-6 py-5 whitespace-nowrap">추천인</th>
-                                    <th className="px-6 py-5 text-center whitespace-nowrap">토큰</th>
-                                    <th className="px-6 py-5 text-center whitespace-nowrap">멤버십</th>
-                                    <th className="px-6 py-5 text-center whitespace-nowrap">가입 / 최근접속</th>
-                                    <th className="px-6 py-5 text-center whitespace-nowrap">USDT 잔액</th>
-                                    <th className="px-6 py-5 text-center whitespace-nowrap">관리</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/20">
-                                {users.map(u => (
-                                    <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
-                                        {/* 이름 */}
-                                        <td className="px-6 py-5 w-24">
-                                            <div className="font-black text-white text-sm whitespace-nowrap truncate w-24" title={u.user_metadata?.full_name}>{u.user_metadata?.full_name || <span className="text-gray-600 italic">없음</span>}</div>
-                                        </td>
-                                        {/* 이메일 / 관리자 등급 */}
-                                        <td className="px-6 py-5 max-w-[160px]">
-                                            <div className="font-bold text-blue-400 text-sm tracking-tight truncate" title={u.email}>{u.email?.toLowerCase()}</div>
-                                            <div className="flex gap-1 mt-1 flex-wrap">
-                                                {u.email === SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-blue-600 text-xs font-black rounded text-white">최고관리자</span>}
-                                                {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-2 py-0.5 bg-indigo-500 text-xs font-black rounded text-white">부관리자</span>}
-                                                <span className={`px-2 py-0.5 text-xs font-black rounded border ${u.profile?.is_approved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
-                                                    {u.profile?.is_approved ? '승인됨' : '승인대기'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        {/* 연락처 */}
-                                        <td className="px-6 py-5 text-sm text-gray-300 font-bold whitespace-nowrap">
-                                            {u.user_metadata?.contact || <span className="text-gray-700">-</span>}
-                                        </td>
-                                        {/* 국적 */}
-                                        <td className="px-6 py-5 text-sm text-gray-300 font-bold whitespace-nowrap">
-                                            {u.user_metadata?.nationality || <span className="text-gray-700">-</span>}
-                                        </td>
-                                        <td className="px-6 py-5">
-                                            {u.profile?.preferred_category_names?.length ? (
-                                                <div className="flex flex-wrap gap-1 max-w-[220px]">
-                                                    {u.profile.preferred_category_names.slice(0, 2).map((category) => (
-                                                        <span
-                                                            key={`${u.id}-${category}`}
-                                                            className="px-2 py-1 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-xs font-bold"
-                                                        >
-                                                            {category}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left table-auto">
+                                <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-wider">
+                                    <tr>
+                                        <th className="px-3 py-4.5 whitespace-nowrap w-20">이름</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">이메일 / 등급</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">연락처</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">국적</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">선호 카테고리</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">선호 길이</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">제작 언어</th>
+                                        <th className="px-3 py-4.5 whitespace-nowrap">추천인</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">토큰</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">멤버십</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">가입 / 최근접속</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">USDT 잔액</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/10">
+                                    {users.map(u => (
+                                        <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
+                                            {/* 이름 */}
+                                            <td className="px-3 py-3 w-20">
+                                                <div className="font-black text-white text-xs whitespace-nowrap truncate w-20" title={u.user_metadata?.full_name}>{u.user_metadata?.full_name || <span className="text-gray-600 italic text-[11px]">없음</span>}</div>
+                                            </td>
+                                            {/* 이메일 / 관리자 등급 */}
+                                            <td className="px-3 py-3 max-w-[140px]">
+                                                <div className="font-bold text-blue-400 text-xs tracking-tight truncate" title={u.email}>{u.email?.toLowerCase()}</div>
+                                                <div className="flex gap-1 mt-1 flex-wrap">
+                                                    {u.email === SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-blue-600 text-[9px] font-black rounded text-white">최고관리자</span>}
+                                                    {u.app_metadata?.is_admin && u.email !== SUPER_ADMIN_EMAIL && <span className="px-1.5 py-0.5 bg-indigo-500 text-[9px] font-black rounded text-white">부관리자</span>}
+                                                    <span className={`px-1.5 py-0.5 text-[9px] font-black rounded border ${u.profile?.is_approved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
+                                                        {u.profile?.is_approved ? '승인됨' : '승인대기'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            {/* 연락처 */}
+                                            <td className="px-3 py-3 text-xs text-gray-300 font-bold whitespace-nowrap">
+                                                {u.user_metadata?.contact || <span className="text-gray-700">-</span>}
+                                            </td>
+                                            {/* 국적 */}
+                                            <td className="px-3 py-3 text-xs text-gray-300 font-bold whitespace-nowrap">
+                                                {u.user_metadata?.nationality || <span className="text-gray-700">-</span>}
+                                            </td>
+                                            <td className="px-3 py-3">
+                                                {u.profile?.preferred_category_names?.length ? (
+                                                    <div className="flex flex-wrap gap-1 max-w-[180px]">
+                                                        {u.profile.preferred_category_names.slice(0, 2).map((category) => (
+                                                            <span
+                                                                key={`${u.id}-${category}`}
+                                                                className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-bold"
+                                                            >
+                                                                {category}
+                                                            </span>
+                                                        ))}
+                                                        {u.profile.preferred_category_names.length > 2 && (
+                                                            <span className="px-1.5 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10 text-[10px] font-bold">
+                                                                +{u.profile.preferred_category_names.length - 2}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-700">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-3 whitespace-nowrap">
+                                                {u.profile?.preferred_video_length ? (
+                                                    <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20 text-[10px] font-bold">
+                                                        {u.profile.preferred_video_length === '15m'
+                                                            ? '15m'
+                                                            : u.profile.preferred_video_length === '30m'
+                                                                ? '30m'
+                                                                : u.profile.preferred_video_length === '60m_plus'
+                                                                    ? '60m+'
+                                                                    : u.profile.preferred_video_length}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-700">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-3">
+                                                <div className="flex flex-wrap gap-1 max-w-[140px]">
+                                                    {(u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko']).map(lang => (
+                                                        <span key={`${u.id}-lang-${lang}`} className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold">
+                                                            {contentLanguageLabel(lang)}
                                                         </span>
                                                     ))}
-                                                    {u.profile.preferred_category_names.length > 2 && (
-                                                        <span className="px-2 py-1 rounded-md bg-white/5 text-gray-400 border border-white/10 text-xs font-bold">
-                                                            +{u.profile.preferred_category_names.length - 2}
-                                                        </span>
+                                                </div>
+                                            </td>
+                                            {/* 추천인 */}
+                                            <td className="px-3 py-3 text-xs whitespace-nowrap">
+                                                {u.user_metadata?.referrer
+                                                    ? <span className="text-yellow-400 font-bold">{u.user_metadata.referrer}</span>
+                                                    : <span className="text-gray-700">-</span>}
+                                            </td>
+                                            {/* 보유 토큰 */}
+                                            <td className="px-3 py-3 text-center font-black text-white text-sm tabular-nums whitespace-nowrap">
+                                                {u.profile?.token_balance?.toLocaleString() || 0}
+                                            </td>
+                                            {/* 멤버십 */}
+                                            <td className="px-3 py-3 text-center">
+                                                <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-2 py-1 rounded-lg text-[10px] font-black border uppercase tracking-wider transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
+                                                    {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? 'PRO' : '스탠다드'}
+                                                </button>
+                                            </td>
+                                            {/* 가입 / 최근접속 */}
+                                            <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                <div className="text-[11px] font-bold text-gray-400 mb-0.5" title="가입일">{formatDate(u.created_at)}</div>
+                                                <div className="text-[9px] font-bold text-gray-600" title="최근접속">{formatDate(u.last_sign_in_at)}</div>
+                                            </td>
+                                            {/* USDT 잔액 */}
+                                            <td className="px-3 py-3 text-center font-black text-emerald-300 text-sm tabular-nums whitespace-nowrap">
+                                                {Number(u.profile?.usdt_balance || 0).toLocaleString()}
+                                            </td>
+                                            {/* 관리 메뉴 */}
+                                            <td className="px-3 py-3">
+                                                <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto">
+                                                    {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
+                                                        <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-2 py-1 rounded text-[10px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
+                                                    )}
+                                                    <button onClick={() => handleApprovalChange(u.id, !u.profile?.is_approved)} className={`px-2 py-1 text-[10px] font-black rounded border transition-all whitespace-nowrap ${u.profile?.is_approved ? 'bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white border-yellow-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border-emerald-500/20'}`}>
+                                                        {u.profile?.is_approved ? '대기전환' : '승인'}
+                                                    </button>
+                                                    <button onClick={() => handleRecharge(u.id)} className="px-2 py-1 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-[10px] font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
+                                                    <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', preferred_languages: u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko'], persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-2 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[10px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
+                                                    <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-2 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
+                                                    {u.app_metadata?.membership?.toLowerCase() === 'pro' && (
+                                                        <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-2 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[10px] font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
                                                     )}
                                                 </div>
-                                            ) : (
-                                                <span className="text-gray-700">-</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-5 whitespace-nowrap">
-                                            {u.profile?.preferred_video_length ? (
-                                                <span className="px-2 py-1 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/20 text-xs font-bold">
-                                                    {u.profile.preferred_video_length === '15m'
-                                                        ? '15m'
-                                                        : u.profile.preferred_video_length === '30m'
-                                                            ? '30m'
-                                                            : u.profile.preferred_video_length === '60m_plus'
-                                                                ? '60m+'
-                                                                : u.profile.preferred_video_length}
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-700">-</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-5">
-                                            <div className="flex flex-wrap gap-1 max-w-[160px]">
-                                                {(u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko']).map(lang => (
-                                                    <span key={`${u.id}-lang-${lang}`} className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-bold">
-                                                        {contentLanguageLabel(lang)}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </td>
-                                        {/* 추천인 */}
-                                        <td className="px-6 py-5 text-sm whitespace-nowrap">
-                                            {u.user_metadata?.referrer
-                                                ? <span className="text-yellow-400 font-bold">{u.user_metadata.referrer}</span>
-                                                : <span className="text-gray-700">-</span>}
-                                        </td>
-                                        {/* 보유 토큰 */}
-                                        <td className="px-6 py-5 text-center font-black text-white text-lg tabular-nums whitespace-nowrap">
-                                            {u.profile?.token_balance?.toLocaleString() || 0}
-                                        </td>
-                                        {/* 멤버십 */}
-                                        <td className="px-6 py-5 text-center">
-                                            <button onClick={() => handleRoleChange(u.id, u.app_metadata?.membership)} className={`px-3 py-1.5 rounded-lg text-sm font-black border uppercase tracking-widest transition-all whitespace-nowrap ${u.app_metadata?.membership === 'pro' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/30'}`}>
-                                                {u.app_metadata?.membership?.toUpperCase() === 'PRO' ? 'PRO' : '스탠다드'}
-                                            </button>
-                                        </td>
-                                        {/* 가입 / 최근접속 */}
-                                        <td className="px-6 py-5 text-center whitespace-nowrap">
-                                            <div className="text-sm font-bold text-gray-400 mb-1" title="가입일">{formatDate(u.created_at)}</div>
-                                            <div className="text-xs font-bold text-gray-600" title="최근접속">{formatDate(u.last_sign_in_at)}</div>
-                                        </td>
-                                        {/* USDT 잔액 */}
-                                        <td className="px-6 py-5 text-center font-black text-emerald-300 text-lg tabular-nums whitespace-nowrap">
-                                            {Number(u.profile?.usdt_balance || 0).toLocaleString()}
-                                        </td>
-                                        {/* 관리 메뉴 */}
-                                        <td className="px-6 py-5">
-                                            <div className="flex flex-wrap items-center justify-center gap-2 max-w-[200px] mx-auto">
-                                                {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
-                                                    <button onClick={() => handleAdminRoleToggle(u.id, !!u.app_metadata?.is_admin)} className={`px-3 py-1.5 rounded text-xs font-black border transition-all whitespace-nowrap ${u.app_metadata?.is_admin ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>권한관리</button>
-                                                )}
-                                                <button onClick={() => handleApprovalChange(u.id, !u.profile?.is_approved)} className={`px-3 py-1.5 text-xs font-black rounded border transition-all whitespace-nowrap ${u.profile?.is_approved ? 'bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white border-yellow-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border-emerald-500/20'}`}>
-                                                    {u.profile?.is_approved ? '대기전환' : '승인'}
-                                                </button>
-                                                <button onClick={() => handleRecharge(u.id)} className="px-3 py-1.5 bg-green-600/10 hover:bg-green-600 text-green-500 hover:text-white text-xs font-black rounded border border-green-500/20 transition-all whitespace-nowrap">토큰충전</button>
-                                                <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', preferred_languages: u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko'], persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-3 py-1.5 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-xs font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
-                                                <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-xs font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
-                                                {u.app_metadata?.membership?.toLowerCase() === 'pro' && (
-                                                    <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-3 py-1.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-xs font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 
