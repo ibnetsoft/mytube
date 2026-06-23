@@ -3602,19 +3602,6 @@ if __name__ == "__main__":
     # [NEW] Start Real-time Admin Monitoring (Check every 10m)
     auth_service.start_monitoring()
     
-    # [NEW] Auto-open Browser in Production (or Frozen)
-    if not config.DEBUG or getattr(sys, 'frozen', False):
-        import webbrowser
-        import threading
-        import time
-        
-        def open_browser():
-            time.sleep(1.5) # Wait for server startup
-            webbrowser.open(f"http://{config.HOST}:{config.PORT}")
-            
-        print("브라우저 자동 실행 대기 중...")
-        threading.Thread(target=open_browser, daemon=True).start()
-
     # [NEW] Auto Publish Service Start
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
@@ -3628,14 +3615,76 @@ if __name__ == "__main__":
     print("=" * 50)
 
     is_frozen = getattr(sys, "frozen", False)
-    uvicorn_target = app if is_frozen else "main:app"
     enable_reload = bool(config.DEBUG and not is_frozen)
 
-    uvicorn.run(
-        uvicorn_target,
-        host=config.HOST,
-        port=config.PORT,
-        reload=enable_reload,
-        log_level="info"
-    )
+    # 1. 개발/디버그 핫리로딩 모드: uvicorn 메인 루프 실행 및 일반 브라우저 자동 오픈
+    if enable_reload:
+        import webbrowser
+        import threading
+        import time
+        
+        def open_browser():
+            time.sleep(1.5)
+            webbrowser.open(f"http://{config.HOST}:{config.PORT}")
+            
+        print("개발 모드: 브라우저 자동 실행 대기 중...")
+        threading.Thread(target=open_browser, daemon=True).start()
+
+        uvicorn.run(
+            "main:app",
+            host=config.HOST,
+            port=config.PORT,
+            reload=True,
+            log_level="info"
+        )
+    # 2. 설치본(frozen) 혹은 프로덕션 모드: pywebview를 사용해 독립 데스크톱 창으로 구동
+    else:
+        import threading
+        import time
+        
+        # 백그라운드 스레드에서 uvicorn 서버 실행
+        def run_server():
+            uvicorn.run(
+                app,
+                host=config.HOST,
+                port=config.PORT,
+                reload=False,
+                log_level="info"
+            )
+            
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+        
+        print("프로덕션 모드: 독립 데스크톱 창(webview) 실행 중...")
+        
+        try:
+            import webview
+            
+            # 독립 데스크톱 창 생성 (Edge Chromium 기반 WebView2 기동)
+            webview.create_window(
+                "Picadilly Studio", 
+                f"http://{config.HOST}:{config.PORT}",
+                width=1280,
+                height=800,
+                resizable=True
+            )
+            webview.start()
+        except ImportError:
+            print("webview 라이브러리를 찾을 수 없어 기본 브라우저로 실행합니다.")
+            import webbrowser
+            
+            def open_fallback_browser():
+                time.sleep(1.5)
+                webbrowser.open(f"http://{config.HOST}:{config.PORT}")
+                
+            threading.Thread(target=open_fallback_browser, daemon=True).start()
+            
+            # 메인 스레드에서 uvicorn 블로킹 실행
+            uvicorn.run(
+                app,
+                host=config.HOST,
+                port=config.PORT,
+                reload=False,
+                log_level="info"
+            )
 

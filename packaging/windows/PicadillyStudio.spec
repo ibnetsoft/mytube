@@ -48,6 +48,7 @@ hiddenimports = [
     "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan.on",
     "pydub",
+    "webview",
 ]
 hiddenimports += pykakasi_hiddenimports
 hiddenimports += collect_submodules("pykakasi")

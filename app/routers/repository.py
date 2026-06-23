@@ -10,7 +10,7 @@ from services import app_state as _app_state
 import database as db
 
 router = APIRouter(prefix="", tags=["Repository"])
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 
 # app_state 공유 translator 사용 (자체 인스턴스 제거)
 templates.env.globals['membership'] = auth_service.get_membership()

@@ -113,6 +113,7 @@ const typeMap: Record<string, string> = {
     'motion_guide': 'MOTION_GUIDE',
     'character_extraction': 'CHARACTER_EXTRACTION',
     'test_after_fix': 'SUBTITLE_FIX',
+    'subtitle_fix': 'SUBTITLE_FIX',
     'test_local': 'LOCAL_TEST',
     'test_verbose': 'VERBOSE',
     'unknown': 'OTHER',
@@ -128,6 +129,7 @@ const typeIcons: Record<string, string> = {
     'motion_guide': 'MG',
     'character_extraction': 'CH',
     'test_after_fix': 'SF',
+    'subtitle_fix': 'SF',
     'test_local': 'LT',
     'test_verbose': 'VB',
     'unknown': 'UK',
@@ -167,7 +169,7 @@ export default function DashboardContent() {
     const [queueLoading, setQueueLoading] = useState(false)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
 
-    // 移댄뀒怨좊━ & AI 二쇱젣 ?먰뙋湲??곹깭
+    // 카테고리 & AI 주제 자판기 상태
     const [categories, setCategories] = useState<any[]>([])
     const [topics, setTopics] = useState<any[]>([])
     const [categoriesLoading, setCategoriesLoading] = useState(false)
@@ -198,7 +200,7 @@ export default function DashboardContent() {
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
     const [categoryLangTab, setCategoryLangTab] = useState<'ko' | 'ja' | 'en'>('ko')
 
-    // 移댄뀒怨좊━ ?섏젙 紐⑤떖 ?곹깭
+    // 카테고리 수정 모달 상태
     const [editCategory, setEditCategory] = useState<any | null>(null)
     const [editCatForm, setEditCatForm] = useState({
         name: '',
@@ -249,22 +251,28 @@ export default function DashboardContent() {
     const [globalPeriod, setGlobalPeriod] = useState(1)
     const [globalStats, setGlobalStats] = useState({ total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown: {} as any })
     const [globalLoading, setGlobalLoading] = useState(false)
+    
+    // 로그 검색 및 필터링 상태
+    const [logFilterTask, setLogFilterTask] = useState<string>('all')
+    const [logFilterStatus, setLogFilterStatus] = useState<string>('all')
+    const [logSearchPrompt, setLogSearchPrompt] = useState<string>('')
 
-    // ?쒖뒪???꾩뿭 API ??諛?援ш? ?쒕씪?대툕 ?ㅼ젙
+    // 시스템 전역 API 키 설정
     const [sysKeys, setSysKeys] = useState({ 
         gemini: '', youtube: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
-        use_external_render: false, drive_path_ko: '', drive_path_en: '', drive_path_ja: '', drive_active_lang: 'ko',
-        remote_render_drive_folder_id: '',
-        remote_render_google_token_path: '',
         longform_min_duration_minutes: '15',
         longform_base_payout: '10000',
         longform_extra_minute_payout: '500',
-        longform_duration_lock_enabled: 'true'
+        longform_duration_lock_enabled: 'true',
+        terms_ko: '', terms_en: '', terms_vi: '',
+        privacy_ko: '', privacy_en: '', privacy_vi: ''
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
+    const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi'>('ko')
+    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'music' | 'video' | 'legal' | 'policy'>('ai')
 
     // Style Presets state
     const [stylePresets, setStylePresets] = useState<any[]>([])
@@ -291,7 +299,7 @@ export default function DashboardContent() {
     const totalTokens = useMemo(() => (users || []).reduce((acc: number, u: any) => acc + (u.profile?.token_balance || 0), 0), [users]);
 
     const getTopTasks = (breakdown: any) => {
-        const priority = ['video', 'image', 'script', 'vision_gen', 'motion_guide', 'text_gen', 'character_extraction', 'test_after_fix'];
+        const priority = ['video', 'image', 'script', 'vision_gen', 'motion_guide', 'text_gen', 'character_extraction', 'test_after_fix', 'subtitle_fix'];
         const entries = Object.entries(breakdown || {})
             .map(([key, val]: [string, any]) => ({ name: key, ...val }));
             
@@ -326,7 +334,7 @@ export default function DashboardContent() {
             const data = await res.json();
             if (res.ok && data.success) {
                 alert(isKor ? `충전 완료! ${parsedAmount.toLocaleString()} 토큰 추가` : `Recharge Success! +${parsedAmount.toLocaleString()} tokens`);
-                // ?숆????낅뜲?댄듃 ??fetchUsers() ?ъ슜 ??Supabase 罹먯떆濡?stale 諛섑솚
+                // 동기적 업데이트 및 fetchUsers() 사용 시 Supabase 캐시로 stale 반환
                 setUsers(prev => prev.map(u => u.id === userId
                     ? { ...u, profile: { ...u.profile, token_balance: (u.profile?.token_balance || 0) + parsedAmount } }
                     : u
@@ -379,7 +387,7 @@ export default function DashboardContent() {
             const data = await res.json();
             if (res.ok && data.success) {
                 console.log('Save success!', data);
-                // [FIX] ?쒕쾭?먯꽌 諛섑솚??理쒖떊 ?좎? ?뺣낫濡?利됱떆 援먯껜?섏뿬 ?숆린??吏??諛⑹?
+                // [FIX] 서버에서 반환한 최신 유저 정보로 즉시 교체하여 동기화 지연을 방지
                 const updatedUser = data.user;
                 if (updatedUser) {
                     setUsers(prev => prev.map(u => u.id === updatedUser.id ? {
@@ -388,12 +396,12 @@ export default function DashboardContent() {
                     } : u));
                 }
                 
-                alert(isKor ? "梨꾨꼸 ?뺣낫媛 ?깃났?곸쑝濡??낅뜲?댄듃?섏뿀?듬땲??" : "Channel info updated successfully.");
+                alert(isKor ? "채널 정보가 성공적으로 업데이트되었습니다." : "Channel info updated successfully.");
                 setChannelViewUser(null);
-                // fetchUsers()瑜??몄텧?섏? ?딄퀬 濡쒖뺄 ?곹깭瑜??곗꽑?쒗븿 (Race Condition ?닿껐)
+                // fetchUsers()를 호출하지 않고 로컬 상태를 우선 갱신함 (Race Condition 해결)
             } else {
                 console.error('Save failed:', data.error);
-                alert((isKor ? "????ㅽ뙣: " : "Save failed: ") + (data.error || "Unknown error"));
+                alert((isKor ? "저장 실패: " : "Save failed: ") + (data.error || "Unknown error"));
             }
         } catch (e) { 
             console.error('API Catch Error:', e);
@@ -520,11 +528,11 @@ export default function DashboardContent() {
         }
 
         if (!saved) {
-            alert((isKor ? '濡쒖뺄 梨꾨꼸 ????ㅽ뙣: ' : 'Failed to save local channel: ') + (lastError || 'Unknown error'))
+            alert((isKor ? '로컬 채널 저장 실패: ' : 'Failed to save local channel: ') + (lastError || 'Unknown error'))
             return
         }
 
-        alert(isKor ? '濡쒖뺄 梨꾨꼸????λ릺?덉뒿?덈떎.' : 'Local channel saved.')
+        alert(isKor ? '로컬 채널이 저장되었습니다.' : 'Local channel saved.')
     }
 
     const handleStartCategoryChannelOAuth = () => {
@@ -559,20 +567,20 @@ export default function DashboardContent() {
             })
             const data = await res.json()
             if (!res.ok || !data.success) {
-                alert((isKor ? '梨꾨꼸 ????ㅽ뙣: ' : 'Failed to save channel: ') + (data.error || `HTTP ${res.status}`))
+                alert((isKor ? '채널 저장 실패: ' : 'Failed to save channel: ') + (data.error || `HTTP ${res.status}`))
                 return
             }
-            alert(isKor ? '移댄뀒怨좊━ ?낅줈??梨꾨꼸????λ릺?덉뒿?덈떎.' : 'Category upload channel saved.')
+            alert(isKor ? '카테고리 업로드 채널이 저장되었습니다.' : 'Category upload channel saved.')
             setChannelConfigCategory(null)
             fetchCategories()
         } catch (err: any) {
-            alert((isKor ? '梨꾨꼸 ???오류: ' : 'Failed to save channel: ') + (err?.message || String(err)))
+            alert((isKor ? '채널 저장 오류: ' : 'Failed to save channel: ') + (err?.message || String(err)))
         }
     }
 
     const handleRoleChange = async (userId: string, currentRole: string) => {
         const newRole = currentRole === 'pro' ? 'std' : 'pro';
-        if (!confirm(isKor ? `등급을 ${newRole === 'pro' ? '?꾨줈' : '스탠다드'}(??濡?蹂寃쏀븯?쒓쿋?듬땲源?` : `Change membership to ${newRole === 'pro' ? 'PRO' : 'STANDARD'}?`)) return;
+        if (!confirm(isKor ? `등급을 ${newRole === 'pro' ? '프로' : '스탠다드'}로 변경하시겠습니까?` : `Change membership to ${newRole === 'pro' ? 'PRO' : 'STANDARD'}?`)) return;
         try {
             const res = await fetch('/api/admin/users/role', {
                 method: 'POST',
@@ -581,13 +589,13 @@ export default function DashboardContent() {
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                // ?숆????낅뜲?댄듃留??ъ슜 (fetchUsers ??Supabase 罹먯떆濡??명빐 ??뻾??
+                // 동기적 업데이트만 사용 (fetchUsers 호출 시 Supabase 캐시로 인해 지연 가능)
                 setUsers(prev => prev.map(u =>
                     u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, membership: newRole } } : u
                 ));
-                alert(isKor ? `${newRole === 'pro' ? 'PRO' : '?뫀 스탠다드'}濡?蹂寃쎈릺?덉뒿?덈떎.` : 'Role Updated');
+                alert(isKor ? `${newRole === 'pro' ? 'PRO' : '스탠다드'}로 변경되었습니다.` : 'Role Updated');
             } else {
-                alert('蹂寃??ㅽ뙣: ' + (data.error || '서버 오류'));
+                alert('변경 실패: ' + (data.error || '서버 오류'));
             }
         } catch (e) { alert('서버 통신 오류'); }
     }
@@ -656,9 +664,9 @@ export default function DashboardContent() {
                     : u
                 ));
                 setEditInfoUser(null);
-                alert('??λ릺?덉뒿?덈떎.');
+                alert('저장되었습니다.');
             } else {
-                alert('????ㅽ뙣: ' + (data.error || '서버 오류'));
+                alert('저장 실패: ' + (data.error || '서버 오류'));
             }
         } catch (e) { alert('서버 오류'); }
     };
@@ -666,7 +674,7 @@ export default function DashboardContent() {
     const handleAdminRoleToggle = async (userId: string, currentIsAdmin: boolean) => {
         if (!isSuperAdmin) return;
         const action = currentIsAdmin ? '해제' : '지정';
-        if (!confirm(`?대떦 ?좎?瑜?遺愿由ъ옄濡?${action}하시겠습니까?`)) return;
+        if (!confirm(`해당 유저를 부관리자로 ${action}하시겠습니까?`)) return;
         try {
             const res = await fetch('/api/admin/users/admin-role', {
                 method: 'POST',
@@ -674,7 +682,7 @@ export default function DashboardContent() {
                 body: JSON.stringify({ userId, isAdmin: !currentIsAdmin })
             });
             if (res.ok) { alert('완료되었습니다.'); fetchUsers(); }
-        } catch (e) { alert('오류媛 諛쒖깮?덉뒿?덈떎.'); }
+        } catch (e) { alert('오류가 발생했습니다.'); }
     }
 
     const handlePublishVideo = async (requestId: string) => {
@@ -790,19 +798,19 @@ export default function DashboardContent() {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-[10px] font-bold text-gray-600 text-left">{isKor ? '?곌껐???먯궛???놁뒿?덈떎.' : 'No linked assets'}</div>
+                    <div className="text-[10px] font-bold text-gray-600 text-left">{isKor ? '연결된 자산이 없습니다.' : 'No linked assets'}</div>
                 )}
             </div>
         )
     }
 
     const getPublishingStatusMeta = (req: PublishingRequest) => {
-        if (req.metadata?.is_invalid_request) return { label: 'INVALID', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
-        if (req.status === 'published') return { label: isKor ? '업로드 완료' : 'Published', className: 'bg-green-500/10 text-green-400 border-green-500/20' }
-        if (req.status === 'approved' || req.status === 'to_be_published') return { label: isKor ? '발행 진행 중' : 'Publishing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
-        if (req.status === 'failed') return { label: isKor ? '업로드 실패' : 'Failed', className: 'bg-red-500/10 text-red-400 border-red-500/20' }
-        if (req.status === 'rejected') return { label: isKor ? '제외됨' : 'Rejected', className: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' }
-        return { label: isKor ? '대기중' : 'Pending', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' }
+        if (req.metadata?.is_invalid_request) return { label: 'INVALID', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
+        if (req.status === 'published') return { label: isKor ? '✓ 업로드 완료' : '✓ Published', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
+        if (req.status === 'approved' || req.status === 'to_be_published') return { label: isKor ? '⚡ 발행 진행 중' : '⚡ Publishing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
+        if (req.status === 'failed') return { label: isKor ? '❌ 업로드 실패' : '❌ Failed', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
+        if (req.status === 'rejected') return { label: isKor ? '🚫 제외됨' : '🚫 Rejected', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30 font-black' }
+        return { label: isKor ? '⏳ 대기중' : '⏳ Pending', className: 'bg-orange-500/15 text-orange-400 border-orange-500/30 font-black' }
     }
 
     const publishingSummary = useMemo(() => {
@@ -825,7 +833,7 @@ export default function DashboardContent() {
     }, [publishingRequests, publishingFilter])
 
     const calcGeneralStats = (logs: any[], days: number) => {
-        const coreTasks = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'test_after_fix'];
+        const coreTasks = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'subtitle_fix'];
         const breakdown: any = {};
         let totalThinkingTokens = 0;
         coreTasks.forEach(task => {
@@ -837,7 +845,10 @@ export default function DashboardContent() {
         const tokens = logs.reduce((acc, l) => acc + (l.task_type === 'RECHARGE' ? 0 : (l.input_tokens || 0) + (l.output_tokens || 0) + (l.thinking_tokens || 0)), 0);
         logs.forEach(l => {
             if (l.task_type === 'RECHARGE') return;
-            const stage = (l.task_type || 'unknown').toLowerCase();
+            let stage = (l.task_type || 'unknown').toLowerCase();
+            if (stage === 'test_after_fix') {
+                stage = 'subtitle_fix';
+            }
             if (!breakdown[stage]) breakdown[stage] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
             const t = (l.input_tokens || 0) + (l.output_tokens || 0) + (l.thinking_tokens || 0);
             breakdown[stage].tokens += t;
@@ -934,17 +945,16 @@ export default function DashboardContent() {
                 music_gemini_location: data.music_gemini_location || 'global',
                 topview: data.topview || '',
                 topview_uid: data.topview_uid || '',
-                use_external_render: data.use_external_render === 'true' || data.use_external_render === true,
-                drive_path_ko: data.drive_path_ko || '',
-                drive_path_en: data.drive_path_en || '',
-                drive_path_ja: data.drive_path_ja || '',
-                drive_active_lang: data.drive_active_lang || 'ko',
-                remote_render_drive_folder_id: data.remote_render_drive_folder_id || '',
-                remote_render_google_token_path: data.remote_render_google_token_path || '',
                 longform_min_duration_minutes: data.longform_min_duration_minutes || '15',
                 longform_base_payout: data.longform_base_payout || '10000',
                 longform_extra_minute_payout: data.longform_extra_minute_payout || '500',
-                longform_duration_lock_enabled: data.longform_duration_lock_enabled || 'true'
+                longform_duration_lock_enabled: data.longform_duration_lock_enabled || 'true',
+                terms_ko: data.terms_ko || '',
+                terms_en: data.terms_en || '',
+                terms_vi: data.terms_vi || '',
+                privacy_ko: data.privacy_ko || '',
+                privacy_en: data.privacy_en || '',
+                privacy_vi: data.privacy_vi || ''
             });
         } catch (e) { console.error('fetchSysKeys error:', e); }
     }, []);
@@ -955,10 +965,7 @@ export default function DashboardContent() {
             const res = await fetch('/api/admin/settings/global', { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({
-                    ...sysKeys,
-                    use_external_render: String(sysKeys.use_external_render)
-                }) 
+                body: JSON.stringify({ ...sysKeys }) 
             });
             if (res.ok) setSysKeysSaved(true);
         } catch (e) { console.error('saveSysKeys error:', e); }
@@ -1055,7 +1062,7 @@ export default function DashboardContent() {
             })
             const data = await res.json()
             if (data.success) {
-                alert('?ㅽ????꾨━?뗭씠 ??λ릺?덉뒿?덈떎.')
+                alert('스타일 프리셋이 저장되었습니다.')
                 setPresetId(null)
                 setPresetKeyCode('')
                 setPresetNameKo('')
@@ -1065,10 +1072,10 @@ export default function DashboardContent() {
                 setPresetImageUrl('')
                 fetchStylePresets()
             } else {
-                alert('????ㅽ뙣: ' + (data.error || '?????녿뒗 오류'))
+                alert('저장 실패: ' + (data.error || '알 수 없는 오류'))
             }
         } catch (e: any) {
-            alert('???오류: ' + e.message)
+            alert('저장 오류: ' + e.message)
         } finally {
             setIsSavingPreset(false)
         }
@@ -1085,7 +1092,7 @@ export default function DashboardContent() {
         setPresetPromptTemplate(preset.prompt_template)
         setPresetGeminiInstruction(preset.gemini_instruction || '')
         setPresetImageUrl(preset.image_url || '')
-        // ?쇱쑝濡??먮룞 ?ㅽ겕濡?
+        // 폼으로 자동 스크롤
         setTimeout(() => {
             presetFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }, 50)
@@ -1148,7 +1155,7 @@ export default function DashboardContent() {
                 setNewCatUploadChannelHandle('')
                 fetchCategories()
                 fetchTopics()
-                alert('移댄뀒怨좊━媛 ?깃났?곸쑝濡??깅줉?섏뿀?쇰ŉ, 湲곕낯 ?섑뵆 二쇱젣 3媛쒓? ?곸옱?섏뿀?듬땲??')
+                alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
             } else {
                 alert('카테고리 등록 실패: ' + data.error)
             }
@@ -1219,7 +1226,7 @@ export default function DashboardContent() {
                 const generatedTopics = Array.isArray(data.topics) ? data.topics.map((topic: any) => typeof topic === 'string' ? topic : (topic?.topic || '')).slice(0, 10) : []
                 setGeneratedTopicsByCat(prev => ({ ...prev, [catId]: generatedTopics }))
                 fetchTopics()
-                alert(`AI媛 ?덈줈???몃? ?곸긽 二쇱젣 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
+                alert(`AI가 새로운 영상 주제 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
             } else {
                 alert('AI 생성 실패: ' + data.error)
             }
@@ -1416,7 +1423,7 @@ export default function DashboardContent() {
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueue();
-            const interval = setInterval(fetchRenderQueue, 3000); // 3珥?媛꾧꺽 ?ㅼ떆媛?媛깆떊
+            const interval = setInterval(fetchRenderQueue, 3000); // 3초 간격 실시간 갱신
             return () => clearInterval(interval);
         }
     }, [activeTab, fetchRenderQueue]);
@@ -1429,7 +1436,7 @@ export default function DashboardContent() {
         });
     }, [router]);
 
-    // 珥덇린 ?곗씠??濡쒕뵫???⑥씪 Effect
+    // 초기 데이터 로딩을 위한 Effect
     useEffect(() => {
         if (isAdmin && !loading) {
             fetchUsers();
@@ -1442,15 +1449,15 @@ export default function DashboardContent() {
         }
     }, [isAdmin, loading, fetchCategories, fetchTopics]);
 
-    // 湲곌컙 蹂寃??쒖뿉留?蹂꾨룄 ?몄텧
+    // 기간 변경 시에만 별도 호출
     useEffect(() => {
         if (isAdmin && !loading) {
             fetchGlobalStats(globalPeriod);
         }
     }, [globalPeriod]);
 
-    if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">愿由ъ옄 ?몄쬆 以?..</div>;
-    if (!isAdmin) return <div className="min-h-screen bg-[#050505] text-red-500 flex items-center justify-center font-black">?묎렐 沅뚰븳???놁뒿?덈떎.</div>;
+    if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">관리자 인증 중...</div>;
+    if (!isAdmin) return <div className="min-h-screen bg-[#050505] text-red-500 flex items-center justify-center font-black">접근 권한이 없습니다.</div>;
 
     function formatDate(d: string | null) {
         if (!d) return '-';
@@ -1555,52 +1562,188 @@ export default function DashboardContent() {
         );
     };
 
-    const renderLogTable = (logs: any[]) => (
-        <div className="bg-[#0f172a]/40 border border-white/5 rounded-[2rem] overflow-hidden overflow-x-auto shadow-2xl">
-            <table className="w-full text-left min-w-[1000px]">
-                <thead className="bg-black/20 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                    <tr>
-                        <th className="px-10 py-5">TIME</th>
-                        <th className="px-10 py-5">TASK</th>
-                        <th className="px-10 py-5">MODEL & PROVIDER</th>
-                        <th className="px-10 py-5">PROMPT SUMMARY</th>
-                        <th className="px-10 py-5 text-right text-orange-500">AI 토큰 사용량</th>
-                        <th className="px-10 py-5 text-right text-blue-500">현재 토큰 잔액</th>
-                        <th className="px-10 py-5 text-center">STATUS</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                    {(logs || []).map((log: any) => (
-                        <tr key={log.id} className="hover:bg-white/[0.03] transition-colors group">
-                            <td className="px-10 py-5">
-                                <div className="font-black text-white text-[13px]">{new Date(log.created_at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}</div>
-                                <div className="text-[10px] text-gray-600 font-bold">{new Date(log.created_at).toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '.')}</div>
-                            </td>
-                            <td className="px-10 py-5"><div className="flex items-center gap-3"><div className={`w-1.5 h-1.5 rounded-full ${log.status === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} /><span className="text-[11px] font-black text-white uppercase tracking-widest">{typeMap[log.task_type] || log.task_type}</span></div></td>
-                            <td className="px-10 py-5"><div className="text-[10px] font-black text-white uppercase italic">{log.model_id}</div><div className="text-[8px] text-gray-600 font-bold uppercase">{log.provider || 'AI_ENGINE'}</div></td>
-                            <td className="px-10 py-5 max-w-[400px] text-gray-500 italic text-[11px] truncate group-hover:text-gray-300 transition-colors">&quot;{log.prompt_summary || 'No summary available'}&quot;</td>
-                            <td className="px-10 py-5 text-right font-black text-[12px]">
-                                <div className="flex flex-col items-end">
-                                    <span className={log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-white'}>
-                                        {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0) + (log.thinking_tokens || 0)).toLocaleString()} <span className="text-gray-600 text-[10px]">TK</span>
-                                    </span>
-                                    {log.thinking_tokens > 0 && (
-                                        <span className="text-[8px] text-purple-400 font-semibold mt-0.5">
-                                            (Thk: {log.thinking_tokens.toLocaleString()})
-                                        </span>
-                                    )}
-                                </div>
-                            </td>
-                            <td className="px-10 py-5 text-right font-black text-blue-500 text-[12px] tabular-nums">
-                                {log.balance_after ? log.balance_after.toLocaleString() : '-'}
-                            </td>
-                            <td className="px-10 py-5 text-center"><span className={`px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-widest ${log.status?.toLowerCase() === 'success' || log.status?.toLowerCase() === 'done' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{log.status?.toUpperCase() === 'SUCCESS' ? 'SUCCESS' : (log.status?.toUpperCase() || 'FAILED')}</span></td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
+    const getFilteredLogs = (logsList: any[]) => {
+        return (logsList || []).filter(log => {
+            if (logFilterTask !== 'all') {
+                let stage = (log.task_type || '').toLowerCase();
+                if (stage === 'test_after_fix') {
+                    stage = 'subtitle_fix';
+                }
+                if (stage !== logFilterTask) return false;
+            }
+            if (logFilterStatus !== 'all') {
+                const status = (log.status || '').toLowerCase();
+                const isSuccess = status === 'success' || status === 'done';
+                if (logFilterStatus === 'success' && !isSuccess) return false;
+                if (logFilterStatus === 'failed' && isSuccess) return false;
+            }
+            if (logSearchPrompt.trim() !== '') {
+                const search = logSearchPrompt.toLowerCase();
+                const promptMatch = (log.prompt_summary || '').toLowerCase().includes(search);
+                const modelMatch = (log.model_id || '').toLowerCase().includes(search);
+                const providerMatch = (log.provider || '').toLowerCase().includes(search);
+                if (!promptMatch && !modelMatch && !providerMatch) return false;
+            }
+            return true;
+        });
+    };
+
+    const downloadLogsCSV = (logsList: any[], filename: string) => {
+        const filtered = getFilteredLogs(logsList);
+        if (!filtered.length) {
+            alert(isKor ? '내보낼 로그 데이터가 없습니다.' : 'No log data to export.');
+            return;
+        }
+
+        const headers = ['Time', 'Task', 'Model', 'Provider', 'Prompt Summary', 'Input Tokens', 'Output Tokens', 'Thinking Tokens', 'Total Tokens', 'Balance After', 'Status'];
+        const rows = filtered.map(log => {
+            const time = new Date(log.created_at).toLocaleString();
+            const task = typeMap[log.task_type] || log.task_type;
+            const model = log.model_id || '';
+            const provider = log.provider || '';
+            const prompt = `"${(log.prompt_summary || '').replace(/"/g, '""')}"`;
+            const input = log.input_tokens || 0;
+            const output = log.output_tokens || 0;
+            const thinking = log.thinking_tokens || 0;
+            const total = input + output + thinking;
+            const balance = log.balance_after || '';
+            const status = log.status || '';
+            return [time, task, model, provider, prompt, input, output, thinking, total, balance, status].join(',');
+        });
+
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const renderLogTable = (logsList: any[], isGlobal: boolean = false) => {
+        const filtered = getFilteredLogs(logsList);
+        return (
+            <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 bg-[#0f172a]/60 border border-white/10 p-6 rounded-[2rem] shadow-lg">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder={isKor ? "프롬프트 / 모델 / 엔진 검색..." : "Search prompt/model/engine..."}
+                                value={logSearchPrompt}
+                                onChange={e => setLogSearchPrompt(e.target.value)}
+                                className="bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500/50 w-[240px]"
+                            />
+                            {logSearchPrompt && (
+                                <button 
+                                    onClick={() => setLogSearchPrompt('')} 
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs font-bold"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+
+                        <select
+                            value={logFilterTask}
+                            onChange={e => setLogFilterTask(e.target.value)}
+                            className="bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                        >
+                            <option value="all" className="bg-[#111]">{isKor ? "모든 작업유형" : "All Tasks"}</option>
+                            <option value="video" className="bg-[#111]">VIDEO</option>
+                            <option value="image" className="bg-[#111]">IMAGE</option>
+                            <option value="script" className="bg-[#111]">SCRIPT</option>
+                            <option value="text_gen" className="bg-[#111]">TEXT_GEN</option>
+                            <option value="vision_gen" className="bg-[#111]">VISION_GEN</option>
+                            <option value="subtitle_fix" className="bg-[#111]">SUBTITLE_FIX</option>
+                            <option value="motion_guide" className="bg-[#111]">MOTION_GUIDE</option>
+                        </select>
+
+                        <select
+                            value={logFilterStatus}
+                            onChange={e => setLogFilterStatus(e.target.value)}
+                            className="bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                        >
+                            <option value="all" className="bg-[#111]">{isKor ? "모든 상태" : "All Status"}</option>
+                            <option value="success" className="bg-[#111]">{isKor ? "성공 (SUCCESS)" : "SUCCESS"}</option>
+                            <option value="failed" className="bg-[#111]">{isKor ? "실패 (FAILED)" : "FAILED"}</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <span className="text-[11px] font-bold text-gray-500">
+                            {isKor ? `검색 결과: ${filtered.length}건` : `Filtered: ${filtered.length} rows`}
+                        </span>
+                        <button
+                            onClick={() => downloadLogsCSV(logsList, isGlobal ? 'global_logs' : 'user_logs')}
+                            className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/20 hover:border-transparent text-blue-400 hover:text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            {isKor ? "CSV 다운로드" : "Export CSV"}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-[#0f172a]/40 border border-white/5 rounded-[2rem] overflow-hidden overflow-x-auto shadow-2xl">
+                    <table className="w-full text-left min-w-[1000px]">
+                        <thead className="bg-black/20 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                            <tr>
+                                <th className="px-10 py-5">TIME</th>
+                                <th className="px-10 py-5">TASK</th>
+                                <th className="px-10 py-5">MODEL & PROVIDER</th>
+                                <th className="px-10 py-5">PROMPT SUMMARY</th>
+                                <th className="px-10 py-5 text-right text-orange-500">AI 토큰 사용량</th>
+                                <th className="px-10 py-5 text-right text-blue-500">현재 토큰 잔액</th>
+                                <th className="px-10 py-5 text-center">STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {filtered.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-10 py-20 text-center text-gray-600 font-bold uppercase tracking-widest italic text-xs">
+                                        {isKor ? "일치하는 로그 내역이 없습니다." : "No matching logs found."}
+                                    </td>
+                                </tr>
+                            ) : (
+                                filtered.map((log: any) => (
+                                    <tr key={log.id} className="hover:bg-white/[0.03] transition-colors group">
+                                        <td className="px-10 py-5">
+                                            <div className="font-black text-white text-[13px]">{new Date(log.created_at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}</div>
+                                            <div className="text-[10px] text-gray-600 font-bold">{new Date(log.created_at).toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '.')}</div>
+                                        </td>
+                                        <td className="px-10 py-5"><div className="flex items-center gap-3"><div className={`w-1.5 h-1.5 rounded-full ${log.status === 'success' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} /><span className="text-[11px] font-black text-white uppercase tracking-widest">{typeMap[log.task_type] || log.task_type}</span></div></td>
+                                        <td className="px-10 py-5"><div className="text-[10px] font-black text-white uppercase italic">{log.model_id}</div><div className="text-[8px] text-gray-600 font-bold uppercase">{log.provider || 'AI_ENGINE'}</div></td>
+                                        <td className="px-10 py-5 max-w-[400px] text-gray-500 italic text-[11px] truncate group-hover:text-gray-300 transition-colors">&quot;{log.prompt_summary || 'No summary available'}&quot;</td>
+                                        <td className="px-10 py-5 text-right font-black text-[12px]">
+                                            <div className="flex flex-col items-end">
+                                                <span className={log.task_type === 'RECHARGE' ? 'text-green-500' : 'text-white'}>
+                                                    {log.task_type === 'RECHARGE' ? '+' : ''}{((log.input_tokens || 0) + (log.output_tokens || 0) + (log.thinking_tokens || 0)).toLocaleString()} <span className="text-gray-600 text-[10px]">TK</span>
+                                                </span>
+                                                {log.thinking_tokens > 0 && (
+                                                    <span className="text-[8px] text-purple-400 font-semibold mt-0.5">
+                                                        (Thk: {log.thinking_tokens.toLocaleString()})
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-10 py-5 text-right font-black text-blue-500 text-[12px] tabular-nums">
+                                            {log.balance_after ? log.balance_after.toLocaleString() : '-'}
+                                        </td>
+                                        <td className="px-10 py-5 text-center"><span className={`px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-widest ${log.status?.toLowerCase() === 'success' || log.status?.toLowerCase() === 'done' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{log.status?.toUpperCase() === 'SUCCESS' ? 'SUCCESS' : (log.status?.toUpperCase() || 'FAILED')}</span></td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="min-h-screen bg-[#000106] text-white font-sans selection:bg-blue-500/30">
@@ -2078,7 +2221,7 @@ export default function DashboardContent() {
                             )}
                         </div>
 
-                        {/* 3. ?꾩껜 二쇱젣 ?湲곗뿴 ??紐⑤땲?곕쭅 */}
+                        {/* 3. 전체 주제 대기열 및 모니터링 */}
                         {(() => {
                             const getTopicAssignee = (item: any) => item.categories?.assigned_employee_email || item.assigned_employee_email;
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
@@ -2422,7 +2565,16 @@ export default function DashboardContent() {
                                 <StatCard label="TOTAL TASKS" value={globalStats.total} unit="UNITS" color="white" />
                                 <StatCard label="SUCCESS RATE" value={globalStats.successRate + '%'} unit="GLOBAL" color="green" />
                                 <StatCard label="AVG LATENCY" value={globalStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                                <StatCard label="DAILY TOKEN USAGE" value={globalStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                                <StatCard 
+                                    label={isKor ? "토큰 소모량" : "TOKEN USAGE"} 
+                                    value={globalStats.totalTokens.toLocaleString()} 
+                                    unit="TOKENS" 
+                                    color="orange" 
+                                    subLabel={isKor 
+                                        ? `예상 비용: 약 $${((globalStats.totalTokens || 0) * 0.00002).toFixed(2)}` 
+                                        : `Est. Cost: ~$${((globalStats.totalTokens || 0) * 0.00002).toFixed(2)}`
+                                    }
+                                />
                             </div>
                             {renderDonutChart(globalStats)}
                         </div>
@@ -2432,7 +2584,7 @@ export default function DashboardContent() {
                              <div className="h-[1px] flex-1 bg-white/5"></div>
                              <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5">
                                  <button onClick={() => setOverviewSubTab('video')} className={`px-8 py-1.5 rounded-lg text-[10px] font-black transition-all ${overviewSubTab === 'video' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>채널 (영상 관리)</button>
-                                <button onClick={() => setOverviewSubTab('log')} className={`px-8 py-1.5 rounded-lg text-[10px] font-black transition-all ${overviewSubTab === 'log' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>濡쒓렇</button>
+                                <button onClick={() => setOverviewSubTab('log')} className={`px-8 py-1.5 rounded-lg text-[10px] font-black transition-all ${overviewSubTab === 'log' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>로그</button>
                              </div>
                         </div>
                         {overviewSubTab === 'video' ? (
@@ -2502,14 +2654,14 @@ export default function DashboardContent() {
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {filteredPublishingRequests.length === 0 ? (
-                                                <tr><td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-bold uppercase tracking-widest italic">?깅줉???곸긽???놁뒿?덈떎.</td></tr>
+                                                <tr><td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-bold uppercase tracking-widest italic">등록된 영상이 없습니다.</td></tr>
                                             ) : (
                                                 filteredPublishingRequests.map(req => {
                                                     const owner = users?.find(u => u.id === req.user_id);
                                                     const statusMeta = getPublishingStatusMeta(req);
                                                     return (
                                                         <tr key={req.id} className="hover:bg-white/[0.03] transition-colors group">
-                                                            <td className="px-10 py-6">
+                                                            <td className="px-10 py-6 align-middle">
                                                                 <div className="flex items-start gap-4">
                                                                     {req.metadata?.drive_thumbnail_preview_url ? (
                                                                         <img
@@ -2538,12 +2690,12 @@ export default function DashboardContent() {
                                                                             )}
                                                                             {req.metadata?.project_name && (
                                                                                 <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
-                                                                                    ?꾨줈?앺듃: {req.metadata.project_name}
+                                                                                    프로젝트: {req.metadata.project_name}
                                                                                 </span>
                                                                             )}
                                                                             {req.metadata?.topic && (
                                                                                 <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
-                                                                                    二쇱젣: {req.metadata.topic}
+                                                                                    주제: {req.metadata.topic}
                                                                                 </span>
                                                                             )}
                                                                             {req.metadata?.has_drive_bundle && (
@@ -2566,7 +2718,7 @@ export default function DashboardContent() {
                                                                                     TRACKS {req.metadata.track_count}
                                                                                 </span>
                                                                             ) : null}
-                                                                            <span className={`px-2 py-1 rounded-full border text-[9px] font-black ${statusMeta.className}`}>
+                                                                            <span className={`px-2 py-1 rounded-full border text-[9px] font-black whitespace-nowrap ${statusMeta.className}`}>
                                                                                 {statusMeta.label}
                                                                             </span>
                                                                         </div>
@@ -2602,7 +2754,7 @@ export default function DashboardContent() {
                                                                     </div>
                                                                 </div>
                                                             </td>
-                                                            <td className="px-10 py-6 text-center">
+                                                            <td className="px-10 py-6 text-center align-middle">
                                                                 {req.metadata?.youtube_url || req.metadata?.videoId ? (
                                                                     <a
                                                                         href={req.metadata?.youtube_url || `https://youtu.be/${req.metadata?.videoId}`}
@@ -2616,13 +2768,13 @@ export default function DashboardContent() {
                                                                     <span className="text-[11px] font-black text-gray-600">-</span>
                                                                 )}
                                                             </td>
-                                                            <td className="px-10 py-6 text-center text-[12px] font-black text-gray-500">{new Date(req.created_at).toLocaleString()}</td>
-                                                            <td className="px-10 py-6 text-center">
-                                                                <span className={`px-3 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest ${statusMeta.className}`}>
+                                                            <td className="px-10 py-6 text-center align-middle text-[12px] font-black text-gray-500">{new Date(req.created_at).toLocaleString()}</td>
+                                                            <td className="px-10 py-6 text-center align-middle">
+                                                                <span className={`px-3 py-1 text-[9px] font-black rounded-full border uppercase tracking-widest whitespace-nowrap ${statusMeta.className}`}>
                                                                     {statusMeta.label}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-10 py-6 text-right space-y-3">
+                                                            <td className="px-10 py-6 text-right align-middle space-y-3">
                                                                 {renderPublishingActionPanel(req)}
                                                             </td>
                                                         </tr>
@@ -2643,10 +2795,10 @@ export default function DashboardContent() {
                                                 const userVideos = globalLogs.filter(l => l.user_id === u.id && (l.task_type || '').toLowerCase() === 'video').length;
                                                 return (
                                                     <tr key={u.id} className="hover:bg-white/[0.03] transition-colors group">
-                                                        <td className="px-10 py-6"><div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div><div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '연동된 채널 없음'}</div></td>
-                                                        <td className="px-10 py-6 text-center font-black text-white text-xl tabular-nums">{userVideos}</td>
-                                                        <td className="px-10 py-6 text-center text-[12px] font-black text-gray-500">{formatDate(u.last_sign_in_at)}</td>
-                                                        <td className="px-10 py-6 text-right"><span className="px-3 py-1 bg-green-500/10 text-green-500 text-[9px] font-black rounded-full border border-green-500/20 uppercase">정상 연결</span></td>
+                                                        <td className="px-10 py-6 align-middle"><div className="font-black text-white text-base group-hover:text-blue-400 transition-colors uppercase tracking-tight">{u.email}</div><div className="text-[11px] text-gray-600 font-bold mt-1 uppercase italic tracking-tighter">{u.user_metadata?.full_name || '연동된 채널 없음'}</div></td>
+                                                        <td className="px-10 py-6 text-center align-middle font-black text-white text-xl tabular-nums">{userVideos}</td>
+                                                        <td className="px-10 py-6 text-center align-middle text-[12px] font-black text-gray-500">{formatDate(u.last_sign_in_at)}</td>
+                                                        <td className="px-10 py-6 text-right align-middle"><span className="px-3 py-1 bg-green-500/10 text-green-500 text-[9px] font-black rounded-full border border-green-500/20 uppercase">정상 연결</span></td>
                                                     </tr>
                                                 );
                                             })}
@@ -2654,7 +2806,7 @@ export default function DashboardContent() {
                                     </table>
                                 </div>
                             </div>
-                        ) : renderLogTable(globalLogs)}
+                        ) : renderLogTable(globalLogs, true)}
                     </div>
                 )}
 
@@ -2855,261 +3007,357 @@ export default function DashboardContent() {
 
                 {activeTab === 'api' && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-7xl mx-auto">
-                        <div className="px-10 py-6 border-b border-white/5 bg-black/20">
-                            <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">시스템 전역 API 키</h3>
-                            <p className="text-[10px] text-gray-600 mt-1">서버 공용 키는 개인 키가 없는 유저에게 적용됩니다.</p>
-                        </div>
-                        <div className="p-10 space-y-6">
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
-                                <div className="space-y-6">
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Music Generation Provider</label>
-                                <select
-                                    value={sysKeys.music_provider}
-                                    onChange={e => setSysKeys(prev => ({ ...prev, music_provider: e.target.value }))}
-                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
-                                >
-                                    <option value="elevenlabs" className="bg-[#111]">ElevenLabs (Default)</option>
-                                    <option value="suno" className="bg-[#111]">Suno API</option>
-                                    <option value="gemini" className="bg-[#111]">Gemini / Lyria</option>
-                                </select>
+                        {/* 헤더 */}
+                        <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="flex-1">
+                                <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">시스템 전역 API 키 &amp; 설정</h3>
+                                <p className="text-[10px] text-gray-600 mt-1">서버 공용 키는 개인 키가 없는 유저에게 적용됩니다.</p>
                             </div>
-                            {([
-                                { key: 'gemini', label: 'Gemini API Key' },
-                                { key: 'youtube', label: 'YouTube Data API Key' },
-                                { key: 'elevenlabs', label: 'ElevenLabs API Key' },
-                                { key: 'topview', label: 'TopView API Key' },
-                                { key: 'topview_uid', label: 'TopView UID' },
-                                { key: 'binance_api_key', label: 'Binance API Key (출금용)' },
-                                { key: 'binance_api_secret', label: 'Binance API Secret (출금용)' },
-                            ] as { key: keyof typeof sysKeys; label: string }[]).map(({ key, label }) => (
-                                <div key={key}>
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
-                                    <input
-                                        type="password"
-                                        value={sysKeys[key] as string}
-                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
-                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
-                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
-                                        placeholder={sysKeys[key] ? '************' : '(미설정)'}
-                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                    />
-                                </div>
-                            ))}
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Suno API Key</label>
-                                <input
-                                    type="password"
-                                    value={sysKeys.suno}
-                                    onChange={e => setSysKeys(prev => ({ ...prev, suno: e.target.value }))}
-                                    onFocus={e => (e.target as HTMLInputElement).type = 'text'}
-                                    onBlur={e => (e.target as HTMLInputElement).type = 'password'}
-                                    placeholder={sysKeys.suno ? '************' : '(not set)'}
-                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Suno API Base URL</label>
-                                <input
-                                    type="text"
-                                    value={sysKeys.suno_base_url}
-                                    onChange={e => setSysKeys(prev => ({ ...prev, suno_base_url: e.target.value }))}
-                                    placeholder="https://your-suno-provider.example.com/api/generate"
-                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                                <div>
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Music Model</label>
-                                    <select
-                                        value={sysKeys.music_gemini_model}
-                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_model: e.target.value }))}
-                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                            {/* 서브 탭 */}
+                            <div className="flex gap-1 p-1 bg-black/40 border border-white/5 rounded-2xl flex-shrink-0">
+                                {([
+                                    { key: 'ai',     icon: '🤖', label: 'AI 핵심' },
+                                    { key: 'music',  icon: '🎵', label: '음악' },
+                                    { key: 'video',  icon: '🎬', label: '영상/결제' },
+                                    { key: 'legal',  icon: '📋', label: '약관' },
+                                    { key: 'policy', icon: '⚙️', label: '운영정책' },
+                                ] as const).map(t => (
+                                    <button
+                                        key={t.key}
+                                        type="button"
+                                        onClick={() => setApiSettingsTab(t.key)}
+                                        className={`px-3 py-2 rounded-xl text-[11px] font-black transition-all whitespace-nowrap ${
+                                            apiSettingsTab === t.key
+                                                ? 'bg-blue-600 text-white shadow-lg'
+                                                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                        }`}
                                     >
-                                        <option value="lyria-3-pro-preview" className="bg-[#111]">Lyria 3 Pro Preview</option>
-                                        <option value="lyria-3-clip-preview" className="bg-[#111]">Lyria 3 Clip Preview</option>
-                                        <option value="lyria-002" className="bg-[#111]">Lyria 2 Legacy</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Location</label>
-                                    <input
-                                        type="text"
-                                        value={sysKeys.music_gemini_location}
-                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_location: e.target.value }))}
-                                        placeholder="global"
-                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Project ID</label>
-                                    <input
-                                        type="text"
-                                        value={sysKeys.music_gemini_project_id}
-                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_project_id: e.target.value }))}
-                                        placeholder="google-cloud-project-id"
-                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Music Base URL</label>
-                                    <input
-                                        type="text"
-                                        value={sysKeys.music_gemini_base_url}
-                                        onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_base_url: e.target.value }))}
-                                        placeholder="optional custom endpoint; supports {project_id}, {location}, {model}"
-                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                    />
-                                </div>
+                                        {t.icon} {t.label}
+                                    </button>
+                                ))}
                             </div>
-                                </div>
+                        </div>
 
-                            {/* Google Drive Queue Configuration section */}
-                            <div className="space-y-4 xl:border-l xl:border-white/10 xl:pl-8">
-                                <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">Google Drive 렌더 대기열 설정</h4>
-                                
-                                <div className="flex items-center gap-3 bg-white/[0.02] p-4 rounded-xl border border-white/5">
-                                    <input 
-                                        type="checkbox" 
-                                        id="use_external_render" 
-                                        checked={sysKeys.use_external_render} 
-                                        onChange={e => setSysKeys(prev => ({ ...prev, use_external_render: e.target.checked }))}
-                                        className="w-4 h-4 rounded text-blue-500 bg-black border-white/10 cursor-pointer"
-                                    />
-                                    <div className="text-xs">
-                                        <label htmlFor="use_external_render" className="font-bold text-gray-300 cursor-pointer">외부 렌더 대기열 사용 (Google Drive File Stream 연동)</label>
-                                        <p className="text-[10px] text-gray-500 mt-0.5">활성화하면 생성 단계와 비디오 렌더 파일이 아래 설정한 구글 드라이브 경로로 동기화됩니다.</p>
+                        <div className="p-8 space-y-6">
+
+                            {/* ── 탭 1: AI 핵심 ── */}
+                            {apiSettingsTab === 'ai' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        {([
+                                            { key: 'gemini',  label: 'Gemini API Key',        hint: 'AI 생성 전반 (스크립트, 이미지 프롬프트, 음악 등)' },
+                                            { key: 'youtube', label: 'YouTube Data API Key',  hint: '채널/영상 검색 및 통계 조회' },
+                                        ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
+                                            <div key={key} className="space-y-1.5">
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">{label}</label>
+                                                <p className="text-[10px] text-gray-600">{hint}</p>
+                                                <input
+                                                    type="password"
+                                                    value={sysKeys[key] as string}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                    onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                                    onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                    placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
+                            )}
 
-                                <div className="space-y-4">
+                            {/* ── 탭 2: 음악 ── */}
+                            {apiSettingsTab === 'music' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
                                     <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">우선 적용 언어 경로 (활성 설정)</label>
-                                        <select 
-                                            value={sysKeys.drive_active_lang}
-                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_active_lang: e.target.value }))}
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Music Generation Provider</label>
+                                        <select
+                                            value={sysKeys.music_provider}
+                                            onChange={e => setSysKeys(prev => ({ ...prev, music_provider: e.target.value }))}
+                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-gray-300 cursor-pointer"
                                         >
-                                            <option value="ko" className="bg-[#111]">한국어 (Korean OS 경로 적용)</option>
-                                            <option value="en" className="bg-[#111]">영어 (English OS 경로 적용)</option>
-                                            <option value="ja" className="bg-[#111]">일본어 (Japanese OS 경로 적용)</option>
+                                            <option value="elevenlabs" className="bg-[#111]">ElevenLabs (Default)</option>
+                                            <option value="suno" className="bg-[#111]">Suno API</option>
+                                            <option value="gemini" className="bg-[#111]">Gemini / Lyria</option>
                                         </select>
                                     </div>
 
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">한국어 Windows 경로 (DRIVE_PATH_KO)</label>
-                                        <input 
-                                            type="text" 
-                                            value={sysKeys.drive_path_ko} 
-                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_path_ko: e.target.value }))}
-                                            placeholder="G:/내 드라이브/Longform_Render_Queue"
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
-                                        />
+                                    {/* ElevenLabs */}
+                                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+                                        <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">🎙️ ElevenLabs</p>
+                                        <div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">ElevenLabs API Key</label>
+                                            <input
+                                                type="password"
+                                                value={sysKeys.elevenlabs}
+                                                onChange={e => setSysKeys(prev => ({ ...prev, elevenlabs: e.target.value }))}
+                                                onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                                onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                placeholder={sysKeys.elevenlabs ? '••••••••••••' : '(미설정)'}
+                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">영어 Windows 경로 (DRIVE_PATH_EN)</label>
-                                        <input 
-                                            type="text" 
-                                            value={sysKeys.drive_path_en} 
-                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_path_en: e.target.value }))}
-                                            placeholder="G:/My Drive/Longform_Render_Queue"
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
-                                        />
+                                    {/* Suno */}
+                                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+                                        <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest">🎸 Suno</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Suno API Key</label>
+                                                <input
+                                                    type="password"
+                                                    value={sysKeys.suno}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, suno: e.target.value }))}
+                                                    onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                                    onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                    placeholder={sysKeys.suno ? '••••••••••••' : '(미설정)'}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Suno API Base URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.suno_base_url}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, suno_base_url: e.target.value }))}
+                                                    placeholder="https://your-suno-provider.example.com/api/generate"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">일본어 Windows 경로 (DRIVE_PATH_JA)</label>
-                                        <input 
-                                            type="text" 
-                                            value={sysKeys.drive_path_ja} 
-                                            onChange={e => setSysKeys(prev => ({ ...prev, drive_path_ja: e.target.value }))}
-                                            placeholder="G:/?욁궎?됥꺀?ㅳ깣/Longform_Render_Queue"
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-blue-300 uppercase tracking-widest block">Google Drive API Folder ID</label>
-                                <input
-                                    type="text"
-                                    value={sysKeys.remote_render_drive_folder_id}
-                                    onChange={e => setSysKeys(prev => ({ ...prev, remote_render_drive_folder_id: e.target.value }))}
-                                    placeholder="Drive folder ID for remote render asset ZIPs"
-                                    className="w-full bg-black/40 border border-blue-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
-                                />
-                                <p className="text-[10px] text-gray-500">API 방식으로 렌더 대기열에서 생성된 ZIP을 업로드할 Drive 폴더 ID입니다.</p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-blue-300 uppercase tracking-widest block">Google OAuth Token Path</label>
-                                <input
-                                    type="text"
-                                    value={sysKeys.remote_render_google_token_path}
-                                    onChange={e => setSysKeys(prev => ({ ...prev, remote_render_google_token_path: e.target.value }))}
-                                    placeholder="C:/path/to/token.json"
-                                    className="w-full bg-black/40 border border-blue-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300"
-                                />
-                                <p className="text-[10px] text-gray-500">메인 PC는 자격 증명 파일로 Drive API 인증을 사용합니다. OAuth 토큰 파일 경로입니다.</p>
-                            </div>
-
-                            {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">저장 완료</p>}
-
-                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
-                                <div>
-                                    <h4 className="text-xs font-black text-emerald-300 uppercase tracking-widest">Longform Work Policy</h4>
-                                    <p className="text-[10px] text-gray-500 mt-1">롱폼 직원 작업시간 잠금과 예상 수당 계산 기준입니다.</p>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">최소 영상 길이(분)</label>
-                                        <input
-                                            type="number"
-                                            min="15"
-                                            value={sysKeys.longform_min_duration_minutes}
-                                            onChange={e => setSysKeys(prev => ({ ...prev, longform_min_duration_minutes: e.target.value }))}
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">기본 수당 (USDT)</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={sysKeys.longform_base_payout}
-                                            onChange={e => setSysKeys(prev => ({ ...prev, longform_base_payout: e.target.value }))}
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">추가 1분당 수당 (USDT)</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={sysKeys.longform_extra_minute_payout}
-                                            onChange={e => setSysKeys(prev => ({ ...prev, longform_extra_minute_payout: e.target.value }))}
-                                            className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
-                                        />
+                                    {/* Gemini Lyria */}
+                                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">✨ Gemini / Lyria</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Music Model</label>
+                                                <select
+                                                    value={sysKeys.music_gemini_model}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_model: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <option value="lyria-3-pro-preview" className="bg-[#111]">Lyria 3 Pro Preview</option>
+                                                    <option value="lyria-3-clip-preview" className="bg-[#111]">Lyria 3 Clip Preview</option>
+                                                    <option value="lyria-002" className="bg-[#111]">Lyria 2 Legacy</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Location</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.music_gemini_location}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_location: e.target.value }))}
+                                                    placeholder="global"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Project ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.music_gemini_project_id}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_project_id: e.target.value }))}
+                                                    placeholder="google-cloud-project-id"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Gemini Music Base URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.music_gemini_base_url}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, music_gemini_base_url: e.target.value }))}
+                                                    placeholder="optional custom endpoint; supports {project_id}, {location}, {model}"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <label className="flex items-center gap-3 text-xs font-bold text-gray-300">
-                                    <input
-                                        type="checkbox"
-                                        checked={String(sysKeys.longform_duration_lock_enabled) !== 'false'}
-                                        onChange={e => setSysKeys(prev => ({ ...prev, longform_duration_lock_enabled: String(e.target.checked) }))}
-                                        className="w-4 h-4 rounded text-emerald-500 bg-black border-white/10 cursor-pointer"
-                                    />
-                                    롱폼 배정시간을 직원 화면에서 수정 불가로 고정
-                                </label>
-                            </div>
+                            )}
 
+                            {/* ── 탭 3: 영상/결제 ── */}
+                            {apiSettingsTab === 'video' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-4">
+                                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">🎬 TopView (영상 자동 업로드)</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {([
+                                                { key: 'topview',     label: 'TopView API Key' },
+                                                { key: 'topview_uid', label: 'TopView UID' },
+                                            ] as { key: keyof typeof sysKeys; label: string }[]).map(({ key, label }) => (
+                                                <div key={key}>
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
+                                                    <input
+                                                        type="password"
+                                                        value={sysKeys[key] as string}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                        placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-4 space-y-4">
+                                        <p className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">💰 Binance (출금 자동화)</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {([
+                                                { key: 'binance_api_key',    label: 'Binance API Key' },
+                                                { key: 'binance_api_secret', label: 'Binance API Secret' },
+                                            ] as { key: keyof typeof sysKeys; label: string }[]).map(({ key, label }) => (
+                                                <div key={key}>
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
+                                                    <input
+                                                        type="password"
+                                                        value={sysKeys[key] as string}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                        placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
+                                                        className="w-full bg-black/40 border border-yellow-500/20 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── 탭 4: 약관 ── */}
+                            {apiSettingsTab === 'legal' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest">가입 약관 및 개인정보처리방침</h4>
+                                            <p className="text-[10px] text-gray-500 mt-1">회원가입 신청 화면에 실시간으로 반영됩니다.</p>
+                                        </div>
+                                        <div className="flex gap-1.5 p-1 bg-black/30 border border-white/5 rounded-xl">
+                                            {([
+                                                { key: 'ko', label: '🇰🇷 KO' },
+                                                { key: 'en', label: '🇺🇸 EN' },
+                                                { key: 'vi', label: '🇻🇳 VI' }
+                                            ] as const).map(l => (
+                                                <button
+                                                    key={l.key}
+                                                    type="button"
+                                                    onClick={() => setLegalActiveTab(l.key)}
+                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${legalActiveTab === l.key ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-white'}`}
+                                                >
+                                                    {l.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
+                                                서비스 이용약관 ({legalActiveTab.toUpperCase()})
+                                            </label>
+                                            <textarea
+                                                value={
+                                                    legalActiveTab === 'ko' ? sysKeys.terms_ko :
+                                                    legalActiveTab === 'en' ? sysKeys.terms_en :
+                                                    sysKeys.terms_vi
+                                                }
+                                                onChange={e => setSysKeys(prev => {
+                                                    if (legalActiveTab === 'ko') return { ...prev, terms_ko: e.target.value };
+                                                    if (legalActiveTab === 'en') return { ...prev, terms_en: e.target.value };
+                                                    return { ...prev, terms_vi: e.target.value };
+                                                })}
+                                                rows={12}
+                                                placeholder={`${legalActiveTab.toUpperCase()} 이용약관 내용을 입력하세요.`}
+                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 placeholder:text-gray-700 resize-y font-sans leading-relaxed"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
+                                                개인정보처리방침 ({legalActiveTab.toUpperCase()})
+                                            </label>
+                                            <textarea
+                                                value={
+                                                    legalActiveTab === 'ko' ? sysKeys.privacy_ko :
+                                                    legalActiveTab === 'en' ? sysKeys.privacy_en :
+                                                    sysKeys.privacy_vi
+                                                }
+                                                onChange={e => setSysKeys(prev => {
+                                                    if (legalActiveTab === 'ko') return { ...prev, privacy_ko: e.target.value };
+                                                    if (legalActiveTab === 'en') return { ...prev, privacy_en: e.target.value };
+                                                    return { ...prev, privacy_vi: e.target.value };
+                                                })}
+                                                rows={12}
+                                                placeholder={`${legalActiveTab.toUpperCase()} 개인정보처리방침 내용을 입력하세요.`}
+                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 placeholder:text-gray-700 resize-y font-sans leading-relaxed"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── 탭 5: 운영정책 ── */}
+                            {apiSettingsTab === 'policy' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
+                                        <div>
+                                            <h4 className="text-xs font-black text-emerald-300 uppercase tracking-widest">Longform Work Policy</h4>
+                                            <p className="text-[10px] text-gray-500 mt-1">롱폼 직원 작업시간 잠금과 예상 수당 계산 기준입니다.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">최소 영상 길이(분)</label>
+                                                <input
+                                                    type="number"
+                                                    min="15"
+                                                    value={sysKeys.longform_min_duration_minutes}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, longform_min_duration_minutes: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">기본 수당 (USDT)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={sysKeys.longform_base_payout}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, longform_base_payout: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">추가 1분당 수당 (USDT)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={sysKeys.longform_extra_minute_payout}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, longform_extra_minute_payout: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
+                                                />
+                                            </div>
+                                        </div>
+                                        <label className="flex items-center gap-3 text-xs font-bold text-gray-300">
+                                            <input
+                                                type="checkbox"
+                                                checked={String(sysKeys.longform_duration_lock_enabled) !== 'false'}
+                                                onChange={e => setSysKeys(prev => ({ ...prev, longform_duration_lock_enabled: String(e.target.checked) }))}
+                                                className="w-4 h-4 rounded text-emerald-500 bg-black border-white/10 cursor-pointer"
+                                            />
+                                            롱폼 배정시간을 직원 화면에서 수정 불가로 고정
+                                        </label>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 저장 버튼 */}
+                            {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">✓ 저장 완료</p>}
                             <button
                                 onClick={saveSysKeys}
                                 disabled={sysKeysSaving}
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black rounded-2xl transition-all text-sm mt-4"
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-black rounded-2xl transition-all text-sm"
                             >
                                 {sysKeysSaving ? '저장 중...' : '변경사항 저장'}
                             </button>
@@ -3274,7 +3522,7 @@ export default function DashboardContent() {
                                                         {task.message || '-'}
                                                     </td>
                                                     <td className="px-4 py-4 text-center whitespace-nowrap">
-                                                        <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">??젣</button>
+                                                        <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
                                                     </td>
                                                 </tr>
                                                 )
@@ -3484,20 +3732,20 @@ export default function DashboardContent() {
                 )}
             </main>
 
-            {/* ?ъ슜???뺣낫 吏곸젒 ?섏젙 紐⑤떖 */}
+            {/* 사용자 정보 직접 수정 모달 */}
             {editInfoUser && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditInfoUser(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">?ъ슜???뺣낫 ?섏젙</div>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">사용자 정보 수정</div>
                         <div className="text-white font-black text-lg mb-6">{editInfoUser.email?.toLowerCase()}</div>
                         <div className="flex flex-col gap-4">
                             <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">?대쫫</label>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">이름</label>
                                 <input value={editInfoForm.full_name} onChange={e => setEditInfoForm(p => ({ ...p, full_name: e.target.value }))}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="?대쫫 ?낅젰" />
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="이름 입력" />
                             </div>
                             <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">援?쟻</label>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">국적</label>
                                 <input value={editInfoForm.nationality} onChange={e => setEditInfoForm(p => ({ ...p, nationality: e.target.value }))}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-yellow-500/50" placeholder="국적 입력 (예: 한국)" />
                             </div>
@@ -3560,10 +3808,10 @@ export default function DashboardContent() {
                     <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={() => setLogViewUser(null)} />
                     <div className="relative w-full max-w-[1600px] bg-[#000106] border border-white/10 rounded-[3rem] p-12 flex flex-col max-h-[94vh] overflow-hidden shadow-2xl">
                         <div className="flex justify-between items-center mb-10">
-                             <div className="flex items-center gap-6"><h3 className="text-3xl font-black text-blue-500 uppercase italic tracking-tighter">?ъ슜???묒뾽 濡쒓렇</h3><div className="px-4 py-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-400 uppercase tracking-widest">{logViewUser.email}</div></div>
+                             <div className="flex items-center gap-6"><h3 className="text-3xl font-black text-blue-500 uppercase italic tracking-tighter">사용자 작업 로그</h3><div className="px-4 py-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full text-[10px] font-black text-blue-400 uppercase tracking-widest">{logViewUser.email}</div></div>
                              <div className="flex items-center gap-4">
                                   <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/5">{[1, 7, 30].map(d => (
-                                      <button key={d} onClick={() => { setLogPeriod(d); fetchUserLogs(logViewUser.id, d); }} className={`px-6 py-2 text-[10px] font-black rounded-lg transition-all ${logPeriod === d ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>{d === 1 ? '?쇨컙' : d === 7 ? '二쇨컙' : '?붽컙'}</button>
+                                      <button key={d} onClick={() => { setLogPeriod(d); fetchUserLogs(logViewUser.id, d); }} className={`px-6 py-2 text-[10px] font-black rounded-lg transition-all ${logPeriod === d ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}>{d === 1 ? '일간' : d === 7 ? '주간' : '월간'}</button>
                                   ))}</div>
                                   <button onClick={() => setLogViewUser(null)} className="w-12 h-12 flex items-center justify-center rounded-xl bg-white/5 text-gray-500 hover:text-white transition-all text-xl font-black">X</button>
                              </div>
@@ -3574,12 +3822,21 @@ export default function DashboardContent() {
                                     <StatCard label="TOTAL TASKS" value={logStats.total} unit="UNITS" color="white" />
                                     <StatCard label="SUCCESS RATE" value={logStats.successRate + '%'} unit="GLOBAL" color="green" />
                                     <StatCard label="AVG LATENCY" value={logStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                                    <StatCard label="TOKEN USAGE" value={logStats.totalTokens.toLocaleString()} unit="TOKENS" color="orange" />
+                                    <StatCard 
+                                        label="TOKEN USAGE" 
+                                        value={logStats.totalTokens.toLocaleString()} 
+                                        unit="TOKENS" 
+                                        color="orange" 
+                                        subLabel={isKor 
+                                            ? `예상 비용: 약 $${((logStats.totalTokens || 0) * 0.00002).toFixed(2)}` 
+                                            : `Est. Cost: ~$${((logStats.totalTokens || 0) * 0.00002).toFixed(2)}`
+                                        }
+                                    />
                                 </div>
                                 {renderDonutChart(logStats)}
                              </div>
                              {renderChartRow(logStats, userTopTasks)}
-                             {renderLogTable(userLogs)}
+                             {renderLogTable(userLogs, false)}
                         </div>
                     </div>
                 </div>
@@ -3613,18 +3870,18 @@ export default function DashboardContent() {
                             <div><h3 className="text-3xl font-black uppercase italic tracking-tighter text-purple-500">유튜브 채널 연동 관리</h3><p className="text-sm text-gray-500 mt-2 uppercase tracking-widest font-black italic">{channelViewUser.email}</p></div>
                             <div className="space-y-8">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">梨꾨꼸 ?대쫫 (?쒖떆??</label>
-                                    <input type="text" placeholder="?? ?쇱뭅?붾━ ?ㅽ뒠?붿삤" value={tempChannelInfo.name} onChange={(e) => setTempChannelInfo({...tempChannelInfo, name: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">채널 이름 (표시용)</label>
+                                    <input type="text" placeholder="예: 피카디리 스튜디오" value={tempChannelInfo.name} onChange={(e) => setTempChannelInfo({...tempChannelInfo, name: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">?좏뒠釉?梨꾨꼸 ID</label>
-                                    <input type="text" placeholder="?? UCxxxxxxxxxxxx" value={tempChannelInfo.id} onChange={(e) => setTempChannelInfo({...tempChannelInfo, id: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">유튜브 채널 ID</label>
+                                    <input type="text" placeholder="예: UCxxxxxxxxxxxx" value={tempChannelInfo.id} onChange={(e) => setTempChannelInfo({...tempChannelInfo, id: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all" />
                                     
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">援?? ?고쉶??怨좎젙 IP ?꾨줉??(?좏깮)</label>
-                                    <input type="text" placeholder="?? http://username:password@ip:port" value={tempChannelInfo.proxy || ''} onChange={(e) => setTempChannelInfo({...tempChannelInfo, proxy: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all font-mono" />
-                                    <p className="text-[9px] text-gray-600 ml-4 font-bold">* ?대떦 梨꾨꼸 ?곸긽 ?낅줈????吏?뺥븳 ?꾨줉??IP ???쓣 寃쎌쑀?섏뿬 ?寃?援?? ?몄텧 ?뺣쪧???믪엯?덈떎.</p>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">국가 우회용 고정 IP 프록시 (선택)</label>
+                                    <input type="text" placeholder="예: http://username:password@ip:port" value={tempChannelInfo.proxy || ''} onChange={(e) => setTempChannelInfo({...tempChannelInfo, proxy: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-black text-white focus:outline-none focus:border-purple-500/50 transition-all font-mono" />
+                                    <p className="text-[9px] text-gray-600 ml-4 font-bold">* 해당 채널 영상 업로드는 지정한 프록시 IP 설정을 경유하여 국가별 노출 안정성을 높입니다.</p>
                                 </div>
                             </div>
                             <div className="flex gap-4">
@@ -3643,11 +3900,11 @@ export default function DashboardContent() {
                                             return;
                                         }
                                         
-                                        // window.open???ъ슜?섏뿬 CORS ?고쉶 諛?利됯컖?곸씤 ?쇰뱶諛??쒓났
+                                        // window.open을 사용하여 CORS 우회 및 즉각적인 피드백 제공
                                         const url = `http://127.0.0.1:8001/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}&proxy=${encodeURIComponent(tempChannelInfo.proxy || '')}`;
                                         window.open(url, '_blank', 'width=600,height=700');
                                         
-                                        // 硫뷀??곗씠???뺣낫 ??μ? 蹂꾨룄濡??섑뻾
+                                        // 메타데이터 정보 저장은 별도로 수행
                                         handleUpdateChannelInfo();
                                     }}
                                     className="px-8 py-6 bg-white text-black font-black rounded-[2rem] shadow-xl hover:bg-gray-100 transition-all active:scale-95 flex items-center justify-center gap-2 text-xs"
@@ -3666,7 +3923,7 @@ export default function DashboardContent() {
                 </div>
             )}
 
-            {/* 移댄뀒怨좊━ ?뺣낫 ?섏젙 紐⑤떖 */}
+            {/* 카테고리 정보 수정 모달 */}
             {editCategory && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditCategory(null)}>
                     <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -3674,23 +3931,23 @@ export default function DashboardContent() {
                         <div className="text-white font-black text-lg mb-6">&quot;{editCategory.name}&quot; 설정 관리</div>
                         <div className="flex flex-col gap-4 text-xs">
                             <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">移댄뀒怨좊━紐?*</label>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">카테고리명 *</label>
                                 <input 
                                     type="text"
                                     value={editCatForm.name} 
                                     onChange={e => setEditCatForm(p => ({ ...p, name: e.target.value }))}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
-                                    placeholder="移댄뀒怨좊━紐??낅젰" 
+                                    placeholder="카테고리명 입력" 
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">?대떦 吏곸썝 ?대찓??*</label>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">담당 직원 이메일 *</label>
                                 <select
                                     value={editCatForm.assigned_employee_email}
                                     onChange={e => setEditCatForm(p => ({ ...p, assigned_employee_email: e.target.value }))}
                                     className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                                 >
-                                    <option value="">-- 吏곸썝???좏깮?섏꽭??--</option>
+                                    <option value="">-- 직원을 선택하세요 --</option>
                                     {users.map(user => {
                                         const email = user.email?.toLowerCase();
                                         if (!email) return null;
@@ -3710,17 +3967,17 @@ export default function DashboardContent() {
                                     value={editCatForm.keywords} 
                                     onChange={e => setEditCatForm(p => ({ ...p, keywords: e.target.value }))}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
-                                    placeholder="?쇳몴濡?援щ텇" 
+                                    placeholder="쉼표로 구분" 
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">踰ㅼ튂留덊궧???좏뒠釉?梨꾨꼸 URL</label>
+                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">벤치마킹 유튜브 채널 URL</label>
                                 <input 
                                     type="url"
                                     value={editCatForm.benchmark_channel_url} 
                                     onChange={e => setEditCatForm(p => ({ ...p, benchmark_channel_url: e.target.value }))}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
-                                    placeholder="?좏뒠釉?梨꾨꼸 二쇱냼" 
+                                    placeholder="유튜브 채널 주소" 
                                 />
                             </div>
                             <div>
@@ -3798,7 +4055,7 @@ export default function DashboardContent() {
                              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                                  <div className="flex items-center justify-between gap-3">
                                      <div>
-                                         <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest">?낅줈??怨좎젙 梨꾨꼸</div>
+                                         <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest">업로드 고정 채널</div>
                                          <div className="mt-1 text-sm font-black text-white">
                                              {editCatForm.upload_channel_name || editCatForm.upload_channel_handle || '설정 안됨'}
                                          </div>
@@ -3811,7 +4068,7 @@ export default function DashboardContent() {
                                          onClick={() => openCategoryChannelConfig({ id: editCategory.id, ...editCatForm })}
                                          className="px-4 py-2 bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all"
                                      >
-                                         梨꾨꼸 ?ㅼ젙
+                                         채널 설정
                                      </button>
                                  </div>
                              </div>
@@ -3892,7 +4149,7 @@ export default function DashboardContent() {
                                     로컬 채널 저장
                                 </button>
                                 <button type="button" onClick={handleStartCategoryChannelOAuth} className="py-3 bg-purple-600/15 hover:bg-purple-600 text-purple-300 hover:text-white text-[11px] font-black rounded-xl border border-purple-500/20 transition-all">
-                                    Google OAuth ?곕룞
+                                    Google OAuth 연동
                                 </button>
                                 <button type="button" onClick={handleSaveCategoryChannelBinding} className="py-3 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black rounded-xl transition-all">
                                     카테고리에 저장

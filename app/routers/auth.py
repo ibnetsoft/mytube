@@ -138,6 +138,24 @@ async def get_login_page(request: Request):
     )
 
 
+@router.get("/api/auth/legal")
+async def get_legal_settings():
+    keys = ["terms_ko", "terms_en", "terms_vi", "privacy_ko", "privacy_en", "privacy_vi"]
+    result = {k: "" for k in keys}
+    try:
+        if web_admin_client.has_supabase():
+            keys_str = ",".join(keys)
+            res = web_admin_client.supabase_get("global_settings", params={"select": "key,value", "key": f"in.({keys_str})"})
+            if res and res.status_code == 200:
+                for row in res.json() or []:
+                    k = row.get("key")
+                    if k in result:
+                        result[k] = row.get("value") or ""
+    except Exception as e:
+        print(f"[Auth API Warning] Failed to fetch legal settings: {e}")
+    return result
+
+
 @router.get("/api/auth/emails")
 async def get_auth_emails():
     try:

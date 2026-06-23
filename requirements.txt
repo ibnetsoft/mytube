@@ -43,3 +43,5 @@ psd-tools>=1.12.1
 pykakasi
 
 eth-account
+pywebview
+

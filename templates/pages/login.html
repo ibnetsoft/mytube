@@ -21,6 +21,7 @@
         .auth-input.input-error { border-color:rgba(239,68,68,.6)!important; }
         .auth-input.input-ok { border-color:rgba(16,185,129,.5); }
         .policy-box { background:rgba(2,6,23,.42); border:1px solid rgba(255,255,255,.08); }
+        #desc-terms, #desc-privacy { white-space: pre-wrap; }
         .pw-rule { display:flex; align-items:center; gap:6px; font-size:11px; color:#6b7280; transition:color .2s; }
         .pw-rule.pass { color:#10b981; }
         .pw-rule .dot-rule { width:7px; height:7px; border-radius:50%; background:#374151; transition:background .2s; flex-shrink:0; }
@@ -585,8 +586,27 @@
     let pwValid = false, pwConfirmValid = false, emailVerified = false;
     let verifyCountdown = null;
 
+    async function loadLegalTexts() {
+        try {
+            const r = await fetch('/api/auth/legal');
+            if (r.ok) {
+                const data = await r.json();
+                if (data.terms_ko) LANGS.ko.desc_terms = data.terms_ko;
+                if (data.privacy_ko) LANGS.ko.desc_privacy = data.privacy_ko;
+                if (data.terms_en) LANGS.en.desc_terms = data.terms_en;
+                if (data.privacy_en) LANGS.en.desc_privacy = data.privacy_en;
+                if (data.terms_vi) LANGS.vi.desc_terms = data.terms_vi;
+                if (data.privacy_vi) LANGS.vi.desc_privacy = data.privacy_vi;
+                applyLang();
+            }
+        } catch (e) {
+            console.error('Failed to load legal texts:', e);
+        }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
         loadSignupOptions();
+        loadLegalTexts();
         applyLang();
     });
 
