@@ -194,8 +194,9 @@ export default function DashboardContent() {
 
     const [showAdvanced, setShowAdvanced] = useState(false)
 
-    // 移댄뀒怨좊━ 由ъ뒪??濡깊뤌/?륂뤌 ??援щ텇
+    // 카테고리 리스트 롱폼/쇼츠 탭 구분
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
+    const [categoryLangTab, setCategoryLangTab] = useState<'ko' | 'ja' | 'en'>('ko')
 
     // 移댄뀒怨좊━ ?섏젙 紐⑤떖 ?곹깭
     const [editCategory, setEditCategory] = useState<any | null>(null)
@@ -1832,8 +1833,30 @@ export default function DashboardContent() {
 
                         {/* 2. 등록된 카테고리 및 매핑 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                                <h2 className="font-black text-xl tracking-tight">내 카테고리 현황</h2>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                    <h2 className="font-black text-xl tracking-tight">내 카테고리 현황</h2>
+                                    <div className="flex p-1 bg-black/40 rounded-xl border border-white/10">
+                                        <button 
+                                            onClick={() => setCategoryLangTab('ko')}
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${categoryLangTab === 'ko' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
+                                        >
+                                            한국
+                                        </button>
+                                        <button 
+                                            onClick={() => setCategoryLangTab('ja')}
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${categoryLangTab === 'ja' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
+                                        >
+                                            일본
+                                        </button>
+                                        <button 
+                                            onClick={() => setCategoryLangTab('en')}
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${categoryLangTab === 'en' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-white'}`}
+                                        >
+                                            미국
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="flex p-1 bg-black/40 rounded-xl border border-white/10">
                                     <button 
                                         onClick={() => setCategoryListTab('longform')}
@@ -1852,11 +1875,11 @@ export default function DashboardContent() {
 
                             {categoriesLoading ? (
                                 <div className="text-center py-20 text-gray-500 text-sm">카테고리 로딩 중...</div>
-                            ) : categories.filter(c => (c.video_type || 'longform') === categoryListTab).length === 0 ? (
-                                <div className="text-center py-20 text-gray-500 text-sm italic">해당 유형에 등록된 카테고리가 없습니다.</div>
+                            ) : categories.filter(c => (c.video_type || 'longform') === categoryListTab && normalizeContentLanguage(c.language) === categoryLangTab).length === 0 ? (
+                                <div className="text-center py-20 text-gray-500 text-sm italic">해당 유형 및 언어에 등록된 카테고리가 없습니다.</div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {categories.filter(c => (c.video_type || 'longform') === categoryListTab).map((cat) => {
+                                    {categories.filter(c => (c.video_type || 'longform') === categoryListTab && normalizeContentLanguage(c.language) === categoryLangTab).map((cat) => {
                                         const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
                                         const previewTopicItems = pendingTopics.slice(0, 10);
