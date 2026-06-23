@@ -69,8 +69,8 @@
                 <div class="card p-6 shadow-lg border border-gray-200 dark:border-white/5 bg-[#1c2027]">
 
 
-                    <div class="grid grid-cols-1 {% if (membership | lower) in ['std', 'standard'] %}md:grid-cols-1{% else %}md:grid-cols-2{% endif %} gap-6">
-                        {% if not ((membership | lower) in ['std', 'standard']) %}
+                    {% if not ((membership | lower) in ['std', 'standard']) %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- License Key View -->
                         <div class="space-y-2">
                             <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest">
@@ -87,7 +87,6 @@
                                 <span class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold ml-auto">ACTIVE</span>
                             </div>
                         </div>
-                        {% endif %}
 
                         <!-- Membership Tier -->
                         <div class="space-y-2">
@@ -104,8 +103,10 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
 
                     <!-- Platform Mode (Relocated to Basic Settings) -->
+                    {% if not ((membership | lower) in ['std', 'standard']) %}
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
                             💻 {{ t('label_platform_mode_settings') }}
@@ -163,28 +164,11 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% else %}
+                    <input type="hidden" id="appMode" value="longform">
+                    {% endif %}
 
-                    <!-- [NEW] Scene Transition Dropdown -->
-                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            {{ t('label_scene_transition') }}
-                        </h4>
-                        <div class="mb-5 pb-2">
-                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">{{ t('label_select_effect_mode') }}</label>
-                            <select id="sceneTransitionMode" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                <option value="ai_auto">{{ t('label_ai_auto_effect') }}</option>
-                                <option value="none">{{ t('label_none_cut') }}</option>
-                                <option value="crossfade">{{ t('label_crossfade') }}</option>
-                                <option value="slide_left">{{ t('label_slide_left') }}</option>
-                                <option value="fade_to_black">{{ t('label_fade_to_black') }}</option>
-                                <option value="zoom_in">{{ t('label_zoom_in') }}</option>
-                            </select>
-                            <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
-                                {{ t('label_ai_auto_effect_desc') }}
-                            </p>
-                        </div>
-                    </div>
-
+                    <!-- User Info Section -->
                     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
                             👤 {{ t('label_user_info') }}
@@ -236,7 +220,27 @@
                                     🗑️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Rút tài khoản (Withdraw){% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Withdraw Account{% else %}회원 탈퇴 (Delete Account){% endif %}
                                 </button>
                             </div>
+                        </div>
+                    </div>
 
+                    <!-- [NEW] Scene Transition Dropdown -->
+                    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                        <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                            {{ t('label_scene_transition') }}
+                        </h4>
+                        <div class="mb-5 pb-2">
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">{{ t('label_select_effect_mode') }}</label>
+                            <select id="sceneTransitionMode" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-800 dark:text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                <option value="ai_auto">{{ t('label_ai_auto_effect') }}</option>
+                                <option value="none">{{ t('label_none_cut') }}</option>
+                                <option value="crossfade">{{ t('label_crossfade') }}</option>
+                                <option value="slide_left">{{ t('label_slide_left') }}</option>
+                                <option value="fade_to_black">{{ t('label_fade_to_black') }}</option>
+                                <option value="zoom_in">{{ t('label_zoom_in') }}</option>
+                            </select>
+                            <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
+                                {{ t('label_ai_auto_effect_desc') }}
+                            </p>
                         </div>
                     </div>
 

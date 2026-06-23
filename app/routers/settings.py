@@ -306,8 +306,6 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("wp_password", settings.wp_password)
     # [NEW] User Info
     if settings.user_name is not None:
-    # [NEW] User Info
-    if settings.user_name is not None:
         db.save_global_setting("user_name", settings.user_name)
     if settings.user_nationality is not None:
         db.save_global_setting("user_nationality", settings.user_nationality)
