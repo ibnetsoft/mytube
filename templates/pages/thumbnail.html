@@ -58,7 +58,7 @@
 
 
 <!-- 1단계: 제목 및 스타일 설정 (가로로 넓게 펼쳐진 납작한 레이아웃) -->
-<div class="card mb-6 overflow-hidden">
+<div class="card w-full mb-6 overflow-hidden">
     <div class="flex items-center justify-between mb-6">
         <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
             <span class="w-7 h-7 rounded-lg bg-blue-500 text-white flex items-center justify-center text-xs shadow-lg shadow-blue-500/20">1</span>
@@ -114,9 +114,17 @@
     </div>
 </div>
 
-<!-- 2단계: 생성 결과 (후킹 문구 및 아이디어) -->
-<div class="space-y-6 mb-6">
-    <!-- AI 추천 후킹 문구 -->
+<!-- 2단계: 썸네일 기획안 선택 -->
+<div class="w-full space-y-6 mb-6">
+    <div id="ideasSection" class="hidden card w-full overflow-hidden">
+        <div class="flex items-center gap-2 mb-6">
+            <span class="w-7 h-7 rounded-lg bg-indigo-500 text-white flex items-center justify-center text-xs shadow-lg shadow-indigo-500/20">2</span>
+            <h3 class="font-bold text-gray-800 dark:text-white">{{ t('thumb_stage_2_title') }}</h3>
+        </div>
+        <div id="ideasList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- 번호 없는 참고/후킹 섹션: 2단계 바로 아래 -->
     <div id="referenceThumbSection" class="hidden card overflow-hidden border-l-4 border-emerald-500">
         <div class="flex items-center justify-between gap-3 mb-4">
             <div>
@@ -141,19 +149,10 @@
         </div>
         <div id="hookTextsList" class="flex flex-wrap gap-2.5"></div>
     </div>
-
-    <!-- 썸네일 기획안 선택 -->
-    <div id="ideasSection" class="hidden card overflow-hidden">
-        <div class="flex items-center gap-2 mb-6">
-            <span class="w-7 h-7 rounded-lg bg-indigo-500 text-white flex items-center justify-center text-xs shadow-lg shadow-indigo-500/20">2</span>
-            <h3 class="font-bold text-gray-800 dark:text-white">{{ t('thumb_stage_2_title') }}</h3>
-        </div>
-        <div id="ideasList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
-    </div>
 </div>
 
 <!-- 3단계: 텍스트 추가 -->
-<div id="textSection" class="card mb-6">
+<div id="textSection" class="card w-full mb-6">
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
@@ -166,6 +165,10 @@
             <div id="layersContainer" class="space-y-4 mb-6">
                 <!-- 레이어들이 여기에 동적으로 생성됨 -->
             </div>
+
+            <button onclick="addLayer()" class="btn-secondary w-full mb-4 text-sm">
+                {{ t('btn_add_text') }}
+            </button>
         </div>
 
         <!-- 우측: 미리보기 -->
@@ -174,17 +177,17 @@
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">🖼️ {{ t('label_preview') or '미리보기' }}</span>
-                        <button type="button" onclick="savePermanentSettings()" id="saveSettingsBtn" 
-                            class="p-1 px-2 border border-gray-600 rounded text-[10px] text-gray-400 hover:text-white hover:bg-[#0a0f1d] transition-all font-bold"
+                        <button type="button" onclick="savePermanentSettings()" id="saveSettingsBtn"
+                            class="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
                             title="전체 설정 저장">
-                            SAVE
+                            <span class="text-sm">💾</span>
                         </button>
                     </div>
                     <div class="flex bg-[#1c2027] rounded-lg p-1 border border-gray-200 dark:border-gray-700">
                         <button type="button" onclick="setAspectRatio('16:9')" id="ratio169Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] font-bold">16:9</button>
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">📺 16:9</button>
                         <button type="button" onclick="setAspectRatio('9:16')" id="ratio916Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d] font-bold">9:16</button>
+                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">📱 9:16</button>
                     </div>
                 </div>
                 
@@ -206,7 +209,7 @@
     </div>
 
     <!-- 하단 유틸리티 섹션 (메인 컬럼과 가로폭 정렬) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100 dark:border-white/5">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100 dark:border-white/5 mt-4">
         
         <!-- 좌측 컬럼: 배경 및 템플릿 (2개 섹션 배치) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -282,20 +285,15 @@
                 <!-- 도형 레이어가 여기에 생성됨 -->
             </div>
             
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="addLayer()" class="py-2.5 rounded-lg border border-gray-600 bg-transparent text-white text-[11px] font-bold hover:bg-[#0a0f1d] transition-all">
-                    {{ t('btn_add_text') }}
-                </button>
-                <button onclick="addShapeLayer()" class="py-2.5 rounded-lg border border-gray-600 bg-transparent text-white text-[11px] font-bold hover:bg-[#0a0f1d] transition-all">
-                    {{ t('btn_add_shape') }}
-                </button>
-            </div>
+            <button onclick="addShapeLayer()" class="w-full py-2.5 rounded-lg border border-gray-600 bg-transparent text-white text-xs font-bold hover:bg-[#0a0f1d] transition-all">
+                {{ t('btn_add_shape') }}
+            </button>
         </div>
     </div>
 </div>
 
 <!-- 4단계: 결과 -->
-<div id="resultSection" class="card hidden">
+<div id="resultSection" class="card w-full hidden">
     <h3 class="font-bold text-gray-800 dark:text-white mb-4">{{ t('template_stage_4') or '4단계: 확정된 템플릿' }}</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div
@@ -3150,8 +3148,8 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
                 selectedIdeaIndex = state.selectedIdeaIndex;
                 selectedPrompt = state.selectedPrompt;
                 renderIdeas();
-                // [RESTORED] 상태 복구 시에도 아이디어 섹션 노출
-                document.getElementById('ideasSection').classList.remove('hidden');
+                // 템플릿 페이지와 동일하게, 상태 복구만으로 2번 섹션을 자동 노출하지 않음
+                // document.getElementById('ideasSection').classList.remove('hidden');
             }
 
             if (state.thumbnailRegenerationMode) {
