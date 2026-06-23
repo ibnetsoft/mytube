@@ -549,14 +549,7 @@
 
     function formatWon(value) {
         const formatted = Number(value || 0).toLocaleString('ko-KR');
-        const unit = i18n.unit_won || '원';
-        if (unit === 'USDT') {
-            return `${formatted} USDT`;
-        }
-        if (unit === 'KRW') {
-            return `${formatted} KRW`;
-        }
-        return `${formatted}${unit}`;
+        return `${formatted} USDT`;
     }
 
     function calculateLongformPayout(minutes) {
