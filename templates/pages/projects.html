@@ -51,9 +51,11 @@
 
 
 
+        {% if not ((membership | lower) in ['std', 'standard']) %}
         <button onclick="openProjectModal()" class="px-4 py-2 rounded-xl text-xs font-bold border border-gray-200 dark:border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white transition-all">
             {{ t('btn_new_project') }}
         </button>
+        {% endif %}
     </div>
 </div>
 
