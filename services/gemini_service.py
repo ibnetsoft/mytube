@@ -556,6 +556,15 @@ class GeminiService:
         model: str = None
     ) -> List[bytes]:
         """이미지 생성 (Imagen 폴백 체인: imagen-4 → imagen-3 → imagen-3-fast)"""
+        selected_model = str(model or getattr(config, "IMAGE_GENERATION_MODEL", "") or "gemini-3.1-flash-image-preview").strip()
+        if selected_model.startswith("black-forest-labs/") or selected_model.startswith("stability-ai/"):
+            from services.replicate_service import replicate_service
+            return await replicate_service.generate_image(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                num_outputs=num_images,
+                model=selected_model
+            )
 
         # 스타일 키워드 검사
         stylistic_keywords = ["k_manhwa", "k_webtoon", "anime", "cartoon", "ghibli", "sketch", "line art", "doodle", "wimpy", "webtoon", "infographic", "black and white", "minimalist"]
@@ -605,10 +614,11 @@ class GeminiService:
 
 
         # --- IMAGE GENERATION PIPELINE ---
-        models_to_try = [
-            model if model else "gemini-3.1-flash-image-preview",
-            "gemini-3.1-flash-image-preview"
-        ]
+        models_to_try = []
+        for candidate in [selected_model, "gemini-3.1-flash-image-preview"]:
+            candidate = str(candidate or "").strip()
+            if candidate and candidate not in models_to_try:
+                models_to_try.append(candidate)
 
         last_error = "No models tried"
         
@@ -664,11 +674,24 @@ class GeminiService:
         image_path: Optional[str] = None,
         duration_seconds: int = 5, 
         aspect_ratio: str = "16:9",
-        model: str = "veo-3.1-fast-generate-preview",
+        model: str = None,
         project_id: int = None,
         **kwargs
     ) -> Optional[bytes]:
         """영상 생성 (Veo) - 최신 SDK 방식 사용. 바이트 데이터를 직접 반환함."""
+        selected_model = str(model or getattr(config, "VIDEO_GENERATION_MODEL", "") or "veo-3.1-fast-generate-preview").strip()
+        if selected_model.startswith("wan-"):
+            from services.replicate_service import replicate_service
+            return await replicate_service.generate_video_from_image(
+                image_path=image_path,
+                prompt=prompt,
+                duration=float(duration_seconds),
+                method="standard",
+                project_id=project_id,
+                model=selected_model
+            )
+
+        model = selected_model
         # Cap duration for preview model
         if "preview" in model:
             duration_seconds = min(duration_seconds, 5)

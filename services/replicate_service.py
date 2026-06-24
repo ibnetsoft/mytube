@@ -16,7 +16,25 @@ class ReplicateService:
             self.api_key = os.getenv("REPLICATE_API_TOKEN")
         return bool(self.api_key)
 
-    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", duration: float = 5.0, method: str = "standard", project_id: int = None):
+    def _resolve_video_model_id(self, model: str = None) -> str:
+        selected = str(model or "").strip().lower()
+        if selected == "wan-2.1":
+            return "wavespeedai/wan-2.1-i2v-480p"
+        if selected == "wan-1.3":
+            print("[Replicate] wan-1.3 is not wired to a dedicated backend yet. Falling back to wan-2.1.")
+            return "wavespeedai/wan-2.1-i2v-480p"
+        return "wavespeedai/wan-2.1-i2v-480p"
+
+    def _resolve_image_model_id(self, model: str = None) -> str:
+        selected = str(model or "").strip().lower()
+        if selected in ("", "black-forest-labs/flux-dev"):
+            return "black-forest-labs/flux-dev"
+        if selected == "stability-ai/stable-diffusion-xl":
+            print("[Replicate] SDXL is not wired to a dedicated input adapter yet. Falling back to flux-dev.")
+            return "black-forest-labs/flux-dev"
+        return "black-forest-labs/flux-dev"
+
+    async def generate_video_from_image(self, image_path: str, prompt: str = "Cinematic video, high quality, smooth motion", duration: float = 5.0, method: str = "standard", project_id: int = None, model: str = None):
         """
         Replicate의 wan-video 모델을 사용하여 이미지 -> 비디오 생성
         - standard: 5초 생성 (Wan 2.1 한계)
@@ -51,7 +69,7 @@ class ReplicateService:
 
             if method == "extend":
                 # 1. First 5 seconds
-                first_part_data = await self._generate_basic(image_path, base_prompt, duration=5.0)
+                first_part_data = await self._generate_basic(image_path, base_prompt, duration=5.0, model=model)
                 first_path = self._save_temp_video(first_part_data, "part1.mp4")
 
                 # 2. Extract last frame
@@ -59,7 +77,7 @@ class ReplicateService:
                 last_frame_path = first_path.replace(".mp4", "_last.png")
                 if video_service.extract_last_frame(first_path, last_frame_path):
                     # 3. Generate next 3 seconds from last frame
-                    second_part_data = await self._generate_basic(last_frame_path, base_prompt, duration=3.0)
+                    second_part_data = await self._generate_basic(last_frame_path, base_prompt, duration=3.0, model=model)
                     second_path = self._save_temp_video(second_part_data, "part2.mp4")
 
                     # 4. Merge
@@ -72,7 +90,7 @@ class ReplicateService:
 
             elif method == "slowmo":
                 # 1. Standard 5s generation
-                video_data = await self._generate_basic(image_path, base_prompt, duration=5.0)
+                video_data = await self._generate_basic(image_path, base_prompt, duration=5.0, model=model)
                 temp_path = self._save_temp_video(video_data, "before_slowmo.mp4")
                 
                 # 2. Apply FFmpeg Slow-mo (Interpolation)
@@ -85,13 +103,13 @@ class ReplicateService:
                     return f.read()
 
             else: # Standard 5s
-                return await self._generate_basic(image_path, base_prompt, duration=duration)
+                return await self._generate_basic(image_path, base_prompt, duration=duration, model=model)
 
         except Exception as e:
             print(f"Replicate Service Error: {e}")
             raise e
 
-    async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0):
+    async def _generate_basic(self, image_path: str, prompt: str, duration: float = 5.0, model: str = None):
         """기본 Wan 2.1 생성 (wavespeedai/wan-2.1-i2v-480p)"""
         from PIL import Image
         import time
@@ -143,7 +161,8 @@ class ReplicateService:
             }
 
             loop = asyncio.get_event_loop()
-            output = await loop.run_in_executor(None, self._run_replicate, input_data)
+            model_id = self._resolve_video_model_id(model)
+            output = await loop.run_in_executor(None, self._run_replicate, input_data, model_id)
         
         # Log starting
         db.add_ai_log(None, 'video', 'wan-2.1', 'replicate', 'processing', prompt_summary=prompt[:100], input_tokens=500, output_tokens=1000)
@@ -159,7 +178,7 @@ class ReplicateService:
             f.write(data)
         return path
 
-    def _run_replicate(self, input_data):
+    def _run_replicate(self, input_data, model_id):
         """Wan 영상 생성. 씬당 최대 5분 timeout."""
         TIMEOUT_SECONDS = 300  # 5분
         max_retries = 3
@@ -170,7 +189,7 @@ class ReplicateService:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(
                         replicate.run,
-                        "wavespeedai/wan-2.1-i2v-480p",
+                        model_id,
                         input=input_data
                     )
                     try:
@@ -266,7 +285,7 @@ class ReplicateService:
             return str(output[0])
         return None
 
-    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1", num_outputs: int = 1, negative_prompt: str = None):
+    async def generate_image(self, prompt: str, aspect_ratio: str = "1:1", num_outputs: int = 1, negative_prompt: str = None, model: str = None):
         """
         Replicate를 사용하여 이미지 생성
         - 졸라맨/윔피 스타일: flux-dev (50스텝, anatomy 지시 준수율 높음)
@@ -279,7 +298,7 @@ class ReplicateService:
 
         enforced_prompt = prompt + ", no text, no words, no letters"
 
-        model = "black-forest-labs/flux-dev"
+        model_id = self._resolve_image_model_id(model)
         input_data = {
             "prompt": enforced_prompt,
             "aspect_ratio": aspect_ratio,
@@ -293,7 +312,7 @@ class ReplicateService:
 
         try:
             loop = asyncio.get_event_loop()
-            output = await loop.run_in_executor(None, self._run_replicate_model, model, input_data)
+            output = await loop.run_in_executor(None, self._run_replicate_model, model_id, input_data)
 
             if output and len(output) > 0:
                 # URL 리스트로 반환됨 -> 첫 번째 결과 다운로드
