@@ -1250,7 +1250,7 @@ export default function DashboardContent() {
         }
     }, [adminFetch])
 
-    const fetchStylePresets = async () => {
+    const fetchStylePresets = useCallback(async () => {
         try {
             setPresetsLoading(true)
             const res = await adminFetch('/api/admin/style-presets')
@@ -1261,7 +1261,7 @@ export default function DashboardContent() {
         } finally {
             setPresetsLoading(false)
         }
-    }
+    }, [adminFetch])
 
     const handleSavePreset = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -1693,14 +1693,20 @@ export default function DashboardContent() {
             fetchTopics();
             if (canManageStyles) fetchStylePresets();
         }
-    }, [isAdmin, loading, globalPeriod, referralDays, fetchUsers, fetchReferralReport, fetchGlobalStats, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, canManageSystemSettings, canManageStyles]);
+    }, [isAdmin, loading, fetchUsers, fetchReferralReport, fetchGlobalStats, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, canManageSystemSettings, canManageStyles]);
 
     // 기간 변경 시에만 별도 호출
     useEffect(() => {
         if (isAdmin && !loading) {
             fetchGlobalStats(globalPeriod);
         }
-    }, [globalPeriod]);
+    }, [isAdmin, loading, globalPeriod, fetchGlobalStats]);
+
+    useEffect(() => {
+        if (isAdmin && !loading) {
+            fetchReferralReport(referralDays);
+        }
+    }, [isAdmin, loading, referralDays, fetchReferralReport]);
 
     if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">{ui.authenticating}</div>;
     if (!isAdmin) return (
