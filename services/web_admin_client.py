@@ -40,6 +40,7 @@ class WebAdminClient:
     KEY_MAP = {
         "sys_api_gemini": "GEMINI_API_KEY",
         "sys_api_youtube": "YOUTUBE_API_KEY",
+        "sys_api_claude": "CLAUDE_API_KEY",
         "sys_api_elevenlabs": "ELEVENLABS_API_KEY",
         "sys_api_suno": "SUNO_API_KEY",
         "sys_api_suno_base_url": "SUNO_API_BASE_URL",
@@ -56,6 +57,9 @@ class WebAdminClient:
         "sys_api_longform_base_payout": "LONGFORM_BASE_PAYOUT",
         "sys_api_longform_extra_minute_payout": "LONGFORM_EXTRA_MINUTE_PAYOUT",
         "sys_api_longform_duration_lock_enabled": "LONGFORM_DURATION_LOCK_ENABLED",
+        "sys_api_script_generation_model": "SCRIPT_GENERATION_MODEL",
+        "sys_api_image_generation_model": "IMAGE_GENERATION_MODEL",
+        "sys_api_video_generation_model": "VIDEO_GENERATION_MODEL",
         "latest_app_version": "LATEST_APP_VERSION",
         "latest_app_url": "LATEST_APP_URL",
     }
