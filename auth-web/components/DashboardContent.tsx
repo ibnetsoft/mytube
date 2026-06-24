@@ -190,6 +190,7 @@ export default function DashboardContent() {
     const [categories, setCategories] = useState<any[]>([])
     const [topics, setTopics] = useState<any[]>([])
     const [categoriesLoading, setCategoriesLoading] = useState(false)
+    const hasLoadedCategoriesRef = useRef(false)
     const [newCatName, setNewCatName] = useState('')
     const [newCatKeywords, setNewCatKeywords] = useState('')
     const [newCatChannel, setNewCatChannel] = useState('')
@@ -683,7 +684,7 @@ export default function DashboardContent() {
             }
             alert(isKor ? '카테고리 업로드 채널이 저장되었습니다.' : 'Category upload channel saved.')
             setChannelConfigCategory(null)
-            fetchCategories()
+            fetchCategories(true)
         } catch (err: any) {
             alert((isKor ? '채널 저장 오류: ' : 'Failed to save channel: ') + (err?.message || String(err)))
         }
@@ -1222,16 +1223,20 @@ export default function DashboardContent() {
         }
     };
 
-    const fetchCategories = useCallback(async () => {
+    const fetchCategories = useCallback(async (background = false) => {
+        const shouldShowBlockingLoader = !hasLoadedCategoriesRef.current && !background
         try {
-            setCategoriesLoading(true)
+            if (shouldShowBlockingLoader) setCategoriesLoading(true)
             const res = await adminFetch('/api/admin/categories')
             const data = await res.json()
-            if (data.categories) setCategories(data.categories)
+            if (data.categories) {
+                setCategories(data.categories)
+                hasLoadedCategoriesRef.current = true
+            }
         } catch (e) {
             console.error("Failed to load categories:", e)
         } finally {
-            setCategoriesLoading(false)
+            if (shouldShowBlockingLoader) setCategoriesLoading(false)
         }
     }, [adminFetch])
 
@@ -1374,7 +1379,7 @@ export default function DashboardContent() {
                 setNewCatUploadChannelId(null)
                 setNewCatUploadChannelName('')
                 setNewCatUploadChannelHandle('')
-                fetchCategories()
+                fetchCategories(true)
                 fetchTopics()
                 alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
             } else {
@@ -1395,7 +1400,7 @@ export default function DashboardContent() {
             })
             const data = await res.json()
             if (data.success) {
-                fetchCategories()
+                fetchCategories(true)
                 fetchTopics()
             } else {
                 alert('삭제 실패: ' + data.error)
@@ -1425,7 +1430,7 @@ export default function DashboardContent() {
             if (data.success) {
                 alert('성공적으로 수정되었습니다.')
                 setEditCategory(null)
-                fetchCategories()
+                fetchCategories(true)
                 fetchTopics()
             } else {
                 alert('수정 실패: ' + data.error)
