@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { isAuthResponse, requireSuperAdmin } from '../_auth'
+import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 
 export const dynamic = 'force-dynamic'
 
