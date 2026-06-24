@@ -275,8 +275,8 @@ export default function DashboardContent() {
     const [logSearchPrompt, setLogSearchPrompt] = useState<string>('')
 
     // 시스템 전역 API 키 설정
-    const [sysKeys, setSysKeys] = useState({ 
-        gemini: '', youtube: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
+    const [sysKeys, setSysKeys] = useState({
+        gemini: '', youtube: '', claude: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
         longform_min_duration_minutes: '15',
@@ -289,7 +289,10 @@ export default function DashboardContent() {
         qa_target_lufs: '-14', qa_lufs_tolerance: '2', qa_blackdetect_min_duration: '1.0',
         qa_min_width: '1920', qa_min_height: '1080',
         terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
-        privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: ''
+        privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: '',
+        script_generation_model: 'gemini-2.5-flash',
+        image_generation_model: 'gemini-3.1-flash-image-preview',
+        video_generation_model: 'veo-3.1-fast-generate-preview'
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
@@ -3483,9 +3486,11 @@ export default function DashboardContent() {
                             {/* ── 탭 1: AI 핵심 ── */}
                             {apiSettingsTab === 'ai' && (
                                 <div className="space-y-5 animate-in fade-in duration-200">
+                                    {/* API Keys */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         {([
                                             { key: 'gemini',  label: 'Gemini API Key',        hint: 'AI 생성 전반 (스크립트, 이미지 프롬프트, 음악 등)' },
+                                            { key: 'claude',  label: 'Claude API Key',         hint: '대본 생성 전용 (Anthropic Claude)' },
                                             { key: 'youtube', label: 'YouTube Data API Key',  hint: '채널/영상 검색 및 통계 조회' },
                                         ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
                                             <div key={key} className="space-y-1.5">
@@ -3502,6 +3507,93 @@ export default function DashboardContent() {
                                                 />
                                             </div>
                                         ))}
+                                    </div>
+
+                                    {/* AI Model Settings */}
+                                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-4">
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">🤖 AI 모델 선택</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {/* 대본 생성 모델 */}
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">대본 생성 모델</label>
+                                                <select
+                                                    value={sysKeys.script_generation_model}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, script_generation_model: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <optgroup label="🟢 Claude (Anthropic)" className="bg-[#111]">
+                                                        <option value="claude-sonnet-4-6" className="bg-[#111]">Claude Sonnet 4.6 (추천)</option>
+                                                        <option value="claude-opus-4-8" className="bg-[#111]">Claude Opus 4.8 (고성능)</option>
+                                                        <option value="claude-haiku-4-5-20251001" className="bg-[#111]">Claude Haiku 4.5 (빠름)</option>
+                                                    </optgroup>
+                                                    <optgroup label="🔵 Gemini (Google)" className="bg-[#111]">
+                                                        <option value="gemini-2.5-flash" className="bg-[#111]">Gemini 2.5 Flash</option>
+                                                        <option value="gemini-2.5-pro" className="bg-[#111]">Gemini 2.5 Pro</option>
+                                                    </optgroup>
+                                                </select>
+                                                <p className="text-[9px] text-gray-600 mt-1">대본 생성, 기획, 분석에 사용</p>
+                                            </div>
+
+                                            {/* 이미지 생성 모델 */}
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">이미지 생성 모델</label>
+                                                <select
+                                                    value={sysKeys.image_generation_model}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, image_generation_model: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <optgroup label="🔵 Gemini (Google)" className="bg-[#111]">
+                                                        <option value="gemini-3.1-flash-image-preview" className="bg-[#111]">Gemini 3.1 Flash Image (기본)</option>
+                                                        <option value="imagen-4" className="bg-[#111]">Imagen 4</option>
+                                                        <option value="imagen-3" className="bg-[#111]">Imagen 3</option>
+                                                    </optgroup>
+                                                    <optgroup label="🟣 Replicate" className="bg-[#111]">
+                                                        <option value="black-forest-labs/flux-dev" className="bg-[#111]">Flux Dev</option>
+                                                        <option value="stability-ai/stable-diffusion-xl" className="bg-[#111]">SDXL</option>
+                                                    </optgroup>
+                                                </select>
+                                                <p className="text-[9px] text-gray-600 mt-1">씬 이미지 생성에 사용</p>
+                                            </div>
+
+                                            {/* 영상 생성 모델 */}
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">영상 생성 모델</label>
+                                                <select
+                                                    value={sysKeys.video_generation_model}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, video_generation_model: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <optgroup label="🔵 Veo (Google)" className="bg-[#111]">
+                                                        <option value="veo-3.1-fast-generate-preview" className="bg-[#111]">Veo 3.1 Fast Preview (기본)</option>
+                                                        <option value="veo-3.0-generate" className="bg-[#111]">Veo 3.0</option>
+                                                    </optgroup>
+                                                    <optgroup label="🟣 Wan (Replicate)" className="bg-[#111]">
+                                                        <option value="wan-2.1" className="bg-[#111]">Wan 2.1</option>
+                                                        <option value="wan-1.3" className="bg-[#111]">Wan 1.3</option>
+                                                    </optgroup>
+                                                </select>
+                                                <p className="text-[9px] text-gray-600 mt-1">영상 생성에 사용</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Model Info */}
+                                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                                        <p className="text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-2">📌 모델 정보</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] text-gray-400">
+                                            <div className="bg-black/20 rounded-lg p-2">
+                                                <div className="font-bold text-white mb-1">Claude Sonnet 4.6</div>
+                                                <div>뛰어난 대본 작성 능력</div>
+                                            </div>
+                                            <div className="bg-black/20 rounded-lg p-2">
+                                                <div className="font-bold text-white mb-1">Gemini 2.5 Flash</div>
+                                                <div>빠르고 효율적인 생성</div>
+                                            </div>
+                                            <div className="bg-black/20 rounded-lg p-2">
+                                                <div className="font-bold text-white mb-1">Veo 3.1 Fast</div>
+                                                <div>고품질 영상 생성</div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

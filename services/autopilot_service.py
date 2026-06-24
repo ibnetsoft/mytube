@@ -22,6 +22,7 @@ def print(*args, **kwargs):
             pass
 import database as db
 from services.gemini_service import gemini_service
+from services.claude_service import claude_service
 from services.replicate_service import replicate_service
 from services.prompts import prompts
 from services.tts_service import tts_service
@@ -953,15 +954,35 @@ Create a production-ready playlist script/brief in Korean from this planning dat
         # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
         # [SDK Autopilot Recovery Hook]
         script = None
-        for model_name in ["gemini-2.5-flash"]:
+
+        # 설정된 대본 생성 모델 확인
+        script_model = config.SCRIPT_GENERATION_MODEL
+
+        print(f"📄 [Auto-Pilot] Script generation model: {script_model}")
+
+        # Claude 모델인 경우 Claude 서비스 사용
+        if script_model and "claude" in script_model.lower():
             try:
-                print(f"📄 [Auto-Pilot] Generating script with model={model_name}...")
-                script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name, use_search=True)
+                print(f"📄 [Auto-Pilot] Using Claude API for script generation...")
+                script = await claude_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=script_model)
                 if script and len(script.strip()) > 50:
-                    break
+                    print(f"✅ [Auto-Pilot] Claude script generation succeeded")
             except Exception as e:
-                print(f"⚠️ [Auto-Pilot] Script generation failed with model={model_name}: {e}")
-                
+                print(f"⚠️ [Auto-Pilot] Claude script generation failed: {e}")
+                # Claude 실패 시 Gemini 폴백
+                script = None
+
+        # Claude 실패하거나 Claude 모델이 아닌 경우 Gemini 사용
+        if not script:
+            for model_name in [script_model if not script_model or "claude" not in script_model.lower() else "gemini-2.5-flash", "gemini-2.5-flash"]:
+                try:
+                    print(f"📄 [Auto-Pilot] Generating script with model={model_name}...")
+                    script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name, use_search=True)
+                    if script and len(script.strip()) > 50:
+                        break
+                except Exception as e:
+                    print(f"⚠️ [Auto-Pilot] Script generation failed with model={model_name}: {e}")
+
         if not script:
             print(f"🚨 [Auto-Pilot] Both models failed to generate script. Using fallback draft script.")
             topic_name = db.get_project(project_id).get('topic', '흥미로운 주제')

@@ -31,6 +31,12 @@ class Config:
     # Google API
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+
+    # AI Model Settings
+    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "gemini-2.5-flash")  # 대본 생성 모델
+    IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
+    VIDEO_GENERATION_MODEL = os.getenv("VIDEO_GENERATION_MODEL", "veo-3.1-fast-generate-preview")  # 영상 생성 모델
 
     # TTS Keys
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
@@ -151,13 +157,14 @@ class Config:
         """Supabase에서 받은 API 키를 메모리에만 올림 (파일 저장 없음).
         로컬 앱 재시작 시 Supabase에서 다시 받아오므로 로컬 저장 불필요."""
         valid_keys = {
-            'GEMINI_API_KEY', 'YOUTUBE_API_KEY',
+            'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'CLAUDE_API_KEY',
             'ELEVENLABS_API_KEY', 'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
             'TOPVIEW_API_KEY', 'TOPVIEW_UID',
             'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
             'LONGFORM_MIN_DURATION_MINUTES', 'LONGFORM_BASE_PAYOUT',
             'LONGFORM_EXTRA_MINUTE_PAYOUT', 'LONGFORM_DURATION_LOCK_ENABLED',
+            'SCRIPT_GENERATION_MODEL', 'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
         }
         loaded = []
         for key_name, value in keys.items():
@@ -188,10 +195,10 @@ class Config:
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
-            'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY', 
+            'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
             'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
-            'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY', 
+            'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY',
             'REPLICATE_API_TOKEN', 'TOPVIEW_API_KEY', 'TOPVIEW_UID',
             'BLOG_CLIENT_ID', 'BLOG_CLIENT_SECRET', 'BLOG_ID',
             'WP_URL', 'WP_USERNAME', 'WP_PASSWORD',
@@ -199,7 +206,8 @@ class Config:
             'DRIVE_PATH_KO', 'DRIVE_PATH_EN', 'DRIVE_PATH_JA', 'DRIVE_ACTIVE_LANG',
             'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
             'LONGFORM_MIN_DURATION_MINUTES', 'LONGFORM_BASE_PAYOUT',
-            'LONGFORM_EXTRA_MINUTE_PAYOUT', 'LONGFORM_DURATION_LOCK_ENABLED'
+            'LONGFORM_EXTRA_MINUTE_PAYOUT', 'LONGFORM_DURATION_LOCK_ENABLED',
+            'SCRIPT_GENERATION_MODEL', 'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
         ]
 
         if key_name not in valid_keys:
