@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
 import LanguageSelector from './LanguageSelector'
 import LearningStatsPanel from './LearningStatsPanel'
+import TenantManagement from './TenantManagement'
 
 interface UserProfile {
     id: string
@@ -170,7 +171,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [referralReport, setReferralReport] = useState<any>(null)
     const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
@@ -279,6 +280,10 @@ export default function DashboardContent() {
         longform_extra_minute_payout: '500',
         longform_duration_lock_enabled: 'true',
         binance_api_key: '', binance_api_secret: '',
+        qa_enable_pipeline: 'true', qa_enable_technical_check: 'true', qa_enable_semantic_check: 'false',
+        qa_auto_normalize_lufs: 'true', qa_hold_on_technical_fail: 'true', qa_hold_on_semantic_fail: 'true',
+        qa_target_lufs: '-14', qa_lufs_tolerance: '2', qa_blackdetect_min_duration: '1.0',
+        qa_min_width: '1920', qa_min_height: '1080',
         terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
         privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: ''
     })
@@ -346,6 +351,7 @@ export default function DashboardContent() {
             renderQueue: '리모트 렌더 큐',
             styles: '스타일 세팅',
             learning: '학습 통계',
+            tenants: '테넌트 관리',
             superAdmin: '최고 관리자',
             subAdminMode: '👤 부관리자 모드',
             logout: '로그아웃',
@@ -442,6 +448,28 @@ export default function DashboardContent() {
     }
 
     const [savingChannel, setSavingChannel] = useState(false);
+
+    // 테넌트 관리 상태
+    const [tenants, setTenants] = useState<any[]>([])
+    const [tenantsLoading, setTenantsLoading] = useState(false)
+    const [showCreateTenant, setShowCreateTenant] = useState(false)
+    const [newTenantForm, setNewTenantForm] = useState({
+        tenant_key: '',
+        tenant_name: '',
+        brand_name: '',
+        commission_percent: 10,
+        min_commission_usd: 0,
+        license_tier: 'standard'
+    })
+    const [editingTenant, setEditingTenant] = useState<any>(null)
+    const [editTenantForm, setEditTenantForm] = useState({
+        commission_percent: 0,
+        min_commission_usd: 0,
+        brand_name: '',
+        primary_color: '',
+        status: 'active',
+        watermark_enabled: true
+    })
 
     const handleUpdateChannelInfo = async () => {
         if (!channelViewUser) return;
@@ -1100,6 +1128,17 @@ export default function DashboardContent() {
                 longform_duration_lock_enabled: data.longform_duration_lock_enabled || 'true',
                 binance_api_key: data.binance_api_key || '',
                 binance_api_secret: data.binance_api_secret || '',
+                qa_enable_pipeline: data.qa_enable_pipeline || 'true',
+                qa_enable_technical_check: data.qa_enable_technical_check || 'true',
+                qa_enable_semantic_check: data.qa_enable_semantic_check || 'false',
+                qa_auto_normalize_lufs: data.qa_auto_normalize_lufs || 'true',
+                qa_hold_on_technical_fail: data.qa_hold_on_technical_fail || 'true',
+                qa_hold_on_semantic_fail: data.qa_hold_on_semantic_fail || 'true',
+                qa_target_lufs: data.qa_target_lufs || '-14',
+                qa_lufs_tolerance: data.qa_lufs_tolerance || '2',
+                qa_blackdetect_min_duration: data.qa_blackdetect_min_duration || '1.0',
+                qa_min_width: data.qa_min_width || '1920',
+                qa_min_height: data.qa_min_height || '1080',
                 terms_ko: data.terms_ko || '',
                 terms_en: data.terms_en || '',
                 terms_vi: data.terms_vi || '',
@@ -1990,6 +2029,7 @@ export default function DashboardContent() {
                             { id: 'render-queue', icon: '🖥️', label: ui.renderQueue, superOnly: true },
                             { id: 'learning', icon: '🧠', label: ui.learning, superOnly: true },
                             { id: 'styles', icon: '🎨', label: ui.styles, superOnly: true },
+                            { id: 'tenants', icon: '🏢', label: '테넌트', superOnly: true },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -3709,6 +3749,57 @@ export default function DashboardContent() {
                                             롱폼 배정시간을 직원 화면에서 수정 불가로 고정
                                         </label>
                                     </div>
+
+                                    <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 space-y-4">
+                                        <div>
+                                            <h4 className="text-xs font-black text-purple-300 uppercase tracking-widest">Upload QA Policy</h4>
+                                            <p className="text-[10px] text-gray-500 mt-1">렌더링 PC의 업로드 전 기술 검사/AI 검사/업로드 보류 기준을 중앙에서 제어합니다.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {[
+                                                ['qa_enable_pipeline', 'QA 파이프라인 전체 활성화'],
+                                                ['qa_enable_technical_check', 'Stage 1 기술 검사 활성화'],
+                                                ['qa_enable_semantic_check', 'Stage 2 AI 정밀 검사 활성화'],
+                                                ['qa_auto_normalize_lufs', 'LUFS 자동 보정 적용'],
+                                                ['qa_hold_on_technical_fail', '기술 스펙 미달 시 자동 업로드 보류'],
+                                                ['qa_hold_on_semantic_fail', 'AI 검사 실패 시 자동 업로드 보류'],
+                                            ].map(([key, label]) => (
+                                                <label key={key} className="flex items-center gap-3 text-xs font-bold text-gray-300 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={String((sysKeys as any)[key]) !== 'false'}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: String(e.target.checked) }))}
+                                                        className="w-4 h-4 rounded text-purple-500 bg-black border-white/10 cursor-pointer"
+                                                    />
+                                                    {label}
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                            {[
+                                                ['qa_target_lufs', '목표 LUFS', '0.5', ''],
+                                                ['qa_lufs_tolerance', 'LUFS 허용오차', '0.5', '0'],
+                                                ['qa_blackdetect_min_duration', '검은화면 기준(초)', '0.1', '0.1'],
+                                                ['qa_min_width', '최소 가로', '1', '1'],
+                                                ['qa_min_height', '최소 세로', '1', '1'],
+                                            ].map(([key, label, step, min]) => (
+                                                <div key={key}>
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
+                                                    <input
+                                                        type="number"
+                                                        step={step}
+                                                        min={min || undefined}
+                                                        value={(sysKeys as any)[key]}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-gray-300"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-[10px] text-yellow-200">
+                                            기술/AI 검사 실패 시 자동 업로드만 보류됩니다. 렌더링 PC는 이 값을 Supabase global_settings에서 가져와 적용합니다.
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -3896,6 +3987,10 @@ export default function DashboardContent() {
                 )}
                 {activeTab === 'learning' && canManageSystemSettings && (
                     <LearningStatsPanel adminFetch={adminFetch} refreshLabel={ui.refresh} />
+                )}
+
+                {activeTab === 'tenants' && isSuperAdmin && (
+                    <TenantManagement authToken={authToken} isSuperAdmin={isSuperAdmin} />
                 )}
 
                 {activeTab === 'styles' && canManageStyles && (
