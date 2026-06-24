@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PICADIRI STUDIO",
-  description: "AI Automated Video Creation Platform - PICADIRI STUDIO",
+  title: "AIR STUDIO",
+  description: "AI Automated Video Creation Platform - AIR STUDIO",
 };
 
 import { LanguageProvider } from "@/lib/LanguageContext";

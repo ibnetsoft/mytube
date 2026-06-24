@@ -2,10 +2,30 @@
 피카딜리스튜디오 설정 관리
 """
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
+
+
+def _load_packaged_env():
+    candidates = []
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(getattr(sys, "_MEIPASS", "")) / ".env")
+        candidates.append(Path(sys.executable).resolve().parent / ".env")
+        candidates.append(Path(sys.executable).resolve().parent / "_internal" / ".env")
+    candidates.append(Path.cwd() / ".env")
+    candidates.append(Path(__file__).resolve().parent / ".env")
+    for path in candidates:
+        try:
+            if path and path.exists():
+                load_dotenv(path, override=False)
+        except Exception:
+            pass
+
 
 # .env 파일 로드
 load_dotenv()
+_load_packaged_env()
 
 class Config:
     # Google API
@@ -72,11 +92,11 @@ class Config:
     _LOCALAPPDATA = os.getenv("LOCALAPPDATA")
     _USERPROFILE = os.getenv("USERPROFILE")
     if _LOCALAPPDATA:
-        LOCAL_APP_DATA_DIR = os.path.join(_LOCALAPPDATA, "picadilly")
+        LOCAL_APP_DATA_DIR = os.path.join(_LOCALAPPDATA, "AIRStudio")
     elif _USERPROFILE:
-        LOCAL_APP_DATA_DIR = os.path.join(_USERPROFILE, "AppData", "Local", "picadilly")
+        LOCAL_APP_DATA_DIR = os.path.join(_USERPROFILE, "AppData", "Local", "AIRStudio")
     else:
-        LOCAL_APP_DATA_DIR = os.path.join(BASE_DIR, "picadilly_data")
+        LOCAL_APP_DATA_DIR = os.path.join(BASE_DIR, "air_data")
 
     DATA_DIR = os.path.join(LOCAL_APP_DATA_DIR, "data")
     DB_DIR = DATA_DIR

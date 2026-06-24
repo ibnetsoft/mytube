@@ -51,6 +51,12 @@ def _legacy_db_candidates() -> List[Path]:
             candidates.append(Path(sys.executable).parent / "data" / "wingsai.db")
         elif config is not None:
             candidates.append(Path(getattr(config, "BASE_DIR", Path(__file__).parent)) / "data" / "wingsai.db")
+        local_appdata = os.getenv("LOCALAPPDATA")
+        userprofile = os.getenv("USERPROFILE")
+        if local_appdata:
+            candidates.append(Path(local_appdata) / "picadilly" / "data" / "wingsai.db")
+        elif userprofile:
+            candidates.append(Path(userprofile) / "AppData" / "Local" / "picadilly" / "data" / "wingsai.db")
     except Exception:
         pass
 
@@ -445,6 +451,63 @@ def init_db():
     ]:
         try:
             cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass
+
+    # 학습형 제작 시스템: 제작 이벤트/스냅샷 로그
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_learning_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            stage TEXT,
+            source TEXT DEFAULT 'system',
+            payload_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_project_learning_events_project_created
+        ON project_learning_events(project_id, created_at)
+    """)
+    for col, col_type in [
+        ("remote_synced_at", "TEXT"),
+        ("remote_sync_error", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_learning_events ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_learning_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            snapshot_type TEXT NOT NULL,
+            reference_json TEXT,
+            style_json TEXT,
+            script_json TEXT,
+            thumbnail_json TEXT,
+            tts_json TEXT,
+            video_json TEXT,
+            qa_json TEXT,
+            upload_json TEXT,
+            remote_synced_at TEXT,
+            remote_sync_error TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_project_learning_snapshots_project_type
+        ON project_learning_snapshots(project_id, snapshot_type, created_at)
+    """)
+    for col, col_type in [
+        ("remote_synced_at", "TEXT"),
+        ("remote_sync_error", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE project_learning_snapshots ADD COLUMN {col} {col_type}")
         except Exception:
             pass
 
@@ -2625,6 +2688,322 @@ def update_project_setting(project_id: int, key: str, value: Any):
              return False
 
     return False
+
+
+# ============ 학습형 제작 시스템 로그 ============
+
+def _json_dumps_safe(value: Any) -> str:
+    try:
+        return json.dumps(value or {}, ensure_ascii=False, default=str)
+    except Exception:
+        return json.dumps({"raw": str(value)}, ensure_ascii=False)
+
+
+def _json_loads_safe(value: Any, fallback: Any = None) -> Any:
+    if value is None or value == "":
+        return {} if fallback is None else fallback
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except Exception:
+        return {} if fallback is None else fallback
+
+
+def log_learning_event(project_id: int, event_type: str, stage: str = "", payload: Optional[Dict[str, Any]] = None, source: str = "system") -> Optional[int]:
+    """제작 과정 학습 이벤트를 append-only로 저장한다."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO project_learning_events (project_id, event_type, stage, source, payload_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (project_id, event_type, stage or "", source or "system", _json_dumps_safe(payload)),
+        )
+        event_id = cursor.lastrowid
+        conn.commit()
+        return event_id
+    except Exception as e:
+        print(f"[Learning] Failed to log event: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_learning_events(project_id: int, limit: int = 200) -> List[Dict[str, Any]]:
+    """프로젝트 학습 이벤트 목록 조회."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT * FROM project_learning_events
+            WHERE project_id = ?
+            ORDER BY datetime(created_at) DESC, id DESC
+            LIMIT ?
+            """,
+            (project_id, max(1, min(int(limit or 200), 1000))),
+        )
+        rows = [dict(row) for row in cursor.fetchall()]
+        for row in rows:
+            row["payload"] = _json_loads_safe(row.pop("payload_json", None), {})
+        return rows
+    finally:
+        conn.close()
+
+
+def create_learning_snapshot(project_id: int, snapshot_type: str = "manual", snapshot: Optional[Dict[str, Any]] = None) -> Optional[int]:
+    """프로젝트의 특정 시점 학습 스냅샷을 저장한다."""
+    snapshot = snapshot or {}
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO project_learning_snapshots (
+                project_id, snapshot_type, reference_json, style_json, script_json,
+                thumbnail_json, tts_json, video_json, qa_json, upload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                project_id,
+                snapshot_type or "manual",
+                _json_dumps_safe(snapshot.get("reference")),
+                _json_dumps_safe(snapshot.get("style")),
+                _json_dumps_safe(snapshot.get("script")),
+                _json_dumps_safe(snapshot.get("thumbnail")),
+                _json_dumps_safe(snapshot.get("tts")),
+                _json_dumps_safe(snapshot.get("video")),
+                _json_dumps_safe(snapshot.get("qa")),
+                _json_dumps_safe(snapshot.get("upload")),
+            ),
+        )
+        snapshot_id = cursor.lastrowid
+        conn.commit()
+        return snapshot_id
+    except Exception as e:
+        print(f"[Learning] Failed to create snapshot: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def get_learning_snapshot(project_id: int, snapshot_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """최근 학습 스냅샷 조회."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        if snapshot_type:
+            cursor.execute(
+                """
+                SELECT * FROM project_learning_snapshots
+                WHERE project_id = ? AND snapshot_type = ?
+                ORDER BY datetime(created_at) DESC, id DESC
+                LIMIT 1
+                """,
+                (project_id, snapshot_type),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT * FROM project_learning_snapshots
+                WHERE project_id = ?
+                ORDER BY datetime(created_at) DESC, id DESC
+                LIMIT 1
+                """,
+                (project_id,),
+            )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        data = dict(row)
+        for key in ["reference", "style", "script", "thumbnail", "tts", "video", "qa", "upload"]:
+            json_key = f"{key}_json"
+            data[key] = _json_loads_safe(data.pop(json_key, None), {})
+        return data
+    finally:
+        conn.close()
+
+
+def get_learning_admin_stats(limit: int = 100) -> Dict[str, Any]:
+    """웹어드민용 전체 학습 통계."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) AS c FROM project_learning_events")
+        total_events = (cursor.fetchone() or {"c": 0})["c"]
+        cursor.execute("SELECT COUNT(*) AS c FROM project_learning_snapshots")
+        total_snapshots = (cursor.fetchone() or {"c": 0})["c"]
+
+        cursor.execute("""
+            SELECT event_type, COUNT(*) AS count
+            FROM project_learning_events
+            GROUP BY event_type
+            ORDER BY count DESC, event_type ASC
+        """)
+        event_counts = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT stage, COUNT(*) AS count
+            FROM project_learning_events
+            GROUP BY stage
+            ORDER BY count DESC, stage ASC
+        """)
+        stage_counts = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT p.id AS project_id, p.name, p.topic, COUNT(e.id) AS event_count,
+                   MAX(e.created_at) AS last_event_at
+            FROM project_learning_events e
+            LEFT JOIN projects p ON p.id = e.project_id
+            GROUP BY e.project_id
+            ORDER BY datetime(last_event_at) DESC
+            LIMIT ?
+        """, (max(1, min(int(limit or 100), 500)),))
+        project_rows = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT e.*, p.name AS project_name
+            FROM project_learning_events e
+            LEFT JOIN projects p ON p.id = e.project_id
+            ORDER BY datetime(e.created_at) DESC, e.id DESC
+            LIMIT ?
+        """, (max(1, min(int(limit or 100), 500)),))
+        recent_events = [dict(row) for row in cursor.fetchall()]
+        for event in recent_events:
+            event["payload"] = _json_loads_safe(event.pop("payload_json", None), {})
+
+        manual_reviews = [e for e in recent_events if e.get("event_type") == "manual_review"]
+        ratings = []
+        for event in manual_reviews:
+            try:
+                rating = (event.get("payload") or {}).get("rating")
+                if rating not in (None, ""):
+                    ratings.append(float(rating))
+            except Exception:
+                pass
+
+        return {
+            "total_events": total_events,
+            "total_snapshots": total_snapshots,
+            "event_counts": event_counts,
+            "stage_counts": stage_counts,
+            "projects": project_rows,
+            "recent_events": recent_events,
+            "manual_review_count": next((x["count"] for x in event_counts if x.get("event_type") == "manual_review"), 0),
+            "upload_completed_count": next((x["count"] for x in event_counts if x.get("event_type") == "upload_completed"), 0),
+            "upload_failed_count": next((x["count"] for x in event_counts if x.get("event_type") == "upload_failed"), 0),
+            "qa_hold_count": next((x["count"] for x in event_counts if x.get("event_type") == "qa_hold"), 0),
+            "average_rating": round(sum(ratings) / len(ratings), 2) if ratings else None,
+        }
+    finally:
+        conn.close()
+
+
+def get_unsynced_learning_events(limit: int = 100) -> List[Dict[str, Any]]:
+    """Supabase로 아직 전송되지 않은 학습 이벤트 조회."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT e.*, p.sync_id AS project_sync_id, p.employee_email, p.name AS project_name, p.topic AS project_topic
+            FROM project_learning_events e
+            LEFT JOIN projects p ON p.id = e.project_id
+            WHERE e.remote_synced_at IS NULL OR e.remote_synced_at = ''
+            ORDER BY datetime(e.created_at) ASC, e.id ASC
+            LIMIT ?
+            """,
+            (max(1, min(int(limit or 100), 500)),),
+        )
+        rows = [dict(row) for row in cursor.fetchall()]
+        for row in rows:
+            row["payload"] = _json_loads_safe(row.pop("payload_json", None), {})
+        return rows
+    finally:
+        conn.close()
+
+
+def get_unsynced_learning_snapshots(limit: int = 100) -> List[Dict[str, Any]]:
+    """Supabase로 아직 전송되지 않은 학습 스냅샷 조회."""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT s.*, p.sync_id AS project_sync_id, p.employee_email, p.name AS project_name, p.topic AS project_topic
+            FROM project_learning_snapshots s
+            LEFT JOIN projects p ON p.id = s.project_id
+            WHERE s.remote_synced_at IS NULL OR s.remote_synced_at = ''
+            ORDER BY datetime(s.created_at) ASC, s.id ASC
+            LIMIT ?
+            """,
+            (max(1, min(int(limit or 100), 500)),),
+        )
+        rows = [dict(row) for row in cursor.fetchall()]
+        for row in rows:
+            for key in ["reference", "style", "script", "thumbnail", "tts", "video", "qa", "upload"]:
+                json_key = f"{key}_json"
+                row[key] = _json_loads_safe(row.pop(json_key, None), {})
+        return rows
+    finally:
+        conn.close()
+
+
+def mark_learning_event_remote_synced(event_id: int, synced_at: str = None):
+    synced_at = synced_at or datetime.utcnow().isoformat()
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE project_learning_events SET remote_synced_at = ?, remote_sync_error = NULL WHERE id = ?",
+            (synced_at, event_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_learning_snapshot_remote_synced(snapshot_id: int, synced_at: str = None):
+    synced_at = synced_at or datetime.utcnow().isoformat()
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE project_learning_snapshots SET remote_synced_at = ?, remote_sync_error = NULL WHERE id = ?",
+            (synced_at, snapshot_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_learning_event_remote_sync_error(event_id: int, error: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE project_learning_events SET remote_sync_error = ? WHERE id = ?",
+            ((error or "")[:1000], event_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_learning_snapshot_remote_sync_error(snapshot_id: int, error: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE project_learning_snapshots SET remote_sync_error = ? WHERE id = ?",
+            ((error or "")[:1000], snapshot_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def replace_music_track_plans(project_id: int, tracks: List[Dict[str, Any]]) -> None:

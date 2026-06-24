@@ -48,7 +48,7 @@ def current_version(root: Path) -> str:
 
 
 def manifest_url() -> str:
-    env_url = os.environ.get("PICADILLY_UPDATE_MANIFEST_URL", "").strip()
+    env_url = os.environ.get("AIR_UPDATE_MANIFEST_URL", "").strip()
     if env_url:
         return env_url
     data = read_json(launcher_dir() / CONFIG_FILE)
@@ -93,7 +93,7 @@ def check_for_update(root: Path) -> None:
         if version_tuple(latest) <= version_tuple(current_version(root)):
             return
 
-        temp_dir = Path(tempfile.mkdtemp(prefix="picadilly_update_"))
+        temp_dir = Path(tempfile.mkdtemp(prefix="air_update_"))
         package_path = temp_dir / f"AIRStudio-{latest}.zip"
         download_file(package_url, package_path)
         if expected_hash and sha256(package_path) != expected_hash:

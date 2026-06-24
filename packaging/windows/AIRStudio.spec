@@ -31,6 +31,7 @@ for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
     ("assets", "assets"),
+    (".env", "."),
 ]:
     path = os.path.join(root, src)
     if os.path.exists(path):
@@ -81,7 +82,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="PicadillyStudio",
+    name="AIRStudio",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -102,5 +103,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="PicadillyStudio",
+    name="AIRStudio",
 )

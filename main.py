@@ -112,6 +112,7 @@ from fastapi.responses import RedirectResponse
 # [NEW] 직원 로그인 & 멀티유저 세션 관리 미들웨어
 @app.middleware("http")
 async def check_login_middleware(request: Request, call_next):
+    global app_lang
     try:
         path = request.url.path
         
@@ -147,7 +148,18 @@ async def check_login_middleware(request: Request, call_next):
                 # auth_service의 active user 이메일 및 에셋 폴더 동적 활성화
                 from services.auth_service import auth_service
                 auth_service.login_user(user_email)
-                
+                cookie_lang = request.cookies.get("language")
+                if cookie_lang in ["ko", "en", "vi", "th"] and cookie_lang != app_lang:
+                    translator.set_lang(cookie_lang)
+                    app_lang = cookie_lang
+                    templates.env.globals['current_lang'] = app_lang
+                    templates.env.globals['window_lang'] = app_lang
+                    try:
+                        from services import app_state as _live_app_state
+                        _live_app_state.switch_language(cookie_lang)
+                    except Exception:
+                        pass
+
         response = await call_next(request)
         return response
     except Exception as e:
@@ -208,6 +220,8 @@ except Exception as e:
 
 # 템플릿 및 정적 파일
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
+templates.env.auto_reload = True
+templates.env.cache = {}
 
 # Static Files
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
@@ -223,6 +237,7 @@ translator = Translator(app_lang)
 # Add t function to Jinja2 globals
 templates.env.globals['t'] = translator.t
 templates.env.globals['current_lang'] = app_lang
+templates.env.globals['window_lang'] = app_lang
 templates.env.globals['app_mode'] = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
 templates.env.globals['membership'] = auth_service.get_membership()
 templates.env.globals['is_independent'] = auth_service.is_independent()
@@ -253,10 +268,11 @@ def _load_saved_lang():
     # 1. DB에서 읽기
     try:
         saved = db.get_global_setting("language", None)
-        if saved and saved in ['ko', 'en', 'vi']:
+        if saved and saved in ['ko', 'en', 'vi', 'th']:
             translator.set_lang(saved)
             app_lang = saved
             templates.env.globals['current_lang'] = app_lang
+            templates.env.globals['window_lang'] = app_lang
             print(f"[I18N] Loaded language from DB: {app_lang}")
             return
     except Exception:
@@ -265,10 +281,11 @@ def _load_saved_lang():
     if os.path.exists(LANG_FILE):
         with open(LANG_FILE, "r") as f:
             saved_lang = f.read().strip()
-            if saved_lang in ['ko', 'en', 'vi']:
+            if saved_lang in ['ko', 'en', 'vi', 'th']:
                 translator.set_lang(saved_lang)
                 app_lang = saved_lang
                 templates.env.globals['current_lang'] = app_lang
+                templates.env.globals['window_lang'] = app_lang
                 templates.env.globals['app_mode'] = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
                 print(f"[I18N] Loaded language from file: {app_lang}")
 
@@ -302,8 +319,11 @@ from app.routers import image as image_router
 from app.routers import thumbnails as thumbnails_router
 from app.routers import auth as auth_router
 from app.routers import update as update_router
+from app.routers import learning as learning_router
 
 app.include_router(update_router.router)
+app.include_router(learning_router.router)
+app.include_router(learning_router.admin_router)
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
 app.include_router(commerce_router.router)
@@ -365,7 +385,9 @@ async def startup_event():
 
         try:
             from services.project_sync_service import sync_dirty_projects
+            from services.learning_sync_service import sync_learning_data
             asyncio.create_task(asyncio.to_thread(sync_dirty_projects, limit=20))
+            asyncio.create_task(asyncio.to_thread(sync_learning_data, limit=100))
         except Exception as sync_e:
             print(f"[ProjectSync] Startup dirty sync warning: {sync_e}")
 
@@ -477,6 +499,16 @@ async def save_script(project_id: int, req: ScriptSave, background_tasks: Backgr
     else:
         db.save_script(project_id, req.full_script, req.word_count, req.estimated_duration)
         db.update_project(project_id, status="scripted")
+    try:
+        from services import learning_service as _learning_service
+        _learning_service.log_event(project_id, "human_edit", "script", {
+            "language": req.language or "ko",
+            "length": len(req.full_script or ""),
+            "word_count": req.word_count,
+            "estimated_duration": req.estimated_duration,
+        }, source="user")
+    except Exception:
+        pass
     _queue_project_sync(background_tasks, project_id)
     return {"status": "ok"}
 
@@ -1340,8 +1372,17 @@ async def auto_upload_youtube(project_id: int):
             preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
             raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
         from services.qa_service import is_upload_blocked, resolve_upload_video_path, run_pre_upload_qa
+        from services import learning_service
+        learning_service.snapshot_project(project_id, "pre_upload", {"upload": {
+            "title": title,
+            "description_length": len(description or ""),
+            "tag_count": len(tags or []),
+            "privacy": "private",
+            "source": "auto_upload",
+        }})
         blocked, qa_result = is_upload_blocked(project_id)
         if blocked:
+            learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "auto_upload"}, source="qa")
             raise HTTPException(status_code=409, detail={
                 "status": "qa_hold",
                 "message": "QA 경고로 자동 업로드가 보류되었습니다. 프로젝트 화면에서 경고를 확인한 뒤 수동 업로드로 강제 진행할 수 있습니다.",
@@ -1355,6 +1396,7 @@ async def auto_upload_youtube(project_id: int):
             "tags": tags,
         })
         if qa_result.get("hold_upload"):
+            learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "pre_upload_qa"}, source="qa")
             raise HTTPException(status_code=409, detail={
                 "status": "qa_hold",
                 "message": "업로드 전 QA 검사 결과 자동 업로드가 보류되었습니다.",
@@ -1388,6 +1430,20 @@ async def auto_upload_youtube(project_id: int):
         db.update_project_setting(project_id, 'youtube_video_id', video_id)
         db.update_project_setting(project_id, 'is_uploaded', 1)
         db.update_project_setting(project_id, 'is_published', 0) # 아직 비공개 상태이므로 0
+        learning_service.log_event(project_id, "upload_completed", "upload", {
+            "youtube_video_id": video_id,
+            "url": f"https://youtu.be/{video_id}",
+            "title": title,
+            "privacy": "private",
+            "source": "auto_upload",
+        }, source="system")
+        learning_service.snapshot_project(project_id, "post_upload", {"upload": {
+            "youtube_video_id": video_id,
+            "url": f"https://youtu.be/{video_id}",
+            "title": title,
+            "privacy": "private",
+            "source": "auto_upload",
+        }})
 
         return {
             "status": "ok",
@@ -1398,6 +1454,11 @@ async def auto_upload_youtube(project_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        try:
+            from services import learning_service as _learning_service
+            _learning_service.log_event(project_id, "upload_failed", "upload", {"error": str(e), "source": "auto_upload"}, source="system")
+        except Exception:
+            pass
         print(f"Auto Upload Error: {e}")
         raise HTTPException(500, f"업로드 중 오류 발생: {str(e)}")
 

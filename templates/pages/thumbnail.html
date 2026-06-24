@@ -649,6 +649,20 @@
         section.classList.remove('hidden');
     }
 
+    async function logLearningEvent(eventType, stage, payload, source = 'user') {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            await fetch(`/api/projects/${projectId}/learning/events`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_type: eventType, stage, source, payload: payload || {} })
+            });
+        } catch (e) {
+            console.warn('Learning event log failed', e);
+        }
+    }
+
     async function applyReferenceSample(sampleKey, title) {
         selectedReferenceSampleKey = sampleKey || null;
         const titleEl = document.getElementById('videoTitle');
@@ -656,6 +670,19 @@
             titleEl.value = title;
         }
         saveStateToLocal();
+        const selectedSample = getCurrentReferenceSamples().find((item) => {
+            const key = item.video_id || item.thumbnail_url;
+            return key === selectedReferenceSampleKey;
+        }) || {};
+        logLearningEvent('reference_selected', 'thumbnail', {
+            sample_key: selectedReferenceSampleKey || '',
+            title: title || '',
+            video_id: selectedSample.video_id || '',
+            channel_title: selectedSample.channel_title || '',
+            thumbnail_url: selectedSample.thumbnail_url || '',
+            view_count: selectedSample.view_count || '',
+            viral_score: selectedSample.viral_score || ''
+        }, 'user');
         renderReferenceThumbnails(getCurrentReferenceSamples());
         Utils.showToast(i18n.toast_title_applied || i18n.toast_idea_applied, 'success');
 
@@ -1596,6 +1623,15 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
         renderLayers();
         drawPreview();
+        logLearningEvent('ai_suggestion_selected', 'thumbnail', {
+            selected_idea_index: index,
+            concept: thumbnailData.ideas[index]?.concept || '',
+            layout: thumbnailData.ideas[index]?.layout || '',
+            prompt_en: thumbnailData.ideas[index]?.prompt_en || '',
+            text_count: (thumbnailData.texts || []).length,
+            reference_sample_key: selectedReferenceSampleKey || '',
+            thumbnail_style: document.getElementById('thumbnailStyle')?.value || ''
+        }, 'user');
 
         Utils.showToast(i18n.toast_idea_applied, 'success');
 

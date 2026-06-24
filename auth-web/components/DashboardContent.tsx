@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
 import LanguageSelector from './LanguageSelector'
+import LearningStatsPanel from './LearningStatsPanel'
 
 interface UserProfile {
     id: string
@@ -169,7 +170,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [referralReport, setReferralReport] = useState<any>(null)
     const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
@@ -262,7 +263,7 @@ export default function DashboardContent() {
     const [globalPeriod, setGlobalPeriod] = useState(1)
     const [globalStats, setGlobalStats] = useState({ total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, breakdown: {} as any })
     const [globalLoading, setGlobalLoading] = useState(false)
-    
+
     // 로그 검색 및 필터링 상태
     const [logFilterTask, setLogFilterTask] = useState<string>('all')
     const [logFilterStatus, setLogFilterStatus] = useState<string>('all')
@@ -320,6 +321,7 @@ export default function DashboardContent() {
                 api: 'API KEY และการตั้งค่าระบบ',
                 renderQueue: 'คิวเรนเดอร์ระยะไกล',
                 styles: 'ตั้งค่าสไตล์',
+                learning: 'สถิติการเรียนรู้',
                 superAdmin: 'ผู้ดูแลสูงสุด',
                 subAdminMode: '👤 โหมดผู้ดูแลย่อย',
                 logout: 'ออกจากระบบ',
@@ -343,6 +345,7 @@ export default function DashboardContent() {
             api: 'API KEY & 시스템 설정',
             renderQueue: '리모트 렌더 큐',
             styles: '스타일 세팅',
+            learning: '학습 통계',
             superAdmin: '최고 관리자',
             subAdminMode: '👤 부관리자 모드',
             logout: '로그아웃',
@@ -1959,7 +1962,7 @@ export default function DashboardContent() {
         <div className="min-h-screen bg-[#000106] text-white font-sans selection:bg-blue-500/30">
             <nav className="p-6 border-b border-white/5 bg-black/60 sticky top-0 z-[100] backdrop-blur-xl">
                 <div className="max-w-[1600px] mx-auto flex justify-between items-center">
-                    <span className="text-2xl font-black italic tracking-tighter text-blue-500">PICADIRI STUDIO</span>
+                    <span className="text-2xl font-black italic tracking-tighter text-blue-500">AIR STUDIO</span>
                     <div className="flex gap-6 items-center">
                         <LanguageSelector />
                         <div className="text-right">
@@ -1985,6 +1988,7 @@ export default function DashboardContent() {
                             { id: 'withdrawals', icon: '💰', label: ui.withdrawals, superOnly: false },
                             { id: 'api', icon: '🔌', label: ui.api, superOnly: true },
                             { id: 'render-queue', icon: '🖥️', label: ui.renderQueue, superOnly: true },
+                            { id: 'learning', icon: '🧠', label: ui.learning, superOnly: true },
                             { id: 'styles', icon: '🎨', label: ui.styles, superOnly: true },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
@@ -3890,6 +3894,10 @@ export default function DashboardContent() {
                         </div>
                     </div>
                 )}
+                {activeTab === 'learning' && canManageSystemSettings && (
+                    <LearningStatsPanel adminFetch={adminFetch} refreshLabel={ui.refresh} />
+                )}
+
                 {activeTab === 'styles' && canManageStyles && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 1. 스타일 추가/수정 */}

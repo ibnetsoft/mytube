@@ -1,13 +1,32 @@
 import os
 import re
 import secrets
+import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
 
 
+def _load_packaged_env():
+    candidates = []
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(getattr(sys, "_MEIPASS", "")) / ".env")
+        candidates.append(Path(sys.executable).resolve().parent / ".env")
+        candidates.append(Path(sys.executable).resolve().parent / "_internal" / ".env")
+    candidates.append(Path.cwd() / ".env")
+    candidates.append(Path(__file__).resolve().parents[1] / ".env")
+    for path in candidates:
+        try:
+            if path and path.exists():
+                load_dotenv(path, override=False)
+        except Exception:
+            pass
+
+
 load_dotenv()
+_load_packaged_env()
 
 
 UUID_RE = re.compile(

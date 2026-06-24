@@ -52,16 +52,16 @@ jobs:
         run: |
           $tag = "v$env:VERSION"
           $assets = @(
-            "release\PicadillyStudio-$env:VERSION-win-x64.zip",
+            "release\AIRStudio-$env:VERSION-win-x64.zip",
             "release\latest.json"
           )
-          $installer = "release\PicadillyStudioSetup-$env:VERSION.exe"
+          $installer = "release\AIRStudioSetup-$env:VERSION.exe"
           if (Test-Path $installer) {
             $assets += $installer
           }
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $assets --title "Picadilly Studio $env:VERSION" --notes "Windows release $env:VERSION"
+            gh release create $tag $assets --title "AIR Studio $env:VERSION" --notes "Windows release $env:VERSION"
           } else {
             gh release upload $tag $assets --clobber
           }

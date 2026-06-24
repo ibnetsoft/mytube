@@ -1,6 +1,6 @@
 param(
     [string]$Version = "0.1.0",
-    [string]$GitHubRepo = "OWNER/REPO",
+    [string]$GitHubRepo = "ibnetsoft/mytube",
     [switch]$SkipInstaller,
     [switch]$SkipDependencyInstall
 )
@@ -99,7 +99,7 @@ try {
         if ($null -eq $Inno) {
             Write-Warning "ISCC.exe was not found. Install Inno Setup or rerun with -SkipInstaller."
         } else {
-            $env:PICADILLY_VERSION = $Version
+            $env:AIR_VERSION = $Version
             & $Inno.Source (Join-Path $Root "packaging\windows\AIRStudio.iss")
         }
     }

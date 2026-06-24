@@ -23,7 +23,9 @@
       "Bash(dir app\\\\templates /B)",
       "Bash(dir app\\\\templates)",
       "Bash(python3)",
-      "Bash(python3 fix_subtitle_logic.py)"
+      "Bash(python3 fix_subtitle_logic.py)",
+      "Bash(npx eslint *)",
+      "Bash(python *)"
     ]
   }
 }

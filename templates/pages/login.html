@@ -700,9 +700,13 @@
         btn.disabled = true;
         btn.textContent = L.msg_logging_in;
         try {
-            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password}) });
+            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password, lang: currentLang}) });
             const data = await r.json();
-            if (data.success) { window.location.href = '/'; }
+            if (data.success) {
+                localStorage.setItem('login_lang', data.lang || currentLang);
+                localStorage.setItem('language', data.lang || currentLang);
+                window.location.href = '/';
+            }
             else {
                 errEl.textContent = data.error || L.msg_login_failed;
                 const panel = document.getElementById('login-panel');

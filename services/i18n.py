@@ -9339,33 +9339,33 @@ PLATFORM_TRANSLATIONS = {
         'placeholder_topic_input': 'VD: tài chính, đời sống, thông tin (tùy chọn)',
 
         # Image Crop
-        'nav_image_crop': 'Cắt ảnh',
-        'crop_title': 'Cắt ảnh (2x2 Grid Crop)',
-        'crop_desc': 'Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần.',
-        'crop_upload_title': 'Tải lên ảnh lưới 2x2',
-        'crop_upload_desc': 'Kéo và thả hoặc nhấp để chọn nhiều tệp',
-        'crop_list_title': 'Danh sách tệp đã tải lên',
-        'crop_clear_all': 'Xóa tất cả',
-        'crop_batch_btn': 'Cắt tất cả các tệp cùng lúc',
-        'crop_empty_title': 'Kết quả cắt hàng loạt',
-        'crop_empty_desc': 'Vui lòng tải ảnh lưới ở phía bên trái và nhấp vào nút cắt.',
-        'crop_preview_selected': 'Xem trước tệp đã chọn',
-        'crop_raw_badge': 'Ảnh gốc 2x2',
-        'crop_batch_result_list': 'Danh sách kết quả cắt ảnh',
-        'crop_download_all_zip': 'Tải xuống tất cả (.zip)',
-        'crop_select_panel': '✂️ Chọn vùng ảnh cần cắt',
-        'crop_top_left': 'Trên bên trái',
-        'crop_top_right': 'Trên bên phải',
-        'crop_bottom_left': 'Dưới bên trái',
-        'crop_bottom_right': 'Dưới bên phải',
-        'crop_all_btn': '⚡ Cắt cả 4 ảnh cùng lúc',
-        'crop_preview_title': 'Xem trước kết quả',
-        'crop_preview_desc': 'Tải lên hình ảnh lưới và chọn vùng, kết quả cắt sẽ xuất hiện tại đây.',
-        'crop_result_title': '🖼️ Xem trước ảnh đã cắt',
-        'crop_download_btn': '📥 Tải xuống thiết bị',
-        'crop_batch_result': '📦 Kết quả cắt hàng loạt',
-        'crop_download_all_btn': '📥 Tải xuống cả 4 ảnh',
-        'crop_download_btn_short': 'Tải xuống',
+        'nav_image_crop': 'ตัดรูปภาพ',
+        'crop_title': 'ตัดรูปภาพ (ครอปตาราง 2x2)',
+        'crop_desc': 'อัปโหลดรูปภาพแบบตาราง 2x2 หลายภาพพร้อมกัน เพื่อตัดแบบชุด และดาวน์โหลดรูปที่ตัดแล้วทั้งหมดในครั้งเดียว',
+        'crop_upload_title': 'อัปโหลดรูปภาพตาราง 2x2',
+        'crop_upload_desc': 'ลากแล้ววาง หรือคลิกเพื่อเลือกหลายไฟล์',
+        'crop_list_title': 'รายการไฟล์ที่อัปโหลด',
+        'crop_clear_all': 'ลบทั้งหมด',
+        'crop_batch_btn': 'ตัดไฟล์ทั้งหมดพร้อมกัน',
+        'crop_empty_title': 'ผลลัพธ์การตัดแบบชุด',
+        'crop_empty_desc': 'เพิ่มรูปภาพตารางทางด้านซ้าย แล้วกดปุ่มตัดรูปภาพ',
+        'crop_preview_selected': 'ตัวอย่างไฟล์ที่เลือก',
+        'crop_raw_badge': 'ต้นฉบับ 2x2',
+        'crop_batch_result_list': 'รายการผลลัพธ์รูปภาพที่ตัดแล้ว',
+        'crop_download_all_zip': 'ดาวน์โหลดไฟล์ที่ตัดแล้วทั้งหมด (.zip)',
+        'crop_select_panel': '✂️ เลือกพื้นที่รูปภาพที่ต้องการตัด',
+        'crop_top_left': 'ซ้ายบน',
+        'crop_top_right': 'ขวาบน',
+        'crop_bottom_left': 'ซ้ายล่าง',
+        'crop_bottom_right': 'ขวาล่าง',
+        'crop_all_btn': '⚡ ตัดทั้ง 4 รูปพร้อมกัน',
+        'crop_preview_title': 'ตัวอย่างผลลัพธ์',
+        'crop_preview_desc': 'อัปโหลดรูปภาพตารางและเลือกพื้นที่ ผลลัพธ์ที่ตัดแล้วจะแสดงที่นี่',
+        'crop_result_title': '🖼️ ตัวอย่างรูปภาพที่ตัดแล้ว',
+        'crop_download_btn': '📥 ดาวน์โหลดลงเครื่อง',
+        'crop_batch_result': '📦 ผลลัพธ์การตัดแบบชุด',
+        'crop_download_all_btn': '📥 ดาวน์โหลดทั้ง 4 รูป',
+        'crop_download_btn_short': 'ดาวน์โหลด',
 
         # Script translation tabs
         'tab_original': 'Kịch bản gốc',
@@ -9373,12 +9373,12 @@ PLATFORM_TRANSLATIONS = {
         'status_translating': 'Đang dịch sang tiếng Việt...',
         'toast_translation_success': 'Đã dịch sang tiếng Việt thành công.',
         'toast_translation_fail': 'Dịch thuật thất bại.',
-        'crop_toast_processing': 'Đang xử lý ảnh...',
-        'crop_toast_failed': 'Cắt ảnh thất bại',
-        'crop_toast_load_failed': 'Tải ảnh vùng thất bại',
-        'crop_toast_batch_processing': 'Đang cắt hàng loạt 4 vùng...',
-        'crop_toast_batch_success': 'Cắt hàng loạt hoàn tất!',
-        'crop_toast_batch_error': 'Lỗi xảy ra trong quá trình cắt hàng loạt',
+        'crop_toast_processing': 'กำลังประมวลผลรูปภาพ...',
+        'crop_toast_failed': 'ตัดรูปภาพไม่สำเร็จ',
+        'crop_toast_load_failed': 'โหลดรูปภาพพื้นที่ไม่สำเร็จ',
+        'crop_toast_batch_processing': 'กำลังตัดทั้ง 4 พื้นที่แบบชุด...',
+        'crop_toast_batch_success': 'ตัดรูปภาพแบบชุดเสร็จแล้ว!',
+        'crop_toast_batch_error': 'เกิดข้อผิดพลาดระหว่างการตัดแบบชุด',
         'NEXT': 'Tiếp theo',
         'PREV': 'Trước',
         'add_layer': 'Thêm văn bản',
@@ -9927,8 +9927,23 @@ class Translator:
         self.lang = lang if lang in PLATFORM_TRANSLATIONS else 'ko'
         self.data = PLATFORM_TRANSLATIONS[self.lang]
 
+    def _humanize_key(self, key):
+        """Return readable text instead of exposing raw i18n keys like btn_save."""
+        prefixes = ('btn_', 'label_', 'placeholder_', 'status_', 'msg_', 'err_', 'toast_', 'hint_', 'helper_', 'title_')
+        for prefix in prefixes:
+            if key.startswith(prefix):
+                key = key[len(prefix):]
+                break
+        return key.replace('_', ' ').strip().title() or key
+
     def t(self, key, **kwargs):
-        val = self.data.get(key, key)
+        val = self.data.get(key)
+        if val is None and self.lang != 'en':
+            val = PLATFORM_TRANSLATIONS.get('en', {}).get(key)
+        if val is None and self.lang != 'ko':
+            val = PLATFORM_TRANSLATIONS.get('ko', {}).get(key)
+        if val is None:
+            val = self._humanize_key(key)
         result = str(val)
         if kwargs:
             try:

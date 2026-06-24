@@ -8,6 +8,7 @@ from config import config
 from services.drive_bundle_service import drive_bundle_service
 from services.sync_service import upsert_web_admin_publishing_request
 from services.youtube_upload_service import youtube_upload_service
+from services import learning_service
 
 
 def _resolve_local_output_asset_path(asset_url_or_path: Optional[str]) -> Optional[str]:
@@ -113,9 +114,17 @@ def publish_project_to_youtube(
             raise FileNotFoundError(f"Uploadable video file not found for project {project_id}")
 
         from services.qa_service import is_upload_blocked, resolve_upload_video_path
+        learning_service.snapshot_project(project_id, "pre_upload", {"upload": {
+            "privacy": requested_privacy,
+            "publish_at": requested_publish_at,
+            "requested_channel_id": requested_channel_id,
+            "upload_source": upload_source,
+            "source": "project_publish_service",
+        }})
         qa_blocked, qa_result = is_upload_blocked(project_id)
         if qa_blocked:
             db.update_project_setting(project_id, "admin_publish_status", "qa_hold")
+            learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "project_publish_service"}, source="qa")
             return {
                 "status": "qa_hold",
                 "project_id": project_id,
@@ -180,6 +189,24 @@ def publish_project_to_youtube(
         db.update_project_setting(project_id, "upload_source", upload_source)
         db.update_project_setting(project_id, "admin_publish_status", "published")
         db.update_project_setting(project_id, "admin_publish_ready", "1")
+        learning_service.log_event(project_id, "upload_completed", "upload", {
+            "youtube_video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": title,
+            "privacy": requested_privacy,
+            "publish_at": requested_publish_at,
+            "upload_source": upload_source,
+            "source": "project_publish_service",
+        }, source="system")
+        learning_service.snapshot_project(project_id, "post_upload", {"upload": {
+            "youtube_video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": title,
+            "privacy": requested_privacy,
+            "publish_at": requested_publish_at,
+            "upload_source": upload_source,
+            "source": "project_publish_service",
+        }})
 
         return {
             "status": "ok",
@@ -286,6 +313,16 @@ def queue_project_for_admin_publish(
     db.update_project_setting(project_id, "admin_publish_ready", "1")
     db.update_project_setting(project_id, "admin_publish_status", admin_status)
     db.update_project_setting(project_id, "is_uploaded", 1)
+    learning_service.log_event(project_id, "admin_publish_queued" if not qa_blocked else "qa_hold", "upload", {
+        "queue_status": admin_status,
+        "video_url": video_file.get("webViewLink"),
+        "title": title,
+        "privacy": requested_privacy or "private",
+        "publish_at": requested_publish_at,
+        "qa_result": qa_result if qa_blocked else {},
+        "source": "web_admin_queue",
+    }, source="system" if not qa_blocked else "qa")
+    learning_service.snapshot_project(project_id, "pre_upload", {"upload": payload_metadata})
 
     return {
         "status": "qa_hold" if qa_blocked else "ok",

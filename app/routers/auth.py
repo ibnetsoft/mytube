@@ -25,6 +25,7 @@ router = APIRouter(tags=["Auth"])
 class LoginRequest(BaseModel):
     email: str
     password: str
+    lang: str | None = None
 
 
 class RegisterRequest(BaseModel):
@@ -56,6 +57,27 @@ def _disable_insecure_warnings():
     import urllib3
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def _apply_login_language(lang: str) -> str:
+    """Persist and apply the language selected on the login page."""
+    allowed = {"ko", "en", "vi", "th"}
+    selected = lang if lang in allowed else "ko"
+    try:
+        db.save_global_setting("language", selected)
+    except Exception as e:
+        print(f"[Auth] Failed to save login language to DB: {e}")
+    try:
+        with open("language.pref", "w", encoding="utf-8") as f:
+            f.write(selected)
+    except Exception as e:
+        print(f"[Auth] Failed to write login language file: {e}")
+    try:
+        from services import app_state
+        app_state.switch_language(selected)
+    except Exception as e:
+        print(f"[Auth] Failed to switch live language: {e}")
+    return selected
 
 
 def _apply_category_upload_channel(project_id: int, category_row: dict):
@@ -305,11 +327,18 @@ async def post_auth_login(req: LoginRequest):
             input_password = str(req.password).strip()
 
             if db_password == input_password:
+                selected_lang = _apply_login_language(req.lang or "ko")
                 auth_service.login_user(req.email)
-                response = JSONResponse({"success": True})
+                response = JSONResponse({"success": True, "lang": selected_lang})
                 response.set_cookie(
                     key="user_email",
                     value=req.email,
+                    max_age=30 * 24 * 60 * 60,
+                    httponly=False,
+                )
+                response.set_cookie(
+                    key="language",
+                    value=selected_lang,
                     max_age=30 * 24 * 60 * 60,
                     httponly=False,
                 )

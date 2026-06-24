@@ -1,18 +1,18 @@
-#define MyAppName "Picadilly Studio"
-#define MyAppPublisher "Picadilly Studio"
-#define MyAppExeName "PicadillyLauncher.exe"
-#define MyAppVersion GetEnv("PICADILLY_VERSION")
+#define MyAppName "AIR Studio"
+#define MyAppPublisher "AIR Studio"
+#define MyAppExeName "AIRLauncher.exe"
+#define MyAppVersion GetEnv("AIR_VERSION")
 
 [Setup]
 AppId={{8C1E61D9-9F2E-4C85-9D43-80E9F614E7B3}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={localappdata}\PicadillyStudio
+DefaultDirName={localappdata}\AIRStudio
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\..\release
-OutputBaseFilename=PicadillyStudioSetup-{#MyAppVersion}
+OutputBaseFilename=AIRStudioSetup-{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -25,11 +25,11 @@ Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\..\release\staging\PicadillyStudio\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\release\staging\AIRStudio\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
-Name: "{userappdata}\PicadillyStudio"
-Name: "{localappdata}\PicadillyStudio\logs"
+Name: "{userappdata}\AIRStudio"
+Name: "{localappdata}\AIRStudio\logs"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\Launcher\{#MyAppExeName}"
@@ -37,13 +37,13 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Launcher\{#MyAppExeName}"; 
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
-Name: "startup"; Description: "Start Picadilly Studio when Windows starts"; GroupDescription: "Startup and update:"; Flags: checkedonce
+Name: "startup"; Description: "Start AIR Studio when Windows starts"; GroupDescription: "Startup and update:"; Flags: checkedonce
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PicadillyStudio"; ValueData: """{app}\Launcher\{#MyAppExeName}"""; Tasks: startup
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AIRStudio"; ValueData: """{app}\Launcher\{#MyAppExeName}"""; Tasks: startup
 
 [Run]
 Filename: "{app}\Launcher\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\PicadillyStudio\logs"
+Type: filesandordirs; Name: "{localappdata}\AIRStudio\logs"

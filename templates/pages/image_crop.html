@@ -20,7 +20,7 @@
         <div class="md:col-span-6 space-y-6">
             <!-- Upload Area -->
             <div id="upload-zone" class="border-2 border-dashed border-white/10 hover:border-blue-500/40 bg-[#232832]/50 hover:bg-[#232832]/80 transition-all rounded-2xl p-6 text-center cursor-pointer flex flex-col items-center justify-center min-h-[180px] relative overflow-hidden group">
-                <input type="file" id="grid-file-input" class="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" multiple>
+                <input type="file" id="grid-file-input" class="hidden" accept="image/*" multiple>
                 
                 <div id="upload-prompt" class="space-y-2 flex flex-col items-center">
                     <div class="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-xl text-blue-400 group-hover:scale-110 transition-transform">
@@ -122,115 +122,133 @@
     const batchFilesResultsContainer = document.getElementById('batch-files-results-container');
 
     // i18n dynamic mapping for JS
-    const lang = window.currentLang || 'ko';
+    const lang = "{{ current_lang }}" || window.currentLang || localStorage.getItem('language') || localStorage.getItem('login_lang') || 'ko';
     const i18nCrop = {
         pageDesc: {
             ko: "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
             en: "Upload multiple 2x2 grid images at once to batch crop them, and download all cropped images at once.",
-            vi: "Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần."
-        }[lang] || "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
-        
+            vi: "Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần.",
+            th: "อัปโหลดรูปภาพแบบตาราง 2x2 หลายภาพพร้อมกัน เพื่อตัดแบบชุด และดาวน์โหลดรูปที่ตัดแล้วทั้งหมดในครั้งเดียว"
+        }[lang] || "Upload multiple 2x2 grid images at once to batch crop them, and download all cropped images at once.",
+
         dragDropDesc: {
             ko: "마우스로 드래그하거나 클릭하여 다중 선택",
             en: "Drag & drop or click to select multiple files",
-            vi: "Kéo và thả hoặc nhấp để chọn nhiều tệp"
-        }[lang] || "마우스로 드래그하거나 클릭하여 다중 선택",
-        
+            vi: "Kéo và thả hoặc nhấp để chọn nhiều tệp",
+            th: "ลากแล้ววาง หรือคลิกเพื่อเลือกหลายไฟล์"
+        }[lang] || "Drag & drop or click to select multiple files",
+
         listTitle: {
             ko: "업로드된 파일 목록",
             en: "Uploaded Files List",
-            vi: "Danh sách tệp đã tải lên"
-        }[lang] || "업로드된 파일 목록",
-        
+            vi: "Danh sách tệp đã tải lên",
+            th: "รายการไฟล์ที่อัปโหลด"
+        }[lang] || "Uploaded Files List",
+
         clearAll: {
             ko: "전체 삭제",
             en: "Clear All",
-            vi: "Xóa tất cả"
-        }[lang] || "전체 삭제",
-        
+            vi: "Xóa tất cả",
+            th: "ลบทั้งหมด"
+        }[lang] || "Clear All",
+
         cropAllBtn: {
             ko: "모든 파일 한 번에 자르기",
             en: "Batch Crop All Files",
-            vi: "Cắt tất cả các tệp cùng lúc"
-        }[lang] || "모든 파일 한 번에 자르기",
-        
+            vi: "Cắt tất cả các tệp cùng lúc",
+            th: "ตัดไฟล์ทั้งหมดพร้อมกัน"
+        }[lang] || "Batch Crop All Files",
+
         batchResultTitle: {
             ko: "일괄 자르기 결과",
             en: "Batch Crop Results",
-            vi: "Kết quả cắt hàng loạt"
-        }[lang] || "일괄 자르기 결과",
-        
+            vi: "Kết quả cắt hàng loạt",
+            th: "ผลลัพธ์การตัดแบบชุด"
+        }[lang] || "Batch Crop Results",
+
         batchResultDesc: {
             ko: "왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.",
             en: "Please register grid images on the left and click the crop button.",
-            vi: "Vui lòng tải ảnh lưới ở phía bên trái và nhấp vào nút cắt."
-        }[lang] || "왼쪽에서 격자 이미지들을 등록하고 자르기 버튼을 눌러주세요.",
-        
+            vi: "Vui lòng tải ảnh lưới ở phía bên trái và nhấp vào nút cắt.",
+            th: "เพิ่มรูปภาพตารางทางด้านซ้าย แล้วกดปุ่มตัดรูปภาพ"
+        }[lang] || "Please register grid images on the left and click the crop button.",
+
         previewSelected: {
             ko: "선택된 파일 미리보기",
             en: "Selected File Preview",
-            vi: "Xem trước tệp đã chọn"
-        }[lang] || "선택된 파일 미리보기",
-        
+            vi: "Xem trước tệp đã chọn",
+            th: "ตัวอย่างไฟล์ที่เลือก"
+        }[lang] || "Selected File Preview",
+
         rawGridBadge: {
             ko: "2x2 원본",
             en: "2x2 Raw Grid",
-            vi: "Ảnh gốc 2x2"
-        }[lang] || "2x2 원본",
-        
+            vi: "Ảnh gốc 2x2",
+            th: "ต้นฉบับ 2x2"
+        }[lang] || "2x2 Raw Grid",
+
         batchResultHeading: {
             ko: "잘라낸 모든 이미지 결과 목록",
             en: "Cropped Images Result List",
-            vi: "Danh sách kết quả cắt ảnh"
-        }[lang] || "잘라낸 모든 이미지 결과 목록",
-        
+            vi: "Danh sách kết quả cắt ảnh",
+            th: "รายการผลลัพธ์รูปภาพที่ตัดแล้ว"
+        }[lang] || "Cropped Images Result List",
+
         downloadZipBtn: {
             ko: "잘라낸 모든 파일 다운로드 (.zip)",
             en: "Download All Cropped Files (.zip)",
-            vi: "Tải xuống tất cả (.zip)"
-        }[lang] || "잘라낸 모든 파일 다운로드 (.zip)",
-        
+            vi: "Tải xuống tất cả (.zip)",
+            th: "ดาวน์โหลดไฟล์ที่ตัดแล้วทั้งหมด (.zip)"
+        }[lang] || "Download All Cropped Files (.zip)",
+
         processing: {
             ko: "전체 파일 자르는 중...",
             en: "Cropping all files...",
-            vi: "Đang cắt toàn bộ tệp..."
-        }[lang] || "전체 파일 자르는 중...",
-        
+            vi: "Đang cắt toàn bộ tệp...",
+            th: "กำลังตัดไฟล์ทั้งหมด..."
+        }[lang] || "Cropping all files...",
+
         panelDone: {
             ko: "4개 패널 자르기 완료",
             en: "4 panels cropped successfully",
-            vi: "Cắt xong 4 ô ảnh"
-        }[lang] || "4개 패널 자르기 완료",
-        
+            vi: "Cắt xong 4 ô ảnh",
+            th: "ตัดครบ 4 ช่องแล้ว"
+        }[lang] || "4 panels cropped successfully",
+
         download: {
             ko: "다운로드",
             en: "Download",
-            vi: "Tải xuống"
-        }[lang] || "다운로드",
-        
+            vi: "Tải xuống",
+            th: "ดาวน์โหลด"
+        }[lang] || "Download",
+
         successToast: {
             ko: "모든 이미지의 일괄 자르기가 완료되었습니다!",
             en: "Batch cropping of all images completed successfully!",
-            vi: "Đã cắt hàng loạt toàn bộ ảnh thành công!"
-        }[lang] || "모든 이미지의 일괄 자르기가 완료되었습니다!",
-        
+            vi: "Đã cắt hàng loạt toàn bộ ảnh thành công!",
+            th: "ตัดรูปภาพทั้งหมดแบบชุดเสร็จแล้ว!"
+        }[lang] || "Batch cropping of all images completed successfully!",
+
         errorToast: {
             ko: "일괄 자르기 오류 발생: ",
             en: "Error during batch cropping: ",
-            vi: "Lỗi khi cắt hàng loạt: "
-        }[lang] || "일괄 자르기 오류 발생: ",
-        
+            vi: "Lỗi khi cắt hàng loạt: ",
+            th: "เกิดข้อผิดพลาดระหว่างการตัดแบบชุด: "
+        }[lang] || "Error during batch cropping: ",
+
         zipProcessing: {
             ko: "압축 파일(.zip) 생성 중...",
             en: "Generating zip file...",
-            vi: "Đang tạo tệp nén (.zip)..."
-        }[lang] || "압축 파일(.zip) 생성 중...",
-        
+            vi: "Đang tạo tệp nén (.zip)...",
+            th: "กำลังสร้างไฟล์ zip..."
+        }[lang] || "Generating zip file...",
+
         zipSuccess: {
             ko: "일괄 다운로드가 완료되었습니다!",
             en: "Batch download completed!",
-            vi: "Tải xuống hàng loạt hoàn tất!"
-        }[lang] || "일괄 다운로드가 완료되었습니다!"
+            vi: "Tải xuống hàng loạt hoàn tất!",
+            th: "ดาวน์โหลดแบบชุดเสร็จแล้ว!"
+        }[lang] || "Batch download completed!"
     };
 
     // Apply translations on load
@@ -249,8 +267,9 @@
     const panelLabels = {
         ko: ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'],
         en: ['Top-Left (P1)', 'Top-Right (P2)', 'Bottom-Left (P3)', 'Bottom-Right (P4)'],
-        vi: ['Trên bên trái (P1)', 'Trên bên phải (P2)', 'Dưới bên trái (P3)', 'Dưới bên phải (P4)']
-    }[lang] || ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'];
+        vi: ['Trên bên trái (P1)', 'Trên bên phải (P2)', 'Dưới bên trái (P3)', 'Dưới bên phải (P4)'],
+        th: ['ซ้ายบน (P1)', 'ขวาบน (P2)', 'ซ้ายล่าง (P3)', 'ขวาล่าง (P4)']
+    }[lang] || ['Top-Left (P1)', 'Top-Right (P2)', 'Bottom-Left (P3)', 'Bottom-Right (P4)'];
 
     // Drag and drop events
     uploadZone.addEventListener('dragover', (e) => {

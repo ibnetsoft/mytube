@@ -109,6 +109,42 @@
             </div>
         </div>
     </div>
+
+    <!-- Learning / Review Notes -->
+    <div class="bg-[#1c2027] rounded-lg border border-gray-200 dark:border-gray-700 p-3 shrink-0">
+        <div class="flex items-center justify-between gap-2 mb-2">
+            <h4 class="text-xs font-bold text-gray-800 dark:text-white flex items-center gap-1">
+                🧠 {% if current_lang == 'vi' %}Ghi chú học hỏi / kiểm duyệt{% elif current_lang == 'th' %}บันทึกการเรียนรู้ / ตรวจสอบ{% elif current_lang == 'en' %}Learning / Review Notes{% else %}학습 메모 / 검수 기록{% endif %}
+            </h4>
+            <button onclick="loadLearningSummary()" class="text-[10px] px-2 py-1 rounded border border-gray-600 text-gray-300 hover:bg-[#0a0f1d]">
+                {% if current_lang == 'vi' %}Làm mới{% elif current_lang == 'th' %}รีเฟรช{% elif current_lang == 'en' %}Refresh{% else %}새로고침{% endif %}
+            </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-2">
+            <select id="learningStage" class="md:col-span-2 bg-[#1c2027] border border-gray-600 rounded px-2 py-2 text-xs text-white">
+                <option value="overall">Overall</option>
+                <option value="thumbnail">Thumbnail</option>
+                <option value="script">Script</option>
+                <option value="tts">TTS</option>
+                <option value="video">Video</option>
+                <option value="qa">QA</option>
+            </select>
+            <select id="learningRating" class="md:col-span-2 bg-[#1c2027] border border-gray-600 rounded px-2 py-2 text-xs text-white">
+                <option value="">{% if current_lang == 'vi' %}Điểm{% elif current_lang == 'th' %}คะแนน{% elif current_lang == 'en' %}Rating{% else %}평점{% endif %}</option>
+                <option value="5">★★★★★ 5</option>
+                <option value="4">★★★★ 4</option>
+                <option value="3">★★★ 3</option>
+                <option value="2">★★ 2</option>
+                <option value="1">★ 1</option>
+            </select>
+            <input id="learningNote" class="md:col-span-6 bg-[#1c2027] border border-gray-600 rounded px-3 py-2 text-xs text-white" placeholder="{% if current_lang == 'vi' %}VD: Hook đầu yếu, thumbnail tốt, TTS hơi chậm{% elif current_lang == 'th' %}เช่น hook ตอนต้นอ่อน, thumbnail ดี, TTS ช้าเล็กน้อย{% elif current_lang == 'en' %}e.g. opening hook weak, thumbnail good, TTS a bit slow{% else %}예: 초반 후킹 약함, 썸네일 좋음, TTS 약간 느림{% endif %}">
+            <button onclick="saveLearningReview()" class="md:col-span-2 btn-primary py-2 text-xs">
+                {% if current_lang == 'vi' %}Lưu ghi chú{% elif current_lang == 'th' %}บันทึก{% elif current_lang == 'en' %}Save Note{% else %}메모 저장{% endif %}
+            </button>
+        </div>
+        <div id="learningSummary" class="mt-2 text-[11px] text-gray-400 flex flex-wrap gap-2"></div>
+        <div id="learningEventsList" class="mt-2 max-h-24 overflow-y-auto text-[10px] text-gray-500 space-y-1"></div>
+    </div>
 </div>
 
 <script>
@@ -131,6 +167,76 @@
         label_rendered_video: "{{ t('label_rendered_video') }}",
         label_uploaded_video: "{{ t('label_uploaded_video') }}"
     };
+
+    async function loadLearningSummary() {
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/learning/summary`);
+            const data = await res.json();
+            if (data.status !== 'ok') return;
+            const stats = data.stats || {};
+            const context = data.context || {};
+            const summary = document.getElementById('learningSummary');
+            const eventsList = document.getElementById('learningEventsList');
+            if (summary) {
+                summary.innerHTML = `
+                    <span class="px-2 py-1 rounded bg-[#11151b] border border-gray-700">Events: ${stats.total_events || 0}</span>
+                    <span class="px-2 py-1 rounded bg-[#11151b] border border-gray-700">Reviews: ${stats.manual_review_count || 0}</span>
+                    <span class="px-2 py-1 rounded bg-[#11151b] border border-gray-700">Rating: ${stats.average_rating || '-'}</span>
+                    <span class="px-2 py-1 rounded bg-[#11151b] border border-gray-700">Thumb: ${(context.style || {}).thumbnail_style || '-'}</span>
+                    <span class="px-2 py-1 rounded bg-[#11151b] border border-gray-700">Voice: ${(context.tts || {}).voice_name || '-'}</span>
+                `;
+            }
+            if (eventsList) {
+                const events = data.recent_events || [];
+                eventsList.innerHTML = events.slice(0, 8).map(e => {
+                    const payload = e.payload || {};
+                    const note = payload.note || payload.title || payload.thumbnail_style || payload.error || '';
+                    return `<div class="truncate"><span class="text-blue-400">${e.stage || '-'}</span> / <span class="text-gray-300">${e.event_type}</span> ${note ? '- ' + String(note).replace(/</g, '&lt;') : ''}</div>`;
+                }).join('') || '<div>No learning logs yet.</div>';
+            }
+        } catch (e) {
+            console.warn('Learning summary load failed', e);
+        }
+    }
+
+    async function saveLearningReview() {
+        const projectId = getCurrentProject();
+        if (!projectId) return Utils.showToast("{{ t('toast_select_project_first') }}", 'warning');
+        const stage = document.getElementById('learningStage')?.value || 'overall';
+        const rating = document.getElementById('learningRating')?.value || '';
+        const noteEl = document.getElementById('learningNote');
+        const note = noteEl?.value?.trim() || '';
+        if (!note && !rating) return Utils.showToast("{% if current_lang == 'vi' %}Vui lòng nhập ghi chú hoặc điểm.{% elif current_lang == 'th' %}กรุณาใส่บันทึกหรือคะแนน{% elif current_lang == 'en' %}Please enter a note or rating.{% else %}메모 또는 평점을 입력하세요.{% endif %}", 'warning');
+        const payload = {
+            stage_label: stage,
+            rating,
+            note,
+            video_path: uploadedVideoPath || '',
+            drive_bundle_available: driveBundleAvailable,
+            saved_from: 'video_upload_page'
+        };
+        try {
+            await fetch(`/api/projects/${projectId}/learning/events`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_type: 'manual_review', stage, source: 'user', payload })
+            });
+            await fetch(`/api/projects/${projectId}/learning/snapshot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ snapshot_type: 'manual_review', extra: { qa: payload } })
+            });
+            if (noteEl) noteEl.value = '';
+            Utils.showToast("{% if current_lang == 'vi' %}Đã lưu ghi chú học hỏi.{% elif current_lang == 'th' %}บันทึกการเรียนรู้แล้ว{% elif current_lang == 'en' %}Learning note saved.{% else %}학습 메모가 저장되었습니다.{% endif %}", 'success');
+            loadLearningSummary();
+        } catch (e) {
+            Utils.showToast("{% if current_lang == 'vi' %}Không thể lưu ghi chú học hỏi.{% elif current_lang == 'th' %}บันทึกการเรียนรู้ไม่สำเร็จ{% elif current_lang == 'en' %}Failed to save learning note.{% else %}학습 메모 저장 실패{% endif %}", 'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadLearningSummary);
 
     function renderDriveBundle(bundle) {
         const card = document.getElementById('driveBundleCard');

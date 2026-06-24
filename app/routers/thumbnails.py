@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Body
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import database as db
+from services import learning_service
 from services.gemini_service import gemini_service
 import json
 import os
@@ -42,7 +43,13 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
              style=req.thumbnail_style,
              language=req.target_language
         )
-        
+        learning_service.log_event(req.project_id, "ai_suggestion_generated", "thumbnail", {
+            "thumbnail_style": req.thumbnail_style,
+            "target_language": req.target_language,
+            "texts": result.get('texts', []),
+            "reasoning": result.get('reasoning', ''),
+        }, source="system")
+
         return {"status": "ok", "texts": result.get('texts', []), "reasoning": result.get('reasoning', '')}
 
     except Exception as e:
@@ -65,6 +72,10 @@ async def save_thumbnails(project_id: int, req: ThumbnailsSave):
             style = req.full_settings.get('style')
             if style:
                 db.update_project_setting(project_id, 'thumbnail_style', style)
+                learning_service.log_event(project_id, "style_selected", "thumbnail", {
+                    "thumbnail_style": style,
+                    "source": "thumbnail_full_settings",
+                }, source="user")
 
             # 텍스트 레이어에서 대표 폰트/색상 정보 추출 및 저장
             text_layers = req.full_settings.get('textLayers', [])
@@ -79,6 +90,15 @@ async def save_thumbnails(project_id: int, req: ThumbnailsSave):
                 # 메인 텍스트도 업데이트 (있는 경우)
                 if main_layer.get('text'):
                     db.update_project_setting(project_id, 'thumbnail_text', main_layer['text'])
+
+        learning_service.log_event(project_id, "human_edit", "thumbnail", {
+            "idea_count": len(req.ideas or []),
+            "text_count": len(req.texts or []),
+            "has_full_settings": bool(req.full_settings),
+            "text_layer_count": len((req.full_settings or {}).get('textLayers', [])),
+            "shape_layer_count": len((req.full_settings or {}).get('shapeLayers', [])),
+            "selected_idea_index": (req.full_settings or {}).get('selectedIdeaIndex'),
+        }, source="user")
 
         return {"status": "ok"}
     except Exception as e:

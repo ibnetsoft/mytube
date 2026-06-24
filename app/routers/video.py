@@ -752,9 +752,14 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False, ui
                         audio_url = f"/output/{rel}"
                     else:
                         # Check if it is in the AppData local folder
-                        idx = audio_path.lower().find("picadilly")
+                        lowered_audio_path = audio_path.lower()
+                        idx = lowered_audio_path.find("airstudio")
+                        marker_len = 10
+                        if idx == -1:
+                            idx = lowered_audio_path.find("picadilly")
+                            marker_len = 10
                         if idx != -1:
-                            rel = audio_path[idx + 10:].replace("\\", "/") # strip "picadilly/"
+                            rel = audio_path[idx + marker_len:].replace("\\", "/")
                             audio_url = f"/output/external/{rel}"
                     
                     # Duration Calculation
@@ -2083,6 +2088,7 @@ async def upload_project_to_youtube(
 ):
     """프로젝트 영상 유튜브 업로드 (예약 발행 지원)"""
     from services.youtube_upload_service import youtube_upload_service
+    from services import learning_service
 
     # 1. 데이터 조회
     project = db.get_project(project_id)
@@ -2104,8 +2110,15 @@ async def upload_project_to_youtube(
         raise HTTPException(400, f"영상을 찾을 수 없습니다: {video_path}")
 
     from services.qa_service import is_upload_blocked, resolve_upload_video_path
+    learning_service.snapshot_project(project_id, "pre_upload", {"upload": {
+        "privacy": privacy_status,
+        "publish_at": publish_at,
+        "force_upload": force_upload,
+        "source": "manual_upload",
+    }})
     blocked, qa_result = is_upload_blocked(project_id)
     if blocked and not force_upload:
+        learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "manual_upload"}, source="qa")
         return JSONResponse(status_code=409, content={
             "status": "qa_hold",
             "message": "QA 경고로 업로드가 보류되었습니다. 경고 확인 후 수동 업로드로 강제 진행할 수 있습니다.",
@@ -2157,9 +2170,30 @@ async def upload_project_to_youtube(
             publish_at=publish_at,
             token_path=token_path,
         )
+        video_id = response.get("id")
         db.update_project_setting(project_id, "is_uploaded", 1)
-        return {"status": "ok", "video_id": response.get("id"), "url": f"https://youtu.be/{response.get('id')}"}
+        if video_id:
+            db.update_project_setting(project_id, "youtube_video_id", video_id)
+        learning_service.log_event(project_id, "upload_completed", "upload", {
+            "youtube_video_id": video_id,
+            "url": f"https://youtu.be/{video_id}" if video_id else "",
+            "title": title,
+            "privacy": privacy_status,
+            "publish_at": publish_at,
+            "force_upload": force_upload,
+            "source": "manual_upload",
+        }, source="system")
+        learning_service.snapshot_project(project_id, "post_upload", {"upload": {
+            "youtube_video_id": video_id,
+            "url": f"https://youtu.be/{video_id}" if video_id else "",
+            "title": title,
+            "privacy": privacy_status,
+            "publish_at": publish_at,
+            "source": "manual_upload",
+        }})
+        return {"status": "ok", "video_id": video_id, "url": f"https://youtu.be/{video_id}"}
     except Exception as e:
+        learning_service.log_event(project_id, "upload_failed", "upload", {"error": str(e), "source": "manual_upload"}, source="system")
         print(f"Upload failed: {e}")
         return {"status": "error", "error": str(e)}
 

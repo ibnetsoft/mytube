@@ -531,7 +531,7 @@ async def export_settlement_csv(
             project_earnings + ai_earnings,
         ])
 
-    filename = f"picadiri_settlement_{_time.strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"air_settlement_{_time.strftime('%Y%m%d_%H%M%S')}.csv"
     return Response(
         content="\ufeff" + output.getvalue(),
         media_type="text/csv; charset=utf-8",
