@@ -55,19 +55,47 @@ def _int_setting(settings: Dict[str, Any], key: str, default: int) -> int:
         return default
 
 
+QA_SETTING_KEYS = [
+    "qa_enable_pipeline",
+    "qa_enable_technical_check",
+    "qa_enable_semantic_check",
+    "qa_auto_normalize_lufs",
+    "qa_hold_on_technical_fail",
+    "qa_hold_on_semantic_fail",
+    "qa_target_lufs",
+    "qa_lufs_tolerance",
+    "qa_blackdetect_min_duration",
+    "qa_min_width",
+    "qa_min_height",
+]
+
+
+def _remote_qa_settings() -> Dict[str, Any]:
+    try:
+        from services.web_admin_client import web_admin_client
+        values = web_admin_client.fetch_global_setting_values(QA_SETTING_KEYS)
+        for key, value in values.items():
+            if value is not None:
+                db.save_global_setting(key, value)
+        return values
+    except Exception:
+        return {}
+
+
 def get_qa_settings() -> Dict[str, Any]:
+    remote = _remote_qa_settings()
     return {
-        "qa_enable_pipeline": db.get_global_setting("qa_enable_pipeline", True, value_type="bool"),
-        "qa_enable_technical_check": db.get_global_setting("qa_enable_technical_check", True, value_type="bool"),
-        "qa_enable_semantic_check": db.get_global_setting("qa_enable_semantic_check", False, value_type="bool"),
-        "qa_auto_normalize_lufs": db.get_global_setting("qa_auto_normalize_lufs", True, value_type="bool"),
-        "qa_hold_on_technical_fail": db.get_global_setting("qa_hold_on_technical_fail", True, value_type="bool"),
-        "qa_hold_on_semantic_fail": db.get_global_setting("qa_hold_on_semantic_fail", True, value_type="bool"),
-        "qa_target_lufs": _float_setting({}, "qa_target_lufs", -14.0),
-        "qa_lufs_tolerance": _float_setting({}, "qa_lufs_tolerance", 2.0),
-        "qa_blackdetect_min_duration": _float_setting({}, "qa_blackdetect_min_duration", 1.0),
-        "qa_min_width": _int_setting({}, "qa_min_width", 1920),
-        "qa_min_height": _int_setting({}, "qa_min_height", 1080),
+        "qa_enable_pipeline": _bool_setting(remote, "qa_enable_pipeline", True),
+        "qa_enable_technical_check": _bool_setting(remote, "qa_enable_technical_check", True),
+        "qa_enable_semantic_check": _bool_setting(remote, "qa_enable_semantic_check", False),
+        "qa_auto_normalize_lufs": _bool_setting(remote, "qa_auto_normalize_lufs", True),
+        "qa_hold_on_technical_fail": _bool_setting(remote, "qa_hold_on_technical_fail", True),
+        "qa_hold_on_semantic_fail": _bool_setting(remote, "qa_hold_on_semantic_fail", True),
+        "qa_target_lufs": _float_setting(remote, "qa_target_lufs", -14.0),
+        "qa_lufs_tolerance": _float_setting(remote, "qa_lufs_tolerance", 2.0),
+        "qa_blackdetect_min_duration": _float_setting(remote, "qa_blackdetect_min_duration", 1.0),
+        "qa_min_width": _int_setting(remote, "qa_min_width", 1920),
+        "qa_min_height": _int_setting(remote, "qa_min_height", 1080),
     }
 
 
