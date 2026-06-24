@@ -1575,7 +1575,7 @@ scene_type별 구조:
 
 # ============ 프로젝트 CRUD ============
 
-def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko', employee_email: str = None, script_style: str = None, image_style: str = None) -> int:
+def create_project(name: str, topic: str = None, app_mode: str = 'longform', language: str = 'ko', employee_email: str = None, script_style: str = None, image_style: str = None, sync_id: str = None) -> int:
     """새 프로젝트 생성 + 기본 설정 초기화"""
     # DB 연결 전에 외부 설정값 미리 조회 (트랜잭션 중 별도 connection 방지)
     from services.settings_service import settings_service
@@ -1597,11 +1597,15 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
     settings_voice_name = defaults.get("voice_name") if settings_language.startswith(language) else None
     default_voice_provider = 'elevenlabs' if language == 'ko' else 'gemini'
 
+    # sync_id가 없으면 새로 생성 (복원 시에는 기존 sync_id 사용)
+    if not sync_id:
+        sync_id = str(uuid.uuid4())
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO projects (name, topic, language, employee_email, sync_id, sync_dirty) VALUES (?, ?, ?, ?, ?, 1)",
-        (name, topic, language, employee_email, str(uuid.uuid4()))
+        (name, topic, language, employee_email, sync_id)
     )
     project_id = cursor.lastrowid
     
@@ -3258,6 +3262,19 @@ def get_project(project_id: int) -> Optional[Dict]:
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+def get_project_by_sync_id(sync_id: str) -> Optional[Dict]:
+    """sync_id로 프로젝트 조회"""
+    if not sync_id:
+        return None
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM projects WHERE sync_id = ?", (sync_id,))
     row = cursor.fetchone()
     conn.close()
     if row:

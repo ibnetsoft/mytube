@@ -208,3 +208,129 @@ def sync_dirty_projects(employee_email: str = "", limit: int = 20) -> Dict[str, 
     if result["attempted"]:
         print(f"[ProjectSync] Dirty sync result: {json.dumps(result, ensure_ascii=False)}")
     return result
+
+
+def fetch_remote_projects(employee_email: str) -> list:
+    """Supabase에서 사용자의 프로젝트 목록을 가져옵니다."""
+    if not web_admin_client.has_supabase() or not employee_email:
+        return []
+
+    try:
+        response = web_admin_client.supabase_get(
+            PROJECT_METADATA_TABLE,
+            params={
+                "select": "id,sync_id,name,topic,status,language,app_mode,employee_email,deleted_at,created_at,updated_at",
+                "employee_email": f"eq.{employee_email}",
+                "deleted_at": "is.null",
+                "order": "updated_at.desc"
+            },
+            timeout=10
+        )
+
+        if response and response.status_code == 200:
+            return response.json() or []
+        return []
+    except Exception as e:
+        print(f"[ProjectSync] Failed to fetch remote projects: {e}")
+        return []
+
+
+def ensure_local_projects_from_remote(employee_email: str) -> Dict[str, int]:
+    """Supabase에 있는 프로젝트가 로컬에 없으면 복원합니다.
+
+    Returns:
+        Dict with 'fetched', 'restored', 'skipped', 'failed' counts
+    """
+    if not web_admin_client.has_supabase() or not employee_email:
+        return {"fetched": 0, "restored": 0, "skipped": 0, "failed": 0}
+
+    result = {"fetched": 0, "restored": 0, "skipped": 0, "failed": 0}
+
+    try:
+        # 1. 원격 프로젝트 목록 가져오기
+        remote_projects = fetch_remote_projects(employee_email)
+        result["fetched"] = len(remote_projects)
+
+        if not remote_projects:
+            return result
+
+        # 2. 로컬에 이미 있는 sync_id 목록 확인
+        local_projects = db.get_projects_with_status(employee_email=employee_email) or []
+        local_sync_ids = {p.get("sync_id") for p in local_projects if p.get("sync_id")}
+
+        # 3. 복원 필요한 프로젝트 필터링
+        to_restore = [
+            rp for rp in remote_projects
+            if rp.get("sync_id") and rp.get("sync_id") not in local_sync_ids
+        ]
+
+        if not to_restore:
+            return result
+
+        print(f"[ProjectSync] Found {len(to_restore)} projects to restore from Supabase")
+
+        # 4. 각 프로젝트 복원
+        for rp in to_restore:
+            sync_id = rp.get("sync_id")
+            try:
+                restored_id = restore_project_from_remote(rp)
+                if restored_id:
+                    result["restored"] += 1
+                    print(f"[ProjectSync] Restored project: {rp.get('name')} (ID: {restored_id})")
+                else:
+                    result["failed"] += 1
+                    print(f"[ProjectSync] Failed to restore project: {rp.get('name')}")
+            except Exception as e:
+                result["failed"] += 1
+                print(f"[ProjectSync] Error restoring project {rp.get('name')}: {e}")
+
+        return result
+
+    except Exception as e:
+        print(f"[ProjectSync] Error in ensure_local_projects_from_remote: {e}")
+        result["failed"] = result.get("fetched", 0)
+        return result
+
+
+def restore_project_from_remote(remote_project: Dict[str, Any]) -> Optional[int]:
+    """Supabase 프로젝트 데이터를 로컬 DB에 복원합니다.
+
+    Returns:
+        새로 생성된 로컬 project_id, 실패 시 None
+    """
+    sync_id = remote_project.get("sync_id")
+    if not sync_id:
+        return None
+
+    # 이미 존재하는지 확인
+    existing = db.get_project_by_sync_id(sync_id)
+    if existing:
+        return existing.get("id")
+
+    # 로컬에 없으면 새 프로젝트 생성
+    try:
+        project_id = db.create_project(
+            name=remote_project.get("name") or "Restored Project",
+            topic=remote_project.get("topic") or "",
+            app_mode=remote_project.get("app_mode") or "longform",
+            language=remote_project.get("language") or "ko",
+            employee_email=remote_project.get("employee_email"),
+            sync_id=sync_id  # sync_id 유지
+        )
+
+        # 상태 업데이트
+        status = remote_project.get("status") or "draft"
+        if status:
+            db.update_project(project_id, status=status)
+
+        # project_payload에서 설정값 복원 (선택 사항)
+        project_payload = remote_project.get("project_payload") or {}
+        settings = project_payload.get("settings") or {}
+        if settings:
+            db.save_project_settings(project_id, settings)
+
+        return project_id
+
+    except Exception as e:
+        print(f"[ProjectSync] Failed to restore project {sync_id}: {e}")
+        return None

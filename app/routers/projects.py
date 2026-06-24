@@ -278,12 +278,20 @@ async def optimize_script_style():
 async def get_projects(background_tasks: BackgroundTasks):
     try:
         from services.auth_service import auth_service
+        from services.project_sync_service import ensure_local_projects_from_remote
+
         email = auth_service.get_user_email()
+
+        # [NEW] Supabase에서 로컬에 없는 프로젝트 복원
+        sync_result = ensure_local_projects_from_remote(email)
+        if sync_result.get("restored", 0) > 0:
+            print(f"[ProjectSync] Restored {sync_result['restored']} projects from Supabase")
+
         projects = db.get_projects_with_status(employee_email=email)
-        
+
         # Run translations sequentially in the background
         background_tasks.add_task(ensure_translations_bg, projects)
-        
+
         return {"status": "success", "projects": projects}
     except Exception as e:
         raise HTTPException(500, str(e))
