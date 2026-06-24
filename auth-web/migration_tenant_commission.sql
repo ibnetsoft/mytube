@@ -175,15 +175,10 @@ DROP POLICY IF EXISTS "tenant_users_self_write" ON public.tenant_users;
 CREATE POLICY "tenant_users_self_write" ON public.tenant_users
     FOR UPDATE USING (user_id = auth.uid());
 
-DROP POLICY IF EXISTS "tenant_users_tenant_admin_write" ON public.tenant_users;
-CREATE POLICY "tenant_users_tenant_admin_write" ON public.tenant_users
-    FOR INSERT USING (
-        EXISTS (
-            SELECT 1 FROM tenant_users
-            WHERE tenant_users.user_id = auth.uid()
-            AND tenant_users.tenant_key = NEW.tenant_key
-            AND tenant_users.role IN ('owner', 'admin')
-        )
+DROP POLICY IF EXISTS "tenant_users_tenant_admin_insert" ON public.tenant_users;
+CREATE POLICY "tenant_users_tenant_admin_insert" ON public.tenant_users
+    FOR INSERT WITH CHECK (
+        NEW.user_id = auth.uid()  -- 본인 매핑만 허용
     );
 
 -- tenant_commission_logs: 본인/테넌트 읽기
