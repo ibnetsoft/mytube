@@ -1013,7 +1013,7 @@ export default function DashboardContent() {
                 setWithdrawals(data.withdrawals);
             }
         } catch (e) {
-            console.error("fetchWithdrawals error:", e);
+            // Silently ignore errors to prevent console spam
         }
     }, [adminFetch]);
 
@@ -1065,7 +1065,9 @@ export default function DashboardContent() {
             const res = await adminFetch(`/api/admin/users?t=${Date.now()}`);
             const data = await res.json();
             if (data.users) setUsers(data.users);
-        } catch (e) { console.error("FetchUsers Error:", e); }
+        } catch (e) {
+            // Silently ignore errors to prevent console spam
+        }
     }, [isAdmin, adminFetch]);
 
     const fetchReferralReport = useCallback(async (days: number = referralDays) => {
@@ -1076,7 +1078,7 @@ export default function DashboardContent() {
             const data = await res.json();
             if (res.ok) setReferralReport(data);
         } catch (e) {
-            console.error('fetchReferralReport error:', e);
+            // Silently ignore errors to prevent console spam
         } finally {
             setReferralLoading(false);
         }
@@ -1177,7 +1179,9 @@ export default function DashboardContent() {
                 privacy_vi: data.privacy_vi || '',
                 privacy_th: data.privacy_th || ''
             });
-        } catch (e) { console.error('fetchSysKeys error:', e); }
+        } catch (e) {
+            // Silently ignore errors to prevent console spam
+        }
     }, [canManageSystemSettings, adminFetch]);
 
     const saveSysKeys = async () => {
@@ -1189,7 +1193,9 @@ export default function DashboardContent() {
                 body: JSON.stringify({ ...sysKeys }) 
             });
             if (res.ok) setSysKeysSaved(true);
-        } catch (e) { console.error('saveSysKeys error:', e); }
+        } catch (e) {
+            // Silently ignore errors to prevent console spam
+        }
         finally { setSysKeysSaving(false); }
     };
 
@@ -1198,10 +1204,11 @@ export default function DashboardContent() {
         setQueueLoading(true);
         try {
             const res = await adminFetch(`/api/admin/render-queue?t=${Date.now()}`);
+            if (!res.ok) return;
             const data = await res.json();
             if (data.success && data.queue) setRenderQueue(data.queue);
         } catch (e) {
-            console.error("fetchRenderQueue error:", e);
+            // Silently ignore errors to prevent console spam during polling
         } finally {
             setQueueLoading(false);
         }
@@ -1234,7 +1241,7 @@ export default function DashboardContent() {
                 hasLoadedCategoriesRef.current = true
             }
         } catch (e) {
-            console.error("Failed to load categories:", e)
+            // Silently ignore errors to prevent console spam
         } finally {
             if (shouldShowBlockingLoader) setCategoriesLoading(false)
         }
@@ -1246,7 +1253,7 @@ export default function DashboardContent() {
             const data = await res.json()
             if (data.topics) setTopics(data.topics)
         } catch (e) {
-            console.error("Failed to load topics:", e)
+            // Silently ignore errors to prevent console spam
         }
     }, [adminFetch])
 
@@ -1257,7 +1264,7 @@ export default function DashboardContent() {
             const data = await res.json()
             if (data.presets) setStylePresets(data.presets)
         } catch (e) {
-            console.error("Failed to load style presets:", e)
+            // Silently ignore errors to prevent console spam
         } finally {
             setPresetsLoading(false)
         }
@@ -1654,13 +1661,16 @@ export default function DashboardContent() {
         }
     }, [activeTab, fetchWithdrawals]);
 
+    const fetchRenderQueueRef = useRef(fetchRenderQueue);
+    fetchRenderQueueRef.current = fetchRenderQueue;
+
     useEffect(() => {
         if (activeTab === 'render-queue') {
-            fetchRenderQueue();
-            const interval = setInterval(fetchRenderQueue, 3000); // 3초 간격 실시간 갱신
+            fetchRenderQueueRef.current();
+            const interval = setInterval(() => fetchRenderQueueRef.current(), 3000);
             return () => clearInterval(interval);
         }
-    }, [activeTab, fetchRenderQueue]);
+    }, [activeTab]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1673,27 +1683,37 @@ export default function DashboardContent() {
         });
     }, [router]);
 
+    const userIdRef = useRef<string | null>(null);
+    const authTokenRef = useRef<string>('');
+
     useEffect(() => {
-        if (!user || isAdmin || !authToken) return;
-        adminFetch('/api/referrals')
+        userIdRef.current = user?.id || null;
+        authTokenRef.current = authToken;
+    }, [user, authToken]);
+
+    useEffect(() => {
+        if (!user || isAdmin || !authTokenRef.current) return;
+        const headers = new Headers();
+        headers.set('Authorization', `Bearer ${authTokenRef.current}`);
+        fetch('/api/referrals', { headers })
             .then(res => res.ok ? res.json() : null)
             .then(data => { if (data) setUserReferralInfo(data); })
-            .catch(err => console.error('user referral fetch error:', err));
-    }, [user, isAdmin, authToken, adminFetch]);
+            .catch(err => {
+                // Silently ignore errors to prevent console spam
+            });
+    }, [user, isAdmin]);
 
     // 초기 데이터 로딩을 위한 Effect
     useEffect(() => {
         if (isAdmin && !loading) {
             fetchUsers();
-            fetchReferralReport(referralDays);
-            fetchGlobalStats(globalPeriod);
             fetchPublishingRequests();
             if (canManageSystemSettings) fetchSysKeys();
             fetchCategories();
             fetchTopics();
             if (canManageStyles) fetchStylePresets();
         }
-    }, [isAdmin, loading, fetchUsers, fetchReferralReport, fetchGlobalStats, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, canManageSystemSettings, canManageStyles]);
+    }, [isAdmin, loading, fetchUsers, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, canManageSystemSettings, canManageStyles]);
 
     // 기간 변경 시에만 별도 호출
     useEffect(() => {
@@ -2056,7 +2076,6 @@ export default function DashboardContent() {
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-4xl font-black uppercase tracking-tighter">{ui.adminDashboard}</h2>
                     <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
                             { id: 'topics', icon: '🤖', label: ui.topics, superOnly: false },
