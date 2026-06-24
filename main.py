@@ -320,6 +320,7 @@ from app.routers import thumbnails as thumbnails_router
 from app.routers import auth as auth_router
 from app.routers import update as update_router
 from app.routers import learning as learning_router
+from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -341,6 +342,7 @@ app.include_router(gemini_router.router)
 app.include_router(image_router.router)
 app.include_router(thumbnails_router.router)
 app.include_router(auth_router.router)
+app.include_router(admin_tenant_router.router)  # [NEW]
 pages_router.init_pages(templates)
 
 

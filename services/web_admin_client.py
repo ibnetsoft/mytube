@@ -350,6 +350,18 @@ class WebAdminClient:
         profile = self.fetch_profile_by_email(lookup_email, select="id")
         return (profile or {}).get("id") or ""
 
+    def fetch_global_setting_values(self, keys: List[str]) -> Dict[str, Any]:
+        if not keys:
+            return {}
+        response = self.supabase_get(
+            "global_settings",
+            params={"select": "key,value", "key": f"in.({','.join(keys)})"},
+            timeout=5,
+        )
+        if response is None or response.status_code != 200:
+            return {}
+        return {item.get("key"): item.get("value") for item in response.json() or []}
+
     def fetch_global_api_keys(self) -> Dict[str, str]:
         response = self.supabase_get("global_settings", params={"select": "key,value"}, timeout=8)
         if response is None or response.status_code != 200:
@@ -542,6 +554,168 @@ class WebAdminClient:
         except Exception as e:
             print(f"[WebAdmin] Error deleting withdrawals: {e}")
             return False
+
+    # ─────────────────────────────────────────────
+    # 테넌트 관련 함수
+    # ─────────────────────────────────────────────
+
+    def get_all_tenants(self) -> List[Dict[str, Any]]:
+        """모든 테넌트 목록 조회"""
+        if not self.has_supabase():
+            return []
+        response = self.supabase_get(
+            "tenant_configs",
+            params={
+                "select": "*",
+                "order": "created_at.desc"
+            },
+            timeout=8
+        )
+        if response and response.status_code == 200:
+            return response.json() or []
+        return []
+
+    def get_tenant_by_key(self, tenant_key: str) -> Optional[Dict[str, Any]]:
+        """테넌트 키로 테넌트 조회"""
+        if not self.has_supabase() or not tenant_key:
+            return None
+        response = self.supabase_get(
+            "tenant_configs",
+            params={
+                "select": "*",
+                "tenant_key": f"eq.{tenant_key}"
+            },
+            timeout=8
+        )
+        if response and response.status_code == 200:
+            data = response.json()
+            if data:
+                return data[0]
+        return None
+
+    def update_tenant_commission(
+        self,
+        tenant_key: str,
+        commission_percent: float,
+        min_commission_usd: float = 0
+    ) -> Dict[str, Any]:
+        """테넌트 수수료 설정 업데이트 (슈퍼어드민용)"""
+        if not self.has_supabase() or not tenant_key:
+            return {"success": False, "error": "invalid_params"}
+
+        # Supabase RPC 함수 호출
+        response = requests.post(
+            f"{self.supabase_url}/rest/v1/rpc/admin_update_tenant_commission",
+            headers=self.headers(content_type=True),
+            json={
+                "p_tenant_key": tenant_key,
+                "p_commission_percent": commission_percent,
+                "p_min_commission_usd": min_commission_usd
+            },
+            timeout=10,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+
+        if response.status_code == 200:
+            try:
+                return response.json() or {"success": True}
+            except Exception:
+                return {"success": True}
+        else:
+            return {
+                "success": False,
+                "error": f"HTTP {response.status_code}",
+                "details": response.text[:200]
+            }
+
+    def calculate_user_commission(self, user_id: str, amount_usd: float) -> Dict[str, Any]:
+        """사용자 수수료 계산"""
+        if not self.has_supabase() or not user_id:
+            return {"error": "invalid_params"}
+
+        response = requests.post(
+            f"{self.supabase_url}/rest/v1/rpc/calculate_commission",
+            headers=self.headers(content_type=True),
+            json={
+                "p_user_id": user_id,
+                "p_amount_usd": amount_usd
+            },
+            timeout=10,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+
+        if response.status_code == 200:
+            try:
+                return response.json() or {}
+            except Exception:
+                return {}
+        else:
+            return {"error": f"HTTP {response.status_code}"}
+
+    def get_user_watermark(self, user_id: str) -> Dict[str, Any]:
+        """사용자의 테넌트 워터마크 설정 조회"""
+        if not self.has_supabase() or not user_id:
+            return {"enabled": False}
+
+        response = requests.post(
+            f"{self.supabase_url}/rest/v1/rpc/get_tenant_watermark",
+            headers=self.headers(content_type=True),
+            json={"p_user_id": user_id},
+            timeout=10,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+
+        if response.status_code == 200:
+            try:
+                return response.json() or {"enabled": False}
+            except Exception:
+                return {"enabled": False}
+        return {"enabled": False}
+
+    def get_tenant_users(self, tenant_key: str) -> List[Dict[str, Any]]:
+        """테넌트 소속 사용자 목록"""
+        if not self.has_supabase() or not tenant_key:
+            return []
+
+        response = self.supabase_get(
+            "tenant_users",
+            params={
+                "select": "*,profiles(email,full_name)",
+                "tenant_key": f"eq.{tenant_key}",
+                "order": "created_at.desc"
+            },
+            timeout=8
+        )
+
+        if response and response.status_code == 200:
+            return response.json() or []
+        return []
+
+    def update_user_tenant(
+        self,
+        user_id: str,
+        tenant_key: str,
+        commission_percent: Optional[float] = None
+    ) -> bool:
+        """사용자 테넌트 및 수수료 설정 업데이트"""
+        if not self.has_supabase() or not user_id or not tenant_key:
+            return False
+
+        # profiles 테이블 업데이트
+        update_data = {"tenant_key": tenant_key}
+        if commission_percent is not None:
+            update_data["commission_percent"] = commission_percent
+
+        patch_res = self.supabase_patch(
+            "profiles",
+            update_data,
+            params={"id": f"eq.{user_id}"}
+        )
+
+        return patch_res and patch_res.status_code in (200, 204)
 
 
 web_admin_client = WebAdminClient()
