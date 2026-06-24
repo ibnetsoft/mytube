@@ -74,6 +74,10 @@ interface WithdrawalReq {
     dest_address: string
     status: 'pending' | 'completed' | 'rejected'
     created_at: string
+    commission_percent?: number
+    commission_usd?: number
+    net_usd?: number
+    tenant_key?: string
     profiles?: {
         email: string
     }
@@ -788,6 +792,27 @@ export default function DashboardContent() {
             });
             if (res.ok) { alert('완료되었습니다.'); fetchUsers(); }
         } catch (e) { alert('오류가 발생했습니다.'); }
+    }
+
+    const handleSuperadminToggle = async (userId: string, currentIsSuperadmin: boolean | undefined) => {
+        if (!isSuperAdmin) return;
+        const action = currentIsSuperadmin ? '해제' : '지정';
+        if (!confirm(`해당 유저를 슈퍼어드민으로 ${action}하시겠습니까?`)) return;
+        try {
+            const res = await adminFetch('/api/admin/users/superadmin', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, isSuperAdmin: !currentIsSuperadmin })
+            });
+            if (res.ok) {
+                alert('완료되었습니다.');
+                fetchUsers();
+            } else {
+                alert('실패: ' + (await res.text()));
+            }
+        } catch (e) {
+            alert('오류가 발생했습니다.');
+        }
     }
 
     const handlePublishVideo = async (requestId: string) => {
@@ -3104,8 +3129,14 @@ export default function DashboardContent() {
                                     <th className="px-6 py-5 whitespace-nowrap">이메일</th>
                                     <th className="px-6 py-5 whitespace-nowrap">출금 주소</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">금액 (USDT)</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">수수료율</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">수수료</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">실지급액</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">상태</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">액션</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">수수료율</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">수수료</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">실지급액</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/20">
@@ -3115,6 +3146,15 @@ export default function DashboardContent() {
                                         <td className="px-6 py-5 text-base font-bold text-blue-400">{w.profiles?.email || 'N/A'}</td>
                                         <td className="px-6 py-5 text-sm font-mono text-gray-300 max-w-[200px] truncate">{w.dest_address}</td>
                                         <td className="px-6 py-5 text-right text-base font-black text-green-400">{w.amount} USDT</td>
+                                        <td className="px-6 py-5 text-right text-xs text-orange-400">
+                                            {w.commission_percent ? `${w.commission_percent}%` : '-'}
+                                        </td>
+                                        <td className="px-6 py-5 text-right text-xs text-red-400">
+                                            {w.commission_usd ? `$${w.commission_usd.toFixed(2)}` : '-'}
+                                        </td>
+                                        <td className="px-6 py-5 text-right text-xs text-blue-400">
+                                            {w.net_usd ? `$${w.net_usd.toFixed(2)}` : '-'}
+                                        </td>
                                         <td className="px-6 py-5 text-center">
                                             {w.status === 'pending' && <span className="px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm font-bold">대기중</span>}
                                             {w.status === 'completed' && <span className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-sm font-bold">완료</span>}
@@ -3132,7 +3172,7 @@ export default function DashboardContent() {
                                 ))}
                                 {withdrawals.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-gray-500 text-base font-bold">출금 신청 내역이 없습니다.</td>
+                                        <td colSpan={9} className="px-6 py-10 text-center text-gray-500 text-base font-bold">출금 신청 내역이 없습니다.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -3162,6 +3202,8 @@ export default function DashboardContent() {
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">멤버십</th>
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">가입 / 최근접속</th>
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">USDT 잔액</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">수수료</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">실지급액</th>
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">관리</th>
                                     </tr>
                                 </thead>
@@ -3275,9 +3317,12 @@ export default function DashboardContent() {
                                             </td>
                                             {/* 관리 메뉴 */}
                                             <td className="px-3 py-3">
-                                                <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto">
+                                                <div className="flex flex-wrap items-center justify-center gap-1 max-w-[200px] mx-auto">
                                                     {isSuperAdmin && u.email !== SUPER_ADMIN_EMAIL && (
-                                                        <button onClick={() => handleAdminRoleToggle(u.id, u.app_metadata?.role === 'sub_admin')} className={`px-2 py-1 rounded text-[10px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.role === 'sub_admin' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>부관리자</button>
+                                                        <>
+                                                            <button onClick={() => handleAdminRoleToggle(u.id, u.app_metadata?.role === 'sub_admin')} className={`px-2 py-1 rounded text-[10px] font-black border transition-all whitespace-nowrap ${u.app_metadata?.role === 'sub_admin' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-white/5 text-gray-600 border-white/10'}`}>부관리자</button>
+                                                            <button onClick={() => handleSuperadminToggle(u.id, u.profile?.is_superadmin)} className={`px-2 py-1 rounded text-[10px] font-black border transition-all whitespace-nowrap ${u.profile?.is_superadmin ? 'bg-red-600/20 text-red-400 border-red-500/30' : 'bg-purple-600/10 text-purple-300 border-purple-500/20'}`}>슈퍼어드민</button>
+                                                        </>
                                                     )}
                                                     <button onClick={() => handleApprovalChange(u.id, !u.profile?.is_approved)} className={`px-2 py-1 text-[10px] font-black rounded border transition-all whitespace-nowrap ${u.profile?.is_approved ? 'bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white border-yellow-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border-emerald-500/20'}`}>
                                                         {u.profile?.is_approved ? '대기전환' : '승인'}
