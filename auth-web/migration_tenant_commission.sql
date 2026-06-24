@@ -175,10 +175,15 @@ DROP POLICY IF EXISTS "tenant_users_self_write" ON public.tenant_users;
 CREATE POLICY "tenant_users_self_write" ON public.tenant_users
     FOR UPDATE USING (user_id = auth.uid());
 
-DROP POLICY IF EXISTS "tenant_users_tenant_admin_insert" ON public.tenant_users;
-CREATE POLICY "tenant_users_tenant_admin_insert" ON public.tenant_users
+DROP POLICY IF EXISTS "tenant_users_admin_insert" ON public.tenant_users;
+CREATE POLICY "tenant_users_admin_insert" ON public.tenant_users
     FOR INSERT WITH CHECK (
-        NEW.user_id = auth.uid()  -- 본인 매핑만 허용
+        -- 슈퍼어드민만 삽입 허용 (관리자가 사용자를 테넌트에 할당)
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'is_superadmin' = 'true'
+        )
     );
 
 -- tenant_commission_logs: 본인/테넌트 읽기
