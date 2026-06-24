@@ -55,6 +55,7 @@ try {
         --noconfirm `
         --clean `
         --onefile `
+        --noconsole `
         --name AIRLauncher `
         --distpath $StagingLauncher `
         --workpath (Join-Path $Root "build\AIRLauncher") `
@@ -64,6 +65,7 @@ try {
         --noconfirm `
         --clean `
         --onefile `
+        --noconsole `
         --name AIRUpdater `
         --distpath $StagingLauncher `
         --workpath (Join-Path $Root "build\AIRUpdater") `
