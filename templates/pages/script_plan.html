@@ -575,15 +575,22 @@
         currentProjectSettings = settings || {};
         const input = document.getElementById('durationInput');
         const text = document.getElementById('durationPolicyText');
+        const scriptStyleSelect = document.getElementById('scriptStyleSelect');
         if (!input || !text || window.APP_MODE === 'shorts') {
             if (text) text.classList.add('hidden');
             if (input) input.disabled = false;
+            if (scriptStyleSelect) {
+                scriptStyleSelect.disabled = false;
+                scriptStyleSelect.classList.remove('opacity-60');
+                scriptStyleSelect.title = '';
+            }
             return;
         }
 
         const minMinutes = Math.max(15, Number(longformPolicy.minDurationMinutes || 15));
         const assignedMinutes = getAssignedLongformMinutes(currentProjectSettings);
         const locked = truthySetting(currentProjectSettings.duration_locked) || truthySetting(longformPolicy.lockEnabled);
+        const styleLocked = truthySetting(currentProjectSettings.style_locked);
         const payout = Number(currentProjectSettings.estimated_payout || calculateLongformPayout(assignedMinutes));
 
         input.min = minMinutes;
@@ -591,6 +598,11 @@
         input.disabled = locked;
         input.classList.toggle('opacity-60', locked);
         input.title = locked ? 'Admin assigned duration' : '';
+        if (scriptStyleSelect) {
+            scriptStyleSelect.disabled = styleLocked;
+            scriptStyleSelect.classList.toggle('opacity-60', styleLocked);
+            scriptStyleSelect.title = styleLocked ? 'Admin assigned style' : '';
+        }
 
         const reason = currentProjectSettings.duration_reason ? ` · ${currentProjectSettings.duration_reason}` : '';
         text.textContent = `LONGFORM ${assignedMinutes} min · payout ${formatWon(payout)} · min ${minMinutes} min${reason}`;

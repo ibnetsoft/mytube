@@ -1,6 +1,50 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div id="recommendedTopicsSection" class="mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                <span class="text-xl">TOPIC</span>
+                {{ t('recommended_topics_title') }}
+            </h2>
+            <p class="text-xs text-gray-400 mt-1">{{ t('recommended_topics_desc') }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <select id="filterDuration" onchange="applyRecommendedFilters()"
+                class="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer">
+                <option value="">{{ t('filter_duration') }}</option>
+                <option value="short">{{ t('duration_short') }}</option>
+                <option value="medium">{{ t('duration_medium') }}</option>
+                <option value="long">{{ t('duration_long') }}</option>
+                <option value="ignore">{{ t('duration_ignore') }}</option>
+            </select>
+            <select id="filterLanguage" onchange="applyRecommendedFilters()"
+                class="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer">
+                <option value="">{{ t('filter_language') }}</option>
+                <option value="ko">KR</option>
+                <option value="en">EN</option>
+                <option value="ja">JP</option>
+                <option value="ignore">{{ t('language_ignore') }}</option>
+            </select>
+            <button onclick="refreshRecommendedTopics()"
+                class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-all">
+                {{ t('btn_refresh') }}
+            </button>
+        </div>
+    </div>
+
+    <div id="recommendedTopicsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
+
+    <div id="recommendedTopicsLoading" class="hidden text-center py-8">
+        <div class="loader mx-auto mb-3"></div>
+        <p class="text-xs text-gray-400">{{ t('status_loading_recommendations') }}</p>
+    </div>
+
+    <div id="recommendedTopicsEmpty" class="hidden text-center py-8 bg-[#1c2027]/30 rounded-lg border border-white/5">
+        <p class="text-sm text-gray-400">{{ t('no_recommendations') }}</p>
+    </div>
+</div>
 <div class="flex justify-between items-center mb-6 pr-56">
     <!-- Bulk Actions -->
     <div id="bulkActions"
@@ -852,7 +896,226 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', loadProjectList);
+    let allRecommendedTopics = [];
+    let recommendedTopics = [];
+
+    async function loadRecommendedTopics(refresh = false) {
+        const grid = document.getElementById('recommendedTopicsGrid');
+        const loading = document.getElementById('recommendedTopicsLoading');
+        const empty = document.getElementById('recommendedTopicsEmpty');
+        const filterDurationEl = document.getElementById('filterDuration');
+        const filterLanguageEl = document.getElementById('filterLanguage');
+
+        if (!grid || !loading || !empty || !filterDurationEl || !filterLanguageEl) return;
+
+        grid.classList.add('hidden');
+        empty.classList.add('hidden');
+        loading.classList.remove('hidden');
+
+        try {
+            const filterDuration = filterDurationEl.value;
+            const filterLanguage = filterLanguageEl.value;
+            const params = new URLSearchParams({
+                limit: '20',
+                refresh: refresh ? 'true' : 'false',
+            });
+
+            if (filterDuration === 'ignore') {
+                params.set('filter_duration', 'duration_ignore');
+            }
+            if (filterLanguage === 'ignore') {
+                params.set('filter_language', 'ignore');
+            } else if (filterLanguage) {
+                params.set('filter_language', filterLanguage);
+            }
+
+            const res = await fetch(`/api/user/recommended-topics?${params.toString()}`);
+            const data = await res.json();
+
+            if (data.status === 'ok' && Array.isArray(data.topics) && data.topics.length > 0) {
+                allRecommendedTopics = data.topics;
+                applyRecommendedFilters();
+                loading.classList.add('hidden');
+                grid.classList.remove('hidden');
+                return;
+            }
+
+            allRecommendedTopics = [];
+            recommendedTopics = [];
+            grid.innerHTML = '';
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        } catch (e) {
+            console.error('Failed to load recommended topics:', e);
+            allRecommendedTopics = [];
+            recommendedTopics = [];
+            grid.innerHTML = '';
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
+    }
+
+    function applyRecommendedFilters() {
+        const filterDuration = document.getElementById('filterDuration')?.value || '';
+        const filterLanguage = document.getElementById('filterLanguage')?.value || '';
+
+        recommendedTopics = allRecommendedTopics.filter((topic) => {
+            const duration = Number(topic.duration_minutes || topic.recommended_duration_minutes || 0);
+            const language = String(topic.language || '').toLowerCase();
+
+            if (filterDuration && filterDuration !== 'ignore') {
+                if (filterDuration === 'short' && duration >= 15) return false;
+                if (filterDuration === 'medium' && (duration < 15 || duration > 30)) return false;
+                if (filterDuration === 'long' && duration < 30) return false;
+            }
+
+            if (filterLanguage && filterLanguage !== 'ignore' && language !== filterLanguage) {
+                return false;
+            }
+
+            return true;
+        });
+
+        renderRecommendedTopics();
+    }
+
+    function renderRecommendedTopics() {
+        const grid = document.getElementById('recommendedTopicsGrid');
+        const empty = document.getElementById('recommendedTopicsEmpty');
+        if (!grid || !empty) return;
+
+        if (recommendedTopics.length === 0) {
+            grid.innerHTML = `
+                <div class="col-span-full text-center py-4">
+                    <p class="text-sm text-gray-400">{{ t('no_filtered_recommendations') }}</p>
+                </div>
+            `;
+            empty.classList.add('hidden');
+            grid.classList.remove('hidden');
+            return;
+        }
+
+        grid.innerHTML = recommendedTopics.map((topic) => {
+            const langFlag = ({ ko: 'KR', en: 'EN', ja: 'JP' })[String(topic.language || '').toLowerCase()] || 'N/A';
+            const durationMinutes = topic.duration_minutes || topic.recommended_duration_minutes;
+            const durationText = durationMinutes ? `${durationMinutes} min` : '-';
+            const scriptStyle = topic.script_style || '-';
+            const imageStyle = topic.image_style || '-';
+            const payoutValue = topic.estimated_payout_usdt ?? topic.adjusted_payout_usdt;
+            const payoutNumber = Number(payoutValue || 0);
+            const payoutText = payoutNumber > 0
+                ? `$${Number.isInteger(payoutNumber) ? payoutNumber : payoutNumber.toFixed(1)}`
+                : '-';
+            const payoutMultiplier = Number(topic.payout_multiplier || 1);
+            const payoutClass = payoutMultiplier > 1.2
+                ? 'text-red-400'
+                : payoutMultiplier < 0.9
+                    ? 'text-gray-400'
+                    : 'text-yellow-400';
+            const multiplierBadge = payoutMultiplier > 1.2
+                ? `<span class="text-xs font-bold bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full animate-pulse">HOT ${payoutMultiplier}x</span>`
+                : payoutMultiplier < 0.9
+                    ? `<span class="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full">${payoutMultiplier}x</span>`
+                    : '';
+
+            return `
+                <button type="button"
+                    class="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl p-4 hover:border-indigo-500/50 transition-all group relative"
+                    onclick="claimAndCreateProject(event, '${topic.id}')">
+                    ${multiplierBadge}
+                    <div class="flex items-start justify-between mb-2 gap-2">
+                        <span class="text-xs font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded truncate">
+                            ${topic.category_name || 'General'}
+                        </span>
+                        <span class="text-xs font-bold text-white shrink-0">${langFlag}</span>
+                    </div>
+                    <h3 class="text-sm font-medium text-white mb-3 line-clamp-2 group-hover:text-indigo-300 transition-colors min-h-[2.5rem]">
+                        ${topic.topic || '-'}
+                    </h3>
+                    <div class="space-y-2 text-xs text-gray-400 mb-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="min-w-0">
+                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Duration</div>
+                                <div class="truncate text-white">${durationText}</div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Payout</div>
+                                <div class="truncate ${payoutClass} font-semibold">${payoutText}</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="min-w-0">
+                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Image</div>
+                                <div class="truncate text-white">${imageStyle}</div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Script</div>
+                                <div class="truncate text-white">${scriptStyle}</div>
+                            </div>
+                        </div>
+                    </div>
+                </button>
+            `;
+        }).join('');
+
+        empty.classList.add('hidden');
+        grid.classList.remove('hidden');
+    }
+
+    async function claimAndCreateProject(event, topicId) {
+        if (!confirm('{{ t('confirm_claim_topic') }}')) return;
+
+        const card = event?.currentTarget;
+        const originalMarkup = card ? card.innerHTML : '';
+
+        if (card) {
+            card.innerHTML = `
+                <div class="flex items-center justify-center h-full min-h-[180px]">
+                    <div class="loader mx-auto"></div>
+                </div>
+            `;
+        }
+
+        try {
+            const res = await fetch('/api/user/claim-topic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic_id: topicId })
+            });
+            const data = await res.json();
+
+            if (data.status !== 'ok') {
+                throw new Error(data.detail || data.message || 'Failed to claim topic');
+            }
+
+            Utils.showToast('{{ t('topic_claimed_success') }}', 'success');
+
+            const projectId = data.project_id;
+            if (!projectId) {
+                throw new Error('Missing project id');
+            }
+
+            setCurrentProject(projectId);
+            const projectRoute = data.project_mode === 'longform_music' ? '/music-plan' : '/script-plan';
+            window.location.href = `${projectRoute}?project_id=${projectId}&auto=true&topic=${encodeURIComponent(data.topic?.topic || '')}`;
+        } catch (e) {
+            if (card) {
+                card.innerHTML = originalMarkup;
+            }
+            console.error('Failed to claim topic:', e);
+            Utils.showToast(e.message || '{{ t('toast_claim_topic_failed') }}', 'error');
+            await loadRecommendedTopics();
+        }
+    }
+
+    function refreshRecommendedTopics() {
+        loadRecommendedTopics(true);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadProjectList();
+        loadRecommendedTopics();
+    });
 
 </script>
 {% endblock %}

@@ -114,23 +114,30 @@ def _to_int(value, default: int) -> int:
         return default
 
 
+def _to_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
 def _normalize_content_language(value, default: str = "ko") -> str:
     lang = (str(value or "").strip().lower() or default)
     return lang if lang in {"ko", "en", "ja"} else default
 
 
-def _calculate_longform_payout(minutes: int, policy: dict) -> int:
+def _calculate_longform_payout(minutes: int, policy: dict) -> float:
     min_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
-    base_pay = max(0, _to_int(policy.get("sys_api_longform_base_payout"), 10000))
-    extra_pay = max(0, _to_int(policy.get("sys_api_longform_extra_minute_payout"), 500))
-    return base_pay + max(0, minutes - min_minutes) * extra_pay
+    base_pay = max(0.0, _to_float(policy.get("sys_api_longform_base_payout"), 4.0))
+    extra_pay = max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0))
+    return round(base_pay + max(0, minutes - min_minutes) * extra_pay, 1)
 
 
 def _fetch_longform_policy(supabase_url: str, headers: dict) -> dict:
     defaults = {
         "sys_api_longform_min_duration_minutes": "15",
-        "sys_api_longform_base_payout": "10000",
-        "sys_api_longform_extra_minute_payout": "500",
+        "sys_api_longform_base_payout": "4",
+        "sys_api_longform_extra_minute_payout": "0",
         "sys_api_longform_duration_lock_enabled": "true",
     }
     try:
@@ -535,10 +542,7 @@ async def get_daily_topic():
                 min_duration_minutes,
             ),
         )
-        estimated_payout = _to_int(
-            item.get("estimated_payout"),
-            _calculate_longform_payout(assigned_duration_minutes, policy),
-        )
+        estimated_payout = _calculate_longform_payout(assigned_duration_minutes, policy)
         duration_locked = str(item.get("duration_locked", policy.get("sys_api_longform_duration_lock_enabled", "true"))).lower() not in ("false", "0", "none")
 
         if category_id:
@@ -602,8 +606,8 @@ async def get_daily_topic():
             db.update_project_setting(project_id, "difficulty_level", item.get("difficulty_level") or "")
             db.update_project_setting(project_id, "payout_policy_json", json.dumps({
                 "min_duration_minutes": min_duration_minutes,
-                "base_payout": _to_int(policy.get("sys_api_longform_base_payout"), 10000),
-                "extra_minute_payout": _to_int(policy.get("sys_api_longform_extra_minute_payout"), 500),
+                "base_payout": _to_float(policy.get("sys_api_longform_base_payout"), 4.0),
+                "extra_minute_payout": _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0),
             }, ensure_ascii=False))
         try:
             sync_topic_progress(project_id, topic_id)
