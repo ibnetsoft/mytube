@@ -198,6 +198,7 @@
 
 ### Next on Success
 - Browser redirects to `/script-plan?project_id={id}&auto=true&topic=...`
+- In `Longform Mode`, claim success must not route the worker into `/music-plan`.
 
 ### Failure Handling
 - `401` when not authenticated.
@@ -208,6 +209,7 @@
 ### Current Implementation
 - Implemented for `longform`.
 - Backward compatibility exists for stale recommendation IDs by resolving `user_topic_recommendations.id` to `topic_queue_id`.
+- Frontend claim success already routes by returned `project_mode`, so `longform` claims go to `/script-plan` and only `longform_music` claims go to `/music-plan`.
 
 ### TODO
 - Needs verification: enforce stronger claim atomicity if multiple workers can race on the same `topics_queue` row.
@@ -338,9 +340,10 @@
 ### Current Implementation
 - Implemented.
 - Browser verification from prior tasks confirmed claimed longform projects load with topic title and locked metadata on this page.
+- Route is now project-aware: `/script-plan` only redirects to `/music-plan` when the selected project's actual mode is `longform_music`.
 
 ### TODO
-- Needs verification: `page_script_plan()` still uses global `app_mode` for routing fallback; selected-project mode awareness should remain on the watchlist.
+- Needs verification: apply the same project-aware mode resolution consistently across the rest of the longform/music page family, not only plan routing.
 
 ---
 
@@ -648,6 +651,7 @@
 
 ### Current Implementation
 - Implemented, but split across multiple delivery paths.
+- `Longform Music` workflow is treated as an internal-only mode and should not be the default path for standard online `Longform Mode` workers.
 
 ### TODO
 - Needs verification: define one canonical longform worker export contract.

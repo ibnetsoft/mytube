@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0103`
+  Fixed project-aware plan routing so longform topic claims stay on `/script-plan`, `/music-plan` only opens for real music projects, and standard memberships are blocked from entering the music workflow.
 - `AIR-0102`
   Added `docs/LONGFORM_USER_FLOW.md` and documented the current longform worker journey from login to export, including routes, APIs, BFF handlers, data ownership, statuses, and unresolved contract gaps.
 - `AIR-0101`
@@ -94,6 +96,7 @@ AIR Studio / LongformGenerator
 ## Current Risks
 - Longform worker stages do not yet have one fully normalized status contract from claim through export.
 - Export/delivery still splits across admin-publish registration and direct upload paths, which makes the terminal worker contract less clear than it should be.
+- Some longform/music pages still branch from global mode rather than selected-project mode; `/script-plan` is fixed, but the rest of the page family still needs the same cleanup.
 - Gemini spend-cap failures generate noisy runtime logs and can slow fallback flows.
 - The repo contains concurrent unrelated local changes; commit scope must be explicit.
 - `longform` card routing to `/script-plan` is verified on the primary 8001 runtime.

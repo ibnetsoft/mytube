@@ -81,17 +81,35 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Use the new longform flow document as the basis for `AIR-0103`, starting with status ownership and export-path normalization for the worker journey.
 
 ### AIR-0103
+- Status: Done
+- Commit: `54f00e15`
+- Related files:
+  - `app/routers/pages.py`
+  - `app/routers/user_topics.py`
+  - `templates/pages/projects.html`
+  - `templates/base.html`
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0103.md`
+- Short summary:
+  Made plan routing project-aware so longform topic claims stay on `/script-plan`, restricted `/music-plan` to real `longform_music` projects, and blocked standard memberships from entering the music workflow.
+- Next action:
+  Continue the same project-aware separation across the remaining longform/music routes and tighten the standard-worker publish/export contract.
+
+### AIR-0104
 - Status: Planned
 - Commit: `N/A`
 - Related files:
+  - `app/routers/pages.py`
+  - `templates/base.html`
   - `docs/LONGFORM_USER_FLOW.md`
   - `main.py`
-  - `database.py`
-  - `app/routers/pages.py`
-  - `app/routers/projects.py`
-  - `app/routers/user_topics.py`
   - `app/routers/video.py`
+  - `project_status/NEXT_TASK.md`
 - Short summary:
-  Close the highest-risk contract gaps identified in the longform flow document, especially canonical project status progression and the final export/delivery path for standard workers.
+  Extend the project-aware longform/music separation beyond the plan page and finalize the worker-safe export/publish contract for standard longform members.
 - Next action:
-  Decide which status transitions are authoritative for each longform step, then reduce duplicate export/upload paths into one documented worker contract.
+  Audit the rest of the page family (`image-gen`, `audio-gen`, `render`, `title-desc`, upload/export`) and remove remaining global-mode shortcuts that can misroute longform workers.

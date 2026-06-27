@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0103`
+Next: `AIR-0104`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -21,30 +21,32 @@ Next: `AIR-0103`
    - define canonical project-status ownership from claim through export
    - reduce UI-only stage inference where backend-owned status is required
    - align final render/export success conditions across worker-facing pages
-2. Rework payout identity and withdrawal UX:
+2. Finish project-aware longform/music route separation:
+   - remove remaining global-mode shortcuts from worker page routing
+   - make selected-project mode authoritative where a `project_id` exists
+   - keep standard longform workers out of the internal music workflow
+3. Rework payout identity and withdrawal UX:
    - remove or hide wallet-address-centered UX if it is not part of the real operator flow
    - evaluate enforcing Binance ID as the payout identity instead of arbitrary external wallet addresses
    - unify duplicated withdrawal endpoints and payload shapes
-3. Remove the worker-facing language-switch latency:
+4. Remove the worker-facing language-switch latency:
    - avoid full-page-cost translation work on every language icon click
    - reduce or cache recommendation-card translation overhead
    - prefer deterministic saved translations over repeated on-demand AI translation where possible
-4. Improve Vietnamese/Thai usability on longform worker pages:
+5. Improve Vietnamese/Thai usability on longform worker pages:
    - normalize labels through `t()`
    - remove ad hoc language branching in core worker UI
    - clean up visible mojibake on critical pages
-5. Keep plan routing project-aware:
-   - make sure selected-project mode drives `/script-plan` vs `/music-plan` behavior where appropriate
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Use `docs/LONGFORM_USER_FLOW.md` to define one canonical longform status progression from claim -> plan -> script -> TTS -> render -> export.
+1. Extend the project-aware routing fix from `/script-plan` and `/music-plan` into the rest of the longform/music page family.
 2. Decide whether standard workers should only use `admin-publish-request` as the final export path.
-3. Decide and document whether payout identity becomes Binance ID only.
-4. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
-5. Profile and simplify language switching on `/projects`.
-6. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
-7. Keep a documented blocker list for deferred modes rather than pulling them into the active delivery queue.
+3. Use `docs/LONGFORM_USER_FLOW.md` to define one canonical longform status progression from claim -> plan -> script -> TTS -> render -> export.
+4. Decide and document whether payout identity becomes Binance ID only.
+5. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
+6. Profile and simplify language switching on `/projects`.
+7. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
@@ -79,7 +81,8 @@ Next: `AIR-0103`
 - AIR Studio has four product modes, but only `Longform Mode` is an active completion target right now.
 - `Longform Music`, `General Shorts`, and `Shorts Commerce` should remain structurally intact while staying outside the current active build scope.
 - ChatGPT/Codex should use this file together with `PRODUCT_VISION.md` and `WORK_INDEX.md` as the control surface for deciding whether a proposed task moves forward now or goes to roadmap/backlog.
-- `AIR-0102` completed the current longform flow document; `AIR-0103` should convert the documented contract gaps into implementation decisions.
+- `AIR-0102` documented the current longform flow.
+- `AIR-0103` fixed the highest-risk plan-route leak by keeping longform claims on `/script-plan` and restricting `/music-plan` to internal music use.
 - Current local branch has many unrelated in-progress changes; review diff carefully before staging.
 - Port 8001 was fully restarted and browser-verified on 2026-06-27.
 - Live Supabase currently returns `42703` for `categories.video_type`; music recommendation verification is data-contract blocked, not a browser failure.
