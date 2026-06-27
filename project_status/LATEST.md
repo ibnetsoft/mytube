@@ -45,6 +45,12 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0101`
+  Introduced the task-number-based document system with `WORK_INDEX.md`, per-task worknotes, and task-ID-driven operating rules.
+- `AIR-0100`
+  Locked the longform-first product baseline and documented deferred modes plus longform completion priorities.
+- `AIR-0099`
+  Stabilized recommended topic claim flow and browser-validated longform recommendation card redirect behavior.
 - Added personalized topic recommendation flow and card UI.
 - Added translated subtitle/category display for recommended topic cards.
 - Split `/projects` into topic view and project list view.

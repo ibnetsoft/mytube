@@ -77,6 +77,15 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   3. simplify withdrawal/payout identity so the product matches real operations
   4. reduce admin loading overhead that does not help longform delivery
 
+## Task tracking update
+- AIR Studio now uses task-number-based worknotes.
+- The current document entry flow is:
+  1. `project_status/PRODUCT_VISION.md`
+  2. `project_status/NEXT_TASK.md`
+  3. `project_status/WORK_INDEX.md`
+  4. `worknote/AIR-xxxx.md`
+- The next active planned task is `AIR-0102`.
+
 ## Specific findings worth preserving
 - Worker language switching is expensive because:
   - the runtime persists language server-side
