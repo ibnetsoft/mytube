@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0102`
+  Added `docs/LONGFORM_USER_FLOW.md` and documented the current longform worker journey from login to export, including routes, APIs, BFF handlers, data ownership, statuses, and unresolved contract gaps.
 - `AIR-0101`
   Introduced the task-number-based document system with `WORK_INDEX.md`, per-task worknotes, and task-ID-driven operating rules.
 - `AIR-0100`
@@ -90,6 +92,8 @@ AIR Studio / LongformGenerator
   - admin dashboard still performs heavy eager data loading at startup
 
 ## Current Risks
+- Longform worker stages do not yet have one fully normalized status contract from claim through export.
+- Export/delivery still splits across admin-publish registration and direct upload paths, which makes the terminal worker contract less clear than it should be.
 - Gemini spend-cap failures generate noisy runtime logs and can slow fallback flows.
 - The repo contains concurrent unrelated local changes; commit scope must be explicit.
 - `longform` card routing to `/script-plan` is verified on the primary 8001 runtime.
@@ -104,3 +108,4 @@ AIR Studio / LongformGenerator
 - Runtime/API behavior: Python app in root repo
 - Admin policy/state: `auth-web` and Supabase-backed settings
 - Local project persistence: SQLite via `database.py`
+- Longform worker flow reference: `docs/LONGFORM_USER_FLOW.md`

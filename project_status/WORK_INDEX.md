@@ -65,14 +65,33 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Start the next active implementation task as `AIR-0102` and use the new task-tracking workflow from the beginning.
 
 ### AIR-0102
+- Status: Done
+- Commit: `32d4f6aa`
+- Related files:
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/ROADMAP.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0102.md`
+- Short summary:
+  Documented the current `Longform Mode` worker flow from login to export using real routes, BFF handlers, local/Supabase data ownership, stage states, and unresolved contract gaps.
+- Next action:
+  Use the new longform flow document as the basis for `AIR-0103`, starting with status ownership and export-path normalization for the worker journey.
+
+### AIR-0103
 - Status: Planned
 - Commit: `N/A`
 - Related files:
-  - `templates/base.html`
-  - `templates/pages/projects.html`
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `main.py`
+  - `database.py`
+  - `app/routers/pages.py`
+  - `app/routers/projects.py`
   - `app/routers/user_topics.py`
-  - `services/i18n.py`
+  - `app/routers/video.py`
 - Short summary:
-  Reduce longform worker language-switch latency and remove repeated translation overhead from the recommendation-card path.
+  Close the highest-risk contract gaps identified in the longform flow document, especially canonical project status progression and the final export/delivery path for standard workers.
 - Next action:
-  Profile the `/projects` language switch path first, then decide whether saved translations, stronger caching, or UI-only rerender should be the primary fix.
+  Decide which status transitions are authoritative for each longform step, then reduce duplicate export/upload paths into one documented worker contract.

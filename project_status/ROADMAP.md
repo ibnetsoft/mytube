@@ -18,6 +18,7 @@ Turn AIR Studio into a repo with durable project memory so future Codex/ChatGPT 
 ## Phase 2: Longform Mode Completion
 - [x] Verify topic claim API -> project creation
 - [x] Verify topic card click -> browser page redirect for `longform`
+- [x] Document current longform worker flow from login to export
 - [ ] Finish worker-facing longform topic selection and project boot flow
 - [ ] Remove language-switch latency from worker-facing pages
 - [ ] Stabilize saved or cached translation strategy for recommendation cards
@@ -28,6 +29,7 @@ Turn AIR Studio into a repo with durable project memory so future Codex/ChatGPT 
 - [ ] Simplify payout identity and withdrawal UX for real longform operations
 
 ## Phase 3: Domain Documentation
+- [x] Document longform user flow and current worker journey
 - [ ] Document AIR Studio runtime architecture
 - [ ] Document `auth-web` admin responsibilities
 - [ ] Document policy sync between admin and local app

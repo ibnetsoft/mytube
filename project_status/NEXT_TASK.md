@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0102`
+Next: `AIR-0103`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -17,29 +17,33 @@ Next: `AIR-0102`
    - prefer fallback paths when Gemini is unavailable
 
 ## Longform Finish Priorities
-1. Remove the worker-facing language-switch latency:
-   - avoid full-page-cost translation work on every language icon click
-   - reduce or cache recommendation-card translation overhead
-   - prefer deterministic saved translations over repeated on-demand AI translation where possible
+1. Normalize the longform worker state contract:
+   - define canonical project-status ownership from claim through export
+   - reduce UI-only stage inference where backend-owned status is required
+   - align final render/export success conditions across worker-facing pages
 2. Rework payout identity and withdrawal UX:
    - remove or hide wallet-address-centered UX if it is not part of the real operator flow
    - evaluate enforcing Binance ID as the payout identity instead of arbitrary external wallet addresses
    - unify duplicated withdrawal endpoints and payload shapes
-3. Improve Vietnamese/Thai usability on longform worker pages:
+3. Remove the worker-facing language-switch latency:
+   - avoid full-page-cost translation work on every language icon click
+   - reduce or cache recommendation-card translation overhead
+   - prefer deterministic saved translations over repeated on-demand AI translation where possible
+4. Improve Vietnamese/Thai usability on longform worker pages:
    - normalize labels through `t()`
    - remove ad hoc language branching in core worker UI
    - clean up visible mojibake on critical pages
-4. Keep plan routing project-aware:
+5. Keep plan routing project-aware:
    - make sure selected-project mode drives `/script-plan` vs `/music-plan` behavior where appropriate
-5. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
+6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Profile and simplify language switching on `/projects` first.
-2. Decide and document whether payout identity becomes Binance ID only.
-3. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
-4. Decide whether `page_script_plan()` should keep relying on global `app_mode` or use the selected project's mode when `project_id` is present.
-5. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
-6. Review whether duplicate recommendation cards are intentional cache behavior or whether deduplication should happen before rendering.
+1. Use `docs/LONGFORM_USER_FLOW.md` to define one canonical longform status progression from claim -> plan -> script -> TTS -> render -> export.
+2. Decide whether standard workers should only use `admin-publish-request` as the final export path.
+3. Decide and document whether payout identity becomes Binance ID only.
+4. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
+5. Profile and simplify language switching on `/projects`.
+6. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
 7. Keep a documented blocker list for deferred modes rather than pulling them into the active delivery queue.
 
 ## Working Rules
@@ -68,12 +72,14 @@ Next: `AIR-0102`
 - `services/claude_service.py`
 - `services/web_admin_client.py`
 - `auth-web/components/DashboardContent.tsx`
+- `docs/LONGFORM_USER_FLOW.md`
 
 ## Notes
 - The repo has both AIR Studio runtime code and `auth-web` admin code.
 - AIR Studio has four product modes, but only `Longform Mode` is an active completion target right now.
 - `Longform Music`, `General Shorts`, and `Shorts Commerce` should remain structurally intact while staying outside the current active build scope.
 - ChatGPT/Codex should use this file together with `PRODUCT_VISION.md` and `WORK_INDEX.md` as the control surface for deciding whether a proposed task moves forward now or goes to roadmap/backlog.
+- `AIR-0102` completed the current longform flow document; `AIR-0103` should convert the documented contract gaps into implementation decisions.
 - Current local branch has many unrelated in-progress changes; review diff carefully before staging.
 - Port 8001 was fully restarted and browser-verified on 2026-06-27.
 - Live Supabase currently returns `42703` for `categories.video_type`; music recommendation verification is data-contract blocked, not a browser failure.

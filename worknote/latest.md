@@ -16,6 +16,22 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Added `docs/LONGFORM_USER_FLOW.md` as the current reference for the `Longform Mode` worker journey:
+  - login
+  - recommended topics
+  - claim-topic
+  - project creation
+  - script plan
+  - script generation
+  - image generation
+  - voice generation
+  - video generation
+  - export / delivery
+- Documented, from real code paths, the current route/API/BFF/data ownership for each stage.
+- Explicitly marked the main unresolved longform contract gaps instead of guessing:
+  - canonical status progression is still not fully normalized
+  - export/delivery still splits across multiple worker outcomes
+  - some stages are inferred from saved assets rather than one backend-owned status
 - Added `project_status` + `worknote` scaffolding so future sessions can resume from repo docs.
 - Identified that Gemini spend-cap exhaustion is a runtime reliability issue, not a server overload issue.
 - Identified a recommendation ID mismatch in the claim flow:
@@ -63,11 +79,13 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - therefore no current recommendation can resolve to `project_mode=longform_music`
 
 ## What still needs verification
-1. Add/deploy the canonical category mode column and expose it in admin category creation/editing.
-2. Seed or generate one pending topic for a `longform_music` category.
-3. Run the same browser click verification and confirm `/music-plan` redirect.
-4. Decide whether the duplicated recommendation cards currently shown in the grid should be deduplicated server-side or UI-side.
-5. Add cooldown/suppression around Gemini spend-cap failures in translation-heavy paths.
+1. Normalize canonical longform status progression from claim through export.
+2. Decide whether standard workers should end only at `admin-publish-request` instead of mixed upload paths.
+3. Add/deploy the canonical category mode column and expose it in admin category creation/editing.
+4. Seed or generate one pending topic for a `longform_music` category.
+5. Run the same browser click verification and confirm `/music-plan` redirect.
+6. Decide whether the duplicated recommendation cards currently shown in the grid should be deduplicated server-side or UI-side.
+7. Add cooldown/suppression around Gemini spend-cap failures in translation-heavy paths.
 
 ## Current longform-focused judgment
 - The next meaningful `Longform Mode` improvements are not broad feature additions.
@@ -84,7 +102,8 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   2. `project_status/NEXT_TASK.md`
   3. `project_status/WORK_INDEX.md`
   4. `worknote/AIR-xxxx.md`
-- The next active planned task is `AIR-0102`.
+- `AIR-0102` is now the longform user-flow documentation task.
+- The next active planned task is `AIR-0103`.
 
 ## Specific findings worth preserving
 - Worker language switching is expensive because:
