@@ -6,13 +6,43 @@ AIR Studio / LongformGenerator
 ## Snapshot
 - Desktop/local-first FastAPI application for AI-assisted video production.
 - Includes a paired Next.js admin app under `auth-web`.
-- Supports longform, music-oriented longform, shorts, publishing, translation, TTS, rendering, and topic assignment flows.
+- AIR Studio currently carries four product modes: `longform`, `longform_music`, `general_shorts`, and `shorts_commerce`.
+- The codebase is already partly reorganized in a BFF style, and current execution priority is to finish `Longform Mode` without breaking the structural boundaries of the other modes.
+
+## Product Focus
+1. `Longform Mode`
+   Current highest-priority development target and the main online worker platform for longform video production.
+2. `Longform Music`
+   Internal-use mode only for now. Keep the structure intact, but defer active development.
+3. `General Shorts`
+   Intended later as a shorts/reels/tiktok-linked marketing platform. Currently internal-use oriented and not an active build target.
+4. `Shorts Commerce`
+   Internal-use mode only for now. Keep the structure intact, but defer active development.
 
 ## Current Active Themes
-1. Personalized recommended topics on the project page.
-2. Runtime sync between local app and web admin policy/settings.
-3. Multilingual UI and translated display content for worker-facing screens.
-4. Payout and duration lock propagation from admin policy into created projects.
+1. Complete `Longform Mode` end-to-end worker flow first.
+2. Stabilize personalized recommended topics on the project page.
+3. Keep runtime sync between local app and web admin policy/settings reliable.
+4. Preserve mode boundaries so deferred modes do not get structurally damaged while longform work continues.
+
+## Longform Completion Assessment
+- The highest-impact blocker for `Longform Mode` completion is runtime slowness around language switching and recommendation-card translation.
+- Worker-facing multilingual UX for Vietnamese and Thai users is still incomplete:
+  - some labels remain English-only
+  - some strings are still rendered through ad hoc per-language conditionals
+  - some legacy mojibake text remains in templates
+- Withdrawal and wallet behavior is not aligned with the intended product policy:
+  - the runtime still exposes wallet-address-based withdrawal concepts
+  - the backend mixes multiple withdrawal endpoints and field names
+  - the current local wallet generation model is not a strong fit for production payout operations
+- The admin app still loads too much data eagerly on startup and polls render queue data aggressively, which adds avoidable overhead while `Longform Mode` is the primary delivery target.
+
+## Recommended Priority Order
+1. Remove the language-switch bottleneck in worker-facing longform screens.
+2. Simplify payout/withdrawal policy around operator-controlled payout identity instead of external wallet-address UX.
+3. Clean up Vietnamese/Thai worker UX on core longform pages.
+4. Stabilize project-mode-aware routing so the selected project, not only global mode, drives plan-page behavior.
+5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
 - Added personalized topic recommendation flow and card UI.
@@ -46,12 +76,21 @@ AIR Studio / LongformGenerator
   - querying that column returns PostgreSQL error `42703`
   - the claim route therefore falls back every category to `longform`
   - no real `longform_music` recommendation can currently be produced or browser-verified
+- Completed a code-based review of what most directly improves `Longform Mode` completion:
+  - language switching currently triggers full-page reload plus recommendation translation work
+  - recommendation translation currently retries through Gemini, Claude, then Google fallback
+  - wallet/withdrawal code still reflects wallet-address-centered assumptions
+  - withdrawal endpoints and payload fields are duplicated/inconsistent
+  - admin dashboard still performs heavy eager data loading at startup
 
 ## Current Risks
 - Gemini spend-cap failures generate noisy runtime logs and can slow fallback flows.
 - The repo contains concurrent unrelated local changes; commit scope must be explicit.
 - `longform` card routing to `/script-plan` is verified on the primary 8001 runtime.
 - `/music-plan` cannot be verified until the admin/Supabase category schema exposes a mode field (currently expected as `categories.video_type`) and at least one pending music topic exists.
+- The existence of four product modes can pull implementation toward mixed concerns; current work should stay centered on `Longform Mode` unless a change is required to preserve shared structure.
+- Worker-facing language switching is still more expensive than it should be because UI language persistence, full reload, and dynamic topic translation are tightly coupled.
+- Wallet-address-based payout UX is still exposed despite the product leaning toward operator-controlled payout identity such as Binance ID.
 - `main.py` uses multiprocessing; a restart must terminate both the parent and its serving child or the old child can keep port 8001 alive.
 - Some legacy files contain mojibake comments/text, which makes targeted editing slightly harder.
 

@@ -69,6 +69,31 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 4. Decide whether the duplicated recommendation cards currently shown in the grid should be deduplicated server-side or UI-side.
 5. Add cooldown/suppression around Gemini spend-cap failures in translation-heavy paths.
 
+## Current longform-focused judgment
+- The next meaningful `Longform Mode` improvements are not broad feature additions.
+- The best return now is:
+  1. fix language-switch slowness
+  2. clean up worker multilingual UX for Vietnamese and Thai
+  3. simplify withdrawal/payout identity so the product matches real operations
+  4. reduce admin loading overhead that does not help longform delivery
+
+## Specific findings worth preserving
+- Worker language switching is expensive because:
+  - the runtime persists language server-side
+  - the page reloads
+  - recommendation cards then trigger translation fetches again
+  - translation path can fall through Gemini, Claude, and Google fallback
+- Recommended topic translation is currently better treated as data to cache/store than as work to repeat on every language change.
+- Wallet-address flow is a product mismatch right now:
+  - local code can generate a real EVM-style wallet
+  - but custody, recovery, chain handling, and operational payout flow are not productized
+  - this should likely be replaced by a controlled payout identifier such as Binance ID
+- Withdrawal code is internally inconsistent:
+  - duplicated endpoints
+  - mixed request field names
+  - legacy wallet assumptions still exposed
+- The admin app still eagerly loads several large datasets at startup and polls render queue every 3 seconds, which is heavier than needed while longform delivery is the priority.
+
 ## Practical caution
 - `git status` currently shows many unrelated edits in the repo.
 - Any future commit should be intentionally scoped.
