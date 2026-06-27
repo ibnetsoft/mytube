@@ -39,8 +39,15 @@ async def page_index(request: Request):
     return RedirectResponse(url="/projects", status_code=302)
 
 @router.get("/projects", response_class=HTMLResponse)
-async def page_projects(request: Request):
-    return _render(request, "pages/projects.html", "projects", "nav_my_projects")
+async def page_projects(request: Request, view: Optional[str] = Query("topics")):
+    view_mode = "projects" if view == "projects" else "topics"
+    return _render(
+        request,
+        "pages/projects.html",
+        "projects",
+        "nav_topic" if view_mode == "topics" else "nav_my_projects",
+        view_mode=view_mode,
+    )
 
 @router.get("/script-plan", response_class=HTMLResponse)
 async def page_script_plan(request: Request):

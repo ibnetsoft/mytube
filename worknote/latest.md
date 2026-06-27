@@ -1,0 +1,76 @@
+# Latest Worknote
+
+Date: 2026-06-27
+Repo: `C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator`
+
+## Why this file exists
+This is the lightweight working memory for AIR Studio. It should explain what we were doing, why it mattered, and what the next session needs to know without reconstructing context from chat.
+
+## Current understanding
+- AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
+- The same repo also includes a Next.js admin app under `auth-web`.
+- Recent work has focused on the project page recommendation experience:
+  - topic cards
+  - translation display
+  - payout/duration/style metadata
+  - project creation from a topic click
+
+## What changed recently
+- Added `project_status` + `worknote` scaffolding so future sessions can resume from repo docs.
+- Identified that Gemini spend-cap exhaustion is a runtime reliability issue, not a server overload issue.
+- Identified a recommendation ID mismatch in the claim flow:
+  - recommendation cache rows can have UUID IDs
+  - actual claimable records live in `topics_queue`
+- Added server-side logic in `app/routers/user_topics.py` to resolve recommendation IDs to `topic_queue_id`.
+- Tightened that resolver again for backward compatibility:
+  - some open/stale browser tabs can still submit recommendation IDs first
+  - the server now checks `user_topic_recommendations.id` before falling back to a raw integer `topics_queue.id`
+- Found and fixed another claim-path bug:
+  - Supabase topic assignment `PATCH` returns `204`
+  - the API treated that as failure because it only accepted `200`
+- Removed the native confirmation dialog from topic-card click and replaced it with a simple single-flight guard so the card cannot be double-claimed by repeated clicks.
+- Verified runtime with `TestClient`:
+  - recommended topics API returns successfully
+  - claim-topic API returns `200`
+  - created project persists lock/policy values correctly
+- Verified in the browser on a fresh server instance (`127.0.0.1:8011`) that:
+  1. topic cards render with duration/payout/style metadata
+  2. clicking a recommendation card creates a project
+  3. redirect lands on `/script-plan`
+  4. the plan page loads with the selected topic title populated
+  5. verification project created during this run: `project_id=254`, topic queue id `1981`
+- Restarted the primary 8001 server completely:
+  - stopping only the `main.py` parent was insufficient because its multiprocessing child retained port 8001
+  - terminated the old serving child and started a fresh parent/child pair
+  - `/api/health` returned `200` from the fresh runtime
+- Repeated the full browser flow in the user's logged-in Chrome session on `127.0.0.1:8001`:
+  1. recommendation cards loaded with duration, payout, image style, and script style
+  2. clicked the unique economy card
+  3. claim-topic succeeded
+  4. project `256` was created from topic queue id `1937`
+  5. redirect landed on `/script-plan`
+  6. the page loaded the selected topic and disabled admin-assigned duration/style controls
+- Confirmed project `256` in SQLite:
+  - `app_mode=longform`
+  - `assigned_duration_minutes=15`
+  - `estimated_payout=4.0`
+  - `script_style=news`
+  - `image_style=cinematic`
+- Investigated why the music branch could not be exercised:
+  - the deployed Supabase `categories` schema has no `video_type` column
+  - direct REST selection/filtering of `categories.video_type` returns PostgreSQL `42703`
+  - `claim_topic()` currently reads `category.video_type` and defaults missing values to `longform`
+  - therefore no current recommendation can resolve to `project_mode=longform_music`
+
+## What still needs verification
+1. Add/deploy the canonical category mode column and expose it in admin category creation/editing.
+2. Seed or generate one pending topic for a `longform_music` category.
+3. Run the same browser click verification and confirm `/music-plan` redirect.
+4. Decide whether the duplicated recommendation cards currently shown in the grid should be deduplicated server-side or UI-side.
+5. Add cooldown/suppression around Gemini spend-cap failures in translation-heavy paths.
+
+## Practical caution
+- `git status` currently shows many unrelated edits in the repo.
+- Any future commit should be intentionally scoped.
+- Template edits can appear live earlier than Python router edits if the currently running local server process has not restarted, so verification should mention which server instance was used.
+- When restarting `main.py`, verify and terminate the serving multiprocessing child as well as the parent; otherwise the old child may continue to own port 8001.
