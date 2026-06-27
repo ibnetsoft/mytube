@@ -19,6 +19,7 @@ Turn AIR Studio into a repo with durable project memory so future Codex/ChatGPT 
 - [x] Verify topic claim API -> project creation
 - [x] Verify topic card click -> browser page redirect for `longform`
 - [x] Document current longform worker flow from login to export
+- [x] Validate `/script-plan` longform-vs-music routing and project access rules
 - [ ] Finish worker-facing longform topic selection and project boot flow
 - [ ] Remove language-switch latency from worker-facing pages
 - [ ] Stabilize saved or cached translation strategy for recommendation cards

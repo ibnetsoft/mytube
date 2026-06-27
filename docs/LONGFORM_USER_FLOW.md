@@ -336,14 +336,18 @@
 - Missing project or structure returns empty/loading states.
 - AI structure generation failures surface toasts and do not advance status.
 - Locked settings reject edits to protected fields.
+- Foreign or unauthorized `project_id` access now returns `403` on the supporting project/full/settings/metadata APIs instead of silently loading another worker's project context.
 
 ### Current Implementation
 - Implemented.
 - Browser verification from prior tasks confirmed claimed longform projects load with topic title and locked metadata on this page.
 - Route is now project-aware: `/script-plan` only redirects to `/music-plan` when the selected project's actual mode is `longform_music`.
+- AIR-0104 added shared project-access enforcement so `/script-plan` and its supporting project-context APIs reject foreign `project_id` access.
+- AIR-0104 also removed the visible nursery/music planning UI from the normal longform planner, keeping the longform screen focused on script planning only.
 
 ### TODO
-- Needs verification: apply the same project-aware mode resolution consistently across the rest of the longform/music page family, not only plan routing.
+- Needs verification: apply the same project-aware mode resolution and access enforcement consistently across the rest of the longform/music page family, not only plan routing.
+- Needs browser recheck on a live runtime session after AIR-0104; this task validated the contract with `TestClient` and rendered HTML assertions.
 
 ---
 

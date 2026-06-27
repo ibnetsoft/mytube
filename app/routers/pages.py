@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from typing import Optional
 import database as db
 from app.modes import DEFAULT_APP_MODE, normalize_app_mode
+from app.project_access import resolve_project_mode
 
 router = APIRouter(tags=["Pages"])
 
@@ -17,19 +18,6 @@ _templates: Optional[Jinja2Templates] = None
 def init_pages(templates: Jinja2Templates):
     global _templates
     _templates = templates
-
-
-def _resolve_page_mode(project_id: Optional[int] = None) -> str:
-    if project_id:
-        settings = db.get_project_settings(project_id) or {}
-        project_mode = settings.get("app_mode")
-        if not project_mode:
-            project = db.get_project(project_id) or {}
-            project_mode = project.get("app_mode")
-        if project_mode:
-            return normalize_app_mode(project_mode, DEFAULT_APP_MODE)
-    return normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE), DEFAULT_APP_MODE)
-
 
 def _is_standard_membership() -> bool:
     from services.auth_service import auth_service
@@ -76,7 +64,7 @@ async def page_projects(request: Request, view: Optional[str] = Query("topics"))
 
 @router.get("/script-plan", response_class=HTMLResponse)
 async def page_script_plan(request: Request, project_id: Optional[int] = Query(None)):
-    app_mode = _resolve_page_mode(project_id)
+    app_mode = resolve_project_mode(project_id)
     if app_mode == "longform_music":
         return RedirectResponse(url=_route_with_project_id("/music-plan", project_id), status_code=302)
     return _render(
@@ -90,7 +78,7 @@ async def page_script_plan(request: Request, project_id: Optional[int] = Query(N
 
 @router.get("/music-plan", response_class=HTMLResponse)
 async def page_music_plan(request: Request, project_id: Optional[int] = Query(None)):
-    app_mode = _resolve_page_mode(project_id)
+    app_mode = resolve_project_mode(project_id)
     if app_mode != "longform_music":
         fallback = _route_with_project_id("/script-plan", project_id) if project_id else "/projects"
         return RedirectResponse(url=fallback, status_code=302)

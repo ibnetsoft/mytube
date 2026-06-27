@@ -231,9 +231,11 @@
                                     <option value="renaissance_sacred">{{ t('style_renaissance_sacred') }}</option>
                                     <option value="cute_animal_char">{{ t('style_cute_animal_char') }}</option>
                                 </optgroup>
+                                {% if app_mode == 'longform_music' %}
                                 <optgroup label="{{ t('style_nursery_rhyme') }}">
                                     <option value="nursery_rhyme">{{ t('style_nursery_rhyme_desc') }}</option>
                                 </optgroup>
+                                {% endif %}
                             </select>
                             <svg class="w-3 h-3 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style="color: var(--atl-sub);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
                         </div>
@@ -354,6 +356,7 @@
             </div>
 
             <!-- ── 6. NURSERY IDEAS (hidden by default) ── -->
+            {% if app_mode == 'longform_music' %}
             <div id="nurseryIdeasPanel" class="hidden atl-card p-5"
                  style="border: 1px solid rgba(234,179,8,0.1);">
                 <div class="flex items-center justify-between mb-4">
@@ -366,6 +369,7 @@
                 </div>
                 <div id="nurseryIdeasContent" class="space-y-2 max-h-40 overflow-y-auto atl-scrollbar"></div>
             </div>
+            {% endif %}
 
         </div><!-- /scroll area -->
     </aside>
@@ -547,10 +551,13 @@
         return ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
     }
 
-    function formatWon(value) {
-        const formatted = Number(value || 0).toLocaleString('ko-KR');
-        return `${formatted} USDT`;
+    function formatPayout(value) {
+        const numeric = Number(value || 0);
+        if (!Number.isFinite(numeric)) return '$0';
+        return `$${numeric.toLocaleString('en-US', { maximumFractionDigits: 1 })}`;
     }
+
+    const formatWon = formatPayout;
 
     function calculateLongformPayout(minutes) {
         const minMinutes = Number(longformPolicy.minDurationMinutes || 15);
@@ -860,7 +867,7 @@
 
         } catch (e) {
             console.error('데이터 로드 실패:', e);
-            Utils.showToast(i18n.toast_data_load_fail, 'error');
+            Utils.showToast(e?.message || i18n.toast_data_load_fail, 'error');
         }
     }
 

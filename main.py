@@ -88,6 +88,7 @@ from app.utils import (
     MAX_IMAGE_SIZE as _MAX_IMAGE_SIZE,
 )
 from app.modes import DEFAULT_APP_MODE, normalize_app_mode
+from app.project_access import ensure_project_access
 
 
 # FastAPI 앱 생성
@@ -303,6 +304,7 @@ app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 from app.routers import autopilot as autopilot_router
 from app.routers import video as video_router
 from app.routers import commerce as commerce_router  # [NEW]
+from app.routers import shorts as shorts_router  # [NEW]
 from app.routers import projects as projects_router # [NEW]
 from app.routers import channels as channels_router # [NEW]
 from app.routers import media as media_router # [NEW]
@@ -322,6 +324,7 @@ from app.routers import update as update_router
 from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
+from app.routers import topview_models as topview_models_router  # [NEW]
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -329,6 +332,7 @@ app.include_router(learning_router.admin_router)
 app.include_router(autopilot_router.router)
 app.include_router(video_router.router)
 app.include_router(commerce_router.router)
+app.include_router(shorts_router.router)  # [NEW]
 app.include_router(projects_router.router)
 app.include_router(channels_router.router)
 app.include_router(media_router.router)
@@ -345,6 +349,7 @@ app.include_router(thumbnails_router.router)
 app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
+app.include_router(topview_models_router.router)  # [NEW]
 pages_router.init_pages(templates)
 
 
@@ -497,6 +502,7 @@ async def patch_project(project_id: int, background_tasks: BackgroundTasks, body
 
 @app.post("/api/projects/{project_id}/script")
 async def save_script(project_id: int, req: ScriptSave, background_tasks: BackgroundTasks):
+    ensure_project_access(project_id)
     """대본 저장"""
     if req.language == "vi":
         db.update_project_setting(project_id, "script_vi", req.full_script)
@@ -518,6 +524,7 @@ async def save_script(project_id: int, req: ScriptSave, background_tasks: Backgr
 
 @app.get("/api/projects/{project_id}/script")
 async def get_script(project_id: int):
+    ensure_project_access(project_id)
     """대본 조회"""
     return db.get_script(project_id) or {}
 
@@ -572,6 +579,7 @@ async def translate_project_script(project_id: int, req: TranslateScriptRequest)
 
 @app.get("/api/projects/{project_id}/full")
 async def get_project_full(project_id: int):
+    ensure_project_access(project_id)
     """프로젝트 전체 데이터 조회 (Context Restoration용)"""
     try:
         project = db.get_project(project_id)
@@ -971,6 +979,7 @@ async def get_tts_info(project_id: int):
 
 @app.post("/api/projects/{project_id}/metadata")
 async def save_metadata(project_id: int, req: MetadataSave, app_mode: str = Query(None)):
+    ensure_project_access(project_id)
     """메타데이터 저장 (app_mode별로 분리)"""
     app_mode = normalize_app_mode(app_mode)
     setting_key = f"metadata_{app_mode}"
@@ -988,6 +997,7 @@ async def save_metadata(project_id: int, req: MetadataSave, app_mode: str = Quer
 
 @app.get("/api/projects/{project_id}/metadata")
 async def get_metadata(project_id: int, app_mode: str = Query(None)):
+    ensure_project_access(project_id)
     """메타데이터 조회 (app_mode별로 분리)"""
     app_mode = normalize_app_mode(app_mode)
     return db.get_project_metadata(project_id, app_mode) or {}
@@ -1101,6 +1111,7 @@ def _is_style_locked(project_id: int) -> bool:
 async def save_project_settings(project_id: int, req: ProjectSettingsSave):
     """프로젝트 핵심 설정 저장"""
     try:
+        ensure_project_access(project_id)
         settings = {k: v for k, v in req.dict().items() if v is not None}
         settings = _apply_longform_duration_lock(project_id, settings)
         settings = _apply_style_lock(project_id, settings)
@@ -1122,6 +1133,7 @@ async def save_project_settings(project_id: int, req: ProjectSettingsSave):
 async def get_project_settings_route(project_id: int):
     """프로젝트 핵심 설정 조회"""
     try:
+        ensure_project_access(project_id)
         settings = db.get_project_settings(project_id)
         return settings or {}
     except Exception as e:
@@ -1138,6 +1150,7 @@ async def get_project_settings_route(project_id: int):
 
 @app.patch("/api/projects/{project_id}/settings/{key}")
 async def update_project_setting(project_id: int, key: str, value: str):
+    ensure_project_access(project_id)
     """단일 설정 업데이트"""
     # 숫자 변환
     if key in ['duration_seconds', 'is_uploaded', 'subtitle_bg_enabled', 'subtitle_stroke_enabled']:
@@ -3690,7 +3703,7 @@ if __name__ == "__main__":
     
     # [NEW] Start Real-time Admin Monitoring (Check every 10m)
     auth_service.start_monitoring()
-    
+
     # [NEW] Auto Publish Service Start
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
@@ -3698,6 +3711,10 @@ if __name__ == "__main__":
     # [SDK] Smart Queue Dispatcher Start
     from services.dispatcher_service import dispatcher_service
     dispatcher_service.start()
+
+    # [NEW] Payout Rebalancing Service Start
+    from services.payout_rebalancer import start_rebalancer_if_enabled
+    start_rebalancer_if_enabled()
 
     print(f"[*] 서버 시간(KST): {config.get_kst_time().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"[*] 서버 주소: http://{config.HOST}:{config.PORT}")

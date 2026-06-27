@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0104`
+  Validated `Longform Mode` `/script-plan` routing and access rules, added shared `project_id` access enforcement for plan-related APIs, surfaced project-load failures in frontend project API wrappers, and removed nursery/music-specific plan UI from the visible longform script-plan screen.
 - `AIR-0103`
   Fixed project-aware plan routing so longform topic claims stay on `/script-plan`, `/music-plan` only opens for real music projects, and standard memberships are blocked from entering the music workflow.
 - `AIR-0102`
@@ -96,7 +98,7 @@ AIR Studio / LongformGenerator
 ## Current Risks
 - Longform worker stages do not yet have one fully normalized status contract from claim through export.
 - Export/delivery still splits across admin-publish registration and direct upload paths, which makes the terminal worker contract less clear than it should be.
-- Some longform/music pages still branch from global mode rather than selected-project mode; `/script-plan` is fixed, but the rest of the page family still needs the same cleanup.
+- Some longform/music pages still branch from global mode rather than selected-project mode; `/script-plan` and its immediate APIs are now guarded, but the rest of the page family still needs the same cleanup.
 - Gemini spend-cap failures generate noisy runtime logs and can slow fallback flows.
 - The repo contains concurrent unrelated local changes; commit scope must be explicit.
 - `longform` card routing to `/script-plan` is verified on the primary 8001 runtime.
@@ -106,6 +108,7 @@ AIR Studio / LongformGenerator
 - Wallet-address-based payout UX is still exposed despite the product leaning toward operator-controlled payout identity such as Binance ID.
 - `main.py` uses multiprocessing; a restart must terminate both the parent and its serving child or the old child can keep port 8001 alive.
 - Some legacy files contain mojibake comments/text, which makes targeted editing slightly harder.
+- Browser-level manual verification for the refreshed `/script-plan` contract still needs one live-session recheck; AIR-0104 validation was completed with `TestClient` and rendered HTML assertions.
 
 ## Source of Truth
 - Runtime/API behavior: Python app in root repo

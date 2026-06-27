@@ -5,6 +5,7 @@ import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
 from pydantic import BaseModel
 from app.modes import DEFAULT_APP_MODE, VALID_APP_MODES, normalize_app_mode, recover_mode_language_mixup
+from app.project_access import ensure_project_access
 
 class BulkDeleteRequest(BaseModel):
     ids: List[int]
@@ -340,9 +341,7 @@ async def create_project(request: Request, background_tasks: BackgroundTasks):
 
 @router.get("/projects/{project_id}")
 async def get_project(project_id: int, background_tasks: BackgroundTasks):
-    project = db.get_project(project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+    project = ensure_project_access(project_id)
     settings = db.get_project_settings(project_id) or {}
     project["app_mode"] = settings.get("app_mode") or DEFAULT_APP_MODE
     project["video_title"] = settings.get("title")
@@ -352,6 +351,7 @@ async def get_project(project_id: int, background_tasks: BackgroundTasks):
 
 @router.get("/projects/{project_id}/script-structure")
 async def get_script_structure(project_id: int):
+    ensure_project_access(project_id)
     structure = db.get_script_structure(project_id)
     if not structure:
         raise HTTPException(404, "No script structure found")
@@ -360,6 +360,7 @@ async def get_script_structure(project_id: int):
 @router.post("/projects/{project_id}/script-structure")
 async def save_script_structure(project_id: int, data: dict, background_tasks: BackgroundTasks):
     try:
+        ensure_project_access(project_id)
         db.save_script_structure(project_id, data)
         db.mark_project_dirty(project_id)
         _queue_project_sync(background_tasks, project_id)
@@ -370,6 +371,7 @@ async def save_script_structure(project_id: int, data: dict, background_tasks: B
 @router.put("/projects/{project_id}")
 async def update_project(project_id: int, data: ProjectUpdate, background_tasks: BackgroundTasks):
     try:
+        ensure_project_access(project_id)
         update_data = {}
         if data.name is not None:
             update_data["name"] = data.name
@@ -391,7 +393,7 @@ async def update_project(project_id: int, data: ProjectUpdate, background_tasks:
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: int):
     try:
-        project = db.get_project(project_id)
+        project = ensure_project_access(project_id)
         if project:
             try:
                 from services.project_sync_service import sync_project_deleted
@@ -406,6 +408,7 @@ async def delete_project(project_id: int):
 @router.post("/project-settings/{project_id}")
 async def save_project_settings(project_id: int, settings: ProjectSettingsSave, background_tasks: BackgroundTasks):
     try:
+        ensure_project_access(project_id)
         settings_dict = settings.dict(exclude_unset=True)
         if "title" in settings_dict:
             settings_dict["title_vi"] = None
@@ -419,6 +422,7 @@ async def save_project_settings(project_id: int, settings: ProjectSettingsSave, 
 @router.put("/project-settings/{project_id}")
 async def update_project_setting(project_id: int, data: ProjectSettingUpdate, background_tasks: BackgroundTasks):
     try:
+        ensure_project_access(project_id)
         if data.key in _STYLE_LOCK_KEYS and _is_style_locked(project_id):
             return {"status": "locked", "message": "AI가 배정한 스타일은 변경할 수 없습니다.", "key": data.key}
         db.update_project_setting(project_id, data.key, data.value)
@@ -432,6 +436,7 @@ async def update_project_setting(project_id: int, data: ProjectSettingUpdate, ba
 # [NEW] GET Method for settings
 @router.get("/project-settings/{project_id}")
 async def get_project_settings_api(project_id: int):
+    ensure_project_access(project_id)
     settings = db.get_project_settings(project_id)
     if not settings:
         raise HTTPException(404, "Settings not found")

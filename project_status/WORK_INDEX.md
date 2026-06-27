@@ -100,16 +100,23 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Continue the same project-aware separation across the remaining longform/music routes and tighten the standard-worker publish/export contract.
 
 ### AIR-0104
-- Status: Planned
-- Commit: `N/A`
+- Status: Done
+- Commit: `dfa7dc69`
 - Related files:
+  - `app/project_access.py`
   - `app/routers/pages.py`
-  - `templates/base.html`
-  - `docs/LONGFORM_USER_FLOW.md`
+  - `app/routers/projects.py`
+  - `app/routers/gemini.py`
   - `main.py`
-  - `app/routers/video.py`
+  - `static/js/api.js`
+  - `static/js/api_v2.js`
+  - `templates/pages/script_plan.html`
+  - `tests/test_longform_script_plan_access.py`
+  - `tests/test_project_music_integration.py`
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `worknote/AIR-0104.md`
   - `project_status/NEXT_TASK.md`
 - Short summary:
-  Extend the project-aware longform/music separation beyond the plan page and finalize the worker-safe export/publish contract for standard longform members.
+  Validated the longform `/script-plan` flow, enforced project-level access checks on plan-related APIs, and hid nursery/music-specific UI from the normal longform planning screen.
 - Next action:
-  Audit the rest of the page family (`image-gen`, `audio-gen`, `render`, `title-desc`, upload/export`) and remove remaining global-mode shortcuts that can misroute longform workers.
+  Continue the same project-aware access/mode cleanup across `image-gen`, `audio-gen`, `render`, `title-desc`, and export/upload pages under `AIR-0105`.

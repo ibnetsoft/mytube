@@ -16,6 +16,20 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Validated the longform `/script-plan` contract under `AIR-0104`:
+  - `Longform` project -> `/script-plan` stays on the longform planner
+  - `longform_music` project -> `/script-plan` redirects to `/music-plan`
+  - standard memberships remain blocked from the music planner
+  - foreign `project_id` access is now blocked on core plan-related APIs
+- Added shared project access enforcement used by:
+  - page routing
+  - project detail/full-data endpoints
+  - plan metadata/settings endpoints
+  - structure-generation endpoints that accept `project_id`
+- Tightened frontend project API wrappers so `/script-plan` project context failures surface as errors instead of silently returning malformed payloads.
+- Removed visible nursery/music UI from the normal longform script-plan screen:
+  - nursery style option hidden
+  - nursery idea panel hidden
 - Fixed the plan-route leak between longform and music workflows:
   - `/script-plan` now resolves from the selected project's real `app_mode` first
   - longform claims stay on `/script-plan`
@@ -93,6 +107,7 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 6. Run the same browser click verification and confirm `/music-plan` redirect.
 7. Decide whether the duplicated recommendation cards currently shown in the grid should be deduplicated server-side or UI-side.
 8. Add cooldown/suppression around Gemini spend-cap failures in translation-heavy paths.
+9. Browser-verify the refreshed `/script-plan` contract on a live runtime session.
 
 ## Current longform-focused judgment
 - The next meaningful `Longform Mode` improvements are not broad feature additions.
@@ -111,7 +126,7 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   4. `worknote/AIR-xxxx.md`
 - `AIR-0102` is now the longform user-flow documentation task.
 - `AIR-0103` fixed the plan-route leak between longform and music.
-- The next active planned task is `AIR-0104`.
+- The next active planned task is `AIR-0105`.
 
 ## Specific findings worth preserving
 - Worker language switching is expensive because:

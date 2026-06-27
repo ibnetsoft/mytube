@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0104`
+Next: `AIR-0105`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -40,13 +40,14 @@ Next: `AIR-0104`
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Extend the project-aware routing fix from `/script-plan` and `/music-plan` into the rest of the longform/music page family.
-2. Decide whether standard workers should only use `admin-publish-request` as the final export path.
-3. Use `docs/LONGFORM_USER_FLOW.md` to define one canonical longform status progression from claim -> plan -> script -> TTS -> render -> export.
-4. Decide and document whether payout identity becomes Binance ID only.
-5. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
-6. Profile and simplify language switching on `/projects`.
-7. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
+1. Extend the project-aware routing and `project_id` access fix from `/script-plan` into the rest of the longform page family.
+2. Audit `image-gen`, `audio-gen`, `render`, `title-desc`, `video-upload`, and related APIs for global-mode shortcuts and foreign-project access holes.
+3. Decide whether standard workers should only use `admin-publish-request` as the final export path.
+4. Use `docs/LONGFORM_USER_FLOW.md` to define one canonical longform status progression from claim -> plan -> script -> TTS -> render -> export.
+5. Decide and document whether payout identity becomes Binance ID only.
+6. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
+7. Profile and simplify language switching on `/projects`.
+8. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
@@ -83,6 +84,7 @@ Next: `AIR-0104`
 - ChatGPT/Codex should use this file together with `PRODUCT_VISION.md` and `WORK_INDEX.md` as the control surface for deciding whether a proposed task moves forward now or goes to roadmap/backlog.
 - `AIR-0102` documented the current longform flow.
 - `AIR-0103` fixed the highest-risk plan-route leak by keeping longform claims on `/script-plan` and restricting `/music-plan` to internal music use.
+- `AIR-0104` validated the longform `/script-plan` flow, blocked foreign `project_id` access for plan-related APIs, and removed visible nursery/music UI from the normal longform planning screen.
 - Current local branch has many unrelated in-progress changes; review diff carefully before staging.
 - Port 8001 was fully restarted and browser-verified on 2026-06-27.
 - Live Supabase currently returns `42703` for `categories.video_type`; music recommendation verification is data-contract blocked, not a browser failure.
