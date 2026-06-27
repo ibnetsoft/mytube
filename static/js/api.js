@@ -265,13 +265,21 @@ const API = {
         // 프로젝트 조회
         async get(projectId) {
             const response = await fetch(`/api/projects/${projectId}`);
-            return response.json();
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `Failed to load project (${response.status})`);
+            }
+            return data;
         },
 
         // 프로젝트 전체 데이터 조회
         async getFull(projectId) {
             const response = await fetch(`/api/projects/${projectId}/full?t=${new Date().getTime()}`);
-            return response.json();
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `Failed to load project context (${response.status})`);
+            }
+            return data;
         },
 
         // 프로젝트 영상 렌더링
@@ -338,12 +346,20 @@ const API = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(structure)
             });
-            return response.json();
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `Failed to save script structure (${response.status})`);
+            }
+            return data;
         },
 
         async getScriptStructure(projectId) {
             const response = await fetch(`/api/projects/${projectId}/script-structure`);
-            return response.json();
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `Failed to load script structure (${response.status})`);
+            }
+            return data;
         },
 
         // 대본 저장/조회

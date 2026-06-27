@@ -15,13 +15,15 @@ class ProjectMusicIntegrationTest(unittest.IsolatedAsyncioTestCase):
             patch.object(
                 projects.db,
                 "get_project",
-                return_value={"id": 123, "name": "Music Project", "topic": "Cafe Music"},
+                return_value={"id": 123, "name": "Music Project", "topic": "Cafe Music", "employee_email": "worker@example.com"},
             ),
             patch.object(
                 projects.db,
                 "get_project_settings",
                 return_value={"app_mode": "longform_music", "title": "Cafe Music", "duration_seconds": 240},
             ),
+            patch("services.auth_service.auth_service.get_user_email", return_value="worker@example.com"),
+            patch.object(projects.db, "is_user_admin", return_value=False),
         ):
             data = await projects.get_project(123, BackgroundTasks())
 
