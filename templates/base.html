@@ -134,18 +134,21 @@
 
             <!-- 네비게이션 (Scrollable) -->
             <nav class="px-2 py-1 flex-1 overflow-y-auto custom-scrollbar">
+                {% set projects_menu_label = '프로젝트' if current_lang == 'ko' else ('Projects' if current_lang == 'en' else ('Dự án' if current_lang == 'vi' else 'โปรเจกต์')) %}
+                {% set topics_menu_label = '주제' if current_lang == 'ko' else ('Topics' if current_lang == 'en' else ('Chủ đề' if current_lang == 'vi' else 'หัวข้อ')) %}
                 <ul class="space-y-0 text-[11px]">
                     <li>
-                        <a href="/projects" id="nav-projects"
-                            class="sidebar-item {% if page == 'projects' %}active{% endif %}">
+                        <a href="/projects?view=topics" id="nav-topics"
+                            class="sidebar-item {% if page == 'projects' and view_mode == 'topics' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_my_projects') }}</span>
+                            <span>{{ topics_menu_label }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['webtoon', 'longform_music'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
-                        <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
+                    <li>
+                        <a href="/projects?view=projects" id="nav-projects"
+                            class="sidebar-item {% if page == 'projects' and view_mode == 'projects' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_topic') }}</span>
+                            <span>{{ projects_menu_label }}</span>
                         </a>
                     </li>
                     <li class="hidden">
