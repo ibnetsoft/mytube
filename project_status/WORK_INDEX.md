@@ -153,7 +153,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 
 ### AIR-0108
 - Status: Done
-- Commit: `pending`
+- Commit: `d8310f89`
 - Related files:
   - `templates/pages/image_gen.html`
   - `tests/test_scene_asset_review_ui.py`
