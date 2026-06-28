@@ -92,6 +92,7 @@ AIR Studio / LongformGenerator
   - wallet/withdrawal code still reflects wallet-address-centered assumptions
   - withdrawal endpoints and payload fields are duplicated/inconsistent
   - admin dashboard still performs heavy eager data loading at startup
+- Added provider-aware prompt wrapper files for the longform script-plan, script-generation, and image-prompt families so Claude tuning stays isolated from Gemini defaults.
 
 ## Current Risks
 - Longform worker stages do not yet have one fully normalized status contract from claim through export.

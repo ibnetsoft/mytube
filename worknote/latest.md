@@ -1,6 +1,6 @@
 # Latest Worknote
 
-Date: 2026-06-27
+Date: 2026-06-28
 Repo: `C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator`
 
 ## Why this file exists
@@ -78,6 +78,13 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - `estimated_payout=4.0`
   - `script_style=news`
   - `image_style=cinematic`
+- Started AIR-0106 to move longform prompt handling into provider-aware wrapper files:
+  - Gemini stays the baseline
+  - Claude wrappers now live in separate domain files
+  - script-plan, script-generation, and image-prompt prompts are routed through `services/prompt_store.py`
+- Committed AIR-0106 as `ff2d75d5` after wiring the prompt store, adding provider wrappers, and updating the prompt architecture docs.
+- Added `docs/PROMPT_ARCHITECTURE.md` to document the prompt layout and future provider extension path.
+- Added `tests/test_prompt_architecture.py` to verify wrapper loading.
 - Investigated why the music branch could not be exercised:
   - the deployed Supabase `categories` schema has no `video_type` column
   - direct REST selection/filtering of `categories.video_type` returns PostgreSQL `42703`

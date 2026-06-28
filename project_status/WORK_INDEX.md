@@ -113,3 +113,43 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Extend the project-aware longform/music separation beyond the plan page and finalize the worker-safe export/publish contract for standard longform members.
 - Next action:
   Audit the rest of the page family (`image-gen`, `audio-gen`, `render`, `title-desc`, upload/export`) and remove remaining global-mode shortcuts that can misroute longform workers.
+
+### AIR-0105
+- Status: Done
+- Commit: `57eac2db`
+- Related files:
+  - `services/ai_provider.py`
+  - `services/gemini_service.py`
+  - `services/claude_service.py`
+  - `app/routers/gemini.py`
+  - `app/routers/user_topics.py`
+  - `main.py`
+  - `config.py`
+  - `templates/pages/script_plan.html`
+  - `auth-web/app/api/admin/settings/global/route.ts`
+  - `auth-web/components/DashboardContent.tsx`
+  - `tests/test_ai_provider_routing.py`
+- Short summary:
+  Added the first pass of a provider-aware longform AI routing layer so Gemini remains the default while Claude can be selected for script planning and generation without hardcoding model assumptions.
+- Next action:
+  Use AIR-0105 as the baseline for provider-aware longform generation and continue with browser verification or prompt-tuning follow-up under AIR-0106.
+
+### AIR-0106
+- Status: In progress
+- Commit: `ff2d75d5`
+- Related files:
+  - `services/prompt_store.py`
+  - `services/gemini_service.py`
+  - `app/routers/gemini.py`
+  - `main.py`
+  - `prompts/longform/script_plan/gemini.md`
+  - `prompts/longform/script_plan/claude.md`
+  - `prompts/longform/script_generation/gemini.md`
+  - `prompts/longform/script_generation/claude.md`
+  - `prompts/longform/image_prompt/gemini.md`
+  - `prompts/longform/image_prompt/claude.md`
+  - `docs/PROMPT_ARCHITECTURE.md`
+- Short summary:
+  Started organizing the Longform prompt system into provider-aware wrapper files so Gemini stays the baseline while Claude can follow the same script-plan, script-generation, and image-prompt interfaces.
+- Next action:
+  Finalize the prompt architecture docs, verify provider selection on the longform UI path, and commit the task for PR creation.

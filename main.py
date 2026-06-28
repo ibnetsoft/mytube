@@ -737,7 +737,15 @@ async def auto_generate_images(project_id: int):
 
     # 2. 프롬프트 생성 (Gemini)
     from services.gemini_service import gemini_service
-    prompts = await gemini_service.generate_image_prompts_from_script(script, duration)
+    from services.ai_provider import resolve_ai_selection
+    ai = resolve_ai_selection("image_prompt", project_id=project_id)
+    prompts = await gemini_service.generate_image_prompts_from_script(
+        script,
+        duration,
+        project_id=project_id,
+        provider=ai.provider,
+        model=ai.model,
+    )
     
     if not prompts:
         raise HTTPException(500, "이미지 프롬프트 생성 실패")

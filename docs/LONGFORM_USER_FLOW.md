@@ -341,6 +341,7 @@
 - Implemented.
 - Browser verification from prior tasks confirmed claimed longform projects load with topic title and locked metadata on this page.
 - Route is now project-aware: `/script-plan` only redirects to `/music-plan` when the selected project's actual mode is `longform_music`.
+- Prompt generation for this stage now has provider-aware wrapper files so Claude can use a separate longform wrapper without changing the Gemini baseline contract.
 
 ### TODO
 - Needs verification: apply the same project-aware mode resolution consistently across the rest of the longform/music page family, not only plan routing.
@@ -393,6 +394,7 @@
 
 ### Current Implementation
 - Implemented.
+- The script-generation prompt family is now provider-aware and loaded through wrapper files so Claude tuning can stay isolated from Gemini defaults.
 
 ### TODO
 - Needs verification: there is no single documented source of truth for when manual edits vs AI generation should update the final script status.
@@ -453,6 +455,7 @@
 
 ### Current Implementation
 - Implemented, but state ownership is partly data-driven rather than status-driven.
+- The longform image-prompt prompt family now comes from provider-aware wrapper files instead of a single hardcoded body.
 
 ### TODO
 - Needs verification: define a clearer canonical status transition for "image prep complete" if downstream orchestration needs it.

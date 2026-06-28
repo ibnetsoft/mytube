@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0104`
+Next: `AIR-0107`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -47,6 +47,7 @@ Next: `AIR-0104`
 5. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
 6. Profile and simplify language switching on `/projects`.
 7. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
+8. Keep longform prompt definitions provider-aware and file-based so Claude tuning stays isolated from Gemini defaults.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
