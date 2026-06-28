@@ -651,6 +651,16 @@ async def claim_topic(req: ClaimTopicRequest):
     db.update_project_setting(project_id, "script_style", normalized.get("script_style") or "default")
     db.update_project_setting(project_id, "image_style", normalized.get("image_style") or "realistic")
     db.update_project_setting(project_id, "style_locked", "1")
+    db.update_project_setting(
+        project_id,
+        "script_generation_provider",
+        db.get_global_setting("sys_api_script_generation_provider") or "gemini"
+    )
+    db.update_project_setting(
+        project_id,
+        "script_generation_model",
+        db.get_global_setting("sys_api_script_generation_model") or "gemini-2.5-flash"
+    )
 
     if project_mode == "longform":
         assigned_minutes = normalized.get("recommended_duration_minutes") or max(

@@ -251,6 +251,26 @@
                         style="min-height: 72px; background: var(--atl-deep);"
                         placeholder="{{ t('plan_notes_placeholder') }}"></textarea>
                 </div>
+
+                <!-- AI Provider -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1.5">
+                        <label class="atl-field-label block">AI Provider</label>
+                        <select id="aiProviderSelect"
+                            class="atl-select w-full rounded-xl px-3 py-2.5 text-xs pr-7 bg-[#1c2027] text-white"
+                            style="background: var(--atl-deep);">
+                            <option value="gemini">Gemini</option>
+                            <option value="claude">Claude</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="atl-field-label block">AI Model</label>
+                        <input type="text" id="aiModelInput"
+                            class="atl-input w-full rounded-xl px-4 py-2.5 text-xs"
+                            style="background: var(--atl-deep);"
+                            placeholder="gemini-2.5-flash / claude-sonnet-4-6">
+                    </div>
+                </div>
             </div>
 
             <!-- ── 2. ACTION CONSOLE ── -->
@@ -749,6 +769,14 @@
             if (s.script_style) {
                 document.getElementById('scriptStyleSelect').value = s.script_style;
             }
+            if (s.script_generation_provider) {
+                const providerEl = document.getElementById('aiProviderSelect');
+                if (providerEl) providerEl.value = s.script_generation_provider;
+            }
+            if (s.script_generation_model) {
+                const modelEl = document.getElementById('aiModelInput');
+                if (modelEl) modelEl.value = s.script_generation_model;
+            }
             applyLongformDurationPolicy(s);
         }
 
@@ -807,6 +835,14 @@
                 }
                 if (s.script_style) {
                     document.getElementById('scriptStyleSelect').value = s.script_style;
+                }
+                if (s.script_generation_provider) {
+                    const providerEl = document.getElementById('aiProviderSelect');
+                    if (providerEl) providerEl.value = s.script_generation_provider;
+                }
+                if (s.script_generation_model) {
+                    const modelEl = document.getElementById('aiModelInput');
+                    if (modelEl) modelEl.value = s.script_generation_model;
                 }
                 applyLongformDurationPolicy(s);
 
@@ -1051,6 +1087,8 @@
             const topic = document.getElementById('topicInput').value.trim();
             const durationSeconds = getEffectiveDurationSeconds();
             const scriptStyle = document.getElementById('scriptStyleSelect').value;
+            const aiProvider = document.getElementById('aiProviderSelect').value || 'gemini';
+            const aiModel = document.getElementById('aiModelInput').value.trim();
 
             // 1. Update project topic and target language (projects table)
             await API.project.update(projectId, { 
@@ -1061,7 +1099,9 @@
             // 2. Update settings (project_settings table)
             const result = await API.project.saveSettings(projectId, {
                 duration_seconds: durationSeconds,
-                script_style: scriptStyle
+                script_style: scriptStyle,
+                script_generation_provider: aiProvider,
+                script_generation_model: aiModel
             });
 
             if (result.status === 'ok') {
@@ -1106,6 +1146,8 @@
         const duration = getEffectiveDurationSeconds();
         const tone = "professional"; // Simplified or removed if not needed, as style prompt covers it.
         const scriptStyle = document.getElementById('scriptStyleSelect').value;
+        const aiProvider = document.getElementById('aiProviderSelect').value || 'gemini';
+        const aiModel = document.getElementById('aiModelInput').value.trim();
         const notes = document.getElementById('additionalNotes').value;
 
         const btn = document.getElementById('generateBtn');
@@ -1124,7 +1166,9 @@
                     tone,
                     notes: notes || '',
                     target_language: currentTargetLanguage,
-                    script_style: scriptStyle
+                    script_style: scriptStyle,
+                    ai_provider: aiProvider,
+                    ai_model: aiModel
                 })
             });
 
@@ -1163,7 +1207,7 @@
                 if (projectId) {
                     try {
                         // 1. 프로젝트 주제 & 스타일 업데이트
-                        await API.project.update(projectId, { topic: topic, script_style: scriptStyle });
+                        await API.project.update(projectId, { topic: topic, script_style: scriptStyle, script_generation_provider: aiProvider, script_generation_model: aiModel });
 
                         // 2. 구조 저장
                         await API.project.saveScriptStructure(projectId, {
@@ -1577,10 +1621,14 @@
                 const topic = document.getElementById('topicInput').value.trim();
                 const style = document.getElementById('scriptStyleSelect').value;
                 const duration = getEffectiveDurationSeconds();
+                const aiProvider = document.getElementById('aiProviderSelect').value || 'gemini';
+                const aiModel = document.getElementById('aiModelInput').value.trim();
 
                 bodyData.topic = topic;
                 bodyData.script_style = style;
                 bodyData.duration_seconds = duration;
+                bodyData.ai_provider = aiProvider;
+                bodyData.ai_model = aiModel;
             }
 
             const res = await fetch(`/api/autopilot/continue/${projectId}`, {
@@ -1725,6 +1773,8 @@
 
         const duration = getEffectiveDurationSeconds();
         const notes = document.getElementById('additionalNotes').value;
+        const aiProvider = document.getElementById('aiProviderSelect').value || 'gemini';
+        const aiModel = document.getElementById('aiModelInput').value.trim();
 
         const btn = document.getElementById('deepDiveBtn');
         Utils.setLoading(btn, true, i18n.loading_deep_analysis);
@@ -1739,7 +1789,9 @@
                     duration,
                     notes: notes || '',
                     target_language: currentTargetLanguage,
-                    mode: document.getElementById('deepDiveMode')?.value || 'standard'
+                    mode: document.getElementById('deepDiveMode')?.value || 'standard',
+                    ai_provider: aiProvider,
+                    ai_model: aiModel
                 })
             });
 

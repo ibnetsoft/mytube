@@ -28,6 +28,7 @@ Turn AIR Studio into a repo with durable project memory so future Codex/ChatGPT 
 - [ ] Add Gemini cooldown / failure suppression for translation-heavy paths
 - [ ] Reduce noisy terminal logging for expected fallback cases
 - [ ] Simplify payout identity and withdrawal UX for real longform operations
+- [ ] Add provider-aware AI selection for longform script planning/generation with Gemini as default and Claude as an opt-in provider
 
 ## Phase 3: Domain Documentation
 - [x] Document longform user flow and current worker journey

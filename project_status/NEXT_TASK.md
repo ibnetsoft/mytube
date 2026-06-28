@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0105`
+Next: `AIR-0106`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -38,6 +38,7 @@ Next: `AIR-0105`
    - remove ad hoc language branching in core worker UI
    - clean up visible mojibake on critical pages
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
+7. Keep AI provider/model settings backward-compatible while Gemini remains the default longform provider.
 
 ## Immediate Next Checks
 1. Extend the project-aware routing and `project_id` access fix from `/script-plan` into the rest of the longform page family.

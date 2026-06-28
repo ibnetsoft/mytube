@@ -25,6 +25,8 @@ class StructureGenerateRequest(BaseModel):
     target_language: Optional[str] = "ko"
     script_style: Optional[str] = "story"
     mode: str = "monologue"
+    ai_provider: Optional[str] = None
+    ai_model: Optional[str] = None
 
 
 class AnalysisRequest(BaseModel):
@@ -97,7 +99,10 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
             recent_titles,
             target_language=req.target_language,
             style_prompt=style_prompt,
-            accumulated_knowledge=accumulated_knowledge
+            accumulated_knowledge=accumulated_knowledge,
+            project_id=req.project_id,
+            provider=req.ai_provider,
+            model=req.ai_model,
         )
 
         if "error" in result:
@@ -130,7 +135,9 @@ async def generate_deep_dive_script_api(req: StructureGenerateRequest):
             duration_seconds=req.duration,
             target_language=req.target_language or "ko",
             user_notes=req.notes or "없음",
-            mode=req.mode
+            mode=req.mode,
+            provider=req.ai_provider,
+            model=req.ai_model,
         )
 
         if "error" in result:

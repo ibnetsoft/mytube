@@ -287,6 +287,7 @@
 - `POST /api/projects/{id}/settings`
 - `PATCH /api/projects/{id}`
 - `POST /api/gemini/generate-structure`
+- `POST /api/gemini/deep-dive`
 - Optional source APIs:
   - `GET /api/projects/{id}/sources`
   - `POST /api/projects/{id}/sources/url`
@@ -344,6 +345,11 @@
 - Route is now project-aware: `/script-plan` only redirects to `/music-plan` when the selected project's actual mode is `longform_music`.
 - AIR-0104 added shared project-access enforcement so `/script-plan` and its supporting project-context APIs reject foreign `project_id` access.
 - AIR-0104 also removed the visible nursery/music planning UI from the normal longform planner, keeping the longform screen focused on script planning only.
+- AIR-0105 added a project-level AI provider/model path:
+  - `script_generation_provider`
+  - `script_generation_model`
+  - `ai_provider` / `ai_model` overrides can be forwarded to the generation endpoints
+  - Gemini remains the default provider; Claude is selectable
 
 ### TODO
 - Needs verification: apply the same project-aware mode resolution and access enforcement consistently across the rest of the longform/music page family, not only plan routing.
@@ -397,9 +403,11 @@
 
 ### Current Implementation
 - Implemented.
+- Script generation can now receive an explicit provider/model selection from the plan page and fall back to Gemini when a provider value is invalid.
 
 ### TODO
 - Needs verification: there is no single documented source of truth for when manual edits vs AI generation should update the final script status.
+- Needs verification: whether a future default should keep script planning and deep-dive generation on one shared provider/model pair or split them further.
 
 ---
 
@@ -457,6 +465,7 @@
 
 ### Current Implementation
 - Implemented, but state ownership is partly data-driven rather than status-driven.
+- Image-prompt generation now has a provider-aware routing path so Claude can be selected without changing the image renderer itself.
 
 ### TODO
 - Needs verification: define a clearer canonical status transition for "image prep complete" if downstream orchestration needs it.

@@ -743,9 +743,17 @@ async def auto_generate_images(project_id: int):
     if not script:
         raise HTTPException(400, "대본이 없습니다. 먼저 대본(Longform 또는 Shorts)을 생성해주세요.")
 
-    # 2. 프롬프트 생성 (Gemini)
+    # 2. 프롬프트 생성 (provider-aware)
     from services.gemini_service import gemini_service
-    prompts = await gemini_service.generate_image_prompts_from_script(script, duration)
+    from services.ai_provider import resolve_ai_selection
+    ai = resolve_ai_selection("image_prompt", project_id=project_id)
+    prompts = await gemini_service.generate_image_prompts_from_script(
+        script,
+        duration,
+        project_id=project_id,
+        provider=ai.provider,
+        model=ai.model,
+    )
     
     if not prompts:
         raise HTTPException(500, "이미지 프롬프트 생성 실패")
@@ -2303,7 +2311,16 @@ async def generate_thumbnail_text(req: ThumbnailTextRequest):
              prompt += "\n\n[IMPORTANT] The attached image is a STYLE REFERENCE. Ensure the generated hook texts match the visual mood and intensity of this image."
              result = await gemini_service.generate_text_from_image(prompt, sample_img_bytes)
         else:
-             result = await gemini_service.generate_text(prompt, temperature=0.8)
+             from services.ai_provider import resolve_ai_selection
+             ai = resolve_ai_selection("image_prompt", project_id=req.project_id)
+             result = await gemini_service._generate_text_for_task(
+                 prompt,
+                 task_key="image_prompt_generation",
+                 project_id=req.project_id,
+                 temperature=0.8,
+                 provider=ai.provider,
+                 model=ai.model,
+             )
         
         # 6. JSON 파싱
         import json, re

@@ -1,6 +1,6 @@
 # Latest Worknote
 
-Date: 2026-06-27
+Date: 2026-06-28
 Repo: `C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator`
 
 ## Why this file exists
@@ -16,6 +16,15 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Started `AIR-0105` and added the first pass of a provider-aware longform AI routing layer:
+  - Gemini remains the default provider
+  - Claude can be selected for script planning / generation
+  - project settings now carry provider/model choices for reuse on later runs
+- Added `services/ai_provider.py` to normalize provider/model selection and provide safe fallback behavior.
+- Wired the longform planner and generation APIs to accept `ai_provider` / `ai_model` overrides.
+- Added a new longform planner UI control path so the selected provider/model can be saved with the project.
+- Added `tests/test_ai_provider_routing.py` to confirm provider routing and fallback behavior.
+- Committed AIR-0105 as `57eac2db` after wiring the provider-aware routing path and updating the task docs.
 - Validated the longform `/script-plan` contract under `AIR-0104`:
   - `Longform` project -> `/script-plan` stays on the longform planner
   - `longform_music` project -> `/script-plan` redirects to `/music-plan`
@@ -126,7 +135,7 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   4. `worknote/AIR-xxxx.md`
 - `AIR-0102` is now the longform user-flow documentation task.
 - `AIR-0103` fixed the plan-route leak between longform and music.
-- The next active planned task is `AIR-0105`.
+- The next active planned task is `AIR-0106`.
 
 ## Specific findings worth preserving
 - Worker language switching is expensive because:
@@ -135,6 +144,7 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - recommendation cards then trigger translation fetches again
   - translation path can fall through Gemini, Claude, and Google fallback
 - Recommended topic translation is currently better treated as data to cache/store than as work to repeat on every language change.
+- The longform planner now has a provider/model storage path so Gemini can remain the default while Claude is selectable without hardcoding a single model string.
 - Wallet-address flow is a product mismatch right now:
   - local code can generate a real EVM-style wallet
   - but custody, recovery, chain handling, and operational payout flow are not productized

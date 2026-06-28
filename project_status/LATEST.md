@@ -24,6 +24,7 @@ AIR Studio / LongformGenerator
 2. Stabilize personalized recommended topics on the project page.
 3. Keep runtime sync between local app and web admin policy/settings reliable.
 4. Preserve mode boundaries so deferred modes do not get structurally damaged while longform work continues.
+5. Keep Gemini as the default longform AI provider while making Claude selectable for script planning and generation.
 
 ## Longform Completion Assessment
 - The highest-impact blocker for `Longform Mode` completion is runtime slowness around language switching and recommendation-card translation.
@@ -36,6 +37,7 @@ AIR Studio / LongformGenerator
   - the backend mixes multiple withdrawal endpoints and field names
   - the current local wallet generation model is not a strong fit for production payout operations
 - The admin app still loads too much data eagerly on startup and polls render queue data aggressively, which adds avoidable overhead while `Longform Mode` is the primary delivery target.
+- Longform script planning now has a provider/model setting path so Gemini stays the default but Claude can be selected without hardcoding the model name.
 
 ## Recommended Priority Order
 1. Remove the language-switch bottleneck in worker-facing longform screens.
@@ -47,6 +49,8 @@ AIR Studio / LongformGenerator
 ## Recent Relevant Changes
 - `AIR-0104`
   Validated `Longform Mode` `/script-plan` routing and access rules, added shared `project_id` access enforcement for plan-related APIs, surfaced project-load failures in frontend project API wrappers, and removed nursery/music-specific plan UI from the visible longform script-plan screen.
+- `AIR-0105`
+  Added a provider-aware longform AI routing layer with Gemini as the default and Claude as a selectable option for script planning, script generation, and image-prompt generation.
 - `AIR-0103`
   Fixed project-aware plan routing so longform topic claims stay on `/script-plan`, `/music-plan` only opens for real music projects, and standard memberships are blocked from entering the music workflow.
 - `AIR-0102`
@@ -109,6 +113,7 @@ AIR Studio / LongformGenerator
 - `main.py` uses multiprocessing; a restart must terminate both the parent and its serving child or the old child can keep port 8001 alive.
 - Some legacy files contain mojibake comments/text, which makes targeted editing slightly harder.
 - Browser-level manual verification for the refreshed `/script-plan` contract still needs one live-session recheck; AIR-0104 validation was completed with `TestClient` and rendered HTML assertions.
+- Provider selection still needs a live browser recheck after the new AI provider controls are wired through the refreshed longform planner.
 
 ## Source of Truth
 - Runtime/API behavior: Python app in root repo

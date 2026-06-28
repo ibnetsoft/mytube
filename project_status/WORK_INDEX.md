@@ -120,3 +120,23 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Validated the longform `/script-plan` flow, enforced project-level access checks on plan-related APIs, and hid nursery/music-specific UI from the normal longform planning screen.
 - Next action:
   Continue the same project-aware access/mode cleanup across `image-gen`, `audio-gen`, `render`, `title-desc`, and export/upload pages under `AIR-0105`.
+
+### AIR-0105
+- Status: Done
+- Commit: `57eac2db`
+- Related files:
+  - `services/ai_provider.py`
+  - `services/gemini_service.py`
+  - `services/claude_service.py`
+  - `app/routers/gemini.py`
+  - `app/routers/user_topics.py`
+  - `main.py`
+  - `config.py`
+  - `templates/pages/script_plan.html`
+  - `auth-web/app/api/admin/settings/global/route.ts`
+  - `auth-web/components/DashboardContent.tsx`
+  - `tests/test_ai_provider_routing.py`
+- Short summary:
+  Added the first pass of a provider-aware longform AI routing layer so Gemini remains the default while Claude can be selected for script planning and generation without hardcoding model assumptions.
+- Next action:
+  Use AIR-0105 as the baseline for provider-aware longform generation and continue with browser verification or prompt-tuning follow-up under AIR-0106.
