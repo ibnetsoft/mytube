@@ -150,3 +150,23 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Validated the Longform media import flow and added filename-first scene matching, AI fallback, range and duplicate protection, missing-scene reporting, and an upload result summary.
 - Next action:
   AIR-0108 should connect 2x2 crop output directly to project scene slots while reusing the AIR-0107 import safety contract.
+
+### AIR-0108
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `templates/pages/image_gen.html`
+  - `tests/test_scene_asset_review_ui.py`
+  - `docs/SCENE_ASSET_REVIEW.md`
+  - `docs/UPLOAD_PIPELINE.md`
+  - `docs/LONGFORM_PRODUCTION_PIPELINE.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/ROADMAP.md`
+  - `worknote/AIR-0108.md`
+  - `worknote/latest.md`
+- Short summary:
+  Added a persisted-data Scene Asset Review panel, final clip ordering, missing-scene readiness gate, and safe independent image/video replacement for Longform projects.
+- Next action:
+  AIR-0109 should connect 2x2 crop output to project scenes, add unmatched-asset reassignment, and define a canonical backend `assets_ready` policy.

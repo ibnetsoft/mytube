@@ -247,6 +247,9 @@ Missing:
 | Out-of-range/invalid reporting | Implemented |
 | Missing scene report | Implemented |
 | Final result summary UI | Implemented |
+| Scene asset review table | Implemented in AIR-0108 |
+| Final video clip order review | Implemented in AIR-0108 |
+| Refresh restoration of active slots | Implemented |
 | 2x2 grid crop | Implemented |
 | Crop-to-project scene handoff | Not implemented |
 | External upscaling provenance | Not implemented |
@@ -285,3 +288,11 @@ Missing:
 - Large-file behavior through the packaged desktop runtime.
 - Exact user-facing Vietnamese and Thai wording for the new result summary.
 - Whether final production requires both image and video for every scene or permits intentional image-only scenes.
+
+## AIR-0108 Review Layer
+
+The image page now rebuilds a Scene Asset Review panel from persisted `image_prompts` data.
+It shows prompt context, image status, video status, missing visuals, final clip order, and scene-level replacement controls.
+The worker can continue to TTS only after every scene has at least an image or a video.
+
+See `docs/SCENE_ASSET_REVIEW.md` for the full verification matrix.

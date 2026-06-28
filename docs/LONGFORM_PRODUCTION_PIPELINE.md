@@ -182,6 +182,7 @@ Status: Implemented after assignment, fragile before assignment.
 - Scene rows load with `ORDER BY scene_number`.
 - The UI renders project media in scene order.
 - Single-scene uploads retain explicit scene ownership.
+- AIR-0108 adds a final clip list sorted by scene number.
 
 Risk:
 
@@ -191,15 +192,15 @@ Risk:
 
 ### Missing Scene Handling
 
-Status: Implemented as a post-import report; not yet an advancement gate.
+Status: Implemented as a post-import report and minimum UI advancement gate.
 
 - Empty `image_url` or `video_url` fields technically reveal missing assets.
 - The page can display individual empty scene cards.
 
 Remaining:
 
-- No blocking rule before the workflow advances.
-- No policy for intentional image-only scenes.
+- No backend-owned `assets_ready` state.
+- No final policy for intentional image-only scenes.
 
 ### Duplicate Upload Handling
 
@@ -210,6 +211,17 @@ Status: Safe for bulk assignment; version history remains unimplemented.
 - Occupied bulk slots are not overwritten.
 - Replaced and unmatched physical files are not cleaned up or surfaced as unassigned assets.
 - There is no duplicate hash check or version history.
+
+### Scene Asset Review
+
+Status: Implemented in AIR-0108.
+
+- Image and video status are visible together with each scene prompt.
+- The final video clip list is shown in scene order.
+- Missing visual scenes block the Continue to TTS control.
+- Missing video clips remain warnings until the image-only policy is finalized.
+- Scene-level replacement no longer clears the opposite image/video slot.
+- Active matches restore from SQLite after refresh.
 
 ### External Upscaling
 
@@ -278,12 +290,13 @@ The fastest reliable path today is single-scene upload, not bulk AI matching.
 
 - Record source filename, import time, media type, optional external service, and replacement history.
 
-## AIR-0108 Handoff
+## AIR-0109 Handoff
 
-AIR-0108 should connect the 2x2 crop utility to project scene ownership:
+AIR-0109 should connect the 2x2 crop utility to project scene ownership and formalize readiness:
 
 1. Carry `project_id` and a starting scene into `/image-crop`.
 2. Preview the four destination scene slots.
 3. Generate deterministic scene filenames.
 4. Import panels directly into empty image slots.
 5. Reuse AIR-0107 duplicate and occupied-slot protection.
+6. Decide whether `assets_ready` requires video for every scene.

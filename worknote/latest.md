@@ -16,6 +16,12 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0108 Scene Asset Review validation.
+- Added a persisted-data review table with prompt, image, and video status per scene.
+- Added the final video clip list in scene order.
+- Added a minimum readiness gate: every scene needs an image or video before continuing to TTS.
+- Fixed scene upload and asset-library replacement so image and video slots no longer clear each other.
+- Confirmed active image/video matches restore from SQLite-backed prompt rows after refresh.
 - Completed AIR-0107 Longform upload-pipeline validation.
 - Added deterministic scene filename parsing before AI matching.
 - Kept Gemini Vision as fallback for unnumbered image/video files.
