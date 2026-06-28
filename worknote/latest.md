@@ -1,6 +1,6 @@
 # Latest Worknote
 
-Date: 2026-06-27
+Date: 2026-06-28
 Repo: `C:\Users\kimse\Downloads\YoutubeSourceFinder\LongformGenerator`
 
 ## Why this file exists
@@ -16,6 +16,15 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Audited the full Longform production pipeline under `AIR-0106`.
+- Confirmed the target operating model:
+  - AIR Studio creates the plan, script, scenes, image prompts, and video prompts
+  - users generate images, upscale images, and generate clips in external AI services
+  - AIR Studio imports, assigns, orders, and validates the resulting assets
+- Added `docs/LONGFORM_PRODUCTION_PIPELINE.md`.
+- Confirmed that 2x2 crop works but is disconnected from project scenes.
+- Confirmed that mixed image/video bulk upload exists but depends on Gemini semantic matching.
+- Found that duplicate scene matches can silently overwrite earlier assignments and unmatched files remain unassigned without a complete user-facing report.
 - Fixed the plan-route leak between longform and music workflows:
   - `/script-plan` now resolves from the selected project's real `app_mode` first
   - longform claims stay on `/script-plan`
