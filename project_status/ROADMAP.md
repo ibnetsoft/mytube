@@ -19,6 +19,9 @@ Turn AIR Studio into a repo with durable project memory so future Codex/ChatGPT 
 - [x] Verify topic claim API -> project creation
 - [x] Verify topic card click -> browser page redirect for `longform`
 - [x] Document current longform worker flow from login to export
+- [x] Audit the real external-AI production pipeline from scenes and prompts through imported media
+- [ ] Add deterministic and non-destructive scene asset import validation
+- [ ] Connect 2x2 crop output to project scene ownership
 - [ ] Finish worker-facing longform topic selection and project boot flow
 - [ ] Remove language-switch latency from worker-facing pages
 - [ ] Stabilize saved or cached translation strategy for recommendation cards

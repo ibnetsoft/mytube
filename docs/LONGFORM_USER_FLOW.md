@@ -12,9 +12,9 @@
 4. Project Creation
 5. Script Plan
 6. Script Generation
-7. Image Generation
+7. Scene and Media Preparation
 8. Voice Generation
-9. Video Generation
+9. Video Assembly
 10. Export / Delivery
 
 ---
@@ -399,10 +399,11 @@
 
 ---
 
-## 7. Image Generation
+## 7. Scene and Media Preparation
 
 ### Purpose
-- Convert script scenes into image prompts, asset metadata, and scene-level video/image inputs for rendering.
+- Split the script into numbered scenes, create image/video prompts, and manage media produced by the user through external AI services.
+- AIR Studio does not own production image generation, upscaling, or video clip generation in the target Longform workflow.
 
 ### Screen / Route
 - Page: `/image-gen?project_id={id}`
@@ -414,7 +415,9 @@
 - `POST /api/projects/{id}/image-prompts`
 - `GET /api/projects/{id}/image-prompts`
 - `POST /api/projects/{id}/analyze-scenes`
-- `POST /api/projects/{id}/generate-video`
+- `POST /api/image/bulk-match`
+- `POST /api/image/upload-scene`
+- `POST /api/upload-video-to-project/{id}/{scene_number}`
 - Optional character/scene helpers:
   - `GET/POST /api/projects/{id}/characters`
   - `POST /api/projects/{id}/scenes/animate`
@@ -445,17 +448,29 @@
 - Completion is inferred in the UI from saved prompt/image/video data.
 
 ### Next on Success
+- Copy image and video prompts into external AI services.
+- Crop externally generated 2x2 grids through `/image-crop`.
+- Upload final images and clips and review them in scene-number order.
 - Proceed to `/tts?project_id={id}` after scene assets are prepared.
 
 ### Failure Handling
 - Missing script or prompt-generation failures surface errors and keep the user on the page.
-- Scene-level video generation can fail per scene without necessarily invalidating the whole project.
+- Bulk media matching can leave files unmatched when Gemini is unavailable or cannot identify the scene.
+- Current bulk matching can silently replace an already assigned URL when multiple files map to the same scene.
 
 ### Current Implementation
-- Implemented, but state ownership is partly data-driven rather than status-driven.
+- Prompt generation and scene-level storage are implemented.
+- Standalone 2x2 crop is implemented.
+- Single-scene media upload is implemented.
+- Mixed image/video bulk upload with Gemini scene matching is partially implemented.
+- The crop page is not connected to a project, and bulk matching lacks deterministic filename parsing, duplicate protection, and a missing-scene report.
+- See `docs/LONGFORM_PRODUCTION_PIPELINE.md` for the full audit.
 
 ### TODO
-- Needs verification: define a clearer canonical status transition for "image prep complete" if downstream orchestration needs it.
+- Define a clearer canonical status transition for "assets ready".
+- Make filename-based scene matching authoritative and AI matching a fallback.
+- Add missing, duplicate, invalid, and unmatched asset reporting.
+- Connect 2x2 crop output to project scene slots.
 
 ---
 
@@ -519,10 +534,11 @@
 
 ---
 
-## 9. Video Generation
+## 9. Video Assembly
 
 ### Purpose
-- Produce the final longform video package from script, images, optional intro, subtitles, and audio.
+- Assemble externally generated scene clips with narration, optional intro, subtitles, and other project assets into the final longform package.
+- External Video AI creates the individual clips; AIR Studio manages and orders those clips.
 
 ### Screen / Route
 - Intro/scene prep page: `/video-gen?project_id={id}`
