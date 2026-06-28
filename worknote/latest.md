@@ -16,6 +16,14 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0107 Longform upload-pipeline validation.
+- Added deterministic scene filename parsing before AI matching.
+- Kept Gemini Vision as fallback for unnumbered image/video files.
+- Prevented silent bulk overwrite of occupied or duplicate image/video slots.
+- Added invalid, unmatched, duplicate, and missing-scene response data.
+- Added a visible bulk import result summary on `/image-gen`.
+- Added `docs/UPLOAD_PIPELINE.md` with the real image, video, crop, replacement, matching, ordering, and progress contracts.
+- Verified the matching contract and deterministic upload route with 5 passing tests.
 - Audited the full Longform production pipeline under `AIR-0106`.
 - Confirmed the target operating model:
   - AIR Studio creates the plan, script, scenes, image prompts, and video prompts

@@ -157,23 +157,23 @@ Bulk upload:
 
 ### Automatic Scene Matching
 
-Status: Partially implemented and not production-safe yet.
+Status: Implemented with filename-first safety and AI fallback; project-aware crop handoff remains incomplete.
 
 What works:
 
 - Images and videos can be submitted together.
 - Matching can assign files independently of upload order.
 - The refreshed scene list is returned after matching.
+- AIR-0107 parses scene numbers from filenames before using Gemini.
+- Existing slots and duplicate files in one bulk upload are not silently overwritten.
+- Invalid, unmatched, duplicate, and missing-scene results are returned to the UI.
 
 What is missing:
 
-- No deterministic filename-first rule such as `scene_001.mp4`.
-- No validation that a returned scene number exists in the project.
-- No one-file-per-scene enforcement.
-- The prompt explicitly allows multiple files to map to one scene.
-- When multiple files map to the same scene and media type, later updates silently overwrite earlier URLs.
-- Matching depends on Gemini availability and spend capacity.
-- A failed or unmatched file remains saved in the output directory but is not linked to a scene.
+- Matching still depends on Gemini availability for filenames without a scene token.
+- A failed or unmatched valid media file can remain saved in the output directory without a scene link.
+- There is no UI to manually reassign an unmatched stored file.
+- There is no explicit bulk replacement approval for an occupied slot.
 
 ### Order Preservation
 
@@ -191,24 +191,23 @@ Risk:
 
 ### Missing Scene Handling
 
-Status: Not implemented as a complete user-facing check.
+Status: Implemented as a post-import report; not yet an advancement gate.
 
 - Empty `image_url` or `video_url` fields technically reveal missing assets.
 - The page can display individual empty scene cards.
 
-Missing:
+Remaining:
 
-- No preflight summary listing all missing image and video scenes.
 - No blocking rule before the workflow advances.
-- No explicit bulk-upload result distinguishing matched, unmatched, missing, and invalid files.
+- No policy for intentional image-only scenes.
 
 ### Duplicate Upload Handling
 
-Status: Not implemented safely.
+Status: Safe for bulk assignment; version history remains unimplemented.
 
 - Re-upload to an explicitly selected scene replaces its current URL.
-- Bulk matching can map multiple files to one scene.
-- The last database update wins without confirmation.
+- Bulk matching reports multiple files targeting one media slot as duplicates.
+- Occupied bulk slots are not overwritten.
 - Replaced and unmatched physical files are not cleaned up or surfaced as unassigned assets.
 - There is no duplicate hash check or version history.
 
@@ -246,13 +245,12 @@ The fastest reliable path today is single-scene upload, not bulk AI matching.
 
 ## Priority Fix Order
 
-### P0: Deterministic bulk assignment and validation
+### Completed in AIR-0107: Deterministic bulk assignment and validation
 
-- Parse scene numbers from filenames first.
-- Use AI matching only for files without a valid scene token.
-- Reject out-of-range scene numbers.
-- Return explicit `matched`, `unmatched`, `duplicate`, `invalid`, and `missing_scenes` lists.
-- Never silently overwrite an occupied scene during bulk upload.
+- Scene numbers are parsed from filenames first.
+- AI matching is the fallback for unnumbered files.
+- Out-of-range scenes, duplicate targets, and occupied slots are reported without overwrite.
+- The API returns `matched`, `unmatched`, `duplicates`, `invalid`, and `missing_scenes`.
 
 ### P0: Production preflight
 
@@ -280,12 +278,12 @@ The fastest reliable path today is single-scene upload, not bulk AI matching.
 
 - Record source filename, import time, media type, optional external service, and replacement history.
 
-## AIR-0107 Handoff
+## AIR-0108 Handoff
 
-AIR-0107 should implement the P0 import safety contract first:
+AIR-0108 should connect the 2x2 crop utility to project scene ownership:
 
-1. Deterministic filename-to-scene parsing.
-2. Range, duplicate, occupied-slot, and media-type validation.
-3. Explicit unmatched and missing-scene response data.
-4. UI result summary before any destructive overwrite.
-5. Focused tests for order preservation, missing scenes, duplicate files, and mixed image/video upload.
+1. Carry `project_id` and a starting scene into `/image-crop`.
+2. Preview the four destination scene slots.
+3. Generate deterministic scene filenames.
+4. Import panels directly into empty image slots.
+5. Reuse AIR-0107 duplicate and occupied-slot protection.

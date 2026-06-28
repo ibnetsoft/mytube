@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0107`
+Next: `AIR-0108`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -40,13 +40,13 @@ Next: `AIR-0107`
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Implement deterministic filename-to-scene parsing before Gemini matching in `/api/image/bulk-match`.
-2. Reject out-of-range scene numbers and report invalid files.
-3. Detect duplicate mappings and occupied scene slots before writing; never silently overwrite.
-4. Return explicit matched, unmatched, duplicate, invalid, and missing-scene lists.
-5. Add a bulk-import review summary to `/image-gen`.
-6. Add tests for order preservation, missing scenes, duplicate files, and mixed image/video uploads.
-7. After import safety is complete, connect `/image-crop` to project and scene ownership.
+1. Carry `project_id` and a starting scene number into `/image-crop`.
+2. Preview the four destination scene slots before importing a 2x2 grid.
+3. Generate deterministic scene filenames for cropped panels.
+4. Upload panels directly into empty project image slots.
+5. Reuse AIR-0107 duplicate, occupied-slot, invalid, and missing-scene reporting.
+6. Add a manual reassignment path for unmatched files already stored in the project output directory.
+7. Define whether intentional image-only scenes should satisfy the asset-ready gate.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
