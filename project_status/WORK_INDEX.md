@@ -129,3 +129,24 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Audited the real Longform production pipeline and fixed the documented product boundary: AIR Studio creates scripts, scenes, and prompts, while users generate, upscale, and animate assets through external AI services and import the results.
 - Next action:
   AIR-0107 should make bulk scene assignment deterministic and safe by adding filename parsing, range and duplicate validation, missing-scene reporting, and non-destructive import review.
+
+### AIR-0107
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `app/routers/image.py`
+  - `services/scene_asset_matcher.py`
+  - `templates/pages/image_gen.html`
+  - `tests/test_scene_asset_matcher.py`
+  - `docs/UPLOAD_PIPELINE.md`
+  - `docs/LONGFORM_PRODUCTION_PIPELINE.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/ROADMAP.md`
+  - `worknote/AIR-0107.md`
+  - `worknote/latest.md`
+- Short summary:
+  Validated the Longform media import flow and added filename-first scene matching, AI fallback, range and duplicate protection, missing-scene reporting, and an upload result summary.
+- Next action:
+  AIR-0108 should connect 2x2 crop output directly to project scene slots while reusing the AIR-0107 import safety contract.

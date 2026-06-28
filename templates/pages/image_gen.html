@@ -244,6 +244,9 @@
             </div>
         </div>
 
+        <div id="bulk-upload-result"
+             class="hidden mt-3 rounded-xl border border-white/10 bg-[#1c2027] p-4 text-left text-xs"></div>
+
         <div id="nextStepSection" class="hidden"></div>
 
         <!-- 블로그 게시 패널 -->
@@ -4229,6 +4232,50 @@
         }
     }
 
+    function escapeBulkHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value ?? '');
+        return div.innerHTML;
+    }
+
+    function renderBulkUploadResult(result) {
+        const panel = document.getElementById('bulk-upload-result');
+        if (!panel) return;
+
+        const matched = result.matched || result.updates || [];
+        const duplicates = result.duplicates || [];
+        const unmatched = result.unmatched || [];
+        const invalid = result.invalid || [];
+        const missing = result.missing_scenes || { images: [], videos: [] };
+        const issues = [
+            ...duplicates.map(item => ({ ...item, label: 'Duplicate' })),
+            ...unmatched.map(item => ({ ...item, label: 'Unmatched' })),
+            ...invalid.map(item => ({ ...item, label: 'Invalid' })),
+        ];
+        const details = issues.length
+            ? `<div class="mt-3 space-y-1 max-h-36 overflow-y-auto">
+                ${issues.map(item => `
+                    <div class="flex justify-between gap-3 text-gray-300">
+                        <span class="truncate">${escapeBulkHtml(item.original_name)}</span>
+                        <span class="text-amber-400 shrink-0">${escapeBulkHtml(item.label)}: ${escapeBulkHtml(item.reason)}</span>
+                    </div>`).join('')}
+               </div>`
+            : '';
+
+        panel.innerHTML = `
+            <div class="flex flex-wrap gap-2">
+                <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Matched ${matched.length}</span>
+                <span class="rounded bg-amber-500/15 px-2 py-1 text-amber-400">Duplicate ${duplicates.length}</span>
+                <span class="rounded bg-red-500/15 px-2 py-1 text-red-400">Unmatched ${unmatched.length + invalid.length}</span>
+            </div>
+            <div class="mt-3 text-gray-400">
+                Missing image scenes: ${missing.images?.length ? missing.images.join(', ') : 'none'}<br>
+                Missing video scenes: ${missing.videos?.length ? missing.videos.join(', ') : 'none'}
+            </div>
+            ${details}`;
+        panel.classList.remove('hidden');
+    }
+
     async function processBulkFiles(files) {
         const projectId = getCurrentProject();
         if (!projectId) {
@@ -4238,11 +4285,13 @@
 
         const dropPrompt = document.getElementById('bulk-upload-prompt');
         const dropLoading = document.getElementById('bulk-upload-loading');
+        const statusText = document.getElementById('bulk-upload-status-text');
         const topBtn = document.getElementById('bulkUploadTopBtn');
         const originalTopHtml = topBtn ? topBtn.innerHTML : '';
         
         if (dropPrompt) dropPrompt.classList.add('hidden');
         if (dropLoading) dropLoading.classList.remove('hidden');
+        if (statusText) statusText.textContent = `Uploading and matching ${files.length} file(s)...`;
         if (topBtn) {
             topBtn.innerHTML = '<span>⏳</span> 일괄등록 중...';
             topBtn.disabled = true;
@@ -4267,6 +4316,7 @@
 
             const result = await response.json();
             if (result.status === 'ok') {
+                renderBulkUploadResult(result);
                 Utils.showToast(`성공: AI가 ${result.matched_count}개 파일을 자동 배정 매칭했습니다.`, 'success');
                 
                 // 로컬 변수 prompts를 업데이트

@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0107`
+  Validated and hardened Longform bulk media import. Scene filenames are now authoritative, Gemini is only a fallback, occupied or duplicate scene slots are not silently overwritten, and the image page reports invalid, unmatched, duplicate, and missing scene results.
 - `AIR-0106`
   Audited the real Longform production pipeline. Confirmed standalone 2x2 cropping and scene media upload exist, but project-aware crop handoff, deterministic bulk scene matching, duplicate protection, and missing-scene validation are not complete.
 - `AIR-0103`
@@ -96,6 +98,9 @@ AIR Studio / LongformGenerator
   - admin dashboard still performs heavy eager data loading at startup
 
 ## Current Risks
+- The 2x2 crop page still downloads files without project or destination-scene context.
+- Valid but unmatched bulk files can remain in the output directory without a scene link or cleanup workflow.
+- Bulk upload shows processing state and final results but does not provide byte-level or per-file progress.
 - Bulk media upload relies on Gemini semantic matching, can map multiple files to one scene, and silently leaves the last update as the active asset.
 - The 2x2 crop utility only downloads results and does not preserve project or scene ownership.
 - Scene prompt saves renumber rows by list position, so scene identity is not immutable after media production begins.
