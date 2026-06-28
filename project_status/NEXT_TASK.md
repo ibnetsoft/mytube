@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0104`
+Next: `AIR-0107`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -40,13 +40,13 @@ Next: `AIR-0104`
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Extend the project-aware routing fix from `/script-plan` and `/music-plan` into the rest of the longform/music page family.
-2. Decide whether standard workers should only use `admin-publish-request` as the final export path.
-3. Use `docs/LONGFORM_USER_FLOW.md` to define one canonical longform status progression from claim -> plan -> script -> TTS -> render -> export.
-4. Decide and document whether payout identity becomes Binance ID only.
-5. Remove worker-facing wallet-address assumptions if they are not part of the real payout flow.
-6. Profile and simplify language switching on `/projects`.
-7. Reduce repeated Gemini failure noise in translation-heavy paths by adding cooldown / suppression.
+1. Implement deterministic filename-to-scene parsing before Gemini matching in `/api/image/bulk-match`.
+2. Reject out-of-range scene numbers and report invalid files.
+3. Detect duplicate mappings and occupied scene slots before writing; never silently overwrite.
+4. Return explicit matched, unmatched, duplicate, invalid, and missing-scene lists.
+5. Add a bulk-import review summary to `/image-gen`.
+6. Add tests for order preservation, missing scenes, duplicate files, and mixed image/video uploads.
+7. After import safety is complete, connect `/image-crop` to project and scene ownership.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.

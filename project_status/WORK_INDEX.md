@@ -113,3 +113,19 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Extend the project-aware longform/music separation beyond the plan page and finalize the worker-safe export/publish contract for standard longform members.
 - Next action:
   Audit the rest of the page family (`image-gen`, `audio-gen`, `render`, `title-desc`, upload/export`) and remove remaining global-mode shortcuts that can misroute longform workers.
+
+### AIR-0106
+- Status: Done
+- Commit: `13d9a8bf`
+- Related files:
+  - `docs/LONGFORM_PRODUCTION_PIPELINE.md`
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/AIR-0106.md`
+  - `worknote/latest.md`
+- Short summary:
+  Audited the real Longform production pipeline and fixed the documented product boundary: AIR Studio creates scripts, scenes, and prompts, while users generate, upscale, and animate assets through external AI services and import the results.
+- Next action:
+  AIR-0107 should make bulk scene assignment deterministic and safe by adding filename parsing, range and duplicate validation, missing-scene reporting, and non-destructive import review.

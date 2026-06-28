@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0106`
+  Audited the real Longform production pipeline. Confirmed standalone 2x2 cropping and scene media upload exist, but project-aware crop handoff, deterministic bulk scene matching, duplicate protection, and missing-scene validation are not complete.
 - `AIR-0103`
   Fixed project-aware plan routing so longform topic claims stay on `/script-plan`, `/music-plan` only opens for real music projects, and standard memberships are blocked from entering the music workflow.
 - `AIR-0102`
@@ -94,6 +96,10 @@ AIR Studio / LongformGenerator
   - admin dashboard still performs heavy eager data loading at startup
 
 ## Current Risks
+- Bulk media upload relies on Gemini semantic matching, can map multiple files to one scene, and silently leaves the last update as the active asset.
+- The 2x2 crop utility only downloads results and does not preserve project or scene ownership.
+- Scene prompt saves renumber rows by list position, so scene identity is not immutable after media production begins.
+- Longform UI still exposes legacy direct image/video generation controls even though external AI generation is the intended worker operating model.
 - Longform worker stages do not yet have one fully normalized status contract from claim through export.
 - Export/delivery still splits across admin-publish registration and direct upload paths, which makes the terminal worker contract less clear than it should be.
 - Some longform/music pages still branch from global mode rather than selected-project mode; `/script-plan` is fixed, but the rest of the page family still needs the same cleanup.
