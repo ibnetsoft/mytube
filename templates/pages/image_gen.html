@@ -212,6 +212,7 @@
             </div>
         </div>
 
+        <section id="scene-asset-review" class="hidden mb-6"></section>
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
 
         <!-- AI Smart Bulk Upload Area -->
@@ -243,6 +244,9 @@
                 </div>
             </div>
         </div>
+
+        <div id="bulk-upload-result"
+             class="hidden mt-3 rounded-xl border border-white/10 bg-[#1c2027] p-4 text-left text-xs"></div>
 
         <div id="nextStepSection" class="hidden"></div>
 
@@ -1627,6 +1631,114 @@
         }).join('');
 
         container.innerHTML = listHtml;
+        renderSceneAssetReview(data);
+    }
+
+    function renderSceneAssetReview(data) {
+        const panel = document.getElementById('scene-asset-review');
+        if (!panel) return;
+
+        if (!Array.isArray(data) || data.length === 0) {
+            panel.classList.add('hidden');
+            panel.innerHTML = '';
+            return;
+        }
+
+        const ordered = data
+            .map((scene, index) => ({ scene, index }))
+            .sort((a, b) => Number(a.scene.scene_number || a.index + 1) - Number(b.scene.scene_number || b.index + 1));
+        const imageCount = ordered.filter(item => item.scene.image_url).length;
+        const videoCount = ordered.filter(item => item.scene.video_url).length;
+        const missingVisual = ordered.filter(item => !item.scene.image_url && !item.scene.video_url);
+        const missingVideo = ordered.filter(item => !item.scene.video_url);
+        const projectId = getCurrentProject();
+        const readyToContinue = missingVisual.length === 0;
+
+        const rows = ordered.map(({ scene, index }) => {
+            const number = Number(scene.scene_number || index + 1);
+            const prompt = scene.prompt_en || scene.prompt_ko || scene.scene_text || '';
+            return `
+                <tr class="border-t border-white/5">
+                    <td class="px-3 py-2 font-bold text-white">Scene ${number}</td>
+                    <td class="px-3 py-2 text-gray-400 max-w-[360px]">
+                        <p class="truncate" title="${escapeBulkHtml(prompt)}">${escapeBulkHtml(prompt) || 'No prompt'}</p>
+                    </td>
+                    <td class="px-3 py-2">
+                        <span class="${scene.image_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.image_url ? 'Image ready' : 'Image missing'}</span>
+                    </td>
+                    <td class="px-3 py-2">
+                        <span class="${scene.video_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.video_url ? 'Video ready' : 'Video missing'}</span>
+                    </td>
+                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                        <button type="button" onclick="document.getElementById('prompt-card-${index}')?.scrollIntoView({behavior:'smooth', block:'center'})"
+                                class="px-2 py-1 text-blue-400 hover:text-blue-300">View</button>
+                        <button type="button" onclick="document.getElementById('scene-upload-${index}')?.click()"
+                                class="px-2 py-1 text-indigo-400 hover:text-indigo-300">Replace</button>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        const clipRows = ordered
+            .filter(item => item.scene.video_url)
+            .map(({ scene, index }) => {
+                const number = Number(scene.scene_number || index + 1);
+                return `<a href="${escapeBulkHtml(scene.video_url)}" target="_blank" rel="noopener"
+                           class="flex items-center justify-between gap-3 rounded border border-white/5 bg-[#1c2027] px-3 py-2 hover:border-purple-500/40">
+                            <span class="font-bold text-white">Scene ${number}</span>
+                            <span class="truncate text-purple-400">${escapeBulkHtml(scene.video_url.split('/').pop())}</span>
+                        </a>`;
+            }).join('');
+
+        const continueControl = readyToContinue
+            ? `<a href="/tts?project_id=${encodeURIComponent(projectId || '')}"
+                  class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500">
+                    Continue to TTS
+               </a>`
+            : `<button type="button" disabled
+                       class="cursor-not-allowed rounded-lg bg-gray-700 px-4 py-2 font-bold text-gray-400">
+                    Add assets to ${missingVisual.length} scene(s) first
+               </button>`;
+
+        panel.innerHTML = `
+            <div class="rounded-xl border border-white/10 bg-[#20252d] overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
+                    <div>
+                        <h3 class="font-bold text-white">Scene Asset Review</h3>
+                        <p class="mt-1 text-xs text-gray-400">Review prompts, imported images, and final clips before continuing.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">Scenes ${ordered.length}</span>
+                        <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Images ${imageCount}</span>
+                        <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">Videos ${videoCount}</span>
+                        <span class="rounded bg-amber-500/15 px-2 py-1 text-amber-400">Missing visual ${missingVisual.length}</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead class="bg-[#1c2027] text-left text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2">Scene</th>
+                                <th class="px-3 py-2">Prompt</th>
+                                <th class="px-3 py-2">Image</th>
+                                <th class="px-3 py-2">Video</th>
+                                <th class="px-3 py-2 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+                <div class="grid gap-4 border-t border-white/5 p-4 lg:grid-cols-[1fr_auto]">
+                    <div>
+                        <h4 class="mb-2 text-xs font-bold text-gray-300">Final clip order</h4>
+                        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            ${clipRows || '<p class="text-xs text-gray-500">No video clips uploaded yet.</p>'}
+                        </div>
+                        ${missingVideo.length ? `<p class="mt-2 text-xs text-amber-400">Video missing: ${missingVideo.map(item => Number(item.scene.scene_number || item.index + 1)).join(', ')}</p>` : ''}
+                    </div>
+                    <div class="flex items-end">${continueControl}</div>
+                </div>
+            </div>`;
+        panel.classList.remove('hidden');
     }
 
     // [NEW] Update prompt data from editor & Sync
@@ -1778,10 +1890,8 @@
                 // [FIX] Backend returns 'url' and 'is_video', not 'video_url'
                 if (result.is_video) {
                     prompts[index].video_url = result.url;
-                    prompts[index].image_url = null;
                 } else {
                     prompts[index].image_url = result.url;
-                    prompts[index].video_url = null;
                 }
 
                 // Save to Storage & DB — await so projectStateRestored can't race with stale data
@@ -1934,10 +2044,8 @@
                 // Update local model
                 if (isVideo) {
                     prompts[index].video_url = url;
-                    prompts[index].image_url = null;
                 } else {
                     prompts[index].image_url = url;
-                    prompts[index].video_url = null;
                 }
 
                 // Sync with Storage & Save
@@ -4229,6 +4337,50 @@
         }
     }
 
+    function escapeBulkHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value ?? '');
+        return div.innerHTML;
+    }
+
+    function renderBulkUploadResult(result) {
+        const panel = document.getElementById('bulk-upload-result');
+        if (!panel) return;
+
+        const matched = result.matched || result.updates || [];
+        const duplicates = result.duplicates || [];
+        const unmatched = result.unmatched || [];
+        const invalid = result.invalid || [];
+        const missing = result.missing_scenes || { images: [], videos: [] };
+        const issues = [
+            ...duplicates.map(item => ({ ...item, label: 'Duplicate' })),
+            ...unmatched.map(item => ({ ...item, label: 'Unmatched' })),
+            ...invalid.map(item => ({ ...item, label: 'Invalid' })),
+        ];
+        const details = issues.length
+            ? `<div class="mt-3 space-y-1 max-h-36 overflow-y-auto">
+                ${issues.map(item => `
+                    <div class="flex justify-between gap-3 text-gray-300">
+                        <span class="truncate">${escapeBulkHtml(item.original_name)}</span>
+                        <span class="text-amber-400 shrink-0">${escapeBulkHtml(item.label)}: ${escapeBulkHtml(item.reason)}</span>
+                    </div>`).join('')}
+               </div>`
+            : '';
+
+        panel.innerHTML = `
+            <div class="flex flex-wrap gap-2">
+                <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Matched ${matched.length}</span>
+                <span class="rounded bg-amber-500/15 px-2 py-1 text-amber-400">Duplicate ${duplicates.length}</span>
+                <span class="rounded bg-red-500/15 px-2 py-1 text-red-400">Unmatched ${unmatched.length + invalid.length}</span>
+            </div>
+            <div class="mt-3 text-gray-400">
+                Missing image scenes: ${missing.images?.length ? missing.images.join(', ') : 'none'}<br>
+                Missing video scenes: ${missing.videos?.length ? missing.videos.join(', ') : 'none'}
+            </div>
+            ${details}`;
+        panel.classList.remove('hidden');
+    }
+
     async function processBulkFiles(files) {
         const projectId = getCurrentProject();
         if (!projectId) {
@@ -4238,11 +4390,13 @@
 
         const dropPrompt = document.getElementById('bulk-upload-prompt');
         const dropLoading = document.getElementById('bulk-upload-loading');
+        const statusText = document.getElementById('bulk-upload-status-text');
         const topBtn = document.getElementById('bulkUploadTopBtn');
         const originalTopHtml = topBtn ? topBtn.innerHTML : '';
         
         if (dropPrompt) dropPrompt.classList.add('hidden');
         if (dropLoading) dropLoading.classList.remove('hidden');
+        if (statusText) statusText.textContent = `Uploading and matching ${files.length} file(s)...`;
         if (topBtn) {
             topBtn.innerHTML = '<span>⏳</span> 일괄등록 중...';
             topBtn.disabled = true;
@@ -4267,6 +4421,7 @@
 
             const result = await response.json();
             if (result.status === 'ok') {
+                renderBulkUploadResult(result);
                 Utils.showToast(`성공: AI가 ${result.matched_count}개 파일을 자동 배정 매칭했습니다.`, 'success');
                 
                 // 로컬 변수 prompts를 업데이트
