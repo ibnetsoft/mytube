@@ -1706,7 +1706,11 @@
                         <h3 class="font-bold text-white">Scene Asset Review</h3>
                         <p class="mt-1 text-xs text-gray-400">Review prompts, imported images, and final clips before continuing.</p>
                     </div>
-                    <div class="flex flex-wrap gap-2 text-xs">
+                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <a href="/image-crop?project_id=${encodeURIComponent(projectId || '')}&start_scene=1"
+                           class="rounded bg-blue-600 px-2 py-1 font-bold text-white hover:bg-blue-500">
+                            2x2 Crop Import
+                        </a>
                         <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">Scenes ${ordered.length}</span>
                         <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Images ${imageCount}</span>
                         <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">Videos ${videoCount}</span>

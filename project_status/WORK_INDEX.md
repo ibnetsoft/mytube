@@ -170,3 +170,24 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Added a persisted-data Scene Asset Review panel, final clip ordering, missing-scene readiness gate, and safe independent image/video replacement for Longform projects.
 - Next action:
   AIR-0109 should connect 2x2 crop output to project scenes, add unmatched-asset reassignment, and define a canonical backend `assets_ready` policy.
+
+### AIR-0109
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `templates/pages/image_crop.html`
+  - `templates/pages/image_gen.html`
+  - `tests/test_scene_crop_import_ui.py`
+  - `tests/test_scene_asset_matcher.py`
+  - `docs/SCENE_ASSET_PIPELINE.md`
+  - `docs/LONGFORM_PRODUCTION_PIPELINE.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/ROADMAP.md`
+  - `worknote/AIR-0109.md`
+  - `worknote/latest.md`
+- Short summary:
+  Connected 2x2 crop panels to explicit project Scene slots with deterministic filenames, direct empty-slot import, and documented image/video matching and large-batch behavior.
+- Next action:
+  AIR-0110 should browser-verify the real crop/import/review flow and implement a canonical backend `assets_ready` policy.

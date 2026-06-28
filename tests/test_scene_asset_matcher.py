@@ -14,6 +14,7 @@ from services.scene_asset_matcher import (
 
 def test_extract_scene_number_supports_production_filename_patterns():
     assert extract_scene_number("scene_001_upscaled.png") == 1
+    assert extract_scene_number("scene_001_crop.png") == 1
     assert extract_scene_number("clip-s12-final.mp4") == 12
     assert extract_scene_number("003_result.webp") == 3
     assert extract_scene_number("final_render.mp4") is None
@@ -99,3 +100,22 @@ def test_bulk_route_assigns_numbered_file_without_ai(monkeypatch, tmp_path):
     assert result["matched"][0]["scene_number"] == 2
     assert result["matched"][0]["match_source"] == "filename"
     assert updates[0][0] == 2
+
+
+def test_direct_scene_import_can_refuse_occupied_slot(monkeypatch):
+    scenes = [
+        {"scene_number": 1, "image_url": "/existing.png", "video_url": ""},
+    ]
+    monkeypatch.setattr(image_router.db, "get_image_prompts", lambda project_id: scenes)
+
+    upload = UploadFile(filename="scene_001_crop.png", file=io.BytesIO(b"image"))
+    result = asyncio.run(
+        image_router.upload_scene_media(
+            project_id=10,
+            scene_number=1,
+            file=upload,
+            replace_existing=False,
+        )
+    )
+
+    assert result.status_code == 409

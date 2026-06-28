@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0109`
+Next: `AIR-0110`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -40,13 +40,13 @@ Next: `AIR-0109`
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Carry `project_id` and a starting scene number into `/image-crop`.
-2. Preview and confirm four destination scene slots before import.
-3. Upload cropped panels directly into empty project image slots.
-4. Add manual reassignment for unmatched files already stored in the output directory.
-5. Decide whether `assets_ready` permits image-only scenes.
-6. Persist canonical asset readiness in the backend.
-7. Browser-verify mixed assets, replacement, refresh restoration, and TTS transition on port 8001.
+1. Browser-verify one real 2x2 grid importing into four empty Scene slots.
+2. Refresh `/image-gen` and confirm Scene order and persistence.
+3. Verify `scene_NNN_upscaled` image replacement and `scene_NNN` video matching.
+4. Decide whether image-only Scenes satisfy readiness.
+5. Persist canonical backend `assets_ready`.
+6. Add manual assignment for stored unmatched assets.
+7. Measure practical mixed-video batch limits and decide whether chunked upload is needed.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.

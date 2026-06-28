@@ -1282,7 +1282,8 @@ async def generate_image(
 async def upload_scene_media(
     project_id: int = Form(...),
     scene_number: int = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    replace_existing: bool = Form(True),
 ):
     """
     장면의 이미지 또는 비디오를 직접 업로드하여 교체합니다. (Frontend 'uploadSceneImage' 대응)
@@ -1295,6 +1296,26 @@ async def upload_scene_media(
         is_video = ext in ALLOWED_VIDEO_EXT
         is_image = ext in ALLOWED_IMAGE_EXT
         
+        if not replace_existing and (is_video or is_image):
+            target_scene = next(
+                (
+                    scene for scene in db.get_image_prompts(project_id)
+                    if int(scene.get("scene_number") or 0) == int(scene_number)
+                ),
+                None,
+            )
+            if not target_scene:
+                return JSONResponse(
+                    status_code=404,
+                    content={"status": "error", "error": "Scene does not exist."},
+                )
+            slot_value = target_scene.get("video_url" if is_video else "image_url")
+            if slot_value:
+                return JSONResponse(
+                    status_code=409,
+                    content={"status": "error", "error": "Scene slot is already occupied."},
+                )
+
         if not (is_video or is_image):
              raise HTTPException(400, f"지원하지 않는 형식입니다: {ext}")
         

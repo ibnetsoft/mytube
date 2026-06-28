@@ -16,6 +16,13 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0109 Scene Asset upload-pipeline validation.
+- Connected `/image-crop` to `project_id` and a starting Scene number.
+- Added sequential destination previews for all 2x2 panels.
+- Added deterministic `scene_NNN_crop.png` filenames for download, ZIP, and import.
+- Added direct import of one panel or all empty Scene image slots.
+- Confirmed `scene_NNN_upscaled` images and `scene_NNN` video clips use the same filename-first matcher.
+- Documented sequential crop/import performance and large multipart upload risks.
 - Completed AIR-0108 Scene Asset Review validation.
 - Added a persisted-data review table with prompt, image, and video status per scene.
 - Added the final video clip list in scene order.

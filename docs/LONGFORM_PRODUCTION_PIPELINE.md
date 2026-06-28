@@ -122,7 +122,7 @@ This fits the intended AI boundary: AIR Studio writes prompts, while the user ma
 
 ### 2x2 Image Crop
 
-Status: Implemented as a standalone utility; incomplete as a project workflow.
+Status: Project-aware import implemented in AIR-0109.
 
 Current behavior:
 
@@ -130,13 +130,16 @@ Current behavior:
 - For each file, the browser calls `POST /api/settings/crop-grid` four times with panel values 1 through 4.
 - The server splits at the horizontal and vertical midpoint.
 - The user can download individual panels or a ZIP of all results.
+- Project context and a starting Scene can be passed in the URL.
+- Each panel previews its destination Scene.
+- Project-mode filenames use `scene_NNN_crop.png`.
+- Empty image slots can receive one panel or all available panels directly.
+- Existing image slots and out-of-range Scenes are skipped.
 
-Missing production integration:
+Remaining:
 
-- The crop page does not know the active project or starting scene number.
-- Cropped files are not uploaded directly into `image_prompts`.
-- Output filenames do not establish a durable `project_id` + `scene_number` contract.
-- There is no handoff from a source grid to the four intended scene numbers.
+- Large crop/import batches are sequential and may be slow.
+- There is no import rollback or version history.
 
 ### Image and Video Upload
 
@@ -270,11 +273,12 @@ The fastest reliable path today is single-scene upload, not bulk AI matching.
 - Show missing image and video scenes before advancing.
 - Require the user to confirm intentional image-only scenes.
 
-### P1: Project-aware 2x2 crop handoff
+### Completed in AIR-0109: Project-aware 2x2 crop handoff
 
-- Open crop with `project_id` and a starting scene number.
-- Name outputs deterministically.
-- Allow the four panels to be assigned or uploaded directly to four scene slots.
+- Crop receives `project_id` and a starting Scene.
+- Panels use deterministic Scene filenames.
+- Empty Scene image slots accept direct panel import.
+- Existing slots require intentional replacement from the Scene review page.
 
 ### P1: Stabilize scene identity
 
@@ -290,13 +294,12 @@ The fastest reliable path today is single-scene upload, not bulk AI matching.
 
 - Record source filename, import time, media type, optional external service, and replacement history.
 
-## AIR-0109 Handoff
+## AIR-0110 Handoff
 
-AIR-0109 should connect the 2x2 crop utility to project scene ownership and formalize readiness:
+AIR-0110 should browser-verify the crop/import/review workflow and formalize readiness:
 
-1. Carry `project_id` and a starting scene into `/image-crop`.
-2. Preview the four destination scene slots.
-3. Generate deterministic scene filenames.
-4. Import panels directly into empty image slots.
-5. Reuse AIR-0107 duplicate and occupied-slot protection.
-6. Decide whether `assets_ready` requires video for every scene.
+1. Import a real 2x2 grid into four empty Scenes.
+2. Refresh and confirm persistence and Scene order.
+3. Verify upscaled image replacement and numbered video matching.
+4. Decide whether `assets_ready` requires video for every Scene.
+5. Persist the canonical readiness state in the backend.

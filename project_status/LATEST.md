@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0109`
+  Connected 2x2 crop output to project Scenes. Panels now receive sequential Scene destinations, deterministic `scene_NNN_crop.png` filenames, and direct import into empty image slots. Documented the complete filename, matching, duplicate, missing, invalid, and large-upload contracts.
 - `AIR-0108`
   Added Longform Scene Asset Review with prompt/image/video status, final clip order, missing-visual gating, scene replacement controls, and refresh restoration from persisted scene rows. Fixed replacement so image and video slots no longer erase each other.
 - `AIR-0107`
@@ -100,6 +102,9 @@ AIR Studio / LongformGenerator
   - admin dashboard still performs heavy eager data loading at startup
 
 ## Current Risks
+- Large crop/import batches are sequential, and large bulk video uploads still read full files into memory.
+- Project-aware crop import has not yet been browser-verified with a real 2x2 grid.
+- There is no rollback for an imported or intentionally replaced Scene asset.
 - Asset readiness is still a UI rule rather than a canonical backend project status.
 - Duplicate and unmatched import attempt history is not persisted after refresh.
 - The product still needs a decision on whether image-only scenes are valid for final assembly.
