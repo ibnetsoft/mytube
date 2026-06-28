@@ -285,4 +285,3 @@ Missing:
 - Large-file behavior through the packaged desktop runtime.
 - Exact user-facing Vietnamese and Thai wording for the new result summary.
 - Whether final production requires both image and video for every scene or permits intentional image-only scenes.
-
