@@ -45,6 +45,8 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0108`
+  Added Longform Scene Asset Review with prompt/image/video status, final clip order, missing-visual gating, scene replacement controls, and refresh restoration from persisted scene rows. Fixed replacement so image and video slots no longer erase each other.
 - `AIR-0107`
   Validated and hardened Longform bulk media import. Scene filenames are now authoritative, Gemini is only a fallback, occupied or duplicate scene slots are not silently overwritten, and the image page reports invalid, unmatched, duplicate, and missing scene results.
 - `AIR-0106`
@@ -98,6 +100,9 @@ AIR Studio / LongformGenerator
   - admin dashboard still performs heavy eager data loading at startup
 
 ## Current Risks
+- Asset readiness is still a UI rule rather than a canonical backend project status.
+- Duplicate and unmatched import attempt history is not persisted after refresh.
+- The product still needs a decision on whether image-only scenes are valid for final assembly.
 - The 2x2 crop page still downloads files without project or destination-scene context.
 - Valid but unmatched bulk files can remain in the output directory without a scene link or cleanup workflow.
 - Bulk upload shows processing state and final results but does not provide byte-level or per-file progress.
