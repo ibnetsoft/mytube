@@ -175,12 +175,23 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'demand' | 'withdrawals' | 'api' | 'render-queue' | 'styles' | 'learning' | 'tenants'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [referralReport, setReferralReport] = useState<any>(null)
     const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
     const [referralLoading, setReferralLoading] = useState(false)
     const [referralDays, setReferralDays] = useState(30)
+
+    // Demand tab state
+    const [demandAnalytics, setDemandAnalytics] = useState<any[]>([])
+    const [demandStats, setDemandStats] = useState<any>(null)
+    const [rebalancingSettings, setRebalancingSettings] = useState<any>(null)
+    const [adjustmentHistory, setAdjustmentHistory] = useState<any[]>([])
+    const [demandLoading, setDemandLoading] = useState(false)
+    const [showAdjustModal, setShowAdjustModal] = useState(false)
+    const [adjustCategory, setAdjustCategory] = useState<any>(null)
+    const [adjustMultiplier, setAdjustMultiplier] = useState(1.0)
+    const [adjustReason, setAdjustReason] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
@@ -291,7 +302,9 @@ export default function DashboardContent() {
         qa_min_width: '1920', qa_min_height: '1080',
         terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
         privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: '',
+        script_generation_provider: 'gemini',
         script_generation_model: 'gemini-2.5-flash',
+        image_prompt_provider: 'gemini',
         image_generation_model: 'gemini-3.1-flash-image-preview',
         video_generation_model: 'veo-3.1-fast-generate-preview'
     })
@@ -1177,7 +1190,12 @@ export default function DashboardContent() {
                 privacy_ko: data.privacy_ko || '',
                 privacy_en: data.privacy_en || '',
                 privacy_vi: data.privacy_vi || '',
-                privacy_th: data.privacy_th || ''
+                privacy_th: data.privacy_th || '',
+                script_generation_provider: data.script_generation_provider || 'gemini',
+                script_generation_model: data.script_generation_model || 'gemini-2.5-flash',
+                image_prompt_provider: data.image_prompt_provider || 'gemini',
+                image_generation_model: data.image_generation_model || 'gemini-3.1-flash-image-preview',
+                video_generation_model: data.video_generation_model || 'veo-3.1-fast-generate-preview'
             });
         } catch (e) {
             // Silently ignore errors to prevent console spam
@@ -2083,6 +2101,7 @@ export default function DashboardContent() {
                             { id: 'users', icon: '👥', label: ui.users, superOnly: false },
                             { id: 'organization', icon: '📊', label: ui.organization, superOnly: false },
                             { id: 'withdrawals', icon: '💰', label: ui.withdrawals, superOnly: false },
+                            { id: 'demand', icon: '📊', label: '수요 & 보상 관리', superOnly: true },
                             { id: 'api', icon: '🔌', label: ui.api, superOnly: true },
                             { id: 'render-queue', icon: '🖥️', label: ui.renderQueue, superOnly: true },
                             { id: 'learning', icon: '🧠', label: ui.learning, superOnly: true },
@@ -3542,6 +3561,30 @@ export default function DashboardContent() {
                                     {/* AI Model Settings */}
                                     <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-4">
                                         <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">🤖 AI 모델 선택</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Script Provider</label>
+                                                <select
+                                                    value={sysKeys.script_generation_provider}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, script_generation_provider: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <option value="gemini" className="bg-[#111]">Gemini</option>
+                                                    <option value="claude" className="bg-[#111]">Claude</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Image Prompt Provider</label>
+                                                <select
+                                                    value={sysKeys.image_prompt_provider}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, image_prompt_provider: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <option value="gemini" className="bg-[#111]">Gemini</option>
+                                                    <option value="claude" className="bg-[#111]">Claude</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             {/* 대본 생성 모델 */}
                                             <div>
@@ -4800,6 +4843,114 @@ export default function DashboardContent() {
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(55,130,246,0.3); border-radius: 10px; }
             `}</style>
+
         </div>
-    )
+    )}
+
+    {/* 수요 & 보상 관리 탭 추가 함수들 */}
+    // Fetch demand analytics
+    const fetchDemandAnalytics = useCallback(async () => {
+        if (!isSuperAdmin) return
+        setDemandLoading(true)
+        try {
+            const res = await adminFetch(`/api/admin/demand?days=7&t=${Date.now()}`)
+            const data = await res.json()
+            setDemandAnalytics(data.analytics || [])
+            setDemandStats(data.stats || null)
+        } catch (e) {
+            console.error('Failed to fetch demand analytics:', e)
+        } finally {
+            setDemandLoading(false)
+        }
+    }, [isSuperAdmin, adminFetch])
+
+    // Fetch rebalancing settings
+    const fetchRebalancingSettings = useCallback(async () => {
+        if (!canManageSystemSettings) return
+        try {
+            const res = await adminFetch('/api/admin/demand/settings')
+            const data = await res.json()
+            setRebalancingSettings(data.settings)
+        } catch (e) {
+            console.error('Failed to fetch rebalancing settings:', e)
+        }
+    }, [canManageSystemSettings, adminFetch])
+
+    // Fetch adjustment history
+    const fetchAdjustmentHistory = useCallback(async () => {
+        if (!isSuperAdmin) return
+        try {
+            const res = await adminFetch('/api/admin/demand/history?limit=50')
+            const data = await res.json()
+            setAdjustmentHistory(data.history || [])
+        } catch (e) {
+            console.error('Failed to fetch adjustment history:', e)
+        }
+    }, [isSuperAdmin, adminFetch])
+
+    // Open adjust modal
+    const openAdjustModal = (category: any) => {
+        setAdjustCategory(category)
+        setAdjustMultiplier(category.recommended_multiplier || 1.0)
+        setAdjustReason('')
+        setShowAdjustModal(true)
+    }
+
+    // Handle manual adjust
+    const handleManualAdjust = async () => {
+        if (!adjustCategory) return
+        try {
+            const res = await adminFetch('/api/admin/demand/adjust', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    categoryId: adjustCategory.category_id,
+                    newMultiplier: adjustMultiplier,
+                    reason: adjustReason
+                })
+            })
+
+            const data = await res.json()
+            if (res.ok && data.success) {
+                Utils.showToast('보상 배율이 조정되었습니다.', 'success')
+                setShowAdjustModal(false)
+                fetchDemandAnalytics()
+                fetchAdjustmentHistory()
+            } else {
+                throw new Error(data.error)
+            }
+        } catch (e: any) {
+            alert('조정 실패: ' + e.message)
+        }
+    }
+
+    // Run demand analysis
+    const runDemandAnalysis = async () => {
+        if (!confirm('수요 분석을 실행하시겠습니까?')) return
+        try {
+            const res = await adminFetch('/api/admin/demand', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: 7 })
+            })
+            const data = await res.json()
+            if (res.ok) {
+                alert(`분석 완료: ${data.analytics.length}개 카테고리`)
+                fetchDemandAnalytics()
+            } else {
+                throw new Error(data.error)
+            }
+        } catch (e: any) {
+            alert('분석 실패: ' + e.message)
+        }
+    }
+
+    // Load demand data when tab is selected
+    useEffect(() => {
+        if (activeTab === 'demand' && isSuperAdmin) {
+            fetchDemandAnalytics()
+            fetchRebalancingSettings()
+            fetchAdjustmentHistory()
+        }
+    }, [activeTab, isSuperAdmin, fetchDemandAnalytics, fetchRebalancingSettings, fetchAdjustmentHistory])
 }

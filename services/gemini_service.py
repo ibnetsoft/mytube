@@ -17,6 +17,7 @@ import google.generativeai as genai
 from config import config
 from services.prompts import prompts
 from services.prompt_assembler import prompt_assembler
+from services.ai_provider import resolve_ai_selection, normalize_provider
 
 from google import genai
 from google.genai import types
@@ -156,6 +157,48 @@ class GeminiService:
         text = re.sub(r'\s{2,}', ' ', text)
         
         return text.strip().strip(',').strip()
+
+    async def _generate_text_for_task(
+        self,
+        prompt: str,
+        task_key: str,
+        project_id: int = None,
+        temperature: float = 0.7,
+        max_tokens: int = 8192,
+        provider: str = None,
+        model: str = None,
+        use_search: bool = False,
+    ) -> str:
+        selection = resolve_ai_selection(
+            task_key=task_key,
+            project_id=project_id,
+            requested_provider=provider,
+            requested_model=model,
+        )
+
+        if selection.provider == "claude":
+            try:
+                from services.claude_service import claude_service
+                return await claude_service.generate_text(
+                    prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    project_id=project_id,
+                    task_type=task_key,
+                    model=selection.model,
+                )
+            except Exception as e:
+                self.log_debug(f"⚠️ [AI Router] Claude failed for {task_key}: {e}. Falling back to Gemini.")
+
+        return await self.generate_text(
+            prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            project_id=project_id,
+            task_type=task_key,
+            model=selection.model if selection.provider == "gemini" else None,
+            use_search=use_search,
+        )
 
     async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL, use_search: bool = False) -> str:
         """텍스트 생성"""
@@ -817,7 +860,7 @@ class GeminiService:
             
         return []
 
-    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None, target_language: str = "ko", style_prompt: str = "", accumulated_knowledge: List[dict] = None, project_id: int = None) -> dict:
+    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None, target_language: str = "ko", style_prompt: str = "", accumulated_knowledge: List[dict] = None, project_id: int = None, provider: str = None, model: str = None) -> dict:
         """분석 데이터를 기반으로 대본 구조 자동 생성 (내용과 전략의 분리 + 누적 지식 활용)"""
         
         # [NEW] 분석 데이터 분리 (내용 vs 전략)
@@ -906,7 +949,14 @@ class GeminiService:
 
         start_time = _time.time()
         try:
-            text = await self.generate_text(prompt, temperature=0.5, project_id=project_id, task_type='script_gen')
+            text = await self._generate_text_for_task(
+                prompt,
+                task_key="script_generation",
+                project_id=project_id,
+                temperature=0.5,
+                provider=provider,
+                model=model,
+            )
             elapsed = _time.time() - start_time
             json_match = re.search(r'\{[\s\S]*\}', text)
             if json_match:
@@ -920,11 +970,11 @@ class GeminiService:
                     return res
                 except Exception:
                     pass
-            db.add_ai_log(None, 'script', DEFAULT_TEXT_MODEL, 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
+            db.add_ai_log(project_id, 'script', model or DEFAULT_TEXT_MODEL, 'google', 'failed', prompt_summary=topic_keyword, error_msg="JSON parse failed", elapsed_time=elapsed)
             return {"error": "구조 생성 실패", "raw": text}
         except Exception as e:
             elapsed = _time.time() - start_time
-            db.add_ai_log(None, 'script', DEFAULT_TEXT_MODEL, 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
+            db.add_ai_log(project_id, 'script', model or DEFAULT_TEXT_MODEL, 'google', 'failed', prompt_summary=topic_keyword, error_msg=str(e), elapsed_time=elapsed)
             print(f"Script Structure Gen Error: {e}")
             return {"error": f"구조 생성 실패: {str(e)}"}
     async def generate_nursery_rhyme_ideas(self) -> List[dict]:
@@ -1497,7 +1547,7 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None, provider: str = None, model: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -1789,7 +1839,14 @@ Motion prompt for this image:"""
             if _ref_image_bytes:
                 ref_hint = "\n\n[STYLE REFERENCE IMAGE ATTACHED]"
                 return await self.generate_text_from_image(prompt_text + ref_hint, _ref_image_bytes, _ref_mime)
-            return await self.generate_text(prompt_text, temperature=0.7)
+            return await self._generate_text_for_task(
+                prompt_text,
+                task_key="image_prompt_generation",
+                project_id=project_id,
+                temperature=0.7,
+                provider=provider,
+                model=model,
+            )
 
         if use_chunked:
             # ── 청크 분할 모드 ─────────────────────────────────────────────
@@ -2381,7 +2438,14 @@ Motion prompt for this image:"""
         )
 
         try:
-            text = await self.generate_text(prompt, temperature=0.7)
+            text = await self._generate_text_for_task(
+                prompt,
+                task_key="image_prompt_generation",
+                project_id=project_id,
+                temperature=0.7,
+                provider=provider,
+                model=model,
+            )
             
             import json
             import re
@@ -2638,7 +2702,7 @@ Motion prompt for this image:"""
         except Exception:
             return "- realistic\n- cinematic"
 
-    async def generate_deep_dive_script(self, project_id: int, topic: str, duration_seconds: int = 180, target_language: str = "ko", user_notes: str = "없음", mode: str = "monologue") -> dict:
+    async def generate_deep_dive_script(self, project_id: int, topic: str, duration_seconds: int = 180, target_language: str = "ko", user_notes: str = "없음", mode: str = "monologue", provider: str = None, model: str = None) -> dict:
         """여러 소스를 학습하여 고품질 롱폼 대본 생성 (NotebookLM 스타일)"""
         
         # 1. 프로젝트 소스 로드
@@ -2674,7 +2738,14 @@ Motion prompt for this image:"""
             available_image_styles_info=self._get_available_image_styles_info()
         )
 
-        text = await self.generate_text(prompt, temperature=0.4) # Slightly higher for dialogue flow
+        text = await self._generate_text_for_task(
+            prompt,
+            task_key="script_generation",
+            project_id=project_id,
+            temperature=0.4,
+            provider=provider,
+            model=model,
+        ) # Slightly higher for dialogue flow
         
         # JSON 추출
         json_match = re.search(r'\{[\s\S]*\}', text)

@@ -4,7 +4,10 @@
 """
 import os
 import json
+import asyncio
+import html
 import requests
+import urllib.parse
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -14,10 +17,22 @@ import database as db
 from services.auth_service import auth_service
 
 router = APIRouter(tags=["User Topics"])
+_TOPIC_TRANSLATION_CACHE: dict[tuple[str, str, str], str] = {}
 
 
 class ClaimTopicRequest(BaseModel):
     topic_id: str
+
+
+class TopicTranslationItem(BaseModel):
+    id: str
+    topic: str
+    category_name: str = ""
+
+
+class TopicTranslationRequest(BaseModel):
+    ui_language: str
+    topics: List[TopicTranslationItem]
 
 
 def _supabase_headers():
@@ -137,6 +152,149 @@ def _get_content_language_label(lang: str) -> str:
     }
     return labels.get(lang, lang)
 
+
+def _build_translation_prompt(payload: list[dict], lang_name: str) -> str:
+    return (
+        f"You are translating Korean UI content into {lang_name}.\n"
+        f"Return ONLY valid JSON array.\n"
+        f"Translate each object's topic and category_name fields into natural {lang_name}.\n"
+        f"Keep the same id.\n"
+        f"If category_name is empty, keep it empty.\n\n"
+        f"Input JSON:\n{json.dumps(payload, ensure_ascii=False)}\n\n"
+        f"Output format:\n"
+        f"[{{\"id\":\"...\",\"topic_translated\":\"...\",\"category_name_translated\":\"...\"}}]"
+    )
+
+
+def _parse_batch_translation_response(raw: str, valid_target: str) -> dict:
+    translated = json.loads((raw or "").strip())
+    result = {}
+    for row in translated if isinstance(translated, list) else []:
+        rid = str((row or {}).get("id") or "").strip()
+        if not rid:
+            continue
+        result[rid] = {
+            f"topic_{valid_target}": str((row or {}).get("topic_translated") or "").strip(),
+            f"category_name_{valid_target}": str((row or {}).get("category_name_translated") or "").strip(),
+        }
+    return result
+
+
+async def _translate_topics_with_gemini(payload: list[dict], valid_target: str, lang_name: str) -> dict:
+    from services.gemini_service import gemini_service
+
+    res = await gemini_service.generate_text(_build_translation_prompt(payload, lang_name), temperature=0.2)
+    return _parse_batch_translation_response(res, valid_target)
+
+
+async def _translate_topics_with_claude(payload: list[dict], valid_target: str, lang_name: str) -> dict:
+    from services.claude_service import claude_service
+
+    if not claude_service.api_key:
+        return {}
+
+    res = await claude_service.generate_text(
+        _build_translation_prompt(payload, lang_name),
+        temperature=0.2,
+        task_type="translation",
+        max_tokens=4096,
+    )
+    return _parse_batch_translation_response(res, valid_target)
+
+
+def _translate_text_via_google(text: str, target_lang_code: str) -> str:
+    text = str(text or "").strip()
+    if not text:
+        return ""
+
+    cache_key = ("google", target_lang_code, text)
+    cached = _TOPIC_TRANSLATION_CACHE.get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        query = urllib.parse.quote(text)
+        url = (
+            "https://translate.googleapis.com/translate_a/single"
+            f"?client=gtx&sl=ko&tl={target_lang_code}&dt=t&q={query}"
+        )
+        response = requests.get(
+            url,
+            timeout=5,
+            verify=False,
+            proxies={"http": None, "https": None},
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        if response.status_code != 200:
+            return ""
+
+        payload = response.json()
+        translated = "".join(
+            str(chunk[0] or "")
+            for chunk in (payload[0] or [])
+            if isinstance(chunk, list) and chunk
+        ).strip()
+        translated = html.unescape(translated)
+        if translated:
+            _TOPIC_TRANSLATION_CACHE[cache_key] = translated
+        return translated
+    except Exception as e:
+        print(f"[User Topics] Google translation fallback failed ({target_lang_code}): {e}")
+        return ""
+
+
+def _translate_topics_with_http_fallback(payload: list[dict], valid_target: str) -> dict:
+    result = {}
+    for item in payload:
+        rid = str(item.get("id") or "").strip()
+        if not rid:
+            continue
+        translated_topic = _translate_text_via_google(item.get("topic") or "", valid_target)
+        translated_category = _translate_text_via_google(item.get("category_name") or "", valid_target)
+        if translated_topic or translated_category:
+            result[rid] = {
+                f"topic_{valid_target}": translated_topic,
+                f"category_name_{valid_target}": translated_category,
+            }
+    return result
+
+
+async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> dict:
+    valid_target = (target_lang_code or "").strip().lower()
+    if valid_target not in {"en", "vi", "th"} or not items:
+        return {}
+
+    lang_map = {
+        "en": "English",
+        "vi": "Vietnamese",
+        "th": "Thai",
+    }
+    lang_name = lang_map.get(valid_target, "English")
+    payload = [
+        {
+            "id": str(item.get("id") or ""),
+            "topic": str(item.get("topic") or ""),
+            "category_name": str(item.get("category_name") or ""),
+        }
+        for item in items
+        if str(item.get("id") or "").strip() and str(item.get("topic") or "").strip()
+    ]
+    if not payload:
+        return {}
+
+    for provider_name, translator in (
+        ("gemini", _translate_topics_with_gemini),
+        ("claude", _translate_topics_with_claude),
+    ):
+        try:
+            translated = await translator(payload, valid_target, lang_name)
+            if translated:
+                return translated
+        except Exception as e:
+            print(f"[User Topics] {provider_name} batch translation failed ({valid_target}): {e}")
+
+    return _translate_topics_with_http_fallback(payload, valid_target)
+
 def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
     category = topic.get("categories") or {}
     category_name = topic.get("category_name") or category.get("name")
@@ -176,8 +334,10 @@ def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
     payout_multiplier = float(topic.get("payout_multiplier", 1.0) or 1.0)
     adjusted_payout = round(estimated_payout * payout_multiplier, 1)
 
+    canonical_topic_id = topic.get("topic_queue_id") or topic.get("id")
+
     return {
-        "id": topic.get("id") or topic.get("topic_queue_id"),
+        "id": canonical_topic_id,
         "topic": topic.get("topic"),
         "category_name": category_name,
         "category_id": topic.get("category_id"),
@@ -195,6 +355,40 @@ def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
         "created_at": topic.get("created_at"),
         "video_type": video_type,
     }
+
+
+def _resolve_claimable_topic_id(supabase_url: str, headers: dict, raw_topic_id: str, email: str):
+    candidate = str(raw_topic_id or "").strip()
+    if not candidate:
+        return None
+
+    try:
+        lookup_url = (
+            f"{supabase_url}/rest/v1/user_topic_recommendations"
+            f"?id=eq.{candidate}"
+            f"&employee_email=eq.{email}"
+            f"&select=topic_queue_id"
+            f"&limit=1"
+        )
+        r = requests.get(
+            lookup_url,
+            headers=headers,
+            timeout=5,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+        if r.status_code == 200 and r.json():
+            resolved = (r.json()[0] or {}).get("topic_queue_id")
+            return int(resolved) if resolved is not None else None
+    except Exception as e:
+        print(f"[User Topics] Failed to resolve recommendation id {candidate}: {e}")
+
+    try:
+        return int(candidate)
+    except Exception:
+        pass
+
+    return None
 
 
 def _has_complete_topic_metadata(topic: dict) -> bool:
@@ -368,6 +562,24 @@ async def get_recommended_topics(
     return {"status": "ok", "topics": formatted_topics, "cached": False}
 
 
+@router.post("/api/user/recommended-topics/translations")
+async def translate_recommended_topics(req: TopicTranslationRequest):
+    ui_language = (req.ui_language or "").strip().lower()
+    if ui_language not in {"en", "vi", "th"}:
+        return {"status": "ok", "translations": {}}
+
+    payload = [
+        {
+            "id": item.id,
+            "topic": item.topic,
+            "category_name": item.category_name,
+        }
+        for item in (req.topics or [])
+    ]
+    translations = await _translate_topics_batch(payload, ui_language)
+    return {"status": "ok", "translations": translations}
+
+
 @router.post("/api/user/claim-topic")
 async def claim_topic(req: ClaimTopicRequest):
     """Claim a topic and create a locked project."""
@@ -381,10 +593,13 @@ async def claim_topic(req: ClaimTopicRequest):
     if not supabase_url:
         raise HTTPException(status_code=500, detail="Supabase configuration missing")
     policy = _fetch_longform_policy(supabase_url, headers)
+    resolved_topic_id = _resolve_claimable_topic_id(supabase_url, headers, req.topic_id, email)
+    if resolved_topic_id is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
 
     # ????용츧????????몃뱥?????곗뒭????
     topic_res = requests.get(
-        f"{supabase_url}/rest/v1/topics_queue?id=eq.{req.topic_id}&select=*,categories!inner(*)",
+        f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}&select=*,categories!inner(*)",
         headers=headers,
         timeout=5,
         verify=False,
@@ -405,7 +620,7 @@ async def claim_topic(req: ClaimTopicRequest):
 
     # ????용츧???????釉먮빱????????띻콣?????썹땟???(assigned?????ㅼ뒧????
     update_res = requests.patch(
-        f"{supabase_url}/rest/v1/topics_queue?id=eq.{req.topic_id}",
+        f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}",
         json={
             "status": "assigned",
             "assigned_employee_email": email,
@@ -417,7 +632,7 @@ async def claim_topic(req: ClaimTopicRequest):
         proxies={"http": None, "https": None}
     )
 
-    if update_res.status_code != 200:
+    if update_res.status_code not in (200, 204):
         raise HTTPException(status_code=500, detail="Failed to claim topic")
 
     project_id = db.create_project(
@@ -430,12 +645,22 @@ async def claim_topic(req: ClaimTopicRequest):
         image_style=normalized.get("image_style"),
     )
 
-    db.update_project_setting(project_id, "topic_queue_id", str(req.topic_id))
+    db.update_project_setting(project_id, "topic_queue_id", str(resolved_topic_id))
     db.update_project_setting(project_id, "topic_queue_category_id", str(topic_data.get("category_id") or ""))
     db.update_project_setting(project_id, "target_language", topic_language)
     db.update_project_setting(project_id, "script_style", normalized.get("script_style") or "default")
     db.update_project_setting(project_id, "image_style", normalized.get("image_style") or "realistic")
     db.update_project_setting(project_id, "style_locked", "1")
+    db.update_project_setting(
+        project_id,
+        "script_generation_provider",
+        db.get_global_setting("sys_api_script_generation_provider") or "gemini"
+    )
+    db.update_project_setting(
+        project_id,
+        "script_generation_model",
+        db.get_global_setting("sys_api_script_generation_model") or "gemini-2.5-flash"
+    )
 
     if project_mode == "longform":
         assigned_minutes = normalized.get("recommended_duration_minutes") or max(
@@ -458,7 +683,7 @@ async def claim_topic(req: ClaimTopicRequest):
     # ????살퓢癲?????????????띻콣?????썹땟???
     try:
         requests.patch(
-            f"{supabase_url}/rest/v1/user_topic_recommendations?topic_queue_id=eq.{req.topic_id}&employee_email=eq.{email}",
+            f"{supabase_url}/rest/v1/user_topic_recommendations?topic_queue_id=eq.{resolved_topic_id}&employee_email=eq.{email}",
             json={
                 "is_claimed": True,
                 "claimed_at": datetime.utcnow().isoformat()
