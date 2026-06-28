@@ -321,6 +321,7 @@ from app.routers import auth as auth_router
 from app.routers import update as update_router
 from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
+from app.routers import user_topics as user_topics_router  # [NEW]
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -343,6 +344,7 @@ app.include_router(image_router.router)
 app.include_router(thumbnails_router.router)
 app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
+app.include_router(user_topics_router.router)  # [NEW]
 pages_router.init_pages(templates)
 
 
@@ -735,7 +737,15 @@ async def auto_generate_images(project_id: int):
 
     # 2. 프롬프트 생성 (Gemini)
     from services.gemini_service import gemini_service
-    prompts = await gemini_service.generate_image_prompts_from_script(script, duration)
+    from services.ai_provider import resolve_ai_selection
+    ai = resolve_ai_selection("image_prompt", project_id=project_id)
+    prompts = await gemini_service.generate_image_prompts_from_script(
+        script,
+        duration,
+        project_id=project_id,
+        provider=ai.provider,
+        model=ai.model,
+    )
     
     if not prompts:
         raise HTTPException(500, "이미지 프롬프트 생성 실패")

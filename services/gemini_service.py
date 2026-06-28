@@ -17,6 +17,7 @@ import google.generativeai as genai
 from config import config
 from services.prompts import prompts
 from services.prompt_assembler import prompt_assembler
+from services.prompt_store import prompt_store
 
 from google import genai
 from google.genai import types
@@ -817,7 +818,7 @@ class GeminiService:
             
         return []
 
-    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None, target_language: str = "ko", style_prompt: str = "", accumulated_knowledge: List[dict] = None, project_id: int = None) -> dict:
+    async def generate_script_structure(self, analysis_data: dict, recent_titles: List[str] = None, target_language: str = "ko", style_prompt: str = "", accumulated_knowledge: List[dict] = None, project_id: int = None, provider: str = None, model: str = None) -> dict:
         """분석 데이터를 기반으로 대본 구조 자동 생성 (내용과 전략의 분리 + 누적 지식 활용)"""
         
         # [NEW] 분석 데이터 분리 (내용 vs 전략)
@@ -903,6 +904,7 @@ class GeminiService:
             history_instruction=history_instruction,
             available_image_styles_info=self._get_available_image_styles_info()
         )
+        prompt = prompt_store.build_prompt("script_plan", provider or "gemini", prompt)
 
         start_time = _time.time()
         try:
@@ -1497,7 +1499,7 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None, provider: str = None, model: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -1848,6 +1850,7 @@ Motion prompt for this image:"""
                     limit_instruction=chunk_limit,
                     style_prefix=style_prefix_val
                 )
+                c_prompt = prompt_store.build_prompt("image_prompt", provider or "gemini", c_prompt)
                 c_text = await _gen_text_or_vision(c_prompt)
                 c_scene_list = _parse_text_to_scenes(c_text)
                 print(f"[ChunkedGen] Chunk {c_idx+1}/{num_chunks}: got {len(c_scene_list)} scenes")
@@ -1866,6 +1869,7 @@ Motion prompt for this image:"""
                 limit_instruction=limit_instruction,
                 style_prefix=style_prefix_val
             )
+            prompt = prompt_store.build_prompt("image_prompt", provider or "gemini", prompt)
             text = await _gen_text_or_vision(prompt)
             scenes = _parse_text_to_scenes(text)
 
@@ -2638,7 +2642,7 @@ Motion prompt for this image:"""
         except Exception:
             return "- realistic\n- cinematic"
 
-    async def generate_deep_dive_script(self, project_id: int, topic: str, duration_seconds: int = 180, target_language: str = "ko", user_notes: str = "없음", mode: str = "monologue") -> dict:
+    async def generate_deep_dive_script(self, project_id: int, topic: str, duration_seconds: int = 180, target_language: str = "ko", user_notes: str = "없음", mode: str = "monologue", provider: str = None, model: str = None) -> dict:
         """여러 소스를 학습하여 고품질 롱폼 대본 생성 (NotebookLM 스타일)"""
         
         # 1. 프로젝트 소스 로드
@@ -2673,6 +2677,7 @@ Motion prompt for this image:"""
             user_notes=user_notes,
             available_image_styles_info=self._get_available_image_styles_info()
         )
+        prompt = prompt_store.build_prompt("script_generation", provider or "gemini", prompt)
 
         text = await self.generate_text(prompt, temperature=0.4) # Slightly higher for dialogue flow
         
