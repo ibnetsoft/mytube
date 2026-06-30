@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block content %}
+{% set current_step = "scene_split" %}
+{% set project_id = project_id or "" %}
+{% include "workflow_nav.html" %}
+
+<div class="max-w-5xl mx-auto space-y-6 animate-fadeIn">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-lg font-black text-white flex items-center gap-2">
+        <span class="text-blue-400">/</span> Scene Split
+      </h2>
+      <p class="text-xs text-gray-400 mt-0.5">AI가 대본을 분석하여 Scene 단위로 자동 분할합니다.</p>
+    </div>
+    <button id="btnAnalyze" onclick="analyzeAndSplit()"
+      class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-40">
+      <span class="text-blue-200">AI</span> <span id="btnAnalyzeText">Scene 분석</span>
+      <span id="btnAnalyzeSpinner" class="hidden">
+        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+      </span>
+    </button>
+  </div>
+
+  <div class="bg-[#1c2027]/60 border border-white/5 rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-bold text-white flex items-center gap-2"><span class="text-gray-400">/</span> 대본 미리보기</h3>
+      <span id="scriptLength" class="text-[10px] text-gray-500"></span>
+    </div>
+    <pre id="scriptPreview" class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-sans max-h-60 overflow-y-auto custom-scrollbar bg-[#1c2027]/40 rounded-lg p-3 border border-white/5"></pre>
+  </div>
+
+  <div id="analysisResult" class="hidden bg-[#1c2027]/60 border border-white/5 rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-bold text-white flex items-center gap-2"><span class="text-blue-400">/</span> AI Scene 분석 결과</h3>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-400">추천 Scene 수:</span>
+        <span id="sceneCountBadge" class="text-lg font-black text-blue-400"></span>
+      </div>
+    </div>
+    <p id="sceneReason" class="text-xs text-gray-400 mb-4 italic"></p>
+    <div id="sceneListPreview" class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1"></div>
+    <div class="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
+      <button onclick="confirmAndGenerate()" id="btnGenerate"
+        class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+        disabled>
+        <span class="text-white">+</span> <span id="btnGenText">Scene 분할 확인 후 이미지 프롬프트 생성</span>
+        <span id="btnGenSpinner" class="hidden">
+          <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+        </span>
+      </button>
+      <span id="genStatus" class="text-[10px] text-gray-500"></span>
+    </div>
+  </div>
+
+  <div id="statusMsg" class="hidden text-xs text-center py-4 rounded-xl"></div>
+</div>
+
+<script>
+var currentProjectId = null;
+var analyzeResult = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  var params = new URLSearchParams(window.location.search);
+  currentProjectId = params.get('project_id') || localStorage.getItem('currentProjectId') || null;
+  if (!currentProjectId) {
+    showStatus('먼저 프로젝트를 선택해주세요.', 'amber');
+    return;
+  }
+  loadScript();
+});
+
+function showStatus(msg, type) {
+  var el = document.getElementById('statusMsg');
+  el.classList.remove('hidden');
+  el.className = 'text-xs text-center py-4 rounded-xl ';
+  if (type === 'amber') el.className += 'bg-amber-500/10 border border-amber-500/20 text-amber-400';
+  else if (type === 'red') el.className += 'bg-red-500/10 border border-red-500/20 text-red-400';
+  else if (type === 'green') el.className += 'bg-green-500/10 border border-green-500/20 text-green-400';
+  el.textContent = msg;
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+async function loadScript() {
+  try {
+    var res = await fetch('/api/projects/' + currentProjectId + '/script');
+    if (!res.ok) throw new Error('Script not found');
+    var data = await res.json();
+    var scriptText = data.full_script || '';
+    if (!scriptText) {
+      var settingsRes = await fetch('/project-settings/' + currentProjectId);
+      if (settingsRes.ok) {
+        var settings = await settingsRes.json();
+        if (settings.script) {
+          document.getElementById('scriptPreview').textContent = settings.script;
+          document.getElementById('scriptLength').textContent = settings.script.length + '자';
+          return;
+        }
+      }
+      throw new Error('대본 내용이 없습니다. Script Generation을 먼저 완료해주세요.');
+    }
+    document.getElementById('scriptPreview').textContent = scriptText;
+    document.getElementById('scriptLength').textContent = scriptText.length + '자';
+  } catch (e) {
+    document.getElementById('scriptPreview').textContent = '대본을 불러올 수 없습니다.';
+    showStatus('[오류] ' + e.message, 'red');
+  }
+}
+
+async function analyzeAndSplit() {
+  var btn = document.getElementById('btnAnalyze');
+  var text = document.getElementById('btnAnalyzeText');
+  var spinner = document.getElementById('btnAnalyzeSpinner');
+  btn.disabled = true;
+  text.textContent = '분석 중...';
+  spinner.classList.remove('hidden');
+
+  try {
+    var res = await fetch('/api/projects/' + currentProjectId + '/analyze-scenes', { method: 'POST' });
+    if (!res.ok) throw new Error('Scene 분석 실패 (' + res.status + ')');
+    analyzeResult = await res.json();
+
+    document.getElementById('sceneCountBadge').textContent = analyzeResult.scene_count + '개';
+    document.getElementById('sceneReason').textContent = 'AI 추천: ' + (analyzeResult.reason || '자동 분석');
+
+    var scriptText = document.getElementById('scriptPreview').textContent;
+    var count = analyzeResult.scene_count;
+    var parts = splitScriptEvenly(scriptText, count);
+
+    var container = document.getElementById('sceneListPreview');
+    container.innerHTML = '';
+    parts.forEach(function(text, i) {
+      var div = document.createElement('div');
+      div.className = 'flex items-start gap-2 bg-[#1c2027]/40 rounded-lg p-2.5 border border-white/5';
+      var label = document.createElement('span');
+      label.className = 'w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold shrink-0';
+      label.textContent = i + 1;
+      div.appendChild(label);
+      var contentDiv = document.createElement('div');
+      contentDiv.className = 'min-w-0 flex-1';
+      var titleEl = document.createElement('div');
+      titleEl.className = 'text-[10px] text-gray-400 font-medium mb-0.5';
+      titleEl.textContent = 'Scene ' + (i + 1);
+      contentDiv.appendChild(titleEl);
+      var textEl = document.createElement('div');
+      textEl.className = 'text-[11px] text-gray-300 line-clamp-2';
+      textEl.textContent = text;
+      contentDiv.appendChild(textEl);
+      div.appendChild(contentDiv);
+      container.appendChild(div);
+    });
+
+    document.getElementById('analysisResult').classList.remove('hidden');
+    document.getElementById('btnGenerate').disabled = false;
+    document.getElementById('btnGenText').textContent = 'Scene ' + count + '개 분할 확인 후 이미지 프롬프트 생성';
+
+  } catch (e) {
+    showStatus('[오류] Scene 분석 실패: ' + e.message, 'red');
+  } finally {
+    btn.disabled = false;
+    text.textContent = 'Scene 분석';
+    spinner.classList.add('hidden');
+  }
+}
+
+async function confirmAndGenerate() {
+  var btn = document.getElementById('btnGenerate');
+  var text = document.getElementById('btnGenText');
+  var spinner = document.getElementById('btnGenSpinner');
+  var status = document.getElementById('genStatus');
+  btn.disabled = true;
+  text.textContent = '이미지 프롬프트 생성 중...';
+  spinner.classList.remove('hidden');
+  status.textContent = '';
+
+  try {
+    var res = await fetch('/api/projects/' + currentProjectId + '/image-prompts/auto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) {
+      var errBody = {};
+      try { errBody = await res.json(); } catch(e) {}
+      throw new Error(errBody.detail || '이미지 프롬프트 생성 실패 (' + res.status + ')');
+    }
+    status.textContent = '생성 완료';
+    showStatus('이미지 프롬프트 생성 완료! Image Prompt 단계로 이동합니다.', 'green');
+    setTimeout(function() {
+      window.location.href = '/image-gen?project_id=' + currentProjectId;
+    }, 1500);
+  } catch (e) {
+    status.textContent = '[오류] ' + e.message;
+    showStatus('[오류] 생성 실패: ' + e.message, 'red');
+    btn.disabled = false;
+    text.textContent = 'Scene 분할 확인 후 이미지 프롬프트 생성';
+    spinner.classList.add('hidden');
+  }
+}
+
+function splitScriptEvenly(text, count) {
+  if (!text || count <= 0) return [];
+  var paragraphs = text.split(/\n\s*\n/).filter(function(p) { return p.trim(); });
+  if (paragraphs.length >= count) {
+    var perGroup = Math.ceil(paragraphs.length / count);
+    var result = [];
+    for (var i = 0; i < count; i++) {
+      var start = i * perGroup;
+      var end = Math.min(start + perGroup, paragraphs.length);
+      result.push(paragraphs.slice(start, end).join('\n\n'));
+    }
+    return result;
+  }
+  var perChunk = Math.ceil(text.length / count);
+  var result = [];
+  for (var i = 0; i < count; i++) {
+    var start = i * perChunk;
+    var end = Math.min(start + perChunk, text.length);
+    result.push(text.slice(start, end));
+  }
+  return result;
+}
+</script>
+{% endblock %}

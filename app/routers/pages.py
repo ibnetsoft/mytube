@@ -220,6 +220,51 @@ async def page_shorts(request: Request):
 async def page_commerce_shorts(request: Request):
     return _render(request, "pages/commerce_shorts.html", "commerce-shorts", "nav_commerce_shorts")
 
+@router.get("/scene-split", response_class=HTMLResponse)
+async def page_scene_split(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/scene_split.html",
+        "scene-split",
+        "nav_plan",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
+
+
+@router.get("/video-prompts", response_class=HTMLResponse)
+async def page_video_prompts(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/video_prompts.html",
+        "video-prompts",
+        "nav_intro",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
+
+
+@router.get("/asset-upload", response_class=HTMLResponse)
+async def page_asset_upload(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/asset_upload.html",
+        "asset-upload",
+        "nav_image",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):
     from services.auth_service import auth_service
