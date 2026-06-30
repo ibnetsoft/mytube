@@ -26,6 +26,7 @@ from app.utils import (
 )
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
+from services.scene_asset_matcher import build_assignment_plan, extract_scene_number, find_missing_scenes
 
 router = APIRouter(tags=["Image"])
 
@@ -1281,7 +1282,8 @@ async def generate_image(
 async def upload_scene_media(
     project_id: int = Form(...),
     scene_number: int = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    replace_existing: bool = Form(True),
 ):
     """
     장면의 이미지 또는 비디오를 직접 업로드하여 교체합니다. (Frontend 'uploadSceneImage' 대응)
@@ -1294,6 +1296,26 @@ async def upload_scene_media(
         is_video = ext in ALLOWED_VIDEO_EXT
         is_image = ext in ALLOWED_IMAGE_EXT
         
+        if not replace_existing and (is_video or is_image):
+            target_scene = next(
+                (
+                    scene for scene in db.get_image_prompts(project_id)
+                    if int(scene.get("scene_number") or 0) == int(scene_number)
+                ),
+                None,
+            )
+            if not target_scene:
+                return JSONResponse(
+                    status_code=404,
+                    content={"status": "error", "error": "Scene does not exist."},
+                )
+            slot_value = target_scene.get("video_url" if is_video else "image_url")
+            if slot_value:
+                return JSONResponse(
+                    status_code=409,
+                    content={"status": "error", "error": "Scene slot is already occupied."},
+                )
+
         if not (is_video or is_image):
              raise HTTPException(400, f"지원하지 않는 형식입니다: {ext}")
         
@@ -1340,21 +1362,49 @@ async def bulk_match_scene_media(
     try:
         from app.utils import get_project_output_dir, ALLOWED_IMAGE_EXT, ALLOWED_VIDEO_EXT
         from services.video_matcher import video_matcher
-        import shutil
+        scenes = db.get_image_prompts(project_id)
+        if not scenes:
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "error": "No scene list exists for this project."},
+            )
+
+        valid_scene_numbers = {int(scene["scene_number"]) for scene in scenes}
+        existing_slots = {}
+        for scene in scenes:
+            scene_number = int(scene["scene_number"])
+            existing_slots[(scene_number, "image")] = bool(scene.get("image_url"))
+            existing_slots[(scene_number, "video")] = bool(scene.get("video_url"))
 
         # 프로젝트 디렉터리 경로
         abs_dir, web_dir = get_project_output_dir(project_id)
         os.makedirs(abs_dir, exist_ok=True)
 
-        uploaded_assets = [] # List of (filename, file_bytes for gemini, mime_type)
-        saved_file_infos = [] # List of dict to reference saved files
+        uploaded_assets = []
+        saved_file_infos = []
+        invalid_files = []
 
         for file in files:
-            ext = os.path.splitext(file.filename)[1].lower()
+            original_name = file.filename or ""
+            ext = os.path.splitext(original_name)[1].lower()
             is_video = ext in ALLOWED_VIDEO_EXT
             is_image = ext in ALLOWED_IMAGE_EXT
 
             if not (is_video or is_image):
+                invalid_files.append({
+                    "original_name": original_name,
+                    "reason": "unsupported_file_type",
+                })
+                continue
+
+            content = await file.read()
+            max_size = _MAX_VIDEO_SIZE if is_video else _MAX_IMAGE_SIZE
+            if len(content) > max_size:
+                invalid_files.append({
+                    "original_name": original_name,
+                    "reason": "file_too_large",
+                    "max_bytes": max_size,
+                })
                 continue
 
             # 파일 고유 이름 생성 및 저장
@@ -1366,13 +1416,14 @@ async def bulk_match_scene_media(
             web_url = f"{web_dir}/{filename}"
 
             # 디스크 저장
-            content = await file.read()
             async with aiofiles.open(abs_path, "wb") as f:
                 await f.write(content)
 
             # Gemini 분석을 위한 바이트 추출
             gemini_bytes = None
-            if is_video:
+            if extract_scene_number(original_name) is not None:
+                pass
+            elif is_video:
                 try:
                     # 중간 프레임 이미지 추출
                     gemini_bytes = video_matcher.extract_middle_frame_bytes(abs_path)
@@ -1383,20 +1434,37 @@ async def bulk_match_scene_media(
                 gemini_bytes = content
 
             if gemini_bytes:
-                uploaded_assets.append((file.filename, gemini_bytes, "image/png"))
+                mime_type = "image/png" if is_video else (file.content_type or "image/png")
+                uploaded_assets.append((original_name, gemini_bytes, mime_type))
 
             saved_file_infos.append({
-                "original_name": file.filename,
+                "original_name": original_name,
                 "url": web_url,
                 "is_video": is_video
             })
 
-        if not uploaded_assets:
+        if not uploaded_assets and not saved_file_infos and not invalid_files:
             return {"status": "error", "error": "분석할 이미지나 비디오 파일이 없습니다."}
 
         # 2. Gemini Vision을 통해 매칭 정보 가져오기
-        mapping = await video_matcher.match_assets_to_scenes(project_id, uploaded_assets)
+        mapping = (
+            await video_matcher.match_assets_to_scenes(project_id, uploaded_assets)
+            if uploaded_assets
+            else {}
+        )
         print(f"[Bulk Match] Project {project_id} AI matching results: {mapping}")
+
+        plan = build_assignment_plan(
+            saved_file_infos,
+            valid_scene_numbers,
+            existing_slots,
+            mapping,
+        )
+        plan["invalid"].extend(invalid_files)
+        mapping = {
+            item["original_name"]: item["scene_number"]
+            for item in plan["matched"]
+        }
 
         # 3. 매칭 결과를 바탕으로 DB 업데이트
         matched_count = 0
@@ -1426,7 +1494,12 @@ async def bulk_match_scene_media(
         return {
             "status": "ok",
             "matched_count": matched_count,
+            "matched": plan["matched"],
             "updates": updates,
+            "unmatched": plan["unmatched"],
+            "duplicates": plan["duplicates"],
+            "invalid": plan["invalid"],
+            "missing_scenes": find_missing_scenes(latest_scenes),
             "scenes": latest_scenes
         }
 

@@ -43,6 +43,139 @@
     <span>{{ t('btn_gen_shorts') }}</span>
 </button>
 
+<!-- 영상 생성 섹션 -->
+<div id="videoGenerationSection" class="card mb-6 hidden">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+        <span>🎬</span>
+        <span>AI 영상 생성</span>
+    </h3>
+
+    <div class="space-y-4">
+        <!-- 스타일 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">영상 스타일</label>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <button onclick="selectVideoStyle('vlog')" class="video-style-btn p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition-all" data-style="vlog">
+                    <div class="text-2xl mb-1">📹</div>
+                    <div class="text-xs font-medium">V로그</div>
+                </button>
+                <button onclick="selectVideoStyle('story')" class="video-style-btn p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition-all" data-style="story">
+                    <div class="text-2xl mb-1">📖</div>
+                    <div class="text-xs font-medium">스토리텔링</div>
+                </button>
+                <button onclick="selectVideoStyle('tutorial')" class="video-style-btn p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition-all" data-style="tutorial">
+                    <div class="text-2xl mb-1">💡</div>
+                    <div class="text-xs font-medium">튜토리얼</div>
+                </button>
+                <button onclick="selectVideoStyle('news')" class="video-style-btn p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition-all" data-style="news">
+                    <div class="text-2xl mb-1">📰</div>
+                    <div class="text-xs font-medium">뉴스</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- 아바타 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">🤖 AI 아바타 모델</label>
+            <select id="avatarSelect" class="input-field bg-[#1c2027] text-white w-full mb-2">
+                <!-- 동적으로 로드됨 -->
+            </select>
+            <div id="avatarPreview" class="hidden mt-2 p-2 bg-[#1c2027]/50 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">👤</span>
+                    </div>
+                    <div>
+                        <div id="avatarName" class="font-medium text-sm"></div>
+                        <div id="avatarDesc" class="text-xs text-gray-500 dark:text-gray-400"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 음성 모델 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">🎙️ 음성 모델 (TTS)</label>
+            <select id="voiceSelect" class="input-field bg-[#1c2027] text-white w-full">
+                <!-- 동적으로 로드됨 -->
+            </select>
+        </div>
+
+        <!-- 배경 스타일 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">🎨 배경 스타일</label>
+            <select id="backgroundSelect" class="input-field bg-[#1c2027] text-white w-full">
+                <option value="studio">스튜디오</option>
+                <option value="office">오피스</option>
+                <option value="outdoor">야외</option>
+                <option value="minimal">미니멀</option>
+                <option value="gradient">그라데이션</option>
+                <option value="abstract">추상</option>
+            </select>
+        </div>
+
+        <!-- 영상 길이 선택 -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">⏱️ 영상 길이</label>
+            <select id="lengthSelect" class="input-field bg-[#1c2027] text-white w-full">
+                <option value="15">15초 (초단)</option>
+                <option value="30" selected>30초 (표준)</option>
+                <option value="45">45초 (중간)</option>
+                <option value="60">60초 (긴형)</option>
+            </select>
+        </div>
+
+        <!-- 설정 저장/적용 버튼 -->
+        <div class="flex gap-2 mt-4">
+            <button onclick="saveShortsVideoSettings()" class="flex-1 btn-secondary py-2 flex items-center justify-center gap-2">
+                <span>💾</span>
+                <span>설정 저장</span>
+            </button>
+            <button onclick="applyShortsVideoSettings()" class="flex-1 btn-primary py-2 flex items-center justify-center gap-2">
+                <span>🔄</span>
+                <span>설정 적용</span>
+            </button>
+        </div>
+
+        <!-- 저장된 설정 불러오기 -->
+        <div id="savedSettings" class="hidden mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-green-800 dark:text-green-200">
+                    ✅ 저장된 설정이 있습니다
+                </span>
+                <button onclick="loadSavedShortsVideoSettings()" class="text-sm text-green-600 dark:text-green-400 hover:underline">
+                    불러오기
+                </button>
+            </div>
+        </div>
+
+        <!-- 생성 버튼 -->
+        <button onclick="generateVideoForShorts()" id="generateVideoBtn"
+            class="w-full btn-primary py-3 flex items-center justify-center gap-2">
+            <span>🎬</span>
+            <span>영상 생성 시작</span>
+        </button>
+    </div>
+</div>
+
+<!-- 영상 생성 상태 -->
+<div id="videoStatusSection" class="card hidden mb-6">
+    <div class="flex items-center gap-3 mb-4">
+        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+        <span class="text-gray-700 dark:text-gray-300">영상 생성 중...</span>
+    </div>
+    <div id="videoStatusDetails" class="text-sm text-gray-600 dark:text-gray-400"></div>
+</div>
+
+<!-- 생성된 영상 목록 -->
+<div id="generatedVideosSection" class="card hidden mb-6">
+    <h3 class="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+        <span>🎬</span>
+        <span>생성된 영상</span>
+    </h3>
+    <div id="generatedVideosList" class="space-y-3"></div>
+</div>
+
 <div id="resultSection" class="hidden">
     <div id="shortsList" class="space-y-6"></div>
 </div>
@@ -63,6 +196,21 @@
 {% block scripts %}
 <script>
     let shortsData = [];
+    let selectedShortIndex = -1;
+    let selectedVideoStyle = 'vlog';
+    let generatedVideos = [];
+
+    // TopView AI 모델 설정
+    let topViewModels = {
+        avatars: [],
+        voices: []
+    };
+    let currentShortsSettings = {
+        avatar_id: null,
+        voice_id: null,
+        background_style: 'studio',
+        video_length: 30
+    };
 
     // i18n for JS
     var i18n = {
@@ -142,16 +290,18 @@ ${i18n.prompt_indep_context} JSON ${i18n.prompt_only_json}.`;
 
     function renderShorts() {
         document.getElementById('shortsList').innerHTML = shortsData.map((short, i) => `
-            <div class="card overflow-hidden">
+            <div class="card overflow-hidden short-card" onclick="selectShortForVideo(${i})">
                 <div class="bg-gradient-to-r from-red-500 to-orange-500 p-4 text-white -m-6 mb-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <span class="w-8 h-8 bg-[#1c2027] rounded-full flex items-center justify-center font-bold bg-[#1c2027]">${i + 1}</span>
                             <span class="font-bold">{{ t('short_num_prefix') }}${i + 1}</span>
                         </div>
-                        <button onclick="copyShorts(${i})" class="px-3 py-1 bg-[#1c2027] hover:bg-[#1c2027]/30 rounded-lg text-sm transition bg-[#1c2027]">
-                            {{ t('btn_copy_all_v2') }}
-                        </button>
+                        <div class="flex gap-2">
+                            <button onclick="event.stopPropagation(); copyShorts(${i})" class="px-3 py-1 bg-[#1c2027] hover:bg-[#1c2027]/30 rounded-lg text-sm transition bg-[#1c2027]">
+                                {{ t('btn_copy_all_v2') }}
+                            </button>
+                        </div>
                     </div>
                     <p class="mt-2 text-white/90">${short.title}</p>
                 </div>
@@ -172,6 +322,13 @@ ${i18n.prompt_indep_context} JSON ${i18n.prompt_only_json}.`;
 
                     <div class="text-blue-500">${short.hashtags}</div>
                 </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button onclick="event.stopPropagation(); selectShortForVideo(${i})" class="w-full btn-primary py-2 flex items-center justify-center gap-2">
+                        <span>🎬</span>
+                        <span>이 쇼츠로 영상 생성</span>
+                    </button>
+                </div>
             </div>
         `).join('');
     }
@@ -182,5 +339,497 @@ ${i18n.prompt_indep_context} JSON ${i18n.prompt_only_json}.`;
         Utils.copyToClipboard(text);
         Utils.showToast("{{ t('toast_shorts_copied') }}", 'success');
     }
+
+    // 영상 생성 관련 함수들
+    function selectVideoStyle(style) {
+        selectedVideoStyle = style;
+        document.querySelectorAll('.video-style-btn').forEach(btn => {
+            if (btn.dataset.style === style) {
+                btn.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                btn.classList.remove('border-gray-300', 'dark:border-gray-600');
+            } else {
+                btn.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                btn.classList.add('border-gray-300', 'dark:border-gray-600');
+            }
+        });
+    }
+
+    function selectShortForVideo(index) {
+        selectedShortIndex = index;
+        document.getElementById('videoGenerationSection').classList.remove('hidden');
+
+        // 선택된 쇼츠 하이라이트
+        document.querySelectorAll('.short-card').forEach((card, i) => {
+            if (i === index) {
+                card.classList.add('ring-2', 'ring-blue-500');
+            } else {
+                card.classList.remove('ring-2', 'ring-blue-500');
+            }
+        });
+
+        // 영상 생성 섹션으로 스크롤
+        document.getElementById('videoGenerationSection').scrollIntoView({ behavior: 'smooth' });
+
+        Utils.showToast('영상 생성할 쇼츠를 선택했습니다', 'info');
+    }
+
+    async function generateVideoForShorts() {
+        if (selectedShortIndex === -1 || !shortsData[selectedShortIndex]) {
+            Utils.showToast('먼저 영상을 생성할 쇼츠를 선택해주세요', 'warning');
+            return;
+        }
+
+        // AI 모델 설정 확인
+        if (!currentShortsSettings.avatar_id || !currentShortsSettings.voice_id) {
+            Utils.showToast('아바타와 음성 모델을 선택해주세요', 'warning');
+            return;
+        }
+
+        const short = shortsData[selectedShortIndex];
+        const btn = document.getElementById('generateVideoBtn');
+
+        Utils.setLoading(btn, true, '영상 생성 중...');
+
+        try {
+            const projectId = getCurrentProject();
+            const payload = {
+                short_index: selectedShortIndex,
+                short_data: short,
+                video_style: selectedVideoStyle,
+                // AI 모델 설정
+                avatar_id: currentShortsSettings.avatar_id,
+                voice_id: currentShortsSettings.voice_id,
+                background_style: currentShortsSettings.background_style,
+                video_length: currentShortsSettings.video_length,
+                project_id: projectId || null
+            };
+
+            const response = await fetch('/api/shorts/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                document.getElementById('videoGenerationSection').classList.add('hidden');
+                document.getElementById('videoStatusSection').classList.remove('hidden');
+
+                updateVideoStatus(result.video_id, result.task_id);
+
+                Utils.showToast('영상 생성이 시작되었습니다. 잠시만 기다려주세요.', 'success');
+            } else {
+                throw new Error(result.message || '영상 생성 실패');
+            }
+        } catch (error) {
+            console.error('Video generation error:', error);
+            Utils.showToast('영상 생성 실패: ' + error.message, 'error');
+        } finally {
+            Utils.setLoading(btn, false);
+        }
+    }
+
+    async function updateVideoStatus(videoId, taskId) {
+        const maxAttempts = 60; // 최대 10분 (10초 간격)
+        let attempts = 0;
+
+        const statusInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/shorts/video-status/${videoId}`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    const video = result.video;
+                    const statusDetails = document.getElementById('videoStatusDetails');
+
+                    if (video.status === 'completed') {
+                        clearInterval(statusInterval);
+                        document.getElementById('videoStatusSection').classList.add('hidden');
+                        showGeneratedVideos();
+                        Utils.showToast('영상 생성이 완료되었습니다!', 'success');
+                    } else if (video.status === 'failed') {
+                        clearInterval(statusInterval);
+                        statusDetails.innerHTML = `<span class="text-red-600">영상 생성 실패: ${video.error_message || '알 수 없는 오류'}</span>`;
+                    } else {
+                        statusDetails.innerHTML = `<span class="text-blue-600">${video.status === 'processing' ? '처리 중...' : '대기 중...'}</span>`;
+                    }
+                }
+
+                attempts++;
+                if (attempts >= maxAttempts) {
+                    clearInterval(statusInterval);
+                    Utils.showToast('영상 생성 시간이 초과되었습니다', 'error');
+                }
+            } catch (error) {
+                console.error('Status check error:', error);
+            }
+        }, 10000); // 10초마다 확인
+    }
+
+    async function showGeneratedVideos() {
+        try {
+            const projectId = getCurrentProject();
+            if (!projectId) {
+                // 프로젝트가 없으면 전체 목록 조회
+                const response = await fetch('/api/shorts/videos');
+                const result = await response.json();
+
+                if (result.status === 'success' && result.videos.length > 0) {
+                    displayGeneratedVideos(result.videos);
+                }
+            } else {
+                // 프로젝트별 조회
+                const response = await fetch(`/api/shorts/videos/${projectId}`);
+                const result = await response.json();
+
+                if (result.status === 'success' && result.videos.length > 0) {
+                    displayGeneratedVideos(result.videos);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load videos:', error);
+        }
+    }
+
+    function displayGeneratedVideos(videos) {
+        const container = document.getElementById('generatedVideosList');
+        const section = document.getElementById('generatedVideosSection');
+
+        if (videos.length === 0) {
+            section.classList.add('hidden');
+            return;
+        }
+
+        section.classList.remove('hidden');
+        container.innerHTML = videos.map(video => `
+            <div class="flex gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 transition-all">
+                <div class="flex-shrink-0">
+                    ${video.video_url ? `
+                        <video
+                            src="${video.video_url}"
+                            class="w-32 h-48 object-cover rounded-lg cursor-pointer"
+                            onclick="playVideo('${video.video_url}')"
+                            onmouseover="this.play()"
+                            onmouseout="this.pause(); this.currentTime=0;"
+                            muted
+                            loop
+                        ></video>
+                    ` : `
+                        <div class="w-32 h-48 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                            <span class="text-4xl">🎬</span>
+                        </div>
+                    `}
+                </div>
+
+                <div class="flex-1">
+                    <h4 class="font-bold text-lg mb-1">${video.short_title || '숏폼 영상'}</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        스타일: ${video.video_style} |
+                        생성일: ${new Date(video.created_at).toLocaleDateString()}
+                    </p>
+
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="px-2 py-1 rounded text-xs ${
+                            video.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200' :
+                            video.status === 'processing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
+                            video.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                        }">
+                            ${video.status === 'completed' ? '✅ 완료' :
+                              video.status === 'processing' ? '⏳ 처리 중' :
+                              video.status === 'failed' ? '❌ 실패' : '⏸️ 대기 중'}
+                        </span>
+                    </div>
+
+                    ${video.hook ? `<p class="text-sm text-gray-600 dark:text-gray-400 italic">"${video.hook}"</p>` : ''}
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    ${video.video_url ? `
+                        <button onclick="playVideo('${video.video_url}')" class="btn-primary px-3 py-2 text-sm whitespace-nowrap">
+                            ▶️ 재생
+                        </button>
+                        <a href="${video.video_url}" download class="btn-secondary px-3 py-2 text-sm text-center whitespace-nowrap">
+                            ⬇️ 다운로드
+                        </a>
+                    ` : ''}
+                    <button onclick="deleteShortVideo(${video.id})" class="btn-danger px-3 py-2 text-sm whitespace-nowrap">
+                        🗑️ 삭제
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function playVideo(videoUrl) {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+        modal.onclick = () => modal.remove();
+
+        modal.innerHTML = `
+            <div class="relative max-w-2xl w-full p-4" onclick="event.stopPropagation()">
+                <button
+                    onclick="this.closest('.fixed').remove()"
+                    class="absolute top-2 right-2 bg-white rounded-full w-10 h-10 flex items-center justify-center text-2xl hover:bg-gray-200 z-10"
+                >
+                    ×
+                </button>
+                <video
+                    src="${videoUrl}"
+                    class="w-full rounded-lg shadow-2xl"
+                    controls
+                    autoplay
+                ></video>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+    }
+
+    async function deleteShortVideo(videoId) {
+        if (!confirm('이 영상을 삭제하시겠습니까?')) return;
+
+        try {
+            const response = await fetch(`/api/shorts/videos/${videoId}`, { method: 'DELETE' });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                Utils.showToast('영상이 삭제되었습니다', 'success');
+                showGeneratedVideos();
+            } else {
+                throw new Error(result.message || '삭제 실패');
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            Utils.showToast('영상 삭제 실패: ' + error.message, 'error');
+        }
+    }
+
+    function getCurrentProject() {
+        // URL에서 프로젝트 ID 추출
+        const pathParts = window.location.pathname.split('/');
+        const projectIndex = pathParts.indexOf('projects');
+        if (projectIndex !== -1 && pathParts[projectIndex + 1]) {
+            return parseInt(pathParts[projectIndex + 1]);
+        }
+        return null;
+    }
+
+    // ============ TopView AI 모델 관리 ============
+
+    async function loadTopViewModels() {
+        try {
+            const response = await fetch('/api/topview/models');
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                topViewModels = result.models;
+                renderAvatarOptions();
+                renderVoiceOptions();
+            }
+        } catch (error) {
+            console.error('Failed to load TopView models:', error);
+            // 기본 옵션으로 폴백
+            loadFallbackModels();
+        }
+    }
+
+    function loadFallbackModels() {
+        // API 호출 실패시 기본 옵션 제공
+        topViewModels = {
+            avatars: [
+                { id: 'AIAvatar1780521406560067586', name: '기본 여성 아바타', description: '전문적인 여성 아바타' },
+                { id: 'AIAvatar1780521406560067587', name: '기본 남성 아바타', description: '전문적인 남성 아바타' },
+            ],
+            voices: [
+                { id: 'TtsVoice1780829871032872962', name: '기본 여성 음성', description: '명료한 한국어 여성 음성' },
+                { id: 'TtsVoice1780829871032872963', name: '기본 남성 음성', description: '저명한 한국어 남성 음성' },
+            ]
+        };
+        renderAvatarOptions();
+        renderVoiceOptions();
+    }
+
+    function renderAvatarOptions() {
+        const select = document.getElementById('avatarSelect');
+        select.innerHTML = '<option value="">아바타 선택</option>';
+
+        topViewModels.avatars.forEach(avatar => {
+            const option = document.createElement('option');
+            option.value = avatar.id;
+            option.textContent = `${avatar.name} - ${avatar.description}`;
+            select.appendChild(option);
+        });
+
+        // 저장된 설정이 있으면 적용
+        if (currentShortsSettings.avatar_id) {
+            select.value = currentShortsSettings.avatar_id;
+            updateAvatarPreview(currentShortsSettings.avatar_id);
+        }
+
+        // 이벤트 리스너 추가
+        select.addEventListener('change', (e) => {
+            updateAvatarPreview(e.target.value);
+            currentShortsSettings.avatar_id = e.target.value;
+        });
+    }
+
+    function renderVoiceOptions() {
+        const select = document.getElementById('voiceSelect');
+        select.innerHTML = '<option value="">음성 선택</option>';
+
+        topViewModels.voices.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.id;
+            option.textContent = `${voice.name} - ${voice.description}`;
+            select.appendChild(option);
+        });
+
+        // 저장된 설정이 있으면 적용
+        if (currentShortsSettings.voice_id) {
+            select.value = currentShortsSettings.voice_id;
+        }
+
+        // 이벤트 리스너 추가
+        select.addEventListener('change', (e) => {
+            currentShortsSettings.voice_id = e.target.value;
+        });
+    }
+
+    function updateAvatarPreview(avatarId) {
+        const preview = document.getElementById('avatarPreview');
+        const nameEl = document.getElementById('avatarName');
+        const descEl = document.getElementById('avatarDesc');
+
+        const avatar = topViewModels.avatars.find(a => a.id === avatarId);
+        if (avatar) {
+            preview.classList.remove('hidden');
+            nameEl.textContent = avatar.name;
+            descEl.textContent = avatar.description;
+        } else {
+            preview.classList.add('hidden');
+        }
+    }
+
+    async function saveShortsVideoSettings() {
+        const avatarId = document.getElementById('avatarSelect').value;
+        const voiceId = document.getElementById('voiceSelect').value;
+        const backgroundStyle = document.getElementById('backgroundSelect').value;
+        const videoLength = parseInt(document.getElementById('lengthSelect').value);
+
+        if (!avatarId) {
+            Utils.showToast('아바타를 선택해주세요', 'warning');
+            return;
+        }
+
+        if (!voiceId) {
+            Utils.showToast('음성 모델을 선택해주세요', 'warning');
+            return;
+        }
+
+        const settings = {
+            avatar_id: avatarId,
+            voice_id: voiceId,
+            background_style: backgroundStyle,
+            video_length: videoLength
+        };
+
+        try {
+            const projectId = getCurrentProject();
+            const response = await fetch('/api/shorts/video-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...settings,
+                    project_id: projectId
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                currentShortsSettings = settings;
+                Utils.showToast('영상 설정이 저장되었습니다', 'success');
+                document.getElementById('savedSettings').classList.remove('hidden');
+            } else {
+                throw new Error(result.message || '저장 실패');
+            }
+        } catch (error) {
+            console.error('Settings save error:', error);
+            Utils.showToast('설정 저장 실패: ' + error.message, 'error');
+        }
+    }
+
+    async function applyShortsVideoSettings() {
+        const avatarId = document.getElementById('avatarSelect').value;
+        const voiceId = document.getElementById('voiceSelect').value;
+        const backgroundStyle = document.getElementById('backgroundSelect').value;
+        const videoLength = parseInt(document.getElementById('lengthSelect').value);
+
+        if (!avatarId || !voiceId) {
+            Utils.showToast('아바타와 음성 모델을 모두 선택해주세요', 'warning');
+            return;
+        }
+
+        currentShortsSettings = {
+            avatar_id: avatarId,
+            voice_id: voiceId,
+            background_style: backgroundStyle,
+            video_length: videoLength
+        };
+
+        Utils.showToast('설정이 적용되었습니다', 'success');
+    }
+
+    async function loadSavedShortsVideoSettings() {
+        try {
+            const projectId = getCurrentProject();
+            let url = '/api/shorts/video-settings';
+
+            if (projectId) {
+                url += `?project_id=${projectId}`;
+            }
+
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.status === 'success' && result.settings) {
+                const settings = result.settings;
+
+                // UI 업데이트
+                document.getElementById('avatarSelect').value = settings.avatar_id || '';
+                document.getElementById('voiceSelect').value = settings.voice_id || '';
+                document.getElementById('backgroundSelect').value = settings.background_style || 'studio';
+                document.getElementById('lengthSelect').value = settings.video_length || 30;
+
+                // 내부 상태 업데이트
+                currentShortsSettings = {
+                    avatar_id: settings.avatar_id,
+                    voice_id: settings.voice_id,
+                    background_style: settings.background_style,
+                    video_length: settings.video_length
+                };
+
+                // 아바타 미리보기 업데이트
+                if (settings.avatar_id) {
+                    updateAvatarPreview(settings.avatar_id);
+                }
+
+                Utils.showToast('저장된 설정을 불러왔습니다', 'success');
+            } else {
+                Utils.showToast('저장된 설정이 없습니다', 'info');
+            }
+        } catch (error) {
+            console.error('Settings load error:', error);
+            Utils.showToast('설정 불러오기 실패: ' + error.message, 'error');
+        }
+    }
+
+    // 페이지 로드시 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTopViewModels();
+        loadSavedShortsVideoSettings();
+    });
 </script>
 {% endblock %}

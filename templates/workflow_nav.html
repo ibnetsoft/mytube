@@ -1,0 +1,45 @@
+﻿<!-- Workflow Step Navigation Component -->
+{% set workflow_steps = [
+  {"id": "project",      "label": "Project",         "icon": none, "url": "/projects?view=projects"},
+  {"id": "plan",         "label": "Script Plan",     "icon": none, "url": "/script-plan"},
+  {"id": "script",       "label": "Script Gen",     "icon": none, "url": "/script-gen"},
+  {"id": "scene_split",  "label": "Scene Split",     "icon": none, "url": "/scene-split"},
+  {"id": "image_prompt", "label": "Image Prompt",    "icon": none, "url": "/image-gen"},
+  {"id": "video_prompt", "label": "Video Prompt",    "icon": none, "url": "/video-prompts"},
+  {"id": "asset_upload", "label": "Asset Upload",    "icon": none, "url": "/asset-upload"},
+  {"id": "matching",     "label": "Matching",        "icon": none, "url": "#"},
+  {"id": "timeline",     "label": "Timeline",        "icon": none, "url": "#"},
+  {"id": "export",       "label": "Export",          "icon": none, "url": "#"},
+] %}
+<div class="mb-4 overflow-x-auto custom-scrollbar" style="-webkit-overflow-scrolling:touch;">
+  <div class="flex items-center gap-0 min-w-max bg-[#1c2027]/60 border border-white/5 rounded-xl px-3 py-2.5">
+    {% for step in workflow_steps %}
+    <div class="flex items-center">
+      {# Build URL: if step.url starts with #, no query params; otherwise append project_id #}
+      {% set step_url = step.url %}
+      {% if step.url != "#" and project_id %}
+        {% if "?" in step.url %}
+          {% set step_url = step.url + "&project_id=" + project_id | string | urlencode %}
+        {% else %}
+          {% set step_url = step.url + "?project_id=" + project_id | string | urlencode %}
+        {% endif %}
+      {% endif %}
+      {% set _current_step = current_step|default("") %}
+      <a href="{{ step_url }}"
+         class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap
+                {% if step.url == "#" %}pointer-events-none opacity-40 cursor-not-allowed{% endif %}
+                {% if step.id == _current_step %}
+                  bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-sm shadow-blue-500/10
+                {% else %}
+                  text-gray-500 hover:text-gray-300 hover:bg-white/5
+                {% endif %}">
+        <span>{{ loop.index }}</span>
+        <span>{{ step.label }}</span>
+      </a>
+      {% if not loop.last %}
+      <div class="w-4 h-px bg-white/5 mx-1"></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>

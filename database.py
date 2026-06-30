@@ -4867,3 +4867,243 @@ def delete_user_data(email: str) -> bool:
         print(f"[DB Delete] Error deleting user data for {email}: {e}")
         return False
 
+# ============ 숏폼 비디오 관련 함수 ============
+
+def create_shorts_video(video_data):
+    """숏폼 비디오 레코드 생성"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO shorts_videos (
+            short_index, short_title, hook, script, video_style,
+            avatar_style, project_id, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        video_data.get('short_index', 0),
+        video_data.get('short_title', ''),
+        video_data.get('hook', ''),
+        video_data.get('script', ''),
+        video_data.get('video_style', 'vlog'),
+        video_data.get('avatar_style', 'default'),
+        video_data.get('project_id'),
+        video_data.get('status', 'pending')
+    ))
+
+    video_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return video_id
+
+def update_shorts_video(video_id, updates):
+    """숏폼 비디오 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    set_clauses = []
+    values = []
+
+    for key, value in updates.items():
+        if key == 'meta_data':
+            value = json.dumps(value) if value else None
+        set_clauses.append(f"{key} = ?")
+        values.append(value)
+
+    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+
+    query = f"""
+        UPDATE shorts_videos
+        SET {', '.join(set_clauses)}
+        WHERE id = ?
+    """
+
+    values.append(video_id)
+
+    cursor.execute(query, values)
+    conn.commit()
+    conn.close()
+
+def get_shorts_video(video_id):
+    """특정 숏폼 비디오 조회"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM shorts_videos WHERE id = ?
+    """, (video_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    video = dict(row)
+
+    if video.get('meta_data'):
+        try:
+            video['meta_data'] = json.loads(video['meta_data'])
+        except Exception:
+            video['meta_data'] = {}
+
+    return video
+
+def get_all_shorts_videos(limit=50):
+    """모든 숏폼 비디오 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM shorts_videos
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (limit,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    videos = []
+    for row in rows:
+        video = dict(row)
+
+        if video.get('meta_data'):
+            try:
+                video['meta_data'] = json.loads(video['meta_data'])
+            except Exception:
+                video['meta_data'] = {}
+
+        videos.append(video)
+
+    return videos
+
+def get_project_shorts_videos(project_id, limit=50):
+    """프로젝트별 숏폼 비디오 조회"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM shorts_videos
+        WHERE project_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (project_id, limit))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    videos = []
+    for row in rows:
+        video = dict(row)
+
+        if video.get('meta_data'):
+            try:
+                video['meta_data'] = json.loads(video['meta_data'])
+            except Exception:
+                video['meta_data'] = {}
+
+        videos.append(video)
+
+    return videos
+
+def delete_shorts_video(video_id):
+    """숏폼 비디오 삭제"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DELETE FROM shorts_videos WHERE id = ?
+    """, (video_id,))
+
+    conn.commit()
+    conn.close()
+
+# ============ 숏폼 비디오 설정 관련 함수 ============
+
+def create_shorts_video_settings(project_id: int, settings: dict) -> bool:
+    """숏폼 비디오 설정 생성"""
+    import json
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            INSERT INTO shorts_video_settings (
+                project_id, avatar_id, voice_id, background_style,
+                video_length, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """, (
+            project_id,
+            settings.get('avatar_id'),
+            settings.get('voice_id'),
+            settings.get('background_style', 'studio'),
+            settings.get('video_length', 30)
+        ))
+
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Failed to create shorts video settings: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def update_shorts_video_settings(project_id: int, settings: dict) -> bool:
+    """숏폼 비디오 설정 업데이트"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        set_clauses = []
+        values = []
+
+        for key, value in settings.items():
+            if key in ['avatar_id', 'voice_id', 'background_style', 'video_length']:
+                set_clauses.append(f"{key} = ?")
+                values.append(value)
+
+        if not set_clauses:
+            return True
+
+        set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+        query = f"""
+            UPDATE shorts_video_settings
+            SET {', '.join(set_clauses)}
+            WHERE project_id = ?
+        """
+        values.append(project_id)
+
+        cursor.execute(query, values)
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Failed to update shorts video settings: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def get_shorts_video_settings(project_id: int) -> dict:
+    """프로젝트별 숏폼 비디오 설정 조회"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT * FROM shorts_video_settings WHERE project_id = ?
+        """, (project_id,))
+
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return {}
+    except Exception as e:
+        print(f"Failed to get shorts video settings: {e}")
+        return {}
+    finally:
+        conn.close()
+

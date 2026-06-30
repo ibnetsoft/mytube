@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 import database as db
+from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 
 router = APIRouter(tags=["Pages"])
 
@@ -16,6 +17,30 @@ _templates: Optional[Jinja2Templates] = None
 def init_pages(templates: Jinja2Templates):
     global _templates
     _templates = templates
+
+
+def _resolve_page_mode(project_id: Optional[int] = None) -> str:
+    if project_id:
+        settings = db.get_project_settings(project_id) or {}
+        project_mode = settings.get("app_mode")
+        if not project_mode:
+            project = db.get_project(project_id) or {}
+            project_mode = project.get("app_mode")
+        if project_mode:
+            return normalize_app_mode(project_mode, DEFAULT_APP_MODE)
+    return normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE), DEFAULT_APP_MODE)
+
+
+def _is_standard_membership() -> bool:
+    from services.auth_service import auth_service
+    membership = (auth_service.get_membership() or "std").strip().lower()
+    return membership in ("std", "standard")
+
+
+def _route_with_project_id(base_path: str, project_id: Optional[int]) -> str:
+    if project_id:
+        return f"{base_path}?project_id={project_id}"
+    return base_path
 
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
@@ -39,19 +64,46 @@ async def page_index(request: Request):
     return RedirectResponse(url="/projects", status_code=302)
 
 @router.get("/projects", response_class=HTMLResponse)
-async def page_projects(request: Request):
-    return _render(request, "pages/projects.html", "projects", "nav_my_projects")
+async def page_projects(request: Request, view: Optional[str] = Query("topics")):
+    view_mode = "projects" if view == "projects" else "topics"
+    return _render(
+        request,
+        "pages/projects.html",
+        "projects",
+        "nav_topic" if view_mode == "topics" else "nav_my_projects",
+        view_mode=view_mode,
+    )
 
 @router.get("/script-plan", response_class=HTMLResponse)
-async def page_script_plan(request: Request):
-    app_mode = db.get_global_setting("app_mode", "longform")
+async def page_script_plan(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
     if app_mode == "longform_music":
-        return RedirectResponse(url="/music-plan", status_code=302)
-    return _render(request, "pages/script_plan.html", "script-plan", "nav_plan")
+        return RedirectResponse(url=_route_with_project_id("/music-plan", project_id), status_code=302)
+    return _render(
+        request,
+        "pages/script_plan.html",
+        "script-plan",
+        "nav_plan",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
 
 @router.get("/music-plan", response_class=HTMLResponse)
-async def page_music_plan(request: Request):
-    return _render(request, "pages/music_plan.html", "music-plan", "nav_music_plan")
+async def page_music_plan(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if app_mode != "longform_music":
+        fallback = _route_with_project_id("/script-plan", project_id) if project_id else "/projects"
+        return RedirectResponse(url=fallback, status_code=302)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/music_plan.html",
+        "music-plan",
+        "nav_music_plan",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
 
 @router.get("/script-gen", response_class=HTMLResponse)
 async def page_script_gen(request: Request, project_id: Optional[int] = Query(None)):
@@ -167,6 +219,51 @@ async def page_shorts(request: Request):
 @router.get("/commerce-shorts", response_class=HTMLResponse)
 async def page_commerce_shorts(request: Request):
     return _render(request, "pages/commerce_shorts.html", "commerce-shorts", "nav_commerce_shorts")
+
+@router.get("/scene-split", response_class=HTMLResponse)
+async def page_scene_split(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/scene_split.html",
+        "scene-split",
+        "nav_plan",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
+
+
+@router.get("/video-prompts", response_class=HTMLResponse)
+async def page_video_prompts(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/video_prompts.html",
+        "video-prompts",
+        "nav_intro",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
+
+
+@router.get("/asset-upload", response_class=HTMLResponse)
+async def page_asset_upload(request: Request, project_id: Optional[int] = Query(None)):
+    app_mode = _resolve_page_mode(project_id)
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
+    return _render(
+        request,
+        "pages/asset_upload.html",
+        "asset-upload",
+        "nav_image",
+        app_mode=app_mode,
+        project_id=project_id,
+    )
+
 
 @router.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):

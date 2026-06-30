@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+{% set current_step = "video_prompt" %}
+{% set project_id = project_id or "" %}
+{% include "workflow_nav.html" %}
+
+<div class="max-w-6xl mx-auto space-y-6 animate-fadeIn">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-lg font-black text-white flex items-center gap-2">
+        <span class="text-blue-400">/</span> Video Prompt
+      </h2>
+      <p class="text-xs text-gray-400 mt-0.5">각 Scene의 영상 Motion Description을 편집합니다.</p>
+    </div>
+  </div>
+
+  <div id="sceneTable" class="bg-[#1c2027]/60 border border-white/5 rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+      <span class="text-xs font-bold text-gray-400">Scene <span id="sceneCount">0</span>개</span>
+      <span class="text-[10px] text-gray-500">motion_desc는 영상 생성 시 AI가 참조하는 움직임 설명입니다</span>
+    </div>
+    <div id="sceneList">
+      <div class="text-center py-10 text-gray-500 text-xs">씬 데이터를 불러오는 중...</div>
+    </div>
+  </div>
+
+  <div class="sticky bottom-4 flex justify-end">
+    <button onclick="saveAllMotionDescs()" id="btnSave"
+      class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg disabled:opacity-40">
+      저장
+    </button>
+  </div>
+
+  <div id="statusMsg" class="hidden text-xs text-center py-4 rounded-xl"></div>
+</div>
+
+<script>
+var currentProjectId = null;
+var scenes = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var params = new URLSearchParams(window.location.search);
+  currentProjectId = params.get('project_id') || localStorage.getItem('currentProjectId') || null;
+  if (!currentProjectId) {
+    showStatus('먼저 프로젝트를 선택해주세요.', 'amber');
+    return;
+  }
+  loadScenes();
+});
+
+function showStatus(msg, type) {
+  var el = document.getElementById('statusMsg');
+  el.classList.remove('hidden');
+  el.className = 'text-xs text-center py-4 rounded-xl ';
+  if (type === 'amber') el.className += 'bg-amber-500/10 border border-amber-500/20 text-amber-400';
+  else if (type === 'red') el.className += 'bg-red-500/10 border border-red-500/20 text-red-400';
+  else if (type === 'green') el.className += 'bg-green-500/10 border border-green-500/20 text-green-400';
+  el.textContent = msg;
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+async function loadScenes() {
+  try {
+    var res = await fetch('/api/projects/' + currentProjectId + '/image-prompts');
+    if (!res.ok) throw new Error('Scene 로드 실패 (' + res.status + ')');
+    var data = await res.json();
+    scenes = (data.prompts || []).sort(function(a, b) { return (a.scene_number || 0) - (b.scene_number || 0); });
+
+    if (scenes.length === 0) {
+      document.getElementById('sceneList').innerHTML = '<div class="text-center py-10 text-gray-500 text-xs">이미지 프롬프트가 없습니다. Scene Split 후 Image Prompt를 먼저 생성해주세요.</div>';
+      document.getElementById('sceneCount').textContent = '0';
+      return;
+    }
+
+    document.getElementById('sceneCount').textContent = scenes.length;
+    renderScenes();
+  } catch (e) {
+    document.getElementById('sceneList').innerHTML = '<div class="text-center py-10 text-red-400 text-xs">' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function renderScenes() {
+  var container = document.getElementById('sceneList');
+  container.innerHTML = '';
+  scenes.forEach(function(scene, idx) {
+    var num = scene.scene_number || (idx + 1);
+    var text = scene.scene_text || scene.prompt_ko || '';
+    var motionDesc = scene.motion_desc || '';
+
+    var div = document.createElement('div');
+    div.className = 'p-4 hover:bg-white/[0.02] transition-colors';
+    div.setAttribute('data-scene-num', num);
+
+    var innerHtml = '<div class="flex items-start gap-4">';
+    innerHtml += '<div class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">' + num + '</div>';
+    innerHtml += '<div class="flex-1 min-w-0 space-y-2">';
+    innerHtml += '<div class="text-[10px] text-gray-500 line-clamp-1">' + escapeHtml(text) + '</div>';
+    innerHtml += '<div><label class="text-[10px] text-gray-400 font-medium block mb-1">Motion Description</label>';
+    innerHtml += '<textarea data-scene="' + num + '" class="motion-input w-full bg-[#1c2027]/80 border border-white/10 rounded-lg px-3 py-2 text-xs text-gray-200 leading-relaxed resize-y min-h-[60px] focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all" placeholder="예: slow zoom in, gentle panning"></textarea></div>';
+    innerHtml += '</div>';
+
+    if (scene.image_url) {
+      innerHtml += '<div class="w-16 h-16 rounded-lg overflow-hidden bg-[#1c2027] border border-white/5 shrink-0"><img alt="Scene ' + num + '" class="w-full h-full object-cover" loading="lazy"></div>';
+    }
+    innerHtml += '</div>';
+
+    div.innerHTML = innerHtml;
+    container.appendChild(div);
+
+    // Set textarea value safely
+    var ta = div.querySelector('textarea');
+    ta.textContent = motionDesc;
+  });
+}
+
+async function saveAllMotionDescs() {
+  var btn = document.getElementById('btnSave');
+  btn.disabled = true;
+
+  try {
+    var inputs = document.querySelectorAll('.motion-input');
+    var successCount = 0;
+    var failCount = 0;
+
+    for (var i = 0; i < inputs.length; i++) {
+      var input = inputs[i];
+      var sceneNum = parseInt(input.getAttribute('data-scene'));
+      var desc = input.value.trim();
+
+      if (!desc) continue;
+
+      try {
+        var res = await fetch('/projects/' + currentProjectId + '/update-motion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scene_number: sceneNum, motion_desc: desc })
+        });
+        if (res.ok) successCount++;
+        else failCount++;
+      } catch (e) {
+        failCount++;
+      }
+    }
+
+    var totalMsg = successCount + '개 Scene 저장 완료';
+    if (failCount > 0) totalMsg += ', ' + failCount + '개 실패';
+    showStatus(totalMsg, failCount > 0 ? 'amber' : 'green');
+  } catch (e) {
+    showStatus('[오류] 저장 실패: ' + e.message, 'red');
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

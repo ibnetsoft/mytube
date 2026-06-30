@@ -134,18 +134,21 @@
 
             <!-- 네비게이션 (Scrollable) -->
             <nav class="px-2 py-1 flex-1 overflow-y-auto custom-scrollbar">
+                {% set projects_menu_label = '프로젝트' if current_lang == 'ko' else ('Projects' if current_lang == 'en' else ('Dự án' if current_lang == 'vi' else 'โปรเจกต์')) %}
+                {% set topics_menu_label = '주제' if current_lang == 'ko' else ('Topics' if current_lang == 'en' else ('Chủ đề' if current_lang == 'vi' else 'หัวข้อ')) %}
                 <ul class="space-y-0 text-[11px]">
                     <li>
-                        <a href="/projects" id="nav-projects"
-                            class="sidebar-item {% if page == 'projects' %}active{% endif %}">
+                        <a href="/projects?view=topics" id="nav-topics"
+                            class="sidebar-item {% if page == 'projects' and view_mode == 'topics' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_my_projects') }}</span>
+                            <span>{{ topics_menu_label }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['webtoon', 'longform_music'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
-                        <a href="/" id="nav-topic" class="sidebar-item {% if page == 'topic' %}active{% endif %}">
+                    <li>
+                        <a href="/projects?view=projects" id="nav-projects"
+                            class="sidebar-item {% if page == 'projects' and view_mode == 'projects' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
-                            <span>{{ t('nav_topic') }}</span>
+                            <span>{{ projects_menu_label }}</span>
                         </a>
                     </li>
                     <li class="hidden">
@@ -217,6 +220,27 @@
                             class="sidebar-item {% if page == 'template' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span>{{ t('nav_shorts_template') }}</span>
+                        </a>
+                    </li>
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
+                        <a href="/scene-split" id="nav-scene-split"
+                            class="sidebar-item {% if page == 'scene-split' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span>{% if current_lang == 'ko' %}Scene Split{% elif current_lang == 'en' %}Scene Split{% elif current_lang == 'vi' %}Phan Scene{% elif current_lang == 'th' %}แบ่ง Scene{% else %}Scene Split{% endif %}</span>
+                        </a>
+                    </li>
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
+                        <a href="/video-prompts" id="nav-video-prompts"
+                            class="sidebar-item {% if page == 'video-prompts' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span>{% if current_lang == 'ko' %}Video Prompt{% elif current_lang == 'en' %}Video Prompt{% elif current_lang == 'vi' %}Mo ta Chuyen dong{% elif current_lang == 'th' %}Video Prompt{% else %}Video Prompt{% endif %}</span>
+                        </a>
+                    </li>
+                    <li class="{% if app_mode in ['commerce', 'longform_music'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
+                        <a href="/asset-upload" id="nav-asset-upload"
+                            class="sidebar-item {% if page == 'asset-upload' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span>{% if current_lang == 'ko' %}Asset Upload{% elif current_lang == 'en' %}Asset Upload{% elif current_lang == 'vi' %}Tai Asset len{% elif current_lang == 'th' %}Asset Upload{% else %}Asset Upload{% endif %}</span>
                         </a>
                     </li>
                     <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %}">

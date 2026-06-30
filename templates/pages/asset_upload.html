@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block content %}
+{% set current_step = "asset_upload" %}
+{% set project_id = project_id or "" %}
+{% include "workflow_nav.html" %}
+
+<div class="max-w-6xl mx-auto space-y-6 animate-fadeIn">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-lg font-black text-white flex items-center gap-2">
+        <span class="text-blue-400">/</span> Asset Upload
+      </h2>
+      <p class="text-xs text-gray-400 mt-0.5">각 Scene에 사용할 이미지 또는 비디오 파일을 업로드합니다.</p>
+    </div>
+    <div class="flex items-center gap-2 text-[10px] text-gray-500">
+      <span>지원:</span>
+      <span class="bg-white/5 px-2 py-0.5 rounded">JPG, PNG, WebP</span>
+      <span class="bg-white/5 px-2 py-0.5 rounded">MP4, WebM, MOV</span>
+    </div>
+  </div>
+
+  <div id="sceneGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="col-span-full text-center py-10 text-gray-500 text-xs">씬 데이터를 불러오는 중...</div>
+  </div>
+
+  <div id="statusMsg" class="hidden text-xs text-center py-4 rounded-xl"></div>
+</div>
+
+<script>
+var currentProjectId = null;
+var scenes = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  var params = new URLSearchParams(window.location.search);
+  currentProjectId = params.get('project_id') || localStorage.getItem('currentProjectId') || null;
+  if (!currentProjectId) {
+    showStatus('먼저 프로젝트를 선택해주세요.', 'amber');
+    return;
+  }
+  loadScenes();
+});
+
+function showStatus(msg, type) {
+  var el = document.getElementById('statusMsg');
+  el.classList.remove('hidden');
+  el.className = 'text-xs text-center py-4 rounded-xl ';
+  if (type === 'amber') el.className += 'bg-amber-500/10 border border-amber-500/20 text-amber-400';
+  else if (type === 'red') el.className += 'bg-red-500/10 border border-red-500/20 text-red-400';
+  else if (type === 'green') el.className += 'bg-green-500/10 border border-green-500/20 text-green-400';
+  el.textContent = msg;
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+async function loadScenes() {
+  try {
+    var res = await fetch('/api/projects/' + currentProjectId + '/image-prompts');
+    if (!res.ok) throw new Error('Scene 로드 실패 (' + res.status + ')');
+    var data = await res.json();
+    scenes = (data.prompts || []).sort(function(a, b) { return (a.scene_number || 0) - (b.scene_number || 0); });
+    render();
+  } catch (e) {
+    document.getElementById('sceneGrid').innerHTML = '<div class="col-span-full text-center py-10 text-red-400 text-xs">' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function render() {
+  var grid = document.getElementById('sceneGrid');
+  grid.innerHTML = '';
+
+  if (scenes.length === 0) {
+    grid.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 text-xs">이미지 프롬프트가 없습니다. Scene Split 후 Image Prompt를 먼저 생성해주세요.</div>';
+    return;
+  }
+
+  scenes.forEach(function(scene, idx) {
+    var num = scene.scene_number || (idx + 1);
+    var text = scene.scene_text || scene.prompt_ko || '';
+    var hasImage = !!scene.image_url;
+    var hasVideo = !!scene.video_url;
+
+    var card = document.createElement('div');
+    card.className = 'bg-[#1c2027]/60 border border-white/5 rounded-xl p-4 space-y-3';
+    card.id = 'scene-card-' + num;
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'flex items-center justify-between';
+    var headerLeft = document.createElement('div');
+    headerLeft.className = 'flex items-center gap-2';
+    var badge = document.createElement('span');
+    badge.className = 'w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold';
+    badge.textContent = num;
+    headerLeft.appendChild(badge);
+    var titleEl = document.createElement('span');
+    titleEl.className = 'text-xs font-medium text-gray-300 line-clamp-1';
+    titleEl.textContent = text.substring(0, 60);
+    headerLeft.appendChild(titleEl);
+    header.appendChild(headerLeft);
+
+    var badges = document.createElement('div');
+    badges.className = 'flex items-center gap-2';
+    var imgBadge = document.createElement('span');
+    imgBadge.className = 'text-[10px] ' + (hasImage ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400') + ' px-2 py-0.5 rounded-full font-bold';
+    imgBadge.textContent = hasImage ? 'Image' : 'Image 필요';
+    badges.appendChild(imgBadge);
+    var vidBadge = document.createElement('span');
+    vidBadge.className = 'text-[10px] ' + (hasVideo ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400') + ' px-2 py-0.5 rounded-full font-bold';
+    vidBadge.textContent = hasVideo ? 'Video' : 'Video 필요';
+    badges.appendChild(vidBadge);
+    header.appendChild(badges);
+    card.appendChild(header);
+
+    // Preview
+    var preview = document.createElement('div');
+    preview.className = 'flex gap-3';
+    var imgCol = document.createElement('div');
+    imgCol.className = 'flex-1';
+    var imgLabel = document.createElement('div');
+    imgLabel.className = 'text-[10px] text-gray-500 mb-1';
+    imgLabel.textContent = 'Scene Image';
+    imgCol.appendChild(imgLabel);
+    if (hasImage) {
+      var imgEl = document.createElement('img');
+      imgEl.className = 'w-full h-24 object-cover rounded-lg border border-white/5 bg-[#1c2027]';
+      imgEl.loading = 'lazy';
+      imgEl.alt = 'Scene ' + num;
+      imgEl.src = scene.image_url;
+      imgCol.appendChild(imgEl);
+    } else {
+      var emptyImg = document.createElement('div');
+      emptyImg.className = 'w-full h-24 rounded-lg bg-[#1c2027]/80 border border-dashed border-white/10 flex items-center justify-center text-gray-600 text-[10px]';
+      emptyImg.textContent = '이미지 없음';
+      imgCol.appendChild(emptyImg);
+    }
+    preview.appendChild(imgCol);
+
+    var vidCol = document.createElement('div');
+    vidCol.className = 'flex-1';
+    var vidLabel = document.createElement('div');
+    vidLabel.className = 'text-[10px] text-gray-500 mb-1';
+    vidLabel.textContent = 'Scene Video';
+    vidCol.appendChild(vidLabel);
+    if (hasVideo) {
+      var vidEl = document.createElement('video');
+      vidEl.className = 'w-full h-24 object-cover rounded-lg border border-white/5 bg-[#1c2027]';
+      vidEl.src = scene.video_url;
+      vidEl.muted = true;
+      vidEl.loop = true;
+      vidEl.alt = 'Scene ' + num;
+      vidCol.appendChild(vidEl);
+    } else {
+      var emptyVid = document.createElement('div');
+      emptyVid.className = 'w-full h-24 rounded-lg bg-[#1c2027]/80 border border-dashed border-white/10 flex items-center justify-center text-gray-600 text-[10px]';
+      emptyVid.textContent = '비디오 없음';
+      vidCol.appendChild(emptyVid);
+    }
+    preview.appendChild(vidCol);
+    card.appendChild(preview);
+
+    // Upload buttons
+    var controls = document.createElement('div');
+    controls.className = 'flex items-center gap-3 pt-2 border-t border-white/5';
+
+    var imgBtn = document.createElement('label');
+    imgBtn.className = 'flex-1 flex items-center gap-2 cursor-pointer bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg px-3 py-2 transition-all text-xs font-bold';
+    imgBtn.innerHTML = '이미지 업로드';
+    var imgFile = document.createElement('input');
+    imgFile.type = 'file';
+    imgFile.accept = '.jpg,.jpeg,.png,.webp';
+    imgFile.className = 'hidden';
+    imgFile.setAttribute('onchange', 'uploadFile(' + num + ', this, "image")');
+    imgBtn.appendChild(imgFile);
+    controls.appendChild(imgBtn);
+
+    var vidBtn = document.createElement('label');
+    vidBtn.className = 'flex-1 flex items-center gap-2 cursor-pointer bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg px-3 py-2 transition-all text-xs font-bold';
+    vidBtn.innerHTML = '비디오 업로드';
+    var vidFile = document.createElement('input');
+    vidFile.type = 'file';
+    vidFile.accept = '.mp4,.webm,.mov';
+    vidFile.className = 'hidden';
+    vidFile.setAttribute('onchange', 'uploadFile(' + num + ', this, "video")');
+    vidBtn.appendChild(vidFile);
+    controls.appendChild(vidBtn);
+    card.appendChild(controls);
+
+    // Progress
+    var progress = document.createElement('div');
+    progress.id = 'upload-progress-' + num;
+    progress.className = 'hidden';
+    var barWrap = document.createElement('div');
+    barWrap.className = 'w-full bg-white/5 rounded-full h-1.5 overflow-hidden';
+    var bar = document.createElement('div');
+    bar.id = 'progress-bar-' + num;
+    bar.className = 'h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full';
+    bar.style.width = '0%';
+    barWrap.appendChild(bar);
+    progress.appendChild(barWrap);
+    var ptext = document.createElement('span');
+    ptext.id = 'progress-text-' + num;
+    ptext.className = 'text-[10px] text-gray-500';
+    progress.appendChild(ptext);
+    card.appendChild(progress);
+
+    grid.appendChild(card);
+  });
+}
+
+async function uploadFile(sceneNum, input, type) {
+  var file = input.files[0];
+  if (!file) return;
+
+  var maxSize = type === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024;
+  if (file.size > maxSize) {
+    showStatus('파일이 너무 큽니다. (' + (type === 'image' ? '10MB' : '100MB') + ' 제한)', 'amber');
+    input.value = '';
+    return;
+  }
+
+  var progressDiv = document.getElementById('upload-progress-' + sceneNum);
+  var bar = document.getElementById('progress-bar-' + sceneNum);
+  var textEl = document.getElementById('progress-text-' + sceneNum);
+  progressDiv.classList.remove('hidden');
+
+  try {
+    var formData = new FormData();
+    formData.append('project_id', currentProjectId);
+    formData.append('scene_number', String(sceneNum));
+    formData.append('file', file);
+    formData.append('replace_existing', 'true');
+
+    bar.style.width = '30%';
+    textEl.textContent = '업로드 중...';
+
+    var res = await fetch('/api/image/upload-scene', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      var errData = {};
+      try { errData = await res.json(); } catch(e) {}
+      throw new Error(errData.detail || errData.error || '업로드 실패 (' + res.status + ')');
+    }
+
+    bar.style.width = '100%';
+    textEl.textContent = '업로드 완료';
+    showStatus('Scene ' + sceneNum + ' ' + (type === 'image' ? '이미지' : '비디오') + ' 업로드 완료', 'green');
+    setTimeout(function() { loadScenes(); }, 1000);
+
+  } catch (e) {
+    bar.style.width = '0%';
+    textEl.textContent = '[오류] ' + e.message;
+    showStatus('[오류] 업로드 실패: ' + e.message, 'red');
+  } finally {
+    input.value = '';
+  }
+}
+</script>
+{% endblock %}
