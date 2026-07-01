@@ -45,6 +45,12 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0111`
+  Completed a CTO-level Longform MVP validation across the 17-stage worker
+  journey. Focused Longform tests passed (`29 passed`), while the full suite
+  reached `42 passed` with one async test configuration failure. The service is
+  not ready for external Beta because backend project completion can contradict
+  Scene asset completeness and no canonical `assets_ready` contract exists.
 - `AIR-0110A`
   Consolidated AIR-0106 through AIR-0109 into one clean Longform integration branch based on current `origin/main`. This supersedes PR #5, #6, #7, and #8 and excludes the unrelated `36ac3364 feat(air-0001)` Shorts, payout, and database changes.
 - `AIR-0109`

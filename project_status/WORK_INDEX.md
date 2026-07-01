@@ -206,3 +206,23 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Rebuilt AIR-0106 through AIR-0109 as one clean integration branch from current `origin/main`, excluding the unrelated `36ac3364 feat(air-0001)` Shorts, payout, and database changes.
 - Next action:
   Merge the AIR-0110A clean integration PR instead of PR #5, #6, #7, or #8, then continue AIR-0110 browser verification.
+
+### AIR-0111
+- Status: Done
+- Commit: `716bcb09`
+- Related files:
+  - `docs/LONGFORM_MVP_VALIDATION.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/ROADMAP.md`
+  - `worknote/AIR-0111.md`
+  - `worknote/latest.md`
+- Short summary:
+  Validated the 17-stage Longform production journey against runtime code,
+  focused tests, the login screen, and actual SQLite state. The product is not
+  Beta-ready because Scene readiness and project completion do not share a
+  canonical backend contract.
+- Next action:
+  AIR-0112 should persist and enforce canonical `assets_ready` and
+  `project_complete` rules across review, render/export, and project status UI.
