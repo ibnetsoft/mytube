@@ -14,6 +14,25 @@
         </div>
     </div>
 
+    <div id="project-import-context"
+         class="hidden mb-6 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+                <p class="text-xs font-bold text-blue-400">Project Scene Import</p>
+                <p class="mt-1 text-xs text-gray-400">
+                    Project <span id="crop-project-id" class="font-bold text-white"></span>.
+                    Cropped panels can be imported directly into empty image slots.
+                </p>
+            </div>
+            <label class="text-xs text-gray-400">
+                First scene
+                <input id="crop-start-scene" type="number" min="1" value="1"
+                       class="ml-2 w-24 rounded border border-white/10 bg-[#1c2027] px-3 py-2 text-white">
+            </label>
+        </div>
+        <p id="crop-scene-range" class="mt-3 text-xs text-gray-500"></p>
+    </div>
+
     <!-- Main Workspace Grid -->
     <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
         <!-- Left Column: Upload & Files List -->
@@ -93,6 +112,11 @@
             </button>
         </div>
 
+        <button id="import-all-cropped-btn" onclick="importAllCroppedPanels()"
+                class="hidden w-full rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white hover:bg-blue-500">
+            Import all cropped panels into empty Scene slots
+        </button>
+
         <!-- Dynamic Grouping Container -->
         <div id="batch-files-results-container" class="space-y-8">
             <!-- Each file will have its own 4-panel result cards here -->
@@ -107,6 +131,10 @@
     let uploadedFiles = []; // Array of File objects
     let selectedFileIdx = 0;
     const croppedResults = {}; // { fileIdx: { 1: Blob, 2: Blob, 3: Blob, 4: Blob } }
+    const cropParams = new URLSearchParams(window.location.search);
+    const cropProjectId = cropParams.get('project_id');
+    let projectScenes = [];
+    let projectScenesLoaded = !cropProjectId;
 
     const fileInput = document.getElementById('grid-file-input');
     const uploadZone = document.getElementById('upload-zone');
@@ -120,6 +148,59 @@
     const previewFilenameTitle = document.getElementById('preview-filename-title');
     const cropAllSection = document.getElementById('crop-all-section');
     const batchFilesResultsContainer = document.getElementById('batch-files-results-container');
+    const startSceneInput = document.getElementById('crop-start-scene');
+
+    if (cropParams.get('start_scene')) {
+        startSceneInput.value = Math.max(1, Number(cropParams.get('start_scene')) || 1);
+    }
+
+    function getTargetSceneNumber(fileIndex, panelIndex) {
+        const start = Math.max(1, Number(startSceneInput.value) || 1);
+        return start + (fileIndex * 4) + panelIndex - 1;
+    }
+
+    function getCroppedFilename(fileIndex, panelIndex) {
+        if (cropProjectId) {
+            const sceneNumber = getTargetSceneNumber(fileIndex, panelIndex);
+            return `scene_${String(sceneNumber).padStart(3, '0')}_crop.png`;
+        }
+        const file = uploadedFiles[fileIndex];
+        const rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        const suffixes = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
+        return `${rawName}_cropped_${suffixes[panelIndex - 1]}.png`;
+    }
+
+    function getProjectScene(sceneNumber) {
+        return projectScenes.find(scene => Number(scene.scene_number) === Number(sceneNumber));
+    }
+
+    function updateSceneRangeText() {
+        const range = document.getElementById('crop-scene-range');
+        if (!range || !cropProjectId) return;
+        const start = Math.max(1, Number(startSceneInput.value) || 1);
+        const panelCount = Math.max(4, uploadedFiles.length * 4);
+        range.textContent = `Destination: Scene ${start} - ${start + panelCount - 1}. Existing image slots are skipped.`;
+    }
+
+    async function loadProjectScenes() {
+        if (!cropProjectId) return;
+        document.getElementById('project-import-context').classList.remove('hidden');
+        document.getElementById('import-all-cropped-btn').classList.remove('hidden');
+        updateSceneRangeText();
+        try {
+            const response = await fetch(`/api/projects/${encodeURIComponent(cropProjectId)}/image-prompts`);
+            const result = await response.json();
+            projectScenes = result.prompts || [];
+            document.getElementById('crop-project-id').textContent = cropProjectId;
+        } catch (error) {
+            Utils.showToast(`Could not load project scenes: ${error.message}`, 'error');
+        } finally {
+            projectScenesLoaded = true;
+        }
+    }
+
+    startSceneInput.addEventListener('change', updateSceneRangeText);
+    loadProjectScenes();
 
     // i18n dynamic mapping for JS
     const lang = "{{ current_lang }}" || window.currentLang || localStorage.getItem('language') || localStorage.getItem('login_lang') || 'ko';
@@ -305,6 +386,7 @@
             uploadedFiles.push(filesList[i]);
         }
         renderFilesList();
+        updateSceneRangeText();
     }
 
     function removeFile(idx) {
@@ -334,6 +416,7 @@
         uploadedFiles = [];
         Object.keys(croppedResults).forEach(k => delete croppedResults[k]);
         selectedFileIdx = 0;
+        startSceneInput.disabled = false;
         renderFilesList();
     }
 
@@ -402,6 +485,11 @@
 
     async function cropAllMultipleFiles() {
         if (uploadedFiles.length === 0) return;
+        if (cropProjectId && !projectScenesLoaded) {
+            Utils.showToast('Project scenes are still loading.', 'warning');
+            return;
+        }
+        startSceneInput.disabled = true;
         Utils.setLoading(document.getElementById('btn-crop-all'), true, i18nCrop.processing);
         batchFilesResultsContainer.innerHTML = '';
         
@@ -446,12 +534,29 @@
                     
                     const card = document.createElement('div');
                     card.className = "bg-[#1c2027]/50 rounded-xl border border-white/5 p-3 flex flex-col gap-2 group";
+                    const sceneNumber = getTargetSceneNumber(fIdx, panelIdx);
+                    const projectScene = getProjectScene(sceneNumber);
+                    const sceneExists = Boolean(projectScene);
+                    const sceneOccupied = Boolean(projectScene?.image_url);
+                    const importLabel = !sceneExists
+                        ? `Scene ${sceneNumber} unavailable`
+                        : sceneOccupied
+                            ? `Scene ${sceneNumber} occupied`
+                            : `Import to Scene ${sceneNumber}`;
                     card.innerHTML = `
                         <div class="aspect-video bg-black rounded-lg overflow-hidden border border-white/10 relative">
                             <img src="${objectURL}" class="w-full h-full object-cover">
                             <span class="absolute top-1.5 left-1.5 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">${panelLabels[panelIdx-1]}</span>
+                            ${cropProjectId ? `<span class="absolute top-1.5 right-1.5 bg-blue-600/90 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">Scene ${sceneNumber}</span>` : ''}
                         </div>
                         <button onclick="downloadSingleFileBlob(${fIdx}, ${panelIdx})" class="w-full py-1.5 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-[10px] font-bold transition">${i18nCrop.download}</button>
+                        ${cropProjectId ? `
+                            <button id="import-panel-${fIdx}-${panelIdx}"
+                                    onclick="importCroppedPanel(${fIdx}, ${panelIdx})"
+                                    ${(!sceneExists || sceneOccupied) ? 'disabled' : ''}
+                                    class="w-full py-1.5 rounded-lg text-[10px] font-bold transition ${(!sceneExists || sceneOccupied) ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500'}">
+                                ${importLabel}
+                            </button>` : ''}
                     `;
                     panelsGrid.appendChild(card);
                 }
@@ -471,30 +576,83 @@
     function downloadSingleFileBlob(fIdx, panelIdx) {
         if (!croppedResults[fIdx] || !croppedResults[fIdx][panelIdx]) return;
         const blob = croppedResults[fIdx][panelIdx];
-        const file = uploadedFiles[fIdx];
-        const rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-        
-        const suffixes = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${rawName}_cropped_${suffixes[panelIdx-1]}.png`;
+        a.download = getCroppedFilename(fIdx, panelIdx);
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+
+    async function importCroppedPanel(fIdx, panelIdx, quiet = false) {
+        if (!cropProjectId || !croppedResults[fIdx]?.[panelIdx]) return false;
+        const sceneNumber = getTargetSceneNumber(fIdx, panelIdx);
+        const scene = getProjectScene(sceneNumber);
+        if (!scene || scene.image_url) {
+            if (!quiet) Utils.showToast(`Scene ${sceneNumber} is unavailable or already has an image.`, 'warning');
+            return false;
+        }
+
+        const button = document.getElementById(`import-panel-${fIdx}-${panelIdx}`);
+        if (button) {
+            button.disabled = true;
+            button.textContent = `Importing Scene ${sceneNumber}...`;
+        }
+
+        const filename = getCroppedFilename(fIdx, panelIdx);
+        const file = new File([croppedResults[fIdx][panelIdx]], filename, { type: 'image/png' });
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', cropProjectId);
+        formData.append('scene_number', sceneNumber);
+        formData.append('replace_existing', 'false');
+
+        try {
+            const response = await fetch('/api/image/upload-scene', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (!response.ok || result.status !== 'ok') {
+                throw new Error(result.error || 'Import failed');
+            }
+            scene.image_url = result.url;
+            if (button) {
+                button.textContent = `Scene ${sceneNumber} imported`;
+                button.className = 'w-full py-1.5 rounded-lg text-[10px] font-bold bg-emerald-600/20 text-emerald-400';
+            }
+            if (!quiet) Utils.showToast(`Scene ${sceneNumber} image imported.`, 'success');
+            return true;
+        } catch (error) {
+            if (button) {
+                button.disabled = false;
+                button.textContent = `Retry Scene ${sceneNumber}`;
+            }
+            if (!quiet) Utils.showToast(`Scene ${sceneNumber} import failed: ${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    async function importAllCroppedPanels() {
+        if (!cropProjectId) return;
+        let imported = 0;
+        let skipped = 0;
+        for (let fIdx = 0; fIdx < uploadedFiles.length; fIdx++) {
+            for (let panelIdx = 1; panelIdx <= 4; panelIdx++) {
+                const ok = await importCroppedPanel(fIdx, panelIdx, true);
+                if (ok) imported += 1;
+                else skipped += 1;
+            }
+        }
+        Utils.showToast(`Imported ${imported} panel(s); skipped ${skipped}.`, imported ? 'success' : 'warning');
     }
 
     async function downloadAllZip() {
         const zip = new JSZip();
         
         uploadedFiles.forEach((file, fIdx) => {
-            const rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-            const suffixes = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
-            
             for (let panelIdx = 1; panelIdx <= 4; panelIdx++) {
                 if (croppedResults[fIdx] && croppedResults[fIdx][panelIdx]) {
                     const blob = croppedResults[fIdx][panelIdx];
-                    zip.file(`${rawName}_cropped_${suffixes[panelIdx-1]}.png`, blob);
+                    zip.file(getCroppedFilename(fIdx, panelIdx), blob);
                 }
             }
         });
