@@ -145,4 +145,3 @@ AIR Studio can be considered Beta-ready when all of the following are true:
 - missing, duplicate, invalid, and unmatched assets have visible recovery paths
 - the authenticated browser E2E scenario is repeatable
 - the deterministic test suite is green
-
