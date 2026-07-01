@@ -16,6 +16,10 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0120 PR #13 documentation cleanup.
+- Unified the Longform operation validation taxonomy to `PASS` / `FAIL` / `BLOCKED` only.
+- Finalized AIR-0118 in `WORK_INDEX` with commit `47dd2ffb`, PR `#13`, and status `Review Waiting`.
+- Confirmed PR #13 remains documentation-only with no runtime code changes.
 - Completed AIR-0118 merge handoff for PR #11.
 - Confirmed `main` now includes PR #11 at merge commit `0431b723`.
 - Created branch `air-0118-longform-operation-validation`.

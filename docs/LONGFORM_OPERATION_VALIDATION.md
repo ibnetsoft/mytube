@@ -53,15 +53,15 @@
 | 17 | Scene Review | BLOCKED | Scene Asset Review UI exists and displays prompt/image/video status, missing scenes, clip order, and completion bar. | Browser verification blocked. |
 | 18 | Scene approval | BLOCKED | Continue-to-TTS control is gated by canonical readiness state in the UI. | Browser verification blocked. |
 | 19 | `assets_ready` check | PASS | Backend-owned policy in `services/longform_asset_readiness.py`; focused readiness tests pass; project/API/template wiring exists. | Verified by code/tests/API contract, not browser. |
-| 20 | Export availability check | PARTIAL | Render blocking is enforced when incomplete; admin publish/export routes exist. | Real operator export/publish path remains browser-blocked and needs follow-up. |
+| 20 | Export availability check | BLOCKED | Render blocking is enforced when incomplete; admin publish/export routes exist. | Real operator export/publish path remains browser-blocked and needs follow-up. |
 
 ## Admin Validation Matrix
 
 | Area | Status | Evidence | Notes |
 | --- | --- | --- | --- |
-| Admin Publish request | PARTIAL | `POST /api/projects/{id}/admin-publish-request` exists; worker export docs say standard workers should use web-admin publishing registration. | Needs authenticated browser/admin execution with a rendered project. |
-| Export path | PARTIAL | Longform flow docs show `/video-upload?project_id={id}` and admin publish path; code contains worker restrictions and publish/upload branching. | Needs real rendered artifact and authenticated worker/admin flow. |
-| Readiness Gate | PASS for render / PARTIAL for publish-export | Longform render blocks on `assets_ready=false` with HTTP 409. Admin publish/export still needs end-to-end validation against the same readiness expectation. | Browser/admin proof still missing. |
+| Admin Publish request | BLOCKED | `POST /api/projects/{id}/admin-publish-request` exists; worker export docs say standard workers should use web-admin publishing registration. | Needs authenticated browser/admin execution with a rendered project. |
+| Export path | BLOCKED | Longform flow docs show `/video-upload?project_id={id}` and admin publish path; code contains worker restrictions and publish/upload branching. | Needs real rendered artifact and authenticated worker/admin flow. |
+| Readiness Gate | BLOCKED | Longform render blocks on `assets_ready=false` with HTTP 409. Admin publish/export still needs end-to-end validation against the same readiness expectation. | Browser/admin proof still missing. |
 
 ## Known Failures / Blockers
 
@@ -107,7 +107,7 @@
 - Worker browser flow: `BLOCKED`
 - Longform readiness contract: `PASS`
 - Render gate when incomplete: `PASS`
-- Admin publish/export operational proof: `PARTIAL`
+- Admin publish/export operational proof: `BLOCKED`
 
 ## Recommended Next Action
 1. Provision dedicated Longform worker test credentials.

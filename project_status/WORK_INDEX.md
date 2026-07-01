@@ -295,8 +295,9 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   AIR-0118 should validate the real operator workflow and admin publish/export path after PR #11 merges to `main`.
 
 ### AIR-0118
-- Status: In Progress
-- Commit: `pending`
+- Status: Review Waiting
+- Commit: `47dd2ffb`
+- PR: `#13`
 - Related files:
   - `docs/LONGFORM_OPERATION_VALIDATION.md`
   - `worknote/AIR-0118.md`
@@ -307,4 +308,4 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Short summary:
   Merged PR #11 to `main`, created branch `air-0118-longform-operation-validation`, and recorded the current Longform operational validation as blocked at authenticated browser execution because safe test credentials were unavailable.
 - Next action:
-  Open an AIR-0118 documentation PR now, then continue with a credential-backed follow-up to complete the full operator and admin workflow validation.
+  Keep PR #13 in review waiting, then continue with a credential-backed follow-up to complete the full operator and admin workflow validation.
