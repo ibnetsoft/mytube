@@ -101,29 +101,12 @@
         <!-- 우측: 미리보기 -->
         <div class="space-y-4">
             <div class="card p-3 h-full flex flex-col">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">🖼️ {{ t('label_preview') or '미리보기' }}</span>
-                        <!-- [NEW] Settings Save Button Moved Here -->
-                        <button type="button" onclick="savePermanentSettings()" id="saveSettingsBtn" 
-                            class="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
-                            title="전체 설정 저장">
-                            <span class="text-sm">💾</span>
-                        </button>
-                    </div>
-                    <div class="flex bg-[#1c2027] rounded-lg p-1 border border-gray-200 dark:border-gray-700">
-                        <button type="button" onclick="setAspectRatio('16:9')" id="ratio169Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">📺 16:9</button>
-                        <button type="button" onclick="setAspectRatio('9:16')" id="ratio916Btn"
-                            class="px-2 py-1 text-[10px] rounded transition-all hover:bg-[#0a0f1d] dark:hover:bg-[#0a0f1d]">📱 9:16</button>
-                    </div>
-                </div>
-                
                 <div id="previewContainer"
                     class="bg-pattern bg-[#1c2027] rounded-lg p-4 relative overflow-hidden flex items-center justify-center transition-all duration-300 mx-auto border-2 border-gray-300 dark:border-white/5 shadow-inner flex-1"
-                    style="width: 340px; min-height: 400px;">
+                    style="{% if app_mode == 'shorts' %}width: 340px; min-height: 400px; aspect-ratio: 9/16;{% else %}width: 100%; min-height: 260px; aspect-ratio: 16/9;{% endif %}">
                     <canvas id="thumbnailCanvas" 
-                        width="720" height="1280"
+                        width="{% if app_mode == 'shorts' %}720{% else %}1280{% endif %}"
+                        height="{% if app_mode == 'shorts' %}1280{% else %}720{% endif %}"
                         class="max-w-full max-h-full rounded-sm shadow-2xl bg-[#1c2027] transition-transform duration-300"></canvas>
                     <div id="previewPlaceholder"
                         class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -485,10 +468,10 @@
                 await loadImageStyles(savedImageStyle);
 
                 // [NEW] Auto Aspect Ratio based on Project Settings
-                if (settings?.aspect_ratio) {
+                if (appMode === 'shorts' && settings?.aspect_ratio) {
                     setAspectRatio(settings.aspect_ratio);
                 } else {
-                    // No saved ratio, use mode default
+                    // Longform always uses landscape; Shorts remains portrait by default.
                     setAspectRatio(appMode === 'shorts' ? '9:16' : '16:9');
                 }
 
@@ -2081,6 +2064,9 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
 
     // [NEW] Aspect Ratio Handler
     function setAspectRatio(ratio, save = true) {
+        if (appMode !== 'shorts') {
+            ratio = '16:9';
+        }
         currentAspectRatio = ratio;
         const canvas = document.getElementById('thumbnailCanvas');
         const previewContainer = document.getElementById('previewContainer');
@@ -2555,8 +2541,7 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
         }
 
         if (!state) {
-            // 저장된 상태 없음 → 항상 세로(9:16) 기본값
-            setAspectRatio('9:16', false);
+            setAspectRatio(appMode === 'shorts' ? '9:16' : '16:9', false);
             return;
         }
         try {
@@ -2580,8 +2565,8 @@ Generate only 1 idea and exactly 3 text candidates. Texts must be short and impa
             if (state.title) document.getElementById('videoTitle').value = state.title;
             // [MODIFIED] Do not apply defaults when restoring saved style
             if (state.style) selectThumbnailStyle(state.style, false);
-            // Aspect Ratio — 항상 세로(9:16) 기본값 (저장된 값 무시)
-            setAspectRatio('9:16', false);
+            // Never restore a portrait preview into Longform.
+            setAspectRatio(appMode === 'shorts' ? '9:16' : '16:9', false);
 
 
 

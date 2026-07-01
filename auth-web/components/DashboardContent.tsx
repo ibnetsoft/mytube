@@ -312,6 +312,12 @@ export default function DashboardContent() {
     const [presetGeminiInstruction, setPresetGeminiInstruction] = useState('')
     const [presetImageUrl, setPresetImageUrl] = useState('')
     const [isSavingPreset, setIsSavingPreset] = useState(false)
+    const [styleCatalogTab, setStyleCatalogTab] = useState<'image' | 'script' | 'thumbnail' | 'voice'>('image')
+    const [customVoices, setCustomVoices] = useState<any[]>([])
+    const [voiceName, setVoiceName] = useState('')
+    const [voiceId, setVoiceId] = useState('')
+    const [voicesLoading, setVoicesLoading] = useState(false)
+    const [voiceSaving, setVoiceSaving] = useState(false)
 
     // Auth & Access
     const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
@@ -1270,6 +1276,59 @@ export default function DashboardContent() {
         }
     }, [adminFetch])
 
+    const fetchCustomVoices = useCallback(async () => {
+        try {
+            setVoicesLoading(true)
+            const res = await adminFetch('/api/admin/voices')
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+            setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
+        } catch (e: any) {
+            alert('음성 목록 로드 실패: ' + (e?.message || String(e)))
+        } finally {
+            setVoicesLoading(false)
+        }
+    }, [adminFetch])
+
+    const handleSaveVoice = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!voiceName.trim() || !voiceId.trim()) {
+            alert('음성 이름과 ElevenLabs Voice ID를 입력해주세요.')
+            return
+        }
+        try {
+            setVoiceSaving(true)
+            const res = await adminFetch('/api/admin/voices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: voiceName.trim(), voice_id: voiceId.trim() })
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+            setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
+            setVoiceName('')
+            setVoiceId('')
+        } catch (e: any) {
+            alert('음성 저장 실패: ' + (e?.message || String(e)))
+        } finally {
+            setVoiceSaving(false)
+        }
+    }
+
+    const handleDeleteVoice = async (targetVoiceId: string) => {
+        if (!confirm('이 ElevenLabs 음성을 삭제하시겠습니까?')) return
+        try {
+            const res = await adminFetch(`/api/admin/voices?voice_id=${encodeURIComponent(targetVoiceId)}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+            setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
+        } catch (e: any) {
+            alert('음성 삭제 실패: ' + (e?.message || String(e)))
+        }
+    }
+
     const handleSavePreset = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!presetType || !presetKeyCode || !presetNameKo || !presetPromptTemplate) {
@@ -1711,9 +1770,12 @@ export default function DashboardContent() {
             if (canManageSystemSettings) fetchSysKeys();
             fetchCategories();
             fetchTopics();
-            if (canManageStyles) fetchStylePresets();
+            if (canManageStyles) {
+                fetchStylePresets();
+                fetchCustomVoices();
+            }
         }
-    }, [isAdmin, loading, fetchUsers, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, canManageSystemSettings, canManageStyles]);
+    }, [isAdmin, loading, fetchUsers, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, fetchCustomVoices, canManageSystemSettings, canManageStyles]);
 
     // 기간 변경 시에만 별도 호출
     useEffect(() => {
@@ -4275,33 +4337,104 @@ export default function DashboardContent() {
 
                         {/* 2. 스타일 프리셋 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
-                            <div className="p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
-                                <h2 className="font-black text-xl tracking-tight uppercase">스타일 템플릿 카탈로그 목록</h2>
+                            <div className="p-6 border-b border-white/5 bg-white/5 flex flex-wrap justify-between items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {([
+                                        { key: 'image', label: '이미지 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'image').length },
+                                        { key: 'script', label: '대본 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'script').length },
+                                        { key: 'thumbnail', label: '썸네일 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'thumbnail').length },
+                                        { key: 'voice', label: '음성', count: customVoices.length },
+                                    ] as const).map(tab => (
+                                        <button
+                                            key={tab.key}
+                                            type="button"
+                                            onClick={() => setStyleCatalogTab(tab.key)}
+                                            className={`px-4 py-2 rounded-lg text-xs font-black border transition-all ${
+                                                styleCatalogTab === tab.key
+                                                    ? 'bg-blue-600 border-blue-500 text-white'
+                                                    : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                            }`}
+                                        >
+                                            {tab.label} ({tab.count})
+                                        </button>
+                                    ))}
+                                </div>
                                 <button
-                                    onClick={fetchStylePresets}
+                                    onClick={styleCatalogTab === 'voice' ? fetchCustomVoices : fetchStylePresets}
                                     className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
                                 >
                                     새로고침
                                 </button>
                             </div>
                             <div className="p-6">
-                                {presetsLoading ? (
+                                {styleCatalogTab === 'voice' ? (
+                                    <div className="space-y-6">
+                                        <form onSubmit={handleSaveVoice} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+                                            <div>
+                                                <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">음성 이름</label>
+                                                <input
+                                                    type="text"
+                                                    value={voiceName}
+                                                    onChange={e => setVoiceName(e.target.value)}
+                                                    placeholder="예: 한국어 남성 내레이션"
+                                                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">ElevenLabs Voice ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={voiceId}
+                                                    onChange={e => setVoiceId(e.target.value)}
+                                                    placeholder="ElevenLabs Voice ID"
+                                                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono"
+                                                />
+                                            </div>
+                                            <button
+                                                type="submit"
+                                                disabled={voiceSaving}
+                                                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black disabled:opacity-50"
+                                            >
+                                                {voiceSaving ? '저장 중...' : '음성 등록'}
+                                            </button>
+                                        </form>
+
+                                        {voicesLoading ? (
+                                            <div className="text-center text-xs text-gray-500 py-10">음성 목록 로딩 중...</div>
+                                        ) : customVoices.length === 0 ? (
+                                            <p className="text-xs text-gray-600 italic">등록된 ElevenLabs 음성이 없습니다.</p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {customVoices.map((voice: any) => (
+                                                    <div key={voice.voice_id} className="border border-white/5 bg-black/40 p-4 rounded-xl flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <h4 className="text-sm font-bold text-white truncate">{voice.name}</h4>
+                                                            <p className="mt-1 text-[10px] font-mono text-gray-500 break-all">{voice.voice_id}</p>
+                                                            <span className="mt-2 inline-block rounded bg-purple-500/10 px-2 py-1 text-[9px] font-black text-purple-300">ELEVENLABS</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteVoice(voice.voice_id)}
+                                                            className="px-2 py-1 rounded text-[10px] font-bold text-red-400 hover:bg-red-500/10"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : presetsLoading ? (
                                     <div className="text-center text-xs text-gray-500 py-10">프리셋 로딩 중...</div>
                                 ) : (
-                                    <div className="grid grid-cols-1 gap-8">
-                                        {['image', 'script', 'thumbnail'].map(type => {
-                                            const typePresets = stylePresets.filter((p: any) => p.preset_type === type);
-                                            const typeLabel = type === 'image' ? '이미지 스타일' : type === 'script' ? '대본 스타일' : '썸네일 스타일';
-                                            return (
-                                                <div key={type} className="border border-white/5 rounded-2xl p-6 bg-black/20">
-                                                    <h3 className="text-base font-bold text-gray-300 mb-4">
-                                                        {typeLabel} ({typePresets.length})
-                                                    </h3>
-                                                    {typePresets.length === 0 ? (
-                                                        <p className="text-xs text-gray-600 italic">등록된 스타일 프리셋이 없습니다.</p>
-                                                    ) : (
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                            {typePresets.map((preset: any) => (
+                                    <div>
+                                        {stylePresets.filter((p: any) => p.preset_type === styleCatalogTab).length === 0 ? (
+                                            <p className="text-xs text-gray-600 italic">등록된 스타일 프리셋이 없습니다.</p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {stylePresets
+                                                    .filter((p: any) => p.preset_type === styleCatalogTab)
+                                                    .map((preset: any) => (
                                                                 <div key={preset.id} className="border border-white/5 bg-black/40 p-4 rounded-xl relative group hover:border-white/10 transition-all flex flex-col justify-between">
                                                                     <div>
                                                                         <div className="flex justify-between items-start mb-2">
@@ -4344,12 +4477,9 @@ export default function DashboardContent() {
                                                                         )}
                                                                     </div>
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
+                                                    ))}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
