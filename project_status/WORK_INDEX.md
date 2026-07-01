@@ -194,7 +194,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 
 ### AIR-0110A
 - Status: Done
-- Commit: `pending`
+- Commit: `6169b686`
 - Related files:
   - Longform runtime and UI files consolidated from AIR-0106 through AIR-0109
   - `project_status/WORK_INDEX.md`
