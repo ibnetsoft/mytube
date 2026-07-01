@@ -16,6 +16,11 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0116 PR #11 conflict resolution after AIR-0115 / PR #12 merged to main.
+- Resolved documentation/status conflicts only.
+- Preserved AIR-0112 canonical Longform asset readiness records.
+- Preserved AIR-0115 git remote / branch / PR cleanup records.
+- Kept PR #11 open for post-conflict review; PR #11 must not be merged without review approval.
 - Completed AIR-0115 git remote / branch / PR cleanup.
 - Corrected local `origin` from `https://github.com/ibnetsoft/ilddang.git` to `https://github.com/ibnetsoft/mytube.git`.
 - Confirmed GitHub CLI is authenticated as `ibnetsoft`.
@@ -23,6 +28,19 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 - Confirmed PR #11 commit `f983dcf7` is `AIR-0112 finalize readiness record`.
 - Confirmed the earlier PR #11 lookup failure was caused by wrong local remote, not by a missing mytube PR.
 - Created AIR-0115 branch from mytube `origin/main` and kept this task documentation-only.
+- Completed AIR-0112 canonical Longform asset readiness.
+- Formalized the MVP rule: each Scene requires an image or a video.
+- Persisted readiness, completion percentage, details, ready timestamp, and
+  canonical project completion.
+- Added missing Scene-row and duplicate Scene-number validation.
+- Added readiness to upload, matching, replacement, restore, and status APIs.
+- Blocked incomplete Longform render with HTTP 409.
+- Added overall completion and missing Scene numbers to Scene Asset Review.
+- Verified project 195 is 18% and incomplete despite historical `rendered`.
+- Focused Longform tests: `34 passed, 1 warning`.
+- Full tests: `47 passed`; the existing async subtitle test remains uncollected
+  without an async pytest plugin.
+- Set AIR-0113 to authenticated browser verification.
 - Completed AIR-0111 Longform MVP End-to-End validation.
 - Classified all 17 worker stages from login through project completion.
 - Confirmed the focused Longform suite passes (`29 passed`).

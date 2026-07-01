@@ -14,6 +14,10 @@ Commerce are outside this validation.
 
 **MVP open decision: Not ready for external Beta.**
 
+AIR-0112 resolved the first blocker by adding canonical backend Scene readiness
+and render gating. External Beta remains blocked until the authenticated browser
+flow is repeatable and the complete upload/review/export journey is verified.
+
 The core production pieces exist and the focused Longform tests pass, but the
 product does not yet have one backend-owned definition of `assets_ready` or
 `project_complete`. A project can be marked rendered or done independently of
@@ -75,6 +79,9 @@ and enforce the canonical Longform readiness and completion state contract.
 ## Blocking Issues
 
 ### B0-1: No canonical Longform readiness/completion state
+
+Status: **Resolved in AIR-0112 for Scene Review, project APIs, and render
+entry.** Admin publish/export still needs browser-level validation.
 
 - `assets_ready` is calculated in the UI, not persisted as backend-owned state.
 - The required media rule is undecided: image-only, video-only, or both.

@@ -227,9 +227,34 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   AIR-0112 should persist and enforce canonical `assets_ready` and
   `project_complete` rules across review, render/export, and project status UI.
 
+### AIR-0112
+- Status: Done
+- Commit: `9b4725e1`
+- Related files:
+  - `services/longform_asset_readiness.py`
+  - `database.py`
+  - `app/routers/image.py`
+  - `app/routers/video.py`
+  - `main.py`
+  - `templates/pages/image_gen.html`
+  - `tests/test_longform_asset_readiness.py`
+  - `tests/test_scene_asset_review_ui.py`
+  - `docs/LONGFORM_MVP_VALIDATION.md`
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `docs/LONGFORM_PRODUCTION_PIPELINE.md`
+  - `docs/SCENE_ASSET_PIPELINE.md`
+  - `worknote/AIR-0112.md`
+- Short summary:
+  Added a backend-owned Longform `image_or_video` Scene readiness contract,
+  persisted completion state, exposed it through project and upload APIs, and
+  blocked render when Scene assets are incomplete.
+- Next action:
+  AIR-0113 should browser-verify the complete authenticated crop, upload,
+  matching, refresh, readiness, and render-gating flow using a safe test worker.
+
 ### AIR-0115
 - Status: Done
-- Commit: `pending`
+- Commit: `4007870c`
 - Related files:
   - `worknote/AIR-0115.md`
   - `project_status/WORK_INDEX.md`
@@ -239,4 +264,18 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Short summary:
   Corrected local `origin` from `ibnetsoft/ilddang` to `ibnetsoft/mytube`, confirmed GitHub CLI authentication, verified PR #11 exists and is OPEN at `air-0112-longform-e2e-fix-pass`, confirmed commit `f983dcf7`, and created this cleanup branch from mytube `origin/main` without carrying unrelated feature changes.
 - Next action:
-  Open a small AIR-0115 PR for remote/branch cleanup documentation only; keep PR #11 open for review and do not merge main or PR #11 from this task.
+  AIR-0116 should update PR #11 against the merged AIR-0115 main state and resolve only documentation/status conflicts.
+
+### AIR-0116
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/WORK_INDEX.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0116.md`
+- Short summary:
+  Resolved PR #11 conflicts from AIR-0115 / PR #12 by preserving AIR-0112 Longform readiness records, preserving AIR-0115 mytube remote cleanup records, and limiting changes to documentation/status files.
+- Next action:
+  AIR-0117 should re-review PR #11 after conflict resolution and complete authenticated browser verification with safe test credentials before merge approval.

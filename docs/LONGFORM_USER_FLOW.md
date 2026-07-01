@@ -1,5 +1,13 @@
 # LONGFORM USER FLOW
 
+## AIR-0112 State Contract
+
+Scene asset readiness is backend-owned under policy `image_or_video`.
+Upload, bulk matching, replacement, project restoration, and status polling
+return the same readiness object. Scene Review displays its completion
+percentage and missing Scene numbers. Longform render returns HTTP 409 until
+`assets_ready=true`.
+
 ## Scope
 - This document describes the current end-to-end worker flow for `Longform Mode` only.
 - `longform_music`, `general_shorts`, and `shorts_commerce` are out of scope for this document.

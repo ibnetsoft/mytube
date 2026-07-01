@@ -11,6 +11,9 @@ def test_scene_asset_review_panel_is_rendered_from_scene_data():
     assert "renderSceneAssetReview(data);" in source
     assert "Final clip order" in source
     assert "Continue to TTS" in source
+    assert "Overall asset completion" in source
+    assert "asset-completion-percent" in source
+    assert "asset_readiness" in source
 
 
 def test_scene_upload_does_not_clear_the_opposite_media_slot():

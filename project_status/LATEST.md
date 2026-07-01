@@ -45,8 +45,16 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0116`
+  Updated PR #11 against the latest `main` after AIR-0115 / PR #12 merged, resolving only documentation/status conflicts while preserving the AIR-0112 Longform readiness implementation and the AIR-0115 mytube remote cleanup record.
 - `AIR-0115`
   Corrected the local git remote from `ibnetsoft/ilddang` to `ibnetsoft/mytube`, confirmed GitHub CLI authentication, verified PR #11 exists in `ibnetsoft/mytube` and is OPEN from `air-0112-longform-e2e-fix-pass` to `main`, and confirmed commit `f983dcf7` is the AIR-0112 finalize commit on that branch. AIR-0115 is documentation-only and excludes unrelated feature changes.
+- `AIR-0112`
+  Added canonical Longform Scene asset readiness. The backend now owns
+  `assets_ready`, completion percentage, missing/duplicate Scene validation,
+  and `project_complete`; upload and restore APIs refresh that state, Scene
+  Review displays it, and Longform render rejects incomplete projects with
+  HTTP 409. Focused Longform validation passed 34 tests.
 - `AIR-0111`
   Completed a CTO-level Longform MVP validation across the 17-stage worker
   journey. Focused Longform tests passed (`29 passed`), while the full suite
