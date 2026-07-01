@@ -314,8 +314,7 @@ export default function DashboardContent() {
     const [isSavingPreset, setIsSavingPreset] = useState(false)
     const [styleCatalogTab, setStyleCatalogTab] = useState<'image' | 'script' | 'thumbnail' | 'voice'>('image')
     const [customVoices, setCustomVoices] = useState<any[]>([])
-    const [voiceName, setVoiceName] = useState('')
-    const [voiceId, setVoiceId] = useState('')
+    const [voiceBulkInput, setVoiceBulkInput] = useState('')
     const [voicesLoading, setVoicesLoading] = useState(false)
     const [voiceSaving, setVoiceSaving] = useState(false)
 
@@ -1292,8 +1291,21 @@ export default function DashboardContent() {
 
     const handleSaveVoice = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!voiceName.trim() || !voiceId.trim()) {
-            alert('음성 이름과 ElevenLabs Voice ID를 입력해주세요.')
+        const lines = voiceBulkInput.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+        const voices = lines.map(line => {
+            const parts = line.split(/\s*(?:\||\t|,)\s*/, 2)
+            return {
+                name: String(parts[0] || '').trim(),
+                voice_id: String(parts[1] || '').trim(),
+                provider: 'elevenlabs'
+            }
+        })
+        const invalidLines = voices
+            .map((voice, index) => (!voice.name || !voice.voice_id ? index + 1 : null))
+            .filter(Boolean)
+        if (!voices.length || invalidLines.length) {
+            const suffix = invalidLines.length ? ` (확인할 줄: ${invalidLines.join(', ')})` : ''
+            alert(`한 줄에 "음성 이름 | Voice ID" 형식으로 입력해주세요.${suffix}`)
             return
         }
         try {
@@ -1301,13 +1313,13 @@ export default function DashboardContent() {
             const res = await adminFetch('/api/admin/voices', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: voiceName.trim(), voice_id: voiceId.trim() })
+                body: JSON.stringify({ voices })
             })
             const data = await res.json()
             if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
             setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
-            setVoiceName('')
-            setVoiceId('')
+            setVoiceBulkInput('')
+            alert(`${data.registeredCount || voices.length}개의 음성이 등록되었습니다.`)
         } catch (e: any) {
             alert('음성 저장 실패: ' + (e?.message || String(e)))
         } finally {
@@ -4369,33 +4381,24 @@ export default function DashboardContent() {
                             <div className="p-6">
                                 {styleCatalogTab === 'voice' ? (
                                     <div className="space-y-6">
-                                        <form onSubmit={handleSaveVoice} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
+                                        <form onSubmit={handleSaveVoice} className="grid grid-cols-1 gap-4">
                                             <div>
-                                                <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">음성 이름</label>
-                                                <input
-                                                    type="text"
-                                                    value={voiceName}
-                                                    onChange={e => setVoiceName(e.target.value)}
-                                                    placeholder="예: 한국어 남성 내레이션"
-                                                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">ElevenLabs 음성 일괄 등록</label>
+                                                <textarea
+                                                    rows={6}
+                                                    value={voiceBulkInput}
+                                                    onChange={e => setVoiceBulkInput(e.target.value)}
+                                                    placeholder={'한국어 남성 내레이션 | VoiceID_1\n한국어 여성 내레이션 | VoiceID_2'}
+                                                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs resize-y"
                                                 />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">ElevenLabs Voice ID</label>
-                                                <input
-                                                    type="text"
-                                                    value={voiceId}
-                                                    onChange={e => setVoiceId(e.target.value)}
-                                                    placeholder="ElevenLabs Voice ID"
-                                                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono"
-                                                />
+                                                <p className="mt-2 text-[10px] text-gray-500">한 줄에 하나씩 `음성 이름 | Voice ID` 형식으로 입력하세요. 탭 또는 쉼표 구분도 지원합니다.</p>
                                             </div>
                                             <button
                                                 type="submit"
                                                 disabled={voiceSaving}
-                                                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black disabled:opacity-50"
+                                                className="justify-self-end px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black disabled:opacity-50"
                                             >
-                                                {voiceSaving ? '저장 중...' : '음성 등록'}
+                                                {voiceSaving ? '저장 중...' : '음성 일괄 등록'}
                                             </button>
                                         </form>
 

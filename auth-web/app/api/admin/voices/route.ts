@@ -67,18 +67,21 @@ export async function POST(req: Request) {
         if (isAuthResponse(requester)) return requester
 
         const body = await req.json()
-        const name = String(body.name || '').trim()
-        const voiceId = String(body.voice_id || '').trim()
-        if (!name || !voiceId) {
-            return NextResponse.json({ error: '음성 이름과 ElevenLabs Voice ID가 필요합니다.' }, { status: 400 })
+        const requestedVoices = normalizeVoices(
+            Array.isArray(body.voices) ? body.voices : [body]
+        )
+        if (!requestedVoices.length) {
+            return NextResponse.json({ error: '등록할 음성 이름과 ElevenLabs Voice ID가 필요합니다.' }, { status: 400 })
         }
 
         const voices = await loadVoices()
-        const existing = voices.find(voice => voice.voice_id === voiceId)
-        if (existing) existing.name = name
-        else voices.push({ name, voice_id: voiceId, provider: 'elevenlabs' })
+        for (const requested of requestedVoices) {
+            const existing = voices.find(voice => voice.voice_id === requested.voice_id)
+            if (existing) existing.name = requested.name
+            else voices.push(requested)
+        }
         await saveVoices(voices)
-        return NextResponse.json({ success: true, voices })
+        return NextResponse.json({ success: true, registeredCount: requestedVoices.length, voices })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
