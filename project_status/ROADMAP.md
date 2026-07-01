@@ -23,6 +23,10 @@ Turn AIR Studio into a repo with durable project memory so future Codex/ChatGPT 
 - [x] Add deterministic and non-destructive scene asset import validation
 - [x] Add scene asset review, final clip ordering, and missing-visual gating
 - [x] Connect 2x2 crop output to project scene ownership
+- [x] Validate the complete Longform MVP journey and record Beta blockers
+- [ ] Persist canonical Longform Scene readiness and project completion
+- [ ] Enforce readiness consistently in review, render/export, and project cards
+- [ ] Add a deterministic authenticated Longform browser E2E fixture
 - [ ] Finish worker-facing longform topic selection and project boot flow
 - [ ] Remove language-switch latency from worker-facing pages
 - [ ] Stabilize saved or cached translation strategy for recommendation cards

@@ -16,6 +16,18 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0111 Longform MVP End-to-End validation.
+- Classified all 17 worker stages from login through project completion.
+- Confirmed the focused Longform suite passes (`29 passed`).
+- Confirmed the full suite reaches `42 passed` but has one async pytest
+  configuration failure in `tests/test_subtitle.py`.
+- Started the integrated runtime and confirmed health on port 8001.
+- Reached the login page in the browser; authenticated continuation was blocked
+  because no dedicated test credentials were supplied.
+- Inspected real SQLite data and found that a project can be `rendered` while
+  most Scene assets are missing.
+- Set AIR-0112 to create the canonical backend `assets_ready` and
+  `project_complete` contract before external Beta.
 - Completed AIR-0110A PR cleanup.
 - Reconstructed AIR-0106 through AIR-0109 once from current `origin/main`.
 - Superseded PR #5, #6, #7, and #8 with one clean integration PR.
