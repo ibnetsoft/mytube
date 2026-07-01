@@ -24,11 +24,9 @@
             </select>
             <select id="filterLanguage" onchange="applyRecommendedFilters()"
                 class="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer">
-                <option value="">{{ t('filter_language') }}</option>
-                <option value="ko">KR</option>
-                <option value="en">EN</option>
-                <option value="ja">JP</option>
-                <option value="ignore">{{ t('language_ignore') }}</option>
+                <option value="ko">한국어</option>
+                <option value="ja">日本語</option>
+                <option value="en">English</option>
             </select>
             <button onclick="refreshRecommendedTopics()"
                 class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-all">
@@ -1090,15 +1088,15 @@
                     class="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl p-4 hover:border-indigo-500/50 transition-all group relative"
                     onclick="claimAndCreateProject(event, '${topic.id}')">
                     ${multiplierBadge}
-                    <div class="flex items-start justify-between mb-2 gap-2">
-                        <span class="text-xs font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded truncate">
+                    <div class="flex items-start gap-2 mb-2">
+                        <span class="text-xs font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded truncate shrink-0">
                             ${translatedCategory || topic.category_name || 'General'}
                         </span>
+                        <h3 class="flex-1 min-w-0 text-sm font-medium text-white line-clamp-2 group-hover:text-indigo-300 transition-colors">
+                            ${topic.topic || '-'}
+                        </h3>
                         <span class="text-xs font-bold text-white shrink-0">${langFlag}</span>
                     </div>
-                    <h3 class="text-sm font-medium text-white mb-1 line-clamp-2 group-hover:text-indigo-300 transition-colors min-h-[2.5rem]">
-                        ${topic.topic || '-'}
-                    </h3>
                     ${translatedTopic ? `
                         <p class="text-[11px] leading-5 text-sky-300/90 mb-3 min-h-[2.75rem]">
                             ${translatedTopic}
