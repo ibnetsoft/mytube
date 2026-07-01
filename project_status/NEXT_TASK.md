@@ -5,14 +5,15 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0112`
+Next: `AIR-0116` — continue review/validation after AIR-0115 remote cleanup; PR #11 remains open and must not be merged without review approval.
 
 ## Integration Note
 - AIR-0110A clean integration was merged through PR #9 at `f5905d07`.
 - PR #5, #6, #7, and #8 remain superseded and must not be merged.
 - AIR-0111 determined that Longform is not ready for external Beta.
+- AIR-0115 corrected local `origin` to `https://github.com/ibnetsoft/mytube.git` and confirmed PR #11 exists in `ibnetsoft/mytube`.
 
-## AIR-0112 Goal
+## AIR-0112 / PR #11 Review Context
 Define and enforce one backend-owned Longform completion contract:
 
 1. Decide whether each Scene requires an image, a video, or either asset.
