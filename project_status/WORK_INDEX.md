@@ -226,3 +226,17 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   AIR-0112 should persist and enforce canonical `assets_ready` and
   `project_complete` rules across review, render/export, and project status UI.
+
+### AIR-0115
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `worknote/AIR-0115.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+- Short summary:
+  Corrected local `origin` from `ibnetsoft/ilddang` to `ibnetsoft/mytube`, confirmed GitHub CLI authentication, verified PR #11 exists and is OPEN at `air-0112-longform-e2e-fix-pass`, confirmed commit `f983dcf7`, and created this cleanup branch from mytube `origin/main` without carrying unrelated feature changes.
+- Next action:
+  Open a small AIR-0115 PR for remote/branch cleanup documentation only; keep PR #11 open for review and do not merge main or PR #11 from this task.

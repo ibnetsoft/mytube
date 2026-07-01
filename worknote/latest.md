@@ -16,6 +16,13 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0115 git remote / branch / PR cleanup.
+- Corrected local `origin` from `https://github.com/ibnetsoft/ilddang.git` to `https://github.com/ibnetsoft/mytube.git`.
+- Confirmed GitHub CLI is authenticated as `ibnetsoft`.
+- Confirmed PR #11 exists in `ibnetsoft/mytube`, is OPEN, and points from `air-0112-longform-e2e-fix-pass` to `main`.
+- Confirmed PR #11 commit `f983dcf7` is `AIR-0112 finalize readiness record`.
+- Confirmed the earlier PR #11 lookup failure was caused by wrong local remote, not by a missing mytube PR.
+- Created AIR-0115 branch from mytube `origin/main` and kept this task documentation-only.
 - Completed AIR-0111 Longform MVP End-to-End validation.
 - Classified all 17 worker stages from login through project completion.
 - Confirmed the focused Longform suite passes (`29 passed`).
