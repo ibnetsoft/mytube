@@ -303,3 +303,16 @@ AIR-0110 should browser-verify the crop/import/review workflow and formalize rea
 3. Verify upscaled image replacement and numbered video matching.
 4. Decide whether `assets_ready` requires video for every Scene.
 5. Persist the canonical readiness state in the backend.
+
+## AIR-0112 Readiness Update
+
+The Longform MVP now uses one backend readiness rule:
+
+- a Scene is ready when it has an image or a video
+- all Scene numbers must be contiguous and unique
+- overall completion is calculated from ready Scenes
+- readiness is persisted and restored through project APIs
+- Longform render rejects incomplete Scene assets
+
+This does not add image or video generation. It governs externally generated
+asset import, review, and final assembly entry.

@@ -344,6 +344,7 @@
 {% block scripts %}
 <script>
     let prompts = [];
+    let assetReadiness = null;
     window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
     window.userMembership = "{{ membership }}"; // 'std' | 'pro'
 
@@ -1652,7 +1653,16 @@
         const missingVisual = ordered.filter(item => !item.scene.image_url && !item.scene.video_url);
         const missingVideo = ordered.filter(item => !item.scene.video_url);
         const projectId = getCurrentProject();
-        const readyToContinue = missingVisual.length === 0;
+        const canonicalReadiness = assetReadiness?.applicable ? assetReadiness : null;
+        const readyToContinue = canonicalReadiness
+            ? Boolean(canonicalReadiness.assets_ready)
+            : missingVisual.length === 0;
+        const completionPercent = canonicalReadiness
+            ? Number(canonicalReadiness.completion_percent || 0)
+            : Math.round(((ordered.length - missingVisual.length) / ordered.length) * 100);
+        const missingAssetScenes = canonicalReadiness
+            ? (canonicalReadiness.missing_asset_scenes || [])
+            : missingVisual.map(item => Number(item.scene.scene_number || item.index + 1));
 
         const rows = ordered.map(({ scene, index }) => {
             const number = Number(scene.scene_number || index + 1);
@@ -1696,7 +1706,7 @@
                </a>`
             : `<button type="button" disabled
                        class="cursor-not-allowed rounded-lg bg-gray-700 px-4 py-2 font-bold text-gray-400">
-                    Add assets to ${missingVisual.length} scene(s) first
+                    Add assets to ${missingAssetScenes.length} scene(s) first
                </button>`;
 
         panel.innerHTML = `
@@ -1714,8 +1724,24 @@
                         <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">Scenes ${ordered.length}</span>
                         <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Images ${imageCount}</span>
                         <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">Videos ${videoCount}</span>
-                        <span class="rounded bg-amber-500/15 px-2 py-1 text-amber-400">Missing visual ${missingVisual.length}</span>
+                        <span id="asset-readiness-state"
+                              class="rounded ${readyToContinue ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'} px-2 py-1">
+                            ${readyToContinue ? 'Assets ready' : `Missing visual ${missingAssetScenes.length}`}
+                        </span>
                     </div>
+                </div>
+                <div class="border-b border-white/5 px-4 py-3">
+                    <div class="mb-1 flex items-center justify-between text-xs">
+                        <span class="text-gray-400">Overall asset completion</span>
+                        <span id="asset-completion-percent" class="font-bold text-white">${completionPercent}%</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded bg-[#15191f]">
+                        <div id="asset-completion-bar" class="h-full bg-blue-500 transition-all"
+                             style="width:${Math.max(0, Math.min(100, completionPercent))}%"></div>
+                    </div>
+                    ${missingAssetScenes.length
+                        ? `<p class="mt-2 text-xs text-amber-400">Asset missing: ${missingAssetScenes.join(', ')}</p>`
+                        : ''}
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
@@ -1891,6 +1917,7 @@
             const result = await response.json();
 
             if (result.status === 'ok') {
+                assetReadiness = result.asset_readiness || assetReadiness;
                 // [FIX] Backend returns 'url' and 'is_video', not 'video_url'
                 if (result.is_video) {
                     prompts[index].video_url = result.url;
@@ -1900,7 +1927,8 @@
 
                 // Save to Storage & DB — await so projectStateRestored can't race with stale data
                 Utils.storage.set('imagePrompts', prompts);
-                await API.project.saveImagePrompts(projectId, prompts);
+                const saveResult = await API.project.saveImagePrompts(projectId, prompts);
+                assetReadiness = saveResult?.asset_readiness || result.asset_readiness || assetReadiness;
 
                 // Refresh UI (Keep scroll position)
                 const scrollY = window.scrollY;
@@ -3316,6 +3344,7 @@
         if (projectId) {
             try {
                 const fullData = await API.project.getFull(projectId);
+                assetReadiness = fullData.asset_readiness || null;
 
                 // [NEW] Load Persistent Settings
                 if (fullData.settings) {
@@ -3811,6 +3840,7 @@
             // [FIX] 빈 배열이면 기존 데이터를 덮어쓰지 않음
             if (result.status === 'ok' && result.prompts && result.prompts.length > 0) {
                 console.log(`[loadPromptsFromServer] Loaded ${result.prompts.length} prompts`);
+                assetReadiness = result.asset_readiness || null;
                 prompts = result.prompts;
                 Utils.storage.set('imagePrompts', prompts);
 
@@ -4425,6 +4455,7 @@
 
             const result = await response.json();
             if (result.status === 'ok') {
+                assetReadiness = result.asset_readiness || assetReadiness;
                 renderBulkUploadResult(result);
                 Utils.showToast(`성공: AI가 ${result.matched_count}개 파일을 자동 배정 매칭했습니다.`, 'success');
                 

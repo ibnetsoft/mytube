@@ -580,7 +580,11 @@ async def get_project_full(project_id: int):
             remote_drive_render_service.sync_completed_result(project_id)
     except Exception as e:
         print(f"[RemoteDrive] Full data sync skipped: {e}")
-    return db.get_project_full_data_v2(project_id) or {}
+    payload = db.get_project_full_data_v2(project_id) or {}
+    if payload:
+        from services.longform_asset_readiness import sync_project_asset_readiness
+        payload["asset_readiness"] = sync_project_asset_readiness(project_id)
+    return payload
 
 
 @app.post("/api/projects/{project_id}/sync-topic-progress")
@@ -810,12 +814,21 @@ async def save_external_tts(project_id: int, file: UploadFile = File(...)):
 async def save_image_prompts(project_id: int, req: ImagePromptsSave):
     """이미지 프롬프트 저장"""
     db.save_image_prompts(project_id, req.prompts)
-    return {"status": "ok"}
+    from services.longform_asset_readiness import sync_project_asset_readiness
+    return {
+        "status": "ok",
+        "asset_readiness": sync_project_asset_readiness(project_id),
+    }
 
 @app.get("/api/projects/{project_id}/image-prompts")
 async def get_image_prompts(project_id: int):
     """이미지 프롬프트 조회"""
-    return {"status": "ok", "prompts": db.get_image_prompts(project_id)}
+    from services.longform_asset_readiness import sync_project_asset_readiness
+    return {
+        "status": "ok",
+        "prompts": db.get_image_prompts(project_id),
+        "asset_readiness": sync_project_asset_readiness(project_id),
+    }
 
 class BulkPromptUpdate(BaseModel):
     texts: str

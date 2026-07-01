@@ -394,6 +394,11 @@ def init_db():
             creation_mode TEXT DEFAULT 'default',
             product_url TEXT,
             topview_task_id TEXT,
+            assets_ready INTEGER DEFAULT 0,
+            asset_completion_percent INTEGER DEFAULT 0,
+            asset_readiness_json TEXT,
+            assets_ready_at TEXT,
+            project_complete INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (project_id) REFERENCES projects(id)
@@ -436,6 +441,11 @@ def init_db():
         ("total_scenes", "INTEGER DEFAULT 0"),
         ("video_scenes", "INTEGER DEFAULT 0"),
         ("image_scenes", "INTEGER DEFAULT 0"),
+        ("assets_ready", "INTEGER DEFAULT 0"),
+        ("asset_completion_percent", "INTEGER DEFAULT 0"),
+        ("asset_readiness_json", "TEXT"),
+        ("assets_ready_at", "TEXT"),
+        ("project_complete", "INTEGER DEFAULT 0"),
     ]:
         try:
             cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {col} {col_type}")
@@ -1694,6 +1704,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         ps.qa_status,
         ps.qa_hold_upload,
         ps.qa_checked_at,
+        ps.assets_ready,
+        ps.asset_completion_percent,
+        ps.project_complete,
         (SELECT COUNT(*) FROM thumbnails WHERE project_id = p.id) as thumbnail_count,
         ps.app_mode,
         m.description,
@@ -1785,6 +1798,9 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "qa_status": r.get("qa_status") or "",
             "qa_hold_upload": r.get("qa_hold_upload") or "0",
             "qa_checked_at": r.get("qa_checked_at") or "",
+            "assets_ready": bool(r.get("assets_ready")),
+            "asset_completion_percent": int(r.get("asset_completion_percent") or 0),
+            "project_complete": bool(r.get("project_complete")),
             "app_mode": r["app_mode"], # [NEW]
             "progress": progress
         })

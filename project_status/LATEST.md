@@ -45,6 +45,12 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0112`
+  Added canonical Longform Scene asset readiness. The backend now owns
+  `assets_ready`, completion percentage, missing/duplicate Scene validation,
+  and `project_complete`; upload and restore APIs refresh that state, Scene
+  Review displays it, and Longform render rejects incomplete projects with
+  HTTP 409. Focused Longform validation passed 34 tests.
 - `AIR-0111`
   Completed a CTO-level Longform MVP validation across the 17-stage worker
   journey. Focused Longform tests passed (`29 passed`), while the full suite

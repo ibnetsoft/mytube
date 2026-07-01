@@ -19,6 +19,7 @@ from services.storage_service import storage_service
 from services.replicate_service import replicate_service
 from app.modes import is_shorts_mode
 from services.project_publish_service import publish_project_to_youtube, queue_project_for_admin_publish
+from services.longform_asset_readiness import sync_project_asset_readiness
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -924,7 +925,7 @@ Subtitles to translate:
         from services.settings_service import settings_service
         global_settings = settings_service.get_settings()
         app_mode = global_settings.get("app_mode", "longform")
-        
+
         # Priority: Project Setting (already in DB) > App Mode
         db_aspect = settings.get('aspect_ratio')
         
@@ -1007,13 +1008,34 @@ async def render_project_video(
     """프로젝트 영상 최종 렌더링 (이미지 + 오디오 + 자막)"""
     print(f"DEBUG: render_project_video called for Project {project_id}")
     try:
+
+        # 1. 데이터 조회
+        p_settings = db.get_project_settings(project_id) or {}
+        project_mode = str(p_settings.get("app_mode") or "longform").strip().lower()
+        if project_mode == "longform":
+            readiness = sync_project_asset_readiness(project_id)
+            if not readiness.get("assets_ready"):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "longform_assets_not_ready",
+                        "message": "Scene assets are not ready for rendering.",
+                        "completion_percent": readiness.get("completion_percent", 0),
+                        "missing_scene_numbers": readiness.get(
+                            "missing_asset_scenes"
+                        )
+                        or [],
+                        "duplicate_scene_numbers": readiness.get(
+                            "duplicate_scene_numbers"
+                        )
+                        or [],
+                    },
+                )
         from services.settings_service import settings_service
         global_settings = settings_service.get_settings()
         app_mode = global_settings.get("app_mode", "longform")
-
-        # 1. 데이터 조회
         tts_data = db.get_tts(project_id)
-        p_settings = db.get_project_settings(project_id) or {}
+
         estimated_payout = _to_int(p_settings.get("estimated_payout"), 0)
         payout_summary = _build_asset_mix_payout_summary(project_id, estimated_payout)
         actual_payout = payout_summary["actual_payout"]
@@ -1946,13 +1968,16 @@ async def get_project_status(project_id: int):
                     db.update_project(project_id, status="failed")
                     status = "failed"
 
-        settings = db.get_project_settings(project_id)
+        settings = db.get_project_settings(project_id) or {}
         video_path = settings.get("video_path")
+        readiness = sync_project_asset_readiness(project_id)
         
         return {
             "status": "ok",
             "project_status": status,
-            "video_path": video_path
+            "video_path": video_path,
+            "asset_readiness": readiness,
+            "project_complete": readiness.get("project_complete", False),
         }
     except Exception as e:
         print(f"Status check failed: {e}")

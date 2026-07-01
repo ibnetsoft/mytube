@@ -267,7 +267,22 @@ Needs verification:
 | Unmatched stored-asset assignment board | Not implemented |
 | Version history/rollback | Not implemented |
 | Chunked/resumable upload | Not implemented |
-| Canonical backend `assets_ready` state | Not implemented |
+| Canonical backend `assets_ready` state | Implemented in AIR-0112 |
+
+## Canonical Readiness Contract
+
+AIR-0112 defines policy `image_or_video`:
+
+- every Scene number from 1 through the highest Scene must exist
+- every Scene must have a non-empty `image_url` or `video_url`
+- duplicate Scene numbers block readiness
+- missing Scene-number gaps block readiness
+- upload order does not affect canonical Scene order
+
+The backend persists `assets_ready`, `asset_completion_percent`,
+`asset_readiness_json`, `assets_ready_at`, and `project_complete`.
+`project_complete` requires both ready assets and a terminal project status.
+A historical `rendered` value alone no longer proves Scene completeness.
 
 ## Priority Fix Order
 
@@ -281,9 +296,10 @@ Needs verification:
 
 ### P0: Canonical Readiness
 
-- decide whether image-only Scenes are valid
-- persist backend-owned `assets_ready`
-- block final assembly using the same backend rule
+- completed in AIR-0112 with policy `image_or_video`
+- backend readiness is persisted and returned through project APIs
+- Longform render is blocked with HTTP 409 when readiness fails
+- authenticated browser verification remains for AIR-0113
 
 ### P1: Unmatched Asset Assignment
 

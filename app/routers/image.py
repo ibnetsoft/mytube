@@ -27,6 +27,7 @@ from app.utils import (
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
 from services.scene_asset_matcher import build_assignment_plan, extract_scene_number, find_missing_scenes
+from services.longform_asset_readiness import sync_project_asset_readiness
 
 router = APIRouter(tags=["Image"])
 
@@ -1339,11 +1340,13 @@ async def upload_scene_media(
             db.update_image_prompt_video_url(project_id, scene_number, web_url)
         else:
             db.update_image_prompt_url(project_id, scene_number, web_url)
+        readiness = sync_project_asset_readiness(project_id)
             
         return {
             "status": "ok",
             "url": web_url,
-            "is_video": is_video
+            "is_video": is_video,
+            "asset_readiness": readiness,
         }
     except Exception as e:
         print(f"Upload scene error: {e}")
@@ -1490,6 +1493,7 @@ async def bulk_match_scene_media(
 
         # 원본 이미지 프롬프트 상태 최신화 반환을 위해 씬 목록 가져오기
         latest_scenes = db.get_image_prompts(project_id)
+        readiness = sync_project_asset_readiness(project_id)
 
         return {
             "status": "ok",
@@ -1500,7 +1504,8 @@ async def bulk_match_scene_media(
             "duplicates": plan["duplicates"],
             "invalid": plan["invalid"],
             "missing_scenes": find_missing_scenes(latest_scenes),
-            "scenes": latest_scenes
+            "scenes": latest_scenes,
+            "asset_readiness": readiness,
         }
 
     except Exception as e:
@@ -1569,6 +1574,14 @@ async def list_output_assets(project_id: int):
          return {"status": "error", "message": str(e)}
 
 
+@router.get("/api/projects/{project_id}/asset-readiness")
+async def get_project_asset_readiness(project_id: int):
+    readiness = sync_project_asset_readiness(project_id)
+    if readiness.get("reason") == "project_not_found":
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"status": "ok", "asset_readiness": readiness}
+
+
 @router.post("/api/projects/{project_id}/replace-asset")
 async def replace_asset_from_library(
     project_id: int,
@@ -1584,7 +1597,8 @@ async def replace_asset_from_library(
             db.update_image_prompt_video_url(project_id, scene_number, asset_url)
         else:
             db.update_image_prompt_url(project_id, scene_number, asset_url)
-        return {"status": "ok"}
+        readiness = sync_project_asset_readiness(project_id)
+        return {"status": "ok", "asset_readiness": readiness}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

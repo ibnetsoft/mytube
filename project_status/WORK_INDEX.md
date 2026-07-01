@@ -226,3 +226,28 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   AIR-0112 should persist and enforce canonical `assets_ready` and
   `project_complete` rules across review, render/export, and project status UI.
+
+### AIR-0112
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `services/longform_asset_readiness.py`
+  - `database.py`
+  - `app/routers/image.py`
+  - `app/routers/video.py`
+  - `main.py`
+  - `templates/pages/image_gen.html`
+  - `tests/test_longform_asset_readiness.py`
+  - `tests/test_scene_asset_review_ui.py`
+  - `docs/LONGFORM_MVP_VALIDATION.md`
+  - `docs/LONGFORM_USER_FLOW.md`
+  - `docs/LONGFORM_PRODUCTION_PIPELINE.md`
+  - `docs/SCENE_ASSET_PIPELINE.md`
+  - `worknote/AIR-0112.md`
+- Short summary:
+  Added a backend-owned Longform `image_or_video` Scene readiness contract,
+  persisted completion state, exposed it through project and upload APIs, and
+  blocked render when Scene assets are incomplete.
+- Next action:
+  AIR-0113 should browser-verify the complete authenticated crop, upload,
+  matching, refresh, readiness, and render-gating flow using a safe test worker.

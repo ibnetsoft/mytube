@@ -5,24 +5,24 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0112`
+Next: `AIR-0113`
 
 ## Integration Note
 - AIR-0110A clean integration was merged through PR #9 at `f5905d07`.
 - PR #5, #6, #7, and #8 remain superseded and must not be merged.
 - AIR-0111 determined that Longform is not ready for external Beta.
 
-## AIR-0112 Goal
-Define and enforce one backend-owned Longform completion contract:
+## AIR-0113 Goal
+Run the authenticated browser verification AIR-0112 could not complete:
 
-1. Decide whether each Scene requires an image, a video, or either asset.
-2. Persist canonical `assets_ready`.
-3. Define the transition to canonical `project_complete`.
-4. Make Scene Review, render/export, and project cards consume the same rule.
-5. Reject render/export when the rule is not satisfied.
-6. Preserve compatibility with historical Longform projects without silently
-   treating incomplete Scene data as ready.
-7. Add deterministic tests for ready, missing, mixed, and historical projects.
+1. Provision or identify a safe Longform test worker and deterministic project.
+2. Import a real 2x2 grid into empty Scene slots.
+3. Upload numbered images and videos and verify automatic matching.
+4. Confirm missing, duplicate, invalid, and occupied files are visible.
+5. Refresh and verify Scene order and canonical readiness restoration.
+6. Confirm incomplete projects cannot render.
+7. Confirm a complete project can pass the readiness gate.
+8. Validate whether admin publish/export needs an additional readiness gate.
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
@@ -57,12 +57,11 @@ Define and enforce one backend-owned Longform completion contract:
 6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
 
 ## Immediate Next Checks
-1. Inventory every current project status and every place it is written.
-2. Define the canonical Scene readiness function and historical-data behavior.
-3. Persist readiness without coupling it to UI-only inference.
-4. Gate render/export using the same backend rule.
-5. Surface actionable missing Scene numbers to the worker.
-6. Add a repeatable authenticated browser E2E fixture after the state contract.
+1. Use dedicated test credentials; do not reuse or expose a real password.
+2. Browser-check project 195 shows 18% and Scene 3-11 missing.
+3. Browser-check project 188 shows 100% under `image_or_video`.
+4. Exercise one safe upload/replacement and refresh.
+5. Record browser evidence for the readiness badge and progress.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
