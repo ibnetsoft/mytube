@@ -45,6 +45,10 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0118`
+  Merged PR #11 into `main`, created `air-0118-longform-operation-validation`, and added `docs/LONGFORM_OPERATION_VALIDATION.md` to record the real Longform operator workflow. The current run is blocked at authenticated browser execution because safe test credentials were unavailable, but the readiness contract, focused tests, and render gate remain validated.
+- `AIR-0117`
+  Final-reviewed PR #11 and confirmed it was mergeable with passing checks, Longform-only scope, and sufficient readiness evidence for merge approval.
 - `AIR-0116`
   Updated PR #11 against the latest `main` after AIR-0115 / PR #12 merged, resolving only documentation/status conflicts while preserving the AIR-0112 Longform readiness implementation and the AIR-0115 mytube remote cleanup record.
 - `AIR-0115`

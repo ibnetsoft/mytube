@@ -16,6 +16,13 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0118 merge handoff for PR #11.
+- Confirmed `main` now includes PR #11 at merge commit `0431b723`.
+- Created branch `air-0118-longform-operation-validation`.
+- Added `docs/LONGFORM_OPERATION_VALIDATION.md` for real Longform operator workflow validation.
+- Recorded the 20-step operator scenario with PASS / FAIL / BLOCKED status per stage.
+- Confirmed the current run is blocked at authenticated browser execution because safe test credentials were not available.
+- Confirmed Longform readiness contract and render gate remain validated by focused tests and code evidence.
 - Completed AIR-0116 PR #11 conflict resolution after AIR-0115 / PR #12 merged to main.
 - Resolved documentation/status conflicts only.
 - Preserved AIR-0112 canonical Longform asset readiness records.

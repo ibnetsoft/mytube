@@ -5,7 +5,7 @@ This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio
 Read this first before starting implementation work.
 
 ## Task Pointer
-Next: `AIR-0117` — re-review PR #11 after AIR-0116 conflict resolution; PR #11 remains open and must not be merged without review approval.
+Next: `AIR-0119` — rerun the full Longform operator workflow with dedicated worker/admin test credentials and real external assets, then validate admin publish/export readiness end to end.
 
 ## Integration Note
 - AIR-0110A clean integration was merged through PR #9 at `f5905d07`.
@@ -13,8 +13,8 @@ Next: `AIR-0117` — re-review PR #11 after AIR-0116 conflict resolution; PR #11
 - AIR-0111 determined that Longform is not ready for external Beta.
 - AIR-0115 corrected local `origin` to `https://github.com/ibnetsoft/mytube.git` and confirmed PR #11 exists in `ibnetsoft/mytube`.
 
-## AIR-0117 Goal
-Run the authenticated browser verification AIR-0112 could not complete and re-check PR #11 after the AIR-0116 conflict-resolution update:
+## AIR-0119 Goal
+Re-run the complete Longform operator workflow with dedicated credentials and real external assets after AIR-0118 documented the current authenticated-browser blocker:
 
 1. Provision or identify a safe Longform test worker and deterministic project.
 2. Import a real 2x2 grid into empty Scene slots.

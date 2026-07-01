@@ -268,7 +268,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 
 ### AIR-0116
 - Status: Done
-- Commit: `pending`
+- Commit: `489be548`
 - Related files:
   - `project_status/LATEST.md`
   - `project_status/NEXT_TASK.md`
@@ -279,3 +279,32 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Resolved PR #11 conflicts from AIR-0115 / PR #12 by preserving AIR-0112 Longform readiness records, preserving AIR-0115 mytube remote cleanup records, and limiting changes to documentation/status files.
 - Next action:
   AIR-0117 should re-review PR #11 after conflict resolution and complete authenticated browser verification with safe test credentials before merge approval.
+
+### AIR-0117
+- Status: Done
+- Commit: `0431b723`
+- Related files:
+  - `worknote/AIR-0117.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+- Short summary:
+  Final-reviewed PR #11, confirmed it was mergeable and clean with passing Vercel checks and focused Longform tests, and approved it for merge based on Longform-only scope plus readiness evidence.
+- Next action:
+  AIR-0118 should validate the real operator workflow and admin publish/export path after PR #11 merges to `main`.
+
+### AIR-0118
+- Status: In Progress
+- Commit: `pending`
+- Related files:
+  - `docs/LONGFORM_OPERATION_VALIDATION.md`
+  - `worknote/AIR-0118.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+- Short summary:
+  Merged PR #11 to `main`, created branch `air-0118-longform-operation-validation`, and recorded the current Longform operational validation as blocked at authenticated browser execution because safe test credentials were unavailable.
+- Next action:
+  Open an AIR-0118 documentation PR now, then continue with a credential-backed follow-up to complete the full operator and admin workflow validation.
