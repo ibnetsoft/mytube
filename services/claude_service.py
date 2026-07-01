@@ -2,6 +2,7 @@
 Claude API 서비스 - 대본 생성에 Anthropic Claude 사용
 """
 import httpx
+import time
 from typing import Optional, List
 from config import config
 
@@ -155,5 +156,4 @@ class ClaudeService:
 
 
 # 전역 인스턴스
-import time
 claude_service = ClaudeService()
