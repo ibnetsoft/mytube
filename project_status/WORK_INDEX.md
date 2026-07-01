@@ -229,7 +229,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 
 ### AIR-0112
 - Status: Done
-- Commit: `pending`
+- Commit: `9b4725e1`
 - Related files:
   - `services/longform_asset_readiness.py`
   - `database.py`
