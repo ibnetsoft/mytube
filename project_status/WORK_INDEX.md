@@ -251,3 +251,31 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   AIR-0113 should browser-verify the complete authenticated crop, upload,
   matching, refresh, readiness, and render-gating flow using a safe test worker.
+
+### AIR-0115
+- Status: Done
+- Commit: `4007870c`
+- Related files:
+  - `worknote/AIR-0115.md`
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+- Short summary:
+  Corrected local `origin` from `ibnetsoft/ilddang` to `ibnetsoft/mytube`, confirmed GitHub CLI authentication, verified PR #11 exists and is OPEN at `air-0112-longform-e2e-fix-pass`, confirmed commit `f983dcf7`, and created this cleanup branch from mytube `origin/main` without carrying unrelated feature changes.
+- Next action:
+  AIR-0116 should update PR #11 against the merged AIR-0115 main state and resolve only documentation/status conflicts.
+
+### AIR-0116
+- Status: Done
+- Commit: `pending`
+- Related files:
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/WORK_INDEX.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0116.md`
+- Short summary:
+  Resolved PR #11 conflicts from AIR-0115 / PR #12 by preserving AIR-0112 Longform readiness records, preserving AIR-0115 mytube remote cleanup records, and limiting changes to documentation/status files.
+- Next action:
+  AIR-0117 should re-review PR #11 after conflict resolution and complete authenticated browser verification with safe test credentials before merge approval.

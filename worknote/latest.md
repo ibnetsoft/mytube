@@ -16,6 +16,18 @@ This is the lightweight working memory for AIR Studio. It should explain what we
   - project creation from a topic click
 
 ## What changed recently
+- Completed AIR-0116 PR #11 conflict resolution after AIR-0115 / PR #12 merged to main.
+- Resolved documentation/status conflicts only.
+- Preserved AIR-0112 canonical Longform asset readiness records.
+- Preserved AIR-0115 git remote / branch / PR cleanup records.
+- Kept PR #11 open for post-conflict review; PR #11 must not be merged without review approval.
+- Completed AIR-0115 git remote / branch / PR cleanup.
+- Corrected local `origin` from `https://github.com/ibnetsoft/ilddang.git` to `https://github.com/ibnetsoft/mytube.git`.
+- Confirmed GitHub CLI is authenticated as `ibnetsoft`.
+- Confirmed PR #11 exists in `ibnetsoft/mytube`, is OPEN, and points from `air-0112-longform-e2e-fix-pass` to `main`.
+- Confirmed PR #11 commit `f983dcf7` is `AIR-0112 finalize readiness record`.
+- Confirmed the earlier PR #11 lookup failure was caused by wrong local remote, not by a missing mytube PR.
+- Created AIR-0115 branch from mytube `origin/main` and kept this task documentation-only.
 - Completed AIR-0112 canonical Longform asset readiness.
 - Formalized the MVP rule: each Scene requires an image or a video.
 - Persisted readiness, completion percentage, details, ready timestamp, and
