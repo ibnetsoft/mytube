@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set is_topics_view = view_mode == 'topics' %}
+{% set is_projects_view = view_mode == 'projects' %}
+{% if is_topics_view %}
 <div id="recommendedTopicsSection" class="mb-6">
     <div class="flex items-center justify-between mb-4">
         <div>
@@ -45,6 +48,8 @@
         <p class="text-sm text-gray-400">{{ t('no_recommendations') }}</p>
     </div>
 </div>
+{% endif %}
+{% if is_projects_view %}
 <div class="flex justify-between items-center mb-6 pr-56">
     <!-- Bulk Actions -->
     <div id="bulkActions"
@@ -104,6 +109,8 @@
 </div>
 
 <!-- 프로젝트 목록 -->
+{% endif %}
+{% if is_projects_view %}
 <div id="loadingSection" class="hidden">
     <div class="card text-center py-12">
         <div class="loader mx-auto mb-4"></div>
@@ -148,12 +155,14 @@
         + {{ t('btn_new_project') }}
     </button>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
     const isIndependent = JSON.parse('{{ is_independent | tojson | safe }}');
     const licenseKey = '{{ get_license_key() }}';
+    const projectsPageView = '{{ view_mode }}';
 
     // i18n for JS (var 사용 - base.html의 전역 i18n과 충돌 방지)
     var i18n = {
@@ -898,6 +907,7 @@
 
     let allRecommendedTopics = [];
     let recommendedTopics = [];
+    let recommendedTranslationRequestId = 0;
 
     async function loadRecommendedTopics(refresh = false) {
         const grid = document.getElementById('recommendedTopicsGrid');
@@ -935,6 +945,7 @@
             if (data.status === 'ok' && Array.isArray(data.topics) && data.topics.length > 0) {
                 allRecommendedTopics = data.topics;
                 applyRecommendedFilters();
+                queueRecommendedTopicTranslations();
                 loading.classList.add('hidden');
                 grid.classList.remove('hidden');
                 return;
@@ -979,6 +990,47 @@
         renderRecommendedTopics();
     }
 
+    function mergeRecommendedTopicTranslations(translations) {
+        if (!translations || typeof translations !== 'object') return;
+        allRecommendedTopics = allRecommendedTopics.map((topic) => ({
+            ...topic,
+            ...(translations[String(topic.id)] || {}),
+        }));
+        recommendedTopics = recommendedTopics.map((topic) => ({
+            ...topic,
+            ...(translations[String(topic.id)] || {}),
+        }));
+    }
+
+    async function queueRecommendedTopicTranslations() {
+        const uiLang = window.currentLang || 'ko';
+        if (!['vi', 'en', 'th'].includes(uiLang) || !allRecommendedTopics.length) return;
+
+        const requestId = ++recommendedTranslationRequestId;
+        try {
+            const res = await fetch('/api/user/recommended-topics/translations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ui_language: uiLang,
+                    topics: allRecommendedTopics.map((topic) => ({
+                        id: String(topic.id),
+                        topic: topic.topic || '',
+                        category_name: topic.category_name || '',
+                    })),
+                }),
+            });
+            const data = await res.json();
+            if (requestId !== recommendedTranslationRequestId) return;
+            if (data.status === 'ok' && data.translations) {
+                mergeRecommendedTopicTranslations(data.translations);
+                renderRecommendedTopics();
+            }
+        } catch (e) {
+            console.error('Failed to load recommended topic translations:', e);
+        }
+    }
+
     function renderRecommendedTopics() {
         const grid = document.getElementById('recommendedTopicsGrid');
         const empty = document.getElementById('recommendedTopicsEmpty');
@@ -1001,6 +1053,21 @@
             const durationText = durationMinutes ? `${durationMinutes} min` : '-';
             const scriptStyle = topic.script_style || '-';
             const imageStyle = topic.image_style || '-';
+            const uiLang = window.currentLang || 'ko';
+            const translatedTopic = uiLang === 'vi'
+                ? (topic.topic_vi || '')
+                : uiLang === 'en'
+                    ? (topic.topic_en || '')
+                    : uiLang === 'th'
+                        ? (topic.topic_th || '')
+                        : '';
+            const translatedCategory = uiLang === 'vi'
+                ? (topic.category_name_vi || '')
+                : uiLang === 'en'
+                    ? (topic.category_name_en || '')
+                    : uiLang === 'th'
+                        ? (topic.category_name_th || '')
+                        : '';
             const payoutValue = topic.estimated_payout_usdt ?? topic.adjusted_payout_usdt;
             const payoutNumber = Number(payoutValue || 0);
             const payoutText = payoutNumber > 0
@@ -1025,13 +1092,18 @@
                     ${multiplierBadge}
                     <div class="flex items-start justify-between mb-2 gap-2">
                         <span class="text-xs font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded truncate">
-                            ${topic.category_name || 'General'}
+                            ${translatedCategory || topic.category_name || 'General'}
                         </span>
                         <span class="text-xs font-bold text-white shrink-0">${langFlag}</span>
                     </div>
-                    <h3 class="text-sm font-medium text-white mb-3 line-clamp-2 group-hover:text-indigo-300 transition-colors min-h-[2.5rem]">
+                    <h3 class="text-sm font-medium text-white mb-1 line-clamp-2 group-hover:text-indigo-300 transition-colors min-h-[2.5rem]">
                         ${topic.topic || '-'}
                     </h3>
+                    ${translatedTopic ? `
+                        <p class="text-[11px] leading-5 text-sky-300/90 mb-3 min-h-[2.75rem]">
+                            ${translatedTopic}
+                        </p>
+                    ` : `<div class="mb-3 min-h-[2.75rem]"></div>`}
                     <div class="space-y-2 text-xs text-gray-400 mb-3">
                         <div class="grid grid-cols-2 gap-2">
                             <div class="min-w-0">
@@ -1062,13 +1134,18 @@
         grid.classList.remove('hidden');
     }
 
-    async function claimAndCreateProject(event, topicId) {
-        if (!confirm('{{ t('confirm_claim_topic') }}')) return;
+    let activeTopicClaimId = null;
 
+    async function claimAndCreateProject(event, topicId) {
+        if (activeTopicClaimId) return;
+
+        activeTopicClaimId = topicId;
         const card = event?.currentTarget;
         const originalMarkup = card ? card.innerHTML : '';
 
         if (card) {
+            card.disabled = true;
+            card.classList.add('pointer-events-none', 'opacity-80');
             card.innerHTML = `
                 <div class="flex items-center justify-center h-full min-h-[180px]">
                     <div class="loader mx-auto"></div>
@@ -1100,8 +1177,11 @@
             window.location.href = `${projectRoute}?project_id=${projectId}&auto=true&topic=${encodeURIComponent(data.topic?.topic || '')}`;
         } catch (e) {
             if (card) {
+                card.disabled = false;
+                card.classList.remove('pointer-events-none', 'opacity-80');
                 card.innerHTML = originalMarkup;
             }
+            activeTopicClaimId = null;
             console.error('Failed to claim topic:', e);
             Utils.showToast(e.message || '{{ t('toast_claim_topic_failed') }}', 'error');
             await loadRecommendedTopics();
@@ -1113,7 +1193,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        loadProjectList();
+        if (projectsPageView === 'projects') {
+            loadProjectList();
+            return;
+        }
         loadRecommendedTopics();
     });
 
