@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "node ./node_modules/eslint/bin/eslint.js --ext .js,.jsx,.ts,.tsx app components lib --ignore-pattern components/DashboardContent_backup.tsx"
+    "lint": "eslint"
   },
   "dependencies": {
     "@google/genai": "^2.8.0",

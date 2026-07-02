@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
@@ -566,7 +565,7 @@ export default function DashboardContent() {
         } finally {
             setLocalChannelsLoading(false)
         }
-    }, [])
+    }, [adminFetch])
 
     const applySelectedChannelToCreateForm = (channelId: number | null) => {
         if (!channelId) {
@@ -3091,12 +3090,9 @@ export default function DashboardContent() {
                                                             <td className="px-10 py-6 align-middle">
                                                                 <div className="flex items-start gap-4">
                                                                     {req.metadata?.drive_thumbnail_preview_url ? (
-                                                                        <Image
+                                                                        <img
                                                                             src={req.metadata.drive_thumbnail_preview_url}
                                                                             alt={req.metadata?.title || 'thumbnail'}
-                                                                            width={112}
-                                                                            height={64}
-                                                                            unoptimized
                                                                             className="w-28 h-16 rounded-xl object-cover border border-white/10 bg-black/20 shrink-0"
                                                                         />
                                                                     ) : (
@@ -4494,7 +4490,7 @@ export default function DashboardContent() {
                                                                             </div>
                                                                         </div>
                                                                         {preset.image_url && (
-                                                                            <Image src={preset.image_url} alt={preset.display_name_ko} width={96} height={96} unoptimized className="w-24 h-24 object-cover rounded-lg mb-2.5 border border-white/5 bg-[#111]" />
+                                                                            <img src={preset.image_url} alt={preset.display_name_ko} className="w-24 h-24 object-cover rounded-lg mb-2.5 border border-white/5 bg-[#111]" />
                                                                         )}
                                                                         <p className="text-[10px] text-gray-400 font-mono line-clamp-3 bg-black/50 p-2 rounded border border-white/5">
                                                                             {preset.prompt_template}

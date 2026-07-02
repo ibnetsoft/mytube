@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useLanguage } from '@/lib/LanguageContext'
 
 interface Tenant {
@@ -62,14 +62,14 @@ export default function TenantManagement({ authToken, isSuperAdmin }: TenantMana
         watermark_enabled: true
     })
 
-    const adminFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const adminFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
         const headers = new Headers(init.headers || {})
         if (authToken) headers.set('Authorization', `Bearer ${authToken}`)
         return fetch(input, { ...init, headers })
-    }, [authToken])
+    }
 
     // 테넌트 목록 불러오기
-    const fetchTenants = useCallback(async () => {
+    const fetchTenants = async () => {
         setLoading(true)
         try {
             const res = await adminFetch('/api/admin/tenants')
@@ -82,7 +82,7 @@ export default function TenantManagement({ authToken, isSuperAdmin }: TenantMana
         } finally {
             setLoading(false)
         }
-    }, [adminFetch])
+    }
 
     // 테넌트 사용자 목록 불러오기
     const fetchTenantUsers = async (tenantKey: string) => {
@@ -199,7 +199,7 @@ export default function TenantManagement({ authToken, isSuperAdmin }: TenantMana
         if (isSuperAdmin) {
             fetchTenants()
         }
-    }, [isSuperAdmin, fetchTenants])
+    }, [isSuperAdmin])
 
     if (!isSuperAdmin) {
         return (

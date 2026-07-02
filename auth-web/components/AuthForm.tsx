@@ -2,7 +2,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -140,7 +139,7 @@ export default function AuthForm() {
                         onClick={handleGoogleLogin}
                         className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all font-bold text-sm shadow-lg active:scale-[0.98]"
                     >
-                        <Image src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" width={16} height={16} unoptimized />
+                        <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
                         {isThai ? 'เข้าสู่ระบบด้วย Google' : 'Sign in with Google'}
                     </button>
                     {/* Github removed as per request */}
