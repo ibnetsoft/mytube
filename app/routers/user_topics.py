@@ -325,9 +325,10 @@ async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> d
         return translated
 
     preferred_translation_model = str(config.TRANSLATION_MODEL or "gemini-2.5-flash").lower()
+    import services.ai_router as ai_router
     provider_chain = (
         (("claude", _translate_topics_with_claude), ("gemini", _translate_topics_with_gemini))
-        if preferred_translation_model.startswith("claude")
+        if ai_router.detect_provider(preferred_translation_model) == "claude"
         else (("gemini", _translate_topics_with_gemini), ("claude", _translate_topics_with_claude))
     )
 
