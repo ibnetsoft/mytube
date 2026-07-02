@@ -283,8 +283,8 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 
 ### AIR-0117
 - Status: Done
-- Commit: `(this PR)`
-- PR: air-0117-project-status-sync
+- Commit: `b7777b1d`
+- PR: #18 (MERGED 2026-07-02)
 - Related files:
   - `project_status/LATEST.md`
   - `project_status/NEXT_TASK.md`
@@ -308,6 +308,21 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Validated the Longform operator workflow. Browser execution was blocked due to unavailability of safe test credentials. Documented current gate status, focused test evidence, and admin publish/export blockers. Preserved validation docs via PR #20 after PR #13 was closed due to merge conflicts with main.
 - Next action:
   Re-run the complete Longform operator workflow with dedicated credentials and real external assets to complete authenticated browser-level validation.
+
+### AIR-0119
+- Status: Done
+- Commit: `24d06f9e`
+- PR: #19 (MERGED 2026-07-02)
+- Related files:
+  - `services/ai_router.py`
+  - `services/autopilot_service.py`
+  - `services/gemini_service.py`
+  - `app/routers/projects.py`
+  - `app/routers/user_topics.py`
+- Short summary:
+  Centralized AI provider routing by introducing services/ai_router.py. Unified Claude/Gemini provider detection across 5 scattered call sites into a single router. Claude failure falls back to gemini-2.5-flash. Backward compatibility maintained — all existing function signatures unchanged.
+- Next action:
+  Product owner to decide next Sprint focus.
 
 ## Non-AIR Merged PRs (outside AIR task numbering)
 
