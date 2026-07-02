@@ -259,6 +259,33 @@ def _translate_topics_with_http_fallback(payload: list[dict], valid_target: str)
     return result
 
 
+async def _translate_topics_with_http_fallback_async(payload: list[dict], valid_target: str) -> dict:
+    """Translate topic fields concurrently without blocking the FastAPI event loop."""
+    semaphore = asyncio.Semaphore(6)
+
+    async def translate_text(text: str) -> str:
+        async with semaphore:
+            return await asyncio.to_thread(_translate_text_via_google, text, valid_target)
+
+    async def translate_item(item: dict):
+        rid = str(item.get("id") or "").strip()
+        if not rid:
+            return None
+        translated_topic, translated_category = await asyncio.gather(
+            translate_text(item.get("topic") or ""),
+            translate_text(item.get("category_name") or ""),
+        )
+        if not translated_topic and not translated_category:
+            return None
+        return rid, {
+            f"topic_{valid_target}": translated_topic,
+            f"category_name_{valid_target}": translated_category,
+        }
+
+    rows = await asyncio.gather(*(translate_item(item) for item in payload))
+    return dict(row for row in rows if row)
+
+
 async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> dict:
     valid_target = (target_lang_code or "").strip().lower()
     if valid_target not in {"en", "vi", "th"} or not items:
@@ -282,18 +309,34 @@ async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> d
     if not payload:
         return {}
 
+    # UI translation should remain available even when paid AI quotas are exhausted.
+    translated = await _translate_topics_with_http_fallback_async(payload, valid_target)
+    missing_payload = [
+        item
+        for item in payload
+        if not translated.get(item["id"], {}).get(f"topic_{valid_target}")
+    ]
+    if not missing_payload:
+        return translated
+
     for provider_name, translator in (
         ("gemini", _translate_topics_with_gemini),
         ("claude", _translate_topics_with_claude),
     ):
         try:
-            translated = await translator(payload, valid_target, lang_name)
-            if translated:
+            provider_result = await translator(missing_payload, valid_target, lang_name)
+            translated.update(provider_result)
+            missing_payload = [
+                item
+                for item in missing_payload
+                if not translated.get(item["id"], {}).get(f"topic_{valid_target}")
+            ]
+            if not missing_payload:
                 return translated
         except Exception as e:
             print(f"[User Topics] {provider_name} batch translation failed ({valid_target}): {e}")
 
-    return _translate_topics_with_http_fallback(payload, valid_target)
+    return translated
 
 def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
     category = topic.get("categories") or {}

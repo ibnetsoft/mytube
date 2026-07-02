@@ -73,6 +73,7 @@ from services.auth_service import auth_service
 from services.storage_service import storage_service
 from services.thumbnail_service import thumbnail_service
 from services.drive_bundle_service import drive_bundle_service
+from services.web_admin_client import web_admin_client
 from services.topic_queue_sync_service import sync_topic_progress
 from services.project_sync_service import sync_project_metadata
 
@@ -2132,17 +2133,39 @@ async def tts_voices():
     try:
         custom_voices = db.get_global_setting("custom_voices", [])
         if isinstance(custom_voices, list):
-            existing_ids = {v.get("voice_id") for v in voices if v.get("provider") == "elevenlabs"}
-            for cv in custom_voices:
-                vid = cv.get("voice_id")
-                if vid and vid not in existing_ids:
-                    voices.append({
-                        "voice_id": vid,
-                        "name": f"{cv.get('name')} (커스텀)",
-                        "provider": "elevenlabs",
-                        "preview_url": None,
-                        "labels": {"custom": "true"}
-                    })
+            merged_custom_voices = list(custom_voices)
+        else:
+            merged_custom_voices = []
+
+        remote_settings = web_admin_client.fetch_global_setting_values(["custom_voices"])
+        remote_custom_voices = remote_settings.get("custom_voices")
+        if isinstance(remote_custom_voices, str):
+            try:
+                remote_custom_voices = json.loads(remote_custom_voices)
+            except Exception:
+                remote_custom_voices = []
+        if isinstance(remote_custom_voices, list):
+            by_id = {
+                str(item.get("voice_id")): item
+                for item in merged_custom_voices
+                if isinstance(item, dict) and item.get("voice_id")
+            }
+            for item in remote_custom_voices:
+                if isinstance(item, dict) and item.get("voice_id"):
+                    by_id[str(item["voice_id"])] = item
+            merged_custom_voices = list(by_id.values())
+
+        existing_ids = {v.get("voice_id") for v in voices if v.get("provider") == "elevenlabs"}
+        for cv in merged_custom_voices:
+            vid = cv.get("voice_id")
+            if vid and vid not in existing_ids:
+                voices.append({
+                    "voice_id": vid,
+                    "name": f"{cv.get('name')} (커스텀)",
+                    "provider": "elevenlabs",
+                    "preview_url": None,
+                    "labels": {"custom": "true"}
+                })
     except Exception as e:
         print(f"[WARN] Failed to load custom voices from db: {e}")
 

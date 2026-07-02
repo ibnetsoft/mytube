@@ -7,11 +7,7 @@
 <div id="recommendedTopicsSection" class="mb-6">
     <div class="flex items-center justify-between mb-4">
         <div>
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                <span class="text-xl">TOPIC</span>
-                {{ t('recommended_topics_title') }}
-            </h2>
-            <p class="text-xs text-gray-400 mt-1">{{ t('recommended_topics_desc') }}</p>
+            <h2 class="text-lg font-bold text-white">Check AI-analyzed personalized topics</h2>
         </div>
         <div class="flex items-center gap-2">
             <select id="filterDuration" onchange="applyRecommendedFilters()"
@@ -24,11 +20,9 @@
             </select>
             <select id="filterLanguage" onchange="applyRecommendedFilters()"
                 class="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer">
-                <option value="">{{ t('filter_language') }}</option>
-                <option value="ko">KR</option>
-                <option value="en">EN</option>
-                <option value="ja">JP</option>
-                <option value="ignore">{{ t('language_ignore') }}</option>
+                <option value="ko">한국어</option>
+                <option value="ja">日本語</option>
+                <option value="en">English</option>
             </select>
             <button onclick="refreshRecommendedTopics()"
                 class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-all">
@@ -1007,10 +1001,13 @@
         if (!['vi', 'en', 'th'].includes(uiLang) || !allRecommendedTopics.length) return;
 
         const requestId = ++recommendedTranslationRequestId;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
         try {
             const res = await fetch('/api/user/recommended-topics/translations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     ui_language: uiLang,
                     topics: allRecommendedTopics.map((topic) => ({
@@ -1020,6 +1017,9 @@
                     })),
                 }),
             });
+            if (!res.ok) {
+                throw new Error(`Translation request failed (${res.status})`);
+            }
             const data = await res.json();
             if (requestId !== recommendedTranslationRequestId) return;
             if (data.status === 'ok' && data.translations) {
@@ -1028,6 +1028,12 @@
             }
         } catch (e) {
             console.error('Failed to load recommended topic translations:', e);
+            const message = e.name === 'AbortError'
+                ? 'Translation request timed out.'
+                : e.message;
+            Utils.showToast(`${i18n.err_generic_msg}${message}`, 'error');
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
@@ -1048,9 +1054,8 @@
         }
 
         grid.innerHTML = recommendedTopics.map((topic) => {
-            const langFlag = ({ ko: 'KR', en: 'EN', ja: 'JP' })[String(topic.language || '').toLowerCase()] || 'N/A';
             const durationMinutes = topic.duration_minutes || topic.recommended_duration_minutes;
-            const durationText = durationMinutes ? `${durationMinutes} min` : '-';
+            const durationText = durationMinutes ? `${durationMinutes}m` : '-';
             const scriptStyle = topic.script_style || '-';
             const imageStyle = topic.image_style || '-';
             const uiLang = window.currentLang || 'ko';
@@ -1087,44 +1092,28 @@
 
             return `
                 <button type="button"
-                    class="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl p-4 hover:border-indigo-500/50 transition-all group relative"
+                    class="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl px-4 pt-4 pb-2 hover:border-indigo-500/50 transition-all group relative"
                     onclick="claimAndCreateProject(event, '${topic.id}')">
                     ${multiplierBadge}
-                    <div class="flex items-start justify-between mb-2 gap-2">
-                        <span class="text-xs font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded truncate">
+                    <div class="mb-2">
+                        <span class="float-left text-xs leading-4 font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded mr-2 max-w-[55%] truncate">
                             ${translatedCategory || topic.category_name || 'General'}
                         </span>
-                        <span class="text-xs font-bold text-white shrink-0">${langFlag}</span>
+                        <h3 class="text-sm leading-5 font-medium text-white group-hover:text-indigo-300 transition-colors">
+                            ${topic.topic || '-'}
+                        </h3>
+                        <div class="clear-both"></div>
                     </div>
-                    <h3 class="text-sm font-medium text-white mb-1 line-clamp-2 group-hover:text-indigo-300 transition-colors min-h-[2.5rem]">
-                        ${topic.topic || '-'}
-                    </h3>
                     ${translatedTopic ? `
                         <p class="text-[11px] leading-5 text-sky-300/90 mb-3 min-h-[2.75rem]">
                             ${translatedTopic}
                         </p>
                     ` : `<div class="mb-3 min-h-[2.75rem]"></div>`}
-                    <div class="space-y-2 text-xs text-gray-400 mb-3">
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="min-w-0">
-                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Duration</div>
-                                <div class="truncate text-white">${durationText}</div>
-                            </div>
-                            <div class="min-w-0">
-                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Payout</div>
-                                <div class="truncate ${payoutClass} font-semibold">${payoutText}</div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="min-w-0">
-                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Image</div>
-                                <div class="truncate text-white">${imageStyle}</div>
-                            </div>
-                            <div class="min-w-0">
-                                <div class="text-[10px] uppercase tracking-wide text-gray-500">Script</div>
-                                <div class="truncate text-white">${scriptStyle}</div>
-                            </div>
-                        </div>
+                    <div class="text-xs text-gray-300 truncate">
+                        <span>${durationText}</span>,
+                        <span class="${payoutClass} font-semibold">${payoutText}</span>,
+                        <span>${imageStyle}</span>,
+                        <span>${scriptStyle}</span>
                     </div>
                 </button>
             `;
