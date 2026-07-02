@@ -10,7 +10,9 @@ const KEYS = [
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',
     'longform_duration_lock_enabled',
-    'script_generation_model', 'image_generation_model', 'video_generation_model'
+    'topic_generation_model', 'title_generation_model', 'script_planning_model',
+    'script_generation_model', 'image_prompt_model', 'translation_model',
+    'image_generation_model', 'video_generation_model'
 ]
 
 const EXACT_KEYS = [

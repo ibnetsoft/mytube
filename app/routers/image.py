@@ -180,7 +180,9 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
             target_scene_count=target_count,
             style_key=style_key,
             gemini_instruction=gemini_instruction,
-            reference_image_url=reference_image_url
+            reference_image_url=reference_image_url,
+            project_id=req.project_id,
+            model=config.IMAGE_PROMPT_MODEL,
         )
 
         if not prompts_list:
@@ -194,7 +196,9 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
                 target_scene_count=target_count,
                 style_key=style_key,
                 gemini_instruction=gemini_instruction,
-                reference_image_url=reference_image_url
+                reference_image_url=reference_image_url,
+                project_id=req.project_id,
+                model=config.IMAGE_PROMPT_MODEL,
             )
 
         if not prompts_list:

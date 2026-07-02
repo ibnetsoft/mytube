@@ -987,7 +987,7 @@ class GeminiService:
             print(f"Cooking Plan Gen Error: {e}")
         return {}
 
-    async def generate_title_recommendations(self, keyword: str, topic: str = "", language: str = "ko") -> List[str]:
+    async def generate_title_recommendations(self, keyword: str, topic: str = "", language: str = "ko", model: str = None) -> List[str]:
         """추천 제목 5개 생성"""
         prompt = f"""
         당신은 유튜브 콘텐츠 기획 전문가입니다.
@@ -1006,15 +1006,24 @@ class GeminiService:
         """
 
         try:
-            response_text = await self.generate_text(prompt, temperature=0.8)
+            selected_model = model or config.TITLE_GENERATION_MODEL
+            if str(selected_model or "").lower().startswith("claude"):
+                from services.claude_service import claude_service
+                try:
+                    print(f"[Title Gen] Using Claude model={selected_model}")
+                    response_text = await claude_service.generate_text(prompt, temperature=0.8, task_type="title_generation", model=selected_model)
+                except Exception as e:
+                    print(f"[Title Gen] Claude failed: {e}")
+                    response_text = await self.generate_text(prompt, temperature=0.8, task_type="title_generation", model="gemini-2.5-flash")
+            else:
+                response_text = await self.generate_text(prompt, temperature=0.8, task_type="title_generation", model=selected_model)
             cleaned_text = re.sub(r'```json\s*|\s*```', '', response_text).strip()
             match = re.search(r'\[.*\]', cleaned_text, re.DOTALL)
-            
+
             if match:
                 titles = json.loads(match.group(0))
                 return titles[:5]
             else:
-                # Fallback
                 return [line.strip().lstrip('-').lstrip('1.').strip() for line in cleaned_text.split('\n') if line.strip()][:5]
         except Exception as e:
             print(f"Title Gen Error: {e}")
@@ -1497,7 +1506,7 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None) -> List[dict]:
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None, model: str = None) -> List[dict]:
         """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
@@ -1786,10 +1795,21 @@ Motion prompt for this image:"""
                 print(f"[RefImage] Error: {_e}")
 
         async def _gen_text_or_vision(prompt_text: str) -> str:
-            if _ref_image_bytes:
+            selected_model = model or config.IMAGE_PROMPT_MODEL
+            if _ref_image_bytes and not str(selected_model or "").lower().startswith("claude"):
                 ref_hint = "\n\n[STYLE REFERENCE IMAGE ATTACHED]"
                 return await self.generate_text_from_image(prompt_text + ref_hint, _ref_image_bytes, _ref_mime)
-            return await self.generate_text(prompt_text, temperature=0.7)
+
+            if str(selected_model or "").lower().startswith("claude"):
+                from services.claude_service import claude_service
+                try:
+                    print(f"[Image Prompt] Using Claude model={selected_model}")
+                    return await claude_service.generate_text(prompt_text, temperature=0.7, project_id=project_id, task_type='image_prompt', model=selected_model)
+                except Exception as e:
+                    print(f"[Image Prompt] Claude failed: {e}")
+                    selected_model = "gemini-2.5-flash"
+
+            return await self.generate_text(prompt_text, temperature=0.7, project_id=project_id, task_type='image_prompt', model=selected_model)
 
         if use_chunked:
             # ── 청크 분할 모드 ─────────────────────────────────────────────

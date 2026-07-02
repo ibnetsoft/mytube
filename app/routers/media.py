@@ -65,6 +65,8 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
             target_scene_count=req.count if req.count > 0 else None,
             style_key=style_key,
             gemini_instruction=gemini_instruction,
+            project_id=req.project_id,
+            model=config.IMAGE_PROMPT_MODEL,
         )
 
         # project_id가 있으면 기존 프롬프트 덮어쓰고 DB 저장
