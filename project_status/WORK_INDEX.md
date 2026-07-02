@@ -296,6 +296,19 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   Product owner to decide next Sprint. Recommended candidates: language-switch latency, Vietnamese/Thai UX, payout identity simplification.
 
+### AIR-0118
+- Status: Done
+- Commit: `c7ce03d3`
+- PR: #20 (MERGED 2026-07-02)
+- Related files:
+  - `docs/LONGFORM_OPERATION_VALIDATION.md`
+  - `worknote/AIR-0118.md`
+  - `worknote/AIR-0120.md`
+- Short summary:
+  Validated the Longform operator workflow. Browser execution was blocked due to unavailability of safe test credentials. Documented current gate status, focused test evidence, and admin publish/export blockers. Preserved validation docs via PR #20 after PR #13 was closed due to merge conflicts with main.
+- Next action:
+  Re-run the complete Longform operator workflow with dedicated credentials and real external assets to complete authenticated browser-level validation.
+
 ## Non-AIR Merged PRs (outside AIR task numbering)
 
 ### PR #14 — feat: topic UI and admin ElevenLabs voice management
