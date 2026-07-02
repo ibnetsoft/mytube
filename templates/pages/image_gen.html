@@ -169,6 +169,80 @@
     </div>
 </div>
 
+<!-- [NEW] Image Generation Workflow Guide -->
+<div class="card mb-6">
+    <div class="border border-white/10 rounded-lg bg-[#1c2027] overflow-hidden">
+        <button onclick="toggleWorkflowGuide()" class="w-full flex items-center justify-between p-4 bg-[#232832] hover:bg-[#2a303b] transition-colors">
+            <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>📋</span> {{ t('workflow_title') }}
+            </h3>
+            <span id="workflowToggleIcon" class="text-white transform transition-transform duration-200">▼</span>
+        </button>
+        <div id="workflowGuideContent" class="p-4 space-y-3">
+            <!-- Step 1 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step1" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 1: {{ t('workflow_step1') }}</span>
+                </div>
+            </label>
+
+            <!-- Step 2 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step2" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 2: {{ t('workflow_step2') }}</span>
+                    <p class="text-xs text-amber-300/80 mt-1 flex items-center gap-1">
+                        <span>💡</span> {{ t('workflow_step2_desc') }}
+                    </p>
+                </div>
+            </label>
+
+            <!-- Step 3 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step3" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 3: {{ t('workflow_step3') }}</span>
+                    <p class="text-xs text-green-300/80 mt-1 flex items-center gap-1">
+                        <span>💰</span> {{ t('workflow_step3_desc') }}
+                    </p>
+                </div>
+            </label>
+
+            <!-- Step 4 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step4" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 4: {{ t('workflow_step4') }}</span>
+                </div>
+            </label>
+
+            <!-- Step 5 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step5" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 5: {{ t('workflow_step5') }}</span>
+                </div>
+            </label>
+
+            <!-- Step 6 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step6" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 6: {{ t('workflow_step6') }}</span>
+                </div>
+            </label>
+
+            <!-- Step 7 -->
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors cursor-pointer">
+                <input type="checkbox" id="wf_step7" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent" onchange="saveWorkflowProgress()">
+                <div>
+                    <span class="text-sm font-bold text-white">STEP 7: {{ t('workflow_step7') }}</span>
+                </div>
+            </label>
+        </div>
+    </div>
+</div>
 
 <div id="resultSection" class="hidden">
     <div class="card">

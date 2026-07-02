@@ -3,6 +3,18 @@
 
 PLATFORM_TRANSLATIONS = {
     'ko': {
+        # Image Workflow Guide
+        'workflow_title': '이미지 생성 워크플로우 가이드',
+        'workflow_step1': 'Image Prompt 생성',
+        'workflow_step2': '2×2 이미지 생성',
+        'workflow_step2_desc': '최고 품질의 이미지 생성을 위해 ChatGPT Plus 사용을 권장합니다.',
+        'workflow_step3': 'Crop',
+        'workflow_step3_desc': 'ChatGPT에서 Crop을 권장합니다. 서비스 크레딧을 절약할 수 있습니다.',
+        'workflow_step4': 'Upscaling',
+        'workflow_step5': 'Video Clip 생성',
+        'workflow_step6': '파일 업로드',
+        'workflow_step7': '영상 생성',
+
         'status_rendering': '렌더링 중',
         'status_waiting': '대기 중',
         'label_waiting_order': '대기',
@@ -3104,6 +3116,18 @@ PLATFORM_TRANSLATIONS = {
         'opt_graphics_server': '그래픽서버',
     },
     'en': {
+        # Image Workflow Guide
+        'workflow_title': 'Image Generation Workflow Guide',
+        'workflow_step1': 'Generate Image Prompt',
+        'workflow_step2': 'Generate 2x2 Image',
+        'workflow_step2_desc': 'We recommend using ChatGPT Plus for the highest quality image generation.',
+        'workflow_step3': 'Crop',
+        'workflow_step3_desc': 'We recommend cropping in ChatGPT to save service credits.',
+        'workflow_step4': 'Upscaling',
+        'workflow_step5': 'Generate Video Clip',
+        'workflow_step6': 'Upload Files',
+        'workflow_step7': 'Generate Video',
+
         'status_remote_empty': 'Queue is empty',
         'status_rendering': 'Rendering',
         'status_waiting': 'Queued',
@@ -5544,6 +5568,18 @@ PLATFORM_TRANSLATIONS = {
         'opt_graphics_server': 'GPU Server',
     },
     'vi': {
+        # Image Workflow Guide
+        'workflow_title': 'Hướng dẫn Quy trình Tạo Ảnh',
+        'workflow_step1': 'Tạo Image Prompt',
+        'workflow_step2': 'Tạo ảnh 2x2',
+        'workflow_step2_desc': 'Chúng tôi khuyên dùng ChatGPT Plus để tạo ảnh chất lượng cao nhất.',
+        'workflow_step3': 'Cắt ảnh (Crop)',
+        'workflow_step3_desc': 'Chúng tôi khuyên bạn nên cắt ảnh trong ChatGPT để tiết kiệm credit dịch vụ.',
+        'workflow_step4': 'Nâng cấp độ phân giải (Upscaling)',
+        'workflow_step5': 'Tạo Video Clip',
+        'workflow_step6': 'Tải tệp lên',
+        'workflow_step7': 'Tạo Video',
+
         'status_rendering': 'Đang kết xuất',
         'status_waiting': 'Đang chờ',
         'label_waiting_order': 'Chờ',
@@ -8238,6 +8274,18 @@ PLATFORM_TRANSLATIONS = {
         'toast_ext_audio_registered': 'Audio externo registrado.',
     },
     'th': {
+        # Image Workflow Guide
+        'workflow_title': 'คู่มือขั้นตอนการสร้างรูปภาพ',
+        'workflow_step1': 'สร้าง Image Prompt',
+        'workflow_step2': 'สร้างรูปภาพ 2x2',
+        'workflow_step2_desc': 'เราขอแนะนำให้ใช้ ChatGPT Plus เพื่อการสร้างรูปภาพคุณภาพสูงสุด',
+        'workflow_step3': 'ครอบตัด (Crop)',
+        'workflow_step3_desc': 'เราขอแนะนำให้ครอบตัดใน ChatGPT เพื่อประหยัดเครดิตบริการ',
+        'workflow_step4': 'อัปสเกล (Upscaling)',
+        'workflow_step5': 'สร้าง Video Clip',
+        'workflow_step6': 'อัปโหลดไฟล์',
+        'workflow_step7': 'สร้างวิดีโอ',
+
         'app_name': 'PICADILLY STUDIO',
         'cur_project_label': 'โปรเจกต์ปัจจุบัน',
         'new_project_btn': '+ ใหม่',
