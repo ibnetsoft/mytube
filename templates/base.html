@@ -71,22 +71,22 @@
                     <div class="flex items-center justify-between">
                         <span class="text-[9px] font-black text-gray-400 uppercase tracking-tighter">{{ t('label_language') }}</span>
                         <div class="flex gap-2">
-                            <button onclick="changeGlobalLanguage('ko')"
+                            <button onclick="changeGlobalLanguage('ko')" data-lang-btn="ko"
                                 class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'ko' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
                                 title="한국어">
                                 <img src="https://flagcdn.com/w40/kr.png" alt="Korean" class="w-full h-full object-cover">
                             </button>
-                            <button onclick="changeGlobalLanguage('en')"
+                            <button onclick="changeGlobalLanguage('en')" data-lang-btn="en"
                                 class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'en' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
                                 title="English">
                                 <img src="https://flagcdn.com/w40/gb.png" alt="English" class="w-full h-full object-cover">
                             </button>
-                            <button onclick="changeGlobalLanguage('vi')"
+                            <button onclick="changeGlobalLanguage('vi')" data-lang-btn="vi"
                                 class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'vi' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
                                 title="Tiếng Việt">
                                 <img src="https://flagcdn.com/w40/vn.png" alt="Vietnamese" class="w-full h-full object-cover">
                             </button>
-                            <button onclick="changeGlobalLanguage('th')"
+                            <button onclick="changeGlobalLanguage('th')" data-lang-btn="th"
                                 class="w-5 h-5 rounded-full overflow-hidden border-2 {% if current_lang == 'th' %}border-blue-500{% else %}border-transparent{% endif %} hover:border-blue-500/50 transition-all relative group"
                                 title="ภาษาไทย">
                                 <img src="https://flagcdn.com/w40/th.png" alt="Thai" class="w-full h-full object-cover">
@@ -558,14 +558,27 @@
                 });
                 const data = await res.json();
                 if (data.status === 'ok') {
-                    // Show animation or toast
-                    Utils.showToast('Language changing...', 'success');
-                    setTimeout(() => window.location.reload(), 500);
+                    window.currentLang = lang;
+                    updateLangButtonStates(lang);
+                    refreshLangDependentUI(lang);
+                    Utils.showToast(i18n.lang_change_success || 'Language changed', 'success');
                 }
             } catch (e) {
                 console.error("Language switch failed:", e);
-                Utils.showToast('Failed to switch language', 'error');
+                Utils.showToast(i18n.err_generic_msg + e.message, 'error');
             }
+        }
+
+        function updateLangButtonStates(lang) {
+            document.querySelectorAll('[data-lang-btn]').forEach(btn => {
+                const btnLang = btn.getAttribute('data-lang-btn');
+                btn.classList.toggle('border-blue-500', btnLang === lang);
+                btn.classList.toggle('border-transparent', btnLang !== lang);
+            });
+        }
+
+        function refreshLangDependentUI(lang) {
+            loadProjects();
         }
 
         async function quickRenameCurrentProject() {
@@ -689,6 +702,7 @@
             err_rename_fail: "{{ t('err_rename_fail') }}",
             toast_name_changed: "{{ t('toast_name_changed') }}",
             err_generic_msg: "{{ t('err_generic_msg') }}",
+            lang_change_success: "{{ t('lang_change_success') }}",
             label_scenes_count: "{{ t('label_scenes_count') }}",
 
             // Autopilot keys
