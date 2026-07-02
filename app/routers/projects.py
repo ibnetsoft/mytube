@@ -4,6 +4,7 @@ import re
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
 from pydantic import BaseModel
+from config import config
 from app.modes import DEFAULT_APP_MODE, VALID_APP_MODES, normalize_app_mode, recover_mode_language_mixup
 
 class BulkDeleteRequest(BaseModel):
@@ -95,6 +96,7 @@ async def translate_text_to_target(text: str, target_lang_code: str) -> str:
         return ""
     try:
         from services.gemini_service import gemini_service
+        from services.claude_service import claude_service
         lang_map = {
             "en": "English",
             "ja": "Japanese",
@@ -107,7 +109,16 @@ async def translate_text_to_target(text: str, target_lang_code: str) -> str:
             f"Output ONLY the final translated {lang_name} text, without any explanations, markdown, quotes or surrounding text.\n\n"
             f"Korean text: {text}"
         )
-        res = await gemini_service.generate_text(prompt, temperature=0.2)
+        model = config.TRANSLATION_MODEL or "gemini-2.5-flash"
+        if str(model).lower().startswith("claude"):
+            try:
+                print(f"[Translation] Using Claude model={model}")
+                res = await claude_service.generate_text(prompt, temperature=0.2, task_type="translation", model=model)
+            except Exception as e:
+                print(f"[Translation] Claude failed: {e}")
+                res = await gemini_service.generate_text(prompt, temperature=0.2, task_type="translation", model="gemini-2.5-flash")
+        else:
+            res = await gemini_service.generate_text(prompt, temperature=0.2, task_type="translation", model=model)
         return res.strip().replace('"', '').replace('"', '')
     except Exception as e:
         print(f"[I18n Translation Error] {e}")

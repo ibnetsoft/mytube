@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 import database as db
+from config import config
 from services.auth_service import auth_service
 
 router = APIRouter(tags=["User Topics"])
@@ -183,7 +184,10 @@ def _parse_batch_translation_response(raw: str, valid_target: str) -> dict:
 async def _translate_topics_with_gemini(payload: list[dict], valid_target: str, lang_name: str) -> dict:
     from services.gemini_service import gemini_service
 
-    res = await gemini_service.generate_text(_build_translation_prompt(payload, lang_name), temperature=0.2)
+    model = config.TRANSLATION_MODEL or "gemini-2.5-flash"
+    if str(model).lower().startswith("claude"):
+        model = "gemini-2.5-flash"
+    res = await gemini_service.generate_text(_build_translation_prompt(payload, lang_name), temperature=0.2, task_type="translation", model=model)
     return _parse_batch_translation_response(res, valid_target)
 
 
@@ -198,6 +202,7 @@ async def _translate_topics_with_claude(payload: list[dict], valid_target: str, 
         temperature=0.2,
         task_type="translation",
         max_tokens=4096,
+        model=config.TRANSLATION_MODEL,
     )
     return _parse_batch_translation_response(res, valid_target)
 
@@ -319,10 +324,14 @@ async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> d
     if not missing_payload:
         return translated
 
-    for provider_name, translator in (
-        ("gemini", _translate_topics_with_gemini),
-        ("claude", _translate_topics_with_claude),
-    ):
+    preferred_translation_model = str(config.TRANSLATION_MODEL or "gemini-2.5-flash").lower()
+    provider_chain = (
+        (("claude", _translate_topics_with_claude), ("gemini", _translate_topics_with_gemini))
+        if preferred_translation_model.startswith("claude")
+        else (("gemini", _translate_topics_with_gemini), ("claude", _translate_topics_with_claude))
+    )
+
+    for provider_name, translator in provider_chain:
         try:
             provider_result = await translator(missing_payload, valid_target, lang_name)
             translated.update(provider_result)

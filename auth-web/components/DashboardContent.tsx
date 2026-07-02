@@ -291,7 +291,12 @@ export default function DashboardContent() {
         qa_min_width: '1920', qa_min_height: '1080',
         terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
         privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: '',
+        topic_generation_model: 'gemini-2.5-flash',
+        title_generation_model: 'gemini-2.5-flash',
+        script_planning_model: 'gemini-2.5-flash',
         script_generation_model: 'gemini-2.5-flash',
+        image_prompt_model: 'gemini-2.5-flash',
+        translation_model: 'gemini-2.5-flash',
         image_generation_model: 'gemini-3.1-flash-image-preview',
         video_generation_model: 'veo-3.1-fast-generate-preview'
     })
@@ -1182,7 +1187,15 @@ export default function DashboardContent() {
                 privacy_ko: data.privacy_ko || '',
                 privacy_en: data.privacy_en || '',
                 privacy_vi: data.privacy_vi || '',
-                privacy_th: data.privacy_th || ''
+                privacy_th: data.privacy_th || '',
+                topic_generation_model: data.topic_generation_model || 'gemini-2.5-flash',
+                title_generation_model: data.title_generation_model || data.script_generation_model || 'gemini-2.5-flash',
+                script_planning_model: data.script_planning_model || data.script_generation_model || 'gemini-2.5-flash',
+                script_generation_model: data.script_generation_model || 'gemini-2.5-flash',
+                image_prompt_model: data.image_prompt_model || 'gemini-2.5-flash',
+                translation_model: data.translation_model || 'gemini-2.5-flash',
+                image_generation_model: data.image_generation_model || 'gemini-3.1-flash-image-preview',
+                video_generation_model: data.video_generation_model || 'veo-3.1-fast-generate-preview'
             });
         } catch (e) {
             // Silently ignore errors to prevent console spam
@@ -3616,28 +3629,36 @@ export default function DashboardContent() {
                                     {/* AI Model Settings */}
                                     <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-4">
                                         <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">🤖 AI 모델 선택</p>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {/* 대본 생성 모델 */}
-                                            <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">대본 생성 모델</label>
-                                                <select
-                                                    value={sysKeys.script_generation_model}
-                                                    onChange={e => setSysKeys(prev => ({ ...prev, script_generation_model: e.target.value }))}
-                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
-                                                >
-                                                    <optgroup label="🟢 Claude (Anthropic)" className="bg-[#111]">
-                                                        <option value="claude-sonnet-5" className="bg-[#111]">Claude Sonnet 5</option>
-                                                        <option value="claude-sonnet-4-6" className="bg-[#111]">Claude Sonnet 4.6 (추천)</option>
-                                                        <option value="claude-opus-4-8" className="bg-[#111]">Claude Opus 4.8 (고성능)</option>
-                                                        <option value="claude-haiku-4-5-20251001" className="bg-[#111]">Claude Haiku 4.5 (빠름)</option>
-                                                    </optgroup>
-                                                    <optgroup label="🔵 Gemini (Google)" className="bg-[#111]">
-                                                        <option value="gemini-2.5-flash" className="bg-[#111]">Gemini 2.5 Flash</option>
-                                                        <option value="gemini-2.5-pro" className="bg-[#111]">Gemini 2.5 Pro</option>
-                                                    </optgroup>
-                                                </select>
-                                                <p className="text-[9px] text-gray-600 mt-1">대본 생성, 기획, 분석에 사용</p>
-                                            </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                            {[
+                                                { key: 'topic_generation_model', label: '주제 추천 모델', hint: '주제 추천/후속 확장용' },
+                                                { key: 'title_generation_model', label: '제목 생성 모델', hint: '제목 추천 생성에 사용' },
+                                                { key: 'script_planning_model', label: '대본 기획 모델', hint: 'Auto-Pilot 기획 생성에 사용' },
+                                                { key: 'script_generation_model', label: '대본 생성 모델', hint: 'Auto-Pilot 대본 생성에 사용' },
+                                                { key: 'image_prompt_model', label: '이미지 프롬프트 모델', hint: '씬 프롬프트 생성에 사용' },
+                                                { key: 'translation_model', label: '번역 모델', hint: '프로젝트/토픽 번역에 사용' },
+                                            ].map(({ key, label, hint }) => (
+                                                <div key={key}>
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
+                                                    <select
+                                                        value={(sysKeys as any)[key]}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                                    >
+                                                        <optgroup label="🔵 Gemini (Google)" className="bg-[#111]">
+                                                            <option value="gemini-2.5-flash" className="bg-[#111]">Gemini 2.5 Flash</option>
+                                                            <option value="gemini-2.5-pro" className="bg-[#111]">Gemini 2.5 Pro</option>
+                                                        </optgroup>
+                                                        <optgroup label="🟢 Claude (Anthropic)" className="bg-[#111]">
+                                                            <option value="claude-sonnet-5" className="bg-[#111]">Claude Sonnet 5</option>
+                                                            <option value="claude-sonnet-4-6" className="bg-[#111]">Claude Sonnet 4.6</option>
+                                                            <option value="claude-opus-4-8" className="bg-[#111]">Claude Opus 4.8</option>
+                                                            <option value="claude-haiku-4-5-20251001" className="bg-[#111]">Claude Haiku 4.5</option>
+                                                        </optgroup>
+                                                    </select>
+                                                    <p className="text-[9px] text-gray-600 mt-1">{hint}</p>
+                                                </div>
+                                            ))}
 
                                             {/* 이미지 생성 모델 */}
                                             <div>
@@ -3687,8 +3708,8 @@ export default function DashboardContent() {
                                         <p className="text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-2">📌 모델 정보</p>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] text-gray-400">
                                             <div className="bg-black/20 rounded-lg p-2">
-                                                <div className="font-bold text-white mb-1">Claude Sonnet 4.6</div>
-                                                <div>뛰어난 대본 작성 능력</div>
+                                                <div className="font-bold text-white mb-1">Claude Sonnet 5</div>
+                                                <div>기획·제목·대본 생성에 사용 가능</div>
                                             </div>
                                             <div className="bg-black/20 rounded-lg p-2">
                                                 <div className="font-bold text-white mb-1">Gemini 2.5 Flash</div>

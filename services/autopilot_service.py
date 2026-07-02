@@ -33,6 +33,45 @@ from services.music_generation_service import music_generation_service
 from app.modes import DEFAULT_APP_MODE, is_longform_family, is_longform_music_mode
 
 
+async def generate_text_with_model(prompt: str, model: str, *, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", use_search: bool = False) -> str:
+    selected_model = (model or "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+
+    if selected_model.lower().startswith("claude"):
+        try:
+            print(f"🤖 [AI Router] Using Claude for {task_type} (model={selected_model})...")
+            return await claude_service.generate_text(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                project_id=project_id,
+                task_type=task_type,
+                model=selected_model,
+            )
+        except Exception as e:
+            print(f"⚠️ [AI Router] Claude failed for {task_type}: {e}")
+            fallback_model = "gemini-2.5-flash"
+            print(f"🤖 [AI Router] Falling back to Gemini for {task_type} (model={fallback_model})...")
+            return await gemini_service.generate_text(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                project_id=project_id,
+                task_type=task_type,
+                model=fallback_model,
+                use_search=use_search,
+            )
+
+    return await gemini_service.generate_text(
+        prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        project_id=project_id,
+        task_type=task_type,
+        model=selected_model,
+        use_search=use_search,
+    )
+
+
 def split_text_to_subtitle_chunks(text: str, max_chars_per_line: int = 40, max_lines: int = 1) -> list:
     """
     긴 텍스트를 자막용 청크로 분할합니다.
@@ -872,29 +911,15 @@ Style: {style_desc}
 Please refer to the benchmarked cases' topics and viewer needs to construct a high-performing video structure.
 Return JSON only:
 {{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "..."}}"""
-                  planning_model = config.SCRIPT_GENERATION_MODEL
-                  result_text_s = None
-
-                  if planning_model and "claude" in planning_model.lower():
-                      try:
-                          print(f"🤖 [Auto-Pilot] Using Claude API for planning (model={planning_model})...")
-                          result_text_s = await claude_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning", model=planning_model)
-                          if result_text_s:
-                              print(f"✅ [Auto-Pilot] Claude planning succeeded")
-                      except Exception as e:
-                          print(f"⚠️ [Auto-Pilot] Claude planning failed: {e}")
-                          result_text_s = None
-
-                  if not result_text_s:
-                      gemini_models = [planning_model if not planning_model or "claude" not in planning_model.lower() else "gemini-2.5-flash", "gemini-2.5-flash"]
-                      for model_name in dict.fromkeys(gemini_models):
-                          try:
-                              print(f"🤖 [Auto-Pilot] Generating plan with model={model_name}...")
-                              result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning", model=model_name, use_search=True)
-                              if result_text_s:
-                                  break
-                          except Exception as e:
-                              print(f"⚠️ [Auto-Pilot] Planning failed with model={model_name}: {e}")
+                  planning_model = config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
+                  result_text_s = await generate_text_with_model(
+                      struct_prompt,
+                      planning_model,
+                      temperature=0.7,
+                      project_id=project_id,
+                      task_type="planning",
+                      use_search=True,
+                  )
 
                   if not result_text_s:
                       raise Exception("자동 기획 생성 결과가 비어 있습니다.")
@@ -985,28 +1010,18 @@ Create a production-ready playlist script/brief in Korean from this planning dat
 
         print(f"📄 [Auto-Pilot] Script generation model: {script_model}")
 
-        # Claude 모델인 경우 Claude 서비스 사용
-        if script_model and "claude" in script_model.lower():
-            try:
-                print(f"📄 [Auto-Pilot] Using Claude API for script generation...")
-                script = await claude_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=script_model)
-                if script and len(script.strip()) > 50:
-                    print(f"✅ [Auto-Pilot] Claude script generation succeeded")
-            except Exception as e:
-                print(f"⚠️ [Auto-Pilot] Claude script generation failed: {e}")
-                # Claude 실패 시 Gemini 폴백
-                script = None
-
-        # Claude 실패하거나 Claude 모델이 아닌 경우 Gemini 사용
-        if not script:
-            for model_name in [script_model if not script_model or "claude" not in script_model.lower() else "gemini-2.5-flash", "gemini-2.5-flash"]:
-                try:
-                    print(f"📄 [Auto-Pilot] Generating script with model={model_name}...")
-                    script = await gemini_service.generate_text(prompt, temperature=0.8, project_id=project_id, task_type="scripting", model=model_name, use_search=True)
-                    if script and len(script.strip()) > 50:
-                        break
-                except Exception as e:
-                    print(f"⚠️ [Auto-Pilot] Script generation failed with model={model_name}: {e}")
+        try:
+            script = await generate_text_with_model(
+                prompt,
+                script_model,
+                temperature=0.8,
+                project_id=project_id,
+                task_type="scripting",
+                use_search=True,
+            )
+        except Exception as e:
+            print(f"⚠️ [Auto-Pilot] Script generation failed: {e}")
+            script = None
 
         if not script:
             print(f"🚨 [Auto-Pilot] Both models failed to generate script. Using fallback draft script.")
@@ -1065,7 +1080,13 @@ Create a production-ready playlist script/brief in Korean from this planning dat
 JSON만 출력하세요:
 {{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "...", "style": "{style_key_for_struct}", "duration": "{duration_label}"}}"""
 
-                struct_text = await gemini_service.generate_text(struct_prompt, temperature=0.3)
+                struct_text = await generate_text_with_model(
+                    struct_prompt,
+                    config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL,
+                    temperature=0.3,
+                    project_id=project_id,
+                    task_type="planning",
+                )
                 match = re.search(r'\{[\s\S]*\}', struct_text)
                 if match:
                     new_struct = json.loads(match.group())
@@ -1123,7 +1144,9 @@ JSON만 출력하세요:
                 style_key=image_style_key,
                 gemini_instruction=gemini_instruction,
                 reference_image_url=reference_image_url,
-                char_ethnicity=char_ethnicity
+                char_ethnicity=char_ethnicity,
+                project_id=project_id,
+                model=config.IMAGE_PROMPT_MODEL,
             )
             db.save_image_prompts(project_id, image_prompts)
             image_prompts = db.get_image_prompts(project_id)

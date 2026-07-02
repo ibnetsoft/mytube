@@ -477,7 +477,12 @@ async def recommend_titles(
     language: str = Body("ko", embed=True)
 ):
     """키워드 기반 제목 추천"""
-    titles = await gemini_service.generate_title_recommendations(keyword, topic, language)
+    titles = await gemini_service.generate_title_recommendations(
+        keyword,
+        topic,
+        language,
+        model=config.TITLE_GENERATION_MODEL,
+    )
     return {"titles": titles}
 
 
@@ -742,7 +747,7 @@ async def auto_generate_images(project_id: int):
 
     # 2. 프롬프트 생성 (Gemini)
     from services.gemini_service import gemini_service
-    prompts = await gemini_service.generate_image_prompts_from_script(script, duration)
+    prompts = await gemini_service.generate_image_prompts_from_script(script, duration, model=config.IMAGE_PROMPT_MODEL)
     
     if not prompts:
         raise HTTPException(500, "이미지 프롬프트 생성 실패")
