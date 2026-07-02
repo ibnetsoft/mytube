@@ -872,8 +872,33 @@ Style: {style_desc}
 Please refer to the benchmarked cases' topics and viewer needs to construct a high-performing video structure.
 Return JSON only:
 {{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "..."}}"""
-                  result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning", use_search=True)
-                  
+                  planning_model = config.SCRIPT_GENERATION_MODEL
+                  result_text_s = None
+
+                  if planning_model and "claude" in planning_model.lower():
+                      try:
+                          print(f"🤖 [Auto-Pilot] Using Claude API for planning (model={planning_model})...")
+                          result_text_s = await claude_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning", model=planning_model)
+                          if result_text_s:
+                              print(f"✅ [Auto-Pilot] Claude planning succeeded")
+                      except Exception as e:
+                          print(f"⚠️ [Auto-Pilot] Claude planning failed: {e}")
+                          result_text_s = None
+
+                  if not result_text_s:
+                      gemini_models = [planning_model if not planning_model or "claude" not in planning_model.lower() else "gemini-2.5-flash", "gemini-2.5-flash"]
+                      for model_name in dict.fromkeys(gemini_models):
+                          try:
+                              print(f"🤖 [Auto-Pilot] Generating plan with model={model_name}...")
+                              result_text_s = await gemini_service.generate_text(struct_prompt, temperature=0.7, project_id=project_id, task_type="planning", model=model_name, use_search=True)
+                              if result_text_s:
+                                  break
+                          except Exception as e:
+                              print(f"⚠️ [Auto-Pilot] Planning failed with model={model_name}: {e}")
+
+                  if not result_text_s:
+                      raise Exception("자동 기획 생성 결과가 비어 있습니다.")
+
                   import re
                   match = re.search(r'\{[\s\S]*\}', result_text_s)
                   if match:
