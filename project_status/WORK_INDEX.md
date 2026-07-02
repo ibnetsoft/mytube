@@ -268,7 +268,8 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 
 ### AIR-0116
 - Status: Done
-- Commit: `pending`
+- Commit: `489be548`
+- PR: #11 (MERGED 2026-07-01)
 - Related files:
   - `project_status/LATEST.md`
   - `project_status/NEXT_TASK.md`
@@ -276,6 +277,47 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   - `worknote/latest.md`
   - `worknote/AIR-0116.md`
 - Short summary:
-  Resolved PR #11 conflicts from AIR-0115 / PR #12 by preserving AIR-0112 Longform readiness records, preserving AIR-0115 mytube remote cleanup records, and limiting changes to documentation/status files.
+  Resolved PR #11 conflicts from AIR-0115 / PR #12 by preserving AIR-0112 Longform readiness records, preserving AIR-0115 mytube remote cleanup records, and limiting changes to documentation/status files. PR #11 merged into main on 2026-07-01.
 - Next action:
-  AIR-0117 should re-review PR #11 after conflict resolution and complete authenticated browser verification with safe test credentials before merge approval.
+  AIR-0117 syncs project status documents after PR #11–#17 merged.
+
+### AIR-0117
+- Status: Done
+- Commit: `(this PR)`
+- PR: air-0117-project-status-sync
+- Related files:
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `project_status/WORK_INDEX.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0117.md`
+- Short summary:
+  Confirmed PR #11 merged. Discovered PRs #14–#17 (voice admin, Sonnet 5, per-feature AI models, auth-web lint) had merged without corresponding WORK_INDEX entries. Synchronized all project status documents with the actual GitHub state. Main HEAD is now `cdb7c23b`.
+- Next action:
+  Product owner to decide next Sprint. Recommended candidates: language-switch latency, Vietnamese/Thai UX, payout identity simplification.
+
+## Non-AIR Merged PRs (outside AIR task numbering)
+
+### PR #14 — feat: topic UI and admin ElevenLabs voice management
+- Status: Merged 2026-07-02
+- Branch: `codex/voice-admin-production`
+- Commit: `dfbf629c`
+- Short summary: Added admin voice management UI, bulk ElevenLabs voice registration, longform preview lock, and streamlined topic card translation fallback.
+
+### PR #15 — Enable Claude Sonnet 5 for script planning and generation
+- Status: Merged 2026-07-02
+- Branch: `claude-sonnet-5-script-routing`
+- Commit: `974f4c7a`
+- Short summary: Enabled Claude Sonnet 5 model for script planning and script generation routes.
+
+### PR #16 — Add per-feature AI model settings
+- Status: Merged 2026-07-02
+- Branch: `feature/per-feature-ai-models`
+- Commit: `1ba1309a`
+- Short summary: Added per-feature AI model selection (Topic, Title, Script Planning, Script Generation, Image Prompt, Translation, Image Generation, Video Generation).
+
+### PR #17 — Fix auth-web lint execution and warnings
+- Status: Merged 2026-07-02
+- Branch: `auth-web-lint-fixes`
+- Commit: `cdb7c23b`
+- Short summary: Fixed auth-web lint execution errors and resolved lint warnings. Lint-only change, no functional modifications.

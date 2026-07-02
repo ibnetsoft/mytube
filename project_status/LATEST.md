@@ -45,10 +45,20 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
-- `AIR-0116`
-  Updated PR #11 against the latest `main` after AIR-0115 / PR #12 merged, resolving only documentation/status conflicts while preserving the AIR-0112 Longform readiness implementation and the AIR-0115 mytube remote cleanup record.
-- `AIR-0115`
-  Corrected the local git remote from `ibnetsoft/ilddang` to `ibnetsoft/mytube`, confirmed GitHub CLI authentication, verified PR #11 exists in `ibnetsoft/mytube` and is OPEN from `air-0112-longform-e2e-fix-pass` to `main`, and confirmed commit `f983dcf7` is the AIR-0112 finalize commit on that branch. AIR-0115 is documentation-only and excludes unrelated feature changes.
+- `AIR-0117` (2026-07-02)
+  Synchronized all project status documents with the actual GitHub state after PRs #11–#17 merged. Confirmed PR #11 MERGED. Recorded non-AIR PRs #14–#17 in WORK_INDEX. Current main HEAD: `cdb7c23b`.
+- `PR #17` — Fix auth-web lint execution and warnings (2026-07-02, MERGED)
+  Fixed auth-web lint execution errors and resolved lint warnings. Lint-only, no functional changes.
+- `PR #16` — Add per-feature AI model settings (2026-07-02, MERGED)
+  Added per-feature AI model selection across all 8 generation features. Provider is auto-selected by model name (Claude/Gemini). Existing architecture preserved.
+- `PR #15` — Enable Claude Sonnet 5 for script planning and generation (2026-07-02, MERGED)
+  Routed script planning and script generation through Claude Sonnet 5.
+- `PR #14` — feat: topic UI and admin ElevenLabs voice management (2026-07-02, MERGED)
+  Added admin voice management, bulk ElevenLabs voice registration, longform preview lock, and streamlined topic card translation fallback.
+- `AIR-0116` (2026-07-01, MERGED via PR #11)
+  Resolved PR #11 documentation conflicts after AIR-0115 / PR #12 merged. PR #11 is now MERGED into main.
+- `AIR-0115` (2026-07-01, MERGED via PR #12)
+  Corrected the local git remote from `ibnetsoft/ilddang` to `ibnetsoft/mytube`, confirmed GitHub CLI authentication, verified and merged PR #11 in `ibnetsoft/mytube`.
 - `AIR-0112`
   Added canonical Longform Scene asset readiness. The backend now owns
   `assets_ready`, completion percentage, missing/duplicate Scene validation,

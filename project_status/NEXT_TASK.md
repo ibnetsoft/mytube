@@ -4,65 +4,64 @@
 This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio.
 Read this first before starting implementation work.
 
+## Current State (as of 2026-07-02)
+
+### Main HEAD
+`cdb7c23b` — Merge pull request #17 from ibnetsoft/auth-web-lint-fixes
+
+### Recently Merged PRs
+| PR | Title | Merged |
+|----|-------|--------|
+| #17 | Fix auth-web lint execution and warnings | 2026-07-02 |
+| #16 | Add per-feature AI model settings | 2026-07-02 |
+| #15 | Enable Claude Sonnet 5 for script planning and generation | 2026-07-02 |
+| #14 | feat: topic UI and admin ElevenLabs voice management | 2026-07-02 |
+| #12 | AIR-0115 document mytube remote cleanup | 2026-07-01 |
+| #11 | AIR-0112 enforce Longform Scene asset readiness | 2026-07-01 |
+| #10 | AIR-0111 Longform MVP end-to-end validation | 2026-07-01 |
+| #9  | AIR-0110A clean Longform integration | 2026-07-01 |
+
+### Open PRs
+| PR | Title | Action |
+|----|-------|--------|
+| #13 | AIR-0118 document longform operation validation | Awaiting review / merge decision |
+| #1–#8 | Superseded by AIR-0110A / PR #9 | Should be closed |
+
 ## Task Pointer
-Next: `AIR-0117` — re-review PR #11 after AIR-0116 conflict resolution; PR #11 remains open and must not be merged without review approval.
-
-## Integration Note
-- AIR-0110A clean integration was merged through PR #9 at `f5905d07`.
-- PR #5, #6, #7, and #8 remain superseded and must not be merged.
-- AIR-0111 determined that Longform is not ready for external Beta.
-- AIR-0115 corrected local `origin` to `https://github.com/ibnetsoft/mytube.git` and confirmed PR #11 exists in `ibnetsoft/mytube`.
-
-## AIR-0117 Goal
-Run the authenticated browser verification AIR-0112 could not complete and re-check PR #11 after the AIR-0116 conflict-resolution update:
-
-1. Provision or identify a safe Longform test worker and deterministic project.
-2. Import a real 2x2 grid into empty Scene slots.
-3. Upload numbered images and videos and verify automatic matching.
-4. Confirm missing, duplicate, invalid, and occupied files are visible.
-5. Refresh and verify Scene order and canonical readiness restoration.
-6. Confirm incomplete projects cannot render.
-7. Confirm a complete project can pass the readiness gate.
-8. Validate whether admin publish/export needs an additional readiness gate.
+Next task ID: `AIR-0119` (to be assigned by product owner after Sprint decision)
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
-2. Treat `Longform Music`, `General Shorts`, and `Shorts Commerce` as deferred modes:
-   - do not actively build them unless required for shared-structure safety
-   - do not let their incomplete contracts block longform delivery
-3. Continue reducing noisy runtime failures from Gemini spend-cap exhaustion:
-   - avoid repeated failing translation calls
-   - prefer fallback paths when Gemini is unavailable
+2. Treat `Longform Music`, `General Shorts`, and `Shorts Commerce` as deferred modes.
+3. Continue reducing noisy runtime failures from Gemini spend-cap exhaustion.
 
 ## Longform Finish Priorities
-1. Normalize the longform worker state contract:
-   - define canonical project-status ownership from claim through export
-   - reduce UI-only stage inference where backend-owned status is required
-   - align final render/export success conditions across worker-facing pages
-2. Finish project-aware longform/music route separation:
-   - remove remaining global-mode shortcuts from worker page routing
-   - make selected-project mode authoritative where a `project_id` exists
-   - keep standard longform workers out of the internal music workflow
-3. Rework payout identity and withdrawal UX:
-   - remove or hide wallet-address-centered UX if it is not part of the real operator flow
-   - evaluate enforcing Binance ID as the payout identity instead of arbitrary external wallet addresses
-   - unify duplicated withdrawal endpoints and payload shapes
-4. Remove the worker-facing language-switch latency:
-   - avoid full-page-cost translation work on every language icon click
-   - reduce or cache recommendation-card translation overhead
-   - prefer deterministic saved translations over repeated on-demand AI translation where possible
-5. Improve Vietnamese/Thai usability on longform worker pages:
-   - normalize labels through `t()`
-   - remove ad hoc language branching in core worker UI
-   - clean up visible mojibake on critical pages
-6. Reduce web-admin startup load so it supports longform operations without unnecessary fetch pressure
+1. Remove the language-switch bottleneck in worker-facing longform screens.
+   - Worker language switching triggers full-page reload + recommendation translation
+   - Translation path falls through Gemini → Claude → Google fallback
+   - Prefer cached/stored translations over repeated on-demand AI translation
+2. Clean up Vietnamese/Thai worker UX on core longform pages.
+   - Normalize labels through `t()`
+   - Remove ad hoc language branching in core worker UI
+   - Clean up visible mojibake on critical pages
+3. Simplify payout/withdrawal identity.
+   - Remove or hide wallet-address-centered UX
+   - Evaluate enforcing Binance ID as payout identity instead of arbitrary wallet addresses
+   - Unify duplicated withdrawal endpoints and payload shapes
+4. Normalize the longform worker state contract.
+   - Define canonical project-status ownership from claim through export
+   - Reduce UI-only stage inference where backend-owned status is required
+5. Reduce web-admin startup load.
+   - Admin app loads too much data eagerly on startup
+   - Polls render queue every 3 seconds — heavier than needed for longform delivery focus
+6. Finish project-aware longform/music route separation.
+   - Some longform/music pages still branch from global mode rather than selected-project mode
+   - `/script-plan` is fixed; audit and fix the rest of the page family
 
-## Immediate Next Checks
-1. Use dedicated test credentials; do not reuse or expose a real password.
-2. Browser-check project 195 shows 18% and Scene 3-11 missing.
-3. Browser-check project 188 shows 100% under `image_or_video`.
-4. Exercise one safe upload/replacement and refresh.
-5. Record browser evidence for the readiness badge and progress.
+## Open Questions for Product Owner
+1. Should PR #13 (AIR-0118) be merged or closed?
+2. Should superseded PRs #1–#8 be closed?
+3. Which Longform Finish Priority above is the next Sprint target?
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
@@ -74,8 +73,7 @@ Run the authenticated browser verification AIR-0112 could not complete and re-ch
    - `project_status/WORK_INDEX.md`
    - `worknote/latest.md`
    - `project_status/LATEST.md`
-   - `project_status/ROADMAP.md`
-   - `project_status/KNOWN_ISSUES.md` when needed
+   - `project_status/NEXT_TASK.md`
 6. Commit messages must include the Task ID.
 
 ## Key Files
@@ -96,9 +94,6 @@ Run the authenticated browser verification AIR-0112 could not complete and re-ch
 - The repo has both AIR Studio runtime code and `auth-web` admin code.
 - AIR Studio has four product modes, but only `Longform Mode` is an active completion target right now.
 - `Longform Music`, `General Shorts`, and `Shorts Commerce` should remain structurally intact while staying outside the current active build scope.
-- ChatGPT/Codex should use this file together with `PRODUCT_VISION.md` and `WORK_INDEX.md` as the control surface for deciding whether a proposed task moves forward now or goes to roadmap/backlog.
-- `AIR-0102` documented the current longform flow.
-- `AIR-0103` fixed the highest-risk plan-route leak by keeping longform claims on `/script-plan` and restricting `/music-plan` to internal music use.
-- Current local branch has many unrelated in-progress changes; review diff carefully before staging.
-- Port 8001 was fully restarted and browser-verified on 2026-06-27.
-- Live Supabase currently returns `42703` for `categories.video_type`; music recommendation verification is data-contract blocked, not a browser failure.
+- Per-feature AI model selection is now live (PR #16). Provider is auto-selected by model name. Do not break this structure.
+- ElevenLabs voice management and longform preview lock are now live (PR #14).
+- `main.py` uses multiprocessing; a restart must terminate both the parent and its serving child or the old child can keep port 8001 alive.
