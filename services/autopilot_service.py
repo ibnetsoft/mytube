@@ -24,6 +24,7 @@ import database as db
 from services.gemini_service import gemini_service
 from services.claude_service import claude_service
 from services.replicate_service import replicate_service
+import services.ai_router as ai_router
 from services.prompts import prompts
 from services.tts_service import tts_service
 from services.video_service import video_service
@@ -34,40 +35,13 @@ from app.modes import DEFAULT_APP_MODE, is_longform_family, is_longform_music_mo
 
 
 async def generate_text_with_model(prompt: str, model: str, *, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", use_search: bool = False) -> str:
-    selected_model = (model or "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-
-    if selected_model.lower().startswith("claude"):
-        try:
-            print(f"🤖 [AI Router] Using Claude for {task_type} (model={selected_model})...")
-            return await claude_service.generate_text(
-                prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                project_id=project_id,
-                task_type=task_type,
-                model=selected_model,
-            )
-        except Exception as e:
-            print(f"⚠️ [AI Router] Claude failed for {task_type}: {e}")
-            fallback_model = "gemini-2.5-flash"
-            print(f"🤖 [AI Router] Falling back to Gemini for {task_type} (model={fallback_model})...")
-            return await gemini_service.generate_text(
-                prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                project_id=project_id,
-                task_type=task_type,
-                model=fallback_model,
-                use_search=use_search,
-            )
-
-    return await gemini_service.generate_text(
+    return await ai_router.generate_text(
         prompt,
+        model,
         temperature=temperature,
         max_tokens=max_tokens,
         project_id=project_id,
         task_type=task_type,
-        model=selected_model,
         use_search=use_search,
     )
 

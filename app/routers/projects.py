@@ -95,8 +95,7 @@ async def translate_text_to_target(text: str, target_lang_code: str) -> str:
     if not text or not text.strip():
         return ""
     try:
-        from services.gemini_service import gemini_service
-        from services.claude_service import claude_service
+        import services.ai_router as ai_router
         lang_map = {
             "en": "English",
             "ja": "Japanese",
@@ -110,16 +109,8 @@ async def translate_text_to_target(text: str, target_lang_code: str) -> str:
             f"Korean text: {text}"
         )
         model = config.TRANSLATION_MODEL or "gemini-2.5-flash"
-        if str(model).lower().startswith("claude"):
-            try:
-                print(f"[Translation] Using Claude model={model}")
-                res = await claude_service.generate_text(prompt, temperature=0.2, task_type="translation", model=model)
-            except Exception as e:
-                print(f"[Translation] Claude failed: {e}")
-                res = await gemini_service.generate_text(prompt, temperature=0.2, task_type="translation", model="gemini-2.5-flash")
-        else:
-            res = await gemini_service.generate_text(prompt, temperature=0.2, task_type="translation", model=model)
-        return res.strip().replace('"', '').replace('"', '')
+        res = await ai_router.generate_text(prompt, model, temperature=0.2, task_type="translation")
+        return res.strip().replace('“', '').replace('”', '')
     except Exception as e:
         print(f"[I18n Translation Error] {e}")
         return ""

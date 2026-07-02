@@ -1007,16 +1007,13 @@ class GeminiService:
 
         try:
             selected_model = model or config.TITLE_GENERATION_MODEL
-            if str(selected_model or "").lower().startswith("claude"):
-                from services.claude_service import claude_service
-                try:
-                    print(f"[Title Gen] Using Claude model={selected_model}")
-                    response_text = await claude_service.generate_text(prompt, temperature=0.8, task_type="title_generation", model=selected_model)
-                except Exception as e:
-                    print(f"[Title Gen] Claude failed: {e}")
-                    response_text = await self.generate_text(prompt, temperature=0.8, task_type="title_generation", model="gemini-2.5-flash")
-            else:
-                response_text = await self.generate_text(prompt, temperature=0.8, task_type="title_generation", model=selected_model)
+            from services import ai_router
+            response_text = await ai_router.generate_text(
+                prompt,
+                selected_model,
+                temperature=0.8,
+                task_type="title_generation",
+            )
             cleaned_text = re.sub(r'```json\s*|\s*```', '', response_text).strip()
             match = re.search(r'\[.*\]', cleaned_text, re.DOTALL)
 
@@ -1800,16 +1797,14 @@ Motion prompt for this image:"""
                 ref_hint = "\n\n[STYLE REFERENCE IMAGE ATTACHED]"
                 return await self.generate_text_from_image(prompt_text + ref_hint, _ref_image_bytes, _ref_mime)
 
-            if str(selected_model or "").lower().startswith("claude"):
-                from services.claude_service import claude_service
-                try:
-                    print(f"[Image Prompt] Using Claude model={selected_model}")
-                    return await claude_service.generate_text(prompt_text, temperature=0.7, project_id=project_id, task_type='image_prompt', model=selected_model)
-                except Exception as e:
-                    print(f"[Image Prompt] Claude failed: {e}")
-                    selected_model = "gemini-2.5-flash"
-
-            return await self.generate_text(prompt_text, temperature=0.7, project_id=project_id, task_type='image_prompt', model=selected_model)
+            from services import ai_router
+            return await ai_router.generate_text(
+                prompt_text,
+                selected_model,
+                temperature=0.7,
+                project_id=project_id,
+                task_type="image_prompt",
+            )
 
         if use_chunked:
             # ── 청크 분할 모드 ─────────────────────────────────────────────
