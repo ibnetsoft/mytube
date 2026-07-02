@@ -2571,6 +2571,7 @@ PLATFORM_TRANSLATIONS = {
         'err_delete_failed_msg': '삭제 중 오류 발생: ',
         'err_action_failed_suffix': ' 실패',
         'err_generic_msg': '오류 발생: ',
+        'lang_change_success': '언어가 변경되었습니다.',
         # commerce_shorts.html
         'label_no_product_name': '제품명 없음',
         'label_created_at': '생성일: ',
@@ -4726,6 +4727,7 @@ PLATFORM_TRANSLATIONS = {
         'err_delete_failed_msg': 'Delete error: ',
         'err_action_failed_suffix': ' failed',
         'err_generic_msg': 'Error: ',
+        'lang_change_success': 'Language changed.',
         # commerce_shorts.html
         'label_no_product_name': 'No product name',
         'label_created_at': 'Created: ',
@@ -5693,6 +5695,7 @@ PLATFORM_TRANSLATIONS = {
         'err_gen_failed': 'Tạo thất bại',
         'err_generation': 'Đã xảy ra lỗi trong quá trình tạo',
         'err_generic_msg': 'Đã xảy ra lỗi: ',
+        'lang_change_success': 'Ngôn ngữ đã được thay đổi.',
         'err_load_voices_fail': 'Tải giọng nói thất bại',
         'err_max_5_images': 'Có thể tải lên tối đa 5 hình ảnh.',
         'err_processing': 'Đã xảy ra lỗi trong quá trình xử lý',
@@ -9320,6 +9323,7 @@ PLATFORM_TRANSLATIONS = {
         'err_delete_failed_msg': 'Lỗi xóa: ',
         'err_action_failed_suffix': ' thất bại',
         'err_generic_msg': 'Lỗi: ',
+        'lang_change_success': 'Ngôn ngữ đã được thay đổi.',
         # commerce_shorts.html
         'label_no_product_name': 'Không có tên sản phẩm',
         'label_created_at': 'Ngày tạo: ',
@@ -9525,6 +9529,7 @@ PLATFORM_TRANSLATIONS = {
         'err_gen_failed': 'Tạo thất bại',
         'err_generation': 'Đã xảy ra lỗi trong quá trình tạo',
         'err_generic_msg': 'Đã xảy ra lỗi: ',
+        'lang_change_success': 'Ngôn ngữ đã được thay đổi.',
         'err_load_voices_fail': 'Tải giọng nói thất bại',
         'err_max_5_images': 'Có thể tải lên tối đa 5 hình ảnh.',
         'err_processing': 'Đã xảy ra lỗi trong quá trình xử lý',
