@@ -3626,6 +3626,7 @@ export default function DashboardContent() {
                                                     className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
                                                 >
                                                     <optgroup label="🟢 Claude (Anthropic)" className="bg-[#111]">
+                                                        <option value="claude-sonnet-5" className="bg-[#111]">Claude Sonnet 5</option>
                                                         <option value="claude-sonnet-4-6" className="bg-[#111]">Claude Sonnet 4.6 (추천)</option>
                                                         <option value="claude-opus-4-8" className="bg-[#111]">Claude Opus 4.8 (고성능)</option>
                                                         <option value="claude-haiku-4-5-20251001" className="bg-[#111]">Claude Haiku 4.5 (빠름)</option>

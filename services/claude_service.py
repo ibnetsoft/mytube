@@ -9,6 +9,7 @@ from config import config
 
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MODEL_OPTIONS = [
+    "claude-sonnet-5",
     "claude-sonnet-4-6",      # 최신 Sonnet (기본)
     "claude-opus-4-8",        # 최신 Opus (고성능)
     "claude-haiku-4-5-20251001",  # Haiku (빠름)
