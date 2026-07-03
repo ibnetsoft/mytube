@@ -9,9 +9,16 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 ## Current understanding
 - AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
 - The same repo also includes a Next.js admin app under `auth-web`.
-- Current main HEAD: `c82bef94` — AIR-0122 validate referral settings enums
+- Current main HEAD: `c73ca016` — AIR-0123 remove fallback referral percentages
 
 ## What changed recently
+
+### PR #27 / AIR-0123 — Referral Settlement Worker (Pending) (MERGED 2026-07-03)
+- Implemented a background worker for generating referral commissions upon Admin Recharge.
+- Generates `pending` status commissions up to Level 2 based on non-hardcoded global percentages.
+- Enforces strict rounding logic (2 decimal places) and loop/self-referral prevention.
+- Added `source_tx_id` + `commission_type` UNIQUE INDEX for database-level idempotency.
+- Created `/admin/settlements` read-only dashboard.
 
 ### PR #26 / AIR-0122 — Referral Default Sponsor Foundation (MERGED 2026-07-03)
 - Implemented foundation for Referral 2.0.

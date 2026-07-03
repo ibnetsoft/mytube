@@ -322,6 +322,21 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   Start investigation for AIR-0122 (Referral 2.0).
 
+### AIR-0123
+- Status: Done
+- Commit: `c73ca016`
+- PR: #27 (MERGED 2026-07-03)
+- Related files:
+  - `auth-web/app/api/admin/users/recharge/route.ts`
+  - `auth-web/lib/settlement.ts`
+  - `auth-web/migration_settlement_unique.sql`
+  - `auth-web/app/admin/settlements/page.tsx`
+  - `auth-web/app/api/admin/settlements/route.ts`
+- Short summary:
+  Implemented a background worker that generates `pending` referral commissions (Level 1 and Level 2) upon Admin Recharge. Computes commissions with a 2-decimal rounding logic based on dynamic global percentages, bypassing execution safely for missing values, OFF modes, self-referrals, and loops. Enforced Idempotency natively with a new DB Unique Index. Added a read-only Admin UI list for visibility.
+- Next action:
+  Implement the Payout Processor that translates `pending` commissions to `paid` status and deposits into the beneficiaries' `usdt_balance`.
+
 ### AIR-0122
 - Status: Done
 - Commit: `c82bef94`

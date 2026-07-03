@@ -7,11 +7,12 @@ Read this first before starting implementation work.
 ## Current State (as of 2026-07-03)
 
 ### Main HEAD
-`c82bef94` — AIR-0122 validate referral settings enums
+`c73ca016` — AIR-0123 remove fallback referral percentages
 
 ### Recently Merged PRs
 | PR | Title | Merged |
 |----|-------|--------|
+| #27 | AIR-0123 add referral settlement pending worker | 2026-07-03 |
 | #26 | AIR-0122 implement referral default sponsor foundation | 2026-07-03 |
 | #25 | AIR-0121 refine image workflow guide final UI | 2026-07-03 |
 | #17 | Fix auth-web lint execution and warnings | 2026-07-02 |
@@ -30,7 +31,7 @@ Read this first before starting implementation work.
 | #1–#8 | Superseded by AIR-0110A / PR #9 | Should be closed |
 
 ## Task Pointer
-Next task ID: `AIR-0123` (정산 워커 구현 - Settlement Worker)
+Next task ID: `AIR-0124` (정산 지급 처리 - Payout Processor)
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.

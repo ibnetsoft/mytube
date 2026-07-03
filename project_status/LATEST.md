@@ -77,6 +77,8 @@ AIR Studio / LongformGenerator
   Connected 2x2 crop output to project Scenes. Panels now receive sequential Scene destinations, deterministic `scene_NNN_crop.png` filenames, and direct import into empty image slots. Documented the complete filename, matching, duplicate, missing, invalid, and large-upload contracts.
 - `AIR-0108`
   Added Longform Scene Asset Review with prompt/image/video status, final clip order, missing-visual gating, scene replacement controls, and refresh restoration from persisted scene rows. Fixed replacement so image and video slots no longer erase each other.
+- `AIR-0123`
+  Implemented Referral Settlement Worker. Automatically generates `pending` referral commissions up to Level 2 based on Admin Recharge events, enforcing non-hardcoded global percentages, 2-decimal place precision, loop prevention, and `source_tx_id` idempotency. Included a read-only Admin UI for listing settlements.
 - `AIR-0122`
   Implemented Referral 2.0 foundation. Default Sponsor is now managed via UUID. Referral validation is strictly enforced at registration, missing referral codes seamlessly fallback to the Admin's configured Default Sponsor UUID, and all configurations (including Level 1/2 percentages and Settlement cycles) are managed dynamically through the global settings via the Admin UI.
 - `AIR-0121`

@@ -8,6 +8,7 @@ export default function SettlementsPage() {
     const [settlements, setSettlements] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [processingId, setProcessingId] = useState<string | null>(null)
 
     useEffect(() => {
         fetchSettlements()
@@ -28,6 +29,33 @@ export default function SettlementsPage() {
             setError(err.message || 'Unknown error')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handlePayout = async (id: string) => {
+        if (!confirm('Are you sure you want to approve and pay this commission? This will increase the user\'s USDT balance.')) {
+            return
+        }
+
+        setProcessingId(id)
+        setError('')
+        try {
+            const res = await fetch('/api/admin/settlements/payout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ commission_id: id })
+            })
+            const data = await res.json()
+            if (data.success) {
+                // Refresh the list after successful payout
+                fetchSettlements()
+            } else {
+                setError(data.error || 'Failed to process payout')
+            }
+        } catch (err: any) {
+            setError(err.message || 'Unknown error during payout')
+        } finally {
+            setProcessingId(null)
         }
     }
 
@@ -63,12 +91,13 @@ export default function SettlementsPage() {
                                     <th className="px-4 py-3">Rate</th>
                                     <th className="px-4 py-3">Commission</th>
                                     <th className="px-4 py-3">Status</th>
+                                    <th className="px-4 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {settlements.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                                        <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                                             No settlements found.
                                         </td>
                                     </tr>
@@ -92,6 +121,17 @@ export default function SettlementsPage() {
                                             <span className={`px-2 py-1 rounded text-xs font-semibold ${s.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : s.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                 {s.status}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {s.status === 'pending' && (
+                                                <Button 
+                                                    size="sm" 
+                                                    onClick={() => handlePayout(s.id)}
+                                                    disabled={processingId === s.id}
+                                                >
+                                                    {processingId === s.id ? 'Processing...' : 'Approve & Pay'}
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
