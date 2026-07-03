@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS public.referral_commissions (
 
 CREATE INDEX IF NOT EXISTS idx_referral_commissions_beneficiary ON public.referral_commissions(beneficiary_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_referral_commissions_status ON public.referral_commissions(status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_commissions_tx ON public.referral_commissions((metadata->>'source_tx_id'), commission_type) WHERE metadata->>'source_tx_id' IS NOT NULL;
 
 -- ─────────────────────────────────────────────
 -- desktop_project_metadata: 로컬 앱 프로젝트 텍스트/메타데이터 동기화

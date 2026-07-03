@@ -322,6 +322,22 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   Start investigation for AIR-0122 (Referral 2.0).
 
+### AIR-0122
+- Status: Done
+- Commit: `c82bef94`
+- PR: #26 (MERGED 2026-07-03)
+- Related files:
+  - `app/routers/auth.py`
+  - `auth-web/app/admin/settings/referral/page.tsx`
+  - `auth-web/app/api/admin/settings/referral/route.ts`
+  - `auth-web/migration_referral_2.0.sql`
+  - `auth-web/supabase_schema.sql`
+  - `services/web_admin_client.py`
+- Short summary:
+  Implemented the foundation for Referral 2.0. Added global settings for dynamic percentage rates and cycles, strict server-side validation for enum configs, UUID-based Default Sponsor matching, and a UI to configure referral modes without hardcoding values in the Python codebase. Missing referrals correctly fallback to the default sponsor during sign up.
+- Next action:
+  Implement the backend Settlement Worker that uses the global settings to calculate and distribute commissions whenever payments occur.
+
 ## Non-AIR Merged PRs (outside AIR task numbering)
 
 ### PR #14 — feat: topic UI and admin ElevenLabs voice management

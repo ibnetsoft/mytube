@@ -9,9 +9,16 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 ## Current understanding
 - AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
 - The same repo also includes a Next.js admin app under `auth-web`.
-- Current main HEAD: `381fc972` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
+- Current main HEAD: `c82bef94` — AIR-0122 validate referral settings enums
 
 ## What changed recently
+
+### PR #26 / AIR-0122 — Referral Default Sponsor Foundation (MERGED 2026-07-03)
+- Implemented foundation for Referral 2.0.
+- Replaced optional referral code logic with strict validation and UUID-based Default Sponsor fallback.
+- Added Next.js Admin UI for Referral Settings (`/admin/settings/referral`).
+- Added DB migrations to seamlessly connect existing `referred_by IS NULL` users to the designated Default Sponsor.
+- Added strict server-side API enum validation for `referral_mode` and `settlement_cycle`.
 
 ### PR #25 / AIR-0121 — Image Workflow Guide (MERGED 2026-07-03)
 - Added an explicit, 7-step Image Production Workflow UI in `image_gen.html` for better user onboarding.

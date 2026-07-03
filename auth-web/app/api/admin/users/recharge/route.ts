@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireSuperAdmin } from '../../_auth'
+import { processSettlement } from '../../../../lib/settlement'
 
 export async function POST(req: Request) {
     const requester = await requireSuperAdmin(req)
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
         }
 
         // 3. 트랜잭션 기록 (실패해도 충전은 성공)
-        const { error: txError } = await supabaseAdmin
+        const { data: txData, error: txError } = await supabaseAdmin
             .from('token_transactions')
             .insert({
                 user_id: userId,
@@ -93,9 +94,16 @@ export async function POST(req: Request) {
                 transaction_type: 'RECHARGE',
                 description: description || '관리자 충전'
             })
+            .select('id')
+            .maybeSingle()
 
         if (txError) {
             console.warn('[Recharge] TX log failed (non-fatal):', txError.message)
+        } else if (txData?.id) {
+            // 4. 비동기 정산 워커 호출
+            processSettlement(supabaseAdmin, userId, numAmount, txData.id).catch(err => {
+                console.error('[Recharge] Settlement worker error:', err)
+            });
         }
 
         console.log(`[Recharge] Done: user=${userId}, new_balance=${newBalance}`)

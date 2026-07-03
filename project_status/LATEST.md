@@ -77,6 +77,10 @@ AIR Studio / LongformGenerator
   Connected 2x2 crop output to project Scenes. Panels now receive sequential Scene destinations, deterministic `scene_NNN_crop.png` filenames, and direct import into empty image slots. Documented the complete filename, matching, duplicate, missing, invalid, and large-upload contracts.
 - `AIR-0108`
   Added Longform Scene Asset Review with prompt/image/video status, final clip order, missing-visual gating, scene replacement controls, and refresh restoration from persisted scene rows. Fixed replacement so image and video slots no longer erase each other.
+- `AIR-0122`
+  Implemented Referral 2.0 foundation. Default Sponsor is now managed via UUID. Referral validation is strictly enforced at registration, missing referral codes seamlessly fallback to the Admin's configured Default Sponsor UUID, and all configurations (including Level 1/2 percentages and Settlement cycles) are managed dynamically through the global settings via the Admin UI.
+- `AIR-0121`
+  Added "Image Generation Workflow Guide" in the Image Gen page to guide users through the manual image generation process using ChatGPT Plus. The guide tracks progress dynamically and remembers its state using `localStorage`.
 - `AIR-0107`
   Validated and hardened Longform bulk media import. Scene filenames are now authoritative, Gemini is only a fallback, occupied or duplicate scene slots are not silently overwritten, and the image page reports invalid, unmatched, duplicate, and missing scene results.
 - `AIR-0106`

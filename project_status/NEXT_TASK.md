@@ -7,11 +7,12 @@ Read this first before starting implementation work.
 ## Current State (as of 2026-07-03)
 
 ### Main HEAD
-`381fc972` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
+`c82bef94` — AIR-0122 validate referral settings enums
 
 ### Recently Merged PRs
 | PR | Title | Merged |
 |----|-------|--------|
+| #26 | AIR-0122 implement referral default sponsor foundation | 2026-07-03 |
 | #25 | AIR-0121 refine image workflow guide final UI | 2026-07-03 |
 | #17 | Fix auth-web lint execution and warnings | 2026-07-02 |
 | #16 | Add per-feature AI model settings | 2026-07-02 |
@@ -29,7 +30,7 @@ Read this first before starting implementation work.
 | #1–#8 | Superseded by AIR-0110A / PR #9 | Should be closed |
 
 ## Task Pointer
-Next task ID: `AIR-0122` (Referral 2.0 설계)
+Next task ID: `AIR-0123` (정산 워커 구현 - Settlement Worker)
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
