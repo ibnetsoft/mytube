@@ -169,6 +169,129 @@
     </div>
 </div>
 
+<!-- [NEW] Image Generation Workflow Guide -->
+<div id="workflowGuideContainer" class="card mb-6 hidden">
+    <div class="border border-white/10 rounded-lg bg-[#1c2027] overflow-hidden">
+        <button onclick="toggleWorkflowGuide()" class="w-full flex items-center justify-between p-4 bg-[#232832] hover:bg-[#2a303b] transition-colors">
+            <div class="flex flex-col items-start gap-1">
+                <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                    <span>📋</span> {{ t('workflow_title') }}
+                </h3>
+                <div class="text-xs font-bold text-blue-400 mt-1 tracking-wider" id="wf_progress_indicator"></div>
+            </div>
+            <span id="workflowToggleIcon" class="text-white transform transition-transform duration-200">▼</span>
+        </button>
+        <div id="workflowGuideContent" class="p-4 space-y-1 relative">
+            <!-- Step 1 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" disabled id="wf_step1" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-not-allowed">
+                <div class="w-full">
+                    <label for="wf_step1" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white">STEP 1: {{ t('workflow_step1') }}</span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step1_expl') }}</p>
+                    </label>
+                </div>
+            </div>
+            <div class="text-center text-gray-500 text-xs">↓</div>
+
+            <!-- Step 2 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" id="wf_step2" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-pointer" onchange="saveWorkflowProgress()">
+                <div class="w-full">
+                    <label for="wf_step2" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>STEP 2: {{ t('workflow_step2') }}</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
+                        </span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step2_expl') }}</p>
+                        <p class="text-xs text-amber-300/80 mt-1 flex items-center gap-1">
+                            <span>💡</span> {{ t('workflow_step2_desc') }}
+                        </p>
+                    </label>
+                    <div class="flex flex-col gap-1.5 mt-2">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="copyAllPrompts()" class="px-3 py-1.5 bg-[#2a303b] hover:bg-[#323946] border border-white/10 text-xs text-white rounded transition-colors flex items-center gap-1"><span>📋</span> Prompt 복사</button>
+                            <a href="https://chatgpt.com/" target="_blank" class="px-3 py-1.5 bg-[#10a37f]/90 hover:bg-[#10a37f] border border-[#10a37f]/50 text-xs text-white rounded transition-colors flex items-center gap-1"><span>🤖</span> Open ChatGPT</a>
+                        </div>
+                        <p class="text-[11px] text-gray-400 ml-1 mt-1 leading-relaxed">{{ t('workflow_step2_chatgpt_hint') | safe }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center text-gray-500 text-xs">↓</div>
+
+            <!-- Step 3 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" id="wf_step3" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-pointer" onchange="saveWorkflowProgress()">
+                <div class="w-full">
+                    <label for="wf_step3" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>STEP 3: {{ t('workflow_step3') }}</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
+                        </span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step3_expl') }}</p>
+                        <p class="text-xs text-green-300/80 mt-1 flex items-center gap-1 leading-tight">
+                            <span>💰</span> <span>{{ t('workflow_step3_desc') | safe }}</span>
+                        </p>
+                    </label>
+                </div>
+            </div>
+            <div class="text-center text-gray-500 text-xs">↓</div>
+
+            <!-- Step 4 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" id="wf_step4" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-pointer" onchange="saveWorkflowProgress()">
+                <div class="w-full">
+                    <label for="wf_step4" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>STEP 4: {{ t('workflow_step4') }}</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
+                        </span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step4_expl') }}</p>
+                    </label>
+                </div>
+            </div>
+            <div class="text-center text-gray-500 text-xs">↓</div>
+
+            <!-- Step 5 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" id="wf_step5" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-pointer" onchange="saveWorkflowProgress()">
+                <div class="w-full">
+                    <label for="wf_step5" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>STEP 5: {{ t('workflow_step5') }}</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
+                        </span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step5_expl') }}</p>
+                    </label>
+                </div>
+            </div>
+            <div class="text-center text-gray-500 text-xs">↓</div>
+
+            <!-- Step 6 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" disabled id="wf_step6" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-not-allowed">
+                <div class="w-full">
+                    <label for="wf_step6" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white">STEP 6: {{ t('workflow_step6') }}</span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step6_expl') }}</p>
+                    </label>
+                </div>
+            </div>
+            <div class="text-center text-gray-500 text-xs">↓</div>
+
+            <!-- Step 7 -->
+            <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
+                <input type="checkbox" disabled id="wf_step7" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-not-allowed">
+                <div class="w-full">
+                    <label for="wf_step7" class="cursor-pointer block">
+                        <span class="text-sm font-bold text-white">STEP 7: {{ t('workflow_step7') }}</span>
+                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step7_expl') }}</p>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="resultSection" class="hidden">
     <div class="card">
@@ -1197,6 +1320,7 @@
                 }
 
                 Utils.storage.set('imagePrompts', prompts);
+                autoCheckWorkflowStep(1);
 
                 // [FIX] Save to DB to ensure persistence of all fields (script_start/end, etc.)
                 const pid = getCurrentProject();
@@ -2399,6 +2523,7 @@
                 Utils.showToast('No items selected', 'warning');
             } else {
                 Utils.showToast(`${processedCount} images processed`, 'success');
+                autoCheckWorkflowStep(6);
             }
 
             // 다음 단계 (수동 이동)
@@ -2926,6 +3051,7 @@
             const result = await res.json();
 
             if (res.ok && result.status === 'success') {
+                autoCheckWorkflowStep(7);
                 prompts[index].video_url = result.video_url;
                 Utils.storage.set('imagePrompts', prompts);
 
@@ -4455,6 +4581,7 @@
 
             const result = await response.json();
             if (result.status === 'ok') {
+                autoCheckWorkflowStep(6);
                 assetReadiness = result.asset_readiness || assetReadiness;
                 renderBulkUploadResult(result);
                 Utils.showToast(`성공: AI가 ${result.matched_count}개 파일을 자동 배정 매칭했습니다.`, 'success');
@@ -4486,6 +4613,93 @@
             document.getElementById('bulk-media-input-top').value = ''; // Reset top input
         }
     }
+
+    // --- Image Workflow Guide Scripts ---
+    function toggleWorkflowGuide() {
+        const content = document.getElementById('workflowGuideContent');
+        const icon = document.getElementById('workflowToggleIcon');
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            icon.style.transform = 'rotate(0deg)';
+        } else {
+            content.classList.add('hidden');
+            icon.style.transform = 'rotate(-90deg)';
+        }
+    }
+
+    function saveWorkflowProgress() {
+        const projectId = (typeof getCurrentProject === 'function') ? getCurrentProject() : new URLSearchParams(window.location.search).get('project_id');
+        if (!projectId) return;
+        
+        const progress = {
+            step1: document.getElementById('wf_step1') ? document.getElementById('wf_step1').checked : false,
+            step2: document.getElementById('wf_step2') ? document.getElementById('wf_step2').checked : false,
+            step3: document.getElementById('wf_step3') ? document.getElementById('wf_step3').checked : false,
+            step4: document.getElementById('wf_step4') ? document.getElementById('wf_step4').checked : false,
+            step5: document.getElementById('wf_step5') ? document.getElementById('wf_step5').checked : false,
+            step6: document.getElementById('wf_step6') ? document.getElementById('wf_step6').checked : false,
+            step7: document.getElementById('wf_step7') ? document.getElementById('wf_step7').checked : false
+        };
+        localStorage.setItem('imageWorkflow_' + projectId, JSON.stringify(progress));
+        updateWorkflowProgressDisplay();
+    }
+
+    function updateWorkflowProgressDisplay() {
+        let count = 0;
+        for (let i = 1; i <= 7; i++) {
+            const cb = document.getElementById('wf_step' + i);
+            if (cb && cb.checked) count++;
+        }
+        const blocks = "■".repeat(count) + "□".repeat(7 - count);
+        const el = document.getElementById('wf_progress_indicator');
+        if (el) {
+            el.textContent = `${blocks}  ${count} / 7`;
+        }
+    }
+
+    function autoCheckWorkflowStep(stepNum) {
+        const checkbox = document.getElementById('wf_step' + stepNum);
+        if (checkbox && !checkbox.checked) {
+            checkbox.checked = true;
+            saveWorkflowProgress();
+        }
+        const container = document.getElementById('workflowGuideContainer');
+        if (container && container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+        }
+    }
+
+    function loadWorkflowProgress() {
+        const projectId = (typeof getCurrentProject === 'function') ? getCurrentProject() : new URLSearchParams(window.location.search).get('project_id');
+        if (!projectId) return;
+        
+        const saved = localStorage.getItem('imageWorkflow_' + projectId);
+        if (saved) {
+            try {
+                const progress = JSON.parse(saved);
+                if(document.getElementById('wf_step1')) document.getElementById('wf_step1').checked = progress.step1 || false;
+                if(document.getElementById('wf_step2')) document.getElementById('wf_step2').checked = progress.step2 || false;
+                if(document.getElementById('wf_step3')) document.getElementById('wf_step3').checked = progress.step3 || false;
+                if(document.getElementById('wf_step4')) document.getElementById('wf_step4').checked = progress.step4 || false;
+                if(document.getElementById('wf_step5')) document.getElementById('wf_step5').checked = progress.step5 || false;
+                if(document.getElementById('wf_step6')) document.getElementById('wf_step6').checked = progress.step6 || false;
+                if(document.getElementById('wf_step7')) document.getElementById('wf_step7').checked = progress.step7 || false;
+
+                if(progress.step1) {
+                    const container = document.getElementById('workflowGuideContainer');
+                    if (container) container.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error("Failed to parse workflow progress", e);
+            }
+        }
+        updateWorkflowProgressDisplay();
+    }
+
+    // Load progress when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(loadWorkflowProgress, 500);
+    });
 
 </script>
 

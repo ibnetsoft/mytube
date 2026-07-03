@@ -214,10 +214,10 @@
                             <!-- Withdrawal Section -->
                             <div class="col-span-1 md:col-span-2 mt-6 pt-4 border-t border-gray-700/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                 <div class="text-[11px] text-gray-400">
-                                    ⚠️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Khi rút tài khoản, tất cả dự án, lịch sử thanh toán và dữ liệu ví sẽ bị xóa vĩnh viễn.{% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Upon withdrawal, all active projects, payout histories, and wallet data will be permanently deleted.{% else %}회원 탈퇴 시 모든 프로젝트 작업 내역, 수당 정보 및 지갑 주소가 영구적으로 삭제되며 복구할 수 없습니다.{% endif %}
+                                    ⚠️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Khi rút tài khoản, tất cả dự án, lịch sử thanh toán và dữ liệu ví sẽ bị xóa vĩnh viễn.{% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Upon withdrawal, all active projects, payout histories, and wallet data will be permanently deleted.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_withdraw_warning') }}{% else %}회원 탈퇴 시 모든 프로젝트 작업 내역, 수당 정보 및 지갑 주소가 영구적으로 삭제되며 복구할 수 없습니다.{% endif %}
                                 </div>
                                 <button type="button" onclick="handleWithdrawal()" class="px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white rounded text-xs font-bold transition flex items-center gap-1.5 shadow-sm whitespace-nowrap">
-                                    🗑️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Rút tài khoản (Withdraw){% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Withdraw Account{% else %}회원 탈퇴 (Delete Account){% endif %}
+                                    🗑️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Rút tài khoản (Withdraw){% elif window_lang == 'en' or (current_lang | default('', true)) == 'en' %}Withdraw Account{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_withdraw') }}{% else %}회원 탈퇴 (Delete Account){% endif %}
                                 </button>
                             </div>
                         </div>
@@ -226,62 +226,62 @@
                     <!-- Upload QA Settings -->
                     <div class="hidden mt-8 pt-6 border-t border-gray-100 dark:border-gray-700" data-admin-managed="upload-qa-settings">
                         <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                            🧪 업로드 전 QA 검사
+                            🧪 {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('upload_qa_title') }}{% else %}업로드 전 QA 검사{% endif %}
                         </h4>
                         <div class="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-4">
                             <p class="text-[11px] text-gray-400 leading-relaxed">
-                                렌더링 완료 후 FFmpeg 기반 기술 검사와 업로드 직전 Gemini 정밀 검사를 수행합니다. LUFS가 기준을 벗어나면 자동 보정하고, 스펙 미달 영상은 자동 업로드를 보류합니다.
+                                {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('upload_qa_desc') }}{% else %}렌더링 완료 후 FFmpeg 기반 기술 검사와 업로드 직전 Gemini 정밀 검사를 수행합니다. LUFS가 기준을 벗어나면 자동 보정하고, 스펙 미달 영상은 자동 업로드를 보류합니다.{% endif %}
                             </p>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
                                     <input type="checkbox" id="qaEnablePipeline" class="rounded border-gray-600 bg-gray-800">
-                                    QA 파이프라인 전체 활성화
+                                    {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_enable_pipeline') }}{% else %}QA 파이프라인 전체 활성화{% endif %}
                                 </label>
                                 <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
                                     <input type="checkbox" id="qaEnableTechnicalCheck" class="rounded border-gray-600 bg-gray-800">
-                                    Stage 1 기술 검사 활성화
+                                    {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_enable_technical') }}{% else %}Stage 1 기술 검사 활성화{% endif %}
                                 </label>
                                 <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
                                     <input type="checkbox" id="qaEnableSemanticCheck" class="rounded border-gray-600 bg-gray-800">
-                                    Stage 2 AI 정밀 검사 활성화
+                                    {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_enable_ai_check') }}{% else %}Stage 2 AI 정밀 검사 활성화{% endif %}
                                 </label>
                                 <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
                                     <input type="checkbox" id="qaAutoNormalizeLufs" class="rounded border-gray-600 bg-gray-800">
-                                    LUFS 자동 보정 적용
+                                    {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_auto_lufs') }}{% else %}LUFS 자동 보정 적용{% endif %}
                                 </label>
                                 <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
                                     <input type="checkbox" id="qaHoldOnTechnicalFail" class="rounded border-gray-600 bg-gray-800">
-                                    기술 스펙 미달 시 자동 업로드 보류
+                                    {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_hold_technical_fail') }}{% else %}기술 스펙 미달 시 자동 업로드 보류{% endif %}
                                 </label>
                                 <label class="flex items-center gap-2 text-xs font-bold text-gray-300">
                                     <input type="checkbox" id="qaHoldOnSemanticFail" class="rounded border-gray-600 bg-gray-800">
-                                    AI 검사 실패 시 자동 업로드 보류
+                                    {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_hold_ai_fail') }}{% else %}AI 검사 실패 시 자동 업로드 보류{% endif %}
                                 </label>
                             </div>
                             <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">목표 LUFS</label>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_target_lufs') }}{% else %}목표 LUFS{% endif %}</label>
                                     <input type="number" id="qaTargetLufs" class="input-field w-full text-xs" value="-14" step="0.5">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">LUFS 허용오차</label>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_lufs_tolerance') }}{% else %}LUFS 허용오차{% endif %}</label>
                                     <input type="number" id="qaLufsTolerance" class="input-field w-full text-xs" value="2" step="0.5" min="0">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">검은화면 기준(초)</label>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_blackdetect_duration') }}{% else %}검은화면 기준(초){% endif %}</label>
                                     <input type="number" id="qaBlackdetectMinDuration" class="input-field w-full text-xs" value="1.0" step="0.1" min="0.1">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">최소 가로</label>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_min_width') }}{% else %}최소 가로{% endif %}</label>
                                     <input type="number" id="qaMinWidth" class="input-field w-full text-xs" value="1920" step="1" min="1">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">최소 세로</label>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_min_height') }}{% else %}최소 세로{% endif %}</label>
                                     <input type="number" id="qaMinHeight" class="input-field w-full text-xs" value="1080" step="1" min="1">
                                 </div>
                             </div>
                             <div class="text-[10px] text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-                                스펙 미달 영상은 자동 업로드만 보류됩니다. 사용자는 경고 확인 후 수동 업로드로 강제 진행할 수 있습니다.
+                                {% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('qa_spec_fail_note') }}{% else %}스펙 미달 영상은 자동 업로드만 보류됩니다. 사용자는 경고 확인 후 수동 업로드로 강제 진행할 수 있습니다.{% endif %}
                             </div>
                         </div>
                     </div>
@@ -453,34 +453,34 @@
                     <!-- My Referral Code -->
                     <div class="space-y-2 p-4 rounded-xl border border-purple-500/30 bg-purple-500/5">
                         <h5 class="text-xs font-bold text-purple-400 flex items-center gap-2">
-                            <span>🔑 내 추천 코드</span>
+                            <span>🔑 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mã giới thiệu của tôi{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_my_code') }}{% else %}내 추천 코드{% endif %}</span>
                         </h5>
                         <div class="flex items-center gap-2">
-                            <input type="text" id="referralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="첫 영상을 렌더링하면 발급됩니다">
-                            <button type="button" onclick="const c = document.getElementById('referralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert('복사되었습니다.'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">복사</button>
+                            <input type="text" id="referralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sẽ được cấp khi render video đầu tiên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_code_placeholder') }}{% else %}첫 영상을 렌더링하면 발급됩니다{% endif %}">
+                            <button type="button" onclick="const c = document.getElementById('referralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert('{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đã sao chép{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_code_copied') }}{% else %}복사되었습니다.{% endif %}'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao chép{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('paste_button_text') }}{% else %}복사{% endif %}</button>
                         </div>
-                        <p class="text-[10px] text-gray-400 mt-2">* 이 코드로 가입한 회원이 영상을 2개 이상 렌더링 완성 시 보상이 지급됩니다.</p>
+                        <p class="text-[10px] text-gray-400 mt-2">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}* Phần thưởng sẽ được trao khi thành viên đăng ký bằng mã này hoàn thành render 2 video.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_reward_desc') }}{% else %}* 이 코드로 가입한 회원이 영상을 2개 이상 렌더링 완성 시 보상이 지급됩니다.{% endif %}</p>
                     </div>
 
                     <!-- Cumulative Reward -->
                     <div class="space-y-2 p-4 rounded-xl border border-green-500/30 bg-green-500/5 flex flex-col justify-center items-center">
-                        <h5 class="text-xs font-bold text-green-400 mb-1">총 누적 보상금</h5>
+                        <h5 class="text-xs font-bold text-green-400 mb-1">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tổng phần thưởng tích lũy{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_total_reward') }}{% else %}총 누적 보상금{% endif %}</h5>
                         <div class="text-3xl font-black text-green-300" id="referralTotalUsdt">0 <span class="text-sm font-bold text-gray-400">USDT</span></div>
                     </div>
                 </div>
 
                 <!-- Referred Users List -->
                 <h5 class="text-xs font-bold text-gray-300 mb-3 flex items-center gap-2">
-                    <span class="text-sm">👥</span> 내 추천으로 가입한 회원 목록
+                    <span class="text-sm">👥</span> {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Danh sách thành viên đăng ký qua mã giới thiệu của tôi{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_member_list') }}{% else %}내 추천으로 가입한 회원 목록{% endif %}
                 </h5>
                 <div class="overflow-x-auto bg-[#15191f] rounded-lg border border-gray-700">
                     <table class="w-full text-left text-xs whitespace-nowrap">
                         <thead class="bg-[#242b35] text-gray-400 border-b border-gray-700">
                             <tr>
-                                <th class="px-4 py-3 font-medium">가입 이메일</th>
-                                <th class="px-4 py-3 font-medium">가입 일자</th>
-                                <th class="px-4 py-3 font-medium text-center">완성된 영상 수</th>
-                                <th class="px-4 py-3 font-medium text-center">상태</th>
+                                <th class="px-4 py-3 font-medium">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email đăng ký{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_col_email') }}{% else %}가입 이메일{% endif %}</th>
+                                <th class="px-4 py-3 font-medium">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ngày đăng ký{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_col_date') }}{% else %}가입 일자{% endif %}</th>
+                                <th class="px-4 py-3 font-medium text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Số video hoàn thành{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_col_videos') }}{% else %}완성된 영상 수{% endif %}</th>
+                                <th class="px-4 py-3 font-medium text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trạng thái{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_col_status') }}{% else %}상태{% endif %}</th>
                             </tr>
                         </thead>
                         <tbody id="referralUsersTableBody" class="divide-y divide-gray-700 text-gray-300">
@@ -496,9 +496,9 @@
         <div id="tab-content-image-styles" class="tab-content">
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center justify-between">
-                    <span>🎨 이미지 스타일 및 캐릭터 관리</span>
+                    <span>🎨 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quản lý phong cách hình ảnh và nhân vật{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('image_style_management') }}{% else %}이미지 스타일 및 캐릭터 관리{% endif %}</span>
                     <button onclick="syncAllPresetsFromServer()" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm">
-                        🔄 웹어드민 스타일 동기화
+                        🔄 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đồng bộ phong cách web admin{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_web_admin_sync') }}{% else %}웹어드민 스타일 동기화{% endif %}
                     </button>
                 </h3>
 
@@ -510,7 +510,7 @@
                             <span class="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-bold uppercase">Character Kit</span>
                         </h4>
                         <div class="flex items-center gap-2">
-                            <span class="text-[10px] text-gray-400">일관성 유지를 위한 주인공/화풍 등록</span>
+                            <span class="text-[10px] text-gray-400">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đăng ký nhân vật/phong cách chính để duy trì tính nhất quán{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_consistency_maintain') }}{% else %}일관성 유지를 위한 주인공/화풍 등록{% endif %}</span>
                         </div>
                     </div>
                     
@@ -521,13 +521,13 @@
                                  <!-- Slot 1: Art Style -->
                                  <div>
                                      <label class="text-[9px] font-bold text-blue-500 mb-1 block flex items-center gap-1 truncate">
-                                         <span>🎨</span> 화풍 (Style)
+                                         <span>🎨</span> {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Phong cách (Style){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_art_style') }}{% else %}화풍 (Style){% endif %}
                                      </label>
                                      <div class="relative group aspect-square bg-[#0a0f1d] rounded-lg overflow-hidden border border-dashed border-gray-100 dark:border-white/5 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-all" onclick="document.getElementById('customStyleImageStyle').click()">
                                          <img id="customStyleImgPreviewStyle" src="" class="hidden w-full h-full object-cover" alt="Style Preview">
                                          <div id="customStyleImgPlaceholderStyle" class="flex flex-col items-center gap-1 text-gray-400 scale-75">
                                              <span class="text-lg">🖼️</span>
-                                             <span class="text-[8px] whitespace-nowrap">업로드</span>
+                                             <span class="text-[8px] whitespace-nowrap">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tải lên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('upload') }}{% else %}업로드{% endif %}</span>
                                          </div>
                                      </div>
                                      <input type="file" id="customStyleImageStyle" accept="image/*" class="hidden" onchange="handleStyleImageSelect(this, 'style')">
@@ -542,7 +542,7 @@
                                          <img id="customStyleImgPreviewChar" src="" class="hidden w-full h-full object-cover" alt="Char Preview">
                                          <div id="customStyleImgPlaceholderChar" class="flex flex-col items-center gap-1 text-gray-400 scale-75">
                                              <span class="text-lg">📸</span>
-                                             <span class="text-[8px] whitespace-nowrap">업로드</span>
+                                             <span class="text-[8px] whitespace-nowrap">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tải lên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('upload') }}{% else %}업로드{% endif %}</span>
                                          </div>
                                      </div>
                                      <input type="file" id="customStyleImageChar" accept="image/*" class="hidden" onchange="handleStyleImageSelect(this, 'char')">
@@ -551,9 +551,9 @@
                              
                              <button id="analyzeStyleBtn" onclick="analyzeStyleImage()" 
                                  class="w-full py-2.5 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-purple-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2">
-                                 <span>✨</span> AI 통합 분석 가이드 생성
+                                 <span>✨</span> {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tạo hướng dẫn phân tích AI tích hợp{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('ai_integrated_analysis') }}{% else %}AI 통합 분석 가이드 생성{% endif %}
                              </button>
-                             <p class="text-[9px] text-gray-400 text-center">두 이미지를 분석해 최적의 화풍+캐릭터 지침을 생성합니다.</p>
+                             <p class="text-[9px] text-gray-400 text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Phân tích hai hình ảnh để tạo hướng dẫn phong cách + nhân vật tối ưu nhất.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('ai_analysis_desc') }}{% else %}두 이미지를 분석해 최적의 화풍+캐릭터 지침을 생성합니다.{% endif %}</p>
                         </div>
 
                         <!-- Right: Details Section (7/12) -->
@@ -564,7 +564,7 @@
                                     <input type="text" id="customStyleName" class="input-field w-full text-xs" placeholder="예: hero_kim, ghibli_studio">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">사용 위치</label>
+                                    <label class="text-[10px] font-bold text-gray-500 mb-1 block">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vị trí sử dụng{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('usage_location') }}{% else %}사용 위치{% endif %}</label>
                                     <select id="customStyleMode" class="input-field w-full text-xs bg-[#1c2027] text-white">
                                         <option value="image">{{ t('label_image_gen_only') }}</option>
                                         <option value="all">🌐 전체 공통</option>
@@ -580,11 +580,11 @@
 
                             <div>
                                 <label class="text-[10px] font-bold text-purple-600 dark:text-purple-400 mb-1 block flex justify-between items-center">
-                                    <span>🤖 Gemini Grounding Instruction (캐릭터/화풍 지침)</span>
-                                    <span class="text-[9px] font-normal text-gray-400">AI 분석 버튼 클릭 시 자동 입력됩니다.</span>
+                                    <span>{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('gemini_grounding_instruction') }}{% else %}🤖 Gemini Grounding Instruction (캐릭터/화풍 지침){% endif %}</span>
+                                    <span class="text-[9px] font-normal text-gray-400">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sẽ được điền tự động khi nhấn nút phân tích AI.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('auto_filled_ai_analysis') }}{% else %}AI 분석 버튼 클릭 시 자동 입력됩니다.{% endif %}</span>
                                 </label>
                                 <textarea id="customStyleInstruction" class="input-field w-full text-xs h-32 font-mono border-purple-100 focus:ring-purple-200"
-                                    placeholder="AI 분석 결과가 여기에 표시됩니다..."></textarea>
+                                    placeholder="{% if window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('gemini_grounding_placeholder') }}{% else %}AI 분석 결과가 여기에 표시됩니다...{% endif %}"></textarea>
                             </div>
 
                             <div class="flex justify-end pt-2">
@@ -602,8 +602,7 @@
                     <div class="text-center py-4 text-gray-400 text-xs">{{ t('msg_loading_styles') }}</div>
                 </div>
                 <p class="text-[10px] text-gray-400 mt-3 leading-tight">
-                    * 각 스타일 선택 시 AI에게 전달될 기본 묘사 프롬프트입니다.<br>
-                    * 수정 후 '저장' 버튼을 누르면 즉시 반영됩니다.
+                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}* Là mô tả cơ bản sẽ được gửi đến AI khi chọn mỗi phong cách.<br>* Nhấn nút 'Lưu' sau khi chỉnh sửa để áp dụng ngay.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_prompt_desc') }}{% else %}* 각 스타일 선택 시 AI에게 전달될 기본 묘사 프롬프트입니다.<br>* 수정 후 '저장' 버튼을 누르면 즉시 반영됩니다.{% endif %}
                 </p>
             </div>
         </div>
@@ -616,14 +615,14 @@
             <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mb-4">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
                     <i class="fas fa-edit text-purple-500"></i>
-                    대본 작성 프롬프트 설정
+                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cài đặt prompt viết kịch bản{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('script_writing_prompt_setting') }}{% else %}대본 작성 프롬프트 설정{% endif %}
                 </h3>
                 <div class="space-y-4">
                     <!-- [NEW] Main Script Writing Prompt -->
                     <div class="bg-[#1c2027] dark:bg-[#1c2027] rounded-lg p-3 border border-purple-200 dark:border-purple-800">
                         <label class="text-xs font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
-                            <span>✍️ 대본 작성 마스터 프롬프트</span>
-                            <span class="text-[10px] text-purple-500 dark:text-purple-400 font-normal">전달되는 핵심 지침</span>
+                            <span>✍️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Prompt chủ đạo viết kịch bản{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('script_master_prompt_label') }}{% else %}대본 작성 마스터 프롬프트{% endif %}</span>
+                            <span class="text-[10px] text-purple-500 dark:text-purple-400 font-normal">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Hướng dẫn cốt lõi{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('script_transmit_guide') }}{% else %}전달되는 핵심 지침{% endif %}</span>
                         </label>
                         <textarea id="promptScriptMaster" class="input-field w-full text-xs font-mono" rows="8"
                             placeholder="{{ t('placeholder_script_master') }}"></textarea>
@@ -656,7 +655,7 @@
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
                     <span>{{ t('label_script_style_settings') }}</span>
-                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
+                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đồng bộ server{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}ซิงค์เซิร์ฟเวอร์{% else %}서버 동기화{% endif %}</button>
                 </h3>
                 <div id="scriptStylePresetList" class="space-y-3">
                     <!-- Loaded via JS -->
@@ -676,7 +675,7 @@
             <div class="card p-3 shadow-sm border border-gray-200 dark:border-gray-700">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center justify-between">
                     <span>{{ t('label_thumbnail_style_settings') }}</span>
-                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 서버 동기화</button>
+                    <button onclick="syncAllPresetsFromServer()" class="text-[10px] text-blue-500 hover:underline">🔄 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đồng bộ server{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}ซิงค์เซิร์ฟเวอร์{% else %}서버 동기화{% endif %}</button>
                 </h3>
 
                 <!-- [NEW] Add Custom Thumbnail Style -->
@@ -731,7 +730,7 @@
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-2">{{ t('nav_data_mgmt') }}</h3>
                 <div class="flex gap-2">
                     <button onclick="exportData()" class="flex-1 btn-secondary py-1.5 text-xs">
-                        📤 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao lưu (JSON){% else %}백업 (JSON){% endif %}
+                        📤 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao lưu (JSON){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_backup_json') }}{% else %}백업 (JSON){% endif %}
                     </button>
                     <button onclick="clearData()"
                         class="flex-1 btn-secondary text-red-600 bg-[#1c2027] hover:bg-red-100 border-red-200 py-1.5 text-xs">🗑️
@@ -751,9 +750,9 @@
                 <!-- 엔진 선택 -->
                 <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700">
                     <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
-                        <span>🎞️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chọn Động cơ AI tạo video{% else %}영상 생성 AI 엔진 선택{% endif %}</span>
+                        <span>🎞️ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chọn Động cơ AI tạo video{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_video_engine_title') }}{% else %}영상 생성 AI 엔진 선택{% endif %}</span>
                         <span class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded border border-purple-200">
-                            {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quan trọng{% else %}중요{% endif %}
+                            {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quan trọng{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_important') }}{% else %}중요{% endif %}
                         </span>
                     </h3>
 
@@ -764,7 +763,7 @@
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Google Veo (Primary)</div>
                                 <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}🤖 Quy trình tạo video AI chất lượng cao mới nhất<br>Sản xuất video cao cấp dựa trên Gemini 2.x & Veo{% else %}🤖 최신 고품질 AI 영상 생성 파이프라인<br>Gemini 2.x & Veo 기반의 하이엔드 영상 제작{% endif %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}🤖 Quy trình tạo video AI chất lượng cao mới nhất<br>Sản xuất video cao cấp dựa trên Gemini 2.x & Veo{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_video_primary_desc') }}{% else %}🤖 최신 고품질 AI 영상 생성 파이프라인<br>Gemini 2.x & Veo 기반의 하이엔드 영상 제작{% endif %}
                                 </div>
                             </div>
                         </label>
@@ -775,7 +774,7 @@
                             <div>
                                 <div class="font-bold text-sm text-gray-800 dark:text-gray-200">Replicate (Fallback)</div>
                                 <div class="text-xs text-gray-500 mt-1 dark:text-gray-400">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}🔄 Động cơ tạo video phụ trợ (Dự phòng)<br>Hỗ trợ xử lý ổn định với độ trễ ngắn{% else %}🔄 보조 영상 생성 엔진 (폴백용)<br>대기 시간이 짧고 안정적인 처리 지원{% endif %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}🔄 Động cơ tạo video phụ trợ (Dự phòng)<br>Hỗ trợ xử lý ổn định với độ trễ ngắn{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_video_fallback_desc') }}{% else %}🔄 보조 영상 생성 엔진 (폴백용)<br>대기 시간이 짧고 안정적인 처리 지원{% endif %}
                                 </div>
                             </div>
                         </label>
@@ -785,7 +784,7 @@
                 <!-- Veo 버전 선택 (Veo 선택 시에만 표시) -->
                 <div id="veo-version-panel" class="card p-4 shadow-sm border border-blue-200 dark:border-blue-800 bg-[#1c2027] dark:bg-[#1c2027] hidden">
                     <h3 class="font-bold text-sm text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
-                        🤖 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chọn phiên bản Google Veo{% else %}Google Veo 버전 선택{% endif %}
+                        🤖 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Chọn phiên bản Google Veo{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_select_veo_version') }}{% else %}Google Veo 버전 선택{% endif %}
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 
@@ -795,7 +794,7 @@
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 2</span>
                                     <span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ổn định{% else %}안정{% endif %}
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ổn định{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_stable') }}{% else %}안정{% endif %}
                                     </span>
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -811,7 +810,7 @@
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3</span>
                                     <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mới nhất{% else %}최신{% endif %}
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mới nhất{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_latest') }}{% else %}최신{% endif %}
                                     </span>
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -827,11 +826,11 @@
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-bold text-sm text-gray-800 dark:text-gray-200">Veo 3 Fast</span>
                                     <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">
-                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Nhanh{% else %}빠름{% endif %}
+                                        {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Nhanh{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_fast') }}{% else %}빠름{% endif %}
                                     </span>
                                 </div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ưu tiên tốc độ, tiết kiệm chi phí{% else %}속도 우선, 비용 절감{% endif %}<br>
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ưu tiên tốc độ, tiết kiệm chi phí{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_speed_first') }}{% else %}속도 우선, 비용 절감{% endif %}<br>
                                     <code class="text-[10px] bg-[#1c2027]/50 px-1 rounded">veo-3.0-fast-generate-001</code>
                                 </div>
                             </div>
@@ -896,16 +895,16 @@
                 <!-- 렌더링 설정 (Render Settings) -->
                 <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 mt-4">
                     <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
-                        <span>🎬 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cài đặt kết xuất{% else %}렌더링 설정{% endif %}</span>
+                        <span>🎬 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cài đặt kết xuất{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_render_title') }}{% else %}렌더링 설정{% endif %}</span>
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs text-gray-500 mb-1">
-                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vị trí kết xuất{% else %}렌더링 위치{% endif %}
+                                {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vị trí kết xuất{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_render_location') }}{% else %}렌더링 위치{% endif %}
                             </label>
                             <select id="renderTarget"
                                 class="input-field w-full text-xs bg-[#1c2027] text-white">
-                                <option value="local">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}M?y t?nh c?? b??(Local PC){% else %}??? PC{% endif %}</option>
+                                <option value="local">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Máy tính cục bộ (Local PC){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_local_pc') }}{% else %}내 PC{% endif %}</option>
                                 <option value="drive_api">Google Drive API</option>
                             </select>
                         </div>
@@ -920,29 +919,29 @@
         <div id="tab-content-settlement" class="tab-content">
             <div class="card p-4 shadow-sm border border-gray-200 dark:border-gray-700 bg-[#1c2027] text-white">
                 <h3 class="font-bold text-sm text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-                    <span>💰 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quản lý quyết toán (Settlement Audit Log){% else %}직원 정산 관리 (Settlement Audit Log){% endif %}</span>
+                    <span>💰 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Quản lý quyết toán (Settlement Audit Log){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_title') }}{% else %}직원 정산 관리 (Settlement Audit Log){% endif %}</span>
                 </h3>
                 
                 <!-- Filters Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6 bg-[#161a22] p-4 rounded-lg border border-gray-700">
                     <div>
-                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ngày bắt đầu{% else %}시작일{% endif %}</label>
+                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ngày bắt đầu{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_start_date') }}{% else %}시작일{% endif %}</label>
                         <input type="date" id="settlementStartDate" class="w-full bg-[#242b35] text-white border border-gray-600 rounded px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none">
                     </div>
                     <div>
-                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ngày kết thúc{% else %}종료일{% endif %}</label>
+                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ngày kết thúc{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_end_date') }}{% else %}종료일{% endif %}</label>
                         <input type="date" id="settlementEndDate" class="w-full bg-[#242b35] text-white border border-gray-600 rounded px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none">
                     </div>
                     <div>
-                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email nhân viên{% else %}직원 이메일{% endif %}</label>
-                        <input type="text" id="settlementEmail" placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tất cả nhân viên{% else %}전체 직원{% endif %}" class="w-full bg-[#242b35] text-white border border-gray-600 rounded px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none">
+                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email nhân viên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_employee_email') }}{% else %}직원 이메일{% endif %}</label>
+                        <input type="text" id="settlementEmail" placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tất cả nhân viên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_email_placeholder') }}{% else %}전체 직원{% endif %}" class="w-full bg-[#242b35] text-white border border-gray-600 rounded px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none">
                     </div>
                     <div>
-                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đơn giá dự án (Mỗi dự án){% else %}프로젝트 단가 (건당){% endif %}</label>
+                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đơn giá dự án (Mỗi dự án){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_project_rate') }}{% else %}프로젝트 단가 (건당){% endif %}</label>
                         <input type="number" id="settlementProjectPay" value="10000" min="0" class="w-full bg-[#242b35] text-white border border-gray-600 rounded px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none">
                     </div>
                     <div>
-                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đơn giá AI (Mỗi hình ảnh){% else %}AI 이미지 단가 (건당){% endif %}</label>
+                        <label class="block text-[11px] text-gray-400 mb-1 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đơn giá AI (Mỗi hình ảnh){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_ai_image_rate') }}{% else %}AI 이미지 단가 (건당){% endif %}</label>
                         <input type="number" id="settlementAiPay" value="500" min="0" class="w-full bg-[#242b35] text-white border border-gray-600 rounded px-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none">
                     </div>
                 </div>
@@ -950,10 +949,10 @@
                 <!-- Action buttons -->
                 <div class="flex gap-2 mb-6">
                     <button onclick="fetchSettlement()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1.5">
-                        🔍 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tra cứu{% else %}조회하기{% endif %}
+                        🔍 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tra cứu{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_search') }}{% else %}조회하기{% endif %}
                     </button>
                     <button onclick="exportSettlement()" class="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1.5">
-                        📥 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Xuất Excel (CSV){% else %}엑셀 내보내기 (CSV){% endif %}
+                        📥 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Xuất Excel (CSV){% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_export_csv') }}{% else %}엑셀 내보내기 (CSV){% endif %}
                     </button>
                 </div>
 
@@ -962,20 +961,20 @@
                     <table class="w-full text-xs text-left text-gray-300">
                         <thead class="bg-[#161a22] text-gray-400 uppercase text-[10px] border-b border-gray-700">
                             <tr>
-                                <th class="px-4 py-3 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email nhân viên{% else %}직원 이메일{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Dự án hoàn thành / Tổng số{% else %}완료 / 총 프로젝트{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ảnh AI thành công / Tổng số{% else %}성공 / 총 AI 이미지{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Công việc TTS{% else %}TTS 작업{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cắt/Ghép ảnh{% else %}이미지 크롭 작업{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-right">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trợ cấp dự án{% else %}프로젝트 수당{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-right">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trợ cấp ảnh AI{% else %}AI 이미지 수당{% endif %}</th>
-                                <th class="px-4 py-3 font-bold text-right text-blue-400">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tổng trợ cấp dự kiến{% else %}총 정산 예정액{% endif %}</th>
+                                <th class="px-4 py-3 font-bold">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Email nhân viên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_email') }}{% else %}직원 이메일{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Dự án hoàn thành / Tổng số{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_projects') }}{% else %}완료 / 총 프로젝트{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ảnh AI thành công / Tổng số{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_ai_images') }}{% else %}성공 / 총 AI 이미지{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Công việc TTS{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_tts') }}{% else %}TTS 작업{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-center">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Cắt/Ghép ảnh{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_crop') }}{% else %}이미지 크롭 작업{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-right">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trợ cấp dự án{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_project_allowance') }}{% else %}프로젝트 수당{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-right">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Trợ cấp ảnh AI{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_ai_allowance') }}{% else %}AI 이미지 수당{% endif %}</th>
+                                <th class="px-4 py-3 font-bold text-right text-blue-400">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Tổng trợ cấp dự kiến{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_col_total') }}{% else %}총 정산 예정액{% endif %}</th>
                             </tr>
                         </thead>
                         <tbody id="settlementTableBody">
                             <tr>
                                 <td colspan="8" class="px-4 py-8 text-center text-gray-500">
-                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vui lòng chọn khoảng thời gian và nhấn nút Tra cứu.{% else %}날짜 범위를 선택하고 조회 버튼을 눌러주세요.{% endif %}
+                                    {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Vui lòng chọn khoảng thời gian và nhấn nút Tra cứu.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settings_settlement_select_date_range') }}{% else %}날짜 범위를 선택하고 조회 버튼을 눌러주세요.{% endif %}
                                 </td>
                             </tr>
                         </tbody>
@@ -1161,14 +1160,14 @@
         toast_settings_mode_switched: "{{ t('toast_settings_mode_switched') }}",
         label_img_upload_click: "{{ t('label_img_upload_click') }}",
         placeholder_no_instruction: "{{ t('placeholder_no_instruction') }}",
-        style_display_ghibli: "지브리 스튜디오",
-        style_display_minimal: "미니멀리즘",
-        style_display_nursery: "유아용/동요",
-        style_display_2d_webtoon: "2D 웹툰",
-        style_display_black_cartoon: "블랙 카툰",
-        style_display_object_char: "사물 캐릭터",
-        style_display_philosophical: "역사/철학 다큐",
-        style_display_bald_hoodie: "후드티 민머리",
+        style_display_ghibli: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Ghibli Studio{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_ghibli') }}{% else %}{{ t('style_ghibli') }}{% endif %}",
+        style_display_minimal: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Minimalism{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_minimal') }}{% else %}{{ t('style_minimal') }}{% endif %}",
+        style_display_nursery: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Nhạc trẻ em{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_nursery') }}{% else %}{{ t('style_nursery') }}{% endif %}",
+        style_display_2d_webtoon: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}2D Webtoon{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_2d_webtoon') }}{% else %}{{ t('style_2d_webtoon') }}{% endif %}",
+        style_display_black_cartoon: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Black Cartoon{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_black_cartoon') }}{% else %}{{ t('style_black_cartoon') }}{% endif %}",
+        style_display_object_char: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Nhân vật đồ vật{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_object_char') }}{% else %}{{ t('style_object_char') }}{% endif %}",
+        style_display_philosophical: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Phim tài liệu lịch sử/triết học{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_philosophical') }}{% else %}{{ t('style_philosophical') }}{% endif %}",
+        style_display_bald_hoodie: "{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Hoodie cạ trọc{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('style_display_bald_hoodie') }}{% else %}{{ t('style_bald_hoodie') }}{% endif %}",
         // Withdrawal & History
         msg_copied: "{{ t('msg_copied') }}",
         msg_withdrawal_confirm: "{{ t('msg_withdrawal_confirm') }}",
@@ -1179,7 +1178,31 @@
         msg_clipboard_error: "{{ t('msg_clipboard_error') }}",
         msg_no_clipboard: "{{ t('msg_no_clipboard') }}",
         status_pending: "{{ t('status_pending') }}",
-        status_completed: "{{ t('status_completed') }}"
+        status_completed: "{{ t('status_completed') }}",
+        // Additional Thai/VI i18n keys
+        referral_loading: "{{ t('referral_loading') }}",
+        referral_reward_done: "{{ t('referral_reward_done') }}",
+        referral_reward_pending: "{{ t('referral_reward_pending') }}",
+        referral_no_members: "{{ t('referral_no_members') }}",
+        referral_load_error: "{{ t('referral_load_error') }}",
+        referral_error_occurred: "{{ t('referral_error_occurred') }}",
+        referral_count: "{{ t('referral_count') }}",
+        withdrawal_enter_amount: "{{ t('withdrawal_enter_amount') }}",
+        withdrawal_enter_address: "{{ t('withdrawal_enter_address') }}",
+        withdrawal_confirm_msg: "{{ t('withdrawal_confirm_msg') }}",
+        withdrawal_success: "{{ t('withdrawal_success') }}",
+        withdrawal_failed: "{{ t('withdrawal_failed') }}",
+        withdrawal_error2: "{{ t('withdrawal_error2') }}",
+        clipboard_not_supported: "{{ t('clipboard_not_supported') }}",
+        clipboard_empty: "{{ t('clipboard_empty') }}",
+        clipboard_read_error: "{{ t('clipboard_read_error') }}",
+        paste: "{{ t('paste') }}",
+        withdrawal_no_history: "{{ t('withdrawal_no_history') }}",
+        withdrawal_history_loading: "{{ t('withdrawal_history_loading') }}",
+        withdrawal_history_error: "{{ t('withdrawal_history_error') }}",
+        settlement_loading: "{{ t('settlement_loading') }}",
+        settlement_fetch_error: "{{ t('settlement_fetch_error') }}",
+        settlement_no_data: "{{ t('settlement_no_data') }}",
     };
 
     const DEFAULT_STYLE_KEYS = ['realistic', 'ghibli', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa', 'minimal', 'nursery_rhyme', '2d웹', '블랙카툰', '사물캐릭터', '역사/동양철/다큐', '후드티민머리'];
@@ -1195,7 +1218,7 @@
         const aiPay = parseInt(document.getElementById('settlementAiPay').value) || 0;
 
         const tbody = document.getElementById('settlementTableBody');
-        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">🔄 데이터를 불러오는 중입니다...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">🔄 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đang tải dữ liệu...{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settlement_loading') }}{% else %}데이터를 불러오는 중입니다...{% endif %}</td></tr>`;
 
         try {
             let url = `/api/settings/settlement-summary?`;
@@ -1209,12 +1232,12 @@
             const data = await res.json();
 
             if (data.status !== 'success' || !data.summary) {
-                tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-red-500">❌ 데이터를 가져오지 못했습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-red-500">❌ {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Không thể lấy dữ liệu.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settlement_fetch_error') }}{% else %}데이터를 가져오지 못했습니다.{% endif %}</td></tr>`;
                 return;
             }
 
             if (data.summary.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">해당 조건의 정산 데이터가 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Không có dữ liệu theo điều kiện này.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('settlement_no_data') }}{% else %}해당 조건의 정산 데이터가 없습니다.{% endif %}</td></tr>`;
                 return;
             }
 
@@ -1240,7 +1263,8 @@
             tbody.innerHTML = html;
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-red-500 font-bold">❌ 에러 발생: ${e.message}</td></tr>`;
+            const errLabel = lang === 'vi' ? 'Đã xảy ra lỗi' : (lang === 'th' ? i18n.settlement_error_label : '에러 발생');
+            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-red-500 font-bold">❌ ${errLabel}: ${e.message}</td></tr>`;
         }
     }
 
@@ -1288,7 +1312,7 @@
     async function loadReferralData() {
         const tbody = document.getElementById('referralUsersTableBody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">데이터를 불러오는 중...</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-gray-500">${i18n.referral_loading}</td></tr>`;
         
         try {
             const res = await fetch('/api/settings/referrals');
@@ -1301,28 +1325,28 @@
                     tbody.innerHTML = '';
                     data.users.forEach(u => {
                         const date = new Date(u.created_at).toLocaleDateString();
-                        const statusBadge = u.rewarded 
-                            ? `<span class="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-[10px] font-bold">지급 완료</span>`
-                            : `<span class="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">진행 중 (2개 필요)</span>`;
+                        const statusBadge = u.rewarded
+                            ? `<span class="bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-[10px] font-bold">${i18n.referral_reward_done}</span>`
+                            : `<span class="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">${i18n.referral_reward_pending}</span>`;
                             
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td class="px-4 py-3">${u.email}</td>
                             <td class="px-4 py-3">${date}</td>
-                            <td class="px-4 py-3 text-center">${u.completed_count}개</td>
+                            <td class="px-4 py-3 text-center">${u.completed_count}${i18n.referral_count}</td>
                             <td class="px-4 py-3 text-center">${statusBadge}</td>
                         `;
                         tbody.appendChild(tr);
                     });
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">아직 추천으로 가입한 회원이 없습니다.</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-gray-500">${i18n.referral_no_members}</td></tr>`;
                 }
             } else {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-500">데이터를 불러오지 못했습니다.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">${i18n.referral_load_error}</td></tr>`;
             }
         } catch (e) {
             console.error('Error loading referrals:', e);
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-red-500">오류가 발생했습니다.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">${i18n.referral_error_occurred}</td></tr>`;
         }
     }
 
@@ -1331,15 +1355,15 @@
         const destAddress = document.getElementById('wdDestAddress').value.trim();
 
         if (isNaN(amount) || amount <= 0) {
-            alert('출금 수량을 올바르게 입력해주세요.');
+            alert(i18n.withdrawal_enter_amount);
             return;
         }
         if (!destAddress) {
-            alert('출금 지갑 주소를 입력해주세요.');
+            alert(i18n.withdrawal_enter_address);
             return;
         }
 
-        const confirmMsg = `출금 수량: ${amount} USDT\n받을 주소: ${destAddress}\n\n출금 신청을 진행하시겠습니까?`;
+        const confirmMsg = `${i18n.withdrawal_confirm_msg}\n\n`.replace('{amount}', amount).replace('{address}', destAddress);
         if (!confirm(confirmMsg)) return;
 
         try {
@@ -1351,34 +1375,33 @@
             const data = await res.json();
 
             if (res.ok && data.status === 'success') {
-                alert(data.message);
+                alert(i18n.withdrawal_success);
                 document.getElementById('wdAmount').value = '';
-                // Reload history and balance
                 location.reload();
             } else {
-                alert('출금 신청 실패: ' + (data.detail || data.message || '알 수 없는 오류'));
+                alert(`${i18n.withdrawal_failed}`.replace('{error}', data.detail || data.message || 'Unknown error'));
             }
         } catch (e) {
             console.error(e);
-            alert('오류가 발생했습니다: ' + e.message);
+            alert(`${i18n.withdrawal_error2}`.replace('{error}', e.message));
         }
     }
 
     async function pasteWithdrawalAddress() {
         try {
             if (!navigator.clipboard || !navigator.clipboard.readText) {
-                alert('이 브라우저에서는 붙여넣기를 지원하지 않습니다.');
+                alert(i18n.clipboard_not_supported);
                 return;
             }
             const text = (await navigator.clipboard.readText()).trim();
             if (!text) {
-                alert('클립보드에 붙여넣을 주소가 없습니다.');
+                alert(i18n.clipboard_empty);
                 return;
             }
             document.getElementById('wdDestAddress').value = text;
         } catch (e) {
             console.error(e);
-            alert('클립보드에서 주소를 읽지 못했습니다.');
+            alert(i18n.clipboard_read_error);
         }
     }
 
@@ -1390,7 +1413,7 @@
             
             if (data.status === 'success') {
                 if (!data.history || data.history.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">출금 내역이 없습니다.</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-gray-500">${i18n.withdrawal_no_history}</td></tr>`;
                     return;
                 }
                 
@@ -1398,9 +1421,9 @@
                 data.history.forEach(h => {
                     const dateObj = new Date(h.created_at);
                     const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    const statusHtml = h.status === 'pending' 
-                        ? '<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-bold">대기중</span>'
-                        : '<span class="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px] font-bold">완료</span>';
+                    const statusHtml = h.status === 'pending'
+                        ? `<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-bold">${i18n.status_pending}</span>`
+                        : `<span class="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px] font-bold">${i18n.status_completed}</span>`;
                         
                     html += `
                         <tr class="hover:bg-[#202731]">
@@ -1413,11 +1436,11 @@
                 });
                 tbody.innerHTML = html;
             } else {
-                tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">내역을 불러오는데 실패했습니다.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">${i18n.withdrawal_history_error}</td></tr>`;
             }
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">에러 발생: ${e.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-red-500">${i18n.withdrawal_error2}`.replace('{error}', e.message) + `</td></tr>`;
         }
     }
 
@@ -1426,8 +1449,11 @@
         
         let msg1, msg2;
         if (lang === 'vi') {
-            msg1 = "⚠️ [CẢNH BÁO MẤT DỮ LIỆU]\nKhi rút tài khoản, tất cả dự án đã làm, lịch sử thanh toán/thu nhập 및 ví sẽ bị XÓA VĨNH VIỄN khỏi hệ thống.\nBạn có chắc chắn muốn xóa toàn bộ dữ liệu?";
-            msg2 = "🔴 [XÁC NHẬN CUỐI CÙNG]\nHành động này KHÔNG THỂ HOÀN TÁC.\nXác nhận rút tài khoản 및 xóa mọi dữ liệu?";
+            msg1 = "⚠️ [CẢNH BÁO MẤT DỮ LIỆU]\nKhi rút tài khoản, tất cả dự án đã làm, lịch sử thanh toán/thu nhập และ ví sẽ bị XÓA VĨNH VIỄN khỏi hệ thống.\nBạn có chắc chắn muốn xóa toàn bộ dữ liệu?";
+            msg2 = "🔴 [XÁC NHẬN CUỐI CÙNG]\nHành động này KHÔNG THỂ HOÀN TÁC.\nXác nhận rút tài khoản และ xóa mọi dữ liệu?";
+        } else if (lang === 'th') {
+            msg1 = i18n.withdrawal_warning_msg1;
+            msg2 = i18n.withdrawal_warning_msg2;
         } else if (lang === 'en') {
             msg1 = "⚠️ [DATA LOSS WARNING]\nUpon withdrawal, all active projects, payout histories, and wallet details will be PERMANENTLY DELETED.\nAre you sure you want to delete all your data?";
             msg2 = "🔴 [FINAL CONFIRMATION]\nThis action is IRREVERSIBLE.\nDo you really want to delete your account and all data?";
@@ -1435,26 +1461,26 @@
             msg1 = "⚠️ [데이터 영구 삭제 경고]\n회원 탈퇴 시 지금까지 작업했던 모든 프로젝트 내역, 획득한 수당 정보 및 지갑 주소 등 모든 내역이 영구적으로 삭제되며 절대로 복구할 수 없습니다.\n정말 탈퇴를 진행하시겠습니까?";
             msg2 = "🔴 [최종 확인]\n이 작업은 되돌릴 수 없습니다.\n정말로 모든 데이터를 삭제하고 탈퇴하시겠습니까?";
         }
-        
+
         if (!confirm(msg1)) return;
         if (!confirm(msg2)) return;
-        
+
         try {
             const response = await fetch('/api/settings/withdraw', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
-            
+
             const data = await response.json();
             if (response.ok && data.success) {
-                alert(lang === 'vi' ? 'Đã rút tài khoản thành công.' : (lang === 'en' ? 'Account successfully withdrawn.' : '회원 탈퇴 처리가 완료되었습니다.'));
+                alert(lang === 'vi' ? 'Đã rút tài khoản thành công.' : (lang === 'th' ? i18n.withdrawal_confirmed : (lang === 'en' ? 'Account successfully withdrawn.' : '회원 탈퇴 처리가 완료되었습니다.')));
                 window.location.href = '/login';
             } else {
-                alert(data.detail || (lang === 'vi' ? 'Lỗi khi rút tài khoản.' : (lang === 'en' ? 'Failed to withdraw account.' : '회원 탈퇴 처리 중 오류가 발생했습니다.')));
+                alert(data.detail || (lang === 'vi' ? 'Lỗi khi rút tài khoản.' : (lang === 'th' ? i18n.withdrawal_error : (lang === 'en' ? 'Failed to withdraw account.' : '회원 탈퇴 처리 중 오류가 발생했습니다.'))));
             }
         } catch (err) {
             console.error(err);
-            alert(lang === 'vi' ? 'Lỗi kết nối.' : (lang === 'en' ? 'Connection error.' : '서버와의 통신에 실패했습니다.'));
+            alert(lang === 'vi' ? 'Lỗi kết nối.' : (lang === 'th' ? i18n.withdrawal_connection_error : (lang === 'en' ? 'Connection error.' : '서버와의 통신에 실패했습니다.')));
         }
     }
 
