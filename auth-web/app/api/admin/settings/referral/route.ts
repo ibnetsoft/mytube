@@ -71,6 +71,18 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
     
+    // Validate referral_mode
+    const validModes = ['OFF', 'NORMAL', 'PROMOTION'];
+    if (payload.referral_mode && !validModes.includes(payload.referral_mode)) {
+      return NextResponse.json({ error: 'Invalid referral_mode' }, { status: 400 });
+    }
+
+    // Validate referral_cycle
+    const validCycles = ['REALTIME', 'DAILY', 'WEEKLY', 'MONTHLY', 'MANUAL'];
+    if (payload.referral_cycle && !validCycles.includes(payload.referral_cycle)) {
+      return NextResponse.json({ error: 'Invalid settlement_cycle' }, { status: 400 });
+    }
+
     const updates = SETTING_KEYS.map((key) => {
       return {
         key,
