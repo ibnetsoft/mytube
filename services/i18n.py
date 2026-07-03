@@ -4,12 +4,12 @@
 PLATFORM_TRANSLATIONS = {
     'ko': {
         # Image Workflow Guide
-        'workflow_title': '이미지 생성 워크플로우 가이드',
+        'workflow_title': '이미지 프로덕션 워크플로우',
         'workflow_step1': 'Image Prompt 생성',
         'workflow_step2': '2×2 이미지 생성',
-        'workflow_step2_desc': '최고 품질의 이미지 생성을 위해 ChatGPT Plus 사용을 권장합니다.',
+        'workflow_step2_desc': '고품질 이미지 생성을 위해 ChatGPT 이미지 생성을 권장합니다.',
         'workflow_step3': 'Crop',
-        'workflow_step3_desc': 'ChatGPT에서 Crop을 권장합니다. 서비스 크레딧을 절약할 수 있습니다.',
+        'workflow_step3_desc': '권장: ChatGPT에서 Crop (서비스 크레딧 절약)<br>또는 AIR Studio Crop Tool 사용',
         'workflow_step4': 'Upscaling',
         'workflow_step5': 'Video Clip 생성',
         'workflow_step6': '파일 업로드',
@@ -3117,12 +3117,12 @@ PLATFORM_TRANSLATIONS = {
     },
     'en': {
         # Image Workflow Guide
-        'workflow_title': 'Image Generation Workflow Guide',
+        'workflow_title': 'Image Production Workflow',
         'workflow_step1': 'Generate Image Prompt',
         'workflow_step2': 'Generate 2x2 Image',
-        'workflow_step2_desc': 'We recommend using ChatGPT Plus for the highest quality image generation.',
+        'workflow_step2_desc': 'We recommend using ChatGPT for the highest quality image generation.',
         'workflow_step3': 'Crop',
-        'workflow_step3_desc': 'We recommend cropping in ChatGPT to save service credits.',
+        'workflow_step3_desc': 'Recommended: Crop in ChatGPT (Save credits)<br>Or use AIR Studio Crop Tool',
         'workflow_step4': 'Upscaling',
         'workflow_step5': 'Generate Video Clip',
         'workflow_step6': 'Upload Files',
@@ -5569,12 +5569,12 @@ PLATFORM_TRANSLATIONS = {
     },
     'vi': {
         # Image Workflow Guide
-        'workflow_title': 'Hướng dẫn Quy trình Tạo Ảnh',
+        'workflow_title': 'Quy trình Sản xuất Ảnh',
         'workflow_step1': 'Tạo Image Prompt',
         'workflow_step2': 'Tạo ảnh 2x2',
-        'workflow_step2_desc': 'Chúng tôi khuyên dùng ChatGPT Plus để tạo ảnh chất lượng cao nhất.',
+        'workflow_step2_desc': 'Chúng tôi khuyên dùng ChatGPT để tạo ảnh chất lượng cao nhất.',
         'workflow_step3': 'Cắt ảnh (Crop)',
-        'workflow_step3_desc': 'Chúng tôi khuyên bạn nên cắt ảnh trong ChatGPT để tiết kiệm credit dịch vụ.',
+        'workflow_step3_desc': 'Khuyến nghị: Cắt ảnh trong ChatGPT (Tiết kiệm credit)<br>Hoặc sử dụng Công cụ Cắt ảnh của AIR Studio',
         'workflow_step4': 'Nâng cấp độ phân giải (Upscaling)',
         'workflow_step5': 'Tạo Video Clip',
         'workflow_step6': 'Tải tệp lên',
@@ -8275,12 +8275,12 @@ PLATFORM_TRANSLATIONS = {
     },
     'th': {
         # Image Workflow Guide
-        'workflow_title': 'คู่มือขั้นตอนการสร้างรูปภาพ',
+        'workflow_title': 'ขั้นตอนการผลิตรูปภาพ',
         'workflow_step1': 'สร้าง Image Prompt',
         'workflow_step2': 'สร้างรูปภาพ 2x2',
-        'workflow_step2_desc': 'เราขอแนะนำให้ใช้ ChatGPT Plus เพื่อการสร้างรูปภาพคุณภาพสูงสุด',
+        'workflow_step2_desc': 'เราขอแนะนำให้ใช้ ChatGPT เพื่อการสร้างรูปภาพคุณภาพสูงสุด',
         'workflow_step3': 'ครอบตัด (Crop)',
-        'workflow_step3_desc': 'เราขอแนะนำให้ครอบตัดใน ChatGPT เพื่อประหยัดเครดิตบริการ',
+        'workflow_step3_desc': 'แนะนำ: ครอบตัดใน ChatGPT (ประหยัดเครดิต)<br>หรือใช้ AIR Studio Crop Tool',
         'workflow_step4': 'อัปสเกล (Upscaling)',
         'workflow_step5': 'สร้าง Video Clip',
         'workflow_step6': 'อัปโหลดไฟล์',
