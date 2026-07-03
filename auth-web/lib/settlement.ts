@@ -28,8 +28,8 @@ export async function processSettlement(
       return;
     }
 
-    const level1Percent = parseFloat(settings['referral_level1_percent'] || '10');
-    const level2Percent = parseFloat(settings['referral_level2_percent'] || '5');
+    const level1Percent = parseFloat(settings['referral_level1_percent'] || '0');
+    const level2Percent = parseFloat(settings['referral_level2_percent'] || '0');
 
     // 2. Prevent duplicate processing (Code level)
     const { data: existingCommissions, error: existError } = await supabaseAdmin
