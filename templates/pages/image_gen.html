@@ -201,7 +201,7 @@
                     <label for="wf_step2" class="cursor-pointer block">
                         <span class="text-sm font-bold text-white flex items-center gap-2">
                             <span>STEP 2: {{ t('workflow_step2') }}</span>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">External</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
                         </span>
                         <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step2_expl') }}</p>
                         <p class="text-xs text-amber-300/80 mt-1 flex items-center gap-1">
@@ -213,7 +213,7 @@
                             <button type="button" onclick="copyAllPrompts()" class="px-3 py-1.5 bg-[#2a303b] hover:bg-[#323946] border border-white/10 text-xs text-white rounded transition-colors flex items-center gap-1"><span>📋</span> Prompt 복사</button>
                             <a href="https://chatgpt.com/" target="_blank" class="px-3 py-1.5 bg-[#10a37f]/90 hover:bg-[#10a37f] border border-[#10a37f]/50 text-xs text-white rounded transition-colors flex items-center gap-1"><span>🤖</span> Open ChatGPT</a>
                         </div>
-                        <p class="text-[10px] text-gray-500 ml-1">{{ t('workflow_step2_chatgpt_hint') }}</p>
+                        <p class="text-[11px] text-gray-400 ml-1 mt-1 leading-relaxed">{{ t('workflow_step2_chatgpt_hint') | safe }}</p>
                     </div>
                 </div>
             </div>
@@ -226,7 +226,7 @@
                     <label for="wf_step3" class="cursor-pointer block">
                         <span class="text-sm font-bold text-white flex items-center gap-2">
                             <span>STEP 3: {{ t('workflow_step3') }}</span>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">External</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
                         </span>
                         <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step3_expl') }}</p>
                         <p class="text-xs text-green-300/80 mt-1 flex items-center gap-1 leading-tight">
@@ -244,7 +244,7 @@
                     <label for="wf_step4" class="cursor-pointer block">
                         <span class="text-sm font-bold text-white flex items-center gap-2">
                             <span>STEP 4: {{ t('workflow_step4') }}</span>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">External</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
                         </span>
                         <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step4_expl') }}</p>
                     </label>
@@ -259,7 +259,7 @@
                     <label for="wf_step5" class="cursor-pointer block">
                         <span class="text-sm font-bold text-white flex items-center gap-2">
                             <span>STEP 5: {{ t('workflow_step5') }}</span>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">External</span>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
                         </span>
                         <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step5_expl') }}</p>
                     </label>
