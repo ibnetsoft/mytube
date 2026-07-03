@@ -4,14 +4,15 @@
 This file is the default handoff entrypoint for Codex/ChatGPT work in AIR Studio.
 Read this first before starting implementation work.
 
-## Current State (as of 2026-07-02)
+## Current State (as of 2026-07-03)
 
 ### Main HEAD
-`cdb7c23b` — Merge pull request #17 from ibnetsoft/auth-web-lint-fixes
+`381fc972` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
 
 ### Recently Merged PRs
 | PR | Title | Merged |
 |----|-------|--------|
+| #25 | AIR-0121 refine image workflow guide final UI | 2026-07-03 |
 | #17 | Fix auth-web lint execution and warnings | 2026-07-02 |
 | #16 | Add per-feature AI model settings | 2026-07-02 |
 | #15 | Enable Claude Sonnet 5 for script planning and generation | 2026-07-02 |
@@ -28,7 +29,7 @@ Read this first before starting implementation work.
 | #1–#8 | Superseded by AIR-0110A / PR #9 | Should be closed |
 
 ## Task Pointer
-Next task ID: `AIR-0119` (to be assigned by product owner after Sprint decision)
+Next task ID: `AIR-0122` (Referral 2.0 설계)
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.

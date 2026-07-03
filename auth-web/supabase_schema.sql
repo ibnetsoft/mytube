@@ -31,6 +31,7 @@ DECLARE
     raw_preferred_languages TEXT[];
     clean_preferred_languages TEXT[];
     raw_referral_code TEXT;
+    raw_referred_by_id UUID;
     generated_referral_code TEXT;
     referrer_profile public.profiles%ROWTYPE;
     normalized_country TEXT;
@@ -42,7 +43,14 @@ BEGIN
     ) INTO raw_preferred_languages;
 
     clean_preferred_languages := COALESCE(NULLIF(raw_preferred_languages, ARRAY[]::TEXT[]), ARRAY['ko'::TEXT]);
-    raw_referral_code := upper(trim(COALESCE(NEW.raw_user_meta_data->>'referral_code', NEW.raw_user_meta_data->>'referrer', '')));
+    raw_referral_code := upper(trim(COALESCE(NEW.raw_user_meta_data->>'referral_code', NEW.raw_user_meta_data->>'referred_by_code', '')));
+    
+    BEGIN
+        raw_referred_by_id := (NEW.raw_user_meta_data->>'referred_by_id')::UUID;
+    EXCEPTION WHEN invalid_text_representation THEN
+        raw_referred_by_id := NULL;
+    END;
+
     normalized_country := upper(left(regexp_replace(COALESCE(NEW.raw_user_meta_data->>'country_code', NEW.raw_user_meta_data->>'nationality', 'KR'), '[^A-Za-z]', '', 'g'), 2));
     IF normalized_country = '' THEN
         normalized_country := 'KR';
@@ -52,6 +60,11 @@ BEGIN
         SELECT * INTO referrer_profile
         FROM public.profiles
         WHERE upper(referral_code) = raw_referral_code
+        LIMIT 1;
+    ELSIF raw_referred_by_id IS NOT NULL THEN
+        SELECT * INTO referrer_profile
+        FROM public.profiles
+        WHERE id = raw_referred_by_id
         LIMIT 1;
     END IF;
 
@@ -489,6 +502,15 @@ CREATE TABLE IF NOT EXISTS public.global_settings (
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+INSERT INTO public.global_settings (key, value) VALUES
+    ('referral_mode', 'NORMAL'),
+    ('referral_default_sponsor_uuid', ''),
+    ('referral_level1_percent', '10'),
+    ('referral_level2_percent', '5'),
+    ('referral_min_payout', '50'),
+    ('referral_cycle', 'MONTHLY')
+ON CONFLICT (key) DO NOTHING;
 
 -- ─────────────────────────────────────────────
 -- 8. remote_render_queue: 원격 비디오 렌더링 순차 큐 및 진행 정보 관리용 테이블

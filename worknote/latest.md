@@ -1,6 +1,6 @@
 # Latest Worknote
 
-Date: 2026-07-02
+Date: 2026-07-03
 Repo: `C:\Projects\에어스튜디오\longformgenerator`
 
 ## Why this file exists
@@ -9,9 +9,14 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 ## Current understanding
 - AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
 - The same repo also includes a Next.js admin app under `auth-web`.
-- Current main HEAD: `cdb7c23b` — Merge pull request #17 from ibnetsoft/auth-web-lint-fixes
+- Current main HEAD: `381fc972` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
 
 ## What changed recently
+
+### PR #25 / AIR-0121 — Image Workflow Guide (MERGED 2026-07-03)
+- Added an explicit, 7-step Image Production Workflow UI in `image_gen.html` for better user onboarding.
+- LocalStorage state persistence with hooks into API responses for auto-completion.
+- 4 languages i18n support.
 
 ### AIR-0117 — Project status document sync (2026-07-02)
 - Confirmed PR #11 (AIR-0112) MERGED into main on 2026-07-01.

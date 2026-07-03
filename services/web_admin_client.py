@@ -213,6 +213,39 @@ class WebAdminClient:
             return None
         return (response.json() or {}).get("id")
 
+    def fetch_global_setting(self, key: str, default: Any = None) -> Any:
+        if not self.has_supabase():
+            return default
+        try:
+            response = self.supabase_get(
+                "global_settings",
+                params={"select": "value", "key": f"eq.{key}"},
+            )
+            if response and response.status_code == 200:
+                rows = response.json()
+                if rows:
+                    return rows[0].get("value")
+        except Exception as e:
+            print(f"[WebAdmin] Failed to fetch global setting {key}: {e}")
+        return default
+
+    def validate_referral_code(self, code: str) -> bool:
+        """Check if the referral code exists in profiles."""
+        if not self.has_supabase() or not code:
+            return False
+        try:
+            response = self.supabase_get(
+                "profiles",
+                params={"select": "id", "referral_code": f"eq.{code.strip()}", "limit": "1"},
+            )
+            if response and response.status_code == 200:
+                rows = response.json()
+                if rows:
+                    return True
+        except Exception as e:
+            print(f"[WebAdmin] Failed to validate referral code {code}: {e}")
+        return False
+
     def submit_worker_registration(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         email = (payload.get("email") or "").strip().lower()
         if not email:
@@ -232,6 +265,7 @@ class WebAdminClient:
             "signup_source": "desktop_client",
             "my_referral_code": my_referral_code,
             "referred_by_code": payload.get("referred_by_code") or "",
+            "referred_by_id": payload.get("referred_by_id") or "",
             "preferred_category_ids": payload.get("preferred_category_ids") or [],
             "preferred_category_names": payload.get("preferred_category_names") or [],
             "preferred_video_length": payload.get("preferred_video_length") or "",

@@ -1,0 +1,93 @@
+import { NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+
+const SETTING_KEYS = [
+  'referral_mode',
+  'referral_default_sponsor_uuid',
+  'referral_level1_percent',
+  'referral_level2_percent',
+  'referral_min_payout',
+  'referral_cycle'
+];
+
+export async function GET() {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'superadmin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { data, error } = await supabase
+      .from('global_settings')
+      .select('key, value')
+      .in('key', SETTING_KEYS);
+
+    if (error) throw error;
+
+    const settings = SETTING_KEYS.reduce((acc, key) => {
+      const row = data?.find((r) => r.key === key);
+      acc[key] = row ? row.value : '';
+      return acc;
+    }, {} as Record<string, string>);
+
+    return NextResponse.json({ settings });
+  } catch (error) {
+    console.error('[Admin] Failed to fetch referral settings:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'superadmin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const payload = await request.json();
+    
+    const updates = SETTING_KEYS.map((key) => {
+      return {
+        key,
+        value: payload[key] ?? '',
+        updated_at: new Date().toISOString()
+      };
+    });
+
+    const { error } = await supabase
+      .from('global_settings')
+      .upsert(updates, { onConflict: 'key' });
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[Admin] Failed to update referral settings:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}

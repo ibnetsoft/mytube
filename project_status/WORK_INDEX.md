@@ -309,6 +309,19 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   Re-run the complete Longform operator workflow with dedicated credentials and real external assets to complete authenticated browser-level validation.
 
+### AIR-0121
+- Status: Done
+- Commit: `8d6cb782`
+- PR: #25 (MERGED 2026-07-03)
+- Related files:
+  - `services/i18n.py`
+  - `templates/pages/image_gen.html`
+  - `worknote/AIR-0121.md`
+- Short summary:
+  Added a 7-step Image Production Workflow UI to guide users on generating and handling images via external AI tools. Included localStorage persistence, auto-checking hooks, and full i18n support for 4 languages.
+- Next action:
+  Start investigation for AIR-0122 (Referral 2.0).
+
 ## Non-AIR Merged PRs (outside AIR task numbering)
 
 ### PR #14 — feat: topic UI and admin ElevenLabs voice management

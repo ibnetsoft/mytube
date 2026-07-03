@@ -295,6 +295,19 @@ async def post_auth_register(req: RegisterRequest):
         if existing and str(existing.get("is_approved")).lower() in ("true", "1", "yes"):
             return {"success": False, "error": "이미 승인된 이메일입니다. 로그인 화면에서 접속해주세요."}
 
+        referral_code_input = req.referral_code.strip() if req.referral_code else ""
+        referred_by_code = ""
+        referred_by_id = ""
+
+        if referral_code_input:
+            if not web_admin_client.validate_referral_code(referral_code_input):
+                return {"success": False, "error": "유효하지 않은 추천코드입니다."}
+            referred_by_code = referral_code_input
+        else:
+            default_sponsor_uuid = web_admin_client.fetch_global_setting("referral_default_sponsor_uuid")
+            if default_sponsor_uuid:
+                referred_by_id = default_sponsor_uuid
+
         return web_admin_client.submit_worker_registration({
             "full_name": full_name,
             "contact": contact,
@@ -306,10 +319,24 @@ async def post_auth_register(req: RegisterRequest):
             "preferred_category_ids": preferred_category_ids,
             "preferred_category_names": preferred_category_names,
             "preferred_video_length": preferred_video_length,
-            "referred_by_code": req.referral_code.strip() if req.referral_code else "",
+            "referred_by_code": referred_by_code,
+            "referred_by_id": referred_by_id,
         })
     except Exception as e:
         return {"success": False, "error": f"가입 신청 오류: {str(e)}"}
+
+
+@router.get("/api/referral/validate")
+async def validate_referral_api(code: str):
+    """프론트엔드에서 추천코드 유효성을 검증하기 위한 API."""
+    if not code or not code.strip():
+        return {"success": False, "error": "코드를 입력해주세요."}
+    
+    is_valid = web_admin_client.validate_referral_code(code)
+    if is_valid:
+        return {"success": True, "valid": True}
+    else:
+        return {"success": True, "valid": False}
 
 
 @router.post("/api/auth/login")
