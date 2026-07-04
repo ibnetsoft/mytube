@@ -7,7 +7,7 @@ import shutil
 import uuid
 import time
 import httpx
-from fastapi.responses import RedirectResponse, HTMLResponse, Response
+from fastapi.responses import RedirectResponse, HTMLResponse, Response, JSONResponse
 from config import config
 from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 import csv
@@ -947,9 +947,16 @@ async def set_language(lang: str = Body(..., embed=True)):
         except Exception as e:
             print(f"[I18N] language.pref write failed: {e}")
 
-        # 3. [AIR-0133] Removed app_state.switch_language() — language is now per-request via cookie
-
-        return {"status": "ok", "lang": lang}
+        # 3. [AIR-0133] Set-Cookie so next page request picks up the new language immediately.
+        # (switch_language() was removed — language is now resolved per-request from the cookie)
+        response = JSONResponse({"status": "ok", "lang": lang})
+        response.set_cookie(
+            key="language",
+            value=lang,
+            max_age=30 * 24 * 60 * 60,
+            httponly=False,
+        )
+        return response
     except Exception as e:
         raise HTTPException(500, str(e))
 
