@@ -355,6 +355,7 @@ app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
 pages_router.init_pages(templates)
+repository_router.init_repository(templates)  # [AIR-0134]
 
 
 # output 폴더
