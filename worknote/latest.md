@@ -10,10 +10,22 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 - AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
 - The same repo also includes a Next.js admin app under `auth-web`.
 - Current main HEAD: `381fc97` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
+- Active branch: `air-0128-db-persistent-translation` (PR #31 open)
+- Next available Task ID: `AIR-0129`
 
 ## What changed recently
 
-### AIR-0126 — Project status document sync (2026-07-04)
+### AIR-0128 — DB-persistent topic translation (2026-07-04, PR #31 OPEN)
+- Replaced runtime AI translation for recommended topic cards with Supabase-backed persistence.
+- New functions in `app/routers/user_topics.py`: `_fetch_stored_translations()`, `_save_translations_to_db()`.
+- `POST /api/user/recommended-topics/translations`: DB-first, AI fallback only for NULL rows, saves back to DB.
+- `auth-web` PUT handler resets translation columns to null on topic title edit.
+- New: `migrations/air_0128_topics_queue_translation_columns.sql` — 6 nullable TEXT columns on `topics_queue`.
+- New: `scripts/backfill_topic_translations.py` — backfill existing pending/assigned rows.
+- New: `tests/test_topic_translation_db.py` — 14 tests, all passing.
+- **Requires product owner**: approve migration SQL + merge PR #31, then run backfill.
+
+### AIR-0126 — Project status document sync (2026-07-04, PR #30 OPEN)
 - Discovered that AIR-0119, AIR-0120, AIR-0121, and PR #24 merged without project status document updates.
 - Corrected `worknote/AIR-0120.md` — previous content described PR #13 documentation cleanup, which was wrong; actual AIR-0120 task was language-switch full-reload removal (`services/i18n.py`, `templates/base.html`).
 - Created `worknote/AIR-0119.md` (AI provider routing centralization).
@@ -39,6 +51,8 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 ## Open PRs (as of 2026-07-04)
 | PR | Title | Action needed |
 |----|-------|---------------|
+| #31 | AIR-0128 DB-persistent topic translation | OPEN — approve migration SQL + review; merge when ready |
+| #30 | AIR-0126 project status document sync | OPEN — awaiting product owner merge |
 | #29 | AIR-0125 document referral migration runbook | OPEN — read-only; awaiting product owner review |
 | #28 | AIR-0124 add manual referral payout processor | OPEN — read-only; awaiting product owner review |
 | #27 | AIR-0123 add referral settlement pending worker | OPEN — read-only; awaiting product owner review |
@@ -51,6 +65,7 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 2. Vietnamese i18n keys for `settings.html` JS functions (follow-up from PR #24; 26 keys missing from Vietnamese section).
 3. Normalize canonical longform status progression from claim through export.
 4. Project-aware mode separation for remaining longform/music page family beyond `/script-plan`.
+5. After PR #31 merges: verify translation language switch no longer triggers AI calls in server log.
 
 ## Current longform-focused judgment
 Best return for next sprint:

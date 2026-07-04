@@ -349,6 +349,49 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   AIR-0126 synchronizes all project status documents (WORK_INDEX, LATEST, NEXT_TASK, worknote/latest) to reflect actual GitHub main state after AIR-0119 through AIR-0121 merged without document updates.
 
+### AIR-0126
+- Status: Done
+- Commit: `939a301`
+- PR: #30 (OPEN — awaiting product owner merge)
+- Branch: `air-0126-project-status-sync`
+- Related files:
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0119.md` (created)
+  - `worknote/AIR-0120.md` (corrected)
+  - `worknote/AIR-0121.md` (created)
+- Short summary:
+  Synchronized all project status documents with actual GitHub main state after AIR-0119, AIR-0120, AIR-0121, and PR #24 merged without document updates. Corrected worknote/AIR-0120.md (previously described PR #13 documentation cleanup instead of language full-reload removal). Created missing worknotes for AIR-0119 and AIR-0121.
+- Next action:
+  AIR-0127 closes superseded PRs #1–#8 and #22 after PR #30 merges.
+
+### AIR-0127
+- Status: Blocked — waiting for PR #30 (AIR-0126) to merge before closing superseded PRs
+- Branch: none yet
+- Scope: Close PRs #1–#8 and #22 with superseded comments after PR #30 is merged
+- Next action:
+  After PR #30 merges, run: gh pr close 1 2 3 4 5 6 7 8 22 with appropriate comments.
+
+### AIR-0128
+- Status: Done (PR open)
+- Commit: `62c432c`
+- PR: #31 (OPEN — awaiting product owner review and migration approval)
+- Branch: `air-0128-db-persistent-translation`
+- Related files:
+  - `app/routers/user_topics.py`
+  - `auth-web/app/api/admin/topics-queue/route.ts`
+  - `migrations/air_0128_topics_queue_translation_columns.sql` (new)
+  - `scripts/backfill_topic_translations.py` (new)
+  - `tests/test_topic_translation_db.py` (new)
+- Short summary:
+  Replaced runtime AI translation for recommended topic cards with DB-persistent translation. Added `_fetch_stored_translations()` and `_save_translations_to_db()` to `user_topics.py`. The `/api/user/recommended-topics/translations` endpoint now reads from Supabase `topics_queue` translation columns first and falls back to AI only for NULL rows, saving new translations back to DB. auth-web PUT handler resets translation columns on topic text edit. Migration SQL adds 6 nullable TEXT columns. Backfill script provided for existing rows.
+- Next action:
+  1. Product owner approves and merges PR #31.
+  2. Apply `migrations/air_0128_topics_queue_translation_columns.sql` to Supabase.
+  3. Run backfill: `python scripts/backfill_topic_translations.py --lang vi` (then en, th).
+
 ## Non-AIR Merged PRs (outside AIR task numbering)
 
 ### PR #24 — Add Thai i18n keys for settings.html (Upload QA, Withdrawal, Referral)
