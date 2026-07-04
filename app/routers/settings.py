@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import database as db
@@ -931,13 +931,13 @@ async def delete_thumbnail_style_preset(style_key: str):
         raise HTTPException(500, str(e))
 
 @router.post("/language")
-async def set_language(lang: str = Body(..., embed=True)):
+async def set_language(request: Request, lang: str = Body(..., embed=True)):
     """언어 설정 저장 및 즉시 적용 (ko / en / vi / th)"""
     allowed = {"ko", "en", "vi", "th"}
     if lang not in allowed:
         raise HTTPException(400, f"지원하지 않는 언어입니다: {lang}. 허용값: {allowed}")
     try:
-        # 1. DB 저장
+        # 1. 로컬 DB 저장
         db.save_global_setting("language", lang)
 
         # 2. language.pref 파일 저장 (서버 재시작 후 영구 보존)
@@ -947,8 +947,19 @@ async def set_language(lang: str = Body(..., embed=True)):
         except Exception as e:
             print(f"[I18N] language.pref write failed: {e}")
 
-        # 3. [AIR-0133] Set-Cookie so next page request picks up the new language immediately.
-        # (switch_language() was removed — language is now resolved per-request from the cookie)
+        # 3. [AIR-0133] switch_language() 제거 — language는 per-request cookie 기반으로 처리
+
+        # 4. [AIR-0132] Supabase profiles.preferred_language 저장 (best-effort)
+        try:
+            from services.auth_service import auth_service
+            from services.web_admin_client import web_admin_client
+            email = auth_service.get_user_email()
+            if email:
+                web_admin_client.update_preferred_language(email, lang)
+        except Exception as e:
+            print(f"[I18N] Supabase preferred_language save warning: {e}")
+
+        # 5. [AIR-0133] Set-Cookie so next page request picks up the new language immediately.
         response = JSONResponse({"status": "ok", "lang": lang})
         response.set_cookie(
             key="language",
