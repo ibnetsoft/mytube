@@ -568,12 +568,35 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'Only pending topics can be edited' }, { status: 400 })
         }
 
-        const { data, error } = await supabase
+        // Reset translation columns so workers see fresh translations on next language switch.
+        // Falls back to topic-only update if migration has not been applied yet.
+        const updatePayload: Record<string, string | null> = {
+            topic: String(topic).trim(),
+            topic_vi: null,
+            topic_en: null,
+            topic_th: null,
+            category_name_vi: null,
+            category_name_en: null,
+            category_name_th: null,
+        }
+        let { data, error } = await supabase
             .from('topics_queue')
-            .update({ topic: String(topic).trim() })
+            .update(updatePayload)
             .eq('id', id)
             .select('id, category_id, topic, status')
             .single()
+
+        if (isMissingColumnError(error)) {
+            // Translation columns not yet migrated — update topic text only.
+            const retry = await supabase
+                .from('topics_queue')
+                .update({ topic: String(topic).trim() })
+                .eq('id', id)
+                .select('id, category_id, topic, status')
+                .single()
+            data = retry.data
+            error = retry.error
+        }
 
         if (error) throw error
 

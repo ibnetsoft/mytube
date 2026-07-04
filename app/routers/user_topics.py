@@ -348,6 +348,99 @@ async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> d
 
     return translated
 
+
+def _fetch_stored_translations(
+    supabase_url: str,
+    headers: dict,
+    topic_ids: list[str],
+    lang_code: str,
+) -> dict:
+    """Fetch already-persisted translations from Supabase topics_queue.
+
+    Returns {str(id): {"topic_{lang}": "...", "category_name_{lang}": "..."}}.
+    Returns an empty dict when the translation columns have not been migrated yet
+    or on any network/parse error — callers fall back to runtime AI translation.
+    """
+    if not topic_ids or lang_code not in {"en", "vi", "th"}:
+        return {}
+
+    ids_param = ",".join(str(tid) for tid in topic_ids)
+    lang = lang_code
+    url = (
+        f"{supabase_url}/rest/v1/topics_queue"
+        f"?id=in.({ids_param})"
+        f"&select=id,topic_{lang},category_name_{lang}"
+    )
+    try:
+        r = requests.get(
+            url,
+            headers=headers,
+            timeout=5,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+        if r.status_code != 200:
+            # Columns absent (migration not yet run) or other transient error — degrade gracefully.
+            return {}
+        result = {}
+        for row in (r.json() or []):
+            rid = str(row.get("id") or "").strip()
+            if not rid:
+                continue
+            topic_t = str(row.get(f"topic_{lang}") or "").strip()
+            if topic_t:
+                result[rid] = {
+                    f"topic_{lang}": topic_t,
+                    f"category_name_{lang}": str(row.get(f"category_name_{lang}") or "").strip(),
+                }
+        return result
+    except Exception as e:
+        print(f"[User Topics] Failed to fetch stored translations ({lang}): {e}")
+        return {}
+
+
+async def _save_translations_to_db(
+    supabase_url: str,
+    headers: dict,
+    translations: dict,
+    lang_code: str,
+) -> None:
+    """Persist newly AI-translated topic fields back to Supabase topics_queue.
+
+    Fire-and-forget: errors are logged but not propagated to the caller.
+    Skips rows where the translated topic text is empty.
+    """
+    if not translations or lang_code not in {"en", "vi", "th"}:
+        return
+
+    lang = lang_code
+    save_headers = {**headers, "Content-Type": "application/json", "Prefer": "return=minimal"}
+
+    async def _patch_one(topic_id: str, data: dict) -> None:
+        topic_val = str(data.get(f"topic_{lang}") or "").strip()
+        if not topic_val:
+            return
+        body = {
+            f"topic_{lang}": topic_val,
+            f"category_name_{lang}": str(data.get(f"category_name_{lang}") or "").strip(),
+        }
+        url = f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_id}"
+        try:
+            await asyncio.to_thread(
+                lambda: requests.patch(
+                    url,
+                    json=body,
+                    headers=save_headers,
+                    timeout=5,
+                    verify=False,
+                    proxies={"http": None, "https": None},
+                )
+            )
+        except Exception as e:
+            print(f"[User Topics] Failed to save translation for topic {topic_id} ({lang}): {e}")
+
+    await asyncio.gather(*(_patch_one(tid, data) for tid, data in translations.items()))
+
 def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
     category = topic.get("categories") or {}
     category_name = topic.get("category_name") or category.get("name")
@@ -629,7 +722,32 @@ async def translate_recommended_topics(req: TopicTranslationRequest):
         }
         for item in (req.topics or [])
     ]
-    translations = await _translate_topics_batch(payload, ui_language)
+    if not payload:
+        return {"status": "ok", "translations": {}}
+
+    # --- Step 1: DB-first lookup (no AI call when translation already stored) ---
+    supabase_url, supabase_headers = _supabase_headers()
+    all_ids = [str(item["id"]) for item in payload]
+    stored: dict = {}
+    if supabase_url:
+        stored = _fetch_stored_translations(supabase_url, supabase_headers, all_ids, ui_language)
+
+    # --- Step 2: AI fallback only for topics without a stored translation ---
+    needs_translation = [
+        item for item in payload
+        if not stored.get(str(item["id"]), {}).get(f"topic_{ui_language}")
+    ]
+    ai_translations: dict = {}
+    if needs_translation:
+        ai_translations = await _translate_topics_batch(needs_translation, ui_language)
+        # Persist new translations back to DB (fire-and-forget; does not block response)
+        if ai_translations and supabase_url:
+            asyncio.create_task(
+                _save_translations_to_db(supabase_url, supabase_headers, ai_translations, ui_language)
+            )
+
+    # --- Step 3: Merge — stored (DB) takes precedence, AI fills the gaps ---
+    translations = {**ai_translations, **stored}
     return {"status": "ok", "translations": translations}
 
 
