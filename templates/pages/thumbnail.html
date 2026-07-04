@@ -80,10 +80,10 @@
             </button>
             <div class="grid grid-cols-2 gap-2 mt-2">
                 <button type="button" onclick="regenerateThumbnailIdea('more_clicky')" id="moreClickyBtn" class="border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 py-2 rounded-xl text-xs font-bold transition-all">
-                    {% if current_lang == 'vi' %}Thu hút hơn{% elif current_lang == 'en' %}More Clicky{% else %}더 자극적{% endif %}
+                    {{ t('btn_more_clicky') }}
                 </button>
                 <button type="button" onclick="regenerateThumbnailIdea('more_clean')" id="moreCleanBtn" class="border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-200 py-2 rounded-xl text-xs font-bold transition-all">
-                    {% if current_lang == 'vi' %}Gọn hơn{% elif current_lang == 'en' %}More Clean{% else %}더 정돈됨{% endif %}
+                    {{ t('btn_more_clean') }}
                 </button>
             </div>
         </div>
@@ -129,10 +129,10 @@
         <div class="flex items-center justify-between gap-3 mb-4">
             <div>
                 <h4 class="text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                    {% if current_lang == 'vi' %}Thumbnail YouTube tham khảo{% elif current_lang == 'en' %}Reference YouTube Thumbnails{% else %}참고 유튜브 썸네일{% endif %}
+                    {{ t('thumb_reference_samples_title') }}
                 </h4>
                 <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                    {% if current_lang == 'vi' %}Xem và tải thumbnail mẫu từ video YouTube đã dùng khi lập kế hoạch và phân tích kịch bản.{% elif current_lang == 'en' %}Review and download thumbnail samples from the YouTube video used during script planning and analysis.{% else %}대본 기획과 분석에 사용한 유튜브 영상의 썸네일을 참고용으로 확인하고 다운로드할 수 있습니다.{% endif %}
+                    {{ t('thumb_reference_samples_desc') }}
                 </p>
             </div>
         </div>
@@ -174,7 +174,7 @@
         <!-- 우측: 미리보기 -->
         <div class="space-y-4">
             <div class="card p-3 h-full flex flex-col">
-                <div class="flex items-center justify-between mb-2">
+                <div class="hidden">
                     <div class="flex items-center gap-2">
                         <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">🖼️ {{ t('label_preview') or '미리보기' }}</span>
                         <button type="button" onclick="savePermanentSettings()" id="saveSettingsBtn"
@@ -340,9 +340,6 @@
 <script>
     // 기존 i18n 객체에 썸네일 전용 번역 추가 (SyntaxError/ReferenceError 방지)
     window.i18n = Object.assign(window.i18n || {}, {
-        thumb_reference_channel: `{% if current_lang == 'vi' %}Kênh{% elif current_lang == 'en' %}Channel{% else %}채널{% endif %}`,
-        thumb_reference_open_video: `{% if current_lang == 'vi' %}Mở video{% elif current_lang == 'en' %}Open Video{% else %}영상 열기{% endif %}`,
-        thumb_reference_download: `{% if current_lang == 'vi' %}Tải thumbnail{% elif current_lang == 'en' %}Download Thumbnail{% else %}썸네일 다운로드{% endif %}`,
         label_style_none: "{{ t('label_style_none') }}",
         loading_saving: "{{ t('loading_saving') }}",
         toast_style_font_saved: "{{ t('toast_style_font_saved') }}",
@@ -449,14 +446,14 @@
         err_unknown: "{{ t('err_unknown') }}",
     });
 
-    window.i18n.thumb_reference_best_match = `{% if current_lang == 'vi' %}Phù hợp nhất{% elif current_lang == 'en' %}Best Match{% else %}가장 유사함{% endif %}`;
-    window.i18n.thumb_reference_viral = `{% if current_lang == 'vi' %}Độ viral{% elif current_lang == 'en' %}Viral{% else %}바이럴{% endif %}`;
-    window.i18n.thumb_reference_views = `{% if current_lang == 'vi' %}Lượt xem{% elif current_lang == 'en' %}Views{% else %}조회수{% endif %}`;
-    window.i18n.history_select = `{% if current_lang == 'vi' %}Chọn{% elif current_lang == 'en' %}Select{% else %}선택{% endif %}`;
-    window.i18n.history_more_clicky = `{% if current_lang == 'vi' %}Thu hút hơn{% elif current_lang == 'en' %}More Clicky{% else %}더 자극적{% endif %}`;
-    window.i18n.history_more_clean = `{% if current_lang == 'vi' %}Gọn hơn{% elif current_lang == 'en' %}More Clean{% else %}더 정돈됨{% endif %}`;
-    window.i18n.history_download = `{% if current_lang == 'vi' %}Tải xuống{% elif current_lang == 'en' %}Download{% else %}다운로드{% endif %}`;
-    window.i18n.history_delete = `{% if current_lang == 'vi' %}Xóa{% elif current_lang == 'en' %}Delete{% else %}삭제{% endif %}`;
+    window.i18n.thumb_reference_best_match = "{{ t('thumb_reference_best_match') }}";
+    window.i18n.thumb_reference_viral = "{{ t('thumb_reference_viral') }}";
+    window.i18n.thumb_reference_views = "{{ t('thumb_reference_views') }}";
+    window.i18n.history_select = "{{ t('history_select') }}";
+    window.i18n.history_more_clicky = "{{ t('history_more_clicky') }}";
+    window.i18n.history_more_clean = "{{ t('history_more_clean') }}";
+    window.i18n.history_download = "{{ t('history_download') }}";
+    window.i18n.history_delete = "{{ t('history_delete') }}";
 
     window.targetLang = "{{ current_lang }}";
     const appMode = "{{ app_mode }}";
@@ -564,12 +561,12 @@
 
     function getHistoryModeLabel(mode) {
         if (mode === 'more_clicky') {
-            return window.targetLang === 'vi' ? 'Thu hút hơn' : (window.targetLang === 'en' ? 'More Clicky' : '더 자극적');
+            return window.targetLang === 'vi' ? 'Thu hút hơn' : window.targetLang === 'en' ? 'More Clicky' : window.targetLang === 'th' ? 'ดึงดูดกว่า' : '더 자극적';
         }
         if (mode === 'more_clean') {
-            return window.targetLang === 'vi' ? 'Gọn hơn' : (window.targetLang === 'en' ? 'More Clean' : '더 정돈됨');
+            return window.targetLang === 'vi' ? 'Gọn hơn' : window.targetLang === 'en' ? 'More Clean' : window.targetLang === 'th' ? 'เรียบร้อยกว่า' : '더 정돈됨';
         }
-        return window.targetLang === 'vi' ? 'Cơ bản' : (window.targetLang === 'en' ? 'Default' : '기본');
+        return window.targetLang === 'vi' ? 'Cơ bản' : window.targetLang === 'en' ? 'Default' : window.targetLang === 'th' ? 'ค่าเริ่มต้น' : '기본';
     }
 
     function normalizeHistoryItem(item) {
