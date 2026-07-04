@@ -392,6 +392,23 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   2. Apply `migrations/air_0128_topics_queue_translation_columns.sql` to Supabase.
   3. Run backfill: `python scripts/backfill_topic_translations.py --lang vi` (then en, th).
 
+### AIR-0129
+- Status: Done (PR open)
+- Commit: `(this PR)`
+- PR: air-0129-admin-auto-translation (OPEN)
+- Branch: `air-0129-admin-auto-translation`
+- Related files:
+  - `auth-web/app/api/admin/topics-queue/route.ts`
+  - `migrations/air_0129_topics_queue_translation_status.sql` (new)
+  - `tests/test_topic_translation_admin_pipeline.py` (new)
+- Short summary:
+  Added admin auto-translation pipeline to route.ts. POST (topic generation) and PUT (topic edit) handlers now fire a void background Gemini task immediately after returning 200 OK. The background task translates topic+category_name into vi, en, th via three sequential Gemini calls, saves all 6 columns plus `translated_at` and `translation_status=completed` to Supabase. On failure only `translation_status=failed` is written; the admin save is never blocked. Migration adds `translated_at TIMESTAMPTZ` and `translation_status TEXT` with CHECK constraint. User App (user_topics.py) behavior unchanged — it still reads the 6 translation columns and ignores the new admin-only columns. 10 new tests pass (24 total with AIR-0128 suite).
+- Next action:
+  1. Product owner approves and merges PR #31 (AIR-0128) first.
+  2. Apply both migration SQLs to Supabase (AIR-0128 first, then AIR-0129).
+  3. Merge this PR.
+  4. Run backfill: `python scripts/backfill_topic_translations.py --lang vi` (then en, th).
+
 ## Non-AIR Merged PRs (outside AIR task numbering)
 
 ### PR #24 — Add Thai i18n keys for settings.html (Upload QA, Withdrawal, Referral)

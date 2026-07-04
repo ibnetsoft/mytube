@@ -10,10 +10,18 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 - AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
 - The same repo also includes a Next.js admin app under `auth-web`.
 - Current main HEAD: `381fc97` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
-- Active branch: `air-0128-db-persistent-translation` (PR #31 open)
-- Next available Task ID: `AIR-0129`
+- Active branch: `air-0129-admin-auto-translation` (PR open, depends on PR #31)
+- Next available Task ID: `AIR-0130`
 
 ## What changed recently
+
+### AIR-0129 — Admin auto-translation pipeline (2026-07-04, PR OPEN)
+- Admin POST (topic generation) and PUT (topic edit) in `auth-web/app/api/admin/topics-queue/route.ts` now fire a void background Gemini task after returning 200 OK.
+- Background task flow: `pending` → `running` → translate vi/en/th sequentially → save 6 columns + `translated_at` + `translation_status=completed`; on failure sets `translation_status=failed` only.
+- New: `migrations/air_0129_topics_queue_translation_status.sql` — adds `translated_at TIMESTAMPTZ` and `translation_status TEXT` with CHECK constraint.
+- New: `tests/test_topic_translation_admin_pipeline.py` — 10 tests, all passing.
+- User App (user_topics.py) **not changed** — still reads 6 translation columns; `translation_status` is admin-only.
+- **Depends on AIR-0128 (PR #31)**: AIR-0128 migration must be applied before AIR-0129 migration.
 
 ### AIR-0128 — DB-persistent topic translation (2026-07-04, PR #31 OPEN)
 - Replaced runtime AI translation for recommended topic cards with Supabase-backed persistence.
@@ -51,6 +59,7 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 ## Open PRs (as of 2026-07-04)
 | PR | Title | Action needed |
 |----|-------|---------------|
+| air-0129 | AIR-0129 admin auto-translation pipeline | OPEN — depends on PR #31; both migrations must be applied |
 | #31 | AIR-0128 DB-persistent topic translation | OPEN — approve migration SQL + review; merge when ready |
 | #30 | AIR-0126 project status document sync | OPEN — awaiting product owner merge |
 | #29 | AIR-0125 document referral migration runbook | OPEN — read-only; awaiting product owner review |
