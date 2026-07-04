@@ -237,6 +237,7 @@ translator = Translator(app_lang)
 
 # Add t function to Jinja2 globals
 templates.env.globals['t'] = translator.t
+templates.env.globals['t_all'] = translator.t_all
 templates.env.globals['current_lang'] = app_lang
 templates.env.globals['window_lang'] = app_lang
 templates.env.globals['app_mode'] = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
