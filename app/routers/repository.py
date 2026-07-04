@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from typing import Optional
 import os
 import datetime
 import pandas as pd
@@ -9,7 +10,13 @@ from services.auth_service import auth_service
 import database as db
 
 router = APIRouter(prefix="", tags=["Repository"])
-templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
+
+# [AIR-0134] Use shared templates instance from main.py (same pattern as pages.py)
+_templates: Optional[Jinja2Templates] = None
+
+def init_repository(templates: Jinja2Templates):
+    global _templates
+    _templates = templates
 
 @router.get("/repository", response_class=HTMLResponse)
 async def repository_page(request: Request):
@@ -17,7 +24,7 @@ async def repository_page(request: Request):
     from services.i18n import Translator
     # [AIR-0133] Per-request language
     lang = getattr(request.state, "current_lang", "en")
-    return templates.TemplateResponse(
+    return _templates.TemplateResponse(
         request=request,
         name="pages/repository.html",
         context={
