@@ -45,6 +45,10 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0129` (2026-07-04, PR open)
+  Added admin auto-translation pipeline. POST and PUT handlers in route.ts now fire a void background Gemini task immediately after returning 200 OK. Three sequential Gemini calls translate topic+category_name into vi/en/th and save all 6 columns plus `translated_at` and `translation_status` to Supabase. User App behavior unchanged. Migration adds `translated_at` and `translation_status` columns. 10 new tests pass.
+- `AIR-0128` (2026-07-04, PR #31 open)
+  Replaced runtime AI translation with DB-persistent translation for worker topic cards. User App reads from DB first; AI fires only for NULL rows.
 - `AIR-0126` (2026-07-04)
   Synchronized all project status documents with actual GitHub main state after AIR-0119, AIR-0120, AIR-0121, and PR #24 merged without document updates. Corrected worknote/AIR-0120.md (previously contained wrong content describing PR #13 cleanup). Created worknote/AIR-0119.md and worknote/AIR-0121.md. Current main HEAD: `381fc97`.
 - `AIR-0121` (2026-07-03, MERGED via PR #25)

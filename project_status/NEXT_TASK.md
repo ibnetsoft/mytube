@@ -25,6 +25,7 @@ Read this first before starting implementation work.
 ### Open PRs
 | PR | Title | Status / Action |
 |----|-------|-----------------|
+| air-0129 | AIR-0129 admin auto-translation pipeline | OPEN — depends on PR #31; requires both migration SQLs applied |
 | #31 | AIR-0128 DB-persistent topic translation | OPEN — requires migration SQL approval + product owner review |
 | #30 | AIR-0126 project status document sync | OPEN — awaiting product owner merge |
 | #29 | AIR-0125 document referral migration runbook | OPEN — awaiting product owner review before merge |
