@@ -309,7 +309,53 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   Re-run the complete Longform operator workflow with dedicated credentials and real external assets to complete authenticated browser-level validation.
 
+### AIR-0119
+- Status: Done
+- Commit: `24d06f9`
+- PR: #19 (MERGED 2026-07-02)
+- Related files:
+  - `services/ai_router.py` (new)
+  - `services/autopilot_service.py`
+  - `services/gemini_service.py`
+  - `app/routers/projects.py`
+  - `app/routers/user_topics.py`
+- Short summary:
+  Centralized scattered Claude/Gemini provider selection logic into a single `services/ai_router.py` module. All AI generation calls now share one source of truth for provider detection (`detect_provider`) and fallback routing (`generate_text`). No functional behavior changes; fallback to Gemini on Claude failure preserved.
+- Next action:
+  AIR-0120 removes the worker-facing full-page reload on language switch.
+
+### AIR-0120
+- Status: Done
+- Commit: `2046b53`
+- PR: #23 (MERGED 2026-07-02)
+- Related files:
+  - `services/i18n.py`
+  - `templates/base.html`
+- Short summary:
+  Removed the full-page reload triggered by worker-facing language switching. Language icon clicks previously caused a complete page reload plus on-demand recommendation translation through the Gemini → Claude → Google fallback chain. Base template and i18n service updated to eliminate this reload.
+- Next action:
+  AIR-0121 adds an image workflow guide panel to `image_gen.html`.
+
+### AIR-0121
+- Status: Done
+- Commit: `381fc97`
+- PR: #25 (MERGED 2026-07-03)
+- Related files:
+  - `templates/pages/image_gen.html`
+  - `services/i18n.py`
+  - `templates/pages/settings.html`
+- Short summary:
+  Added an image workflow guide panel to `image_gen.html` to help workers understand the external AI image generation pipeline. Refined with external tool badges and a ChatGPT usage hint. i18n keys added for badge labels and hint text.
+- Next action:
+  AIR-0126 synchronizes all project status documents (WORK_INDEX, LATEST, NEXT_TASK, worknote/latest) to reflect actual GitHub main state after AIR-0119 through AIR-0121 merged without document updates.
+
 ## Non-AIR Merged PRs (outside AIR task numbering)
+
+### PR #24 — Add Thai i18n keys for settings.html (Upload QA, Withdrawal, Referral)
+- Status: Merged 2026-07-03
+- Branch: `thai-ux-i18n-fix`
+- Commit: `5c64f4d`
+- Short summary: Added 28 Thai translation keys (net +15 new keys, +13 restored keys) to `services/i18n.py`. Replaced hardcoded Korean strings in `templates/pages/settings.html` Upload QA Settings section with Thai Jinja2 conditionals. All 26 JS runtime `i18n.*` references in settings.html confirmed present in Thai section. Vietnamese section equivalent keys noted as a follow-up item.
 
 ### PR #14 — feat: topic UI and admin ElevenLabs voice management
 - Status: Merged 2026-07-02
