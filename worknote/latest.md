@@ -1,7 +1,7 @@
 # Latest Worknote
 
-Date: 2026-07-02
-Repo: `C:\Projects\에어스튜디오\longformgenerator`
+Date: 2026-07-04
+Repo: `C:\Projects\AIR-Studio`
 
 ## Why this file exists
 This is the lightweight working memory for AIR Studio. It should explain what we were doing, why it mattered, and what the next session needs to know without reconstructing context from chat.
@@ -9,59 +9,57 @@ This is the lightweight working memory for AIR Studio. It should explain what we
 ## Current understanding
 - AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`.
 - The same repo also includes a Next.js admin app under `auth-web`.
-- Current main HEAD: `cdb7c23b` — Merge pull request #17 from ibnetsoft/auth-web-lint-fixes
+- Current main HEAD: `381fc97` — Merge pull request #25 from ibnetsoft/air-0121-image-workflow-guide
 
 ## What changed recently
 
-### AIR-0117 — Project status document sync (2026-07-02)
-- Confirmed PR #11 (AIR-0112) MERGED into main on 2026-07-01.
-- Discovered PRs #14–#17 merged without corresponding WORK_INDEX / LATEST entries.
-- Updated WORK_INDEX, LATEST, NEXT_TASK, and worknote/latest to reflect actual GitHub state.
-- Cleaned NEXT_TASK of completed items (PR #11 re-review, AIR-0117 browser verification).
+### AIR-0126 — Project status document sync (2026-07-04)
+- Discovered that AIR-0119, AIR-0120, AIR-0121, and PR #24 merged without project status document updates.
+- Corrected `worknote/AIR-0120.md` — previous content described PR #13 documentation cleanup, which was wrong; actual AIR-0120 task was language-switch full-reload removal (`services/i18n.py`, `templates/base.html`).
+- Created `worknote/AIR-0119.md` (AI provider routing centralization).
+- Created `worknote/AIR-0121.md` (image workflow guide panel).
+- Updated WORK_INDEX, LATEST, NEXT_TASK to reflect actual main HEAD `381fc97`.
+- PR #22 (AIR-0119 finalize work index) confirmed open but diverged — recommend close.
+- PRs #1–#8 confirmed superseded by AIR-0110A — recommend close.
 
-### PR #17 — Fix auth-web lint (MERGED 2026-07-02)
-- Fixed auth-web lint execution errors and warnings.
-- Lint-only; no functional changes.
+### AIR-0121 — Image workflow guide (2026-07-03, MERGED via PR #25)
+- Added image workflow guide panel to `templates/pages/image_gen.html`.
+- Refined with external tool badges and ChatGPT usage hint.
+- i18n keys added in `services/i18n.py`.
+- Also: PR #24 (Thai i18n for settings.html) merged same day (`5c64f4d`).
 
-### PR #16 — Per-feature AI model settings (MERGED 2026-07-02)
-- Added per-feature AI model selection for all 8 generation features.
-- Provider (Claude/Gemini) is auto-selected by model name.
-- Existing architecture preserved — do not refactor this structure.
+### AIR-0120 — Remove worker language full reload (2026-07-02, MERGED via PR #23)
+- Removed full-page reload on language icon click.
+- Changed: `services/i18n.py`, `templates/base.html`.
 
-### PR #15 — Claude Sonnet 5 for script routing (MERGED 2026-07-02)
-- Script planning and script generation now use Claude Sonnet 5.
+### AIR-0119 — Centralize AI provider routing (2026-07-02, MERGED via PR #19)
+- New module `services/ai_router.py` — single source of truth for provider detection and fallback.
+- Changed: `services/autopilot_service.py`, `services/gemini_service.py`, `app/routers/projects.py`, `app/routers/user_topics.py`.
 
-### PR #14 — Voice admin and topic UI (MERGED 2026-07-02)
-- Added admin voice management UI and bulk ElevenLabs voice registration.
-- Added longform preview lock.
-- Streamlined topic card translation fallback.
-
-### PR #11 / AIR-0112 — Longform Scene asset readiness (MERGED 2026-07-01)
-- Backend now owns `assets_ready`, completion percentage, missing/duplicate Scene validation, and `project_complete`.
-- Render rejects incomplete projects with HTTP 409.
-- Focused Longform suite: `34 passed, 1 warning`.
-
-## Open PRs
+## Open PRs (as of 2026-07-04)
 | PR | Title | Action needed |
 |----|-------|---------------|
-| #13 | AIR-0118 document longform operation validation | Product owner to decide: merge or close |
-| #1–#8 | Superseded by PR #9 (AIR-0110A) | Should be closed |
+| #29 | AIR-0125 document referral migration runbook | OPEN — read-only; awaiting product owner review |
+| #28 | AIR-0124 add manual referral payout processor | OPEN — read-only; awaiting product owner review |
+| #27 | AIR-0123 add referral settlement pending worker | OPEN — read-only; awaiting product owner review |
+| #26 | AIR-0122 implement referral default sponsor foundation | OPEN — DB migration included; awaiting CTO approval |
+| #22 | AIR-0119 finalize work index | OPEN — diverged, superseded by AIR-0126; recommend close |
+| #1–#8 | AIR-0102 through AIR-0109 | OPEN — all superseded by AIR-0110A (PR #9); recommend close |
 
 ## What still needs verification
-1. Authenticated browser verification of the full Longform crop → upload → readiness → render-gate flow (originally AIR-0113/0117 goal, still not browser-verified with dedicated test credentials).
-2. Normalize canonical longform status progression from claim through export.
-3. Apply project-aware mode separation to the rest of the longform/music page family.
-4. Add/deploy the canonical category mode column and expose it in admin category creation/editing.
+1. Authenticated browser verification of the full Longform crop → upload → readiness → render-gate flow.
+2. Vietnamese i18n keys for `settings.html` JS functions (follow-up from PR #24; 26 keys missing from Vietnamese section).
+3. Normalize canonical longform status progression from claim through export.
+4. Project-aware mode separation for remaining longform/music page family beyond `/script-plan`.
 
 ## Current longform-focused judgment
-The best return now is:
-1. Fix language-switch slowness (full-page reload + recommendation translation on every language icon click).
-2. Clean up worker multilingual UX for Vietnamese and Thai.
-3. Simplify withdrawal/payout identity so the product matches real operations.
-4. Reduce admin loading overhead that does not help longform delivery.
+Best return for next sprint:
+1. Vietnamese settings.html i18n keys (26 missing keys, small scope, clear follow-up from PR #24).
+2. Normalize worker-facing longform status contract.
+3. Simplify payout/withdrawal identity (separate from referral PRs #26–#29).
 
 ## Practical caution
-- `git status` shows only `.claude` workspace files modified — repo working tree is clean.
-- Per-feature AI model selection (PR #16) uses model-name-based provider auto-selection. Do not break this architecture.
-- When restarting `main.py`, verify and terminate the serving multiprocessing child as well as the parent; otherwise the old child may continue to own port 8001.
-- Superseded PRs #1–#8 are still open on GitHub; they should be closed to reduce noise.
+- PR #26 contains `migration_referral_2.0.sql` — do not execute without runbook review and CTO approval.
+- Per-feature AI model selection (PR #16) + AI routing centralization (AIR-0119) use `services/ai_router.py`. Do not break this architecture.
+- When restarting `main.py`, terminate the serving multiprocessing child as well as the parent; otherwise the old child may continue to own port 8001.
+- Gemini spend-cap failures generate noisy logs; Claude fallback is handled by `ai_router.py`.

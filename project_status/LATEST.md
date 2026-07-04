@@ -45,8 +45,20 @@ AIR Studio / LongformGenerator
 5. Reduce web-admin eager loading and polling pressure.
 
 ## Recent Relevant Changes
+- `AIR-0126` (2026-07-04)
+  Synchronized all project status documents with actual GitHub main state after AIR-0119, AIR-0120, AIR-0121, and PR #24 merged without document updates. Corrected worknote/AIR-0120.md (previously contained wrong content describing PR #13 cleanup). Created worknote/AIR-0119.md and worknote/AIR-0121.md. Current main HEAD: `381fc97`.
+- `AIR-0121` (2026-07-03, MERGED via PR #25)
+  Added image workflow guide panel to `image_gen.html`. Refined with external tool badges and ChatGPT usage hint. i18n keys added.
+- `PR #24` — Add Thai i18n keys for settings.html (2026-07-03, MERGED)
+  Added 28 Thai translation keys to `services/i18n.py`. Replaced hardcoded Korean strings in settings.html Upload QA section with Thai Jinja2 conditionals.
+- `AIR-0120` (2026-07-02, MERGED via PR #23)
+  Removed full-page reload on worker-facing language switch. Updated `services/i18n.py` and `templates/base.html`.
+- `AIR-0119` (2026-07-02, MERGED via PR #19)
+  Centralized AI provider routing into `services/ai_router.py`. All generation calls now share one provider detection and fallback source.
+- `AIR-0118` (2026-07-02, MERGED via PR #20 + #21)
+  Validated Longform operator workflow. Browser execution blocked due to unavailable test credentials. Validation docs preserved.
 - `AIR-0117` (2026-07-02)
-  Synchronized all project status documents with the actual GitHub state after PRs #11–#17 merged. Confirmed PR #11 MERGED. Recorded non-AIR PRs #14–#17 in WORK_INDEX. Current main HEAD: `cdb7c23b`.
+  Synchronized all project status documents with the actual GitHub state after PRs #11–#17 merged. Confirmed PR #11 MERGED. Recorded non-AIR PRs #14–#17 in WORK_INDEX.
 - `PR #17` — Fix auth-web lint execution and warnings (2026-07-02, MERGED)
   Fixed auth-web lint execution errors and resolved lint warnings. Lint-only, no functional changes.
 - `PR #16` — Add per-feature AI model settings (2026-07-02, MERGED)
