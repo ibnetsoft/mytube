@@ -25,6 +25,8 @@ Read this first before starting implementation work.
 ### Open PRs
 | PR | Title | Status / Action |
 |----|-------|-----------------|
+| #31 | AIR-0128 DB-persistent topic translation | OPEN — requires migration SQL approval + product owner review |
+| #30 | AIR-0126 project status document sync | OPEN — awaiting product owner merge |
 | #29 | AIR-0125 document referral migration runbook | OPEN — awaiting product owner review before merge |
 | #28 | AIR-0124 add manual referral payout processor | OPEN — awaiting product owner review before merge |
 | #27 | AIR-0123 add referral settlement pending worker | OPEN — awaiting product owner review before merge |
@@ -40,32 +42,35 @@ Read this first before starting implementation work.
 | #1 | AIR-0102 document longform user flow | OPEN — superseded by AIR-0110A (PR #9); recommend close |
 
 ## Task Pointer
-Next task ID: `AIR-0126` is in progress (this document sync).
-Next available task ID after AIR-0126: `AIR-0127`
+Latest completed task: `AIR-0128` (DB-persistent translation, PR #31 open)
+Next available task ID: `AIR-0129`
 
 ## Current Priority
 1. Keep AIR Studio execution focused on `Longform Mode` completion.
 2. Treat `Longform Music`, `General Shorts`, and `Shorts Commerce` as deferred modes.
 3. PR #26–#29 (referral system) require separate product owner / CTO approval before merge — do not merge without explicit instruction.
+4. PR #31 (AIR-0128) requires product owner review + Supabase migration approval before merge.
 
 ## Longform Finish Priorities
-1. Clean up Vietnamese worker UX on core longform pages.
+1. ~~Language-switch runtime translation bottleneck~~ — **Resolved by AIR-0128** (DB-persistent translation, PR #31).
+   - Remaining: apply migration SQL + run backfill script after PR #31 merges.
+2. Clean up Vietnamese worker UX on core longform pages.
    - Vietnamese section in `services/i18n.py` is missing 26 `settings.html` JS i18n keys (noted as follow-up in PR #24)
    - Normalize labels through `t()`
    - Remove ad hoc language branching in core worker UI
-2. Normalize the longform worker state contract.
+3. Normalize the longform worker state contract.
    - Define canonical project-status ownership from claim through export
    - Reduce UI-only stage inference where backend-owned status is required
-3. Authenticated browser verification of the full Longform worker flow.
+4. Authenticated browser verification of the full Longform worker flow.
    - crop → upload → readiness → render-gate flow not yet browser-verified with dedicated test credentials
-4. Simplify payout/withdrawal identity.
+5. Simplify payout/withdrawal identity.
    - Remove or hide wallet-address-centered UX
    - Evaluate enforcing Binance ID as payout identity instead of arbitrary wallet addresses
    - Unify duplicated withdrawal endpoints and payload shapes
-5. Reduce web-admin startup load.
+6. Reduce web-admin startup load.
    - Admin app loads too much data eagerly on startup
    - Polls render queue every 3 seconds
-6. Finish project-aware longform/music route separation.
+7. Finish project-aware longform/music route separation.
    - `/script-plan` is fixed; audit and fix the rest of the page family
 
 ## Open Questions for Product Owner
@@ -73,6 +78,7 @@ Next available task ID after AIR-0126: `AIR-0127`
 2. Should PRs #1–#8 (superseded by AIR-0110A / PR #9) be closed?
 3. Which Longform Finish Priority above is the next Sprint target?
 4. What is the merge timeline and approval process for PR #26–#29 (referral/payout system)?
+5. PR #31 (AIR-0128): approve migration SQL + merge when ready. Apply migration before or immediately after deploy.
 
 ## Working Rules
 1. Before editing, check `project_status/PRODUCT_VISION.md`, `project_status/NEXT_TASK.md`, and `project_status/WORK_INDEX.md`.
