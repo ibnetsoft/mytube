@@ -3660,60 +3660,6 @@ async def upload_external_to_youtube(
 
 
 
-# ===========================================
-# API: Repository to Script Plan
-# ===========================================
-
-class RepositoryPlanRequest(BaseModel):
-    title: str
-    synopsis: str
-    success_factor: str
-
-@app.post("/api/repository/create-plan")
-async def create_plan_from_repository(req: RepositoryPlanRequest):
-    """
-    저장소(Repository)의 분석 결과를 바탕으로
-    1. 새 프로젝트 생성
-    2. 대본 기획(Structure) 자동 생성
-    """
-    # 1. Create Project
-    try:
-        project_id = db.create_project(req.title, req.synopsis)
-        print(f"Created Project for Plan: {req.title} ({project_id})")
-    except Exception as e:
-        raise HTTPException(500, f"프로젝트 생성 실패: {str(e)}")
-
-    # 2. Prepare Mock Analysis Data for Gemini
-    # Repository data provides minimal context, so we adapt it.
-    analysis_simulation = {
-        "topic": req.synopsis, # Use synopsis as the core topic
-        "user_notes": f"Original Motivation (Success Factor): {req.success_factor}\nTarget Title: {req.title}",
-        "duration": 600, # Default ~10 min
-        "script_style": "story" # Default style
-    }
-
-    # 3. Generate Structure
-    from services.gemini_service import gemini_service
-    try:
-        structure = await gemini_service.generate_script_structure(analysis_simulation)
-        
-        if "error" in structure:
-            print(f"Structure Gen Warning: {structure['error']}")
-            return {"status": "error", "error": f"대본 구조 생성 실패: {structure['error']}", "project_id": project_id}
-        else:
-            db.save_script_structure(project_id, structure)
-            db.update_project(project_id, status="planned")
-            # Update Project Topic to match, just in case
-            db.update_project(project_id, topic=req.synopsis)
-            
-    except Exception as e:
-        print(f"Structure Gen Error: {e}")
-        return {"status": "error", "error": f"AI 생성 중 오류: {str(e)}", "project_id": project_id}
-    
-    return {"status": "ok", "project_id": project_id}
-
-
-
 
 
 
