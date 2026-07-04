@@ -36,18 +36,10 @@ def get_templates():
 
 
 def switch_language(lang: str) -> bool:
-    """언어를 즉시 전환. 성공하면 True 반환."""
-    global _translator, _templates
-    if _translator is None:
-        return False
-    try:
-        _translator.set_lang(lang)
-        if _templates is not None:
-            _templates.env.globals['current_lang'] = lang
-        return True
-    except Exception as e:
-        print(f"[AppState] switch_language error: {e}")
-        return False
+    """[Deprecated — AIR-0133] Per-request language is now handled via request.state.current_lang.
+    Kept for backward compatibility; no longer mutates translator or env.globals.
+    """
+    return True
 
 def switch_mode(mode: str) -> bool:
     """앱 모드를 즉시 전환. 성공하면 True 반환."""

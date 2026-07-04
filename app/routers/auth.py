@@ -72,11 +72,7 @@ def _apply_login_language(lang: str) -> str:
             f.write(selected)
     except Exception as e:
         print(f"[Auth] Failed to write login language file: {e}")
-    try:
-        from services import app_state
-        app_state.switch_language(selected)
-    except Exception as e:
-        print(f"[Auth] Failed to switch live language: {e}")
+    # [AIR-0133] Removed app_state.switch_language() — language is now per-request via cookie
     return selected
 
 

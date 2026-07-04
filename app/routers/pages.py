@@ -44,8 +44,11 @@ def _route_with_project_id(base_path: str, project_id: Optional[int]) -> str:
 
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
+    from services.i18n import Translator
     email = auth_service.get_user_email()
     is_admin = db.is_user_admin(email) if email else False
+    # [AIR-0133] Per-request language: read from request.state (set by middleware)
+    lang = getattr(request.state, "current_lang", "en")
     return _templates.TemplateResponse(
         request=request,
         name=template,
@@ -55,6 +58,9 @@ def _render(request, template, page, title, **extra):
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
             "is_admin": is_admin,
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
             **extra
         }
     )
@@ -151,7 +157,10 @@ async def page_video_upload(request: Request):
     membership = (auth_service.get_membership() or "std").lower()
     if membership in ("std", "standard"):
         return RedirectResponse(url="/projects")
+    from services.i18n import Translator
     app_mode = db.get_global_setting("app_mode", "longform")
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
     if app_mode == "longform_music":
         return _templates.TemplateResponse(
             request=request,
@@ -161,7 +170,10 @@ async def page_video_upload(request: Request):
                 "title": "nav_reserve",
                 "is_independent": auth_service.is_independent(),
                 "membership": auth_service.get_membership(),
-                "token_balance": auth_service.get_token_balance()
+                "token_balance": auth_service.get_token_balance(),
+                "current_lang": lang,
+                "window_lang": lang,
+                "t": Translator(lang).t,
             }
         )
     return _templates.TemplateResponse(
@@ -172,7 +184,10 @@ async def page_video_upload(request: Request):
             "title": "nav_upload",
             "is_independent": auth_service.is_independent(),
             "membership": auth_service.get_membership(),
-            "token_balance": auth_service.get_token_balance()
+            "token_balance": auth_service.get_token_balance(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 
@@ -183,6 +198,9 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
     if project_id:
         project = db.get_project(project_id)
     from services.auth_service import auth_service
+    from services.i18n import Translator
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
     return _templates.TemplateResponse(
         request=request,
         name="pages/subtitle_gen.html",
@@ -191,7 +209,10 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
             "title": "nav_subtitle",
             "project": project,
             "membership": auth_service.get_membership(),
-            "token_balance": auth_service.get_token_balance()
+            "token_balance": auth_service.get_token_balance(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 
@@ -226,6 +247,9 @@ async def page_settings(request: Request):
     import datetime
     auth_service.verify_license()
     
+    from services.i18n import Translator
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
     return _templates.TemplateResponse(
         request=request,
         name="pages/settings.html",
@@ -236,10 +260,13 @@ async def page_settings(request: Request):
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
             "youtube_channel": auth_service.get_youtube_channel(),
-                        "my_referral_code": auth_service.get_referral_code(),
+            "my_referral_code": auth_service.get_referral_code(),
             "wallet_info": auth_service.get_or_create_wallet_info(),
             "min_withdrawal_usdt": db.get_global_setting("min_withdrawal_usdt", "10"),
-            "youtube_handle": auth_service.get_youtube_handle()
+            "youtube_handle": auth_service.get_youtube_handle(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 

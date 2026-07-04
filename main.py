@@ -110,13 +110,25 @@ def _queue_project_sync(background_tasks: BackgroundTasks, project_id: int):
 
 from fastapi.responses import RedirectResponse
 
-# [NEW] 직원 로그인 & 멀티유저 세션 관리 미들웨어
+# [AIR-0133] Per-request language resolution helpers
+_LANG_ALLOWED = {"ko", "en", "vi", "th"}
+
+def _resolve_request_lang(request: Request) -> str:
+    """Determine the UI language for this request.
+    Priority: cookie "language" > server default (app_lang) > "en"
+    """
+    cookie_lang = request.cookies.get("language")
+    if cookie_lang in _LANG_ALLOWED:
+        return cookie_lang
+    return app_lang if app_lang in _LANG_ALLOWED else "en"
+
+
+# 직원 로그인 & 멀티유저 세션 관리 미들웨어
 @app.middleware("http")
 async def check_login_middleware(request: Request, call_next):
-    global app_lang
     try:
         path = request.url.path
-        
+
         # 예외 대상 경로 리스트 (로그인, API 인증, 헬스체크 등)
         bypass_paths = [
             "/login",
@@ -124,22 +136,22 @@ async def check_login_middleware(request: Request, call_next):
             "/api/auth/emails",
             "/api/health",
         ]
-        
+
         # static, uploads, favicon, docs 등의 정적 에셋 경로 우회
         is_asset = (
-            path.startswith("/static") or 
-            path.startswith("/output") or 
+            path.startswith("/static") or
+            path.startswith("/output") or
             path.startswith("/uploads") or
             path.startswith("/assets") or
             path.startswith("/favicon.ico") or
             path.startswith("/docs") or
             path.startswith("/openapi.json")
         )
-        
+
         # HTML 페이지 요청인지 확인 (수동 주소창 접근 시 리디렉션하기 위함)
         accept_header = request.headers.get("accept") or ""
         is_html_request = "text/html" in accept_header
-        
+
         # 로그인 체크 적용 대상인 경우
         if not is_asset and not any(path == bp for bp in bypass_paths) and is_html_request:
             user_email = request.cookies.get("user_email")
@@ -149,17 +161,12 @@ async def check_login_middleware(request: Request, call_next):
                 # auth_service의 active user 이메일 및 에셋 폴더 동적 활성화
                 from services.auth_service import auth_service
                 auth_service.login_user(user_email)
-                cookie_lang = request.cookies.get("language")
-                if cookie_lang in ["ko", "en", "vi", "th"] and cookie_lang != app_lang:
-                    translator.set_lang(cookie_lang)
-                    app_lang = cookie_lang
-                    templates.env.globals['current_lang'] = app_lang
-                    templates.env.globals['window_lang'] = app_lang
-                    try:
-                        from services import app_state as _live_app_state
-                        _live_app_state.switch_language(cookie_lang)
-                    except Exception:
-                        pass
+
+        # [AIR-0133] Per-request language: set on request.state for all routes
+        # Routers read request.state.current_lang instead of global app_lang.
+        # API routes (non-HTML) also get this set so they can pass it to
+        # background tasks if needed, though most don't use it.
+        request.state.current_lang = _resolve_request_lang(request)
 
         response = await call_next(request)
         return response
