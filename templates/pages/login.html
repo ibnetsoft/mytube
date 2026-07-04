@@ -471,7 +471,17 @@
             cat_old_stories: 'Chuyện ngày xưa'
         }
     };
-    let currentLang = localStorage.getItem('login_lang') || 'ko';
+    // [AIR-0132] Browser language detection (navigator.language → supported lang)
+    function _detectBrowserLang() {
+        const nav = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+        const tag = nav.toLowerCase();
+        if (tag.startsWith('ko')) return 'ko';
+        if (tag.startsWith('vi')) return 'vi';
+        if (tag.startsWith('th')) return 'th';
+        return 'en';
+    }
+    const _browserLang = _detectBrowserLang();
+    let currentLang = localStorage.getItem('login_lang') || _browserLang;
 
     const CATEGORY_TRANSLATIONS = {
         '경제': 'cat_economy',
@@ -700,7 +710,7 @@
         btn.disabled = true;
         btn.textContent = L.msg_logging_in;
         try {
-            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password, lang: currentLang}) });
+            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password, lang: currentLang, browser_lang: _browserLang}) });
             const data = await r.json();
             if (data.success) {
                 localStorage.setItem('login_lang', data.lang || currentLang);
