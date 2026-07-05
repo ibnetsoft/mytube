@@ -181,20 +181,36 @@ async def check_login_middleware(request: Request, call_next):
             pass
         raise e
 
-# [NEW] 로그인 페이지 응답 라우트
+# [AIR-0137] /output 파일 서빙 — .mp4는 로그인 필수, path traversal 차단
 @app.get("/output/{file_path:path}")
 async def serve_output_file(file_path: str):
+    from services.auth_service import auth_service
+
     if file_path.startswith("external/"):
         rel = file_path.replace("external/", "", 1)
         appdata_base = config.LOCAL_APP_DATA_DIR
         abs_path = os.path.normpath(os.path.join(appdata_base, rel))
-        if os.path.exists(abs_path):
-            return FileResponse(abs_path)
-    else:
-        abs_path = os.path.join(config.OUTPUT_DIR, file_path)
-        if os.path.exists(abs_path):
-            return FileResponse(abs_path)
-    raise HTTPException(status_code=404, detail="File not found")
+        norm_base = os.path.normpath(appdata_base)
+        if not (abs_path == norm_base or abs_path.startswith(norm_base + os.sep)):
+            raise HTTPException(status_code=403, detail="Access denied.")
+        if not os.path.exists(abs_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        if abs_path.lower().endswith(".mp4"):
+            if not auth_service.get_user_email():
+                raise HTTPException(status_code=403, detail="Login required to access video files.")
+        return FileResponse(abs_path)
+
+    full_path = os.path.join(config.OUTPUT_DIR, file_path)
+    norm_output = os.path.normpath(config.OUTPUT_DIR)
+    norm_full = os.path.normpath(full_path)
+    if not (norm_full == norm_output or norm_full.startswith(norm_output + os.sep)):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    if full_path.lower().endswith(".mp4"):
+        if not auth_service.get_user_email():
+            raise HTTPException(status_code=403, detail="Login required to access video files.")
+    return FileResponse(full_path)
 
 # [NEW] 실시간 등급/토큰 동기화 API
 # CORS 설정 (로컬 앱 전용)
@@ -361,22 +377,6 @@ repository_router.init_repository(templates)  # [AIR-0134]
 # output 폴더
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 # app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
-
-@app.get("/output/{file_path:path}")
-async def serve_output_file(file_path: str):
-    from services.auth_service import auth_service
-    import database as db
-    
-    full_path = os.path.join(config.OUTPUT_DIR, file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    if full_path.lower().endswith(".mp4"):
-        email = auth_service.get_user_email()
-        if not db.is_user_admin(email):
-            raise HTTPException(status_code=403, detail="Only admins can access rendered videos.")
-            
-    return FileResponse(full_path)
 
 # uploads 폴더 (인트로 등 업로드용)
 os.makedirs("uploads", exist_ok=True)
@@ -2819,131 +2819,7 @@ async def get_subtitle_defaults_api():
         return {"status": "error", "error": str(e)}
 
 
-# ===========================================
-# API: Autopilot Presets (Saved Configurations)
-# ===========================================
 
-class AutopilotPresetSave(BaseModel):
-    name: str
-    settings: dict
-
-@app.get("/api/autopilot/presets")
-async def get_autopilot_presets_api():
-    presets = db.get_autopilot_presets()
-    # Parse JSON for frontend
-    for p in presets:
-        try:
-            p['settings'] = json.loads(p['settings_json'])
-        except Exception:
-            p['settings'] = {}
-    return {"status": "ok", "presets": presets}
-
-@app.post("/api/autopilot/presets")
-async def save_autopilot_preset_api(req: AutopilotPresetSave):
-    try:
-        db.save_autopilot_preset(req.name, req.settings)
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-@app.delete("/api/autopilot/presets/{preset_id}")
-async def delete_autopilot_preset_api(preset_id: int):
-    try:
-        db.delete_autopilot_preset(preset_id)
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-@app.post("/api/autopilot/start")
-
-async def start_autopilot_api(
-    req: AutoPilotStartRequest,
-    background_tasks: BackgroundTasks
-):
-    """오토파일럿 시작 (API)"""
-    # 1. Preset Loading
-    if req.preset_id:
-        presets = db.get_autopilot_presets()
-        preset = next((p for p in presets if p['id'] == req.preset_id), None)
-        if preset:
-             try:
-                 p_settings = json.loads(preset['settings_json'])
-                 # Apply preset values if req fields are default
-                 # For now, simplistic merge: req overrides preset if set (we assume frontend handles this mostly)
-                 # Actually, let's trust the frontend to send the merged config if they selected a preset.
-                 # But if they send preset_id, we might want to load subtitle_settings from it if missing.
-                 if not req.subtitle_settings:
-                     req.subtitle_settings = p_settings.get("subtitle_settings")
-             except Exception: pass
-
-    # 2. Topic Resolve
-    topic = req.topic or req.keyword
-    if not topic:
-         return {"status": "error", "error": "Topic (or keyword) is required"}
-
-    # 3. Start Workflow in Background
-    config_dict = {
-        "mode": req.mode,
-        "image_style": req.image_style or req.visual_style,
-        "visual_style": req.visual_style,
-        "thumbnail_style": req.thumbnail_style,
-        "video_scene_count": req.video_scene_count,
-        "all_video": req.all_video,
-        "video_engine": req.video_engine,
-        "motion_method": req.motion_method,
-        "narrative_style": req.script_style or req.narrative_style,
-        "script_style": req.script_style or req.narrative_style,
-        "voice_id": req.voice_id,
-        "voice_provider": req.voice_provider,
-        "subtitle_style": req.subtitle_style,
-        "duration_seconds": req.duration_seconds,
-        "subtitle_settings": req.subtitle_settings,
-        "use_character_analysis": req.use_character_analysis,
-        "upload_privacy": req.upload_privacy,
-        "creation_mode": req.creation_mode,
-        "product_url": req.product_url,
-        "aspect_ratio": req.aspect_ratio,
-        "longform_music": req.longform_music,
-    }
-    
-    # Create Project First
-    project_name = f"[Auto] {topic}"
-    project_id = db.create_project(name=project_name, topic=topic, app_mode=req.mode)
-    
-    # Save Initial Settings
-    db.update_project_setting(project_id, "autopilot_config", config_dict)
-    
-    # Apply Subtitle Settings from Preset/Request
-    if req.subtitle_settings:
-        db.save_project_settings(project_id, req.subtitle_settings)
-        print(f"✅ Applied custom subtitle settings to Project {project_id}")
-
-    # [NEW] Also save key settings to project_settings table directly for immediate UI sync
-    if req.thumbnail_style:
-        db.update_project_setting(project_id, "thumbnail_style", req.thumbnail_style)
-    if req.duration_seconds:
-         db.update_project_setting(project_id, "duration_seconds", req.duration_seconds)
-    if req.script_style:
-         db.update_project_setting(project_id, "script_style", req.script_style)
-    if req.visual_style:
-         db.update_project_setting(project_id, "image_style", req.visual_style) # Sync
-         db.update_project_setting(project_id, "visual_style", req.visual_style)
-    if req.video_engine:
-         db.update_project_setting(project_id, "video_engine", req.video_engine)
-    if req.mode:
-         db.update_project_setting(project_id, "app_mode", req.mode)
-    if req.creation_mode:
-         db.update_project_setting(project_id, "creation_mode", req.creation_mode)
-    if req.aspect_ratio:
-         db.update_project_setting(project_id, "aspect_ratio", req.aspect_ratio)
-    if req.longform_music:
-         db.update_project_setting(project_id, "longform_music", req.longform_music)
-    
-    from services.autopilot_service import autopilot_service
-    # Start Task
-    background_tasks.add_task(autopilot_service.run_project_workflow, topic, project_id, config_dict)
-    
-    return {"status": "ok", "project_id": project_id, "message": "Automation started"}
 
 # ===========================================
 # Auto-Pilot Scheduler
@@ -3657,60 +3533,6 @@ async def upload_external_to_youtube(
         traceback.print_exc()
         return {"status": "error", "error": f"YouTube 업로드 실패: {str(e)}"}
 
-
-
-
-# ===========================================
-# API: Repository to Script Plan
-# ===========================================
-
-class RepositoryPlanRequest(BaseModel):
-    title: str
-    synopsis: str
-    success_factor: str
-
-@app.post("/api/repository/create-plan")
-async def create_plan_from_repository(req: RepositoryPlanRequest):
-    """
-    저장소(Repository)의 분석 결과를 바탕으로
-    1. 새 프로젝트 생성
-    2. 대본 기획(Structure) 자동 생성
-    """
-    # 1. Create Project
-    try:
-        project_id = db.create_project(req.title, req.synopsis)
-        print(f"Created Project for Plan: {req.title} ({project_id})")
-    except Exception as e:
-        raise HTTPException(500, f"프로젝트 생성 실패: {str(e)}")
-
-    # 2. Prepare Mock Analysis Data for Gemini
-    # Repository data provides minimal context, so we adapt it.
-    analysis_simulation = {
-        "topic": req.synopsis, # Use synopsis as the core topic
-        "user_notes": f"Original Motivation (Success Factor): {req.success_factor}\nTarget Title: {req.title}",
-        "duration": 600, # Default ~10 min
-        "script_style": "story" # Default style
-    }
-
-    # 3. Generate Structure
-    from services.gemini_service import gemini_service
-    try:
-        structure = await gemini_service.generate_script_structure(analysis_simulation)
-        
-        if "error" in structure:
-            print(f"Structure Gen Warning: {structure['error']}")
-            return {"status": "error", "error": f"대본 구조 생성 실패: {structure['error']}", "project_id": project_id}
-        else:
-            db.save_script_structure(project_id, structure)
-            db.update_project(project_id, status="planned")
-            # Update Project Topic to match, just in case
-            db.update_project(project_id, topic=req.synopsis)
-            
-    except Exception as e:
-        print(f"Structure Gen Error: {e}")
-        return {"status": "error", "error": f"AI 생성 중 오류: {str(e)}", "project_id": project_id}
-    
-    return {"status": "ok", "project_id": project_id}
 
 
 
