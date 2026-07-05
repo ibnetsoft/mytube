@@ -427,7 +427,7 @@ async def startup_event():
 from app.models.project import (
     ProjectSettingUpdate, ProjectSettingsSave,
     AnalysisSave, ScriptSave,
-    ImagePromptsSave, MetadataSave, ShortsSave
+    MetadataSave, ShortsSave
 )
 
 
@@ -712,86 +712,6 @@ async def analyze_scenes(project_id: int):
 
 
 
-
-@app.post("/api/projects/{project_id}/image-prompts/auto")
-async def auto_generate_images(project_id: int):
-    """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성 (Longform & Shorts)"""
-    # 1. 대본 조회 (Longform 우선, 없으면 Shorts 확인)
-    script_data = db.get_script(project_id)
-    script = ""
-    duration = 60
-
-    if script_data and script_data.get("full_script"):
-        script = script_data["full_script"]
-        duration = script_data.get("estimated_duration", 60)
-    else:
-        # Longform 대본이 없으면 Shorts 대본 확인
-        shorts_data = db.get_shorts(project_id)
-        if shorts_data and shorts_data.get("shorts_data"):
-             # Shorts 데이터에서 텍스트 추출 (Narrations/Dialogue concatenating)
-             # shorts_data structure might be complex, assuming simple list of scenes or text
-             # Based on previous knowledge, shorts_data is likely a JSON with scenes
-             try:
-                 scenes = shorts_data.get("shorts_data", {}).get("scenes", [])
-                 if not scenes and isinstance(shorts_data.get("shorts_data"), list):
-                     scenes = shorts_data.get("shorts_data") # Handle list format
-                 
-                 parts = []
-                 for s in scenes:
-                     if "narration" in s: parts.append(s["narration"])
-                     if "dialogue" in s: parts.append(s["dialogue"])
-                     if "script" in s: parts.append(s["script"])
-                 
-                 script = "\n".join(parts)
-                 duration = 50 # Default shorts duration
-             except Exception:
-                 script = str(shorts_data) # Fallback
-    
-    if not script:
-        raise HTTPException(400, "대본이 없습니다. 먼저 대본(Longform 또는 Shorts)을 생성해주세요.")
-
-    # 2. 프롬프트 생성 (Gemini)
-    from services.gemini_service import gemini_service
-    prompts = await gemini_service.generate_image_prompts_from_script(script, duration, model=config.IMAGE_PROMPT_MODEL)
-    
-    if not prompts:
-        raise HTTPException(500, "이미지 프롬프트 생성 실패")
-
-    # 3. 이미지 일괄 생성 (Imagen 3) - 병렬 처리
-    async def process_scene(p):
-        try:
-            images = await gemini_service.generate_image(
-                prompt=p["prompt_en"],
-                aspect_ratio="16:9",
-                num_images=1
-            )
-            
-            if images:
-                output_dir, web_dir = get_project_output_dir(project_id)
-                filename = f"p{project_id}_s{p['scene_number']}_{int(time.time())}.png"
-                output_path = os.path.join(output_dir, filename)
-                
-                async with aiofiles.open(output_path, "wb") as f:
-                    f.write(images[0])
-                
-                p["image_url"] = f"{web_dir}/{filename}"
-                return True
-        except Exception as e:
-            print(f"이미지 생성 실패 (Scene {p.get('scene_number')}): {e}")
-            p["image_url"] = ""
-        return False
-
-    print(f"🎨 [Main] 이미지 병렬 생성 시작: {len(prompts)}개...")
-    tasks = [process_scene(p) for p in prompts]
-    await asyncio.gather(*tasks)
-
-    # 4. DB 저장
-    db.save_image_prompts(project_id, prompts)
-
-    return {"status": "ok", "prompts": prompts}
-
-
-
 @app.post("/api/projects/{project_id}/tts/upload")
 async def save_external_tts(project_id: int, file: UploadFile = File(...)):
     """외부 TTS 오디오 파일 업로드 및 저장"""
@@ -820,68 +740,6 @@ async def save_external_tts(project_id: int, file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error saving external TTS: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.post("/api/projects/{project_id}/image-prompts")
-async def save_image_prompts(project_id: int, req: ImagePromptsSave):
-    """이미지 프롬프트 저장"""
-    db.save_image_prompts(project_id, req.prompts)
-    from services.longform_asset_readiness import sync_project_asset_readiness
-    return {
-        "status": "ok",
-        "asset_readiness": sync_project_asset_readiness(project_id),
-    }
-
-@app.get("/api/projects/{project_id}/image-prompts")
-async def get_image_prompts(project_id: int):
-    """이미지 프롬프트 조회"""
-    from services.longform_asset_readiness import sync_project_asset_readiness
-    return {
-        "status": "ok",
-        "prompts": db.get_image_prompts(project_id),
-        "asset_readiness": sync_project_asset_readiness(project_id),
-    }
-
-class BulkPromptUpdate(BaseModel):
-    texts: str
-
-@app.post("/api/projects/{project_id}/bulk-update-prompts")
-async def bulk_update_prompts(project_id: int, req: BulkPromptUpdate):
-    """프롬프트 일괄 업데이트 (텍스트 목록 기반)"""
-    try:
-        # 1. 텍스트 분리 (빈 줄 제외)
-        lines = [line.strip() for line in req.texts.split('\n') if line.strip()]
-        if not lines:
-            raise HTTPException(400, "입력된 프롬프트가 없습니다.")
-
-        # 2. 기존 프롬프트 조회
-        existing = db.get_image_prompts(project_id)
-        
-        new_prompts = []
-        for i, line in enumerate(lines):
-            scene_number = i + 1
-            # 기존 데이터가 있으면 필드 유지, 아니면 신규 생성
-            base = next((p for p in existing if p['scene_number'] == scene_number), {})
-            
-            prompt_item = {
-                "scene_number": scene_number,
-                "scene_text": base.get("scene_text") or "Scene " + str(scene_number),
-                "prompt_ko": line,
-                "prompt_en": line, 
-                "image_url": base.get("image_url", ""),
-                "video_url": base.get("video_url", ""),
-                "engine": base.get("engine", "veo"),
-                "scene_type": base.get("scene_type", ""),
-                "motion_desc": base.get("motion_desc", "")
-            }
-            new_prompts.append(prompt_item)
-            
-        # 3. DB 저장
-        db.save_image_prompts(project_id, new_prompts)
-        
-        return {"status": "success", "count": len(new_prompts)}
-    except Exception as e:
-        print(f"Bulk Update Error: {e}")
-        raise HTTPException(500, str(e))
 
 
 class AnimateRequest(BaseModel):
