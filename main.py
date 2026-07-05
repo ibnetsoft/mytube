@@ -1547,40 +1547,6 @@ async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
         return {"status": "error", "error": str(e)}
 
 
-
-
-@app.get("/api/trends/keywords")
-async def get_trending_keywords(
-    language: str = Query("ko", description="Target language code"),
-    period: str = Query("now", description="Time period (now, week, month)"),
-    age: str = Query("all", description="Target age group (all, 10s, 20s, 30s, 40s, 50s)")
-):
-    """국가/언어/기간/연령별 실시간 트렌드 키워드 조회"""
-    if not config.GEMINI_API_KEY:
-        raise HTTPException(500, "Gemini API key missing")
-        
-    keywords = await gemini_service.generate_trending_keywords(language, period, age)
-    return {
-        "status": "ok", 
-        "language": language, 
-        "period": period, 
-        "age": age, 
-        "keywords": keywords
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @app.post("/api/projects/{project_id}/setting")
 async def update_project_setting_api(project_id: int, req: ProjectSettingUpdate):
     """프로젝트 설정 단일 업데이트"""
