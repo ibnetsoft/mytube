@@ -637,11 +637,15 @@ async def get_recommended_topics(
         f"&select=*,categories!inner(*)"
     )
 
-    r = requests.get(topic_query_url, headers=headers, timeout=10, verify=False, proxies={"http": None, "https": None})
-    if r.status_code != 200:
-        raise HTTPException(status_code=500, detail="Failed to fetch available topics")
-
-    available_topics = r.json() or []
+    try:
+        r = requests.get(topic_query_url, headers=headers, timeout=10, verify=False, proxies={"http": None, "https": None})
+        if r.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to fetch available topics")
+        available_topics = r.json() or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Supabase topics unavailable: {str(e)}")
 
     # ????용츧???????袁ｋ쨨?耀붾굛????????????壤굿?????
     scored_topics = []
