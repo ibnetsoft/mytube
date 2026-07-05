@@ -66,3 +66,13 @@ async def upload_template_api(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Template Upload Error: {e}")
         return {"status": "error", "error": str(e)}
+
+
+@router.delete("/settings/template")
+async def delete_template_api():
+    """템플릿 이미지 삭제"""
+    try:
+        db.update_project_setting(1, 'template_image_url', None)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

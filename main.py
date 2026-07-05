@@ -1162,17 +1162,6 @@ async def analyze_batch_videos(req: BatchAnalysisRequest):
 
 
 
-
-
-@app.delete("/api/settings/template")
-async def delete_template_api():
-    """템플릿 이미지 삭제"""
-    try:
-        db.update_project_setting(1, 'template_image_url', None)
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
 # [REMOVED] Duplicate API key routes (Consolidated at line 960)
 
 
