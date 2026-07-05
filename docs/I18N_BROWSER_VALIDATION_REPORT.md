@@ -4,6 +4,20 @@
 본 문서는 AIR-0156E 티켓에 따라 수행된 브라우저 기반 다국어(ko, en, th, vi) UX 검증 결과를 리포팅합니다.
 Playwright 자동화 스크립트를 통해 모바일 및 데스크톱 환경에서 스크린샷 캡처 및 자동 텍스트 Overflow 검증을 진행했습니다.
 
+## Playwright Failure Triage
+
+- **Test Command**: `npx playwright test e2e/i18n.spec.ts`
+- **Original Exit Code**: `1` (초기 실행 시)
+- **Failed Tests Count**: 60 / 80
+- **Failure Category**: `ENVIRONMENT_ISSUE` (Network Timeout)
+- **Root Cause**: `playwright.config.ts`의 `fullyParallel: true` 설정으로 인해 로컬 Next.js 개발 서버(`npm run dev`)에 80개의 동시 커넥션이 발생하여 병목 현상 및 Connection Timeout(Navigation Timeout) 발생.
+- **Affected Language**: All
+- **Affected Screen**: All
+- **Screenshot Path**: N/A (Timeout으로 캡처 실패분)
+- **Fix Required Before Release**: No
+- **Re-run Result**: `playwright.config.ts`에서 `fullyParallel: false` 및 `workers: 1`로 제한 후 재실행 시 **전체 통과(Passed)**
+- **Recommendation**: 해당 오류는 운영 앱의 UI 결함이 아닌 테스트 인프라 과부하 이슈(`TEST_INFRA_ONLY`)이므로 릴리즈 블로커가 아님을 확인했습니다.
+
 ## Playwright Setup Result
 - `playwright.config.ts` 및 `@playwright/test` 모듈 추가 완료 (devDependency 한정)
 - `tests/e2e/i18n.spec.ts` 스크립트 작성 완료
