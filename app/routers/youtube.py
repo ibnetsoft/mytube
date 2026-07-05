@@ -6,11 +6,12 @@ import shutil
 import time
 from typing import List, Optional, Dict, Any
 import httpx
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 
 from config import config
 import database as db
 from app.models.media import SearchRequest
+from services.drive_bundle_service import drive_bundle_service
 
 router = APIRouter(prefix="/api", tags=["YouTube"])
 
@@ -524,3 +525,58 @@ async def upload_external_to_youtube(
                 shutil.rmtree(temp_dir_to_cleanup, ignore_errors=True)
             except Exception:
                 pass
+
+
+@router.post("/projects/{project_id}/admin-publish-request")
+async def request_admin_publish(project_id: int, background_tasks: BackgroundTasks):
+    """Register a completed project for web-admin publishing without uploading to YouTube locally."""
+    try:
+        project = db.get_project(project_id)
+        if not project:
+            raise HTTPException(404, "Project not found")
+
+        settings = db.get_project_settings(project_id) or {}
+        video_path = (
+            _resolve_local_output_asset_path(settings.get("external_video_path"))
+            or _resolve_local_output_asset_path(settings.get("video_path"))
+        )
+
+        try:
+            bundle = drive_bundle_service.get_project_bundle(project_id)
+        except Exception:
+            bundle = {}
+
+        if (bundle.get("video_file") or {}).get("id"):
+            from services.project_publish_service import queue_project_for_admin_publish
+
+            result = queue_project_for_admin_publish(
+                project_id,
+                requested_privacy=settings.get("upload_privacy") or "private",
+                requested_publish_at=settings.get("upload_schedule_at"),
+                requested_channel_id=settings.get("youtube_channel_id"),
+            )
+            return {
+                "status": "ok",
+                "mode": "queued",
+                "message": "Registered in web-admin publishing queue.",
+                **result,
+            }
+
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(404, "Uploadable rendered video file not found.")
+
+        from services.sync_service import upload_and_sync_video
+
+        db.update_project_setting(project_id, "admin_publish_ready", "0")
+        db.update_project_setting(project_id, "admin_publish_status", "drive_sync_pending")
+        background_tasks.add_task(upload_and_sync_video, project_id, video_path)
+        return {
+            "status": "ok",
+            "mode": "sync_started",
+            "message": "Drive sync started. Web-admin publishing queue will be updated after upload.",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AdminPublish] Request failed: {e}")
+        return {"status": "error", "error": str(e)}
