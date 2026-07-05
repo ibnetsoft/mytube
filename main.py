@@ -427,8 +427,7 @@ async def startup_event():
 from app.models.project import (
     ProjectSettingUpdate, ProjectSettingsSave,
     AnalysisSave, ScriptSave,
-    ImagePromptsSave, MetadataSave, ShortsSave,
-    SubtitleDefaultSave
+    ImagePromptsSave, MetadataSave, ShortsSave
 )
 
 
@@ -1179,16 +1178,6 @@ async def update_project_setting(project_id: int, key: str, value: str):
         raise HTTPException(400, f"유효하지 않은 설정 키: {key}")
     return {"status": "ok"}
 
-@app.get("/api/settings/subtitle/default")
-async def get_subtitle_defaults():
-    """자막 스타일 기본값 조회"""
-    return db.get_subtitle_defaults()
-
-@app.post("/api/settings/subtitle/default")
-async def save_subtitle_defaults(req: SubtitleDefaultSave):
-    """자막 스타일 기본값 저장"""
-    db.save_global_setting("subtitle_default_style", req.dict())
-    return {"status": "ok"}
 
 
 # ===========================================
@@ -1778,91 +1767,12 @@ class RenderRequest(BaseModel):
     use_subtitles: bool = True
     resolution: str = "1080p" # 1080p or 720p
 
-class SubtitleGenerationRequest(BaseModel):
-    project_id: Union[int, str]
-    text: Optional[str] = None
 
 
 
 
 
 
-
-
-
-
-
-# ===========================================
-# Subtitle Routes
-# ===========================================
-
-
-
-@app.post("/api/project/{project_id}/subtitle/delete")
-async def delete_subtitle_segment(
-    project_id: int,
-    request: dict = Body(...)
-):
-    """자막 삭제 및 오디오 싱크 맞춤 (Destructive)"""
-    try:
-        index = request.get('index')
-        start = request.get('start')
-        end = request.get('end')
-        
-        # 1. 자막 로드
-        settings = db.get_project_settings(project_id)
-        subtitle_path = settings.get('subtitle_path')
-        if not subtitle_path or not os.path.exists(subtitle_path):
-             return {"status": "error", "error": "자막 파일이 없습니다"}
-             
-        import json
-        with open(subtitle_path, "r", encoding="utf-8") as f:
-            subtitles = json.load(f)
-            
-        if index < 0 or index >= len(subtitles):
-            return {"status": "error", "error": "잘못된 자막 인덱스"}
-            
-        # 2. 오디오 자르기 (서비스 호출)
-        audio_data = db.get_tts(project_id)
-        if audio_data and audio_data.get('audio_path'):
-            from services.audio_service import audio_service
-            audio_service.cut_audio_segment(audio_data['audio_path'], start, end)
-            
-        # 3. 자막 리스트 업데이트 (삭제 및 시간 시프트)
-        deleted_duration = end - start
-        
-        # 삭제
-        subtitles.pop(index)
-        
-        # 이후 자막들 당기기
-        for sub in subtitles:
-            if sub['start'] >= end:
-                sub['start'] -= deleted_duration
-                sub['end'] -= deleted_duration
-                # 부동소수점 오차 보정 (0보다 작아지지 않게)
-                sub['start'] = max(0, sub['start'])
-                sub['end'] = max(0, sub['end'])
-                
-        # 4. 저장
-        with open(subtitle_path, "w", encoding="utf-8") as f:
-            json.dump(subtitles, f, ensure_ascii=False, indent=2)
-            
-        # 5. 미리보기 재생성 (간소화: 여기서 다시 로직을 태우기보다 프론트에서 save 호출 유도하거나, 여기서 일부만 업데이트)
-        # 일단은 데이터만 반환하고 프론트가 렌더링하도록 함. 
-        # (완벽하려면 save_subtitle 로직처럼 preview image도 갱신해야 하나, 시간 단축 위해 생략 가능. 
-        #  단, preview image가 기존 것과 꼬일 수 있음. -> 클라이언트가 reload 시 해결됨)
-        
-        return {
-            "status": "ok",
-            "subtitles": subtitles,
-            "message": f"자막 삭제 완료 (오디오 {deleted_duration:.2f}초 단축됨)"
-        }
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
-        
 
 
 
@@ -1901,14 +1811,6 @@ class AutoPilotStartRequest(BaseModel):
     aspect_ratio: Optional[str] = "16:9"
     longform_music: Optional[Dict[str, Any]] = None
 
-@app.get("/api/settings/subtitle/defaults")
-async def get_subtitle_defaults_api():
-    """최근 사용된(또는 기본) 자막 설정 반환 (오토파일럿 UI 표시용)"""
-    try:
-        defaults = db.get_subtitle_defaults()
-        return {"status": "ok", "settings": defaults}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 
 
