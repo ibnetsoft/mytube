@@ -427,7 +427,7 @@ async def startup_event():
 from app.models.project import (
     ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave,
     StylePreset, AnalysisSave, ScriptStructureSave, ScriptSave,
-    ImagePromptsSave, MetadataSave, ThumbnailsSave, ShortsSave,
+    ImagePromptsSave, MetadataSave, ShortsSave,
     SubtitleDefaultSave
 )
 from app.models.media import (
@@ -1020,16 +1020,7 @@ async def get_metadata(project_id: int, app_mode: str = Query(None)):
     app_mode = normalize_app_mode(app_mode)
     return db.get_project_metadata(project_id, app_mode) or {}
 
-@app.post("/api/projects/{project_id}/thumbnails")
-async def save_thumbnails(project_id: int, req: ThumbnailsSave):
-    """썸네일 아이디어 및 설정 저장"""
-    db.save_thumbnails(project_id, req.ideas, req.texts, req.full_settings)
-    return {"status": "ok"}
 
-@app.get("/api/projects/{project_id}/thumbnails")
-async def get_thumbnails(project_id: int):
-    """썸네일 아이디어 조회"""
-    return db.get_thumbnails(project_id) or {}
 
 # [REMOVED] Duplicate thumbnail save endpoint (Moved to line ~1630 with updated logic)
 
@@ -2242,11 +2233,7 @@ async def add_elevenlabs_voice(
 
 
 
-class ThumbnailTextRequest(BaseModel):
-    """AI 썸네일 문구 생성 요청"""
-    project_id: int
-    thumbnail_style: str = "face"
-    target_language: str = "ko"
+
 
 
 @app.post("/api/settings/thumbnail-style-sample/{style_key}")
@@ -2279,96 +2266,7 @@ async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(
         print(f"Sample Upload Error: {e}")
         return {"status": "error", "error": str(e)}
 
-@app.post("/api/thumbnail/generate-text")
-async def generate_thumbnail_text(req: ThumbnailTextRequest):
-    """대본 기반 AI 썸네일 후킹 문구 자동 생성"""
-    try:
-        # 1. 프로젝트 데이터 가져오기
-        project = db.get_project(req.project_id)
-        if not project:
-            return {"status": "error", "error": "프로젝트를 찾을 수 없습니다"}
-        
-        # 2. 대본 가져오기 (scripts 테이블 및 project_settings 동시 확인)
-        script_data = db.get_script(req.project_id)
-        script = script_data.get('full_script') if script_data else None
-        
-        if not script:
-            return {"status": "error", "error": f"대본이 없습니다. 먼저 대본을 작성해주세요. (PID: {req.project_id})"}
-        
-        # 3. 프로젝트 설정에서 이미지 스타일 가져오기 (연동)
-        settings = db.get_project_settings(req.project_id)
-        image_style = settings.get('image_style', '') if settings else ''
-        
-        # 4. AI 프롬프트 생성
-        from services.prompts import prompts
-        
-        # 대본이 너무 길면 앞부분만 사용 (토큰 절약)
-        script_preview = script[:2000] if len(script) > 2000 else script
-        
-        # [NEW] Get character info for better context
-        characters = db.get_project_characters(req.project_id)
-        char_context = ""
-        if characters:
-            char_names = [c.get("name") for c in characters if c.get("name")]
-            char_context = f"\n[Featured Characters]: {', '.join(char_names)}"
 
-        prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
-            script=f"{script_preview}{char_context}",
-            thumbnail_style=req.thumbnail_style,
-            image_style=image_style or '(없음)',
-            target_language=req.target_language
-        )
-        
-        # 5. Gemini 호출
-        
-        # [NEW] Check for Style Sample Image
-        sample_img_dir = "static/thumbnail_samples"
-        sample_img_bytes = None
-        
-        if os.path.exists(sample_img_dir):
-            for f in os.listdir(sample_img_dir):
-                if f.startswith(f"{req.thumbnail_style}."):
-                    try:
-                        with open(os.path.join(sample_img_dir, f), "rb") as img_f:
-                            sample_img_bytes = img_f.read()
-                        break
-                    except Exception: pass
-        
-        if sample_img_bytes:
-             print(f"[{req.thumbnail_style}] Using sample image for text generation")
-             # Add context about image
-             prompt += "\n\n[IMPORTANT] The attached image is a STYLE REFERENCE. Ensure the generated hook texts match the visual mood and intensity of this image."
-             result = await gemini_service.generate_text_from_image(prompt, sample_img_bytes)
-        else:
-             result = await gemini_service.generate_text(prompt, temperature=0.8)
-        
-        # 6. JSON 파싱
-        import json, re
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            data = json.loads(json_match.group())
-            texts = data.get("texts", [])
-            reasoning = data.get("reasoning", "")
-            
-            return {
-                "status": "ok", 
-                "texts": texts, 
-                "reasoning": reasoning
-            }
-        
-        # Enhanced Fallback: Use project title or "Must Watch"
-        title = project.get("topic", "Must Watch")
-        return {
-            "status": "ok", 
-            "texts": [title, f"🔥 {title}", f"✨ {title}"], 
-            "reasoning": "Fallback used (AI JSON parsing failed)"
-        }
-        
-    except Exception as e:
-        print(f"[Thumbnail Text Gen Error] {e}")
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
 
 
 @app.post("/api/projects/{project_id}/thumbnail/save")
