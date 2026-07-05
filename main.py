@@ -2692,22 +2692,7 @@ def recover_project_assets(project_id: int):
 
 
 
-def _resolve_local_output_asset_path(asset_url_or_path: Optional[str]) -> Optional[str]:
-    if not asset_url_or_path:
-        return None
-    if os.path.isabs(asset_url_or_path) and os.path.exists(asset_url_or_path):
-        return asset_url_or_path
-    if asset_url_or_path.startswith("/output/"):
-        rel = asset_url_or_path.replace("/output/", "", 1).replace("/", os.sep)
-        path = os.path.join(config.OUTPUT_DIR, rel)
-        return path if os.path.exists(path) else None
-    if asset_url_or_path.startswith("/static/"):
-        rel = asset_url_or_path.replace("/static/", "", 1).replace("/", os.sep)
-        path = os.path.join(config.STATIC_DIR, rel)
-        return path if os.path.exists(path) else None
-    if os.path.exists(asset_url_or_path):
-        return asset_url_or_path
-    return None
+
 
 
 
@@ -2737,59 +2722,7 @@ async def get_drive_bundle(project_id: int):
         return {"status": "error", "error": str(e)}
 
 
-@app.post("/api/projects/{project_id}/admin-publish-request")
-async def request_admin_publish(project_id: int, background_tasks: BackgroundTasks):
-    """Register a completed project for web-admin publishing without uploading to YouTube locally."""
-    try:
-        project = db.get_project(project_id)
-        if not project:
-            raise HTTPException(404, "Project not found")
 
-        settings = db.get_project_settings(project_id) or {}
-        video_path = (
-            _resolve_local_output_asset_path(settings.get("external_video_path"))
-            or _resolve_local_output_asset_path(settings.get("video_path"))
-        )
-
-        try:
-            bundle = drive_bundle_service.get_project_bundle(project_id)
-        except Exception:
-            bundle = {}
-
-        if (bundle.get("video_file") or {}).get("id"):
-            from services.project_publish_service import queue_project_for_admin_publish
-
-            result = queue_project_for_admin_publish(
-                project_id,
-                requested_privacy=settings.get("upload_privacy") or "private",
-                requested_publish_at=settings.get("upload_schedule_at"),
-                requested_channel_id=settings.get("youtube_channel_id"),
-            )
-            return {
-                "status": "ok",
-                "mode": "queued",
-                "message": "Registered in web-admin publishing queue.",
-                **result,
-            }
-
-        if not video_path or not os.path.exists(video_path):
-            raise HTTPException(404, "Uploadable rendered video file not found.")
-
-        from services.sync_service import upload_and_sync_video
-
-        db.update_project_setting(project_id, "admin_publish_ready", "0")
-        db.update_project_setting(project_id, "admin_publish_status", "drive_sync_pending")
-        background_tasks.add_task(upload_and_sync_video, project_id, video_path)
-        return {
-            "status": "ok",
-            "mode": "sync_started",
-            "message": "Drive sync started. Web-admin publishing queue will be updated after upload.",
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[AdminPublish] Request failed: {e}")
-        return {"status": "error", "error": str(e)}
 
 
 
