@@ -2623,56 +2623,7 @@ async def delete_subtitle_segment(
 
 
 
-@app.post("/api/project/{project_id}/subtitle/regenerate")
-async def regenerate_subtitles(project_id: int):
-    """자막 AI 재분석 (싱크 맞추기)"""
-    try:
-        # 1. 오디오 경로 확인
-        audio_data = db.get_tts(project_id)
-        if not audio_data or not audio_data.get('audio_path') or not os.path.exists(audio_data['audio_path']):
-            return {"status": "error", "error": "오디오 파일이 없습니다."}
-            
-        audio_path = audio_data['audio_path']
-        
-        # 2. 대본 데이터 (힌트용)
-        script_data = db.get_script(project_id)
-        script_text = script_data.get("full_script") if script_data else ""
-        
-        # [DEBUG] Log script text
-        try:
-            with open("debug_script_log.txt", "w", encoding="utf-8") as f:
-                f.write(f"ProjectID: {project_id}\n")
-                f.write(f"ScriptText (Len={len(script_text)}):\n{script_text}\n")
-        except Exception:
-            pass
-        
-        # 3. 기존 자막/VTT 무시하고 강제 생성
-        from services.video_service import video_service
-        print(f"Force regenerating subtitles for {project_id}...")
-        
-        new_subtitles = video_service.generate_aligned_subtitles(audio_path, script_text)
-        
-        if not new_subtitles:
-            return {"status": "error", "error": "AI 자막 생성 실패"}
-            
-        # 4. 저장
-        inner_output_dir, _ = get_project_output_dir(project_id)
-        saved_sub_path = os.path.join(inner_output_dir, f"subtitles_{project_id}.json")
-        
-        import json
-        with open(saved_sub_path, "w", encoding="utf-8") as f:
-            json.dump(new_subtitles, f, ensure_ascii=False, indent=2)
-            
-        return {
-            "status": "ok",
-            "subtitles": new_subtitles,
-            "message": "자막이 AI로 재분석되었습니다."
-        }
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
+
 
 
 
