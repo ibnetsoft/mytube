@@ -16,7 +16,7 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
 from fastapi import FastAPI, Request, HTTPException, Form, BackgroundTasks, Body, Query, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union
@@ -33,7 +33,7 @@ import re
 import datetime
 import aiofiles
 import shutil
-from pathlib import Path
+
 
 # ==========================================
 # FFmpeg & Pydub Configuration (Global)
@@ -41,7 +41,6 @@ from pathlib import Path
 try:
     from pydub import AudioSegment
     import glob
-    import shutil
 
     ffmpeg_candidates = []
     if os.getenv("IMAGEIO_FFMPEG_EXE"):
@@ -66,12 +65,9 @@ except Exception as e:
 
 from config import config
 import database as db
-from app.routers import settings  # [NEW]
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
 from services.auth_service import auth_service
-from services.storage_service import storage_service
-from services.thumbnail_service import thumbnail_service
 from services.drive_bundle_service import drive_bundle_service
 from services.web_admin_client import web_admin_client
 from services.topic_queue_sync_service import sync_topic_progress
@@ -425,15 +421,14 @@ async def startup_event():
 # Pydantic 모델
 # ===========================================
 from app.models.project import (
-    ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave,
-    StylePreset, AnalysisSave, ScriptStructureSave, ScriptSave,
+    ProjectSettingUpdate, ProjectSettingsSave,
+    AnalysisSave, ScriptSave,
     ImagePromptsSave, MetadataSave, ShortsSave,
     SubtitleDefaultSave
 )
 from app.models.media import (
-    SearchRequest, GeminiRequest, TTSRequest, VideoRequest, PromptsGenerateRequest
+    SearchRequest, TTSRequest
 )
-from app.models.channel import ChannelCreate, ChannelResponse
 
 # 스타일 매핑 
 STYLE_PROMPTS = {
