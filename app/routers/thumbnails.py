@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends, Body, UploadFile, File
+import aiofiles
+import time
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import database as db
@@ -6,6 +8,12 @@ from services import learning_service
 from services.gemini_service import gemini_service
 import json
 import os
+from config import config
+from app.utils import (
+    validate_upload as _validate_upload,
+    ALLOWED_IMAGE_EXT as _ALLOWED_IMAGE_EXT,
+    MAX_IMAGE_SIZE as _MAX_IMAGE_SIZE,
+)
 
 router = APIRouter(prefix="/api", tags=["Thumbnails"])
 
@@ -311,4 +319,80 @@ async def delete_shorts_template_preset(name: str, category: str = "shorts"):
         db.delete_shorts_template_preset(name, category)
         return {"status": "ok"}
     except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+# [AIR-0152] main.py에서 이동된 Thumbnail 파일 업로드 라우트
+@router.post("/settings/thumbnail-style-sample/{style_key}")
+async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(...)):
+    """썸네일 스타일 샘플 이미지 업로드"""
+    try:
+        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
+        save_dir = "static/thumbnail_samples"
+        os.makedirs(save_dir, exist_ok=True)
+
+        filename = f"{style_key}{ext}"
+        filepath = os.path.join(save_dir, filename)
+
+        # 기존 다른 확장자 파일 삭제 (중복 방지)
+        for old_f in os.listdir(save_dir):
+            if old_f.startswith(f"{style_key}."):
+                try:
+                    os.remove(os.path.join(save_dir, old_f))
+                except Exception:
+                    pass
+
+        content = await file.read()
+        if len(content) > _MAX_IMAGE_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
+
+        return {"status": "ok", "url": f"/{save_dir}/{filename}"}
+    except Exception as e:
+        print(f"Sample Upload Error: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+@router.post("/projects/{project_id}/thumbnail/save")
+async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
+    """최종 썸네일(합성본) 저장"""
+    try:
+        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
+        save_dir = os.path.join(config.OUTPUT_DIR, "thumbnails")
+        os.makedirs(save_dir, exist_ok=True)
+
+        filename = f"thumbnail_{project_id}_{int(time.time())}{ext}"
+        filepath = os.path.join(save_dir, filename)
+
+        content = await file.read()
+        if len(content) == 0:
+            raise HTTPException(400, "빈 파일입니다.")
+        if len(content) > _MAX_IMAGE_SIZE:
+            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
+
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
+
+        print(f"[Thumbnail] Saved successfully. Size: {len(content)} bytes")
+
+        # output 폴더는 /output 으로 마운트되어 있음
+        web_url = f"/output/thumbnails/{filename}"
+
+        # DB 업데이트 (thumbnail_path & thumbnail_url)
+        try:
+            db.update_project_setting(project_id, 'thumbnail_path', filepath)
+            db.update_project_setting(project_id, 'thumbnail_url', web_url)
+        except Exception as db_e:
+            print(f"[Thumbnail] DB Update Failed: {db_e}")
+
+        return {
+            "status": "ok",
+            "url": web_url,
+            "path": filepath
+        }
+    except Exception as e:
+        print(f"Thumbnail save error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"status": "error", "error": str(e)}
