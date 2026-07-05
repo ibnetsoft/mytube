@@ -1522,11 +1522,11 @@
             overlay.innerHTML = `
                 <div class="bg-[#1c2027] rounded-2xl shadow-2xl p-8 max-w-md w-full border border-gray-700 text-center mx-4">
                     <div class="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">🚀</div>
-                    <h2 class="text-xl font-bold text-white mb-2">새로운 업데이트 발견!</h2>
+                    <h2 class="text-xl font-bold text-white mb-2">{{ t("modal.update.title") }}</h2>
                     <p class="text-gray-400 text-sm mb-6">최신 버전(v${newVersion})이 출시되었습니다.<br>안정적인 작업 환경을 위해 지금 업데이트해 주세요.</p>
                     <div id="updateProgressContainer" class="hidden mb-6 text-left">
                         <div class="flex justify-between text-xs text-gray-400 mb-1">
-                            <span>다운로드 중...</span>
+                            <span>{{ t("modal.update.loading") }}</span>
                             <span id="updateProgressText">0%</span>
                         </div>
                         <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">

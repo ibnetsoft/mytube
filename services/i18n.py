@@ -3,6 +3,17 @@
 
 PLATFORM_TRANSLATIONS = {
     'ko': {
+        'modal.update.title': '새로운 업데이트 발견!',
+        'modal.update.body': '최신 버전이 출시되었습니다. 안정적인 작업을 위해 업데이트를 진행해주세요.',
+        'modal.update.loading': '다운로드 중...',
+        'project.btn.fetch_topic': '오늘의 주제 가져오기',
+        'project.badge.qa_warning': 'QA 경고 확인 필요',
+        'project.status.music_plan': '음악기획',
+        'project.status.cover': '커버',
+        'project.status.track': '트랙',
+        'settings.qa_check': '업로드 전 QA 검사',
+        'template.ai_analysis': '두 이미지를 분석해 최적의 화풍+캐릭터 지침을 생성합니다.',
+
         # Image Workflow Guide
         'workflow_title': '이미지 프로덕션 워크플로우',
         'workflow_step1': 'Image Prompt 생성',
@@ -3153,6 +3164,17 @@ PLATFORM_TRANSLATIONS = {
         'opt_graphics_server': '그래픽서버',
     },
     'en': {
+        'modal.update.title': 'New Update Found!',
+        'modal.update.body': 'The latest version has been released. Please update for stable operation.',
+        'modal.update.loading': 'Downloading...',
+        'project.btn.fetch_topic': 'Fetch Today's Topic',
+        'project.badge.qa_warning': 'QA Warning Check Required',
+        'project.status.music_plan': 'Music Plan',
+        'project.status.cover': 'Cover',
+        'project.status.track': 'Track',
+        'settings.qa_check': 'QA Check Before Upload',
+        'template.ai_analysis': 'Analyzes two images to create optimal art style and character guidelines.',
+
         # Image Workflow Guide
         'workflow_title': 'Image Production Workflow',
         'workflow_step1': 'Generate Image Prompt',
@@ -5642,6 +5664,17 @@ PLATFORM_TRANSLATIONS = {
         'opt_graphics_server': 'GPU Server',
     },
     'vi': {
+        'modal.update.title': 'Đã tìm thấy bản cập nhật mới!',
+        'modal.update.body': 'Phiên bản mới nhất đã được phát hành. Vui lòng cập nhật để hoạt động ổn định.',
+        'modal.update.loading': 'Đang tải xuống...',
+        'project.btn.fetch_topic': 'Lấy chủ đề của ngày hôm nay',
+        'project.badge.qa_warning': 'Cần kiểm tra cảnh báo QA',
+        'project.status.music_plan': 'Kế hoạch âm nhạc',
+        'project.status.cover': 'Ảnh bìa',
+        'project.status.track': 'Bản nhạc',
+        'settings.qa_check': 'Kiểm tra QA trước khi tải lên',
+        'template.ai_analysis': 'Phân tích hai hình ảnh để tạo hướng dẫn phong cách và nhân vật tối ưu nhất.',
+
         # Image Workflow Guide
         'workflow_title': 'Quy trình Sản xuất Ảnh',
         'workflow_step1': 'Tạo Image Prompt',
@@ -8502,6 +8535,17 @@ PLATFORM_TRANSLATIONS = {
         'toast_ext_audio_registered': 'Audio externo registrado.',
     },
     'th': {
+        'modal.update.title': 'พบอัปเดตใหม่!',
+        'modal.update.body': 'มีเวอร์ชันล่าสุด กรุณาอัปเดตเพื่อการทำงานที่เสถียร',
+        'modal.update.loading': 'กำลังดาวน์โหลด...',
+        'project.btn.fetch_topic': 'ดึงหัวข้อของวันนี้',
+        'project.badge.qa_warning': 'ต้องตรวจสอบคำเตือน QA',
+        'project.status.music_plan': 'วางแผนดนตรี',
+        'project.status.cover': 'หน้าปก',
+        'project.status.track': 'แทร็ก',
+        'settings.qa_check': 'ตรวจสอบ QA ก่อนอัปโหลด',
+        'template.ai_analysis': 'วิเคราะห์สองรูปภาพเพื่อสร้างแนวทางสไตล์ศิลปะและตัวละครที่เหมาะสมที่สุด',
+
         # Image Workflow Guide
         'workflow_title': 'ขั้นตอนการผลิตรูปภาพ',
         'workflow_step1': 'สร้าง Image Prompt',

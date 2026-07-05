@@ -336,7 +336,7 @@ export default function DashboardContent() {
     const ui = useMemo(() => {
         if (language === 'th') {
             return {
-                adminDashboard: 'แดชบอร์ดผู้ดูแลระบบ',
+                adminDashboard: t('admin.title'),
                 topics: 'จัดการคิวหัวข้อ',
                 overview: 'ภาพรวม',
                 users: 'จัดการผู้ใช้',
@@ -346,9 +346,9 @@ export default function DashboardContent() {
                 renderQueue: 'คิวเรนเดอร์ระยะไกล',
                 styles: 'ตั้งค่าสไตล์',
                 learning: 'สถิติการเรียนรู้',
-                superAdmin: 'ผู้ดูแลสูงสุด',
+                superAdmin: t('nav.admin_panel'),
                 subAdminMode: '👤 โหมดผู้ดูแลย่อย',
-                logout: 'ออกจากระบบ',
+                logout: t('common.logout'),
                 authenticating: 'กำลังตรวจสอบสิทธิ์ผู้ดูแล...',
                 noPermission: 'ไม่มีสิทธิ์เข้าถึง',
                 refresh: 'รีเฟรช',
@@ -360,7 +360,7 @@ export default function DashboardContent() {
             }
         }
         return {
-            adminDashboard: '관리자 대시보드',
+            adminDashboard: t('admin.title'),
             topics: '주제 큐 관리',
             overview: '현황 요약',
             users: '유저 관리',
@@ -371,9 +371,9 @@ export default function DashboardContent() {
             styles: '스타일 세팅',
             learning: '학습 통계',
             tenants: '테넌트 관리',
-            superAdmin: '최고 관리자',
+            superAdmin: t('nav.admin_panel'),
             subAdminMode: '👤 부관리자 모드',
-            logout: '로그아웃',
+            logout: t('common.logout'),
             authenticating: '관리자 인증 중...',
             noPermission: '접근 권한이 없습니다.',
             refresh: '새로고침',
@@ -418,7 +418,7 @@ export default function DashboardContent() {
     // Admin Action Handlers
     const handleRecharge = async (userId: string) => {
         if (!canManageSensitiveUserSettings) return;
-        const amountStr = prompt(isKor ? '충전할 토큰 수를 입력하세요.' : 'Enter token amount to recharge', '50000');
+        const amountStr = prompt(t('dashboard.prompt.recharge'), '50000');
         if (!amountStr) return;
         const parsedAmount = parseInt(amountStr);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -457,7 +457,7 @@ export default function DashboardContent() {
                 body: JSON.stringify({ userId: apiViewUser.id, apiKeys: tempApiKeys })
             });
             if (res.ok) {
-                alert(isKor ? "성공적으로 적용되었습니다." : "API Keys updated successfully.");
+                alert(t('dashboard.alert.success'));
                 setApiViewUser(null);
                 fetchUsers();
             } else {
@@ -2791,7 +2791,7 @@ export default function DashboardContent() {
                                             )}
                                             <th className="px-10 py-6">배정된 직원 이메일</th>
                                             <th className="px-10 py-6 text-center">배당 상태</th>
-                                            <th className="px-10 py-6 text-right">관리</th>
+                                            <th className="px-10 py-6 text-right">{t('admin.manage')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
@@ -3077,7 +3077,7 @@ export default function DashboardContent() {
                                     </div>
                                     <table className="w-full text-left">
                                         <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                            <tr><th className="px-10 py-6">영상 정보 / 사유</th><th className="px-10 py-6 text-center">유튜브 ID</th><th className="px-10 py-6 text-center">등록일시</th><th className="px-10 py-6 text-center">상태</th><th className="px-10 py-6 text-right">관리 / Drive 자산</th></tr>
+                                            <tr><th className="px-10 py-6">영상 정보 / 사유</th><th className="px-10 py-6 text-center">유튜브 ID</th><th className="px-10 py-6 text-center">등록일시</th><th className="px-10 py-6 text-center">{t('admin.status')}</th><th className="px-10 py-6 text-right">관리 / Drive 자산</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {filteredPublishingRequests.length === 0 ? (
@@ -3218,7 +3218,7 @@ export default function DashboardContent() {
                                     <div className="px-10 py-6 border-b border-white/5 bg-black/20"><h3 className="text-[9px] font-black text-gray-500 uppercase tracking-[0.4em]">활성 유저 채널 요약</h3></div>
                                     <table className="w-full text-left">
                                         <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                                            <tr><th className="px-10 py-6">채널명 / 계정</th><th className="px-10 py-6 text-center">생성 영상수</th><th className="px-10 py-6 text-center">최근 접속일</th><th className="px-10 py-6 text-right">상태</th></tr>
+                                            <tr><th className="px-10 py-6">채널명 / 계정</th><th className="px-10 py-6 text-center">생성 영상수</th><th className="px-10 py-6 text-center">최근 접속일</th><th className="px-10 py-6 text-right">{t('admin.status')}</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {users.slice(0, 5).map(u => {
@@ -3256,7 +3256,7 @@ export default function DashboardContent() {
                                     <th className="px-6 py-5 text-right whitespace-nowrap">수수료율</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">수수료</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">실지급액</th>
-                                    <th className="px-6 py-5 text-center whitespace-nowrap">상태</th>
+                                    <th className="px-6 py-5 text-center whitespace-nowrap">{t('admin.status')}</th>
                                     <th className="px-6 py-5 text-center whitespace-nowrap">액션</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">수수료율</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">수수료</th>
@@ -3282,13 +3282,13 @@ export default function DashboardContent() {
                                         <td className="px-6 py-5 text-center">
                                             {w.status === 'pending' && <span className="px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm font-bold">대기중</span>}
                                             {w.status === 'completed' && <span className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-sm font-bold">완료</span>}
-                                            {w.status === 'rejected' && <span className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm font-bold">거절</span>}
+                                            {w.status === 'rejected' && <span className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm font-bold">{t('admin.reject')}</span>}
                                         </td>
                                         <td className="px-6 py-5 text-center">
                                             {w.status === 'pending' && (
                                                 <div className="flex justify-center gap-2">
                                                     <button onClick={() => updateWithdrawalStatus(w.id, 'completed')} className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-lg transition-colors">승인완료</button>
-                                                    <button onClick={() => updateWithdrawalStatus(w.id, 'rejected')} className="px-4 py-2 bg-red-600/50 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-colors">거절</button>
+                                                    <button onClick={() => updateWithdrawalStatus(w.id, 'rejected')} className="px-4 py-2 bg-red-600/50 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-colors">{t('admin.reject')}</button>
                                                 </div>
                                             )}
                                         </td>
@@ -3328,7 +3328,7 @@ export default function DashboardContent() {
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">USDT 잔액</th>
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">수수료</th>
                                         <th className="px-3 py-4.5 text-center whitespace-nowrap">실지급액</th>
-                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">관리</th>
+                                        <th className="px-3 py-4.5 text-center whitespace-nowrap">{t('admin.manage')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/10">

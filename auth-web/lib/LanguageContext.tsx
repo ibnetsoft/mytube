@@ -7,7 +7,7 @@ import { Language, Translation, translations } from './translations';
 interface LanguageContextType {
     language: Language;
     setLanguage: (lang: Language) => void;
-    t: Translation;
+    t: (key: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -40,7 +40,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('pica_lang', lang);
     };
 
-    const t = translations[language];
+    const t = (key: string): string => {
+        const langDict = translations[language];
+        const enDict = translations['en'];
+        const koDict = translations['ko'];
+        
+        return langDict[key] || enDict[key] || koDict[key] || key;
+    };
 
     return (
         <LanguageContext.Provider value={{ language, setLanguage, t }}>

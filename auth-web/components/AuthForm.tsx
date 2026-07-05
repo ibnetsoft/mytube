@@ -11,8 +11,6 @@ import LanguageSelector from './LanguageSelector';
 export default function AuthForm() {
     const router = useRouter();
     const { t, language } = useLanguage();
-    const isThai = language === 'th';
-    const isKor = language === 'ko';
     const [mounted, setMounted] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -73,10 +71,10 @@ export default function AuthForm() {
             if (isSignUp) {
                 // Validation
                 if (password !== passwordConfirm) {
-                    throw new Error(isThai ? 'รหัสผ่านยืนยันไม่ตรงกัน' : isKor ? '비밀번호 확인이 일치하지 않습니다.' : 'Password confirmation does not match.');
+                    throw new Error(t('auth.error.password_mismatch'));
                 }
                 if (!fullName || !nationality || !contact) {
-                    throw new Error(isThai ? 'กรุณากรอกข้อมูลที่จำเป็นทั้งหมด' : isKor ? '모든 필수 정보를 입력해주세요.' : 'Please fill in all required information.');
+                    throw new Error(t('auth.error.missing_info'));
                 }
                 const normalizedPreferredLanguages = preferredLanguages.length ? preferredLanguages : ['ko'];
 
@@ -100,11 +98,7 @@ export default function AuthForm() {
                 if (error) throw error;
                 setMessage({
                     type: 'success',
-                    text: isThai
-                        ? 'ส่งอีเมลยืนยันการสมัครแล้ว กรุณาตรวจสอบอีเมลของคุณ!'
-                        : isKor
-                            ? '회원가입 확인 메일이 발송되었습니다. 이메일을 확인해주세요!'
-                            : 'A confirmation email has been sent. Please check your inbox!'
+                    text: t('auth.success.signup_email')
                 });
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
@@ -128,10 +122,10 @@ export default function AuthForm() {
                 <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[100px] rounded-full" />
 
                 <h1 className="text-4xl font-black text-center mb-2 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
-                    {t.loginTitle}
+                    {t('auth.title')}
                 </h1>
                 <h2 className="text-lg font-medium text-center text-white/60 mb-8 tracking-wide uppercase text-[10px]">
-                    {isSignUp ? t.signup : t.loginSubtitle}
+                    {isSignUp ? t('auth.signup') : t('auth.subtitle')}
                 </h2>
 
                 {/* Social Login */}
@@ -141,7 +135,7 @@ export default function AuthForm() {
                         className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all font-bold text-sm shadow-lg active:scale-[0.98]"
                     >
                         <Image src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" width={16} height={16} unoptimized />
-                        {isThai ? 'เข้าสู่ระบบด้วย Google' : 'Sign in with Google'}
+                        {t('auth.social.google')}
                     </button>
                     {/* Github removed as per request */}
                 </div>
@@ -152,19 +146,19 @@ export default function AuthForm() {
 
                 <div className="relative flex items-center py-4 mb-4">
                     <div className="flex-grow border-t border-white/10"></div>
-                    <span className="flex-shrink mx-4 text-white/20 text-[10px] uppercase tracking-widest font-bold">{isThai ? 'หรือ' : 'OR'}</span>
+                    <span className="flex-shrink mx-4 text-white/20 text-[10px] uppercase tracking-widest font-bold">{t('auth.or')}</span>
                     <div className="flex-grow border-t border-white/10"></div>
                 </div>
 
                 <form onSubmit={handleAuth} className="space-y-4">
                     <div>
                         <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                            {isThai ? 'อีเมล' : 'Email Address'}
+                            {t('auth.label.email')}
                         </label>
                         <input
                             type="email"
                             required
-                            placeholder={isThai ? 'อีเมลของคุณ' : 'Your email address'}
+                            placeholder={t('auth.placeholder.email')}
                             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -176,7 +170,7 @@ export default function AuthForm() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                        {t.fullName}
+                                        {t('auth.full_name')}
                                     </label>
                                     <input
                                         type="text"
@@ -189,7 +183,7 @@ export default function AuthForm() {
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                        {t.nationality}
+                                        {t('auth.nationality')}
                                     </label>
                                     <input
                                         type="text"
@@ -204,7 +198,7 @@ export default function AuthForm() {
 
                             <div>
                                 <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                    {t.contact}
+                                    {t('auth.contact')}
                                 </label>
                                 <input
                                     type="text"
@@ -218,7 +212,7 @@ export default function AuthForm() {
 
                             <div>
                                 <label className="text-xs font-bold text-gray-400 mb-2 ml-1 block uppercase tracking-wider">
-                                    {isThai ? 'ภาษาที่สามารถผลิตได้' : '제작 가능 언어'}
+                                    {t('auth.label.available_lang')}
                                 </label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {contentLanguageOptions.map(option => (
@@ -244,7 +238,7 @@ export default function AuthForm() {
                     <div className={isSignUp ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                         <div>
                             <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                {isSignUp ? t.password : "Password"}
+                                {isSignUp ? t('auth.password') : t('auth.password')}
                             </label>
                             <input
                                 type="password"
@@ -258,7 +252,7 @@ export default function AuthForm() {
                         {isSignUp && (
                             <div>
                                 <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                    {t.passwordConfirm}
+                                    {t('auth.password_confirm')}
                                 </label>
                                 <input
                                     type="password"
@@ -275,7 +269,7 @@ export default function AuthForm() {
                     {isSignUp && (
                         <div>
                             <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
-                                {t.referrer} 코드
+                                {t('auth.referrer')}
                             </label>
                             <input
                                 type="text"
@@ -292,7 +286,7 @@ export default function AuthForm() {
                         disabled={loading}
                         className="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-900/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-4"
                     >
-                        {loading ? t.loading : (isSignUp ? t.signup : t.signin)}
+                        {loading ? t('common.loading') : (isSignUp ? t('auth.signup') : t('auth.signin'))}
                     </button>
                 </form>
 
@@ -311,7 +305,7 @@ export default function AuthForm() {
                         onClick={() => setIsSignUp(!isSignUp)}
                         className="text-gray-500 hover:text-blue-400 transition-colors"
                     >
-                        {isSignUp ? t.alreadyHaveAccount : t.dontHaveAccount}
+                        {isSignUp ? t('auth.already_have_account') : t('auth.dont_have_account')}
                     </button>
                 </div>
             </div>
