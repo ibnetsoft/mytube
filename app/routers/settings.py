@@ -1512,3 +1512,77 @@ async def withdraw_account_api():
     except Exception as e:
         print(f"[Withdraw] Error during withdrawal: {e}")
         raise HTTPException(status_code=500, detail=f"회원 탈퇴 처리 중 오류 발생: {str(e)}")
+
+
+# [AIR-0153] main.py에서 이동된 API Key 관리 라우트
+class ApiKeySave(BaseModel):
+    youtube: Optional[str] = None
+    gemini: Optional[str] = None
+    elevenlabs: Optional[str] = None
+    suno: Optional[str] = None
+    suno_base_url: Optional[str] = None
+    music_provider: Optional[str] = None
+    music_gemini_model: Optional[str] = None
+    music_gemini_base_url: Optional[str] = None
+    music_gemini_project_id: Optional[str] = None
+    music_gemini_location: Optional[str] = None
+    typecast: Optional[str] = None
+    replicate: Optional[str] = None
+    topview: Optional[str] = None
+    topview_uid: Optional[str] = None
+    blog_client_id: Optional[str] = None
+    blog_client_secret: Optional[str] = None
+    blog_id: Optional[str] = None
+    wp_url: Optional[str] = None
+    wp_username: Optional[str] = None
+    wp_password: Optional[str] = None
+
+
+@router.get("/api-keys")
+async def get_api_keys():
+    """API 키 상태 조회 (마스킹)"""
+    return config.get_api_keys_status()
+
+
+@router.post("/api-keys")
+async def save_api_keys(req: ApiKeySave):
+    """API 키 저장"""
+    updated = []
+
+    mapping = {
+        'youtube': 'YOUTUBE_API_KEY',
+        'gemini': 'GEMINI_API_KEY',
+        'elevenlabs': 'ELEVENLABS_API_KEY',
+        'suno': 'SUNO_API_KEY',
+        'suno_base_url': 'SUNO_API_BASE_URL',
+        'music_provider': 'MUSIC_PROVIDER',
+        'music_gemini_model': 'MUSIC_GEMINI_MODEL',
+        'music_gemini_base_url': 'MUSIC_GEMINI_BASE_URL',
+        'music_gemini_project_id': 'MUSIC_GEMINI_PROJECT_ID',
+        'music_gemini_location': 'MUSIC_GEMINI_LOCATION',
+        'typecast': 'TYPECAST_API_KEY',
+        'replicate': 'REPLICATE_API_TOKEN',
+        'topview': 'TOPVIEW_API_KEY',
+        'topview_uid': 'TOPVIEW_UID',
+        'blog_client_id': 'BLOG_CLIENT_ID',
+        'blog_client_secret': 'BLOG_CLIENT_SECRET',
+        'blog_id': 'BLOG_ID',
+        'wp_url': 'WP_URL',
+        'wp_username': 'WP_USERNAME',
+        'wp_password': 'WP_PASSWORD'
+    }
+
+    req_dict = req.dict()
+    print(f"[API_KEY] Save request received. Fields present: {[k for k,v in req_dict.items() if v is not None]}")
+    for field, config_key in mapping.items():
+        val = req_dict.get(field)
+        if val is not None and val.strip():
+            print(f"[API_KEY] Updating {field} -> {config_key} (len: {len(val.strip())})")
+            config.update_api_key(config_key, val.strip())
+            updated.append(field)
+
+    return {
+        "status": "ok",
+        "updated": updated,
+        "message": f"{len(updated)}개의 API 키가 저장되었습니다"
+    }
