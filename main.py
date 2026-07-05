@@ -181,20 +181,36 @@ async def check_login_middleware(request: Request, call_next):
             pass
         raise e
 
-# [NEW] 로그인 페이지 응답 라우트
+# [AIR-0137] /output 파일 서빙 — .mp4는 로그인 필수, path traversal 차단
 @app.get("/output/{file_path:path}")
 async def serve_output_file(file_path: str):
+    from services.auth_service import auth_service
+
     if file_path.startswith("external/"):
         rel = file_path.replace("external/", "", 1)
         appdata_base = config.LOCAL_APP_DATA_DIR
         abs_path = os.path.normpath(os.path.join(appdata_base, rel))
-        if os.path.exists(abs_path):
-            return FileResponse(abs_path)
-    else:
-        abs_path = os.path.join(config.OUTPUT_DIR, file_path)
-        if os.path.exists(abs_path):
-            return FileResponse(abs_path)
-    raise HTTPException(status_code=404, detail="File not found")
+        norm_base = os.path.normpath(appdata_base)
+        if not (abs_path == norm_base or abs_path.startswith(norm_base + os.sep)):
+            raise HTTPException(status_code=403, detail="Access denied.")
+        if not os.path.exists(abs_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        if abs_path.lower().endswith(".mp4"):
+            if not auth_service.get_user_email():
+                raise HTTPException(status_code=403, detail="Login required to access video files.")
+        return FileResponse(abs_path)
+
+    full_path = os.path.join(config.OUTPUT_DIR, file_path)
+    norm_output = os.path.normpath(config.OUTPUT_DIR)
+    norm_full = os.path.normpath(full_path)
+    if not (norm_full == norm_output or norm_full.startswith(norm_output + os.sep)):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    if full_path.lower().endswith(".mp4"):
+        if not auth_service.get_user_email():
+            raise HTTPException(status_code=403, detail="Login required to access video files.")
+    return FileResponse(full_path)
 
 # [NEW] 실시간 등급/토큰 동기화 API
 # CORS 설정 (로컬 앱 전용)
@@ -361,22 +377,6 @@ repository_router.init_repository(templates)  # [AIR-0134]
 # output 폴더
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 # app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
-
-@app.get("/output/{file_path:path}")
-async def serve_output_file(file_path: str):
-    from services.auth_service import auth_service
-    import database as db
-    
-    full_path = os.path.join(config.OUTPUT_DIR, file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    if full_path.lower().endswith(".mp4"):
-        email = auth_service.get_user_email()
-        if not db.is_user_admin(email):
-            raise HTTPException(status_code=403, detail="Only admins can access rendered videos.")
-            
-    return FileResponse(full_path)
 
 # uploads 폴더 (인트로 등 업로드용)
 os.makedirs("uploads", exist_ok=True)
