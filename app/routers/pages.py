@@ -45,6 +45,7 @@ def _route_with_project_id(base_path: str, project_id: Optional[int]) -> str:
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
     from services.i18n import Translator
+    from config import config
     email = auth_service.get_user_email()
     is_admin = db.is_user_admin(email) if email else False
     # [AIR-0133] Per-request language: read from request.state (set by middleware)
@@ -61,6 +62,7 @@ def _render(request, template, page, title, **extra):
             "current_lang": lang,
             "window_lang": lang,
             "t": Translator(lang).t,
+            "AUTH_SERVER_URL": getattr(config, "AUTH_SERVER_URL", "http://localhost:3000"),
             **extra
         }
     )
@@ -233,6 +235,30 @@ async def page_template(request: Request, project_id: Optional[int] = Query(None
     app_mode = db.get_global_setting("app_mode", "longform")
     return _render(request, "pages/template.html", "template", "nav_shorts_template", project_id=project_id, app_mode=app_mode)
 
+@router.get("/referral", response_class=HTMLResponse)
+async def page_referral(request: Request):
+    return _render(
+        request,
+        "pages/referral.html",
+        "referral",
+        "nav_referral",
+        app_mode="longform"
+    )
+
+@router.get("/admin/referrals", response_class=HTMLResponse)
+async def page_admin_referrals(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/admin_referrals.html",
+        "admin-referrals",
+        "Admin Referrals",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
@@ -277,4 +303,11 @@ async def page_logs(request: Request):
 @router.get("/autopilot", response_class=HTMLResponse)
 async def page_autopilot(request: Request):
     return _render(request, "pages/autopilot.html", "autopilot", "nav_autopilot")
+
+@router.get("/referral", response_class=HTMLResponse)
+async def page_referral(request: Request):
+    from services.auth_service import auth_service
+    # Need to pass token if we want to securely fetch data, or handle it via cookies in JS
+    return _render(request, "pages/referral.html", "referral", "추천인 대시보드")
+
 

@@ -331,6 +331,7 @@ from app.routers import settings as settings_router # [NEW]
 from app.routers import youtube as youtube_router
 from app.routers import tts as tts_router
 from app.routers import repository as repository_router # [NEW]
+from app.routers import health as health_router
 from app.routers import queue as queue_router # [NEW]
 
 from app.routers import audio as audio_router
@@ -346,6 +347,8 @@ from app.routers import update as update_router
 from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
+from app.routers import referral as referral_router
+from app.routers import admin_referrals as admin_referrals_router
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -360,6 +363,7 @@ app.include_router(settings_router.router)
 app.include_router(youtube_router.router)
 app.include_router(tts_router.router)
 app.include_router(repository_router.router)
+app.include_router(health_router.router)
 app.include_router(queue_router.router)
 app.include_router(audio_router.router)
 app.include_router(music_router.router)
@@ -372,6 +376,8 @@ app.include_router(templates_router.router)
 app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
+app.include_router(referral_router.router, prefix="/api")
+app.include_router(admin_referrals_router.router, prefix="/api")
 pages_router.init_pages(templates)
 repository_router.init_repository(templates)  # [AIR-0134]
 
@@ -409,6 +415,10 @@ async def startup_event():
 
         # [NEW] Start Autopilot Batch Worker
         asyncio.create_task(autopilot_service.start_batch_worker())
+        
+        # [NEW] Start Referral Engagement Re-engagement Loop
+        from app.services.referral_engagement_service import referral_engagement_service
+        asyncio.create_task(referral_engagement_service.start_background_worker())
 
         # 키 로드 상태 출력
         from config import Config
@@ -1044,20 +1054,7 @@ async def update_project_setting(project_id: int, key: str, value: str):
 # API: 상태 확인
 # ===========================================
 
-@app.get("/api/health")
-async def health_check():
-    """서버 상태 및 API 연결 확인"""
-    return {
-        "status": "ok",
-        "version": "2.0.0",
-        "apis": {
-            "youtube": bool(config.YOUTUBE_API_KEY),
-            "gemini": bool(config.GEMINI_API_KEY),
-            "elevenlabs": bool(config.ELEVENLABS_API_KEY),
-            "replicate": bool(config.REPLICATE_API_TOKEN),
-            "typecast": bool(config.TYPECAST_API_KEY)
-        }
-    }
+
 
 @app.get("/api/utils/phonetic")
 def get_phonetic(text: str = "", target_lang: str = "en"):
