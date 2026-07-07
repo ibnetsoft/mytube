@@ -11,24 +11,24 @@ class ProductionPlannerService:
     def __init__(self):
         self.gemini = GeminiService()
 
-    async def plan_production(self, shot_plan: dict) -> dict:
+    async def plan_production(self, enhanced_scenes: dict) -> dict:
         prompt = f"""
-You are an expert Production Planner AI. Your job is to take a sequence of shots and determine how each shot should be produced (Image Generation, Video Generation, or Reuse).
+You are an expert Production Planner AI. Your job is to take a sequence of enhanced scenes and determine how each scene should be produced (Image Generation, Video Generation, or Reuse).
 
-SHOT PLAN JSON:
-{json.dumps(shot_plan, ensure_ascii=False, indent=2)}
+ENHANCED SCENES JSON:
+{json.dumps(enhanced_scenes, ensure_ascii=False, indent=2)}
 
 Instructions:
-1. Iterate over every shot in the `shots` array.
+1. Iterate over every scene in the `scenes` array.
 2. Decide the `asset_type` strictly from: ["image", "video", "reuse"].
-   - "video": For shots with high movement, character action, or dynamic camera motion.
-   - "image": For static shots, mood/establishing shots, or when Ken Burns effect is sufficient.
-   - "reuse": For repetitive background or stock shots.
+   - "video": For scenes with high movement, character action, or dynamic camera motion required.
+   - "image": For static scenes, mood/establishing scenes, or when Ken Burns effect is sufficient.
+   - "reuse": For repetitive background or stock scenes.
 3. Determine the `generator`. Use defaults based on asset_type unless specifically overridden:
    - image -> flux
    - video -> kling
    - reuse -> none
-4. Build a structured `prompt` for each item containing: `positive`, `negative`, `camera`, `lighting`, and `style`.
+4. Build a structured `prompt` for each item containing: `positive`, `negative`, `camera`, `lighting`, and `style`. Draw from the scene's `image_prompt` or `video_prompt` and its `shot_hints`.
 5. Return the result strictly as a valid JSON object without markdown formatting.
 
 JSON SCHEMA:
@@ -42,7 +42,6 @@ JSON SCHEMA:
   "production_items": [
     {{
       "id": "asset001",
-      "shot_id": "shot001",
       "scene_id": "scene001",
       "asset_type": "image",
       "generator": "flux",
