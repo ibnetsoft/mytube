@@ -1,16 +1,21 @@
-# AIR-0209 Planning Scene Contract Refactor
+# AIR-0210 Legacy Code Removal
 
 **Date**: 2026-07-07
-**Status**: DONE (Merged PR #65)
+**Status**: DONE (PR pending merge)
 
 ## Objectives
-- Make the planning stage (scene_planner.py) the absolute Source of Truth for scenes.
-- Ensure scene_id and scene_order persist throughout downstream pipelines without being re-split.
-- Chunk image prompt generation into 2x2 (4 scenes per chunk) without altering scene_ids.
+- Confirm zero active references to script_analyzer and director_ai across the entire codebase.
+- Delete both deprecated service files and all associated dead code.
 
 ## Changes Made
-- Modified pp/models/media.py to accept scenes: Optional[List[Dict[str, Any]]].
-- Refactored pp/routers/gemini.py, pp/routers/script_api.py, pp/routers/director_api.py to route to planner & prompt_director.
-- Deprecated pp/services/script_analyzer.py and pp/services/director_ai.py.
-- Updated pp/routers/image.py and services/gemini_service.py (generate_image_prompts_for_scenes) to handle 4-scene chunking logic.
-- Created docs/SCENE_SOURCE_OF_TRUTH.md and docs/QA_AIR_0209.md.
+- Deleted app/services/script_analyzer.py
+- Deleted app/services/director_ai.py
+- Deleted templates/pages/script_analyzer_preview.html
+- Deleted templates/pages/director_ai_preview.html
+- Deleted scratch/test_script_analyzer.py
+- Deleted scratch/test_director_ai.py
+- Removed GET /admin/script-analyzer and GET /admin/director-ai from app/routers/pages.py
+
+## Next Sprint
+- scene_id 기반 E2E 테스트
+- Asset Pipeline 통합 검증

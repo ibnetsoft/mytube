@@ -442,3 +442,4 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Short summary: Fixed auth-web lint execution errors and resolved lint warnings. Lint-only change, no functional modifications.
 
 - [AIR-0209](../worknote/AIR-0209.md) - Planning Scene Contract Refactor (DONE)
+- [AIR-0210](../worknote/AIR-0210.md) - Legacy Code Removal: script_analyzer & director_ai (DONE)
