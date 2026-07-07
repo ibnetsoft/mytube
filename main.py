@@ -349,6 +349,8 @@ from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
 from app.routers import referral as referral_router
 from app.routers import admin_referrals as admin_referrals_router
+from app.routers import admin_voices as admin_voices_router
+from app.routers import voices as voices_router
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -378,6 +380,8 @@ app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
 app.include_router(referral_router.router, prefix="/api")
 app.include_router(admin_referrals_router.router, prefix="/api")
+app.include_router(admin_voices_router.router)
+app.include_router(voices_router.router)
 pages_router.init_pages(templates)
 repository_router.init_repository(templates)  # [AIR-0134]
 

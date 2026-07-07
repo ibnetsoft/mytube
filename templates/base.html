@@ -287,7 +287,7 @@
                         <a href="/referral" id="nav-referral"
                             class="sidebar-item flex items-center gap-3 {% if page == 'referral' %}active{% endif %}">
                             <span class="text-lg">👥</span>
-                            <span class="font-bold">추천인 (Referral)</span>
+                            <span class="font-bold" data-i18n-key="nav_referral">{{ t('nav_referral') }}</span>
                             <span id="referral-badge" class="ml-auto text-[10px] bg-red-500 text-white font-black px-1.5 py-0.5 rounded-full hidden">0</span>
                         </a>
                     </li>
@@ -327,6 +327,13 @@
                             class="sidebar-item flex items-center gap-3 {% if page == 'admin-referrals' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span class="font-bold text-red-400">Admin: Referrals</span>
+                        </a>
+                    </li>
+                    <li class="mt-1">
+                        <a href="/admin/voices" id="nav-admin-voices"
+                            class="sidebar-item flex items-center gap-3 {% if page == 'admin-voices' %}active{% endif %}">
+                            <span class="sidebar-icon"></span>
+                            <span class="font-bold text-red-400">Admin: Voices</span>
                         </a>
                     </li>
                     {% endif %}
@@ -579,6 +586,10 @@
                     updateLangButtonStates(lang);
                     refreshLangDependentUI(lang);
                     Utils.showToast(i18n.lang_change_success || 'Language changed', 'success');
+                    
+                    // Reload to immediately apply the language change to Jinja-rendered templates
+                    setTimeout(() => window.location.reload(), 300);
+
                 }
             } catch (e) {
                 console.error("Language switch failed:", e);
@@ -874,7 +885,7 @@
             "{{ lang }}": {
                 "_topics_menu": {% if lang == 'ko' %}"주제"{% elif lang == 'en' %}"Topics"{% elif lang == 'vi' %}"Chủ đề"{% else %}"หัวข้อ"{% endif %},
                 "_projects_menu": {% if lang == 'ko' %}"프로젝트"{% elif lang == 'en' %}"Projects"{% elif lang == 'vi' %}"Dự án"{% else %}"โปรเจกต์"{% endif %},
-                {% for key in ['nav_repository','nav_plan','nav_music_plan','nav_script','nav_title_desc','nav_intro','nav_image','nav_cover_image','nav_image_crop','nav_audio','nav_track_generation','nav_thumbnail','nav_shorts_template','nav_tts','nav_subtitle','nav_render','nav_upload','nav_reserve','nav_shorts','nav_commerce_shorts','nav_autopilot','nav_settings','nav_logs','nav_wallet'] %}
+                {% for key in ['nav_repository','nav_plan','nav_music_plan','nav_script','nav_title_desc','nav_intro','nav_image','nav_cover_image','nav_image_crop','nav_audio','nav_track_generation','nav_thumbnail','nav_shorts_template','nav_tts','nav_subtitle','nav_render','nav_upload','nav_reserve','nav_shorts','nav_commerce_shorts','nav_autopilot','nav_settings','nav_logs','nav_wallet','nav_referral'] %}
                 "{{ key }}": {{ t_all(key)[lang] | tojson }},
                 {% endfor %}
             }{% if not loop.last %},{% endif %}

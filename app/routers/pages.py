@@ -259,6 +259,20 @@ async def page_admin_referrals(request: Request):
         app_mode="longform"
     )
 
+@router.get("/admin/voices", response_class=HTMLResponse)
+async def page_admin_voices(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/admin_voices.html",
+        "admin-voices",
+        "Admin Voices",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
@@ -286,7 +300,7 @@ async def page_settings(request: Request):
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
             "youtube_channel": auth_service.get_youtube_channel(),
-            "my_referral_code": auth_service.get_referral_code(),
+            "my_referral_code": auth_service.ensure_referral_code_generated(),
             "wallet_info": auth_service.get_or_create_wallet_info(),
             "min_withdrawal_usdt": db.get_global_setting("min_withdrawal_usdt", "10"),
             "youtube_handle": auth_service.get_youtube_handle(),
