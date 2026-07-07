@@ -1,11 +1,12 @@
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Body, Path
+from fastapi import APIRouter, HTTPException, Query, Body, Path, BackgroundTasks
 from pydantic import BaseModel
 import datetime
 
 from services.auth_service import auth_service
 from services.web_admin_client import web_admin_client
 from app.routers.admin_tenant import require_superadmin
+from app.services.voice_analyzer import analyze_voice_task
 
 router = APIRouter(prefix="/api/admin/voices", tags=["Admin-Voices"])
 
@@ -113,13 +114,27 @@ class VoiceCreatePayload(BaseModel):
     analysis_status: str = "manual"
 
 @router.post("")
-def create_voice(payload: VoiceCreatePayload):
+def create_voice(payload: VoiceCreatePayload, background_tasks: BackgroundTasks):
     require_superadmin()
     
     data = payload.dict(exclude_unset=True)
     data['is_active'] = True
     
     result = _supabase_post('voice_profiles', data)
+    
+    # Check if we need to trigger analyzer
+    created_voice = result.get('data', result) if isinstance(result, dict) else result
+    if isinstance(created_voice, list) and created_voice:
+        created_voice = created_voice[0]
+        
+    if isinstance(created_voice, dict):
+        vid = created_voice.get('id')
+        status = created_voice.get('analysis_status')
+        audio_url = created_voice.get('sample_audio_url')
+        
+        if vid and audio_url and status == 'pending':
+            background_tasks.add_task(analyze_voice_task, vid, audio_url)
+
     return {"success": True, "data": result}
 
 
@@ -149,7 +164,7 @@ class VoiceUpdatePayload(BaseModel):
     is_active: Optional[bool] = None
 
 @router.patch("/{id}")
-def update_voice(id: str, payload: VoiceUpdatePayload):
+def update_voice(id: str, payload: VoiceUpdatePayload, background_tasks: BackgroundTasks):
     require_superadmin()
     
     data = payload.dict(exclude_unset=True)
@@ -159,6 +174,19 @@ def update_voice(id: str, payload: VoiceUpdatePayload):
     data['updated_at'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     
     result = _supabase_patch('voice_profiles', data, id=f'eq.{id}')
+    
+    # Check if we need to trigger analyzer
+    updated_voice = result.get('data', result) if isinstance(result, dict) else result
+    if isinstance(updated_voice, list) and updated_voice:
+        updated_voice = updated_voice[0]
+        
+    if isinstance(updated_voice, dict):
+        status = updated_voice.get('analysis_status')
+        audio_url = updated_voice.get('sample_audio_url')
+        
+        if audio_url and status == 'pending':
+            background_tasks.add_task(analyze_voice_task, id, audio_url)
+
     return {"success": True, "data": result}
 
 
