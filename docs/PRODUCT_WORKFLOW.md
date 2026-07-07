@@ -116,3 +116,9 @@ AIR Studio의 목적은 **생성 AI를 만드는 것이 아니라 생성 과정�
 * 기존 Product Workflow와 충돌하지 않는가?
 
 위 질문 중 하나라도 "아니오"라면 구현 전에 CTO 승인을 다시 받아야 한다.
+
+**[중요: Scene Source of Truth]**
+Scene Source of Truth는 기획 단계에서 확정된 Scene 구조이다.
+이후 Script, Prompt, Asset Matching, Timeline은 이 Scene 구조를 기준으로만 동작한다.
+Shot은 Scene을 재분할하는 독립 단위가 아니라, Scene 내부의 카메라/구도/연출 보조 정보(shot_hints)로만 사용한다.
+Director AI는 Scene을 재분할하지 않고, 확정된 Scene의 프롬프트와 연출 정보를 보강한다.
