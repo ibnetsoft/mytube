@@ -273,6 +273,20 @@ async def page_admin_voices(request: Request):
         app_mode="longform"
     )
 
+@router.get("/admin/script-analyzer", response_class=HTMLResponse)
+async def page_admin_script_analyzer(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/script_analyzer_preview.html",
+        "admin-script-analyzer",
+        "Script Analyzer",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
