@@ -76,9 +76,20 @@ async def get_project_assets(project_id: str):
         "matches": matches
     }
 
+class MatchStatusRequest(BaseModel):
+    match_id: str
+    status: str
+
 @router.patch("/matches/override")
 async def override_match(req: OverrideMatchRequest):
     success = asset_matching_service.override_match(req.match_id, req.scene_id, req.shot_id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to override match")
+    return {"success": True}
+
+@router.patch("/matches/status")
+async def update_match_status(req: MatchStatusRequest):
+    success = asset_matching_service.update_match_status(req.match_id, req.status)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update match status")
     return {"success": True}

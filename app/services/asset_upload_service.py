@@ -3,44 +3,9 @@ from datetime import datetime
 from typing import Dict, Any, List
 from services.web_admin_client import web_admin_client
 
-class AssetUploadService:
-    def _mock_vision_analysis(self, file_name: str, file_type: str) -> Dict[str, Any]:
-        """
-        Lightweight mock analysis based on filename hints for QA/Preview purposes.
-        """
-        fname = file_name.lower()
-        
-        # Default mock fallback
-        analysis = {
-            "content_summary": "A generic visual asset.",
-            "subjects": ["unknown"],
-            "emotion": "neutral",
-            "background": "generic",
-            "visual_style": "realistic",
-            "has_motion": (file_type == "video")
-        }
-        
-        # Simple rule-based mock
-        if "sad" in fname or "crying" in fname:
-            analysis["emotion"] = "sad"
-        elif "happy" in fname or "smile" in fname:
-            analysis["emotion"] = "happy"
-            
-        if "woman" in fname or "female" in fname:
-            analysis["subjects"] = ["woman"]
-        elif "man" in fname or "male" in fname:
-            analysis["subjects"] = ["man"]
-            
-        if "city" in fname:
-            analysis["background"] = "city street"
-        elif "nature" in fname or "forest" in fname:
-            analysis["background"] = "forest"
-            
-        if "anime" in fname:
-            analysis["visual_style"] = "anime"
-            
-        return analysis
+from app.services.asset_analysis_service import asset_analysis_service
 
+class AssetUploadService:
     def process_upload(self, project_id: str, user_id: str, file_name: str, file_type: str, mime_type: str, file_size: int) -> Dict[str, Any]:
         # 1. Metadata Extraction (Mocked for missing real video processing)
         duration = 5.0 if file_type == "video" else None
@@ -50,8 +15,8 @@ class AssetUploadService:
         file_url = f"/uploads/{file_name}" # Mock local URL
         thumbnail_url = f"/uploads/thumb_{file_name}.jpg" if file_type == "video" else file_url
         
-        # 2. Vision Analysis (Lightweight/Mock)
-        analysis_result = self._mock_vision_analysis(file_name, file_type)
+        # 2. Vision Analysis
+        analysis_result = asset_analysis_service.analyze_asset(file_name, file_type, file_url)
         quality_score = 85
         
         # 3. Create DB Record Payload

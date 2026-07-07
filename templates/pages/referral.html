@@ -1,0 +1,685 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 pb-24">
+    
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-black text-white flex items-center gap-3">
+            <span class="text-4xl">👥</span> <span data-i18n="title"></span>
+        </h1>
+        <p class="text-white/60 mt-2 text-lg" data-i18n="subtitle"></p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-8 border-b border-white/10">
+        <nav class="flex space-x-4 overflow-x-auto pb-2" aria-label="Tabs" id="referral-tabs">
+            <button class="tab-btn active bg-white/10 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors" data-target="tab-overview" data-i18n="tab_overview"></button>
+            <button class="tab-btn hover:bg-white/5 text-white/60 hover:text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors" data-target="tab-tree" data-i18n="tab_tree"></button>
+            <button class="tab-btn hover:bg-white/5 text-white/60 hover:text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors" data-target="tab-history" data-i18n="tab_history"></button>
+            <button class="tab-btn hover:bg-white/5 text-white/60 hover:text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors" data-target="tab-withdrawal" data-i18n="tab_withdrawal"></button>
+        </nav>
+    </div>
+
+    <!-- Tab Contents -->
+    <div id="tab-overview" class="tab-content block">
+        <!-- My Referral Code Section -->
+        <div class="bg-gradient-to-r from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/30 mb-8 flex flex-col md:flex-row items-center gap-6 justify-between">
+            <div>
+                <h3 class="text-lg font-bold text-white mb-2" data-i18n="my_code_title"></h3>
+                <p class="text-indigo-200/60 text-sm" data-i18n="my_code_desc"></p>
+            </div>
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <input type="text" id="referral-code-input" readonly 
+                       class="w-full md:w-48 bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white font-mono text-center text-lg focus:outline-none focus:border-indigo-500 transition-colors"
+                       value="">
+                <button id="copy-btn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center justify-center gap-2 whitespace-nowrap">
+                    <span id="copy-icon">📋</span>
+                    <span id="copy-text" data-i18n="copy_btn"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-container">
+            <!-- Skeleton Loaders -->
+            <div class="bg-white/5 rounded-2xl p-6 border border-white/10 animate-pulse">
+                <div class="h-4 bg-white/10 rounded w-1/2 mb-4"></div>
+                <div class="h-8 bg-white/10 rounded w-1/3"></div>
+            </div>
+            <div class="bg-white/5 rounded-2xl p-6 border border-white/10 animate-pulse">
+                <div class="h-4 bg-white/10 rounded w-1/2 mb-4"></div>
+                <div class="h-8 bg-white/10 rounded w-1/3"></div>
+            </div>
+            <div class="bg-indigo-900/50 rounded-2xl p-6 border border-indigo-500/30 animate-pulse">
+                <div class="h-4 bg-indigo-500/30 rounded w-1/2 mb-4"></div>
+                <div class="h-8 bg-indigo-500/30 rounded w-1/3"></div>
+            </div>
+            <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-2xl p-6 border border-green-500/30 animate-pulse">
+                <div class="h-4 bg-green-500/30 rounded w-1/2 mb-4"></div>
+                <div class="h-8 bg-green-500/30 rounded w-1/3"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-tree" class="tab-content hidden">
+        <!-- Referral Tree -->
+        <div class="bg-white/5 rounded-2xl border border-white/10 p-6 overflow-hidden">
+            <div id="tree-container" class="space-y-4">
+                <!-- Skeleton -->
+                <div class="animate-pulse space-y-3">
+                    <div class="h-10 bg-white/5 rounded-xl w-full"></div>
+                    <div class="h-10 bg-white/5 rounded-xl w-5/6 ml-6"></div>
+                    <div class="h-10 bg-white/5 rounded-xl w-4/6 ml-12"></div>
+                </div>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="tree-empty" class="hidden text-center py-10">
+                <div class="text-4xl mb-4 opacity-50">🌱</div>
+                <h3 class="text-lg font-bold text-white" data-i18n="tree_empty_title"></h3>
+                <p class="text-white/50 mt-1" data-i18n="tree_empty_desc"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-history" class="tab-content hidden">
+        <!-- Commission Timeline -->
+        <div class="bg-white/5 rounded-2xl border border-white/10 p-6">
+            <div id="timeline-container" class="space-y-3">
+                <!-- Dynamic Content -->
+                <div class="animate-pulse space-y-3">
+                    <div class="h-16 bg-white/5 rounded-xl w-full"></div>
+                    <div class="h-16 bg-white/5 rounded-xl w-full"></div>
+                </div>
+            </div>
+            
+            <div id="timeline-empty" class="hidden text-center py-10">
+                <p class="text-white/50" data-i18n="timeline_empty"></p>
+            </div>
+            
+            <div class="mt-6 text-center">
+                <button id="load-more-btn" class="hidden px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium transition-colors text-sm" data-i18n="load_more">
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-withdrawal" class="tab-content hidden">
+        <!-- Withdrawal -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-gradient-to-br from-green-900/40 to-emerald-900/40 rounded-2xl p-6 border border-green-500/30">
+                    <div class="text-green-300 text-sm font-medium mb-1" data-i18n="withdrawable_balance"></div>
+                    <div class="text-3xl font-black text-green-400 flex items-baseline gap-1">
+                        <span id="withdrawable-amount">0.000000</span>
+                        <span class="text-sm font-bold opacity-70">USDT</span>
+                    </div>
+                </div>
+                <div class="bg-indigo-900/30 rounded-2xl p-6 border border-indigo-500/30">
+                    <div class="text-indigo-300 text-sm font-medium mb-1" data-i18n="pending_withdrawal"></div>
+                    <div class="text-xl font-bold text-indigo-400 flex items-baseline gap-1">
+                        <span id="pending-withdrawal-amount">0.000000</span>
+                        <span class="text-xs font-bold opacity-70">USDT</span>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-2">
+                <div class="bg-white/5 rounded-2xl border border-white/10 p-6">
+                    <h3 class="text-lg font-bold text-white mb-4" data-i18n="req_withdrawal_title"></h3>
+                    <form id="withdrawal-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-white/70 mb-1" data-i18n="withdrawal_address"></label>
+                            <input type="text" id="withdrawal-address" required
+                                   class="w-full bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white font-mono text-sm focus:outline-none focus:border-green-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-white/70 mb-1" data-i18n="withdrawal_amount"></label>
+                            <div class="relative">
+                                <input type="number" id="withdrawal-amount-input" required step="0.000001" min="10"
+                                       class="w-full bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white font-mono text-sm focus:outline-none focus:border-green-500 transition-colors">
+                                <button type="button" id="btn-max" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded transition-colors">MAX</button>
+                            </div>
+                            <p class="text-xs text-white/40 mt-1" data-i18n="min_withdrawal_notice"></p>
+                        </div>
+                        <button type="submit" id="withdrawal-submit-btn" class="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                            <span data-i18n="req_withdrawal_btn"></span>
+                        </button>
+                    </form>
+                    <div id="withdrawal-msg" class="mt-4 text-sm font-medium hidden p-3 rounded-lg"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", async () => {
+
+        // ── i18n strings ──────────────────────────────────────────────────────
+        const STRINGS = {
+            ko: {
+                title:            "추천인 대시보드",
+                subtitle:         "친구를 초대하고 함께 수익을 창출하세요.",
+                tab_overview:     "요약",
+                tab_tree:         "추천인 트리",
+                tab_history:      "수익 내역",
+                tab_withdrawal:   "출금 신청",
+                my_code_title:    "내 추천인 코드",
+                my_code_desc:     "회원가입 시 아래 코드를 입력하도록 친구에게 안내하세요.",
+                kpi_total:        "총 추천인",
+                kpi_active:       "활성 추천인",
+                kpi_active_sub:   "최근 30일 접속",
+                kpi_pending:      "대기중인 수익",
+                kpi_total_earn:   "총 누적 수익",
+                tree_title:       "추천인 트리",
+                tree_empty_title: "아직 추천인이 없습니다.",
+                tree_empty_desc:  "코드를 공유하여 첫 추천인을 만들어보세요!",
+                tree_direct:      "직접 추천",
+                tree_indirect:    "간접 추천",
+                tree_joined:      "가입일",
+                tree_contrib:     "기여 수익",
+                tree_err:         "트리 데이터를 불러올 수 없습니다.",
+                timeline_title:   "수익 내역",
+                timeline_empty:   "아직 수익 내역이 없습니다.",
+                timeline_earned:  "수익 발생",
+                timeline_pending: "지급 대기",
+                timeline_paid:    "지급 완료",
+                timeline_err:     "내역을 불러올 수 없습니다.",
+                load_more:        "더 보기",
+                copy_btn:         "코드 복사",
+                copied:           "복사 완료!",
+                toast_copied:     "✅ 추천인 코드가 복사되었습니다!",
+                data_err:         "데이터를 불러오는 중 오류가 발생했습니다.",
+                person_unit:      "명",
+                withdrawable_balance: "출금 가능 금액",
+                pending_withdrawal: "출금 대기중",
+                req_withdrawal_title: "수익 출금 신청",
+                withdrawal_address: "받을 지갑 주소 (USDT)",
+                withdrawal_amount: "출금 수량 (USDT)",
+                min_withdrawal_notice: "최소 출금 가능 수량: 10 USDT",
+                req_withdrawal_btn: "출금 신청하기",
+            },
+            en: {
+                title:            "Referral Dashboard",
+                subtitle:         "Invite friends and earn rewards together.",
+                tab_overview:     "Overview",
+                tab_tree:         "Referral Tree",
+                tab_history:      "Commission History",
+                tab_withdrawal:   "Withdrawal",
+                my_code_title:    "My Referral Code",
+                my_code_desc:     "Tell your friends to enter this code during signup.",
+                kpi_total:        "Total Referrals",
+                kpi_active:       "Active Referrals",
+                kpi_active_sub:   "Logged in last 30 days",
+                kpi_pending:      "Pending Earnings",
+                kpi_total_earn:   "Total Accumulated",
+                tree_title:       "Referral Tree",
+                tree_empty_title: "No referrals yet.",
+                tree_empty_desc:  "Share your code to get your first referral!",
+                tree_direct:      "Direct",
+                tree_indirect:    "Indirect",
+                tree_joined:      "Joined",
+                tree_contrib:     "Contribution",
+                tree_err:         "Failed to load referral tree.",
+                timeline_title:   "Earnings History",
+                timeline_empty:   "No earnings history yet.",
+                timeline_earned:  "Commission earned",
+                timeline_pending: "Pending",
+                timeline_paid:    "Paid",
+                timeline_err:     "Failed to load history.",
+                load_more:        "Load more",
+                copy_btn:         "Copy Code",
+                copied:           "Copied!",
+                toast_copied:     "✅ Code copied!",
+                data_err:         "Failed to load data.",
+                person_unit:      "",
+                withdrawable_balance: "Withdrawable Balance",
+                pending_withdrawal: "Pending Withdrawal",
+                req_withdrawal_title: "Request Withdrawal",
+                withdrawal_address: "Destination Address (USDT)",
+                withdrawal_amount: "Withdrawal Amount (USDT)",
+                min_withdrawal_notice: "Minimum withdrawal amount: 10 USDT",
+                req_withdrawal_btn: "Submit Request",
+            },
+            vi: {
+                title:            "Bảng Điều Khiển Giới Thiệu",
+                subtitle:         "Mời bạn bè và cùng nhau tạo thu nhập.",
+                tab_overview:     "Tổng quan",
+                tab_tree:         "Cây giới thiệu",
+                tab_history:      "Lịch sử hoa hồng",
+                tab_withdrawal:   "Rút tiền",
+                my_code_title:    "Mã giới thiệu của tôi",
+                my_code_desc:     "Hãy bảo bạn bè nhập mã này khi đăng ký.",
+                kpi_total:        "Tổng giới thiệu",
+                kpi_active:       "Giới thiệu hoạt động",
+                kpi_active_sub:   "Đã đăng nhập trong 30 ngày qua",
+                kpi_pending:      "Thu nhập đang chờ",
+                kpi_total_earn:   "Tổng thu nhập tích lũy",
+                tree_title:       "Cây Giới Thiệu",
+                tree_empty_title: "Chưa có người được giới thiệu.",
+                tree_empty_desc:  "Chia sẻ mã để tạo người giới thiệu đầu tiên!",
+                tree_direct:      "Trực tiếp",
+                tree_indirect:    "Gián tiếp",
+                tree_joined:      "Ngày tham gia",
+                tree_contrib:     "Đóng góp",
+                tree_err:         "Không thể tải dữ liệu cây giới thiệu.",
+                timeline_title:   "Lịch Sử Thu Nhập",
+                timeline_empty:   "Chưa có lịch sử thu nhập.",
+                timeline_earned:  "Hoa hồng nhận được",
+                timeline_pending: "Đang chờ",
+                timeline_paid:    "Đã thanh toán",
+                timeline_err:     "Không thể tải lịch sử.",
+                load_more:        "Tải thêm",
+                copy_btn:         "Sao chép mã",
+                copied:           "Đã sao chép!",
+                toast_copied:     "✅ Đã sao chép mã!",
+                data_err:         "Đã xảy ra lỗi khi tải dữ liệu.",
+                person_unit:      "",
+                withdrawable_balance: "Số dư có thể rút",
+                pending_withdrawal: "Đang chờ rút",
+                req_withdrawal_title: "Yêu cầu rút tiền",
+                withdrawal_address: "Địa chỉ nhận (USDT)",
+                withdrawal_amount: "Số lượng rút (USDT)",
+                min_withdrawal_notice: "Số lượng rút tối thiểu: 10 USDT",
+                req_withdrawal_btn: "Gửi yêu cầu",
+            },
+            th: {
+                title:            "แดชบอร์ดผู้แนะนำ",
+                subtitle:         "ชวนเพื่อนและสร้างรายได้ไปด้วยกัน",
+                tab_overview:     "ภาพรวม",
+                tab_tree:         "แผนผังผู้แนะนำ",
+                tab_history:      "ประวัติค่าคอมมิชชั่น",
+                tab_withdrawal:   "การถอนเงิน",
+                my_code_title:    "รหัสผู้แนะนำของฉัน",
+                my_code_desc:     "บอกให้เพื่อนของคุณกรอกรหัสนี้ระหว่างการสมัคร",
+                kpi_total:        "ผู้แนะนำทั้งหมด",
+                kpi_active:       "ผู้แนะนำที่ใช้งาน",
+                kpi_active_sub:   "เข้าสู่ระบบใน 30 วันที่ผ่านมา",
+                kpi_pending:      "รายได้ที่รอดำเนินการ",
+                kpi_total_earn:   "รายได้สะสมทั้งหมด",
+                tree_title:       "แผนผังผู้แนะนำ",
+                tree_empty_title: "ยังไม่มีผู้แนะนำ",
+                tree_empty_desc:  "แชร์รหัสเพื่อรับผู้แนะนำคนแรกของคุณ!",
+                tree_direct:      "แนะนำโดยตรง",
+                tree_indirect:    "แนะนำทางอ้อม",
+                tree_joined:      "วันที่สมัคร",
+                tree_contrib:     "ส่วนสนับสนุน",
+                tree_err:         "ไม่สามารถโหลดข้อมูลแผนผังได้",
+                timeline_title:   "ประวัติรายได้",
+                timeline_empty:   "ยังไม่มีประวัติรายได้",
+                timeline_earned:  "ได้รับค่าคอมมิชชั่น",
+                timeline_pending: "รอดำเนินการ",
+                timeline_paid:    "ชำระแล้ว",
+                timeline_err:     "ไม่สามารถโหลดประวัติได้",
+                load_more:        "โหลดเพิ่มเติม",
+                copy_btn:         "คัดลอกรหัส",
+                copied:           "คัดลอกแล้ว!",
+                toast_copied:     "✅ คัดลอกรหัสแล้ว!",
+                data_err:         "เกิดข้อผิดพลาดในการโหลดข้อมูล",
+                person_unit:      "",
+                withdrawable_balance: "ยอดเงินที่ถอนได้",
+                pending_withdrawal: "รอดำเนินการถอน",
+                req_withdrawal_title: "ขอถอนเงิน",
+                withdrawal_address: "ที่อยู่ปลายทาง (USDT)",
+                withdrawal_amount: "จำนวนถอน (USDT)",
+                min_withdrawal_notice: "จำนวนถอนขั้นต่ำ: 10 USDT",
+                req_withdrawal_btn: "ส่งคำขอ",
+            },
+        };
+
+        const getCookieLang = () => {
+            const m = document.cookie.match(/(?:^|;\s*)language=([^;]+)/);
+            return m ? m[1] : null;
+        };
+        const lang = getCookieLang() || "{{ current_lang }}" || "ko";
+        const t = STRINGS[lang] || STRINGS["ko"];
+
+        // Apply i18n strings
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.dataset.i18n;
+            if (t[key] !== undefined) el.textContent = t[key];
+        });
+
+        // Tabs logic
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach(b => {
+                    b.classList.remove('active', 'bg-white/10', 'text-white');
+                    b.classList.add('text-white/60', 'hover:bg-white/5', 'hover:text-white');
+                });
+                btn.classList.add('active', 'bg-white/10', 'text-white');
+                btn.classList.remove('text-white/60', 'hover:bg-white/5', 'hover:text-white');
+
+                const target = btn.dataset.target;
+                tabContents.forEach(content => {
+                    if (content.id === target) {
+                        content.classList.remove('hidden');
+                        content.classList.add('block');
+                    } else {
+                        content.classList.add('hidden');
+                        content.classList.remove('block');
+                    }
+                });
+            });
+        });
+
+        // Fetch auth logic
+        let token = localStorage.getItem('supabase.auth.token');
+        if (token) {
+            try {
+                const parsed = JSON.parse(token);
+                token = parsed.currentSession?.access_token || parsed.access_token || token;
+            } catch(e) {}
+        }
+        const localToken = document.cookie.split('; ').find(row => row.startsWith('auth_token='));
+        if (localToken) token = localToken.split('=')[1];
+
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+
+        const fmt = (val) => {
+            const n = parseFloat(val) || 0;
+            return n % 1 === 0 ? n.toLocaleString() : n.toFixed(6).replace(/\.?0+$/, '');
+        };
+
+        let myReferralCode = '';
+        let maxWithdrawable = 0;
+
+        async function loadDashboard() {
+            try {
+                const res = await fetch(`/api/user/referrals/dashboard`, { headers });
+                if (!res.ok) throw new Error('Failed to fetch dashboard');
+                const resp = await res.json();
+                const data = resp.data || resp;
+
+                myReferralCode = data.referralCode || '';
+                document.getElementById('referral-code-input').value = myReferralCode;
+
+                const personUnit = t.person_unit ? ` ${t.person_unit}` : '';
+
+                const kpiHTML = `
+                    <div class="bg-white/5 rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-colors">
+                        <div class="text-white/60 text-sm font-medium mb-1">${t.kpi_total}</div>
+                        <div class="text-3xl font-black text-white">${data.totalReferrals || 0}${personUnit}</div>
+                    </div>
+                    <div class="bg-white/5 rounded-2xl p-6 border border-white/10 hover:bg-white/10 transition-colors">
+                        <div class="text-white/60 text-sm font-medium mb-1">${t.kpi_active}</div>
+                        <div class="text-3xl font-black text-white">${data.activeReferrals || 0}${personUnit}</div>
+                        <div class="text-xs text-green-400 mt-2">${t.kpi_active_sub}</div>
+                    </div>
+                    <div class="bg-indigo-900/30 rounded-2xl p-6 border border-indigo-500/30">
+                        <div class="text-indigo-300 text-sm font-medium mb-1">${t.kpi_pending}</div>
+                        <div class="text-3xl font-black text-indigo-400">${fmt(data.pendingCommission)} <span class="text-base font-bold opacity-70">USDT</span></div>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-900/40 to-emerald-900/40 rounded-2xl p-6 border border-green-500/30">
+                        <div class="text-green-300 text-sm font-medium mb-1">${t.kpi_total_earn}</div>
+                        <div class="text-3xl font-black text-green-400 flex items-baseline gap-1">
+                            <span>${fmt(data.totalCommission)}</span>
+                            <span class="text-sm font-bold opacity-70">USDT</span>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('kpi-container').innerHTML = kpiHTML;
+            } catch (err) {
+                console.error('Dashboard error:', err);
+                document.getElementById('kpi-container').innerHTML =
+                    `<div class="col-span-4 text-center text-red-400">${t.data_err}</div>`;
+            }
+        }
+
+        async function loadTree() {
+            try {
+                const res = await fetch(`/api/user/referrals/tree`, { headers });
+                if (!res.ok) throw new Error('Failed to fetch tree');
+                const rawData = await res.json();
+                const treeData = Array.isArray(rawData) ? rawData : (rawData.data || []);
+
+                const container = document.getElementById('tree-container');
+                const empty = document.getElementById('tree-empty');
+
+                if (treeData.length === 0) {
+                    container.innerHTML = '';
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                const map = {};
+                const roots = [];
+                treeData.forEach(node => { map[node.id] = { ...node, children: [] }; });
+                treeData.forEach(node => {
+                    if (node.referrer_id && map[node.referrer_id]) {
+                        map[node.referrer_id].children.push(map[node.id]);
+                    } else {
+                        roots.push(map[node.id]);
+                    }
+                });
+
+                function renderNode(node, level = 0) {
+                    const ml = level * 1.5;
+                    const isDirect = (node.level !== undefined ? node.level : level) <= 1;
+                    const badge = isDirect
+                        ? `<span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/20">${t.tree_direct}</span>`
+                        : `<span class="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold">${t.tree_indirect}</span>`;
+
+                    let html = `
+                        <div class="flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-white/5 border border-white/5 bg-black/20" style="margin-left: ${ml}rem">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+                                ${(node.display_name || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-white font-medium truncate flex items-center gap-2">
+                                    ${node.display_name || 'Unknown User'} ${badge}
+                                </div>
+                                <div class="text-white/40 text-xs">${t.tree_joined}: ${new Date(node.created_at).toLocaleDateString()}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-green-400 font-bold text-sm">${fmt(node.total_commission_generated)} USDT</div>
+                                <div class="text-white/30 text-[10px]">${t.tree_contrib}</div>
+                            </div>
+                        </div>
+                    `;
+                    if (node.children && node.children.length > 0) {
+                        html += `<div class="mt-2 space-y-2 relative before:absolute before:left-[1.35rem] before:top-0 before:bottom-6 before:w-px before:bg-white/10">`;
+                        node.children.forEach(child => { html += renderNode(child, level + 1); });
+                        html += `</div>`;
+                    }
+                    return html;
+                }
+
+                container.innerHTML = roots.map(root => renderNode(root)).join('');
+            } catch (err) {
+                console.error('Tree error:', err);
+                document.getElementById('tree-container').innerHTML =
+                    `<div class="text-center text-red-400">${t.tree_err}</div>`;
+            }
+        }
+
+        let timelinePage = 1;
+        async function loadTimeline(append = false) {
+            try {
+                const res = await fetch(`/api/user/commissions/timeline?page=${timelinePage}&limit=10`, { headers });
+                if (!res.ok) throw new Error('Failed to fetch timeline');
+                const data = await res.json();
+
+                const container = document.getElementById('timeline-container');
+                const empty = document.getElementById('timeline-empty');
+                const loadMoreBtn = document.getElementById('load-more-btn');
+
+                if (!append) container.innerHTML = '';
+
+                const items = data.items || data.data || [];
+                if (items.length === 0 && !append) {
+                    empty.classList.remove('hidden');
+                    loadMoreBtn.classList.add('hidden');
+                    return;
+                }
+
+                let html = '';
+                items.forEach(item => {
+                    const isPending = (item.status || '').toUpperCase() === 'PENDING';
+                    const isWithdrawal = (item.description || '').toUpperCase() === 'WITHDRAWAL';
+                    const statusLabel = isPending ? t.timeline_pending : t.timeline_paid;
+                    const desc = isWithdrawal ? t.tab_withdrawal : (item.description || t.timeline_earned);
+                    
+                    const amountColor = isWithdrawal ? (isPending ? 'text-indigo-400' : 'text-white') : (isPending ? 'text-indigo-400' : 'text-green-400');
+                    const amountPrefix = isWithdrawal ? '-' : '+';
+                    const bgIcon = isWithdrawal ? 'bg-orange-500/20 text-orange-400' : (isPending ? 'bg-indigo-500/20 text-indigo-400' : 'bg-green-500/20 text-green-400');
+                    const icon = isWithdrawal ? '💸' : (isPending ? '⏳' : '💰');
+                    
+                    html += `
+                        <div class="flex items-center gap-4 p-4 rounded-xl border border-white/5 bg-black/20 hover:bg-white/5 transition-colors">
+                            <div class="w-12 h-12 rounded-full ${bgIcon} flex items-center justify-center text-xl shrink-0">
+                                ${icon}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-white font-medium text-sm sm:text-base">${desc}</div>
+                                <div class="text-white/40 text-xs sm:text-sm mt-0.5">${new Date(item.created_at).toLocaleString()}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-lg font-black ${amountColor}">${amountPrefix}${fmt(Math.abs(item.amount))} USDT</div>
+                                <div class="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded inline-block mt-1 ${isPending ? 'bg-indigo-500/10 text-indigo-300' : 'bg-green-500/10 text-green-300'}">
+                                    ${statusLabel}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.insertAdjacentHTML('beforeend', html);
+                const hasNext = data.has_next || (data.pagination && data.pagination.has_next);
+                if (hasNext) {
+                    loadMoreBtn.classList.remove('hidden');
+                } else {
+                    loadMoreBtn.classList.add('hidden');
+                }
+            } catch (err) {
+                console.error('Timeline error:', err);
+                if (!append) document.getElementById('timeline-container').innerHTML =
+                    `<div class="text-center text-red-400">${t.timeline_err}</div>`;
+            }
+        }
+
+        async function loadWithdrawalInfo() {
+            try {
+                const res = await fetch(`/api/user/referrals/withdrawal-info`, { headers });
+                if (!res.ok) throw new Error('Failed to fetch withdrawal info');
+                const data = await res.json();
+                
+                if (data.success && data.data) {
+                    const info = data.data;
+                    maxWithdrawable = info.availableBalance;
+                    document.getElementById('withdrawable-amount').innerText = fmt(info.availableBalance);
+                    document.getElementById('pending-withdrawal-amount').innerText = fmt(info.pendingWithdrawal);
+                }
+            } catch (err) {
+                console.error('Withdrawal info error:', err);
+            }
+        }
+
+        document.getElementById('load-more-btn').addEventListener('click', () => {
+            timelinePage++;
+            loadTimeline(true);
+        });
+
+        const copyBtn  = document.getElementById('copy-btn');
+        const copyIcon = document.getElementById('copy-icon');
+        const copyText = document.getElementById('copy-text');
+
+        copyBtn.addEventListener('click', () => {
+            if (!myReferralCode) return;
+            navigator.clipboard.writeText(myReferralCode);
+
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold text-sm z-[100] animate-[slideIn_0.3s_ease-out]';
+            toast.innerText = t.toast_copied;
+            document.body.appendChild(toast);
+
+            fetch(`/api/user/events`, {
+                method: 'POST', headers,
+                body: JSON.stringify({ event_type: 'COPY_CODE', metadata: { source: 'fastapi_desktop' } })
+            }).catch(e => console.error(e));
+
+            copyIcon.innerText = '✅';
+            copyText.innerText = t.copied;
+            copyBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500');
+            copyBtn.classList.add('bg-green-600', 'hover:bg-green-500');
+
+            setTimeout(() => {
+                copyIcon.innerText = '📋';
+                copyText.innerText = t.copy_btn;
+                copyBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-500');
+                copyBtn.classList.remove('bg-green-600', 'hover:bg-green-500');
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        });
+
+        document.getElementById('btn-max').addEventListener('click', () => {
+            document.getElementById('withdrawal-amount-input').value = maxWithdrawable;
+        });
+
+        document.getElementById('withdrawal-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('withdrawal-submit-btn');
+            const msgEl = document.getElementById('withdrawal-msg');
+            const amount = document.getElementById('withdrawal-amount-input').value;
+            const address = document.getElementById('withdrawal-address').value;
+
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+            msgEl.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/user/referrals/withdraw', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ amount: parseFloat(amount), dest_address: address })
+                });
+                const data = await res.json();
+                
+                msgEl.classList.remove('hidden', 'bg-red-500/20', 'text-red-400', 'bg-green-500/20', 'text-green-400');
+                if (data.success) {
+                    msgEl.classList.add('bg-green-500/20', 'text-green-400');
+                    msgEl.innerText = data.message || "출금 신청 완료";
+                    document.getElementById('withdrawal-amount-input').value = '';
+                    document.getElementById('withdrawal-address').value = '';
+                    loadWithdrawalInfo(); // Refresh balance
+                    timelinePage = 1;
+                    loadTimeline(false); // Refresh timeline
+                } else {
+                    msgEl.classList.add('bg-red-500/20', 'text-red-400');
+                    msgEl.innerText = data.error || "오류 발생";
+                }
+            } catch (err) {
+                msgEl.classList.remove('hidden');
+                msgEl.classList.add('bg-red-500/20', 'text-red-400');
+                msgEl.innerText = "네트워크 오류가 발생했습니다.";
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        });
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        loadDashboard();
+        loadTree();
+        loadTimeline();
+        loadWithdrawalInfo();
+
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes slideIn {
+                from { transform: translate(-50%, -100%); opacity: 0; }
+                to   { transform: translate(-50%, 0);    opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    });
+</script>
+{% endblock %}

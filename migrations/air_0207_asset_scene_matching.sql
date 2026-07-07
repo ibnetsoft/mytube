@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS asset_scene_matches (
     confidence FLOAT,
     is_auto_matched BOOLEAN DEFAULT true,
     user_overridden BOOLEAN DEFAULT false,
+    match_status TEXT DEFAULT 'suggested',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );

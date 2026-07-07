@@ -125,7 +125,19 @@ def test_asset_matching():
     assert updated_match["scene_id"] == "scene002"
     assert updated_match["shot_id"] == "shot009"
     assert updated_match["user_overridden"] is True
+    assert updated_match["match_status"] == "approved"
     print("Test 4 PASS\n")
+
+    print("=== Test 5: Update Match Status ===")
+    status_success = asset_matching_service.update_match_status(
+        match_id=match2["id"],
+        status="rejected"
+    )
+    assert status_success, "Status update should succeed"
+    
+    updated_match2 = next((m for m in mock_db["asset_scene_matches"] if m["id"] == match2["id"]), None)
+    assert updated_match2["match_status"] == "rejected"
+    print("Test 5 PASS\n")
 
     print("ALL TESTS PASSED")
 
