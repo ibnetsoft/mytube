@@ -193,10 +193,37 @@
 
 ---
 
+---
+
+## Scenario 8 — Release rollback (lower version re-published)
+
+**Goal**: Verify that when `latest.json` points to a version **lower** than what is
+installed, the Launcher does NOT downgrade. (True rollback requires reinstall.)
+
+### Steps
+
+1. Install version 0.2.0.
+2. Set `latest.json.version = "0.1.0"` (lower than installed).
+3. Launch `AIRLauncher.exe`.
+
+### Expected results
+
+| Check | Expected |
+|-------|----------|
+| `launcher.log` — `Already up to date` | Present |
+| App | Launches 0.2.0 (no downgrade) |
+| `current.json.version` | `"0.2.0"` (unchanged) |
+
+> **Note**: Downgrade requires reinstall via the installer `.exe`.
+> See `RELEASE_PROCESS.md` for rollback procedure.
+
+---
+
 ## Pass Criteria
 
-All 7 scenarios must pass. No scenario may leave:
+All 8 scenarios must pass. No scenario may leave:
 - The install root in a non-bootable state
 - `Launcher/AIRLauncher.exe` modified
 - `current.json` or `app/version.json` with a version different from what was installed
 - A SHA256 mismatch silently ignored
+- An unintended downgrade applied automatically

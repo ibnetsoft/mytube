@@ -1,84 +1,205 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    AIR Studio Windows build pipeline (AIR-0216).
+
+.DESCRIPTION
+    Builds PyInstaller bundle, Launcher/Updater binaries, and optional Inno Setup
+    installer.  Produces a standardised release/ directory:
+
+        release/
+          AIRStudio-{version}-win-x64.zip           portable archive
+          AIRStudio-{version}-win-x64.zip.sha256     SHA256 sidecar
+          AIRStudioSetup-{version}.exe               Inno Setup installer
+          AIRStudioSetup-{version}.exe.sha256        SHA256 sidecar
+          latest.json                                update manifest
+          latest.json.sha256                         SHA256 sidecar
+
+.PARAMETER Version
+    Semantic version string (default: "0.1.0").  Pass "auto" to read from
+    packaging/windows/VERSION.txt.
+
+.PARAMETER Build
+    Integer build / task ID.  Pass 0 (default) to auto-increment from
+    packaging/windows/build_counter.txt.
+
+.PARAMETER GitHubRepo
+    GitHub repository in OWNER/REPO format (default: ibnetsoft/mytube).
+
+.PARAMETER Channel
+    Release channel: "stable" | "beta" | "dev" (default: stable).
+
+.PARAMETER SkipInstaller
+    Skip Inno Setup step even if ISCC.exe is available.
+
+.PARAMETER SkipDependencyInstall
+    Skip pip install steps (faster if dependencies are already installed).
+
+.EXAMPLE
+    # Auto-increment build, specific version
+    .\build_windows.ps1 -Version 1.0.0
+
+    # Explicit build number, beta channel
+    .\build_windows.ps1 -Version 1.0.0 -Build 220 -Channel beta
+
+    # Skip installer (portable ZIP only)
+    .\build_windows.ps1 -Version 1.0.0 -SkipInstaller
+#>
 param(
     [string]$Version = "0.1.0",
     [int]$Build = 0,
     [string]$GitHubRepo = "ibnetsoft/mytube",
+    [ValidateSet("stable","beta","dev")]
+    [string]$Channel = "stable",
     [switch]$SkipInstaller,
     [switch]$SkipDependencyInstall
 )
 
 $ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
 
-$Root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Spec = Join-Path $Root "packaging\windows\AIRStudio.spec"
-$ReleaseDir = Join-Path $Root "release"
-$DistDir = Join-Path $Root "dist\AIRStudio"
-$StagingRoot = Join-Path $ReleaseDir "staging\AIRStudio"
-$StagingApp = Join-Path $StagingRoot "app"
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+$Root            = Resolve-Path (Join-Path $PSScriptRoot "..")
+$Spec            = Join-Path $Root "packaging\windows\AIRStudio.spec"
+$CounterFile     = Join-Path $Root "packaging\windows\build_counter.txt"
+$ReleaseDir      = Join-Path $Root "release"
+$DistDir         = Join-Path $Root "dist\AIRStudio"
+$StagingRoot     = Join-Path $ReleaseDir "staging\AIRStudio"
+$StagingApp      = Join-Path $StagingRoot "app"
 $StagingLauncher = Join-Path $StagingRoot "Launcher"
-$ZipPath = Join-Path $ReleaseDir "AIRStudio-$Version-win-x64.zip"
-$ManifestPath = Join-Path $ReleaseDir "latest.json"
 
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
 
+# ---------------------------------------------------------------------------
+# Build number — auto-increment from build_counter.txt
+# ---------------------------------------------------------------------------
+function Get-NextBuildNumber {
+    param([string]$CounterPath)
+    if (Test-Path $CounterPath) {
+        $current = [int](Get-Content $CounterPath -Raw).Trim()
+    } else {
+        $current = 0
+    }
+    $next = $current + 1
+    Set-Content -Path $CounterPath -Value $next -NoNewline -Encoding UTF8
+    return $next
+}
+
+if ($Build -eq 0) {
+    $Build = Get-NextBuildNumber -CounterPath $CounterFile
+    Write-Host "Auto-incremented build number: $Build"
+} else {
+    # If an explicit build number is provided, update the counter if it's higher
+    if (Test-Path $CounterFile) {
+        $stored = [int](Get-Content $CounterFile -Raw).Trim()
+        if ($Build -gt $stored) {
+            Set-Content -Path $CounterFile -Value $Build -NoNewline -Encoding UTF8
+        }
+    } else {
+        Set-Content -Path $CounterFile -Value $Build -NoNewline -Encoding UTF8
+    }
+    Write-Host "Using explicit build number: $Build"
+}
+
+# Artifact paths (final names)
+$ZipName          = "AIRStudio-$Version-win-x64.zip"
+$InstallerName    = "AIRStudioSetup-$Version.exe"
+$ZipPath          = Join-Path $ReleaseDir $ZipName
+$InstallerPath    = Join-Path $ReleaseDir $InstallerName
+$ManifestPath     = Join-Path $ReleaseDir "latest.json"
+
+Write-Host ""
+Write-Host "=== AIR Studio Windows Build ==="
+Write-Host "  Version : $Version"
+Write-Host "  Build   : $Build"
+Write-Host "  Channel : $Channel"
+Write-Host "  Repo    : $GitHubRepo"
+Write-Host ""
+
+# ---------------------------------------------------------------------------
+# SHA256 helper
+# ---------------------------------------------------------------------------
+function Write-Sha256Sidecar {
+    param([string]$FilePath)
+    if (-not (Test-Path $FilePath)) { return }
+    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $FilePath).Hash.ToLowerInvariant()
+    $sidecar = "$FilePath.sha256"
+    # Format: "<hash>  <filename>" (standard sha256sum format)
+    $fileName = Split-Path $FilePath -Leaf
+    Set-Content -Path $sidecar -Value "$hash  $fileName" -Encoding UTF8
+    Write-Host "  SHA256 : $hash"
+    Write-Host "  Sidecar: $sidecar"
+    return $hash
+}
+
+# ---------------------------------------------------------------------------
+# Main build
+# ---------------------------------------------------------------------------
 Push-Location $Root
 try {
     $env:PYTHONNOUSERSITE = "1"
-    $env:PYTHONUSERBASE = Join-Path $Root ".pyuserbase"
+    $env:PYTHONUSERBASE   = Join-Path $Root ".pyuserbase"
     New-Item -ItemType Directory -Force -Path $env:PYTHONUSERBASE | Out-Null
 
+    # ---- Python / venv setup ----
     if (-not (Test-Path "venv\Scripts\python.exe")) {
+        Write-Host "Creating virtualenv..."
         python -m venv venv
     }
 
     if (-not $SkipDependencyInstall) {
-        & "venv\Scripts\python.exe" -m pip install -r requirements.txt
+        Write-Host "Installing dependencies..."
+        & "venv\Scripts\python.exe" -m pip install --quiet -r requirements.txt
         & "venv\Scripts\python.exe" -c "import PyInstaller" 2>$null
         if ($LASTEXITCODE -ne 0) {
-            & "venv\Scripts\python.exe" -m pip install pyinstaller
+            & "venv\Scripts\python.exe" -m pip install --quiet pyinstaller
         }
     }
 
+    # ---- PyInstaller: main app bundle ----
+    Write-Host "Building AIRStudio bundle..."
     & "venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean $Spec
-
     if (-not (Test-Path $DistDir)) {
         throw "PyInstaller output not found: $DistDir"
     }
 
+    # ---- Staging layout ----
     if (Test-Path $StagingRoot) {
         Remove-Item -LiteralPath $StagingRoot -Recurse -Force
     }
-    New-Item -ItemType Directory -Force -Path $StagingApp | Out-Null
+    New-Item -ItemType Directory -Force -Path $StagingApp      | Out-Null
     New-Item -ItemType Directory -Force -Path $StagingLauncher | Out-Null
 
     Copy-Item -Path (Join-Path $DistDir "*") -Destination $StagingApp -Recurse -Force
 
+    # ---- PyInstaller: AIRLauncher ----
+    Write-Host "Building AIRLauncher.exe..."
     & "venv\Scripts\python.exe" -m PyInstaller `
-        --noconfirm `
-        --clean `
-        --onefile `
-        --noconsole `
+        --noconfirm --clean --onefile --noconsole `
         --name AIRLauncher `
         --distpath $StagingLauncher `
         --workpath (Join-Path $Root "build\AIRLauncher") `
         (Join-Path $Root "packaging\windows\launcher\AIRLauncher.py")
 
+    # ---- PyInstaller: AIRUpdater ----
+    Write-Host "Building AIRUpdater.exe..."
     & "venv\Scripts\python.exe" -m PyInstaller `
-        --noconfirm `
-        --clean `
-        --onefile `
-        --noconsole `
+        --noconfirm --clean --onefile --noconsole `
         --name AIRUpdater `
         --distpath $StagingLauncher `
         --workpath (Join-Path $Root "build\AIRUpdater") `
         (Join-Path $Root "packaging\windows\launcher\AIRUpdater.py")
 
+    # ---- update_config.json ----
     @{
         manifest_url = "https://github.com/$GitHubRepo/releases/latest/download/latest.json"
-    } | ConvertTo-Json -Depth 3 | Set-Content -Path (Join-Path $StagingLauncher "update_config.json") -Encoding UTF8
+    } | ConvertTo-Json -Depth 3 | Set-Content `
+        -Path (Join-Path $StagingLauncher "update_config.json") -Encoding UTF8
 
-    # Canonical version record schema (version, installed_at, build).
-    # Written to both the install root and inside app/ as a fallback.
-    $InstalledAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    # ---- Canonical version record ----
+    $InstalledAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     $VersionRecord = [ordered]@{
         version      = $Version
         installed_at = $InstalledAt
@@ -86,44 +207,87 @@ try {
     }
     $VersionRecordJson = $VersionRecord | ConvertTo-Json -Depth 3
 
-    $VersionRecordJson | Set-Content -Path (Join-Path $StagingRoot "current.json") -Encoding UTF8
+    $VersionRecordJson | Set-Content `
+        -Path (Join-Path $StagingRoot "current.json") -Encoding UTF8
+    $VersionRecordJson | Set-Content `
+        -Path (Join-Path $StagingApp  "version.json") -Encoding UTF8
 
-    # Embed version.json inside the app/ payload so AIRLauncher can read it
-    # as a fallback when current.json at the root is absent or stale.
-    $VersionRecordJson | Set-Content -Path (Join-Path $StagingApp "version.json") -Encoding UTF8
-
-    if (Test-Path $ZipPath) {
-        Remove-Item -LiteralPath $ZipPath -Force
-    }
+    # ---- Portable ZIP ----
+    Write-Host "Creating portable ZIP: $ZipName"
+    if (Test-Path $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
     Compress-Archive -Path (Join-Path $StagingRoot "*") -DestinationPath $ZipPath -Force
 
-    $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ZipPath).Hash.ToLowerInvariant()
+    # ---- latest.json + ZIP SHA256 ----
+    Write-Host "Computing ZIP SHA256..."
+    $ZipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ZipPath).Hash.ToLowerInvariant()
+
     $Manifest = [ordered]@{
         version       = $Version
         build         = $Build
-        channel       = "stable"
+        channel       = $Channel
         mandatory     = $false
-        installer_url = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudioSetup-$Version.exe"
-        portable_url  = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudio-$Version-win-x64.zip"
-        sha256        = $Hash
-        notes         = "AIR Studio Windows build $Version (build $Build)"
+        installer_url = "https://github.com/$GitHubRepo/releases/download/v$Version/$InstallerName"
+        portable_url  = "https://github.com/$GitHubRepo/releases/download/v$Version/$ZipName"
+        sha256        = $ZipHash
+        notes         = "AIR Studio v$Version (build $Build, channel $Channel)"
     }
     $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
 
+    # ---- SHA256 sidecar files ----
+    Write-Host ""
+    Write-Host "--- Release artifacts ---"
+    Write-Host "ZIP      : $ZipPath"
+    Write-Sha256Sidecar -FilePath $ZipPath | Out-Null
+
+    Write-Host "Manifest : $ManifestPath"
+    Write-Sha256Sidecar -FilePath $ManifestPath | Out-Null
+
+    # ---- Inno Setup installer ----
+    $InstallerBuilt = $false
     if (-not $SkipInstaller) {
         $Inno = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
         if ($null -eq $Inno) {
-            Write-Warning "ISCC.exe was not found. Install Inno Setup or rerun with -SkipInstaller."
+            Write-Warning "ISCC.exe not found — skipping installer. Install Inno Setup or use -SkipInstaller."
         } else {
-            $env:AIR_VERSION = $Version
+            Write-Host "Building installer: $InstallerName"
+            $env:AIR_VERSION      = $Version
+            $env:AIR_RELEASE_DIR  = $ReleaseDir
             & $Inno.Source (Join-Path $Root "packaging\windows\AIRStudio.iss")
+            if (Test-Path $InstallerPath) {
+                $InstallerBuilt = $true
+                Write-Host "Installer: $InstallerPath"
+                Write-Sha256Sidecar -FilePath $InstallerPath | Out-Null
+            } else {
+                Write-Warning "Installer output not found at $InstallerPath"
+            }
         }
     }
 
-    Write-Host "Build complete:"
+    # ---- Build summary ----
+    Write-Host ""
+    Write-Host "=== Build complete ==="
+    Write-Host "  Version  : $Version"
+    Write-Host "  Build    : $Build"
+    Write-Host "  Channel  : $Channel"
+    Write-Host ""
+    Write-Host "Release artifacts:"
     Write-Host "  $ZipPath"
+    Write-Host "  $ZipPath.sha256"
+    if ($InstallerBuilt) {
+        Write-Host "  $InstallerPath"
+        Write-Host "  $InstallerPath.sha256"
+    }
     Write-Host "  $ManifestPath"
-    Write-Host "  $StagingRoot"
+    Write-Host "  $ManifestPath.sha256"
+    Write-Host ""
+    Write-Host "To publish to GitHub Releases:"
+    if ($InstallerBuilt) {
+        Write-Host "  .\tools\release_github.ps1 -Version $Version -Build $Build"
+    } else {
+        Write-Host "  .\tools\release_github.ps1 -Version $Version -Build $Build -SkipInstaller"
+    }
+    Write-Host ""
+
 } finally {
     Pop-Location
 }

@@ -1,67 +1,178 @@
-name: Windows Release
+name: Windows Release (AIR-0218)
 
+# Triggers:
+#   - Push a version tag: git tag v1.0.0 && git push origin v1.0.0
+#   - Manual dispatch from GitHub Actions UI (supply version + channel)
 on:
   push:
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version without the v prefix"
+        description: "Release version without the v prefix (e.g. 1.0.0)"
         required: true
         default: "0.1.0"
+      channel:
+        description: "Release channel"
+        required: true
+        default: "stable"
+        type: choice
+        options:
+          - stable
+          - beta
+          - dev
+      draft:
+        description: "Create as draft release"
+        required: false
+        default: "false"
+        type: boolean
+      prerelease:
+        description: "Mark as pre-release"
+        required: false
+        default: "false"
+        type: boolean
 
 permissions:
-  contents: write
+  contents: write   # required for gh release create/upload
 
 jobs:
-  build:
+  build-and-release:
+    name: Build Windows artifacts and publish GitHub Release
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
+      # ----------------------------------------------------------------
+      # 1. Checkout full history (needed for tag-based version detection)
+      # ----------------------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set version
+      # ----------------------------------------------------------------
+      # 2. Resolve version and channel from tag or manual input
+      # ----------------------------------------------------------------
+      - name: Resolve version and channel
+        id: resolve
         shell: pwsh
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            "VERSION=${{ github.event.inputs.version }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+            $ver     = "${{ github.event.inputs.version }}"
+            $channel = "${{ github.event.inputs.channel }}"
+            $draft   = "${{ github.event.inputs.draft }}" -eq "true"
+            $pre     = "${{ github.event.inputs.prerelease }}" -eq "true"
           } else {
-            $tag = "${{ github.ref_name }}"
-            "VERSION=$($tag.TrimStart('v'))" | Out-File -FilePath $env:GITHUB_ENV -Append
+            $ver     = "${{ github.ref_name }}".TrimStart("v")
+            $channel = "stable"
+            $draft   = $false
+            $pre     = $false
           }
+          # Read current build counter; increment is done by build_windows.ps1
+          $counterFile = "packaging/windows/build_counter.txt"
+          $currentBuild = if (Test-Path $counterFile) {
+              [int](Get-Content $counterFile -Raw).Trim()
+          } else { 0 }
+          $nextBuild = $currentBuild + 1
 
-      - name: Set up Python
+          Write-Host "VERSION=$ver  BUILD=$nextBuild  CHANNEL=$channel"
+          "VERSION=$ver"          >> $env:GITHUB_OUTPUT
+          "BUILD=$nextBuild"      >> $env:GITHUB_OUTPUT
+          "CHANNEL=$channel"      >> $env:GITHUB_OUTPUT
+          "DRAFT=$($draft.ToString().ToLower())"       >> $env:GITHUB_OUTPUT
+          "PRERELEASE=$($pre.ToString().ToLower())"    >> $env:GITHUB_OUTPUT
+
+      # ----------------------------------------------------------------
+      # 3. Python setup
+      # ----------------------------------------------------------------
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: "pip"
 
+      # ----------------------------------------------------------------
+      # 4. Inno Setup (for installer .exe)
+      # ----------------------------------------------------------------
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
 
+      # ----------------------------------------------------------------
+      # 5. Build — PyInstaller + packaging + SHA256 sidecars
+      # ----------------------------------------------------------------
       - name: Build Windows package
+        id: build
         shell: pwsh
-        run: .\tools\build_windows.ps1 -Version $env:VERSION -GitHubRepo $env:GITHUB_REPOSITORY
+        run: |
+          $ver     = "${{ steps.resolve.outputs.VERSION }}"
+          $build   = [int]"${{ steps.resolve.outputs.BUILD }}"
+          $channel = "${{ steps.resolve.outputs.CHANNEL }}"
+          .\tools\build_windows.ps1 `
+            -Version $ver `
+            -Build   $build `
+            -Channel $channel `
+            -GitHubRepo "${{ github.repository }}"
 
+          # Expose artifact paths for upload step
+          $zipName  = "AIRStudio-$ver-win-x64.zip"
+          $instName = "AIRStudioSetup-$ver.exe"
+          "ZIP_NAME=$zipName"   >> $env:GITHUB_OUTPUT
+          "INST_NAME=$instName" >> $env:GITHUB_OUTPUT
+
+      # ----------------------------------------------------------------
+      # 6. Upload build artifacts (for debugging / manual download)
+      # ----------------------------------------------------------------
+      - name: Upload release artifacts to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.resolve.outputs.VERSION }}-build${{ steps.resolve.outputs.BUILD }}
+          path: |
+            release/${{ steps.build.outputs.ZIP_NAME }}
+            release/${{ steps.build.outputs.ZIP_NAME }}.sha256
+            release/${{ steps.build.outputs.INST_NAME }}
+            release/${{ steps.build.outputs.INST_NAME }}.sha256
+            release/latest.json
+            release/latest.json.sha256
+          if-no-files-found: warn
+          retention-days: 30
+
+      # ----------------------------------------------------------------
+      # 7. Publish GitHub Release
+      # ----------------------------------------------------------------
       - name: Publish GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v$env:VERSION"
-          $assets = @(
-            "release\AIRStudio-$env:VERSION-win-x64.zip",
-            "release\latest.json"
-          )
-          $installer = "release\AIRStudioSetup-$env:VERSION.exe"
-          if (Test-Path $installer) {
-            $assets += $installer
-          }
-          gh release view $tag 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $assets --title "AIR Studio $env:VERSION" --notes "Windows release $env:VERSION"
-          } else {
-            gh release upload $tag $assets --clobber
-          }
+          $ver     = "${{ steps.resolve.outputs.VERSION }}"
+          $build   = "${{ steps.resolve.outputs.BUILD }}"
+          $channel = "${{ steps.resolve.outputs.CHANNEL }}"
+          $tag     = "v$ver"
+
+          $extraArgs = @()
+          if ("${{ steps.resolve.outputs.DRAFT }}"      -eq "true") { $extraArgs += "--draft" }
+          if ("${{ steps.resolve.outputs.PRERELEASE }}" -eq "true") { $extraArgs += "--prerelease" }
+
+          .\tools\release_github.ps1 `
+            -Version     $ver `
+            -Build       ([int]$build) `
+            -GitHubRepo  "${{ github.repository }}" `
+            -Channel     $channel `
+            @extraArgs
+
+      # ----------------------------------------------------------------
+      # 8. Commit updated build_counter.txt back to the repo
+      # ----------------------------------------------------------------
+      - name: Commit build counter increment
+        shell: pwsh
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packaging/windows/build_counter.txt
+          $build = "${{ steps.resolve.outputs.BUILD }}"
+          git diff --cached --quiet && echo "No counter change to commit." && exit 0
+          git commit -m "chore: increment build counter to $build [skip ci]"
+          git push origin HEAD:${{ github.ref_name }} 2>$null || `
+          git push origin HEAD:main 2>$null || `
+          Write-Warning "Could not push counter update — update manually."
