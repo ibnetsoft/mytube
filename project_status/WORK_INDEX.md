@@ -440,3 +440,5 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Branch: `auth-web-lint-fixes`
 - Commit: `cdb7c23b`
 - Short summary: Fixed auth-web lint execution errors and resolved lint warnings. Lint-only change, no functional modifications.
+
+- [AIR-0209](../worknote/AIR-0209.md) - Planning Scene Contract Refactor (DONE)
