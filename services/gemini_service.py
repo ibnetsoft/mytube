@@ -2771,10 +2771,6 @@ Motion prompt for this image:"""
         return await asyncio.to_thread(_download)
 
 
-# 싱글톤 인스턴스
-gemini_service = GeminiService()
-
-
     async def generate_image_prompts_for_scenes(self, scenes: list, style_key: str = None, project_id: int = None, character_reference: str = None) -> list:
         """기획 단계에서 확정된 scenes 배열을 기반으로 이미지 프롬프트 생성"""
         import json
@@ -2817,4 +2813,9 @@ Return ONLY a valid JSON array containing objects for each scene. Do not change 
             print(f"Error parsing chunk prompts: {e}")
             
         return []
+
+
+# 싱글톤 인스턴스
+gemini_service = GeminiService()
+
 
