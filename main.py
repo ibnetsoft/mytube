@@ -355,6 +355,7 @@ from app.routers import voices as voices_router
 from app.routers import script_api as script_api_router  # [AIR-0203]
 from app.routers import director_api as director_api_router  # [AIR-0205]
 from app.routers import production_api as production_api_router  # [AIR-0206]
+from app.routers import render_api as render_api_router  # [AIR-0207]
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -389,6 +390,7 @@ app.include_router(voices_router.router)
 app.include_router(script_api_router.router, prefix="/api/script")  # [AIR-0203]
 app.include_router(director_api_router.router, prefix="/api/director")  # [AIR-0205]
 app.include_router(production_api_router.router, prefix="/api/production")  # [AIR-0206]
+app.include_router(render_api_router.router, prefix="/api/render")  # [AIR-0207]
 pages_router.init_pages(templates)
 repository_router.init_repository(templates)  # [AIR-0134]
 

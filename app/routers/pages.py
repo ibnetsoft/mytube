@@ -315,6 +315,20 @@ async def page_admin_production_planner(request: Request):
         app_mode="longform"
     )
 
+@router.get("/admin/render-orchestrator", response_class=HTMLResponse)
+async def page_admin_render_orchestrator(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/render_orchestrator_preview.html",
+        "admin-render-orchestrator",
+        "Render Orchestrator",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
