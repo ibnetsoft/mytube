@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.voice_profiles (
     sample_hash text null,
     description text null,
     
-    analysis_status text not null default 'pending' CHECK (analysis_status IN ('pending', 'analyzing', 'manual', 'analyzed', 'failed', 'needs_review')),
+    analysis_status text not null default 'pending' CHECK (analysis_status IN ('pending', 'manual', 'analyzed', 'failed', 'needs_review')),
     analysis_result jsonb null,
     voice_traits jsonb null,
     
