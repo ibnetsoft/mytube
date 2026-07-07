@@ -13,6 +13,27 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+# Windows 콘솔/태스크바 아이콘을 클래퍼보드(🎬)로 변경
+def _set_window_icon():
+    if sys.platform != 'win32':
+        return
+    try:
+        import ctypes
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "air_studio.ico")
+        if not os.path.exists(icon_path):
+            return
+        HWND = ctypes.windll.kernel32.GetConsoleWindow()
+        if not HWND:
+            return
+        hIcon = ctypes.windll.user32.LoadImageW(None, icon_path, 1, 0, 0, 0x0010 | 0x0040)
+        if hIcon:
+            ctypes.windll.user32.SendMessageW(HWND, 0x0080, 1, hIcon)  # WM_SETICON ICON_BIG
+            ctypes.windll.user32.SendMessageW(HWND, 0x0080, 0, hIcon)  # WM_SETICON ICON_SMALL
+    except Exception:
+        pass
+
+_set_window_icon()
+
 from fastapi import FastAPI, Request, HTTPException, Form, BackgroundTasks, Body, Query, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -1856,14 +1877,15 @@ if __name__ == "__main__":
             import webview
             
             # 독립 데스크톱 창 생성 (Edge Chromium 기반 WebView2 기동)
+            _ico = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "air_studio.ico")
             webview.create_window(
-                "AIR Studio", 
+                "AIR Studio",
                 f"http://{config.HOST}:{config.PORT}",
                 width=1280,
                 height=800,
                 resizable=True
             )
-            webview.start()
+            webview.start(icon=_ico if os.path.exists(_ico) else None)
         except ImportError:
             print("webview 라이브러리를 찾을 수 없어 기본 브라우저로 실행합니다.")
             import webbrowser
