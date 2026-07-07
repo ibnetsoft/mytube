@@ -1,0 +1,161 @@
+<div class="p-6 text-white h-[calc(100vh-4rem)] flex flex-col">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold flex items-center gap-2">
+            <span>🎬</span> Director AI (Shot Planner)
+        </h1>
+    </div>
+
+    <div class="flex-1 min-h-0 flex gap-6">
+        <!-- Input Panel -->
+        <div class="w-1/3 flex flex-col gap-4">
+            <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10 flex-1 flex flex-col">
+                <h3 class="text-gray-400 font-bold mb-2">Input (Script Analysis JSON)</h3>
+                <textarea id="scriptInput" class="w-full flex-1 bg-[#101216] text-white p-3 rounded-lg border border-white/10 focus:border-blue-500 focus:outline-none resize-none font-mono text-xs" placeholder="Paste the JSON output from the Script Analyzer here..."></textarea>
+                
+                <button id="analyzeBtn" onclick="planShots()" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <span id="analyzeBtnText">Plan Shots</span>
+                    <svg id="analyzeBtnLoading" class="animate-spin h-5 w-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Output Panel -->
+        <div class="w-2/3 flex flex-col h-full bg-[#15191f] rounded-lg border border-white/5 overflow-hidden">
+            
+            <div id="resultContainer" class="hidden flex-1 flex flex-col gap-4 p-4 overflow-y-auto">
+                
+                <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-blue-400 font-bold mb-1">Total Shots</h3>
+                        <p id="resShotCount" class="text-3xl font-bold text-white">0</p>
+                    </div>
+                    <div class="text-right">
+                        <h3 class="text-green-400 font-bold mb-1">Total Duration</h3>
+                        <p class="text-3xl font-bold text-white"><span id="resTotalDuration">0</span>s</p>
+                    </div>
+                </div>
+
+                <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10 flex-1">
+                    <h3 class="text-purple-400 font-bold mb-2">Shot Plan</h3>
+                    <div id="resShots" class="flex flex-col gap-3"></div>
+                </div>
+                
+                <div class="mt-4">
+                    <h3 class="text-gray-400 font-bold mb-2 text-xs uppercase tracking-wider">Raw JSON</h3>
+                    <pre id="resRaw" class="bg-[#101216] p-4 rounded-lg border border-white/5 text-xs text-gray-400 overflow-x-auto max-h-[200px] overflow-y-auto"></pre>
+                </div>
+
+            </div>
+            
+            <div id="emptyState" class="flex-1 flex flex-col items-center justify-center text-gray-500 h-full">
+                <div class="text-4xl mb-3">🎞️</div>
+                <p>Paste analysis JSON and click Plan Shots</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function planShots() {
+    const scriptInput = document.getElementById('scriptInput').value.trim();
+    if (!scriptInput) {
+        alert("Please paste the script analysis JSON.");
+        return;
+    }
+
+    let parsedInput = {};
+    try {
+        parsedInput = JSON.parse(scriptInput);
+    } catch (e) {
+        alert("Invalid JSON format in the input.");
+        return;
+    }
+
+    const btnText = document.getElementById('analyzeBtnText');
+    const btnLoading = document.getElementById('analyzeBtnLoading');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+
+    btnText.classList.add('hidden');
+    btnLoading.classList.remove('hidden');
+    analyzeBtn.disabled = true;
+    analyzeBtn.classList.add('opacity-70');
+
+    try {
+        const response = await fetch('/api/director/plan-shots', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ script_analysis: parsedInput })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || "Analysis failed");
+        }
+
+        renderResult(data);
+    } catch (err) {
+        alert("Error: " + err.message);
+    } finally {
+        btnText.classList.remove('hidden');
+        btnLoading.classList.add('hidden');
+        analyzeBtn.disabled = false;
+        analyzeBtn.classList.remove('opacity-70');
+    }
+}
+
+function renderResult(data) {
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('resultContainer').classList.remove('hidden');
+    
+    document.getElementById('resShotCount').textContent = data.shot_count || 0;
+    document.getElementById('resTotalDuration').textContent = data.total_duration || 0;
+
+    const shotsDiv = document.getElementById('resShots');
+    shotsDiv.innerHTML = '';
+    
+    if (data.shots && data.shots.length > 0) {
+        data.shots.forEach(shot => {
+            const isVideo = shot.generation_type === 'video';
+            const badgeColor = isVideo ? 'bg-indigo-600' : 'bg-teal-600';
+            
+            shotsDiv.innerHTML += `
+                <div class="bg-[#2a303c] p-4 rounded border border-white/5">
+                    <div class="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                        <div class="font-bold text-white flex items-center gap-2">
+                            <span>Shot ${shot.order} (${shot.id})</span>
+                            <span class="text-xs px-2 py-0.5 rounded ${badgeColor} text-white">${shot.generation_type.toUpperCase()}</span>
+                        </div>
+                        <div class="text-gray-400 font-mono text-sm">${shot.duration}s</div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs mb-3">
+                        <div><span class="text-gray-500">Scene ID:</span> <span class="text-gray-300">${shot.scene_id}</span></div>
+                        <div><span class="text-gray-500">Subject:</span> <span class="text-gray-300">${shot.subject}</span></div>
+                        <div><span class="text-gray-500">Camera:</span> <span class="text-gray-300">${shot.camera}</span></div>
+                        <div><span class="text-gray-500">Movement:</span> <span class="text-gray-300">${shot.movement}</span></div>
+                        <div><span class="text-gray-500">Composition:</span> <span class="text-gray-300">${shot.composition}</span></div>
+                        <div><span class="text-gray-500">Transition:</span> <span class="text-gray-300">${shot.transition}</span></div>
+                    </div>
+                    
+                    <div class="bg-black/30 p-2 rounded text-xs">
+                        <div class="text-gray-500 mb-1">Image Prompt:</div>
+                        <div class="text-gray-300 italic mb-2">${shot.image_prompt}</div>
+                        <div class="text-gray-500 mb-1">Video Prompt:</div>
+                        <div class="text-gray-300 italic">${shot.video_prompt}</div>
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        shotsDiv.innerHTML = `<p class="text-gray-500 italic">No shots generated.</p>`;
+    }
+
+    document.getElementById('resRaw').textContent = JSON.stringify(data, null, 2);
+}
+</script>
