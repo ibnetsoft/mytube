@@ -1093,7 +1093,7 @@
             return `
                 <button type="button"
                     class="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl px-4 pt-4 pb-2 hover:border-indigo-500/50 transition-all group relative"
-                    onclick="claimAndCreateProject(event, '${topic.id}')">
+                    onclick="showTopicConfirm('${topic.id}')">
                     ${multiplierBadge}
                     <div class="mb-2">
                         <span class="float-left text-xs leading-4 font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded mr-2 max-w-[55%] truncate">
@@ -1121,6 +1121,39 @@
 
         empty.classList.add('hidden');
         grid.classList.remove('hidden');
+    }
+
+    // ===== 주제 확인 모달 =====
+    let _pendingTopicId = null;
+
+    function showTopicConfirm(topicId) {
+        const topic = recommendedTopics.find(t => String(t.id) === String(topicId));
+        if (!topic) return;
+        _pendingTopicId = topicId;
+
+        const uiLang = window.currentLang || 'ko';
+        const displayTopic = (uiLang === 'vi' ? topic.topic_vi : uiLang === 'en' ? topic.topic_en : uiLang === 'th' ? topic.topic_th : '') || topic.topic || '-';
+        const durationMinutes = topic.duration_minutes || topic.recommended_duration_minutes;
+        const durationText = durationMinutes ? `${durationMinutes}분` : '-';
+        const payoutMultiplier = Number(topic.payout_multiplier || 1);
+        const payoutText = topic.payout_amount ? `${Number(topic.payout_amount).toLocaleString()}원` : (payoutMultiplier !== 1 ? `x${payoutMultiplier}` : '-');
+        const imageStyle = topic.image_style || '-';
+
+        document.getElementById('tcm-topic').textContent = displayTopic;
+        document.getElementById('tcm-duration').textContent = durationText;
+        document.getElementById('tcm-payout').textContent = payoutText;
+        document.getElementById('tcm-style').textContent = imageStyle;
+        document.getElementById('topicConfirmModal').classList.remove('hidden');
+    }
+
+    function cancelTopicConfirm() {
+        _pendingTopicId = null;
+        document.getElementById('topicConfirmModal').classList.add('hidden');
+    }
+
+    function confirmTopicClaim() {
+        document.getElementById('topicConfirmModal').classList.add('hidden');
+        if (_pendingTopicId) claimAndCreateProject(null, _pendingTopicId);
     }
 
     let activeTopicClaimId = null;
@@ -1190,5 +1223,48 @@
     });
 
 </script>
+
+<!-- 주제 확인 모달 -->
+<div id="topicConfirmModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+     onclick="if(event.target===this) cancelTopicConfirm()">
+    <div class="bg-[#1c2027] border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <h3 class="text-base font-bold text-white mb-4 text-center">작업 확인</h3>
+
+        <div class="space-y-2 mb-5 bg-[#13171f] rounded-xl p-4 border border-white/5">
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-400">주제</span>
+                <span id="tcm-topic" class="text-white font-medium text-right max-w-[60%]">-</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-400">작업 시간</span>
+                <span id="tcm-duration" class="text-white font-medium">-</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-400">수당</span>
+                <span id="tcm-payout" class="text-yellow-400 font-bold">-</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-400">이미지 스타일</span>
+                <span id="tcm-style" class="text-indigo-300 font-medium">-</span>
+            </div>
+        </div>
+
+        <p class="text-xs text-gray-300 text-center leading-relaxed mb-5">
+            수당 자격요건에 맞게<br>이 주제로 작업을 시작하시겠습니까?
+        </p>
+
+        <div class="flex gap-3">
+            <button onclick="cancelTopicConfirm()"
+                class="flex-1 py-2.5 rounded-xl border border-white/20 text-sm text-gray-300 hover:bg-white/5 transition-all">
+                아니오
+            </button>
+            <button onclick="confirmTopicClaim()"
+                class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-bold text-white transition-all">
+                예
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
