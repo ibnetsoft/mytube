@@ -25,17 +25,19 @@ Instructions:
 JSON SCHEMA:
 {{
   "topic": "...",
-  "estimated_duration": 60,
   "scene_count": 3,
   "global_mood": "Overall mood of the video",
   "scenes": [
     {{
-      "id": "scene001",
-      "order": 1,
-      "summary": "Brief summary of the scene",
-      "estimated_seconds": 20,
-      "emotion": "Dominant emotion of the scene",
-      "scene_visual_hint": "A visual prompt hint for the setting/background"
+      "scene_id": "scene001",
+      "scene_order": 1,
+      "scene_summary": "Brief summary of the scene",
+      "scene_situation": "Detailed situational context for the scene",
+      "scene_emotion": "Dominant emotion of the scene",
+      "scene_purpose": "The main purpose of this scene in the story",
+      "target_duration": 20,
+      "visual_direction": "Visual layout, camera, and setting hints",
+      "tts_direction": "Voice acting, tone, and pacing instructions"
     }}
   ],
   "planner_notes": {{

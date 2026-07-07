@@ -44,7 +44,8 @@ class VideoRequest(BaseModel):
 
 
 class PromptsGenerateRequest(BaseModel):
-    script: str
+    script: Optional[str] = None  # Deprecating
+    scenes: Optional[List[Dict[str, Any]]] = None  # [NEW] Planning Scene Source of Truth
     style: str = "realistic"
     count: int = 0
     character_reference: Optional[str] = None
