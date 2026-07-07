@@ -315,6 +315,20 @@ async def page_admin_production_planner(request: Request):
         app_mode="longform"
     )
 
+@router.get("/admin/asset-matching", response_class=HTMLResponse)
+async def page_admin_asset_matching(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/asset_matching_preview.html",
+        "admin-asset-matching",
+        "Asset Upload & Matching",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
