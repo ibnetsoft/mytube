@@ -3167,7 +3167,7 @@ PLATFORM_TRANSLATIONS = {
         'modal.update.title': 'New Update Found!',
         'modal.update.body': 'The latest version has been released. Please update for stable operation.',
         'modal.update.loading': 'Downloading...',
-        'project.btn.fetch_topic': 'Fetch Today's Topic',
+        'project.btn.fetch_topic': "Fetch Today's Topic",
         'project.badge.qa_warning': 'QA Warning Check Required',
         'project.status.music_plan': 'Music Plan',
         'project.status.cover': 'Cover',
