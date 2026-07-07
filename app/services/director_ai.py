@@ -1,3 +1,5 @@
+# [DEPRECATED] This module is deprecated. Use prompt_director.py instead.
+# Please do not use Director AI for generating shots.
 import json
 from services.gemini_service import GeminiService
 

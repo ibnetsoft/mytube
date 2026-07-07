@@ -128,104 +128,51 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
                 duration = p_data.get('estimated_duration', 60)
 
             # Get project settings (to resolve style key if generic)
-            settings = db.get_project_settings(req.project_id)
-            if settings:
-                if not style_key:
-                    style_key = settings.get('image_style', style_key)
-                # 캐릭터 레퍼런스 이미지 경로 읽기 (여러 개면 첫 번째 사용)
-                _ref_paths = settings.get('character_ref_image_path') or ''
-                character_ref_image_url = _ref_paths.split(',')[0].strip() or None
+        # 1. Option parsing
+        if not req.scenes:
+            raise HTTPException(400, "scenes 배열이 필요합니다. (기획 단계의 확정된 Scene Source of Truth)")
 
-            # Get existing characters for the project
-            characters = db.get_project_characters(req.project_id)
-
-        if not duration:
-            duration = len(req.script) // 5 # very rough char count est
-
-        # 2. Style Prompt Resolution (Key -> Description)
+        style_key = req.style or "realistic"
+        character_ref_image_url = req.character_reference or ""
+        
         db_presets = db.get_style_presets()
-        style_key_lower = (style_key or '').lower()
-        style_data = db_presets.get(style_key_lower)
-
-        if style_data and isinstance(style_data, dict):
-            style_prompt = style_data.get('prompt_value', style_key)
-            gemini_instruction = style_data.get('gemini_instruction') or None
-            # 캐릭터 시트 업로드 우선, 없으면 스타일 레퍼런스 이미지 사용
-            reference_image_url = character_ref_image_url or style_data.get('image_url') or None
-        else:
-            style_prompt = STYLE_PROMPTS.get(style_key_lower, style_key or '')
-            gemini_instruction = None
-            reference_image_url = character_ref_image_url
-
-        # 3. Call Gemini via Unified Service
-        target_count = req.count if req.count and req.count > 0 else None
-
-        # [사람 제외 등 추가 지시문] character_reference를 gemini_instruction에 합산
-        if req.character_reference and req.character_reference.strip():
-            extra = req.character_reference.strip()
-            gemini_instruction = (gemini_instruction + "\n" + extra) if gemini_instruction else extra
-            print(f"[Prompts] character_reference injected into gemini_instruction: {extra[:80]}...")
-
-        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}, has_gemini_instruction: {bool(gemini_instruction)}, has_ref_image: {bool(reference_image_url)}")
-
-        # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
-        # 30000자로 늘림 (긴 대본도 전체 대사 포함)
-        safe_script = req.script[:30000] if len(req.script) > 30000 else req.script
-        if len(req.script) > 30000:
-            print(f"[Prompts] Script truncated: {len(req.script)} → 30000 chars")
-
-        prompts_list = await gemini_service.generate_image_prompts_from_script(
-            safe_script,
-            duration,
-            style_prompt=style_prompt,
-            characters=characters,
-            target_scene_count=target_count,
-            style_key=style_key,
-            gemini_instruction=gemini_instruction,
-            reference_image_url=reference_image_url,
-            project_id=req.project_id,
-            model=config.IMAGE_PROMPT_MODEL,
-        )
-
-        if not prompts_list:
-            # Retry once if empty
-            print("[Prompts] Empty result, retrying...")
-            prompts_list = await gemini_service.generate_image_prompts_from_script(
-                safe_script,
-                duration,
-                style_prompt=style_prompt,
-                characters=characters,
-                target_scene_count=target_count,
-                style_key=style_key,
-                gemini_instruction=gemini_instruction,
-                reference_image_url=reference_image_url,
+        style_data = db_presets.get(style_key.lower())
+        style_prompt = style_data.get('prompt_value', style_key) if style_data else STYLE_PROMPTS.get(style_key.lower(), style_key)
+        
+        # 2. 정렬 및 Chunk 분할 (2x2 생성)
+        sorted_scenes = sorted(req.scenes, key=lambda x: x.get('scene_order', 0))
+        chunks = [sorted_scenes[i:i + 4] for i in range(0, len(sorted_scenes), 4)]
+        
+        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Scenes: {len(sorted_scenes)}, Chunks: {len(chunks)}")
+        
+        prompts_list = []
+        for i, chunk in enumerate(chunks):
+            print(f"[Prompts] Processing chunk {i+1}/{len(chunks)} (scenes: {len(chunk)})")
+            chunk_prompts = await gemini_service.generate_image_prompts_for_scenes(
+                scenes=chunk,
+                style_key=style_prompt,
                 project_id=req.project_id,
-                model=config.IMAGE_PROMPT_MODEL,
+                character_reference=character_ref_image_url
             )
-
+            prompts_list.extend(chunk_prompts)
+            
         if not prompts_list:
-             raise HTTPException(500, "프롬프트 생성 실패 (AI 응답 오류)")
-
-        # 4. Post-processing for UI consistency
+            raise HTTPException(500, "프롬프트 생성 실패 (AI 응답 오류)")
+            
+        # 3. Post-processing for UI consistency
         for p in prompts_list:
-            # Ensure mandatory fields
             s_text = p.get('scene_text') or p.get('scene') or p.get('narrative') or ''
             p['scene_text'] = s_text
-            
             if not p.get('scene_title'):
-                p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else f"Scene {p.get('scene_number', '?')}"
-            
-            # Ensure script bits exist
+                p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else f"Scene {p.get('scene_order', '?')}"
             if not p.get('script_start'):
                 p['script_start'] = " ".join(s_text.split()[:2]) if s_text else ""
             if not p.get('script_end'):
                 p['script_end'] = " ".join(s_text.split()[-2:]) if s_text else ""
-
-            # Default empty states for UI
             if 'image_url' not in p: p['image_url'] = ""
             if 'image_path' not in p: p['image_path'] = ""
 
-        # 5. [CRITICAL] DB에 실시간 저장 (UI에서 '적용' 버튼 누르기 전 미리 백업)
+        # 4. [CRITICAL] DB에 실시간 저장
         if req.project_id:
             try:
                 db.save_image_prompts(req.project_id, prompts_list)

@@ -1,3 +1,5 @@
+# [DEPRECATED] This module is deprecated. Use scene_planner.py instead.
+# Please do not use Script Analyzer for splitting scenes.
 import json
 from services.gemini_service import GeminiService
 
