@@ -7,15 +7,39 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from app.services.script_analyzer import script_analyzer_service
 
+def validate_response(res):
+    scenes = res.get('scenes', [])
+    chars = res.get('characters', [])
+    
+    assert res.get('scene_count', 0) == len(scenes), f"Scene count mismatch: {res.get('scene_count')} != {len(scenes)}"
+    
+    est_dur = res.get('estimated_duration', 0)
+    sum_dur = sum(s.get('estimated_seconds', 0) for s in scenes)
+    # Allow 10% or fixed margin of error
+    assert abs(est_dur - sum_dur) <= max(10, est_dur * 0.2), f"Duration mismatch: {est_dur} != sum({sum_dur})"
+    
+    char_ids = {c.get('id') for c in chars if c.get('id')}
+    for s in scenes:
+        spk = s.get('tts_hint', {}).get('speaker_id')
+        if spk and spk.lower() != 'narrator':
+            assert spk in char_ids, f"Speaker ID {spk} not found in characters"
+
 async def test_analyzer():
-    # 1. 한국어 대본, 등장인물 1명
+    # 1. 한국어 감동 사연 대본 -> scenes 3개 이상
     script_ko_1 = """
-    주인공: (화난 목소리로) 도대체 이게 무슨 일이야! 내가 그렇게 말했는데도...
+    주인공: (울먹이며) 엄마, 저 정말 열심히 살았어요. 그런데 왜 이렇게 힘든 걸까요.
+    엄마: (따뜻하게 안아주며) 우리 딸, 괜찮아. 엄마가 항상 네 편이잖아. 잠시 쉬어가도 돼.
+    [나레이션] 그날 밤, 나는 엄마의 품에서 어린아이처럼 엉엉 울었다.
+    다음 날 아침이 밝았을 때, 세상은 어제와 같았지만 내 마음은 한결 가벼워졌다.
+    주인공: (밝은 목소리로) 다녀오겠습니다!
     """
-    print("=== Test 1: Korean, 1 Character ===")
+    print("=== Test 1: Korean Emotional Script ===")
     res1 = await script_analyzer_service.analyze_script(script_ko_1)
     print(res1)
-    print("\n")
+    assert res1['language'] == 'ko', "Language should be ko"
+    assert len(res1['scenes']) >= 3, "Should extract 3 or more scenes"
+    validate_response(res1)
+    print("Test 1 PASS\n")
 
     # 2. 영어 대본, 등장인물 여러 명
     script_en_multi = """
@@ -26,26 +50,20 @@ async def test_analyzer():
     print("=== Test 2: English, Multi Characters ===")
     res2 = await script_analyzer_service.analyze_script(script_en_multi)
     print(res2)
-    print("\n")
+    assert res2['language'] == 'en', "Language should be en"
+    validate_response(res2)
+    print("Test 2 PASS\n")
 
-    # 3. 내레이션 포함
-    script_narration = """
-    [나레이션] 그날 밤, 숲속은 평소보다 훨씬 고요했다. 바람소리조차 들리지 않았다.
-    어린 소년은 조심스럽게 발걸음을 옮겼다.
-    소년: 엄마...? 어디 계세요?
-    [나레이션] 하지만 메아리만 돌아올 뿐이었다.
-    """
-    print("=== Test 3: Narration Included ===")
-    res3 = await script_analyzer_service.analyze_script(script_narration)
-    print(res3)
-    print("\n")
-
-    # 4. JSON 파싱 실패 유도 (빈 대본 또는 이상한 텍스트 처리)
+    # 3. 빈 대본 또는 이상한 텍스트 처리 (Fallback)
     script_empty = "      "
-    print("=== Test 4: Empty / Invalid Script ===")
-    res4 = await script_analyzer_service.analyze_script(script_empty)
-    print(res4)
-    print("\n")
+    print("=== Test 3: Empty / Invalid Script ===")
+    res3 = await script_analyzer_service.analyze_script(script_empty)
+    print(res3)
+    assert res3['scenes'] == [], "Scenes should be empty"
+    assert res3['scene_count'] == 0, "Scene count should be 0"
+    print("Test 3 PASS\n")
+
+    print("ALL TESTS PASSED")
 
 if __name__ == "__main__":
     asyncio.run(test_analyzer())

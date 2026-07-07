@@ -8,51 +8,74 @@ class ScriptAnalyzerService:
     async def analyze_script(self, script: str) -> dict:
         prompt = f"""
 You are an expert script analyzer for video production.
-Analyze the following script and extract structured metadata.
+Analyze the following script and extract structured metadata, breaking it down into scenes.
 
 SCRIPT:
 {script}
 
 Instructions:
-Identify all characters, overall language, narration styles, and general emotion/tone.
-Return the result strictly as a valid JSON object without markdown formatting.
+1. Identify all characters, overall language, narration styles, and general emotion/tone.
+2. Break down the script into distinct scenes based on context, location, or pacing changes.
+3. Assign a unique ID to each character (e.g., 'char001') and each scene (e.g., 'scene001').
+4. Estimate the duration (in seconds) for each scene based on the length and pacing of the dialogue/narration.
+5. Provide the output strictly as a valid JSON object without markdown formatting.
 
 JSON SCHEMA:
 {{
   "language": "ISO 639-1 code (e.g., 'ko', 'en', 'ja')",
+  "genre": "Script genre (e.g., drama, comedy, education)",
+  "estimated_duration": 120,
+  "scene_count": 5,
+  "global_mood": "Overall mood of the script",
+  "recommended_voice_style": "Brief recommendation for voice style",
+  "recommended_music_style": "Brief recommendation for background music",
   "characters": [
     {{
-      "name": "Character's name or role (e.g., 'Hero', 'Narrator')",
+      "id": "Unique identifier (e.g., 'char001')",
+      "name": "Character's name or role",
       "gender": "male, female, or neutral",
       "age_group": "child, young, adult, or senior",
-      "emotion": "Dominant emotion (e.g., angry, happy, calm)",
-      "tone": "Voice tone (e.g., confident, soft, energetic)",
+      "emotion": "Dominant emotion",
+      "tone": "Voice tone",
       "role_importance": "main, supporting, or background"
     }}
   ],
   "narration": {{
     "exists": true or false,
-    "style": "Description of narration style (e.g., documentary, vlog, storytelling)",
-    "tone": "Tone of narration (e.g., serious, casual)",
+    "style": "Description of narration style",
+    "tone": "Tone of narration",
     "emotion": "Emotion of narrator"
   }},
+  "scenes": [
+    {{
+      "id": "Unique scene ID (e.g., 'scene001')",
+      "order": 1,
+      "summary": "Brief summary of the scene",
+      "script_text": "The exact script lines spoken in this scene",
+      "estimated_seconds": 15,
+      "emotion": "Dominant emotion of the scene",
+      "visual_prompt_hint": "A visual prompt hint for image/video generation",
+      "tts_hint": {{
+        "speaker_id": "Must match a character.id or 'narrator'",
+        "tone": "Voice tone for TTS",
+        "speed": "slow, medium, fast"
+      }},
+      "transition_hint": "cut, crossfade, fade_in, etc."
+    }}
+  ],
   "analysis_result": {{
-    "summary": "1-2 sentence summary of the script",
-    "genre": "Script genre (e.g., drama, comedy, education)",
-    "overall_mood": "Overall mood of the script"
+    "summary": "1-2 sentence overall summary of the script",
+    "error": false
   }}
 }}
 """
-        # Call Gemini (using gemini-1.5-flash by default as requested for fast JSON extraction)
         try:
-            # We use use_search=False and task_type for standard extraction
             response_text = await self.gemini.generate_text(
                 prompt=prompt,
                 temperature=0.3,
                 task_type="text_gen"
             )
             
-            # Extract JSON block if surrounded by markdown
             response_text = response_text.strip()
             if response_text.startswith("```json"):
                 response_text = response_text[7:]
@@ -65,9 +88,14 @@ JSON SCHEMA:
             return json.loads(response_text)
         except Exception as e:
             print(f"[ScriptAnalyzer] Failed to analyze script: {e}")
-            # Fallback mock/error JSON
             return {
                 "language": "unknown",
+                "genre": "unknown",
+                "estimated_duration": 0,
+                "scene_count": 0,
+                "global_mood": "unknown",
+                "recommended_voice_style": "none",
+                "recommended_music_style": "none",
                 "characters": [],
                 "narration": {
                     "exists": False,
@@ -75,10 +103,10 @@ JSON SCHEMA:
                     "tone": "none",
                     "emotion": "none"
                 },
+                "scenes": [],
                 "analysis_result": {
                     "summary": "Analysis failed",
-                    "genre": "unknown",
-                    "overall_mood": "unknown"
+                    "error": True
                 },
                 "error": str(e)
             }

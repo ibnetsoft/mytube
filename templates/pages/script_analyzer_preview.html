@@ -31,23 +31,31 @@
             <div id="resultContainer" class="hidden flex-1 flex flex-col gap-4">
                 
                 <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10">
-                    <h3 class="text-blue-400 font-bold mb-2">Basic Info</h3>
-                    <div class="text-sm text-gray-300">
+                    <h3 class="text-blue-400 font-bold mb-2">Global Summary</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm text-gray-300">
                         <p><span class="text-gray-500">Language:</span> <span id="resLanguage" class="text-white font-medium"></span></p>
-                        <p><span class="text-gray-500">Summary:</span> <span id="resSummary" class="text-white"></span></p>
                         <p><span class="text-gray-500">Genre:</span> <span id="resGenre" class="text-white"></span></p>
-                        <p><span class="text-gray-500">Mood:</span> <span id="resMood" class="text-white"></span></p>
+                        <p><span class="text-gray-500">Scene Count:</span> <span id="resSceneCount" class="text-white"></span></p>
+                        <p><span class="text-gray-500">Est. Duration:</span> <span id="resEstDuration" class="text-white"></span>s</p>
+                        <p><span class="text-gray-500">Global Mood:</span> <span id="resMood" class="text-white"></span></p>
                     </div>
                 </div>
 
-                <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10">
-                    <h3 class="text-pink-400 font-bold mb-2">Narration</h3>
-                    <div id="resNarration" class="text-sm text-gray-300"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10 flex-1">
+                        <h3 class="text-purple-400 font-bold mb-2">Characters</h3>
+                        <div id="resCharacters" class="flex flex-col gap-2 max-h-[300px] overflow-y-auto"></div>
+                    </div>
+                    
+                    <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10">
+                        <h3 class="text-pink-400 font-bold mb-2">Narration</h3>
+                        <div id="resNarration" class="text-sm text-gray-300"></div>
+                    </div>
                 </div>
 
                 <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10 flex-1">
-                    <h3 class="text-purple-400 font-bold mb-2">Characters</h3>
-                    <div id="resCharacters" class="flex flex-col gap-2"></div>
+                    <h3 class="text-green-400 font-bold mb-2">Scenes Preview</h3>
+                    <div id="resScenes" class="flex flex-col gap-2 max-h-[400px] overflow-y-auto"></div>
                 </div>
                 
                 <div class="mt-4">
@@ -112,11 +120,12 @@ function renderResult(data) {
     document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('resultContainer').classList.remove('hidden');
     
-    // Basic Info
+    // Global Summary
     document.getElementById('resLanguage').textContent = data.language || 'Unknown';
-    document.getElementById('resSummary').textContent = data.analysis_result?.summary || '-';
-    document.getElementById('resGenre').textContent = data.analysis_result?.genre || '-';
-    document.getElementById('resMood').textContent = data.analysis_result?.overall_mood || '-';
+    document.getElementById('resGenre').textContent = data.genre || '-';
+    document.getElementById('resSceneCount').textContent = data.scene_count || 0;
+    document.getElementById('resEstDuration').textContent = data.estimated_duration || 0;
+    document.getElementById('resMood').textContent = data.global_mood || '-';
 
     // Narration
     const navDiv = document.getElementById('resNarration');
@@ -137,10 +146,10 @@ function renderResult(data) {
         data.characters.forEach(char => {
             charsDiv.innerHTML += `
                 <div class="bg-[#2a303c] p-3 rounded border border-white/5 text-sm">
-                    <div class="font-bold text-white mb-1">${char.name} <span class="text-xs font-normal text-gray-400 bg-black/20 px-2 py-0.5 rounded ml-2">${char.role_importance}</span></div>
+                    <div class="font-bold text-white mb-1">${char.name} <span class="text-xs font-normal text-gray-400 bg-black/20 px-2 py-0.5 rounded ml-2">#${char.id}</span></div>
                     <div class="grid grid-cols-2 gap-1 text-xs text-gray-300 mt-2">
+                        <div><span class="text-gray-500">Role:</span> ${char.role_importance}</div>
                         <div><span class="text-gray-500">Gender:</span> ${char.gender}</div>
-                        <div><span class="text-gray-500">Age:</span> ${char.age_group}</div>
                         <div><span class="text-gray-500">Tone:</span> ${char.tone}</div>
                         <div><span class="text-gray-500">Emotion:</span> ${char.emotion}</div>
                     </div>
@@ -149,6 +158,30 @@ function renderResult(data) {
         });
     } else {
         charsDiv.innerHTML = `<p class="text-gray-500 italic">No characters detected.</p>`;
+    }
+
+    // Scenes
+    const scenesDiv = document.getElementById('resScenes');
+    scenesDiv.innerHTML = '';
+    if (data.scenes && data.scenes.length > 0) {
+        data.scenes.forEach(scene => {
+            scenesDiv.innerHTML += `
+                <div class="bg-[#2a303c] p-3 rounded border border-l-4 border-l-green-500 border-white/5 text-sm mb-2">
+                    <div class="font-bold text-white mb-1 flex justify-between">
+                        <span>Scene ${scene.order}: ${scene.id}</span>
+                        <span class="text-gray-400">${scene.estimated_seconds}s</span>
+                    </div>
+                    <p class="text-gray-300 text-xs italic mb-2">${scene.summary}</p>
+                    <div class="grid grid-cols-2 gap-1 text-xs text-gray-300">
+                        <div><span class="text-gray-500">Emotion:</span> ${scene.emotion}</div>
+                        <div><span class="text-gray-500">Speaker:</span> ${scene.tts_hint?.speaker_id || '-'}</div>
+                        <div class="col-span-2"><span class="text-gray-500">Transition:</span> ${scene.transition_hint}</div>
+                    </div>
+                </div>
+            `;
+        });
+    } else {
+        scenesDiv.innerHTML = `<p class="text-gray-500 italic">No scenes detected.</p>`;
     }
 
     // Raw JSON
