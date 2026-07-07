@@ -1,5 +1,6 @@
 param(
     [string]$Version = "0.1.0",
+    [int]$Build = 0,
     [string]$GitHubRepo = "ibnetsoft/mytube",
     [switch]$SkipInstaller,
     [switch]$SkipDependencyInstall
@@ -75,9 +76,21 @@ try {
         manifest_url = "https://github.com/$GitHubRepo/releases/latest/download/latest.json"
     } | ConvertTo-Json -Depth 3 | Set-Content -Path (Join-Path $StagingLauncher "update_config.json") -Encoding UTF8
 
-    @{
-        version = $Version
-    } | ConvertTo-Json -Depth 3 | Set-Content -Path (Join-Path $StagingRoot "current.json") -Encoding UTF8
+    # Canonical version record schema (version, installed_at, build).
+    # Written to both the install root and inside app/ as a fallback.
+    $InstalledAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $VersionRecord = [ordered]@{
+        version      = $Version
+        installed_at = $InstalledAt
+        build        = $Build
+    }
+    $VersionRecordJson = $VersionRecord | ConvertTo-Json -Depth 3
+
+    $VersionRecordJson | Set-Content -Path (Join-Path $StagingRoot "current.json") -Encoding UTF8
+
+    # Embed version.json inside the app/ payload so AIRLauncher can read it
+    # as a fallback when current.json at the root is absent or stale.
+    $VersionRecordJson | Set-Content -Path (Join-Path $StagingApp "version.json") -Encoding UTF8
 
     if (Test-Path $ZipPath) {
         Remove-Item -LiteralPath $ZipPath -Force
@@ -86,13 +99,14 @@ try {
 
     $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ZipPath).Hash.ToLowerInvariant()
     $Manifest = [ordered]@{
-        version = $Version
-        channel = "stable"
-        mandatory = $false
+        version       = $Version
+        build         = $Build
+        channel       = "stable"
+        mandatory     = $false
         installer_url = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudioSetup-$Version.exe"
-        portable_url = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudio-$Version-win-x64.zip"
-        sha256 = $Hash
-        notes = "AIR Studio Windows build $Version"
+        portable_url  = "https://github.com/$GitHubRepo/releases/download/v$Version/AIRStudio-$Version-win-x64.zip"
+        sha256        = $Hash
+        notes         = "AIR Studio Windows build $Version (build $Build)"
     }
     $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
 
