@@ -301,6 +301,20 @@ async def page_admin_director_ai(request: Request):
         app_mode="longform"
     )
 
+@router.get("/admin/production-planner", response_class=HTMLResponse)
+async def page_admin_production_planner(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/production_planner_preview.html",
+        "admin-production-planner",
+        "Production Planner",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
