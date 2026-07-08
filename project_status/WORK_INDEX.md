@@ -442,3 +442,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Short summary: Fixed auth-web lint execution errors and resolved lint warnings. Lint-only change, no functional modifications.
 
 - [AIR-0209](../worknote/AIR-0209.md) - Planning Scene Contract Refactor (DONE)
+- [AIR-0212](../worknote/AIR-0212.md) - Master Documentation Overhaul (DONE)
+- [AIR-0213](../worknote/AIR-0213.md) - Scene Pipeline E2E Tests + Unmatched Asset Board (DONE)
+- [AIR-0214](../worknote/AIR-0214.md) - Windows Installer + Auto-Update System (CONDITIONAL APPROVAL — pending AIR-0215)
+- [AIR-0215](../worknote/AIR-0215.md) - Windows Updater Hardening (DONE)
