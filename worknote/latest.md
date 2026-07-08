@@ -1,28 +1,31 @@
-# AIR-0215 Windows Updater Hardening
+# AIR-0216/0218 Windows Release Pipeline
 
 **Date**: 2026-07-08
-**Status**: DONE (feature/AIR-0214-windows-installer)
+**Status**: DONE (feature/AIR-0216-release-pipeline)
 
 ## What Changed
 
-- `packaging/windows/launcher/AIRUpdater.py` — SHA256 re-verify before extraction, --sha256/--build args, _guard_launcher_not_overwritten(), full version schema, [EVENT] log markers
-- `packaging/windows/launcher/AIRLauncher.py` — _exe_version() fallback (PowerShell), _recover_app_if_needed(), updated cleanup order, [EVENT] markers, passes --sha256+--build to updater
-- `tools/build_windows.ps1` — -Build param, full current.json/version.json schema, build field in latest.json
-- `packaging/windows/latest.example.json` — added build field
-- `project_status/BOOTSTRAP.md` — rewritten with full AIR-0215 hardening docs
-- `project_status/QA_AIR_0215_E2E.md` — new 7-scenario real-install E2E QA checklist
+- `tools/build_windows.ps1` — full rewrite: auto-increment build, SHA256 sidecars, -Channel param, build summary
+- `tools/release_github.ps1` — new: gh CLI release create/upload, draft/prerelease support
+- `packaging/windows/build_counter.txt` — new: persistent build counter (starts at 215)
+- `.github/workflows/windows-release.yml` — full rewrite: build + upload-artifact + release + counter commit
+- `project_status/RELEASE_PROCESS.md` — new: full release workflow docs, rollback procedure
+- `project_status/QA_AIR_0215_E2E.md` — Scenario 8 added (release rollback no-downgrade)
+- `worknote/AIR-0216.md`, `AIR-0217.md`, `AIR-0218.md` — new worknotes
 
-## Key Facts
+## Release Artifact Standard
 
-- SHA256 verified TWICE: Launcher (before spawn) + Updater (before extraction)
-- current.json schema: {"version", "installed_at" (UTC ISO-8601), "build" (int)}
-- Version priority: current.json → app/version.json → exe VersionInfo → 0.0.0
-- Startup recovery: _recover_app_if_needed() runs before cleanup and update check
-- Launcher guard: AIRLauncher.exe removed from payload if present; payload must not be Launcher/
-- [EVENT] 8 structured markers across Launcher + Updater log files
-- py_compile: both files pass cleanly
+```
+release/
+  AIRStudio-{v}-win-x64.zip         portable archive
+  AIRStudio-{v}-win-x64.zip.sha256  SHA256 sidecar
+  AIRStudioSetup-{v}.exe            installer
+  AIRStudioSetup-{v}.exe.sha256     SHA256 sidecar
+  latest.json                       update manifest
+  latest.json.sha256                SHA256 sidecar
+```
 
 ## Next
-- PR #66 or #67 for AIR-0214+0215 combined
-- Real-install QA per QA_AIR_0215_E2E.md
-- AIR-0216: Canonical export contract (KI-001)
+- Create PR for feature/AIR-0216-release-pipeline (after PR #67 merges)
+- AIR-0217: Real-install E2E QA (manual, 8 scenarios)
+- AIR-0219: Canonical export contract (KI-001)
