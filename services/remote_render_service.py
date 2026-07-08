@@ -13,6 +13,43 @@ import database as db
 from app.modes import is_shorts_mode
 
 
+def _detect_nvenc(ffmpeg_exe: str) -> bool:
+    """Return True if h264_nvenc is available in the given FFmpeg binary."""
+    try:
+        result = subprocess.run(
+            [ffmpeg_exe, "-encoders"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return "h264_nvenc" in result.stdout
+    except Exception:
+        return False
+
+
+def _select_video_encoder(use_gpu: bool, ffmpeg_exe: str) -> str:
+    """Return h264_nvenc when GPU render is requested and NVENC is available,
+    otherwise return libx264.  Logs the decision for easy grep."""
+    if not use_gpu:
+        print("[Encoder] USE_GPU_RENDER=false | encoder=libx264")
+        return "libx264"
+    nvenc_available = _detect_nvenc(ffmpeg_exe)
+    if nvenc_available:
+        print("[Encoder] USE_GPU_RENDER=true | NVENC detected=true | encoder=h264_nvenc")
+        return "h264_nvenc"
+    print("[Encoder] USE_GPU_RENDER=true | NVENC detected=false | fallback_to_cpu=true | encoder=libx264")
+    return "libx264"
+
+
+def _run_ffmpeg_with_encoder_fallback(command: list, encoder: str, ffmpeg_exe: str, timeout: int = 3600) -> subprocess.CompletedProcess:
+    """Run an FFmpeg command.  If the encoder is h264_nvenc and it fails,
+    retry once with libx264 as a CPU fallback."""
+    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0 and encoder == "h264_nvenc":
+        print(f"[Encoder] h264_nvenc failed (rc={result.returncode}) | fallback_to_cpu=true | encoder=libx264")
+        fallback_cmd = [arg.replace("h264_nvenc", "libx264") if arg == "h264_nvenc" else arg for arg in command]
+        result = subprocess.run(fallback_cmd, capture_output=True, text=True, timeout=timeout)
+    return result
+
+
 def _resolve_packaged_asset_path(asset_url_or_path: str):
     """Resolve app asset URLs even when the logged-in user output dir lives in AppData."""
     if not asset_url_or_path:
@@ -488,6 +525,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                 ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
             except Exception:
                 ffmpeg_exe = "ffmpeg"
+            encoder = _select_video_encoder(use_gpu, ffmpeg_exe)
             track_entries = metadata.get('track_entries') or []
             if not track_entries:
                 raise Exception('No playlist tracks were found.')
@@ -528,7 +566,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                     "-i", visual_path,
                     "-i", combined_audio,
                     "-vf", f"scale={target_resolution[0]}:{target_resolution[1]},fps=24",
-                    "-c:v", "libx264",
+                    "-c:v", encoder,
                     "-c:a", "aac",
                     "-pix_fmt", "yuv420p",
                     "-shortest",
@@ -546,7 +584,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                     "-i", visual_path,
                     "-i", combined_audio,
                     "-vf", f"scale={target_resolution[0]}:{target_resolution[1]},{drawtext}",
-                    "-c:v", "libx264",
+                    "-c:v", encoder,
                     "-c:a", "aac",
                     "-pix_fmt", "yuv420p",
                     "-shortest",
@@ -554,12 +592,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                     output_file_path,
                 ]
 
-            render_result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=3600,
-            )
+            render_result = _run_ffmpeg_with_encoder_fallback(command, encoder, ffmpeg_exe, timeout=3600)
             if render_result.returncode != 0:
                 raise Exception(f"Failed to render music playlist video: {render_result.stderr}")
 
@@ -601,6 +634,13 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
 
         from services.video_service import video_service
 
+        try:
+            import imageio_ffmpeg as _iio_ffmpeg
+            _slideshow_ffmpeg_exe = _iio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            _slideshow_ffmpeg_exe = "ffmpeg"
+        slideshow_encoder = _select_video_encoder(use_gpu, _slideshow_ffmpeg_exe)
+
         update_progress(50, 'Rendering with local slideshow engine...')
         remote_output_name = f'remote_task_{task_id}.mp4'
         rendered_path = video_service.create_slideshow(
@@ -618,6 +658,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             focal_point_ys=focal_point_ys,
             image_effects=image_effects,
             content_aspect_ratio=metadata.get('content_aspect_ratio'),
+            codec=slideshow_encoder,
         )
 
         output_file_path = os.path.join(temp_dir, 'output.mp4')

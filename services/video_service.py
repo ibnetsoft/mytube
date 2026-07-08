@@ -119,7 +119,8 @@ class VideoService:
         intro_video_path: Optional[str] = None,   # [NEW] Intro Video Prepend
         sfx_map: Optional[dict] = None,          # [NEW] Scene SFX Map {scene_num: sfx_path}
         focal_point_ys: Optional[List[float]] = None, # [NEW] Smart Focus Point (0.0 - 1.0)
-        content_aspect_ratio: Optional[str] = None   # [NEW] '1:1', '3:4' etc.
+        content_aspect_ratio: Optional[str] = None,  # [NEW] '1:1', '3:4' etc.
+        codec: str = "libx264"                        # [GPU] encoder: libx264 (CPU) or h264_nvenc (NVENC)
     ) -> str:
         """
         이미지 슬라이드쇼 영상 생성 (시네마틱 프레임 적용)
@@ -1419,16 +1420,33 @@ class VideoService:
             temp_audio_export_path = os.path.join(self.output_dir, f"temp_audio_export_{uuid.uuid4()}.wav")
             
             # 1. Render Video (No Audio)
-            print(f"DEBUG: Rendering video only to {temp_video_path}")
-            video.write_videofile(
-                temp_video_path,
-                fps=fps,
-                codec="libx264",
-                audio=False, # [KEY FIX] Disable Audio Rendering in Muxer
-                threads=1, # [FIX] Hardcoded to 1
-                preset="medium", 
-                logger=None 
-            )
+            print(f"DEBUG: Rendering video only to {temp_video_path} | encoder={codec}")
+            try:
+                video.write_videofile(
+                    temp_video_path,
+                    fps=fps,
+                    codec=codec,
+                    audio=False, # [KEY FIX] Disable Audio Rendering in Muxer
+                    threads=1, # [FIX] Hardcoded to 1
+                    preset="medium",
+                    logger=None
+                )
+            except Exception as _enc_err:
+                if codec != "libx264":
+                    print(f"[Encoder] {codec} failed in MoviePy: {_enc_err} | fallback_to_cpu=true | encoder=libx264")
+                    if os.path.exists(temp_video_path):
+                        os.remove(temp_video_path)
+                    video.write_videofile(
+                        temp_video_path,
+                        fps=fps,
+                        codec="libx264",
+                        audio=False,
+                        threads=1,
+                        preset="medium",
+                        logger=None
+                    )
+                else:
+                    raise
             
             # 2. Export Audio
             if video.audio:

@@ -9,6 +9,11 @@ echo ========================================
 echo   PICADIRI Remote Drive Render Worker
 echo ========================================
 echo.
+echo GPU Encoding: USE_GPU_RENDER=%USE_GPU_RENDER%
+echo   (Set USE_GPU_RENDER=true in .env for NVIDIA NVENC h264_nvenc)
+echo   (Requires NVIDIA GPU, RTX 20xx or later, and NVIDIA drivers installed)
+echo   (Auto-fallback to CPU libx264 if NVENC is unavailable)
+echo.
 
 if not exist "venv" (
     echo [1/3] Creating virtual environment...
