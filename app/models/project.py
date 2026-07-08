@@ -56,7 +56,12 @@ class ProjectSettingsSave(BaseModel):
     voice_style_prompt: Optional[str] = None
     voice_provider: Optional[str] = None
     voice_speed: Optional[float] = None
-    multi_voice: Optional[bool] = None
+    # [FIX] Was "multi_voice", which doesn't match the DB column (voice_multi_enabled)
+    # or what the frontend actually sends. Pydantic silently drops unrecognized keys,
+    # so voice_multi_enabled saves via POST /api/projects/{id}/settings were always
+    # discarded no matter what the user selected in script_gen.html/tts.html.
+    voice_multi_enabled: Optional[int] = None
+    voice_mapping_json: Optional[str] = None
     
     # Subtitle specific
     subtitle_font: Optional[str] = None

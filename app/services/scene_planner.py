@@ -1,11 +1,9 @@
 import json
-from services.gemini_service import GeminiService
+from config import config
+import services.ai_router as ai_router
 
 class ScenePlannerService:
-    def __init__(self):
-        self.gemini = GeminiService()
-
-    async def plan_scenes(self, topic: str, target_duration: int = 60) -> dict:
+    async def plan_scenes(self, topic: str, target_duration: int = 60, project_id: int = None) -> dict:
         prompt = f"""
 You are an expert video production planner.
 Plan the SCENE STRUCTURE for a video based on the following topic.
@@ -47,12 +45,18 @@ JSON SCHEMA:
 }}
 """
         try:
-            response_text = await self.gemini.generate_text(
-                prompt=prompt,
+            # [FIX] AIR-0209 이전에는 대본 기획 단계가 ai_router를 통해 config.SCRIPT_PLANNING_MODEL
+            # (어드민에서 Claude 등으로 설정 가능)을 사용했으나, scene_planner.py 도입 시 GeminiService가
+            # 하드코딩되어 해당 설정이 무시되고 있었다. ai_router로 되돌려 모델 선택을 다시 존중한다.
+            planning_model = config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
+            response_text = await ai_router.generate_text(
+                prompt,
+                planning_model,
                 temperature=0.4,
-                task_type="text_gen"
+                project_id=project_id,
+                task_type="planning",
             )
-            
+
             response_text = response_text.strip()
             if response_text.startswith("```json"):
                 response_text = response_text[7:]

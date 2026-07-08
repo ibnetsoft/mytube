@@ -92,7 +92,8 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         from app.services.scene_planner import scene_planner_service
         result = await scene_planner_service.plan_scenes(
             topic=req.topic,
-            target_duration=req.duration
+            target_duration=req.duration,
+            project_id=req.project_id
         )
 
         if "error" in result and result["error"]:

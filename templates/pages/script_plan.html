@@ -1159,11 +1159,15 @@
                         await API.project.update(projectId, { topic: topic, script_style: scriptStyle });
 
                         // 2. 구조 저장
+                        // [FIX] AIR-0209 이후 /api/gemini/generate-structure가 scene_planner 기반
+                        // {topic, scene_count, global_mood, scenes[]} 스키마를 반환하므로,
+                        // 구식 DB 컬럼(hook/sections/cta)에 맞춰 매핑한다.
+                        const isSceneMode = Array.isArray(structureData.scenes) && structureData.scenes.length > 0;
                         await API.project.saveScriptStructure(projectId, {
-                            hook: structureData.hook,
-                            sections: structureData.sections,
-                            cta: structureData.cta,
-                            style: structureData.style,
+                            hook: isSceneMode ? (structureData.global_mood || '') : structureData.hook,
+                            sections: isSceneMode ? structureData.scenes : structureData.sections,
+                            cta: isSceneMode ? '' : structureData.cta,
+                            style: scriptStyle,
                             duration: duration // Use the user-intended duration (already in seconds)
                         });
                         Utils.showToast(i18n.toast_structure_saved, 'success');
@@ -1183,9 +1187,25 @@
         }
     }
 
+    // [FIX] AIR-0209 Scene Source of Truth 이후 /api/gemini/generate-structure는
+    // {topic, scene_count, global_mood, scenes[]} 스키마를 반환한다.
+    // DB에는 scenes[]가 'sections' 컬럼에 그대로 저장되므로, 재조회 시 sections 배열의
+    // 첫 항목에 scene_id가 있으면 scene 모드로 판단한다. (동요/nursery 모드는 여전히
+    // 구식 {title, key_points} sections를 사용하므로 하위호환을 유지해야 한다.)
+    function _resolveSceneList(data) {
+        if (Array.isArray(data.scenes) && data.scenes.length > 0) return data.scenes;
+        if (Array.isArray(data.sections) && data.sections.length > 0 && data.sections[0] && data.sections[0].scene_id) {
+            return data.sections;
+        }
+        return null;
+    }
+
     function renderStructure(data) {
         const container = document.getElementById('structureContent');
-        if (!data || !data.sections || data.sections.length === 0) {
+        const sceneList = data ? _resolveSceneList(data) : null;
+        const hasOldSections = data && Array.isArray(data.sections) && data.sections.length > 0 && !sceneList;
+
+        if (!data || (!sceneList && !hasOldSections)) {
             container.innerHTML = `
                 <div class="text-center py-10 text-gray-400">
                     <div class="text-4xl mb-3">📭</div>
@@ -1193,6 +1213,11 @@
                     <p class="text-sm mt-1">${i18n.empty_helper.replace('[🔄 다시 생성]', `[🔄 ${i18n.regenerate}]`)}</p>
                 </div>
             `;
+            return;
+        }
+
+        if (sceneList) {
+            renderSceneStructure(container, data, sceneList);
             return;
         }
 
@@ -1248,6 +1273,50 @@
         container.innerHTML = html;
     }
 
+    function renderSceneStructure(container, data, sceneList) {
+        const sorted = [...sceneList].sort((a, b) => (a.scene_order || 0) - (b.scene_order || 0));
+
+        let html = `<div class="space-y-6">`;
+
+        // Global mood (repurposes the old "hook" slot for storage/editing)
+        html += `
+            <div class="p-4 bg-[#232832] rounded-lg border border-white/5">
+                <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">${i18n.global_mood_label || '전체 분위기'}</h4>
+                <div id="editHook" contenteditable="true" class="text-gray-800 dark:text-gray-200 text-lg font-medium outline-none focus:ring-2 focus:ring-red-200 rounded p-1">${data.global_mood || ''}</div>
+            </div>
+        `;
+
+        html += `<div id="editScenesContainer" class="space-y-4">`;
+        sorted.forEach((scene) => {
+            html += `
+                <div class="scene-item p-4 bg-[#232832] rounded-lg border border-white/5 shadow-sm" data-scene-id="${scene.scene_id || ''}" data-scene-order="${scene.scene_order || 0}">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="bg-[#1c2027]/50 text-gray-600 dark:text-gray-300 px-2 py-1 rounded text-xs font-bold">Scene ${scene.scene_order || ''}</span>
+                        <span class="text-xs text-gray-500">${scene.target_duration || 0}s</span>
+                    </div>
+                    <div contenteditable="true" class="editSceneSummary font-bold text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-purple-200 rounded p-1 mb-2">${scene.scene_summary || ''}</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-300">
+                        <div><span class="text-gray-500">${i18n.scene_situation_label || '상황'}:</span> <span contenteditable="true" class="editSceneSituation outline-none focus:ring-2 focus:ring-blue-100 rounded p-1">${scene.scene_situation || ''}</span></div>
+                        <div><span class="text-gray-500">${i18n.scene_emotion_label || '감정'}:</span> <span contenteditable="true" class="editSceneEmotion outline-none focus:ring-2 focus:ring-blue-100 rounded p-1">${scene.scene_emotion || ''}</span></div>
+                        <div><span class="text-gray-500">${i18n.scene_purpose_label || '목적'}:</span> <span contenteditable="true" class="editScenePurpose outline-none focus:ring-2 focus:ring-blue-100 rounded p-1">${scene.scene_purpose || ''}</span></div>
+                        <div><span class="text-gray-500">${i18n.visual_direction_label || '비주얼'}:</span> <span contenteditable="true" class="editSceneVisual outline-none focus:ring-2 focus:ring-blue-100 rounded p-1">${scene.visual_direction || ''}</span></div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+
+        html += `
+            <div class="flex gap-4 text-sm text-gray-500 dark:text-gray-400 mt-4 pt-4">
+                <span>${i18n.topic_label || '주제'}: ${data.topic || '-'}</span>
+                <span>${i18n.scene_count_label || 'Scene 수'}: ${data.scene_count || sorted.length}</span>
+            </div>
+        `;
+
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
     async function saveStructureChanges(btn) {
         const projectId = getCurrentProject();
         if (!projectId || !currentStructure) return;
@@ -1258,25 +1327,50 @@
         try {
             // Collect edited data
             const hook = document.getElementById('editHook').innerText.trim();
-            const cta = document.getElementById('editCTA').innerText.trim();
+            const isSceneMode = document.getElementById('editScenesContainer') !== null;
 
-            const sections = [];
-            const sectionElems = document.querySelectorAll('.section-item');
-            sectionElems.forEach(elem => {
-                const title = elem.querySelector('.editSectionTitle').innerText.trim();
-                const keyPoints = [];
-                elem.querySelectorAll('.editKeyPoint').forEach(kp => {
-                    keyPoints.push(kp.innerText.trim());
+            let newStructure;
+            if (isSceneMode) {
+                const scenes = [];
+                document.querySelectorAll('.scene-item').forEach(elem => {
+                    scenes.push({
+                        scene_id: elem.dataset.sceneId || '',
+                        scene_order: parseInt(elem.dataset.sceneOrder, 10) || 0,
+                        scene_summary: elem.querySelector('.editSceneSummary')?.innerText.trim() || '',
+                        scene_situation: elem.querySelector('.editSceneSituation')?.innerText.trim() || '',
+                        scene_emotion: elem.querySelector('.editSceneEmotion')?.innerText.trim() || '',
+                        scene_purpose: elem.querySelector('.editScenePurpose')?.innerText.trim() || '',
+                        visual_direction: elem.querySelector('.editSceneVisual')?.innerText.trim() || ''
+                    });
                 });
-                sections.push({ title, key_points: keyPoints });
-            });
+                newStructure = {
+                    ...currentStructure,
+                    global_mood: hook,
+                    scenes: scenes,
+                    sections: scenes, // DB persistence repurposes the 'sections' column for scenes[]
+                    hook: hook,
+                    cta: ''
+                };
+            } else {
+                const cta = document.getElementById('editCTA').innerText.trim();
+                const sections = [];
+                const sectionElems = document.querySelectorAll('.section-item');
+                sectionElems.forEach(elem => {
+                    const title = elem.querySelector('.editSectionTitle').innerText.trim();
+                    const keyPoints = [];
+                    elem.querySelectorAll('.editKeyPoint').forEach(kp => {
+                        keyPoints.push(kp.innerText.trim());
+                    });
+                    sections.push({ title, key_points: keyPoints });
+                });
 
-            const newStructure = {
-                ...currentStructure,
-                hook: hook,
-                cta: cta,
-                sections: sections
-            };
+                newStructure = {
+                    ...currentStructure,
+                    hook: hook,
+                    cta: cta,
+                    sections: sections
+                };
+            }
 
             const res = await fetch(`/api/projects/${projectId}/script-structure`, {
                 method: 'POST',
@@ -1312,6 +1406,22 @@
     }
 
     function formatStructureToString(data) {
+        const sceneList = _resolveSceneList(data);
+        if (sceneList) {
+            let sceneText = '';
+            if (data.topic) sceneText += `${i18n.topic_label || '주제'}: ${data.topic}\n`;
+            if (data.global_mood) sceneText += `${i18n.global_mood_label || '전체 분위기'}: ${data.global_mood}\n\n`;
+            [...sceneList].sort((a, b) => (a.scene_order || 0) - (b.scene_order || 0)).forEach((scene) => {
+                sceneText += `Scene ${scene.scene_order || ''}: ${scene.scene_summary || ''}\n`;
+                if (scene.scene_situation) sceneText += `- ${i18n.scene_situation_label || '상황'}: ${scene.scene_situation}\n`;
+                if (scene.scene_emotion) sceneText += `- ${i18n.scene_emotion_label || '감정'}: ${scene.scene_emotion}\n`;
+                if (scene.scene_purpose) sceneText += `- ${i18n.scene_purpose_label || '목적'}: ${scene.scene_purpose}\n`;
+                if (scene.visual_direction) sceneText += `- ${i18n.visual_direction_label || '비주얼'}: ${scene.visual_direction}\n`;
+                sceneText += '\n';
+            });
+            return sceneText;
+        }
+
         let text = '';
 
         // Hook

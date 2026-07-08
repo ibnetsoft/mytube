@@ -459,6 +459,18 @@
         }
     }
 
+    // [FIX] narrationMode radio always defaulted to "single" on every page/project
+    // load regardless of what was actually used to generate the script, so a later
+    // save (or regeneration) could silently overwrite voice_multi_enabled back to 0
+    // even for an already multi-voice script. Restore it from saved settings so the
+    // radio (and therefore any subsequent save) reflects the project's real mode.
+    function restoreNarrationMode(settings) {
+        if (!settings || settings.voice_multi_enabled === undefined || settings.voice_multi_enabled === null) return;
+        const isMulti = settings.voice_multi_enabled === 1 || settings.voice_multi_enabled === '1' || settings.voice_multi_enabled === true;
+        const radio = document.querySelector(`input[name="narrationMode"][value="${isMulti ? 'multi' : 'single'}"]`);
+        if (radio) radio.checked = true;
+    }
+
     async function openFile(projectId) {
         console.log("openFile called with:", projectId);
         try {
@@ -466,6 +478,7 @@
             setCurrentProject(projectId);
 
             const full = await API.project.getFull(projectId);
+            restoreNarrationMode(full?.settings);
 
             // Always prepare to show the editor
             document.getElementById('resultSection').classList.remove('hidden');
@@ -1036,6 +1049,7 @@
         if (projectId) {
             try {
                 const projectFull = await API.project.getFull(projectId);
+                restoreNarrationMode(projectFull?.settings);
                 if (projectFull && projectFull.script_structure) {
                     Utils.storage.set('scriptStructure', projectFull.script_structure);
                     document.getElementById('analysisInfo').classList.remove('hidden');
