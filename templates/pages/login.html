@@ -90,6 +90,18 @@
                     </button>
                 </div>
 
+                <!-- 아이디/비밀번호 저장 체크박스 -->
+                <div class="flex items-center gap-4 px-1">
+                    <div class="flex items-center gap-1.5">
+                        <input type="checkbox" id="remember-email" class="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer">
+                        <label for="remember-email" class="text-xs text-gray-400 cursor-pointer select-none" data-i18n="lbl_remember_email">아이디 저장</label>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input type="checkbox" id="remember-password" class="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer">
+                        <label for="remember-password" class="text-xs text-gray-400 cursor-pointer select-none" data-i18n="lbl_remember_password">비밀번호 저장</label>
+                    </div>
+                </div>
+
                 <div id="login-error" class="text-red-400 text-xs font-semibold text-center min-h-4"></div>
 
                 <button id="login-btn" onclick="submitLogin()" disabled
@@ -253,6 +265,7 @@
             btn_register: '회원가입 신청',
             btn_login: '로그인',
             btn_forgot: '비밀번호를 잊으셨나요?',
+            lbl_remember_email: '아이디 저장', lbl_remember_password: '비밀번호 저장',
             rule_length: '8자리 이상', rule_upper: '대문자 포함', rule_lower: '소문자 포함', rule_number: '숫자 포함', rule_special: '특수문자 포함',
             ph_login_email: '이메일 / Email',
             ph_login_pw: '비밀번호 / Password',
@@ -313,6 +326,7 @@
             btn_register: 'สมัครสมาชิก',
             btn_login: 'เข้าสู่ระบบ',
             btn_forgot: 'ลืมรหัสผ่าน?',
+            lbl_remember_email: 'จดจำอีเมล', lbl_remember_password: 'จดจำรหัสผ่าน',
             rule_length: 'อย่างน้อย 8 ตัวอักษร', rule_upper: 'มีตัวพิมพ์ใหญ่', rule_lower: 'มีตัวพิมพ์เล็ก', rule_number: 'มีตัวเลข', rule_special: 'มีอักขระพิเศษ',
             ph_login_email: 'อีเมล',
             ph_login_pw: 'รหัสผ่าน',
@@ -373,6 +387,7 @@
             btn_register: 'Apply for Membership',
             btn_login: 'Login',
             btn_forgot: 'Forgot password?',
+            lbl_remember_email: 'Remember Email', lbl_remember_password: 'Remember Password',
             rule_length: '8+ chars', rule_upper: 'Uppercase', rule_lower: 'Lowercase', rule_number: 'Number', rule_special: 'Special char',
             ph_login_email: 'Email',
             ph_login_pw: 'Password',
@@ -433,6 +448,7 @@
             btn_register: 'Nộp đơn đăng ký',
             btn_login: 'Đăng nhập',
             btn_forgot: 'Quên mật khẩu?',
+            lbl_remember_email: 'Ghi nhớ Email', lbl_remember_password: 'Ghi nhớ mật khẩu',
             rule_length: 'Tối thiểu 8 ký tự', rule_upper: 'Chữ hoa', rule_lower: 'Chữ thường', rule_number: 'Số', rule_special: 'Ký tự đặc biệt',
             ph_login_email: 'Email',
             ph_login_pw: 'Mật khẩu',
@@ -471,7 +487,17 @@
             cat_old_stories: 'Chuyện ngày xưa'
         }
     };
-    let currentLang = localStorage.getItem('login_lang') || 'ko';
+    // [AIR-0132] Browser language detection (navigator.language → supported lang)
+    function _detectBrowserLang() {
+        const nav = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+        const tag = nav.toLowerCase();
+        if (tag.startsWith('ko')) return 'ko';
+        if (tag.startsWith('vi')) return 'vi';
+        if (tag.startsWith('th')) return 'th';
+        return 'en';
+    }
+    const _browserLang = _detectBrowserLang();
+    let currentLang = localStorage.getItem('login_lang') || _browserLang;
 
     const CATEGORY_TRANSLATIONS = {
         '경제': 'cat_economy',
@@ -683,6 +709,21 @@
     }
 
     // ===== 로그인 =====
+    // ===== 아이디/비밀번호 저장 복구 =====
+    (function loadSavedCredentials() {
+        const savedEmail = localStorage.getItem('remembered_email');
+        const savedPassword = localStorage.getItem('remembered_password');
+        if (savedEmail) {
+            document.getElementById('login-email').value = savedEmail;
+            document.getElementById('remember-email').checked = true;
+        }
+        if (savedPassword) {
+            document.getElementById('login-password').value = savedPassword;
+            document.getElementById('remember-password').checked = true;
+        }
+        setTimeout(() => { checkLoginBtn(); }, 50);
+    })();
+
     function checkLoginBtn() {
         const email = document.getElementById('login-email').value.trim();
         const pass = document.getElementById('login-password').value.trim();
@@ -700,11 +741,22 @@
         btn.disabled = true;
         btn.textContent = L.msg_logging_in;
         try {
-            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password, lang: currentLang}) });
+            const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email, password, lang: currentLang, browser_lang: _browserLang}) });
             const data = await r.json();
             if (data.success) {
                 localStorage.setItem('login_lang', data.lang || currentLang);
                 localStorage.setItem('language', data.lang || currentLang);
+                // 아이디/비밀번호 저장
+                if (document.getElementById('remember-email').checked) {
+                    localStorage.setItem('remembered_email', email);
+                } else {
+                    localStorage.removeItem('remembered_email');
+                }
+                if (document.getElementById('remember-password').checked) {
+                    localStorage.setItem('remembered_password', password);
+                } else {
+                    localStorage.removeItem('remembered_password');
+                }
                 window.location.href = '/';
             }
             else {

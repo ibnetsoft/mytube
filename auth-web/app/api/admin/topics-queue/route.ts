@@ -83,6 +83,151 @@ function isMissingColumnError(err: any): boolean {
     )
 }
 
+// --- AIR-0129: Admin auto-translation pipeline ---
+
+type TranslationTopic = { id: string; topic: string; category_name: string }
+
+function buildTranslationPrompt(topics: TranslationTopic[], langCode: string, langName: string): string {
+    const itemLines = topics.map(t =>
+        JSON.stringify({ id: t.id, topic: t.topic, category_name: t.category_name })
+    ).join('\n')
+    return `You are a professional ${langName} translator for YouTube content.
+Translate the topic titles and category names to natural, fluent ${langName}.
+Topic titles must work as compelling YouTube video titles in ${langName}.
+Return ONLY valid JSON array. No markdown, no explanation.
+
+Input topics (JSON objects):
+${itemLines}
+
+Return format:
+[
+  {"id":"<same id>","topic_${langCode}":"<translated topic>","category_name_${langCode}":"<translated category name>"}
+]`
+}
+
+function parseTranslationResponse(
+    raw: string,
+    validIds: Set<string>,
+    langCode: string
+): Record<string, { topic: string; category_name: string }> {
+    try {
+        const parsed = JSON.parse(raw)
+        if (!Array.isArray(parsed)) return {}
+        const result: Record<string, { topic: string; category_name: string }> = {}
+        for (const item of parsed) {
+            const id = String(item?.id ?? '').trim()
+            if (!id || !validIds.has(id)) continue
+            const topic = String(item?.[`topic_${langCode}`] ?? '').trim()
+            const catName = String(item?.[`category_name_${langCode}`] ?? '').trim()
+            if (topic) result[id] = { topic, category_name: catName }
+        }
+        return result
+    } catch {
+        return {}
+    }
+}
+
+async function translateAndSaveTopics(
+    topicIds: string[],
+    supabase: ReturnType<typeof getAdmin>,
+    geminiApiKey: string
+): Promise<void> {
+    if (!topicIds.length || !geminiApiKey) return
+    try {
+        // Mark as running before starting AI calls
+        await supabase
+            .from('topics_queue')
+            .update({ translation_status: 'running' })
+            .in('id', topicIds)
+
+        // Fetch topic text and category names for all target IDs
+        const { data: rows, error: fetchError } = await supabase
+            .from('topics_queue')
+            .select('id, topic, categories(name)')
+            .in('id', topicIds)
+
+        if (fetchError || !rows?.length) {
+            await supabase
+                .from('topics_queue')
+                .update({ translation_status: 'failed' })
+                .in('id', topicIds)
+            return
+        }
+
+        const topics: TranslationTopic[] = rows.map((r: any) => ({
+            id: String(r.id),
+            topic: String(r.topic || ''),
+            category_name: String(r.categories?.name || ''),
+        }))
+        const validIds = new Set(topics.map(t => t.id))
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+
+        const LANG_MAP = [
+            { code: 'vi', name: 'Vietnamese' },
+            { code: 'en', name: 'English' },
+            { code: 'th', name: 'Thai' },
+        ] as const
+
+        // Accumulate translations per topic ID across all languages
+        const allTranslations: Record<string, Record<string, string>> = {}
+        for (const t of topics) allTranslations[t.id] = {}
+
+        for (const lang of LANG_MAP) {
+            try {
+                const prompt = buildTranslationPrompt(topics, lang.code, lang.name)
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                    config: { responseMimeType: 'application/json' },
+                })
+                const parsed = parseTranslationResponse(response.text || '[]', validIds, lang.code)
+                for (const [id, val] of Object.entries(parsed)) {
+                    allTranslations[id][`topic_${lang.code}`] = val.topic
+                    allTranslations[id][`category_name_${lang.code}`] = val.category_name
+                }
+            } catch (langErr) {
+                console.error(`AIR-0129: translation failed for lang=${lang.code}`, langErr)
+                // Continue with remaining languages — partial save is acceptable
+            }
+        }
+
+        // Persist all available columns for each topic that has at least one translation
+        const now = new Date().toISOString()
+        await Promise.all(
+            topics.map(async (t) => {
+                const cols = allTranslations[t.id]
+                if (!Object.keys(cols).length) return
+                const { error: saveError } = await supabase
+                    .from('topics_queue')
+                    .update({ ...cols, translated_at: now, translation_status: 'completed' })
+                    .eq('id', t.id)
+                if (saveError && !isMissingColumnError(saveError)) {
+                    console.error(`AIR-0129: save failed for topic id=${t.id}`, saveError)
+                }
+            })
+        )
+
+        // Mark any topics with zero translations as failed
+        const failedIds = topics
+            .filter(t => !Object.keys(allTranslations[t.id]).length)
+            .map(t => t.id)
+        if (failedIds.length) {
+            await supabase
+                .from('topics_queue')
+                .update({ translation_status: 'failed' })
+                .in('id', failedIds)
+        }
+    } catch (err) {
+        console.error('AIR-0129: translateAndSaveTopics failed', err)
+        try {
+            await supabase
+                .from('topics_queue')
+                .update({ translation_status: 'failed' })
+                .in('id', topicIds)
+        } catch {}
+    }
+}
+
 function pickValidStyle(value: any, allowed: string[], fallback: string): string {
     const key = String(value ?? '').trim()
     return allowed.includes(key) ? key : fallback
@@ -503,6 +648,7 @@ export async function POST(req: Request) {
                 assigned_image_style: assignedImageStyle,
                 language: targetLang,
                 status: 'pending',
+                translation_status: 'pending',
                 ...(isLongformCategory ? {
                     recommended_duration_minutes: assignedDuration,
                     assigned_duration_minutes: assignedDuration,
@@ -519,20 +665,30 @@ export async function POST(req: Request) {
             }
         }).filter(item => item.topic)
 
-        let { error: insertError } = await supabase
+        // AIR-0129: select back inserted IDs to kick off background translation
+        let { data: insertedRows, error: insertError } = await supabase
             .from('topics_queue')
             .insert(inserts)
+            .select('id')
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
+                .select('id')
+            insertedRows = retry.data
             insertError = retry.error
         }
 
         if (insertError) throw insertError
+
+        // Fire background translation (non-blocking — admin save returns immediately)
+        const insertedIds = (insertedRows || []).map((r: any) => String(r.id))
+        if (insertedIds.length && geminiApiKey) {
+            void translateAndSaveTopics(insertedIds, supabase, geminiApiKey)
+        }
 
         return NextResponse.json({ success: true, count: inserts.length, topics })
     } catch (e: any) {
@@ -568,14 +724,52 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: 'Only pending topics can be edited' }, { status: 400 })
         }
 
-        const { data, error } = await supabase
+        // AIR-0129: Reset translation columns + set pending so background translation restarts.
+        // Falls back to topic-only update if migration has not been applied yet.
+        const updatePayload: Record<string, string | null> = {
+            topic: String(topic).trim(),
+            topic_vi: null,
+            topic_en: null,
+            topic_th: null,
+            category_name_vi: null,
+            category_name_en: null,
+            category_name_th: null,
+            translation_status: 'pending',
+        }
+        let { data, error } = await supabase
             .from('topics_queue')
-            .update({ topic: String(topic).trim() })
+            .update(updatePayload)
             .eq('id', id)
             .select('id, category_id, topic, status')
             .single()
 
+        if (isMissingColumnError(error)) {
+            // Translation columns not yet migrated — update topic text only.
+            const retry = await supabase
+                .from('topics_queue')
+                .update({ topic: String(topic).trim() })
+                .eq('id', id)
+                .select('id, category_id, topic, status')
+                .single()
+            data = retry.data
+            error = retry.error
+        }
+
         if (error) throw error
+
+        // Fire background translation (non-blocking — admin save returns immediately)
+        let putGeminiApiKey = process.env.GEMINI_API_KEY
+        if (!putGeminiApiKey) {
+            const { data: dbKey } = await supabase
+                .from('global_settings')
+                .select('value')
+                .eq('key', 'sys_api_gemini')
+                .maybeSingle()
+            if (dbKey?.value) putGeminiApiKey = dbKey.value
+        }
+        if (putGeminiApiKey) {
+            void translateAndSaveTopics([String(id)], supabase, putGeminiApiKey)
+        }
 
         return NextResponse.json({ success: true, topic: data })
     } catch (e: any) {

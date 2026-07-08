@@ -1,32 +1,40 @@
 from fastapi import APIRouter, HTTPException, Request, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from typing import Optional
 import os
 import datetime
 import pandas as pd
 from config import config
 from services.auth_service import auth_service
-from services import app_state as _app_state
 import database as db
 
 router = APIRouter(prefix="", tags=["Repository"])
-templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 
-# app_state 공유 translator 사용 (자체 인스턴스 제거)
-templates.env.globals['membership'] = auth_service.get_membership()
-templates.env.globals['is_independent'] = auth_service.is_independent()
+# [AIR-0134] Use shared templates instance from main.py (same pattern as pages.py)
+_templates: Optional[Jinja2Templates] = None
+
+def init_repository(templates: Jinja2Templates):
+    global _templates
+    _templates = templates
 
 @router.get("/repository", response_class=HTMLResponse)
 async def repository_page(request: Request):
     """저장소 메인 페이지"""
-    templates.env.globals['t'] = _app_state.get_translator().t if _app_state.get_translator() else (lambda k: k)
-    templates.env.globals['current_lang'] = _app_state.get_translator().lang if _app_state.get_translator() else 'ko'
-    return templates.TemplateResponse(
+    from services.i18n import Translator
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
+    return _templates.TemplateResponse(
         request=request,
         name="pages/repository.html",
         context={
-            "title": "분석 저장소", 
-            "page": "repository"
+            "title": "분석 저장소",
+            "page": "repository",
+            "membership": auth_service.get_membership(),
+            "token_balance": auth_service.get_token_balance(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 

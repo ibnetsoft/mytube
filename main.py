@@ -13,10 +13,31 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+# Windows 콘솔/태스크바 아이콘을 클래퍼보드(🎬)로 변경
+def _set_window_icon():
+    if sys.platform != 'win32':
+        return
+    try:
+        import ctypes
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "air_studio.ico")
+        if not os.path.exists(icon_path):
+            return
+        HWND = ctypes.windll.kernel32.GetConsoleWindow()
+        if not HWND:
+            return
+        hIcon = ctypes.windll.user32.LoadImageW(None, icon_path, 1, 0, 0, 0x0010 | 0x0040)
+        if hIcon:
+            ctypes.windll.user32.SendMessageW(HWND, 0x0080, 1, hIcon)  # WM_SETICON ICON_BIG
+            ctypes.windll.user32.SendMessageW(HWND, 0x0080, 0, hIcon)  # WM_SETICON ICON_SMALL
+    except Exception:
+        pass
+
+_set_window_icon()
+
 from fastapi import FastAPI, Request, HTTPException, Form, BackgroundTasks, Body, Query, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union
@@ -33,7 +54,7 @@ import re
 import datetime
 import aiofiles
 import shutil
-from pathlib import Path
+
 
 # ==========================================
 # FFmpeg & Pydub Configuration (Global)
@@ -41,7 +62,6 @@ from pathlib import Path
 try:
     from pydub import AudioSegment
     import glob
-    import shutil
 
     ffmpeg_candidates = []
     if os.getenv("IMAGEIO_FFMPEG_EXE"):
@@ -66,12 +86,9 @@ except Exception as e:
 
 from config import config
 import database as db
-from app.routers import settings  # [NEW]
 from services.gemini_service import gemini_service
 from services.replicate_service import replicate_service
 from services.auth_service import auth_service
-from services.storage_service import storage_service
-from services.thumbnail_service import thumbnail_service
 from services.drive_bundle_service import drive_bundle_service
 from services.web_admin_client import web_admin_client
 from services.topic_queue_sync_service import sync_topic_progress
@@ -110,13 +127,25 @@ def _queue_project_sync(background_tasks: BackgroundTasks, project_id: int):
 
 from fastapi.responses import RedirectResponse
 
-# [NEW] 직원 로그인 & 멀티유저 세션 관리 미들웨어
+# [AIR-0133] Per-request language resolution helpers
+_LANG_ALLOWED = {"ko", "en", "vi", "th"}
+
+def _resolve_request_lang(request: Request) -> str:
+    """Determine the UI language for this request.
+    Priority: cookie "language" > server default (app_lang) > "en"
+    """
+    cookie_lang = request.cookies.get("language")
+    if cookie_lang in _LANG_ALLOWED:
+        return cookie_lang
+    return app_lang if app_lang in _LANG_ALLOWED else "en"
+
+
+# 직원 로그인 & 멀티유저 세션 관리 미들웨어
 @app.middleware("http")
 async def check_login_middleware(request: Request, call_next):
-    global app_lang
     try:
         path = request.url.path
-        
+
         # 예외 대상 경로 리스트 (로그인, API 인증, 헬스체크 등)
         bypass_paths = [
             "/login",
@@ -124,22 +153,22 @@ async def check_login_middleware(request: Request, call_next):
             "/api/auth/emails",
             "/api/health",
         ]
-        
+
         # static, uploads, favicon, docs 등의 정적 에셋 경로 우회
         is_asset = (
-            path.startswith("/static") or 
-            path.startswith("/output") or 
+            path.startswith("/static") or
+            path.startswith("/output") or
             path.startswith("/uploads") or
             path.startswith("/assets") or
             path.startswith("/favicon.ico") or
             path.startswith("/docs") or
             path.startswith("/openapi.json")
         )
-        
+
         # HTML 페이지 요청인지 확인 (수동 주소창 접근 시 리디렉션하기 위함)
         accept_header = request.headers.get("accept") or ""
         is_html_request = "text/html" in accept_header
-        
+
         # 로그인 체크 적용 대상인 경우
         if not is_asset and not any(path == bp for bp in bypass_paths) and is_html_request:
             user_email = request.cookies.get("user_email")
@@ -149,17 +178,12 @@ async def check_login_middleware(request: Request, call_next):
                 # auth_service의 active user 이메일 및 에셋 폴더 동적 활성화
                 from services.auth_service import auth_service
                 auth_service.login_user(user_email)
-                cookie_lang = request.cookies.get("language")
-                if cookie_lang in ["ko", "en", "vi", "th"] and cookie_lang != app_lang:
-                    translator.set_lang(cookie_lang)
-                    app_lang = cookie_lang
-                    templates.env.globals['current_lang'] = app_lang
-                    templates.env.globals['window_lang'] = app_lang
-                    try:
-                        from services import app_state as _live_app_state
-                        _live_app_state.switch_language(cookie_lang)
-                    except Exception:
-                        pass
+
+        # [AIR-0133] Per-request language: set on request.state for all routes
+        # Routers read request.state.current_lang instead of global app_lang.
+        # API routes (non-HTML) also get this set so they can pass it to
+        # background tasks if needed, though most don't use it.
+        request.state.current_lang = _resolve_request_lang(request)
 
         response = await call_next(request)
         return response
@@ -174,20 +198,36 @@ async def check_login_middleware(request: Request, call_next):
             pass
         raise e
 
-# [NEW] 로그인 페이지 응답 라우트
+# [AIR-0137] /output 파일 서빙 — .mp4는 로그인 필수, path traversal 차단
 @app.get("/output/{file_path:path}")
 async def serve_output_file(file_path: str):
+    from services.auth_service import auth_service
+
     if file_path.startswith("external/"):
         rel = file_path.replace("external/", "", 1)
         appdata_base = config.LOCAL_APP_DATA_DIR
         abs_path = os.path.normpath(os.path.join(appdata_base, rel))
-        if os.path.exists(abs_path):
-            return FileResponse(abs_path)
-    else:
-        abs_path = os.path.join(config.OUTPUT_DIR, file_path)
-        if os.path.exists(abs_path):
-            return FileResponse(abs_path)
-    raise HTTPException(status_code=404, detail="File not found")
+        norm_base = os.path.normpath(appdata_base)
+        if not (abs_path == norm_base or abs_path.startswith(norm_base + os.sep)):
+            raise HTTPException(status_code=403, detail="Access denied.")
+        if not os.path.exists(abs_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        if abs_path.lower().endswith(".mp4"):
+            if not auth_service.get_user_email():
+                raise HTTPException(status_code=403, detail="Login required to access video files.")
+        return FileResponse(abs_path)
+
+    full_path = os.path.join(config.OUTPUT_DIR, file_path)
+    norm_output = os.path.normpath(config.OUTPUT_DIR)
+    norm_full = os.path.normpath(full_path)
+    if not (norm_full == norm_output or norm_full.startswith(norm_output + os.sep)):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    if full_path.lower().endswith(".mp4"):
+        if not auth_service.get_user_email():
+            raise HTTPException(status_code=403, detail="Login required to access video files.")
+    return FileResponse(full_path)
 
 # [NEW] 실시간 등급/토큰 동기화 API
 # CORS 설정 (로컬 앱 전용)
@@ -237,6 +277,7 @@ translator = Translator(app_lang)
 
 # Add t function to Jinja2 globals
 templates.env.globals['t'] = translator.t
+templates.env.globals['t_all'] = translator.t_all
 templates.env.globals['current_lang'] = app_lang
 templates.env.globals['window_lang'] = app_lang
 templates.env.globals['app_mode'] = normalize_app_mode(db.get_global_setting("app_mode", DEFAULT_APP_MODE))
@@ -308,7 +349,10 @@ from app.routers import projects as projects_router # [NEW]
 from app.routers import channels as channels_router # [NEW]
 from app.routers import media as media_router # [NEW]
 from app.routers import settings as settings_router # [NEW]
+from app.routers import youtube as youtube_router
+from app.routers import tts as tts_router
 from app.routers import repository as repository_router # [NEW]
+from app.routers import health as health_router
 from app.routers import queue as queue_router # [NEW]
 
 from app.routers import audio as audio_router
@@ -318,11 +362,22 @@ from app.routers import pages as pages_router
 from app.routers import gemini as gemini_router
 from app.routers import image as image_router
 from app.routers import thumbnails as thumbnails_router
+from app.routers import templates as templates_router
 from app.routers import auth as auth_router
 from app.routers import update as update_router
 from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
+from app.routers import referral as referral_router
+from app.routers import admin_referrals as admin_referrals_router
+from app.routers import director_api
+from app.routers import admin_voices as admin_voices_router
+from app.routers import voices as voices_router
+from app.routers import script_api as script_api_router  # [AIR-0203]
+from app.routers import director_api as director_api_router  # [AIR-0205]
+from app.routers import production_api as production_api_router  # [AIR-0206]
+from app.routers import prompt_package_api as prompt_package_api_router  # [AIR-0207]
+from app.routers import asset_matching_api as asset_matching_api_router  # [AIR-0207]
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -334,7 +389,10 @@ app.include_router(projects_router.router)
 app.include_router(channels_router.router)
 app.include_router(media_router.router)
 app.include_router(settings_router.router)
+app.include_router(youtube_router.router)
+app.include_router(tts_router.router)
 app.include_router(repository_router.router)
+app.include_router(health_router.router)
 app.include_router(queue_router.router)
 app.include_router(audio_router.router)
 app.include_router(music_router.router)
@@ -343,31 +401,26 @@ app.include_router(pages_router.router)
 app.include_router(gemini_router.router)
 app.include_router(image_router.router)
 app.include_router(thumbnails_router.router)
+app.include_router(templates_router.router)
 app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
+app.include_router(referral_router.router, prefix="/api")
+app.include_router(admin_referrals_router.router, prefix="/api")
+app.include_router(admin_voices_router.router)
+app.include_router(voices_router.router)
+app.include_router(script_api_router.router, prefix="/api/script")  # [AIR-0203]
+app.include_router(director_api_router.router, prefix="/api/director")  # [AIR-0205]
+app.include_router(production_api_router.router, prefix="/api/production")  # [AIR-0206]
+app.include_router(prompt_package_api_router.router, prefix="/api/packages")  # [AIR-0207]
+app.include_router(asset_matching_api_router.router, prefix="/api/assets")  # [AIR-0207]
 pages_router.init_pages(templates)
+repository_router.init_repository(templates)  # [AIR-0134]
 
 
 # output 폴더
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 # app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
-
-@app.get("/output/{file_path:path}")
-async def serve_output_file(file_path: str):
-    from services.auth_service import auth_service
-    import database as db
-    
-    full_path = os.path.join(config.OUTPUT_DIR, file_path)
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    if full_path.lower().endswith(".mp4"):
-        email = auth_service.get_user_email()
-        if not db.is_user_admin(email):
-            raise HTTPException(status_code=403, detail="Only admins can access rendered videos.")
-            
-    return FileResponse(full_path)
 
 # uploads 폴더 (인트로 등 업로드용)
 os.makedirs("uploads", exist_ok=True)
@@ -398,6 +451,10 @@ async def startup_event():
 
         # [NEW] Start Autopilot Batch Worker
         asyncio.create_task(autopilot_service.start_batch_worker())
+        
+        # [NEW] Start Referral Engagement Re-engagement Loop
+        from app.services.referral_engagement_service import referral_engagement_service
+        asyncio.create_task(referral_engagement_service.start_background_worker())
 
         # 키 로드 상태 출력
         from config import Config
@@ -416,15 +473,11 @@ async def startup_event():
 # Pydantic 모델
 # ===========================================
 from app.models.project import (
-    ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave,
-    StylePreset, AnalysisSave, ScriptStructureSave, ScriptSave,
-    ImagePromptsSave, MetadataSave, ThumbnailsSave, ShortsSave,
-    SubtitleDefaultSave
+    ProjectSettingUpdate, ProjectSettingsSave,
+    AnalysisSave, ScriptSave,
+    MetadataSave, ShortsSave
 )
-from app.models.media import (
-    SearchRequest, GeminiRequest, TTSRequest, VideoRequest, PromptsGenerateRequest
-)
-from app.models.channel import ChannelCreate, ChannelResponse
+
 
 # 스타일 매핑 
 STYLE_PROMPTS = {
@@ -707,86 +760,6 @@ async def analyze_scenes(project_id: int):
 
 
 
-
-@app.post("/api/projects/{project_id}/image-prompts/auto")
-async def auto_generate_images(project_id: int):
-    """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성 (Longform & Shorts)"""
-    # 1. 대본 조회 (Longform 우선, 없으면 Shorts 확인)
-    script_data = db.get_script(project_id)
-    script = ""
-    duration = 60
-
-    if script_data and script_data.get("full_script"):
-        script = script_data["full_script"]
-        duration = script_data.get("estimated_duration", 60)
-    else:
-        # Longform 대본이 없으면 Shorts 대본 확인
-        shorts_data = db.get_shorts(project_id)
-        if shorts_data and shorts_data.get("shorts_data"):
-             # Shorts 데이터에서 텍스트 추출 (Narrations/Dialogue concatenating)
-             # shorts_data structure might be complex, assuming simple list of scenes or text
-             # Based on previous knowledge, shorts_data is likely a JSON with scenes
-             try:
-                 scenes = shorts_data.get("shorts_data", {}).get("scenes", [])
-                 if not scenes and isinstance(shorts_data.get("shorts_data"), list):
-                     scenes = shorts_data.get("shorts_data") # Handle list format
-                 
-                 parts = []
-                 for s in scenes:
-                     if "narration" in s: parts.append(s["narration"])
-                     if "dialogue" in s: parts.append(s["dialogue"])
-                     if "script" in s: parts.append(s["script"])
-                 
-                 script = "\n".join(parts)
-                 duration = 50 # Default shorts duration
-             except Exception:
-                 script = str(shorts_data) # Fallback
-    
-    if not script:
-        raise HTTPException(400, "대본이 없습니다. 먼저 대본(Longform 또는 Shorts)을 생성해주세요.")
-
-    # 2. 프롬프트 생성 (Gemini)
-    from services.gemini_service import gemini_service
-    prompts = await gemini_service.generate_image_prompts_from_script(script, duration, model=config.IMAGE_PROMPT_MODEL)
-    
-    if not prompts:
-        raise HTTPException(500, "이미지 프롬프트 생성 실패")
-
-    # 3. 이미지 일괄 생성 (Imagen 3) - 병렬 처리
-    async def process_scene(p):
-        try:
-            images = await gemini_service.generate_image(
-                prompt=p["prompt_en"],
-                aspect_ratio="16:9",
-                num_images=1
-            )
-            
-            if images:
-                output_dir, web_dir = get_project_output_dir(project_id)
-                filename = f"p{project_id}_s{p['scene_number']}_{int(time.time())}.png"
-                output_path = os.path.join(output_dir, filename)
-                
-                async with aiofiles.open(output_path, "wb") as f:
-                    f.write(images[0])
-                
-                p["image_url"] = f"{web_dir}/{filename}"
-                return True
-        except Exception as e:
-            print(f"이미지 생성 실패 (Scene {p.get('scene_number')}): {e}")
-            p["image_url"] = ""
-        return False
-
-    print(f"🎨 [Main] 이미지 병렬 생성 시작: {len(prompts)}개...")
-    tasks = [process_scene(p) for p in prompts]
-    await asyncio.gather(*tasks)
-
-    # 4. DB 저장
-    db.save_image_prompts(project_id, prompts)
-
-    return {"status": "ok", "prompts": prompts}
-
-
-
 @app.post("/api/projects/{project_id}/tts/upload")
 async def save_external_tts(project_id: int, file: UploadFile = File(...)):
     """외부 TTS 오디오 파일 업로드 및 저장"""
@@ -815,68 +788,6 @@ async def save_external_tts(project_id: int, file: UploadFile = File(...)):
     except Exception as e:
         print(f"Error saving external TTS: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.post("/api/projects/{project_id}/image-prompts")
-async def save_image_prompts(project_id: int, req: ImagePromptsSave):
-    """이미지 프롬프트 저장"""
-    db.save_image_prompts(project_id, req.prompts)
-    from services.longform_asset_readiness import sync_project_asset_readiness
-    return {
-        "status": "ok",
-        "asset_readiness": sync_project_asset_readiness(project_id),
-    }
-
-@app.get("/api/projects/{project_id}/image-prompts")
-async def get_image_prompts(project_id: int):
-    """이미지 프롬프트 조회"""
-    from services.longform_asset_readiness import sync_project_asset_readiness
-    return {
-        "status": "ok",
-        "prompts": db.get_image_prompts(project_id),
-        "asset_readiness": sync_project_asset_readiness(project_id),
-    }
-
-class BulkPromptUpdate(BaseModel):
-    texts: str
-
-@app.post("/api/projects/{project_id}/bulk-update-prompts")
-async def bulk_update_prompts(project_id: int, req: BulkPromptUpdate):
-    """프롬프트 일괄 업데이트 (텍스트 목록 기반)"""
-    try:
-        # 1. 텍스트 분리 (빈 줄 제외)
-        lines = [line.strip() for line in req.texts.split('\n') if line.strip()]
-        if not lines:
-            raise HTTPException(400, "입력된 프롬프트가 없습니다.")
-
-        # 2. 기존 프롬프트 조회
-        existing = db.get_image_prompts(project_id)
-        
-        new_prompts = []
-        for i, line in enumerate(lines):
-            scene_number = i + 1
-            # 기존 데이터가 있으면 필드 유지, 아니면 신규 생성
-            base = next((p for p in existing if p['scene_number'] == scene_number), {})
-            
-            prompt_item = {
-                "scene_number": scene_number,
-                "scene_text": base.get("scene_text") or "Scene " + str(scene_number),
-                "prompt_ko": line,
-                "prompt_en": line, 
-                "image_url": base.get("image_url", ""),
-                "video_url": base.get("video_url", ""),
-                "engine": base.get("engine", "veo"),
-                "scene_type": base.get("scene_type", ""),
-                "motion_desc": base.get("motion_desc", "")
-            }
-            new_prompts.append(prompt_item)
-            
-        # 3. DB 저장
-        db.save_image_prompts(project_id, new_prompts)
-        
-        return {"status": "success", "count": len(new_prompts)}
-    except Exception as e:
-        print(f"Bulk Update Error: {e}")
-        raise HTTPException(500, str(e))
 
 
 class AnimateRequest(BaseModel):
@@ -1011,16 +922,7 @@ async def get_metadata(project_id: int, app_mode: str = Query(None)):
     app_mode = normalize_app_mode(app_mode)
     return db.get_project_metadata(project_id, app_mode) or {}
 
-@app.post("/api/projects/{project_id}/thumbnails")
-async def save_thumbnails(project_id: int, req: ThumbnailsSave):
-    """썸네일 아이디어 및 설정 저장"""
-    db.save_thumbnails(project_id, req.ideas, req.texts, req.full_settings)
-    return {"status": "ok"}
 
-@app.get("/api/projects/{project_id}/thumbnails")
-async def get_thumbnails(project_id: int):
-    """썸네일 아이디어 조회"""
-    return db.get_thumbnails(project_id) or {}
 
 # [REMOVED] Duplicate thumbnail save endpoint (Moved to line ~1630 with updated logic)
 
@@ -1182,36 +1084,13 @@ async def update_project_setting(project_id: int, key: str, value: str):
         raise HTTPException(400, f"유효하지 않은 설정 키: {key}")
     return {"status": "ok"}
 
-@app.get("/api/settings/subtitle/default")
-async def get_subtitle_defaults():
-    """자막 스타일 기본값 조회"""
-    return db.get_subtitle_defaults()
-
-@app.post("/api/settings/subtitle/default")
-async def save_subtitle_defaults(req: SubtitleDefaultSave):
-    """자막 스타일 기본값 저장"""
-    db.save_global_setting("subtitle_default_style", req.dict())
-    return {"status": "ok"}
 
 
 # ===========================================
 # API: 상태 확인
 # ===========================================
 
-@app.get("/api/health")
-async def health_check():
-    """서버 상태 및 API 연결 확인"""
-    return {
-        "status": "ok",
-        "version": "2.0.0",
-        "apis": {
-            "youtube": bool(config.YOUTUBE_API_KEY),
-            "gemini": bool(config.GEMINI_API_KEY),
-            "elevenlabs": bool(config.ELEVENLABS_API_KEY),
-            "replicate": bool(config.REPLICATE_API_TOKEN),
-            "typecast": bool(config.TYPECAST_API_KEY)
-        }
-    }
+
 
 @app.get("/api/utils/phonetic")
 def get_phonetic(text: str = "", target_lang: str = "en"):
@@ -1227,351 +1106,6 @@ def get_phonetic(text: str = "", target_lang: str = "en"):
         print("Kakasi error:", e)
         return {"phonetic": text}
 
-
-# ===========================================
-# API: API 키 관리
-# ===========================================
-
-class ApiKeySave(BaseModel):
-    youtube: Optional[str] = None
-    gemini: Optional[str] = None
-    elevenlabs: Optional[str] = None
-    suno: Optional[str] = None
-    suno_base_url: Optional[str] = None
-    music_provider: Optional[str] = None
-    music_gemini_model: Optional[str] = None
-    music_gemini_base_url: Optional[str] = None
-    music_gemini_project_id: Optional[str] = None
-    music_gemini_location: Optional[str] = None
-    typecast: Optional[str] = None
-    replicate: Optional[str] = None
-    topview: Optional[str] = None
-    topview_uid: Optional[str] = None
-    blog_client_id: Optional[str] = None
-    blog_client_secret: Optional[str] = None
-    blog_id: Optional[str] = None
-    wp_url: Optional[str] = None
-    wp_username: Optional[str] = None
-    wp_password: Optional[str] = None
-
-@app.get("/api/settings/api-keys")
-async def get_api_keys():
-    """API 키 상태 조회 (마스킹)"""
-    return config.get_api_keys_status()
-
-@app.post("/api/settings/api-keys")
-async def save_api_keys(req: ApiKeySave):
-    """API 키 저장"""
-    updated = []
-    
-    mapping = {
-        'youtube': 'YOUTUBE_API_KEY',
-        'gemini': 'GEMINI_API_KEY',
-        'elevenlabs': 'ELEVENLABS_API_KEY',
-        'suno': 'SUNO_API_KEY',
-        'suno_base_url': 'SUNO_API_BASE_URL',
-        'music_provider': 'MUSIC_PROVIDER',
-        'music_gemini_model': 'MUSIC_GEMINI_MODEL',
-        'music_gemini_base_url': 'MUSIC_GEMINI_BASE_URL',
-        'music_gemini_project_id': 'MUSIC_GEMINI_PROJECT_ID',
-        'music_gemini_location': 'MUSIC_GEMINI_LOCATION',
-        'typecast': 'TYPECAST_API_KEY',
-        'replicate': 'REPLICATE_API_TOKEN',
-        'topview': 'TOPVIEW_API_KEY',
-        'topview_uid': 'TOPVIEW_UID',
-        'blog_client_id': 'BLOG_CLIENT_ID',
-        'blog_client_secret': 'BLOG_CLIENT_SECRET',
-        'blog_id': 'BLOG_ID',
-        'wp_url': 'WP_URL',
-        'wp_username': 'WP_USERNAME',
-        'wp_password': 'WP_PASSWORD'
-    }
-
-    req_dict = req.dict()
-    print(f"[API_KEY] Save request received. Fields present: {[k for k,v in req_dict.items() if v is not None]}")
-    for field, config_key in mapping.items():
-        val = req_dict.get(field)
-        if val is not None and val.strip():
-            print(f"[API_KEY] Updating {field} -> {config_key} (len: {len(val.strip())})")
-            config.update_api_key(config_key, val.strip())
-            updated.append(field)
-
-    return {
-        "status": "ok",
-        "updated": updated,
-        "message": f"{len(updated)}개의 API 키가 저장되었습니다"
-    }
-
-
-@app.post("/api/youtube/search")
-async def youtube_search(req: SearchRequest):
-    """YouTube 검색"""
-    params = {
-        "part": "snippet",
-        "q": req.query,
-        "type": "video",
-        "maxResults": req.max_results,
-        "order": req.order,
-        "key": config.YOUTUBE_API_KEY
-    }
-
-    if req.published_after:
-        params["publishedAfter"] = req.published_after
-
-    if req.video_duration:
-        params["videoDuration"] = req.video_duration
-        
-    if req.relevance_language:
-        params["relevanceLanguage"] = req.relevance_language
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/search",
-            params=params
-        )
-        data = response.json()
-        
-        # [NEW] Error Handling for API Credentials
-        if response.status_code != 200:
-            error_data = data.get("error", {})
-            message = error_data.get("message", "YouTube API Error")
-            print(f"[YouTube Search] Failed: {response.status_code} - {message}")
-            if "API key not valid" in message or "API_KEY_INVALID" in str(error_data):
-                return {"error": "API_KEY_INVALID", "message": "유효하지 않은 YouTube API 키입니다. 설정에서 확인해주세요."}
-            return {"error": "API_ERROR", "message": message}
-
-        return data
-
-@app.post("/api/projects/{project_id}/youtube/auto-upload")
-async def auto_upload_youtube(project_id: int):
-    """유튜브 원클릭 자동 업로드 (영상 + 메타데이터 + 썸네일)"""
-    from services.youtube_upload_service import youtube_upload_service
-    from services.auth_service import auth_service
-
-    if not auth_service.is_independent():
-        raise HTTPException(
-            status_code=403,
-            detail="Standard worker accounts must register rendered videos in web-admin publishing instead of uploading to YouTube locally.",
-        )
-
-    # 1. 데이터 조회
-    project = db.get_project(project_id)
-    settings = db.get_project_settings(project_id)
-    meta = db.get_metadata(project_id)
-
-    if not project or not settings:
-        raise HTTPException(404, "프로젝트 정보를 찾을 수 없습니다.")
-
-    # 2. 파일 경로 및 메타데이터 준비
-    video_web_path = settings.get('video_path')
-    if not video_web_path:
-        raise HTTPException(400, "렌더링된 영상 파일 정보가 없습니다.")
-
-    # 웹 경로 (/output/folder/file.mp4) -> 절대 경로 변환
-    video_rel_path = video_web_path.replace('/output/', '', 1)
-    video_path = os.path.join(config.OUTPUT_DIR, video_rel_path)
-
-    if not os.path.exists(video_path):
-        print(f"DEBUG: Video file not found at {video_path}")
-        raise HTTPException(400, f"영상 파일을 찾을 수 없습니다: {os.path.basename(video_path)}")
-
-    # 메타데이터 (저장된 게 없으면 기본값 사용)
-    title = project['name']
-    description = ""
-    tags = []
-
-    if meta:
-        titles = meta.get('titles', [])
-        if titles:
-            title = titles[0] # 첫 번째 추천 제목 사용
-        description = meta.get('description', "")
-        tags = meta.get('tags', [])
-
-    # 3. 업로드 수행
-    try:
-        token_path = _resolve_youtube_token_path(settings)
-        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
-        if preferred_handle and not token_path:
-            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
-            raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
-        from services.qa_service import is_upload_blocked, resolve_upload_video_path, run_pre_upload_qa
-        from services import learning_service
-        learning_service.snapshot_project(project_id, "pre_upload", {"upload": {
-            "title": title,
-            "description_length": len(description or ""),
-            "tag_count": len(tags or []),
-            "privacy": "private",
-            "source": "auto_upload",
-        }})
-        blocked, qa_result = is_upload_blocked(project_id)
-        if blocked:
-            learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "auto_upload"}, source="qa")
-            raise HTTPException(status_code=409, detail={
-                "status": "qa_hold",
-                "message": "QA 경고로 자동 업로드가 보류되었습니다. 프로젝트 화면에서 경고를 확인한 뒤 수동 업로드로 강제 진행할 수 있습니다.",
-                "qa_result": qa_result,
-            })
-
-        video_path = resolve_upload_video_path(project_id, video_path)
-        qa_result = await run_pre_upload_qa(project_id, video_path, {
-            "title": title,
-            "description": description,
-            "tags": tags,
-        })
-        if qa_result.get("hold_upload"):
-            learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "pre_upload_qa"}, source="qa")
-            raise HTTPException(status_code=409, detail={
-                "status": "qa_hold",
-                "message": "업로드 전 QA 검사 결과 자동 업로드가 보류되었습니다.",
-                "qa_result": qa_result,
-            })
-
-        response = youtube_upload_service.upload_video(
-            file_path=video_path,
-            title=title,
-            description=description,
-            tags=tags,
-            token_path=token_path,
-            privacy_status="private" # 기본은 비공개 (사용자가 검토 후 공개 전환)
-        )
-
-        video_id = response.get('id')
-        if not video_id:
-            raise Exception("업로드 응답에 비디오 ID가 없습니다.")
-
-        # 4. 썸네일 설정 (있는 경우)
-        thumb_url = settings.get('thumbnail_url')
-        if thumb_url:
-            # 웹 경로 (/output/file.png) -> 절대 경로 변환
-            thumb_rel_path = thumb_url.replace('/output/', '', 1)
-            thumb_path = os.path.join(config.OUTPUT_DIR, thumb_rel_path)
-            
-            if os.path.exists(thumb_path):
-                youtube_upload_service.set_thumbnail(video_id, thumb_path, token_path=token_path)
-
-        # 5. 상태 업데이트 (비디오 ID 저장)
-        db.update_project_setting(project_id, 'youtube_video_id', video_id)
-        db.update_project_setting(project_id, 'is_uploaded', 1)
-        db.update_project_setting(project_id, 'is_published', 0) # 아직 비공개 상태이므로 0
-        learning_service.log_event(project_id, "upload_completed", "upload", {
-            "youtube_video_id": video_id,
-            "url": f"https://youtu.be/{video_id}",
-            "title": title,
-            "privacy": "private",
-            "source": "auto_upload",
-        }, source="system")
-        learning_service.snapshot_project(project_id, "post_upload", {"upload": {
-            "youtube_video_id": video_id,
-            "url": f"https://youtu.be/{video_id}",
-            "title": title,
-            "privacy": "private",
-            "source": "auto_upload",
-        }})
-
-        return {
-            "status": "ok",
-            "video_id": video_id,
-            "url": f"https://youtu.be/{video_id}"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        try:
-            from services import learning_service as _learning_service
-            _learning_service.log_event(project_id, "upload_failed", "upload", {"error": str(e), "source": "auto_upload"}, source="system")
-        except Exception:
-            pass
-        print(f"Auto Upload Error: {e}")
-        raise HTTPException(500, f"업로드 중 오류 발생: {str(e)}")
-
-@app.post("/api/projects/{project_id}/youtube/public")
-async def publicize_youtube_video(project_id: int):
-    """유튜브 영상을 '공개(public)' 상태로 전환"""
-    from services.youtube_upload_service import youtube_upload_service
-    from services.auth_service import auth_service
-
-    if not auth_service.is_independent():
-        raise HTTPException(
-            status_code=403,
-            detail="Standard worker accounts cannot change YouTube visibility locally. Use web-admin publishing.",
-        )
-    
-    settings = db.get_project_settings(project_id)
-    if not settings or not settings.get('youtube_video_id'):
-        raise HTTPException(400, "업로드된 영상의 ID를 찾을 수 없습니다. 먼저 업로드를 진행해 주세요.")
-    
-    video_id = settings['youtube_video_id']
-    
-    try:
-        youtube_upload_service.update_video_privacy(video_id, "public")
-        
-        # 상태 업데이트
-        db.update_project_setting(project_id, 'is_published', 1)
-        
-        return {"status": "ok", "message": "영상이 공개 상태로 전환되었습니다."}
-    except Exception as e:
-        print(f"Publicize Error: {e}")
-        raise HTTPException(500, f"공개 전환 중 오류 발생: {str(e)}")
-
-
-@app.get("/api/youtube/videos/{video_id}")
-async def youtube_video_detail(video_id: str):
-    """YouTube 영상 상세 정보"""
-    params = {
-        "part": "snippet,statistics,contentDetails",
-        "id": video_id,
-        "key": config.YOUTUBE_API_KEY
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/videos",
-            params=params
-        )
-        data = response.json()
-        if response.status_code != 200:
-            error_data = data.get("error", {})
-            message = error_data.get("message", "YouTube API Error")
-            print(f"[YouTube Video] Failed: {response.status_code} - {message}")
-            return {"error": "API_ERROR", "message": message}
-        return data
-
-
-@app.get("/api/youtube/comments/{video_id}")
-async def youtube_comments(video_id: str, max_results: int = 100):
-    """YouTube 댓글 조회"""
-    params = {
-        "part": "snippet",
-        "videoId": video_id,
-        "maxResults": max_results,
-        "order": "relevance",
-        "key": config.YOUTUBE_API_KEY
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/commentThreads",
-            params=params
-        )
-        return response.json()
-
-
-@app.get("/api/youtube/channel/{channel_id}")
-async def youtube_channel(channel_id: str):
-    """YouTube 채널 정보"""
-    params = {
-        "part": "snippet,statistics",
-        "id": channel_id,
-        "key": config.YOUTUBE_API_KEY
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/channels",
-            params=params
-        )
-        return response.json()
 
 # [NEW] Batch Analysis Request Model
 class BatchAnalysisRequest(BaseModel):
@@ -1660,434 +1194,6 @@ async def analyze_batch_videos(req: BatchAnalysisRequest):
 
 
 
-# ===========================================
-# API: TTS
-# ===========================================
-
-@app.post("/api/tts/generate")
-async def tts_generate(req: TTSRequest):
-    """TTS 음성 생성"""
-    import time
-    from services.tts_service import tts_service
-
-    now_kst = config.get_kst_time()
-    from services.tts_service import language_code_for_tts
-    if req.project_id and (not req.language or req.language == "ko-KR"):
-        try:
-            project = db.get_project(req.project_id) or {}
-            settings = db.get_project_settings(req.project_id) or {}
-            project_lang = settings.get("target_language") or project.get("language")
-            if project_lang:
-                req.language = language_code_for_tts(project_lang)
-        except Exception as lang_e:
-            print(f"[TTS] Language fallback warning: {lang_e}")
-
-    # Provider별 확장자 설정
-    # [FIX] Gemini는 현재 EdgeTTS(mp3)로 fallback되므로 mp3 사용
-    ext = "mp3" # "wav" if req.provider == "gemini" else "mp3"
-    filename = f"tts_{now_kst.strftime('%Y%m%d_%H%M%S')}.{ext}"
-
-    output_path = None # 초기화
-    
-    # 프로젝트 ID가 있으면 전용 폴더 사용
-    if req.project_id:
-        output_dir, web_dir = get_project_output_dir(req.project_id)
-        # 서비스(tts_service)가 output_dir를 동적으로 받아야 함.
-        # 하지만 tts_service는 init에서 output_dir를 고정함.
-        # 파일명에 절대 경로를 넘겨주면 os.path.join에서 무시되는 특성을 이용하거나,
-        # 서비스를 수정해야 함. 
-        # tts_service의 메서드들이 filename만 받고 내부에서 join함.
-        # -> tts_service 메서드 호출 시 filename 인자에 '절대 경로'를 넘기면
-        # os.path.join(base, absolute) -> absolute가 됨 (Windows/Linux 공통)
-        # 테스트 필요하지만 Python os.path.join 스펙상 두번째 인자가 절대경로면 앞부분 무시됨.
-        # 따라서 filename에 full path를 넘기면 됨.
-        result_filename = os.path.normpath(os.path.abspath(os.path.join(output_dir, filename)))
-    else:
-        # Fallback
-        output_dir = config.OUTPUT_DIR
-        web_dir = "/output"
-        result_filename = os.path.normpath(os.path.abspath(os.path.join(config.OUTPUT_DIR, filename)))
-
-    # ElevenLabs 전용 상세 보이스 설정 구성
-    el_voice_settings = {"speed": req.speed}
-    if req.stability is not None:
-        el_voice_settings["stability"] = req.stability
-    if req.similarity_boost is not None:
-        el_voice_settings["similarity_boost"] = req.similarity_boost
-    if req.style is not None:
-        el_voice_settings["style"] = req.style
-
-        # ----------------------------------------------------------------
-    try:
-        # ----------------------------------------------------------------
-        # 멀티 보이스 모드 처리
-        # ----------------------------------------------------------------
-        if req.multi_voice and req.voice_map:
-            # 1. 텍스트 파싱 (Frontend와 동일한 로직: "이름: 대사")
-            segments = []
-            lines = req.text.split('\n')
-            
-            # 정규식: 화자 이름과 괄호 안의 감정 지문 캡처 (이름: 대사 형식 및 이름) 대사 형식 지원)
-            pattern = re.compile(
-                r'^\s*(?:'
-                r'[\*\_\[\(]*([^\s:\[\(\*\_]+)[\*\_\]\)]*[ \t]*(\([^)]*\))?[ \t]*[:：][ \t]*(.*)'
-                r'|'
-                r'([^\s:\[\(\*\_]+)[ \t]*[\)）\]][ \t]*(.*)'
-                r')$'
-            )
-            
-            current_chunk = []
-            current_speaker = None
-            
-            # 파일명을 위한 타임스탬프
-            base_filename = os.path.splitext(filename)[0]
-            
-            # 라인별 파싱 및 그룹화
-            for line in lines:
-                match = pattern.match(line.strip())
-                if match:
-                    # 새로운 화자 등장 -> 이전 청크 저장
-                    if current_chunk:
-                        segments.append({
-                            "speaker": current_speaker,
-                            "text": "\n".join(current_chunk)
-                        })
-                    
-                    if match.group(1) is not None:
-                        current_speaker = match.group(1).strip()
-                        emotion = match.group(2) or ""
-                        content = match.group(3).strip()
-                    else:
-                        current_speaker = match.group(4).strip()
-                        emotion = ""
-                        content = match.group(5).strip()
-
-                    # 백엔드에서도 화자 이름에서 특수기호 2차 정지
-                    current_speaker = re.sub(r'[\*\_\#\[\]\(\)]', '', current_speaker).strip()
-                    
-                    if emotion:
-                        content = f"{emotion} {content}"
-                    current_chunk = [content]
-                else:
-                    # 화자 없음 -> 이전 화자에 이어서 추가 (없으면 default)
-                    current_chunk.append(line.strip())
-            
-            # 마지막 청크 처리
-            if current_chunk:
-                segments.append({
-                    "speaker": current_speaker,
-                    "text": "\n".join(current_chunk)
-                })
-
-            print(f"🎙️ [DEBUG MULTIVOICE] Parsed segments: {[{'speaker': s['speaker'], 'text': s['text'][:30]} for s in segments]}")
-
-            # 2. 세그먼트별 오디오 생성 (동시 생성 개수 제한)
-            import asyncio
-            # ElevenLabs eleven_v3는 동시 요청 2개 제한이 있으므로 Semaphore=2
-            semaphore = asyncio.Semaphore(2) # 최대 2개 동시 요청 (eleven_v3 동시성 제한 방지)
-            
-            async def process_segment(idx, segment):
-                async with semaphore:
-                    speaker = segment["speaker"]
-                    seg_text = segment["text"]
-                    
-                    # 15,000자 대본의 경우 수백 개의 세그먼트가 나올 수 있으므로 로그 출력
-                    if idx % 5 == 0 or idx == len(segments) - 1:
-                        print(f"🎙️ [Main] TTS 세그먼트 생성 중... ({idx+1}/{len(segments)})")
-                    
-                    # 화자별 목소리 결정
-                    target_voice = req.voice_map.get(speaker, req.voice_id)
-                    if isinstance(target_voice, dict) and "id" in target_voice:
-                        target_voice = target_voice["id"]
-                    
-                    provider = req.provider
-                    # [ROBUSTNESS] '기본 설정 따름' 등의 비어있는 값 처리
-                    if not target_voice:
-                        target_voice = req.voice_id
-                    
-                    print(f"🎙️ [DEBUG MULTIVOICE] Segment {idx} (Speaker: '{speaker}') mapped to target_voice: '{target_voice}' (from voice_map: {req.voice_map}, fallback: '{req.voice_id}')")
-                    
-                    seg_filename = f"{base_filename}_seg_{idx:03d}.mp3"
-                    seg_path = os.path.join(output_dir, seg_filename)
-                    
-                    try:
-                        if provider == "elevenlabs":
-                             result = await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings=el_voice_settings)
-                             # 실제 저장된 경로 검증 (None 또는 파일 없으면 실패 처리)
-                             actual_path = result.get("audio_path") if result else None
-                             if actual_path and os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                                 return actual_path
-                             else:
-                                 print(f"❌ Segment {idx} (Speaker: {speaker}) - 파일 생성 실패 또는 빈 파일: {actual_path}")
-                                 return None
-                        elif provider == "openai":
-                             await tts_service.generate_openai(seg_text, target_voice, "tts-1", seg_path, req.speed)
-                             return seg_path if os.path.exists(seg_path) else None
-                        else: # gemini / edge_tts
-                             await tts_service.generate_gemini(seg_text, target_voice, req.language, req.style_prompt, seg_path, req.speed)
-                             return seg_path if os.path.exists(seg_path) else None
-                    except Exception as e:
-                        print(f"❌ Segment {idx} (Speaker: {speaker}) generation failed: {e}")
-                        return None
-
-            print(f"🎙️ [Main] 멀티보이스 TTS 병렬 생성 시작 (총 {len(segments)}개, 동시 10개 제한)...")
-            print(f"DEBUG: Voice Map: {req.voice_map}")
-            segment_tasks = [process_segment(i, s) for i, s in enumerate(segments)]
-            audio_files = [f for f in await asyncio.gather(*segment_tasks) if f]
-            
-            # 3. 오디오 합치기
-            if audio_files:
-                print(f"🔄 [Main] 오디오 파일 병합 시작 ({len(audio_files)}개)...")
-                output_path = None
-                
-                # Blocking IO/Processing을 ThreadPool에서 실행
-                loop = asyncio.get_event_loop()
-                
-                def merge_audio_sync():
-                    nonlocal output_path
-                    # 1. Try Pydub (Faster, no re-encode usually)
-                    try:
-                        from pydub import AudioSegment
-                        import imageio_ffmpeg
-                        
-                        # ffmpeg 경로 명시적 설정 (Windows WinError 2 방지)
-                        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-                        AudioSegment.converter = ffmpeg_exe
-                        # AudioSegment.ffmpeg = ffmpeg_exe # 일부 버전 호환성
-                        
-                        # [Robustness] ffprobe check disabled or assumed optional for simple concat?
-                        # Pydub uses info_json which requires ffprobe.
-                        # If imageio_ffmpeg doesn't provide ffprobe, pydub fails on from_file.
-                        # We can try to skip pydub if we suspect ffprobe is missing, 
-                        # but let's try it and catch exception.
-                        
-                        combined = AudioSegment.empty()
-                        for af in audio_files:
-                            combined += AudioSegment.from_file(af)
-                        
-                        combined.export(result_filename, format="mp3")
-                        output_path = result_filename
-                        print(f"✅ [Main] pydub으로 오디오 병합 완료: {result_filename}")
-                        return True
-                    except Exception as pydub_err:
-                        # WinError 2 often means ffprobe missing
-                        print(f"⚠️ pydub 병합 실패 ({pydub_err}), MoviePy로 재시도합니다.")
-                        return False
-
-                # Run Pydub in thread
-                pydub_success = await loop.run_in_executor(None, merge_audio_sync)
-                
-                if pydub_success:
-                    pass # Done
-                else:
-                    # 2. Key Fallback: MoviePy (Re-encodes, slower but reliable with imageio)
-                    def merge_moviepy_sync():
-                        nonlocal output_path
-                        try:
-                            from moviepy import AudioFileClip, concatenate_audioclips
-                        except ImportError:
-                            from moviepy.audio.io.AudioFileClip import AudioFileClip
-                            from moviepy.audio.AudioClip import concatenate_audioclips
-                        
-                        clips = []
-                        try:
-                            for af in audio_files:
-                                try:
-                                    clips.append(AudioFileClip(af))
-                                except Exception as e:
-                                    print(f"Failed to load clip {af}: {e}")
-                            
-                            if clips:
-                                final_clip = concatenate_audioclips(clips)
-                                # Modern MoviePy does not accept 'verbose' parameter. logger=None is sufficient.
-                                final_clip.write_audiofile(result_filename, codec='libmp3lame', logger=None)
-                                final_clip.close()
-                                for clip in clips: clip.close()
-                                output_path = result_filename
-                                print(f"✅ [Main] MoviePy로 오디오 병합 완료: {result_filename}")
-                                return True
-                            else:
-                                print(f"❌ [Main] MoviePy: No valid clips to merge.")
-                                return False
-                        except Exception as e:
-                            print(f"❌ [Main] MoviePy 병합 실패: {e}")
-                            return False
-                            
-                    moviepy_success = await loop.run_in_executor(None, merge_moviepy_sync)
-                
-                if output_path:
-                    # 임시 파일 삭제
-                    for af in audio_files:
-                         try: os.remove(af)
-                         except Exception: pass
-                else:
-                    return {"status": "error", "error": "오디오 병합 실패 (Pydub 및 MoviePy 모두 실패)"}
-            else:
-                 return {"status": "error", "error": "생성된 오디오 세그먼트가 없습니다."}
-
-        # ----------------------------------------------------------------
-        # 일반(단일) 모드 처리
-        # ----------------------------------------------------------------
-        else:
-            # 1. ElevenLabs
-            if req.provider == "elevenlabs":
-                result = await tts_service.generate_elevenlabs(
-                    req.text, req.voice_id, result_filename, voice_settings=el_voice_settings
-                )
-                # ElevenLabs returns a dict containing metadata
-                if isinstance(result, dict):
-                    output_path = result.get("audio_path")
-                else:
-                    output_path = result
-            # 2. Google Cloud
-            elif req.provider == "google_cloud":
-                output_path = await tts_service.generate_google_cloud(
-                    req.text, req.voice_id, req.language, result_filename, req.speed
-                )
-            # 3. Gemini
-            elif req.provider == "gemini":
-                output_path = await tts_service.generate_gemini(
-                    req.text, req.voice_id, req.language, req.style_prompt, result_filename, req.speed
-                )
-            # 4. OpenAI
-            elif req.provider == "openai":
-                output_path = await tts_service.generate_openai(
-                    req.text, req.voice_id, "tts-1", result_filename, req.speed
-                )
-            # 5. gTTS (Default)
-            else:
-                output_path = await tts_service.generate_gtts(
-                    req.text, language_code_for_tts(req.language, "gtts"), result_filename
-                )
-
-        # 공통: DB 저장 및 리턴 처리
-        # DB 저장 (프로젝트와 연결)
-        if req.project_id:
-             try:
-                 # [FIX] Calculate actual duration before saving
-                 duration = 0.0
-                 try:
-                     # Check file existence first
-                     if os.path.exists(output_path):
-                         # Try pydub first (more accurate for VBR/altered speed)
-                         try:
-                             import pydub
-                             audio_seg = pydub.AudioSegment.from_file(output_path)
-                             duration = audio_seg.duration_seconds
-                         except ImportError:
-                             # Fallback to MoviePy
-                             try:
-                                 from moviepy import AudioFileClip
-                                 with AudioFileClip(output_path) as ac:
-                                     duration = ac.duration
-                             except Exception: pass
-                         except Exception as e:
-                             print(f"pydub check failed: {e}")
-                             # Fallback to MoviePy
-                             try:
-                                 from moviepy import AudioFileClip
-                                 with AudioFileClip(output_path) as ac:
-                                     duration = ac.duration
-                             except Exception: pass
-                 except Exception as e:
-                     print(f"Failed to calculate audio duration: {e}")
-
-                 # [FIX] Logic for voice_id/name: Single voice should use actual ID
-                 final_voice_id = "multi-voice" if req.multi_voice else (req.voice_id or "default")
-                 final_voice_name = "Multi Voice" if req.multi_voice else (req.voice_id or "default")
-
-                 db.save_tts(
-                     req.project_id,
-                     final_voice_id,
-                     final_voice_name,
-                     output_path,
-                     duration
-                 )
-                 
-                 # [FIX] Save script text to project settings
-                 if req.text:
-                     db.update_project_setting(req.project_id, "script", req.text)
-                     print(f"DEBUG: Saved TTS text to project settings (len={len(req.text)})")
-
-             except Exception as db_e:
-                 print(f"TTS DB 저장 실패: {db_e}")
-                 # Don't swallow! Raise or return error so frontend knows.
-                 raise db_e
-        
-        # URL 생성
-        if req.project_id:
-            final_url = f"{web_dir}/{filename}"
-        else:
-            final_url = f"/output/{filename}"
-
-        return {
-            "status": "ok",
-            "file": filename,
-            "url": final_url,
-            "full_path": output_path
-        }
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@app.post("/api/upload/template")
-async def upload_template_api(file: UploadFile = File(...)):
-    """템플릿 이미지 업로드 (9:16 오버레이)"""
-    try:
-        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
-        # public/templates 폴더
-        template_dir = os.path.join(config.STATIC_DIR, "templates")
-        os.makedirs(template_dir, exist_ok=True)
-
-        filename = f"template_{int(time.time())}{ext}"
-        filepath = os.path.join(template_dir, filename)
-
-        content = await file.read()
-        if len(content) > _MAX_IMAGE_SIZE:
-            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-        async with aiofiles.open(filepath, "wb") as f:
-            await f.write(content)
-            
-        # DB 업데이트 (Global Setting assumes project_id=1 for defaults or handle strictly)
-        # For now, we save it as a 'default' setting with project_id=0 or just update recent project?
-        # Re-reading user request: "9:16 Template Image... for SHORTS".
-        # Usually settings page updates a GLOBAL default or current project.
-        # Let's assume GLOBAL default for new projects, or update specific project if provided.
-        # However, `settings.html` seems to load 'global-ish' settings.
-        # Let's check `db.update_project_setting`.
-        # Actually, `settings.html` usually loads default settings from a dummy project or specific config.
-        # But wait, `get_settings_api` fetches from `db.get_project_settings(None)`?
-        # Let's fallback to updating the most recent project OR a specific logic.
-        # Since `settings.html` seems to be global context, let's assume project_id=1 for now as 'default slot'
-        # OR better: The user wants this "Applied to video".
-        # Let's save the URL and let the frontend/backend use it.
-        
-        web_url = f"/static/templates/{filename}"
-        
-        # [HACK] For this specific user request, we might need to apply this to the CURRENT project being edited.
-        # But settings.html is global. Let's update project_id=1 (often Default) AND return URL.
-        # Ideally, we should have a `global_settings` table.
-        # Existing `project_settings` references `project_id`.
-        # Let's use `db.update_project_setting(1, ...)` as a placeholder for "Default" if no project context.
-        # BUT, to be safe and consistent with previous patterns:
-        # Check if we can store it in a way available to new projects.
-        # For now, update global default project (ID 1)
-        db.update_project_setting(1, 'template_image_url', web_url)
-        
-        return {"status": "ok", "url": web_url}
-    except Exception as e:
-        print(f"Template Upload Error: {e}")
-        return {"status": "error", "error": str(e)}
-
-@app.delete("/api/settings/template")
-async def delete_template_api():
-    """템플릿 이미지 삭제"""
-    try:
-        db.update_project_setting(1, 'template_image_url', None)
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 # [REMOVED] Duplicate API key routes (Consolidated at line 960)
 
@@ -2096,125 +1202,7 @@ async def delete_template_api():
 
 # [REMOVED] Duplicate project settings routes (Consolidated at lines 769, 793)
 
-@app.get("/api/tts/voices")
-async def tts_voices():
-    """사용 가능한 TTS 음성 목록"""
-    voices = []
 
-    # Gemini
-    try:
-        gemini_voices = tts_service.get_gemini_voices()
-        for v in gemini_voices:
-            voices.append({
-                "id": v,
-                "name": f"Gemini - {v}",
-                "provider": "gemini"
-            })
-    except Exception:
-        pass
-
-    # ElevenLabs
-    if config.ELEVENLABS_API_KEY:
-        try:
-            async with httpx.AsyncClient(trust_env=False) as client:
-                response = await client.get(
-                    "https://api.elevenlabs.io/v1/voices",
-                    headers={"xi-api-key": config.ELEVENLABS_API_KEY}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    for v in data.get("voices", []):
-                        voices.append({
-                            "voice_id": v["voice_id"],
-                            "name": v["name"],
-                            "provider": "elevenlabs",
-                            "preview_url": v.get("preview_url"),
-                            "labels": v.get("labels", {})
-                        })
-        except Exception:
-            pass
-
-    # [NEW] 수동 등록한 커스텀 보이스 병합
-    try:
-        custom_voices = db.get_global_setting("custom_voices", [])
-        if isinstance(custom_voices, list):
-            merged_custom_voices = list(custom_voices)
-        else:
-            merged_custom_voices = []
-
-        remote_settings = web_admin_client.fetch_global_setting_values(["custom_voices"])
-        remote_custom_voices = remote_settings.get("custom_voices")
-        if isinstance(remote_custom_voices, str):
-            try:
-                remote_custom_voices = json.loads(remote_custom_voices)
-            except Exception:
-                remote_custom_voices = []
-        if isinstance(remote_custom_voices, list):
-            by_id = {
-                str(item.get("voice_id")): item
-                for item in merged_custom_voices
-                if isinstance(item, dict) and item.get("voice_id")
-            }
-            for item in remote_custom_voices:
-                if isinstance(item, dict) and item.get("voice_id"):
-                    by_id[str(item["voice_id"])] = item
-            merged_custom_voices = list(by_id.values())
-
-        existing_ids = {v.get("voice_id") for v in voices if v.get("provider") == "elevenlabs"}
-        for cv in merged_custom_voices:
-            vid = cv.get("voice_id")
-            if vid and vid not in existing_ids:
-                voices.append({
-                    "voice_id": vid,
-                    "name": f"{cv.get('name')} (커스텀)",
-                    "provider": "elevenlabs",
-                    "preview_url": None,
-                    "labels": {"custom": "true"}
-                })
-    except Exception as e:
-        print(f"[WARN] Failed to load custom voices from db: {e}")
-
-    return {"voices": voices}
-
-
-@app.post("/api/tts/voices/add")
-async def add_elevenlabs_voice(
-    name: str = Form(...),
-    voice_id: str = Form(...)
-):
-    """ElevenLabs에 새 음성 등록 (Voice ID 수동 입력)"""
-    name = name.strip()
-    voice_id = voice_id.strip()
-    
-    if not name or not voice_id:
-        raise HTTPException(status_code=400, detail="이름과 Voice ID는 필수 입력 항목입니다.")
-
-    try:
-        custom_voices = db.get_global_setting("custom_voices", [])
-        if not isinstance(custom_voices, list):
-            custom_voices = []
-
-        # 중복 확인 및 업데이트
-        exists = False
-        for cv in custom_voices:
-            if cv.get("voice_id") == voice_id:
-                cv["name"] = name
-                exists = True
-                break
-        
-        if not exists:
-            custom_voices.append({
-                "voice_id": voice_id,
-                "name": name,
-                "provider": "elevenlabs"
-            })
-            
-        db.save_global_setting("custom_voices", custom_voices)
-        print(f"[SUCCESS] Custom Voice Registered: {name} (ID: {voice_id})")
-        return {"status": "ok", "voice_id": voice_id, "name": name}
-    except Exception as e:
-        print(f"[WARN] Exception during voice registration: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -2230,215 +1218,6 @@ async def add_elevenlabs_voice(
 
 
 # [NEW] Reset Timeline to Latest Generated State
-
-
-
-class ThumbnailTextRequest(BaseModel):
-    """AI 썸네일 문구 생성 요청"""
-    project_id: int
-    thumbnail_style: str = "face"
-    target_language: str = "ko"
-
-
-@app.post("/api/settings/thumbnail-style-sample/{style_key}")
-async def upload_thumbnail_style_sample(style_key: str, file: UploadFile = File(...)):
-    """썸네일 스타일 샘플 이미지 업로드"""
-    try:
-        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
-        save_dir = "static/thumbnail_samples"
-        os.makedirs(save_dir, exist_ok=True)
-
-        filename = f"{style_key}{ext}"
-        filepath = os.path.join(save_dir, filename)
-
-        # 기존 다른 확장자 파일 삭제 (중복 방지)
-        for old_f in os.listdir(save_dir):
-            if old_f.startswith(f"{style_key}."):
-                try:
-                    os.remove(os.path.join(save_dir, old_f))
-                except Exception:
-                    pass
-
-        content = await file.read()
-        if len(content) > _MAX_IMAGE_SIZE:
-            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-        async with aiofiles.open(filepath, "wb") as f:
-            await f.write(content)
-            
-        return {"status": "ok", "url": f"/{save_dir}/{filename}"}
-    except Exception as e:
-        print(f"Sample Upload Error: {e}")
-        return {"status": "error", "error": str(e)}
-
-@app.post("/api/thumbnail/generate-text")
-async def generate_thumbnail_text(req: ThumbnailTextRequest):
-    """대본 기반 AI 썸네일 후킹 문구 자동 생성"""
-    try:
-        # 1. 프로젝트 데이터 가져오기
-        project = db.get_project(req.project_id)
-        if not project:
-            return {"status": "error", "error": "프로젝트를 찾을 수 없습니다"}
-        
-        # 2. 대본 가져오기 (scripts 테이블 및 project_settings 동시 확인)
-        script_data = db.get_script(req.project_id)
-        script = script_data.get('full_script') if script_data else None
-        
-        if not script:
-            return {"status": "error", "error": f"대본이 없습니다. 먼저 대본을 작성해주세요. (PID: {req.project_id})"}
-        
-        # 3. 프로젝트 설정에서 이미지 스타일 가져오기 (연동)
-        settings = db.get_project_settings(req.project_id)
-        image_style = settings.get('image_style', '') if settings else ''
-        
-        # 4. AI 프롬프트 생성
-        from services.prompts import prompts
-        
-        # 대본이 너무 길면 앞부분만 사용 (토큰 절약)
-        script_preview = script[:2000] if len(script) > 2000 else script
-        
-        # [NEW] Get character info for better context
-        characters = db.get_project_characters(req.project_id)
-        char_context = ""
-        if characters:
-            char_names = [c.get("name") for c in characters if c.get("name")]
-            char_context = f"\n[Featured Characters]: {', '.join(char_names)}"
-
-        prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
-            script=f"{script_preview}{char_context}",
-            thumbnail_style=req.thumbnail_style,
-            image_style=image_style or '(없음)',
-            target_language=req.target_language
-        )
-        
-        # 5. Gemini 호출
-        
-        # [NEW] Check for Style Sample Image
-        sample_img_dir = "static/thumbnail_samples"
-        sample_img_bytes = None
-        
-        if os.path.exists(sample_img_dir):
-            for f in os.listdir(sample_img_dir):
-                if f.startswith(f"{req.thumbnail_style}."):
-                    try:
-                        with open(os.path.join(sample_img_dir, f), "rb") as img_f:
-                            sample_img_bytes = img_f.read()
-                        break
-                    except Exception: pass
-        
-        if sample_img_bytes:
-             print(f"[{req.thumbnail_style}] Using sample image for text generation")
-             # Add context about image
-             prompt += "\n\n[IMPORTANT] The attached image is a STYLE REFERENCE. Ensure the generated hook texts match the visual mood and intensity of this image."
-             result = await gemini_service.generate_text_from_image(prompt, sample_img_bytes)
-        else:
-             result = await gemini_service.generate_text(prompt, temperature=0.8)
-        
-        # 6. JSON 파싱
-        import json, re
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            data = json.loads(json_match.group())
-            texts = data.get("texts", [])
-            reasoning = data.get("reasoning", "")
-            
-            return {
-                "status": "ok", 
-                "texts": texts, 
-                "reasoning": reasoning
-            }
-        
-        # Enhanced Fallback: Use project title or "Must Watch"
-        title = project.get("topic", "Must Watch")
-        return {
-            "status": "ok", 
-            "texts": [title, f"🔥 {title}", f"✨ {title}"], 
-            "reasoning": "Fallback used (AI JSON parsing failed)"
-        }
-        
-    except Exception as e:
-        print(f"[Thumbnail Text Gen Error] {e}")
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
-
-
-@app.post("/api/projects/{project_id}/thumbnail/save")
-async def save_project_thumbnail(project_id: int, file: UploadFile = File(...)):
-    """최종 썸네일(합성본) 저장"""
-    try:
-        ext, _ = _validate_upload(file, _ALLOWED_IMAGE_EXT, _MAX_IMAGE_SIZE)
-        save_dir = os.path.join(config.OUTPUT_DIR, "thumbnails")
-        os.makedirs(save_dir, exist_ok=True)
-
-        filename = f"thumbnail_{project_id}_{int(time.time())}{ext}"
-        filepath = os.path.join(save_dir, filename)
-
-        content = await file.read()
-        if len(content) == 0:
-            raise HTTPException(400, "빈 파일입니다.")
-        if len(content) > _MAX_IMAGE_SIZE:
-            raise HTTPException(400, f"파일 크기가 너무 큽니다 (최대 {_MAX_IMAGE_SIZE//1024//1024}MB)")
-
-        async with aiofiles.open(filepath, "wb") as f:
-            await f.write(content)
-            
-        print(f"[Thumbnail] Saved successfully. Size: {len(content)} bytes")
-
-        # 4. URL 생성
-        # output 폴더는 /output 으로 마운트되어 있음
-        web_url = f"/output/thumbnails/{filename}"
-
-        # 5. DB 업데이트 (thumbnail_path & thumbnail_url)
-        try:
-             db.update_project_setting(project_id, 'thumbnail_path', filepath)
-             db.update_project_setting(project_id, 'thumbnail_url', web_url)
-        except Exception as db_e:
-             print(f"[Thumbnail] DB Update Failed: {db_e}")
-
-        # 6. URL 반환
-        return {
-            "status": "ok",
-            "url": web_url,
-            "path": filepath
-        }
-    except Exception as e:
-        print(f"Thumbnail save error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
-
-
-
-
-@app.get("/api/trends/keywords")
-async def get_trending_keywords(
-    language: str = Query("ko", description="Target language code"),
-    period: str = Query("now", description="Time period (now, week, month)"),
-    age: str = Query("all", description="Target age group (all, 10s, 20s, 30s, 40s, 50s)")
-):
-    """국가/언어/기간/연령별 실시간 트렌드 키워드 조회"""
-    if not config.GEMINI_API_KEY:
-        raise HTTPException(500, "Gemini API key missing")
-        
-    keywords = await gemini_service.generate_trending_keywords(language, period, age)
-    return {
-        "status": "ok", 
-        "language": language, 
-        "period": period, 
-        "age": age, 
-        "keywords": keywords
-    }
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -2628,9 +1407,6 @@ class RenderRequest(BaseModel):
     use_subtitles: bool = True
     resolution: str = "1080p" # 1080p or 720p
 
-class SubtitleGenerationRequest(BaseModel):
-    project_id: Union[int, str]
-    text: Optional[str] = None
 
 
 
@@ -2641,131 +1417,6 @@ class SubtitleGenerationRequest(BaseModel):
 
 
 
-
-# ===========================================
-# Subtitle Routes
-# ===========================================
-
-
-
-@app.post("/api/project/{project_id}/subtitle/delete")
-async def delete_subtitle_segment(
-    project_id: int,
-    request: dict = Body(...)
-):
-    """자막 삭제 및 오디오 싱크 맞춤 (Destructive)"""
-    try:
-        index = request.get('index')
-        start = request.get('start')
-        end = request.get('end')
-        
-        # 1. 자막 로드
-        settings = db.get_project_settings(project_id)
-        subtitle_path = settings.get('subtitle_path')
-        if not subtitle_path or not os.path.exists(subtitle_path):
-             return {"status": "error", "error": "자막 파일이 없습니다"}
-             
-        import json
-        with open(subtitle_path, "r", encoding="utf-8") as f:
-            subtitles = json.load(f)
-            
-        if index < 0 or index >= len(subtitles):
-            return {"status": "error", "error": "잘못된 자막 인덱스"}
-            
-        # 2. 오디오 자르기 (서비스 호출)
-        audio_data = db.get_tts(project_id)
-        if audio_data and audio_data.get('audio_path'):
-            from services.audio_service import audio_service
-            audio_service.cut_audio_segment(audio_data['audio_path'], start, end)
-            
-        # 3. 자막 리스트 업데이트 (삭제 및 시간 시프트)
-        deleted_duration = end - start
-        
-        # 삭제
-        subtitles.pop(index)
-        
-        # 이후 자막들 당기기
-        for sub in subtitles:
-            if sub['start'] >= end:
-                sub['start'] -= deleted_duration
-                sub['end'] -= deleted_duration
-                # 부동소수점 오차 보정 (0보다 작아지지 않게)
-                sub['start'] = max(0, sub['start'])
-                sub['end'] = max(0, sub['end'])
-                
-        # 4. 저장
-        with open(subtitle_path, "w", encoding="utf-8") as f:
-            json.dump(subtitles, f, ensure_ascii=False, indent=2)
-            
-        # 5. 미리보기 재생성 (간소화: 여기서 다시 로직을 태우기보다 프론트에서 save 호출 유도하거나, 여기서 일부만 업데이트)
-        # 일단은 데이터만 반환하고 프론트가 렌더링하도록 함. 
-        # (완벽하려면 save_subtitle 로직처럼 preview image도 갱신해야 하나, 시간 단축 위해 생략 가능. 
-        #  단, preview image가 기존 것과 꼬일 수 있음. -> 클라이언트가 reload 시 해결됨)
-        
-        return {
-            "status": "ok",
-            "subtitles": subtitles,
-            "message": f"자막 삭제 완료 (오디오 {deleted_duration:.2f}초 단축됨)"
-        }
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
-        
-
-
-
-@app.post("/api/project/{project_id}/subtitle/regenerate")
-async def regenerate_subtitles(project_id: int):
-    """자막 AI 재분석 (싱크 맞추기)"""
-    try:
-        # 1. 오디오 경로 확인
-        audio_data = db.get_tts(project_id)
-        if not audio_data or not audio_data.get('audio_path') or not os.path.exists(audio_data['audio_path']):
-            return {"status": "error", "error": "오디오 파일이 없습니다."}
-            
-        audio_path = audio_data['audio_path']
-        
-        # 2. 대본 데이터 (힌트용)
-        script_data = db.get_script(project_id)
-        script_text = script_data.get("full_script") if script_data else ""
-        
-        # [DEBUG] Log script text
-        try:
-            with open("debug_script_log.txt", "w", encoding="utf-8") as f:
-                f.write(f"ProjectID: {project_id}\n")
-                f.write(f"ScriptText (Len={len(script_text)}):\n{script_text}\n")
-        except Exception:
-            pass
-        
-        # 3. 기존 자막/VTT 무시하고 강제 생성
-        from services.video_service import video_service
-        print(f"Force regenerating subtitles for {project_id}...")
-        
-        new_subtitles = video_service.generate_aligned_subtitles(audio_path, script_text)
-        
-        if not new_subtitles:
-            return {"status": "error", "error": "AI 자막 생성 실패"}
-            
-        # 4. 저장
-        inner_output_dir, _ = get_project_output_dir(project_id)
-        saved_sub_path = os.path.join(inner_output_dir, f"subtitles_{project_id}.json")
-        
-        import json
-        with open(saved_sub_path, "w", encoding="utf-8") as f:
-            json.dump(new_subtitles, f, ensure_ascii=False, indent=2)
-            
-        return {
-            "status": "ok",
-            "subtitles": new_subtitles,
-            "message": "자막이 AI로 재분석되었습니다."
-        }
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": str(e)}
 
 
 
@@ -2800,141 +1451,9 @@ class AutoPilotStartRequest(BaseModel):
     aspect_ratio: Optional[str] = "16:9"
     longform_music: Optional[Dict[str, Any]] = None
 
-@app.get("/api/settings/subtitle/defaults")
-async def get_subtitle_defaults_api():
-    """최근 사용된(또는 기본) 자막 설정 반환 (오토파일럿 UI 표시용)"""
-    try:
-        defaults = db.get_subtitle_defaults()
-        return {"status": "ok", "settings": defaults}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 
-# ===========================================
-# API: Autopilot Presets (Saved Configurations)
-# ===========================================
 
-class AutopilotPresetSave(BaseModel):
-    name: str
-    settings: dict
-
-@app.get("/api/autopilot/presets")
-async def get_autopilot_presets_api():
-    presets = db.get_autopilot_presets()
-    # Parse JSON for frontend
-    for p in presets:
-        try:
-            p['settings'] = json.loads(p['settings_json'])
-        except Exception:
-            p['settings'] = {}
-    return {"status": "ok", "presets": presets}
-
-@app.post("/api/autopilot/presets")
-async def save_autopilot_preset_api(req: AutopilotPresetSave):
-    try:
-        db.save_autopilot_preset(req.name, req.settings)
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-@app.delete("/api/autopilot/presets/{preset_id}")
-async def delete_autopilot_preset_api(preset_id: int):
-    try:
-        db.delete_autopilot_preset(preset_id)
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-@app.post("/api/autopilot/start")
-
-async def start_autopilot_api(
-    req: AutoPilotStartRequest,
-    background_tasks: BackgroundTasks
-):
-    """오토파일럿 시작 (API)"""
-    # 1. Preset Loading
-    if req.preset_id:
-        presets = db.get_autopilot_presets()
-        preset = next((p for p in presets if p['id'] == req.preset_id), None)
-        if preset:
-             try:
-                 p_settings = json.loads(preset['settings_json'])
-                 # Apply preset values if req fields are default
-                 # For now, simplistic merge: req overrides preset if set (we assume frontend handles this mostly)
-                 # Actually, let's trust the frontend to send the merged config if they selected a preset.
-                 # But if they send preset_id, we might want to load subtitle_settings from it if missing.
-                 if not req.subtitle_settings:
-                     req.subtitle_settings = p_settings.get("subtitle_settings")
-             except Exception: pass
-
-    # 2. Topic Resolve
-    topic = req.topic or req.keyword
-    if not topic:
-         return {"status": "error", "error": "Topic (or keyword) is required"}
-
-    # 3. Start Workflow in Background
-    config_dict = {
-        "mode": req.mode,
-        "image_style": req.image_style or req.visual_style,
-        "visual_style": req.visual_style,
-        "thumbnail_style": req.thumbnail_style,
-        "video_scene_count": req.video_scene_count,
-        "all_video": req.all_video,
-        "video_engine": req.video_engine,
-        "motion_method": req.motion_method,
-        "narrative_style": req.script_style or req.narrative_style,
-        "script_style": req.script_style or req.narrative_style,
-        "voice_id": req.voice_id,
-        "voice_provider": req.voice_provider,
-        "subtitle_style": req.subtitle_style,
-        "duration_seconds": req.duration_seconds,
-        "subtitle_settings": req.subtitle_settings,
-        "use_character_analysis": req.use_character_analysis,
-        "upload_privacy": req.upload_privacy,
-        "creation_mode": req.creation_mode,
-        "product_url": req.product_url,
-        "aspect_ratio": req.aspect_ratio,
-        "longform_music": req.longform_music,
-    }
-    
-    # Create Project First
-    project_name = f"[Auto] {topic}"
-    project_id = db.create_project(name=project_name, topic=topic, app_mode=req.mode)
-    
-    # Save Initial Settings
-    db.update_project_setting(project_id, "autopilot_config", config_dict)
-    
-    # Apply Subtitle Settings from Preset/Request
-    if req.subtitle_settings:
-        db.save_project_settings(project_id, req.subtitle_settings)
-        print(f"✅ Applied custom subtitle settings to Project {project_id}")
-
-    # [NEW] Also save key settings to project_settings table directly for immediate UI sync
-    if req.thumbnail_style:
-        db.update_project_setting(project_id, "thumbnail_style", req.thumbnail_style)
-    if req.duration_seconds:
-         db.update_project_setting(project_id, "duration_seconds", req.duration_seconds)
-    if req.script_style:
-         db.update_project_setting(project_id, "script_style", req.script_style)
-    if req.visual_style:
-         db.update_project_setting(project_id, "image_style", req.visual_style) # Sync
-         db.update_project_setting(project_id, "visual_style", req.visual_style)
-    if req.video_engine:
-         db.update_project_setting(project_id, "video_engine", req.video_engine)
-    if req.mode:
-         db.update_project_setting(project_id, "app_mode", req.mode)
-    if req.creation_mode:
-         db.update_project_setting(project_id, "creation_mode", req.creation_mode)
-    if req.aspect_ratio:
-         db.update_project_setting(project_id, "aspect_ratio", req.aspect_ratio)
-    if req.longform_music:
-         db.update_project_setting(project_id, "longform_music", req.longform_music)
-    
-    from services.autopilot_service import autopilot_service
-    # Start Task
-    background_tasks.add_task(autopilot_service.run_project_workflow, topic, project_id, config_dict)
-    
-    return {"status": "ok", "project_id": project_id, "message": "Automation started"}
 
 # ===========================================
 # Auto-Pilot Scheduler
@@ -3229,69 +1748,10 @@ def recover_project_assets(project_id: int):
 
 
 
-def _resolve_local_output_asset_path(asset_url_or_path: Optional[str]) -> Optional[str]:
-    if not asset_url_or_path:
-        return None
-    if os.path.isabs(asset_url_or_path) and os.path.exists(asset_url_or_path):
-        return asset_url_or_path
-    if asset_url_or_path.startswith("/output/"):
-        rel = asset_url_or_path.replace("/output/", "", 1).replace("/", os.sep)
-        path = os.path.join(config.OUTPUT_DIR, rel)
-        return path if os.path.exists(path) else None
-    if asset_url_or_path.startswith("/static/"):
-        rel = asset_url_or_path.replace("/static/", "", 1).replace("/", os.sep)
-        path = os.path.join(config.STATIC_DIR, rel)
-        return path if os.path.exists(path) else None
-    if os.path.exists(asset_url_or_path):
-        return asset_url_or_path
-    return None
 
 
-def _resolve_youtube_token_path(settings: Dict[str, Any], requested_channel_id: Optional[int] = None) -> Optional[str]:
-    token_path = None
-    preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
-    try:
-        target_chan_id = requested_channel_id or settings.get("youtube_channel_id")
-        if not target_chan_id:
-            if preferred_handle:
-                preferred_channel = db.get_channel_by_handle(preferred_handle)
-                if preferred_channel and preferred_channel.get("id"):
-                    target_chan_id = preferred_channel["id"]
-        if target_chan_id:
-            channel = db.get_channel(target_chan_id)
-            if channel and channel.get("credentials_path"):
-                cand_path = channel["credentials_path"]
-                if not os.path.isabs(cand_path):
-                    cand_path = os.path.join(config.BASE_DIR, cand_path)
-                if os.path.exists(cand_path):
-                    token_path = cand_path
-                else:
-                    rec_filename = f"token_{target_chan_id}.pickle"
-                    rec_path = os.path.join(config.BASE_DIR, "tokens", rec_filename)
-                    if os.path.exists(rec_path):
-                        token_path = rec_path
-                        print(f"[YouTube] Recovered token path from tokens directory: {token_path}")
-
-        if not token_path and not preferred_handle:
-            channels = db.get_all_channels()
-            for ch in channels or []:
-                c_path = ch.get("credentials_path")
-                if not c_path:
-                    continue
-                if not os.path.isabs(c_path):
-                    c_path = os.path.join(config.BASE_DIR, c_path)
-                if os.path.exists(c_path):
-                    token_path = c_path
-                    break
-    except Exception as e:
-        print(f"[YouTube] Channel resolution error: {e}")
-        token_path = None
-    return token_path
 
 
-def _resolve_project_thumbnail_path(project_id: int, settings: Dict[str, Any]) -> Optional[str]:
-    thumb_candidate = settings.get("thumbnail_path") or settings.get("thumbnail_url")
-    return _resolve_local_output_asset_path(thumb_candidate)
 
 
 @app.get("/api/projects/{project_id}/drive-bundle")
@@ -3318,390 +1778,12 @@ async def get_drive_bundle(project_id: int):
         return {"status": "error", "error": str(e)}
 
 
-@app.post("/api/projects/{project_id}/admin-publish-request")
-async def request_admin_publish(project_id: int, background_tasks: BackgroundTasks):
-    """Register a completed project for web-admin publishing without uploading to YouTube locally."""
-    try:
-        project = db.get_project(project_id)
-        if not project:
-            raise HTTPException(404, "Project not found")
-
-        settings = db.get_project_settings(project_id) or {}
-        video_path = (
-            _resolve_local_output_asset_path(settings.get("external_video_path"))
-            or _resolve_local_output_asset_path(settings.get("video_path"))
-        )
-
-        try:
-            bundle = drive_bundle_service.get_project_bundle(project_id)
-        except Exception:
-            bundle = {}
-
-        if (bundle.get("video_file") or {}).get("id"):
-            from services.project_publish_service import queue_project_for_admin_publish
-
-            result = queue_project_for_admin_publish(
-                project_id,
-                requested_privacy=settings.get("upload_privacy") or "private",
-                requested_publish_at=settings.get("upload_schedule_at"),
-                requested_channel_id=settings.get("youtube_channel_id"),
-            )
-            return {
-                "status": "ok",
-                "mode": "queued",
-                "message": "Registered in web-admin publishing queue.",
-                **result,
-            }
-
-        if not video_path or not os.path.exists(video_path):
-            raise HTTPException(404, "Uploadable rendered video file not found.")
-
-        from services.sync_service import upload_and_sync_video
-
-        db.update_project_setting(project_id, "admin_publish_ready", "0")
-        db.update_project_setting(project_id, "admin_publish_status", "drive_sync_pending")
-        background_tasks.add_task(upload_and_sync_video, project_id, video_path)
-        return {
-            "status": "ok",
-            "mode": "sync_started",
-            "message": "Drive sync started. Web-admin publishing queue will be updated after upload.",
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[AdminPublish] Request failed: {e}")
-        return {"status": "error", "error": str(e)}
-
-
-@app.post("/api/youtube/upload-external/{project_id}")
-async def upload_external_to_youtube(
-    project_id: int, 
-    request: Request
-):
-    """업로드된 외부 영상 게시 (Standard: Private, Independent: Selectable)"""
-    try:
-        data = await request.json()
-        requested_privacy = data.get("privacy", "private")
-        requested_publish_at = data.get("publish_at")
-        requested_channel_id = data.get("channel_id")
-    except Exception:
-        requested_privacy = "private"
-        requested_publish_at = None
-        requested_channel_id = None
-
-    # [NEW] Membership Check
-    from services.auth_service import auth_service
-    is_independent = auth_service.is_independent()
-
-    if not is_independent:
-        raise HTTPException(
-            status_code=403,
-            detail="Standard worker accounts must use web-admin publishing. Register the rendered video with /api/projects/{project_id}/admin-publish-request.",
-        )
-    
-    # Force private if not independent
-    final_privacy = "private"
-    final_publish_at = None
-    
-    if is_independent:
-        final_privacy = requested_privacy
-        final_publish_at = requested_publish_at
-        
-        # YouTube requires 'private' for scheduled
-        if final_publish_at:
-            final_privacy = "private"
-    else:
-        # Standard user always private locally
-        if requested_privacy == "public":
-            print("[Security] Standard user attempted public upload. Forcing private.")
-            final_privacy = "private"
-
-    try:
-        from services.project_publish_service import publish_project_to_youtube
-
-        result = publish_project_to_youtube(
-            project_id,
-            requested_privacy=final_privacy,
-            requested_publish_at=final_publish_at,
-            requested_channel_id=requested_channel_id,
-        )
-
-        return {
-            "status": "ok",
-            "video_id": result.get("video_id"),
-            "url": result.get("url"),
-            "upload_source": result.get("upload_source"),
-        }
-    except Exception as shared_publish_error:
-        print(f"[YouTube] Shared publish path failed, falling back to legacy handler: {shared_publish_error}")
-
-    temp_dir_to_cleanup = None
-    try:
-        project = db.get_project(project_id)
-        if not project:
-            raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
-
-        settings = db.get_project_settings(project_id) or {}
-        metadata = db.get_metadata(project_id) or {}
-
-        video_path = _resolve_local_output_asset_path(settings.get("external_video_path"))
-        upload_source = "external"
-
-        if not video_path:
-            video_path = _resolve_local_output_asset_path(settings.get("video_path"))
-            if video_path:
-                upload_source = "rendered_local"
-
-        drive_assets = None
-        if not video_path:
-            drive_assets = drive_bundle_service.prepare_youtube_upload_assets(project_id)
-            temp_dir_to_cleanup = drive_assets.get("temp_dir")
-            video_path = drive_assets.get("video_path")
-            upload_source = "drive_bundle"
-
-        if not video_path or not os.path.exists(video_path):
-            raise HTTPException(404, "업로드할 영상 파일을 찾을 수 없습니다.")
-
-        from services.youtube_upload_service import youtube_upload_service
-
-        if drive_assets:
-            title = drive_assets.get("title") or project.get("name") or f"Project {project_id}"
-            description = drive_assets.get("description") or ""
-            tags = list(drive_assets.get("tags") or [])
-            hashtags = list(drive_assets.get("hashtags") or [])
-            thumbnail_path = drive_assets.get("thumbnail_path")
-        else:
-            title = (metadata.get("titles") or [project.get("name")])[0]
-            description = metadata.get("description") or settings.get("description") or ""
-            tags = list(metadata.get("tags") or [])
-            hashtags = list(metadata.get("hashtags") or [])
-            thumbnail_path = _resolve_project_thumbnail_path(project_id, settings)
-
-        merged_tags = []
-        for item in tags + hashtags:
-            cleaned = str(item or "").strip()
-            if cleaned and cleaned not in merged_tags:
-                merged_tags.append(cleaned)
-
-        token_path = _resolve_youtube_token_path(settings, requested_channel_id)
-        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
-        if preferred_handle and not token_path:
-            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
-            raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
-        result = youtube_upload_service.upload_video(
-            file_path=video_path,
-            title=title,
-            description=description,
-            tags=merged_tags[:15],
-            category_id="22",
-            privacy_status=final_privacy,
-            publish_at=final_publish_at,
-            token_path=token_path,
-        )
-
-        if not result or not result.get("id"):
-            raise HTTPException(500, (result or {}).get("error", "YouTube 업로드 실패"))
-
-        video_id = result.get("id")
-
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            try:
-                youtube_upload_service.set_thumbnail(
-                    video_id=video_id,
-                    thumbnail_path=thumbnail_path,
-                    token_path=token_path,
-                )
-            except Exception as thumb_err:
-                print(f"[YouTube] Thumbnail set skipped: {thumb_err}")
-
-        db.update_project_setting(project_id, "youtube_video_id", video_id)
-        db.update_project_setting(project_id, "is_published", 1)
-        db.update_project_setting(project_id, "is_uploaded", 1)
-        db.update_project_setting(project_id, "upload_source", upload_source)
-
-        return {
-            "status": "ok",
-            "video_id": video_id,
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "upload_source": upload_source,
-        }
-    except Exception as e:
-        print(f"YouTube upload error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": f"YouTube 업로드 실패: {str(e)}"}
-    finally:
-        if temp_dir_to_cleanup and os.path.isdir(temp_dir_to_cleanup):
-            try:
-                shutil.rmtree(temp_dir_to_cleanup, ignore_errors=True)
-            except Exception:
-                pass
-
-    try:
-        # 프로젝트 정보 조회
-        project = db.get_project(project_id)
-        if not project:
-            raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
-        
-        # 영상 경로 조회 (외부 업로드 -> 렌더링 영상 순)
-        settings = db.get_project_settings(project_id)
-        video_path = settings.get('external_video_path')
-        
-        if not video_path or not os.path.exists(video_path):
-            video_path = settings.get('video_path')
-            
-        # 렌더링 웹 경로 처리
-        if video_path and not os.path.exists(video_path) and video_path.startswith('/output/'):
-            rel_path = video_path.replace('/output/', '', 1).replace('/', os.sep)
-            video_path = os.path.join(config.OUTPUT_DIR, rel_path)
-            
-        if not video_path or not os.path.exists(video_path):
-            raise HTTPException(404, "업로드되거나 렌더링된 영상이 없습니다.")
-        
-        # YouTube 업로드 서비스 import
-        from services.youtube_upload_service import youtube_upload_service
-        
-        # 메타데이터 조회 (title, description, tags)
-        metadata = db.get_metadata(project_id)
-        title = metadata.get('titles', [project['name']])[0] if metadata else project['name']
-        description = metadata.get('description', '') if metadata else ''
-        tags = metadata.get('tags', []) if metadata else []
-        
-        # [NEW] 채널 정보 조회하여 토큰 경로 결정 (Relative Path 지원)
-        token_path = None
-        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
-        try:
-            target_chan_id = requested_channel_id or settings.get('youtube_channel_id')
-            if not target_chan_id and preferred_handle:
-                preferred_channel = db.get_channel_by_handle(preferred_handle)
-                if preferred_channel and preferred_channel.get('id'):
-                    target_chan_id = preferred_channel['id']
-            if target_chan_id:
-                channel = db.get_channel(target_chan_id)
-                if channel and channel.get('credentials_path'):
-                    cand_path = channel['credentials_path']
-                    # 상대 경로면 절대 경로로 변환
-                    if not os.path.isabs(cand_path):
-                        cand_path = os.path.join(config.BASE_DIR, cand_path)
-                    
-                    if os.path.exists(cand_path):
-                        token_path = cand_path
-                    else:
-                        # [FIX] 경로가 깨졌을 경우 현재 폴더의 tokens/ 에서 복구 시도
-                        rec_filename = f"token_{target_chan_id}.pickle"
-                        rec_path = os.path.join(config.BASE_DIR, "tokens", rec_filename)
-                        if os.path.exists(rec_path):
-                            token_path = rec_path
-                            print(f"[YouTube] Recovered token path from tokens/ directory: {token_path}")
-            
-            if not token_path and not preferred_handle:
-                # Fallback to first channel if not specified or not found
-                channels = db.get_all_channels()
-                if channels:
-                    for ch in channels:
-                        c_path = ch.get('credentials_path')
-                        if c_path:
-                            if not os.path.isabs(c_path):
-                                c_path = os.path.join(config.BASE_DIR, c_path)
-                            if os.path.exists(c_path):
-                                token_path = c_path
-                                break
-        except Exception as e:
-            print(f"[YouTube] Channel resolution error: {e}")
-            token_path = None
-
-        if preferred_handle and not token_path:
-            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
-            raise HTTPException(status_code=400, detail=f"고정 업로드 채널이 아직 로컬에 연동되지 않았습니다: {preferred_name}")
-
-        # YouTube 업로드 (동기 함수이므로 await 제거)
-        result = youtube_upload_service.upload_video(
-            file_path=video_path,
-            title=title,
-            description=description,
-            tags=tags,
-            category_id="22",  # People & Blogs
-            privacy_status=final_privacy,
-            publish_at=final_publish_at,
-            token_path=token_path
-        )
-        
-        if result and result.get('id'):
-            video_id = result.get('id')
-            
-            # DB에 YouTube 비디오 ID 및 상태 저장
-            db.update_project_setting(project_id, 'youtube_video_id', video_id)
-            db.update_project_setting(project_id, 'is_published', 1)
-            db.update_project_setting(project_id, 'is_uploaded', 1)
-            
-            return {
-                "status": "ok",
-                "video_id": video_id,
-                "url": f"https://www.youtube.com/watch?v={video_id}"
-            }
-        else:
-            raise HTTPException(500, result.get('error', 'YouTube 업로드 실패'))
-            
-    except Exception as e:
-        print(f"YouTube upload error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"status": "error", "error": f"YouTube 업로드 실패: {str(e)}"}
 
 
 
 
-# ===========================================
-# API: Repository to Script Plan
-# ===========================================
 
-class RepositoryPlanRequest(BaseModel):
-    title: str
-    synopsis: str
-    success_factor: str
 
-@app.post("/api/repository/create-plan")
-async def create_plan_from_repository(req: RepositoryPlanRequest):
-    """
-    저장소(Repository)의 분석 결과를 바탕으로
-    1. 새 프로젝트 생성
-    2. 대본 기획(Structure) 자동 생성
-    """
-    # 1. Create Project
-    try:
-        project_id = db.create_project(req.title, req.synopsis)
-        print(f"Created Project for Plan: {req.title} ({project_id})")
-    except Exception as e:
-        raise HTTPException(500, f"프로젝트 생성 실패: {str(e)}")
-
-    # 2. Prepare Mock Analysis Data for Gemini
-    # Repository data provides minimal context, so we adapt it.
-    analysis_simulation = {
-        "topic": req.synopsis, # Use synopsis as the core topic
-        "user_notes": f"Original Motivation (Success Factor): {req.success_factor}\nTarget Title: {req.title}",
-        "duration": 600, # Default ~10 min
-        "script_style": "story" # Default style
-    }
-
-    # 3. Generate Structure
-    from services.gemini_service import gemini_service
-    try:
-        structure = await gemini_service.generate_script_structure(analysis_simulation)
-        
-        if "error" in structure:
-            print(f"Structure Gen Warning: {structure['error']}")
-            return {"status": "error", "error": f"대본 구조 생성 실패: {structure['error']}", "project_id": project_id}
-        else:
-            db.save_script_structure(project_id, structure)
-            db.update_project(project_id, status="planned")
-            # Update Project Topic to match, just in case
-            db.update_project(project_id, topic=req.synopsis)
-            
-    except Exception as e:
-        print(f"Structure Gen Error: {e}")
-        return {"status": "error", "error": f"AI 생성 중 오류: {str(e)}", "project_id": project_id}
-    
-    return {"status": "ok", "project_id": project_id}
 
 
 
@@ -3736,9 +1818,13 @@ if __name__ == "__main__":
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
 
-    # [SDK] Smart Queue Dispatcher Start
-    from services.dispatcher_service import dispatcher_service
-    dispatcher_service.start()
+    # [SDK] Smart Queue Dispatcher: disabled by default (web-admin owns topic generation)
+    if os.getenv("ENABLE_USER_APP_DISPATCHER", "false").strip().lower() == "true":
+        from services.dispatcher_service import dispatcher_service
+        dispatcher_service.start()
+        print("[Dispatcher] User App Dispatcher started (ENABLE_USER_APP_DISPATCHER=true)")
+    else:
+        print("[Dispatcher] Skipped (ENABLE_USER_APP_DISPATCHER not set). Web-admin handles topic dispatch.")
 
     print(f"[*] 서버 시간(KST): {config.get_kst_time().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"[*] 서버 주소: http://{config.HOST}:{config.PORT}")
@@ -3791,14 +1877,15 @@ if __name__ == "__main__":
             import webview
             
             # 독립 데스크톱 창 생성 (Edge Chromium 기반 WebView2 기동)
+            _ico = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "air_studio.ico")
             webview.create_window(
-                "AIR Studio", 
+                "AIR Studio",
                 f"http://{config.HOST}:{config.PORT}",
                 width=1280,
                 height=800,
                 resizable=True
             )
-            webview.start()
+            webview.start(icon=_ico if os.path.exists(_ico) else None)
         except ImportError:
             print("webview 라이브러리를 찾을 수 없어 기본 브라우저로 실행합니다.")
             import webbrowser

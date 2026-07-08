@@ -384,6 +384,29 @@ class WebAdminClient:
             return response.json()[0]
         return None
 
+    def update_preferred_language(self, email: str, lang: str) -> bool:
+        """Save UI display language preference to profiles.preferred_language.
+        NOTE: This is separate from preferred_languages (content/topic language array).
+        """
+        allowed = {"ko", "en", "vi", "th"}
+        if not email or lang not in allowed:
+            return False
+        try:
+            response = self.supabase_patch(
+                "profiles",
+                {"preferred_language": lang},
+                params={"email": f"eq.{email}"},
+                timeout=5,
+            )
+            if response is not None and response.status_code < 400:
+                print(f"[WebAdmin] preferred_language updated: {email} → {lang}")
+                return True
+            if response is not None:
+                print(f"[WebAdmin] preferred_language update failed: HTTP {response.status_code}")
+        except Exception as e:
+            print(f"[WebAdmin] preferred_language update error: {e}")
+        return False
+
     def resolve_user_id(self, *, email: str = "", candidate: str = "") -> str:
         candidate = (candidate or "").strip()
         if UUID_RE.fullmatch(candidate):

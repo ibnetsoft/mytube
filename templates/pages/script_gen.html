@@ -145,7 +145,7 @@
                             </button>
                             <button onclick="switchScriptTab('vietnamese')" id="tabScriptVietnamese"
                                 class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-white focus:outline-none transition-all">
-                                {{ 'Translation' if current_lang == 'en' else t('tab_vietnamese') }}
+                                {{ t('tab_translation') }}
                             </button>
                         </div>
                         {% endif %}
@@ -157,6 +157,11 @@
                             <button onclick="copyScript()"
                                 class="btn-primary text-xs flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white px-3">
                                 📋 <span class="font-bold">{{ t('btn_copy_all') }}</span>
+                            </button>
+                            <button onclick="copyAndOpenTranslate()"
+                                class="btn-secondary text-xs flex items-center gap-1 border-gray-600 text-green-400 hover:bg-gray-800 px-3"
+                                title="대본을 복사한 후 Google Translate를 엽니다">
+                                🌐 <span class="font-bold">번역</span>
                             </button>
                             <button onclick="saveCurrentScript()" class="btn-primary text-xs">{{ t('btn_save') }}</button>
                         </div>
@@ -750,6 +755,18 @@
         }
         Utils.copyToClipboard(text);
         Utils.showToast(`${i18n.status_copied_all}`, 'success');
+    }
+
+    function copyAndOpenTranslate() {
+        const el = document.getElementById('scriptContent');
+        const text = el.value !== undefined ? el.value : el.innerText;
+        if (!text || !text.trim()) {
+            Utils.showToast('복사할 대본이 없습니다.', 'warning');
+            return;
+        }
+        Utils.copyToClipboard(text);
+        Utils.showToast('대본을 복사했습니다. Google Translate를 여는 중...', 'success');
+        window.open('https://translate.google.com', '_blank');
     }
 
     function cleanCurrentScript() {

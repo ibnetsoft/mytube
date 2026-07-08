@@ -44,8 +44,12 @@ def _route_with_project_id(base_path: str, project_id: Optional[int]) -> str:
 
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
+    from services.i18n import Translator
+    from config import config
     email = auth_service.get_user_email()
     is_admin = db.is_user_admin(email) if email else False
+    # [AIR-0133] Per-request language: read from request.state (set by middleware)
+    lang = getattr(request.state, "current_lang", "en")
     return _templates.TemplateResponse(
         request=request,
         name=template,
@@ -55,6 +59,10 @@ def _render(request, template, page, title, **extra):
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
             "is_admin": is_admin,
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
+            "AUTH_SERVER_URL": getattr(config, "AUTH_SERVER_URL", "http://localhost:3000"),
             **extra
         }
     )
@@ -151,7 +159,10 @@ async def page_video_upload(request: Request):
     membership = (auth_service.get_membership() or "std").lower()
     if membership in ("std", "standard"):
         return RedirectResponse(url="/projects")
+    from services.i18n import Translator
     app_mode = db.get_global_setting("app_mode", "longform")
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
     if app_mode == "longform_music":
         return _templates.TemplateResponse(
             request=request,
@@ -161,7 +172,10 @@ async def page_video_upload(request: Request):
                 "title": "nav_reserve",
                 "is_independent": auth_service.is_independent(),
                 "membership": auth_service.get_membership(),
-                "token_balance": auth_service.get_token_balance()
+                "token_balance": auth_service.get_token_balance(),
+                "current_lang": lang,
+                "window_lang": lang,
+                "t": Translator(lang).t,
             }
         )
     return _templates.TemplateResponse(
@@ -172,7 +186,10 @@ async def page_video_upload(request: Request):
             "title": "nav_upload",
             "is_independent": auth_service.is_independent(),
             "membership": auth_service.get_membership(),
-            "token_balance": auth_service.get_token_balance()
+            "token_balance": auth_service.get_token_balance(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 
@@ -183,6 +200,9 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
     if project_id:
         project = db.get_project(project_id)
     from services.auth_service import auth_service
+    from services.i18n import Translator
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
     return _templates.TemplateResponse(
         request=request,
         name="pages/subtitle_gen.html",
@@ -191,7 +211,10 @@ async def page_subtitle_gen(request: Request, project_id: Optional[int] = Query(
             "title": "nav_subtitle",
             "project": project,
             "membership": auth_service.get_membership(),
-            "token_balance": auth_service.get_token_balance()
+            "token_balance": auth_service.get_token_balance(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 
@@ -212,6 +235,100 @@ async def page_template(request: Request, project_id: Optional[int] = Query(None
     app_mode = db.get_global_setting("app_mode", "longform")
     return _render(request, "pages/template.html", "template", "nav_shorts_template", project_id=project_id, app_mode=app_mode)
 
+@router.get("/referral", response_class=HTMLResponse)
+async def page_referral(request: Request):
+    return _render(
+        request,
+        "pages/referral.html",
+        "referral",
+        "nav_referral",
+        app_mode="longform"
+    )
+
+@router.get("/admin/referrals", response_class=HTMLResponse)
+async def page_admin_referrals(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/admin_referrals.html",
+        "admin-referrals",
+        "Admin Referrals",
+        app_mode="longform"
+    )
+
+@router.get("/admin/voices", response_class=HTMLResponse)
+async def page_admin_voices(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/admin_voices.html",
+        "admin-voices",
+        "Admin Voices",
+        app_mode="longform"
+    )
+
+@router.get("/admin/script-analyzer", response_class=HTMLResponse)
+async def page_admin_script_analyzer(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/script_analyzer_preview.html",
+        "admin-script-analyzer",
+        "Script Analyzer",
+        app_mode="longform"
+    )
+
+@router.get("/admin/director-ai", response_class=HTMLResponse)
+async def page_admin_director_ai(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/director_ai_preview.html",
+        "admin-director-ai",
+        "Director AI",
+        app_mode="longform"
+    )
+
+@router.get("/admin/production-planner", response_class=HTMLResponse)
+async def page_admin_production_planner(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/production_planner_preview.html",
+        "admin-production-planner",
+        "Production Planner",
+        app_mode="longform"
+    )
+
+@router.get("/admin/asset-matching", response_class=HTMLResponse)
+async def page_admin_asset_matching(request: Request):
+    from app.routers.admin_tenant import check_superadmin
+    from fastapi import HTTPException
+    if not check_superadmin():
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _render(
+        request,
+        "pages/asset_matching_preview.html",
+        "admin-asset-matching",
+        "Asset Upload & Matching",
+        app_mode="longform"
+    )
+
 @router.get("/shorts", response_class=HTMLResponse)
 async def page_shorts(request: Request):
     return _render(request, "pages/shorts.html", "shorts", "nav_shorts")
@@ -226,6 +343,9 @@ async def page_settings(request: Request):
     import datetime
     auth_service.verify_license()
     
+    from services.i18n import Translator
+    # [AIR-0133] Per-request language
+    lang = getattr(request.state, "current_lang", "en")
     return _templates.TemplateResponse(
         request=request,
         name="pages/settings.html",
@@ -236,10 +356,13 @@ async def page_settings(request: Request):
             "membership": auth_service.get_membership(),
             "token_balance": auth_service.get_token_balance(),
             "youtube_channel": auth_service.get_youtube_channel(),
-                        "my_referral_code": auth_service.get_referral_code(),
+            "my_referral_code": auth_service.ensure_referral_code_generated(),
             "wallet_info": auth_service.get_or_create_wallet_info(),
             "min_withdrawal_usdt": db.get_global_setting("min_withdrawal_usdt", "10"),
-            "youtube_handle": auth_service.get_youtube_handle()
+            "youtube_handle": auth_service.get_youtube_handle(),
+            "current_lang": lang,
+            "window_lang": lang,
+            "t": Translator(lang).t,
         }
     )
 
@@ -250,4 +373,11 @@ async def page_logs(request: Request):
 @router.get("/autopilot", response_class=HTMLResponse)
 async def page_autopilot(request: Request):
     return _render(request, "pages/autopilot.html", "autopilot", "nav_autopilot")
+
+@router.get("/referral", response_class=HTMLResponse)
+async def page_referral(request: Request):
+    from services.auth_service import auth_service
+    # Need to pass token if we want to securely fetch data, or handle it via cookies in JS
+    return _render(request, "pages/referral.html", "referral", "추천인 대시보드")
+
 

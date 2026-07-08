@@ -1,0 +1,272 @@
+<div class="p-6 text-white h-[calc(100vh-4rem)] flex flex-col">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold flex items-center gap-2">
+            <span>🖼️</span> Asset Upload & Matching
+        </h1>
+        <div class="text-sm text-gray-400">
+            Project ID: <span id="currentProjectId" class="text-white font-mono bg-black px-2 py-1 rounded">preview_proj_0207</span>
+        </div>
+    </div>
+
+    <div class="flex-1 min-h-0 flex gap-6">
+        <!-- Upload & Assets Panel -->
+        <div class="w-1/3 flex flex-col gap-4 overflow-y-auto">
+            <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10">
+                <h3 class="text-gray-400 font-bold mb-2">Upload Assets</h3>
+                <div id="dropzone" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-indigo-500 cursor-pointer transition-colors bg-[#15191f]">
+                    <div class="text-3xl mb-2">📥</div>
+                    <div class="text-sm text-gray-400">Drag & drop images/videos here or click to browse</div>
+                    <input type="file" id="fileInput" class="hidden" multiple accept="image/*,video/*">
+                </div>
+                
+                <details class="mt-3">
+                    <summary class="text-xs text-indigo-400 cursor-pointer">Preview Shots JSON (Mock AI Matching Reference)</summary>
+                    <textarea id="mockShots" class="w-full h-32 bg-black/50 text-white text-xs font-mono p-2 mt-2 rounded border border-white/10">[
+  {
+    "id": "shot001",
+    "scene_id": "scene001",
+    "subject": "woman",
+    "emotion": "sad",
+    "camera": "close up",
+    "scene_visual_hint": "city street"
+  }
+]</textarea>
+                </details>
+            </div>
+            
+            <div class="bg-[#1c2027] p-4 rounded-lg border border-white/10 flex-1 flex flex-col">
+                <h3 class="text-gray-400 font-bold mb-3">Uploaded Assets Gallery</h3>
+                <div id="assetsGallery" class="flex flex-col gap-3 overflow-y-auto">
+                    <p class="text-gray-500 text-xs italic text-center py-4">No assets uploaded yet.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matches Panel -->
+        <div class="w-2/3 bg-[#15191f] rounded-lg border border-white/5 p-4 flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-indigo-400 font-bold">Scene/Shot Match Board</h3>
+                <button onclick="loadProjectData()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition-colors">Refresh</button>
+            </div>
+            
+            <div id="matchBoard" class="flex-1 overflow-y-auto grid grid-cols-1 gap-4">
+                <p class="text-gray-500 text-sm italic text-center py-10">Upload an asset to see automatic matching results.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const projectId = "preview_proj_0207";
+let assetsList = [];
+let matchesList = [];
+
+// Setup Dropzone
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('click', () => fileInput.click());
+
+dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('border-indigo-500', 'bg-[#1c2027]');
+});
+
+dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('border-indigo-500', 'bg-[#1c2027]');
+});
+
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('border-indigo-500', 'bg-[#1c2027]');
+    if (e.dataTransfer.files.length > 0) {
+        handleUpload(e.dataTransfer.files);
+    }
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleUpload(e.target.files);
+    }
+});
+
+async function handleUpload(files) {
+    const mockShots = document.getElementById('mockShots').value;
+    
+    for (let file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('user_id', 'preview_user_1');
+        formData.append('mock_shots_json', mockShots);
+        
+        try {
+            // Optional progress UI could be added here
+            const res = await fetch('/api/assets/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!res.ok) throw new Error("Upload failed");
+            
+            await res.json();
+        } catch(err) {
+            alert(`Error uploading ${file.name}: ${err.message}`);
+        }
+    }
+    
+    // Refresh board
+    loadProjectData();
+}
+
+async function loadProjectData() {
+    try {
+        const res = await fetch(`/api/assets/project/${projectId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        assetsList = data.assets || [];
+        matchesList = data.matches || [];
+        
+        renderGallery();
+        renderMatchBoard();
+    } catch (e) {
+        console.error("Failed to load project data", e);
+    }
+}
+
+function renderGallery() {
+    const gallery = document.getElementById('assetsGallery');
+    gallery.innerHTML = '';
+    
+    if (assetsList.length === 0) {
+        gallery.innerHTML = `<p class="text-gray-500 text-xs italic text-center py-4">No assets uploaded yet.</p>`;
+        return;
+    }
+    
+    assetsList.forEach(asset => {
+        const analysis = asset.analysis_result || {};
+        const subjects = (analysis.subjects || []).join(', ');
+        const isMatched = matchesList.some(m => m.asset_id === asset.id);
+        
+        gallery.innerHTML += `
+            <div class="bg-black/40 rounded border border-white/10 p-2 flex gap-3 text-xs">
+                <div class="w-16 h-16 bg-gray-800 rounded flex items-center justify-center shrink-0 border border-white/10 text-xl overflow-hidden relative">
+                    ${asset.file_type === 'video' ? '🎬' : '🖼️'}
+                    ${isMatched ? '<div class="absolute top-0 right-0 bg-green-500 w-2 h-2 rounded-full m-1"></div>' : ''}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="truncate text-gray-300 font-bold mb-1" title="${asset.file_name}">${asset.file_name}</div>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        <span class="bg-blue-900/50 text-blue-300 px-1.5 py-0.5 rounded">${asset.file_type}</span>
+                        ${analysis.emotion ? `<span class="bg-purple-900/50 text-purple-300 px-1.5 py-0.5 rounded">${analysis.emotion}</span>` : ''}
+                        ${subjects ? `<span class="bg-teal-900/50 text-teal-300 px-1.5 py-0.5 rounded">${subjects}</span>` : ''}
+                        ${asset.quality_score ? `<span class="bg-green-900/50 text-green-300 px-1.5 py-0.5 rounded">Q:${asset.quality_score}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function renderMatchBoard() {
+    const board = document.getElementById('matchBoard');
+    board.innerHTML = '';
+    
+    if (matchesList.length === 0) {
+        board.innerHTML = `<p class="text-gray-500 text-sm italic text-center py-10">Upload an asset to see automatic matching results.</p>`;
+        return;
+    }
+    
+    matchesList.forEach(match => {
+        const asset = assetsList.find(a => a.id === match.asset_id);
+        if (!asset) return;
+        
+        board.innerHTML += `
+            <div class="bg-[#2a303c] rounded border ${match.user_overridden ? 'border-yellow-500/50' : 'border-indigo-500/50'} p-4">
+                <div class="flex justify-between items-center mb-3 border-b border-white/5 pb-2">
+                    <div class="font-bold text-white flex items-center gap-2">
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded">Scene: ${match.scene_id}</span>
+                        <span class="text-xs bg-gray-600 px-2 py-1 rounded">Shot: ${match.shot_id}</span>
+                    </div>
+                    <div class="text-xs flex gap-2 items-center">
+                        ${match.user_overridden ? 
+                            '<span class="text-yellow-500 font-bold flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"></path></svg> Manual Override</span>' : 
+                            '<span class="text-indigo-400 font-bold">✨ Auto Matched</span>'}
+                        <span class="text-gray-400 ml-2">Score: ${Math.round(match.match_score * 100)}%</span>
+                    </div>
+                </div>
+                
+                <div class="flex gap-4 items-start text-sm">
+                    <div class="w-24 h-24 bg-black/50 rounded flex items-center justify-center shrink-0 border border-white/10 text-2xl">
+                        ${asset.file_type === 'video' ? '🎬' : '🖼️'}
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-gray-300 font-medium mb-1">${asset.file_name}</div>
+                        <div class="text-gray-500 text-xs mb-2">Reason: <span class="text-indigo-300">${match.match_reason}</span></div>
+                        <div class="text-gray-500 text-xs mb-3 italic">"${asset.analysis_result?.content_summary || ''}"</div>
+                        
+                        <div class="flex gap-2">
+                            <button onclick="triggerOverride('${match.id}', '${match.scene_id}', '${match.shot_id}')" class="text-xs bg-[#1c2027] hover:bg-gray-700 border border-white/10 px-3 py-1.5 rounded transition-colors text-yellow-500">
+                                Override
+                            </button>
+                            <button onclick="updateMatchStatus('${match.id}', 'approved')" class="text-xs bg-green-900/50 hover:bg-green-800 border border-green-500/30 px-3 py-1.5 rounded transition-colors text-green-400">
+                                Approve
+                            </button>
+                            <button onclick="updateMatchStatus('${match.id}', 'rejected')" class="text-xs bg-red-900/50 hover:bg-red-800 border border-red-500/30 px-3 py-1.5 rounded transition-colors text-red-400">
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                ${match.match_status ? `<div class="mt-2 text-right text-xs text-gray-500">Status: <span class="capitalize text-white">${match.match_status}</span></div>` : ''}
+            </div>
+        `;
+    });
+}
+
+async function updateMatchStatus(match_id, status) {
+    try {
+        const res = await fetch('/api/assets/matches/status', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ match_id: match_id, status: status })
+        });
+        
+        if (!res.ok) throw new Error("Status update failed");
+        
+        loadProjectData();
+    } catch(e) {
+        alert(e.message);
+    }
+}
+
+async function triggerOverride(match_id, current_scene, current_shot) {
+    const newScene = prompt("Enter new Scene ID:", current_scene);
+    if (!newScene) return;
+    const newShot = prompt("Enter new Shot ID:", current_shot);
+    if (!newShot) return;
+    
+    if (newScene === current_scene && newShot === current_shot) return;
+    
+    try {
+        const res = await fetch('/api/assets/matches/override', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                match_id: match_id,
+                scene_id: newScene,
+                shot_id: newShot
+            })
+        });
+        
+        if (!res.ok) throw new Error("Override failed");
+        
+        loadProjectData();
+    } catch(e) {
+        alert(e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadProjectData);
+</script>

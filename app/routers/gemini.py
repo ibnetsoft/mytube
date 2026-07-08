@@ -89,16 +89,14 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
 
         accumulated_knowledge = db.get_recent_knowledge(limit=10, script_style=req.script_style)
 
-        result = await gemini_service.generate_script_structure(
-            analysis_data,
-            recent_titles,
-            target_language=req.target_language,
-            style_prompt=style_prompt,
-            accumulated_knowledge=accumulated_knowledge
+        from app.services.scene_planner import scene_planner_service
+        result = await scene_planner_service.plan_scenes(
+            topic=req.topic,
+            target_duration=req.duration
         )
 
-        if "error" in result:
-            return {"status": "error", "error": result["error"]}
+        if "error" in result and result["error"]:
+            return {"status": "error", "error": result.get("error_message", "Unknown error")}
 
         return {"status": "ok", "structure": result}
 

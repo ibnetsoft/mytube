@@ -26,6 +26,40 @@ class LoginRequest(BaseModel):
     email: str
     password: str
     lang: str | None = None
+    browser_lang: str | None = None  # navigator.language detected on client
+
+
+_LANG_ALLOWED = {"ko", "en", "vi", "th"}
+
+
+def _detect_lang_from_header(accept_language: str) -> str:
+    """Parse Accept-Language header and map to supported lang code.
+    Returns 'en' if no match found.
+    Mapping: ko* → ko, vi* → vi, th* → th, else → en
+    """
+    for part in accept_language.split(","):
+        tag = part.split(";")[0].strip().lower()
+        if tag.startswith("ko"):
+            return "ko"
+        if tag.startswith("vi"):
+            return "vi"
+        if tag.startswith("th"):
+            return "th"
+        if tag.startswith("en"):
+            return "en"
+    return "en"
+
+
+def _detect_lang_from_nav(nav_lang: str) -> str:
+    """Map navigator.language value (e.g. 'th-TH') to supported lang code."""
+    tag = (nav_lang or "").strip().lower()
+    if tag.startswith("ko"):
+        return "ko"
+    if tag.startswith("vi"):
+        return "vi"
+    if tag.startswith("th"):
+        return "th"
+    return "en"
 
 
 class RegisterRequest(BaseModel):
@@ -61,8 +95,7 @@ def _disable_insecure_warnings():
 
 def _apply_login_language(lang: str) -> str:
     """Persist and apply the language selected on the login page."""
-    allowed = {"ko", "en", "vi", "th"}
-    selected = lang if lang in allowed else "ko"
+    selected = lang if lang in _LANG_ALLOWED else "en"
     try:
         db.save_global_setting("language", selected)
     except Exception as e:
@@ -72,11 +105,7 @@ def _apply_login_language(lang: str) -> str:
             f.write(selected)
     except Exception as e:
         print(f"[Auth] Failed to write login language file: {e}")
-    try:
-        from services import app_state
-        app_state.switch_language(selected)
-    except Exception as e:
-        print(f"[Auth] Failed to switch live language: {e}")
+    # [AIR-0133] Removed app_state.switch_language() — language is now per-request via cookie
     return selected
 
 
@@ -340,7 +369,7 @@ async def validate_referral_api(code: str):
 
 
 @router.post("/api/auth/login")
-async def post_auth_login(req: LoginRequest):
+async def post_auth_login(req: LoginRequest, request: Request):
     try:
         if not web_admin_client.has_supabase():
             return {"success": False, "error": "서버 DB 연동 설정이 누락되었습니다."}
@@ -348,9 +377,7 @@ async def post_auth_login(req: LoginRequest):
         profile = web_admin_client.fetch_profile_by_email(req.email)
         if profile:
             # [WHITELIST SECURITY CHECK]
-            # profiles 테이블의 is_approved 컬럼 검증 (True 또는 'approved' 상태만 로그인 허용)
             is_approved = profile.get("is_approved")
-            # is_approved 컬럼이 없거나 명시적으로 False인 경우 차단
             if is_approved is False or is_approved is None or str(is_approved).lower() in ("false", "0", "none"):
                 return {"success": False, "error": "어드민 승인 대기 중이거나 비활성화된 계정입니다."}
 
@@ -361,8 +388,36 @@ async def post_auth_login(req: LoginRequest):
             input_password = str(req.password).strip()
 
             if db_password == input_password:
-                selected_lang = _apply_login_language(req.lang or "ko")
+                # [AIR-0132] Language priority:
+                # 1. req.lang (user explicitly selected on login page)
+                # 2. profile.preferred_language (saved from previous session)
+                # 3. req.browser_lang (navigator.language from client)
+                # 4. Accept-Language header
+                # 5. fallback → en
+                db_preferred = profile.get("preferred_language") or ""
+                nav_lang = (req.browser_lang or "").strip()
+                accept_lang = request.headers.get("accept-language", "")
+
+                if req.lang and req.lang in _LANG_ALLOWED:
+                    selected_lang = req.lang
+                elif db_preferred in _LANG_ALLOWED:
+                    selected_lang = db_preferred
+                elif nav_lang:
+                    selected_lang = _detect_lang_from_nav(nav_lang)
+                elif accept_lang:
+                    selected_lang = _detect_lang_from_header(accept_lang)
+                else:
+                    selected_lang = "en"
+
+                _apply_login_language(selected_lang)
                 auth_service.login_user(req.email)
+
+                # Save preferred_language back to Supabase (best-effort)
+                try:
+                    web_admin_client.update_preferred_language(req.email, selected_lang)
+                except Exception as e:
+                    print(f"[Auth] preferred_language save warning: {e}")
+
                 response = JSONResponse({"success": True, "lang": selected_lang})
                 response.set_cookie(
                     key="user_email",

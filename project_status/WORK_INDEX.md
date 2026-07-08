@@ -309,35 +309,107 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Next action:
   Re-run the complete Longform operator workflow with dedicated credentials and real external assets to complete authenticated browser-level validation.
 
-### AIR-0121
+### AIR-0119
 - Status: Done
-- Commit: `8d6cb782`
-- PR: #25 (MERGED 2026-07-03)
+- Commit: `24d06f9`
+- PR: #19 (MERGED 2026-07-02)
+- Related files:
+  - `services/ai_router.py` (new)
+  - `services/autopilot_service.py`
+  - `services/gemini_service.py`
+  - `app/routers/projects.py`
+  - `app/routers/user_topics.py`
+- Short summary:
+  Centralized scattered Claude/Gemini provider selection logic into a single `services/ai_router.py` module. All AI generation calls now share one source of truth for provider detection (`detect_provider`) and fallback routing (`generate_text`). No functional behavior changes; fallback to Gemini on Claude failure preserved.
+- Next action:
+  AIR-0120 removes the worker-facing full-page reload on language switch.
+
+### AIR-0120
+- Status: Done
+- Commit: `2046b53`
+- PR: #23 (MERGED 2026-07-02)
 - Related files:
   - `services/i18n.py`
-  - `templates/pages/image_gen.html`
-  - `worknote/AIR-0121.md`
+  - `templates/base.html`
 - Short summary:
-  Added a 7-step Image Production Workflow UI to guide users on generating and handling images via external AI tools. Included localStorage persistence, auto-checking hooks, and full i18n support for 4 languages.
+  Removed the full-page reload triggered by worker-facing language switching. Language icon clicks previously caused a complete page reload plus on-demand recommendation translation through the Gemini → Claude → Google fallback chain. Base template and i18n service updated to eliminate this reload.
 - Next action:
-  Start investigation for AIR-0122 (Referral 2.0).
+  AIR-0121 adds an image workflow guide panel to `image_gen.html`.
 
-### AIR-0123
+### AIR-0121
 - Status: Done
-- Commit: `c73ca016`
-- PR: #27 (MERGED 2026-07-03)
+- Commit: `381fc97`
+- PR: #25 (MERGED 2026-07-03)
 - Related files:
-  - `auth-web/app/api/admin/users/recharge/route.ts`
-  - `auth-web/lib/settlement.ts`
-  - `auth-web/migration_settlement_unique.sql`
-  - `auth-web/app/admin/settlements/page.tsx`
-  - `auth-web/app/api/admin/settlements/route.ts`
+  - `templates/pages/image_gen.html`
+  - `services/i18n.py`
+  - `templates/pages/settings.html`
 - Short summary:
-  Implemented a background worker that generates `pending` referral commissions (Level 1 and Level 2) upon Admin Recharge. Computes commissions with a 2-decimal rounding logic based on dynamic global percentages, bypassing execution safely for missing values, OFF modes, self-referrals, and loops. Enforced Idempotency natively with a new DB Unique Index. Added a read-only Admin UI list for visibility.
+  Added an image workflow guide panel to `image_gen.html` to help workers understand the external AI image generation pipeline. Refined with external tool badges and a ChatGPT usage hint. i18n keys added for badge labels and hint text.
 - Next action:
-  Implement the Payout Processor that translates `pending` commissions to `paid` status and deposits into the beneficiaries' `usdt_balance`.
+  AIR-0126 synchronizes all project status documents (WORK_INDEX, LATEST, NEXT_TASK, worknote/latest) to reflect actual GitHub main state after AIR-0119 through AIR-0121 merged without document updates.
 
-### AIR-0122
+### AIR-0126
+- Status: Done
+- Commit: `939a301`
+- PR: #30 (OPEN — awaiting product owner merge)
+- Branch: `air-0126-project-status-sync`
+- Related files:
+  - `project_status/WORK_INDEX.md`
+  - `project_status/LATEST.md`
+  - `project_status/NEXT_TASK.md`
+  - `worknote/latest.md`
+  - `worknote/AIR-0119.md` (created)
+  - `worknote/AIR-0120.md` (corrected)
+  - `worknote/AIR-0121.md` (created)
+- Short summary:
+  Synchronized all project status documents with actual GitHub main state after AIR-0119, AIR-0120, AIR-0121, and PR #24 merged without document updates. Corrected worknote/AIR-0120.md (previously described PR #13 documentation cleanup instead of language full-reload removal). Created missing worknotes for AIR-0119 and AIR-0121.
+- Next action:
+  AIR-0127 closes superseded PRs #1–#8 and #22 after PR #30 merges.
+
+### AIR-0127
+- Status: Blocked — waiting for PR #30 (AIR-0126) to merge before closing superseded PRs
+- Branch: none yet
+- Scope: Close PRs #1–#8 and #22 with superseded comments after PR #30 is merged
+- Next action:
+  After PR #30 merges, run: gh pr close 1 2 3 4 5 6 7 8 22 with appropriate comments.
+
+### AIR-0128
+- Status: Done (PR open)
+- Commit: `62c432c`
+- PR: #31 (OPEN — awaiting product owner review and migration approval)
+- Branch: `air-0128-db-persistent-translation`
+- Related files:
+  - `app/routers/user_topics.py`
+  - `auth-web/app/api/admin/topics-queue/route.ts`
+  - `migrations/air_0128_topics_queue_translation_columns.sql` (new)
+  - `scripts/backfill_topic_translations.py` (new)
+  - `tests/test_topic_translation_db.py` (new)
+- Short summary:
+  Replaced runtime AI translation for recommended topic cards with DB-persistent translation. Added `_fetch_stored_translations()` and `_save_translations_to_db()` to `user_topics.py`. The `/api/user/recommended-topics/translations` endpoint now reads from Supabase `topics_queue` translation columns first and falls back to AI only for NULL rows, saving new translations back to DB. auth-web PUT handler resets translation columns on topic text edit. Migration SQL adds 6 nullable TEXT columns. Backfill script provided for existing rows.
+- Next action:
+  1. Product owner approves and merges PR #31.
+  2. Apply `migrations/air_0128_topics_queue_translation_columns.sql` to Supabase.
+  3. Run backfill: `python scripts/backfill_topic_translations.py --lang vi` (then en, th).
+
+### AIR-0129
+- Status: Done (PR open)
+- Commit: `(this PR)`
+- PR: air-0129-admin-auto-translation (OPEN)
+- Branch: `air-0129-admin-auto-translation`
+- Related files:
+  - `auth-web/app/api/admin/topics-queue/route.ts`
+  - `migrations/air_0129_topics_queue_translation_status.sql` (new)
+  - `tests/test_topic_translation_admin_pipeline.py` (new)
+- Short summary:
+  Added admin auto-translation pipeline to route.ts. POST (topic generation) and PUT (topic edit) handlers now fire a void background Gemini task immediately after returning 200 OK. The background task translates topic+category_name into vi, en, th via three sequential Gemini calls, saves all 6 columns plus `translated_at` and `translation_status=completed` to Supabase. On failure only `translation_status=failed` is written; the admin save is never blocked. Migration adds `translated_at TIMESTAMPTZ` and `translation_status TEXT` with CHECK constraint. User App (user_topics.py) behavior unchanged — it still reads the 6 translation columns and ignores the new admin-only columns. 10 new tests pass (24 total with AIR-0128 suite).
+- Next action:
+  1. Product owner approves and merges PR #31 (AIR-0128) first.
+  2. Apply both migration SQLs to Supabase (AIR-0128 first, then AIR-0129).
+  3. Merge this PR.
+  4. Run backfill: `python scripts/backfill_topic_translations.py --lang vi` (then en, th).
+
+### AIR-0122 (Referral 2.0)
 - Status: Done
 - Commit: `c82bef94`
 - PR: #26 (MERGED 2026-07-03)
@@ -352,8 +424,46 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   Implemented the foundation for Referral 2.0. Added global settings for dynamic percentage rates and cycles, strict server-side validation for enum configs, UUID-based Default Sponsor matching, and a UI to configure referral modes without hardcoding values in the Python codebase. Missing referrals correctly fallback to the default sponsor during sign up.
 - Next action:
   Implement the backend Settlement Worker that uses the global settings to calculate and distribute commissions whenever payments occur.
+- Note: This task ID was used locally for Referral 2.0 and does not collide with origin's AIR-0122 numbering, since origin's history has no AIR-0122–0125 entries (it jumps from AIR-0121 to AIR-0126).
+
+### AIR-0123 (Referral 2.0)
+- Status: Done
+- Commit: `c73ca016`
+- PR: #27 (MERGED 2026-07-03)
+- Related files:
+  - `auth-web/app/api/admin/users/recharge/route.ts`
+  - `auth-web/lib/settlement.ts`
+  - `auth-web/migration_settlement_unique.sql`
+  - `auth-web/app/admin/settlements/page.tsx`
+  - `auth-web/app/api/admin/settlements/route.ts`
+- Short summary:
+  Implemented a background worker that generates `pending` referral commissions (Level 1 and Level 2) upon Admin Recharge. Computes commissions with a 2-decimal rounding logic based on dynamic global percentages, bypassing execution safely for missing values, OFF modes, self-referrals, and loops. Enforced idempotency natively with a new DB unique index. Added a read-only Admin UI list for visibility.
+- Next action:
+  Implement the Payout Processor that translates `pending` commissions to `paid` status and deposits into the beneficiaries' `usdt_balance`.
+
+### AIR-0124 (Referral 2.0)
+- Status: Done (local, not yet in a PR)
+- Commit: `6d512fef`
+- Short summary:
+  Added a manual referral payout processor that translates `pending` commissions to `paid` and deposits into beneficiaries' `usdt_balance`.
+- Next action:
+  Open a PR against current main; verify against the post-merge codebase (Scene/Production Planner refactors landed since this was written).
+
+### AIR-0125 (Referral 2.0)
+- Status: Done (local, not yet in a PR)
+- Commit: `b2ddd07d`
+- Short summary:
+  Documented the referral migration runbook.
+- Next action:
+  Same as AIR-0124 — needs a PR opened against current main.
 
 ## Non-AIR Merged PRs (outside AIR task numbering)
+
+### PR #24 — Add Thai i18n keys for settings.html (Upload QA, Withdrawal, Referral)
+- Status: Merged 2026-07-03
+- Branch: `thai-ux-i18n-fix`
+- Commit: `5c64f4d`
+- Short summary: Added 28 Thai translation keys (net +15 new keys, +13 restored keys) to `services/i18n.py`. Replaced hardcoded Korean strings in `templates/pages/settings.html` Upload QA Settings section with Thai Jinja2 conditionals. All 26 JS runtime `i18n.*` references in settings.html confirmed present in Thai section. Vietnamese section equivalent keys noted as a follow-up item.
 
 ### PR #14 — feat: topic UI and admin ElevenLabs voice management
 - Status: Merged 2026-07-02
@@ -378,3 +488,12 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - Branch: `auth-web-lint-fixes`
 - Commit: `cdb7c23b`
 - Short summary: Fixed auth-web lint execution errors and resolved lint warnings. Lint-only change, no functional modifications.
+
+- [AIR-0209](../worknote/AIR-0209.md) - Planning Scene Contract Refactor (DONE)
+- [AIR-0212](../worknote/AIR-0212.md) - Master Documentation Overhaul (DONE)
+- [AIR-0213](../worknote/AIR-0213.md) - Scene Pipeline E2E Tests + Unmatched Asset Board (DONE)
+- [AIR-0214](../worknote/AIR-0214.md) - Windows Installer + Auto-Update System (DONE — PR #67)
+- [AIR-0215](../worknote/AIR-0215.md) - Windows Updater Hardening (DONE — PR #67)
+- [AIR-0216](../worknote/AIR-0216.md) - Release Pipeline Automation (DONE)
+- [AIR-0217](../worknote/AIR-0217.md) - Real-Install E2E QA (PLANNED — manual)
+- [AIR-0218](../worknote/AIR-0218.md) - GitHub Actions Release Automation (DONE)

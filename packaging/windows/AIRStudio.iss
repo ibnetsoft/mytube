@@ -47,3 +47,10 @@ Filename: "{app}\Launcher\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; 
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\AIRStudio\logs"
+; Clean up atomic-swap artefacts left by a failed or interrupted update
+Type: filesandordirs; Name: "{app}\app_backup"
+Type: filesandordirs; Name: "{app}\app_new"
+Type: filesandordirs; Name: "{app}\extract"
+; NOTE: current.json is intentionally NOT deleted on uninstall.
+; It records installed version, install timestamp, and build ID and is
+; useful for support triage, reinstall version detection, and log correlation.

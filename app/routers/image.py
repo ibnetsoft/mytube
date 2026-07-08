@@ -10,11 +10,13 @@ from fastapi import APIRouter, Body, File, Form, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import asyncio
 import time
 
 import database as db
 from config import config
 from app.models.media import PromptsGenerateRequest
+from app.models.project import ImagePromptsSave
 from app.utils import (
     validate_upload as _validate_upload,
     get_project_output_dir,
@@ -126,104 +128,51 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
                 duration = p_data.get('estimated_duration', 60)
 
             # Get project settings (to resolve style key if generic)
-            settings = db.get_project_settings(req.project_id)
-            if settings:
-                if not style_key:
-                    style_key = settings.get('image_style', style_key)
-                # 캐릭터 레퍼런스 이미지 경로 읽기 (여러 개면 첫 번째 사용)
-                _ref_paths = settings.get('character_ref_image_path') or ''
-                character_ref_image_url = _ref_paths.split(',')[0].strip() or None
+        # 1. Option parsing
+        if not req.scenes:
+            raise HTTPException(400, "scenes 배열이 필요합니다. (기획 단계의 확정된 Scene Source of Truth)")
 
-            # Get existing characters for the project
-            characters = db.get_project_characters(req.project_id)
-
-        if not duration:
-            duration = len(req.script) // 5 # very rough char count est
-
-        # 2. Style Prompt Resolution (Key -> Description)
+        style_key = req.style or "realistic"
+        character_ref_image_url = req.character_reference or ""
+        
         db_presets = db.get_style_presets()
-        style_key_lower = (style_key or '').lower()
-        style_data = db_presets.get(style_key_lower)
-
-        if style_data and isinstance(style_data, dict):
-            style_prompt = style_data.get('prompt_value', style_key)
-            gemini_instruction = style_data.get('gemini_instruction') or None
-            # 캐릭터 시트 업로드 우선, 없으면 스타일 레퍼런스 이미지 사용
-            reference_image_url = character_ref_image_url or style_data.get('image_url') or None
-        else:
-            style_prompt = STYLE_PROMPTS.get(style_key_lower, style_key or '')
-            gemini_instruction = None
-            reference_image_url = character_ref_image_url
-
-        # 3. Call Gemini via Unified Service
-        target_count = req.count if req.count and req.count > 0 else None
-
-        # [사람 제외 등 추가 지시문] character_reference를 gemini_instruction에 합산
-        if req.character_reference and req.character_reference.strip():
-            extra = req.character_reference.strip()
-            gemini_instruction = (gemini_instruction + "\n" + extra) if gemini_instruction else extra
-            print(f"[Prompts] character_reference injected into gemini_instruction: {extra[:80]}...")
-
-        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Target scenes: {target_count or 'auto'}, has_gemini_instruction: {bool(gemini_instruction)}, has_ref_image: {bool(reference_image_url)}")
-
-        # [SAFETY] Truncate script to prevent Token Limit Exceeded / Timeout
-        # 30000자로 늘림 (긴 대본도 전체 대사 포함)
-        safe_script = req.script[:30000] if len(req.script) > 30000 else req.script
-        if len(req.script) > 30000:
-            print(f"[Prompts] Script truncated: {len(req.script)} → 30000 chars")
-
-        prompts_list = await gemini_service.generate_image_prompts_from_script(
-            safe_script,
-            duration,
-            style_prompt=style_prompt,
-            characters=characters,
-            target_scene_count=target_count,
-            style_key=style_key,
-            gemini_instruction=gemini_instruction,
-            reference_image_url=reference_image_url,
-            project_id=req.project_id,
-            model=config.IMAGE_PROMPT_MODEL,
-        )
-
-        if not prompts_list:
-            # Retry once if empty
-            print("[Prompts] Empty result, retrying...")
-            prompts_list = await gemini_service.generate_image_prompts_from_script(
-                safe_script,
-                duration,
-                style_prompt=style_prompt,
-                characters=characters,
-                target_scene_count=target_count,
-                style_key=style_key,
-                gemini_instruction=gemini_instruction,
-                reference_image_url=reference_image_url,
+        style_data = db_presets.get(style_key.lower())
+        style_prompt = style_data.get('prompt_value', style_key) if style_data else STYLE_PROMPTS.get(style_key.lower(), style_key)
+        
+        # 2. 정렬 및 Chunk 분할 (2x2 생성)
+        sorted_scenes = sorted(req.scenes, key=lambda x: x.get('scene_order', 0))
+        chunks = [sorted_scenes[i:i + 4] for i in range(0, len(sorted_scenes), 4)]
+        
+        print(f"[Prompts] Generating for Project {req.project_id}, Style: {style_key}, Scenes: {len(sorted_scenes)}, Chunks: {len(chunks)}")
+        
+        prompts_list = []
+        for i, chunk in enumerate(chunks):
+            print(f"[Prompts] Processing chunk {i+1}/{len(chunks)} (scenes: {len(chunk)})")
+            chunk_prompts = await gemini_service.generate_image_prompts_for_scenes(
+                scenes=chunk,
+                style_key=style_prompt,
                 project_id=req.project_id,
-                model=config.IMAGE_PROMPT_MODEL,
+                character_reference=character_ref_image_url
             )
-
+            prompts_list.extend(chunk_prompts)
+            
         if not prompts_list:
-             raise HTTPException(500, "프롬프트 생성 실패 (AI 응답 오류)")
-
-        # 4. Post-processing for UI consistency
+            raise HTTPException(500, "프롬프트 생성 실패 (AI 응답 오류)")
+            
+        # 3. Post-processing for UI consistency
         for p in prompts_list:
-            # Ensure mandatory fields
             s_text = p.get('scene_text') or p.get('scene') or p.get('narrative') or ''
             p['scene_text'] = s_text
-            
             if not p.get('scene_title'):
-                p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else f"Scene {p.get('scene_number', '?')}"
-            
-            # Ensure script bits exist
+                p['scene_title'] = s_text[:15] + "..." if len(s_text) > 15 else f"Scene {p.get('scene_order', '?')}"
             if not p.get('script_start'):
                 p['script_start'] = " ".join(s_text.split()[:2]) if s_text else ""
             if not p.get('script_end'):
                 p['script_end'] = " ".join(s_text.split()[-2:]) if s_text else ""
-
-            # Default empty states for UI
             if 'image_url' not in p: p['image_url'] = ""
             if 'image_path' not in p: p['image_path'] = ""
 
-        # 5. [CRITICAL] DB에 실시간 저장 (UI에서 '적용' 버튼 누르기 전 미리 백업)
+        # 4. [CRITICAL] DB에 실시간 저장
         if req.project_id:
             try:
                 db.save_image_prompts(req.project_id, prompts_list)
@@ -1682,3 +1631,121 @@ async def generate_grid_image(
         import traceback
         traceback.print_exc()
         return {"status": "error", "error": str(e)}
+
+
+# [AIR-0151] main.py에서 이동된 Image Prompts 라우트
+class BulkPromptUpdate(BaseModel):
+    texts: str
+
+
+@router.post("/api/projects/{project_id}/image-prompts/auto")
+async def auto_generate_images(project_id: int):
+    """대본 기반 이미지 프롬프트 생성 및 일괄 이미지 생성 (Longform & Shorts)"""
+    script_data = db.get_script(project_id)
+    script = ""
+    duration = 60
+
+    if script_data and script_data.get("full_script"):
+        script = script_data["full_script"]
+        duration = script_data.get("estimated_duration", 60)
+    else:
+        shorts_data = db.get_shorts(project_id)
+        if shorts_data and shorts_data.get("shorts_data"):
+            try:
+                scenes = shorts_data.get("shorts_data", {}).get("scenes", [])
+                if not scenes and isinstance(shorts_data.get("shorts_data"), list):
+                    scenes = shorts_data.get("shorts_data")
+                parts = []
+                for s in scenes:
+                    if "narration" in s: parts.append(s["narration"])
+                    if "dialogue" in s: parts.append(s["dialogue"])
+                    if "script" in s: parts.append(s["script"])
+                script = "\n".join(parts)
+                duration = 50
+            except Exception:
+                script = str(shorts_data)
+
+    if not script:
+        raise HTTPException(400, "대본이 없습니다. 먼저 대본(Longform 또는 Shorts)을 생성해주세요.")
+
+    prompts = await gemini_service.generate_image_prompts_from_script(script, duration, model=config.IMAGE_PROMPT_MODEL)
+    if not prompts:
+        raise HTTPException(500, "이미지 프롬프트 생성 실패")
+
+    async def process_scene(p):
+        try:
+            images = await gemini_service.generate_image(
+                prompt=p["prompt_en"],
+                aspect_ratio="16:9",
+                num_images=1
+            )
+            if images:
+                output_dir, web_dir = get_project_output_dir(project_id)
+                filename = f"p{project_id}_s{p['scene_number']}_{int(time.time())}.png"
+                output_path = os.path.join(output_dir, filename)
+                async with aiofiles.open(output_path, "wb") as f:
+                    f.write(images[0])
+                p["image_url"] = f"{web_dir}/{filename}"
+                return True
+        except Exception as e:
+            print(f"이미지 생성 실패 (Scene {p.get('scene_number')}): {e}")
+            p["image_url"] = ""
+        return False
+
+    print(f"[image.py] 이미지 병렬 생성 시작: {len(prompts)}개...")
+    tasks = [process_scene(p) for p in prompts]
+    await asyncio.gather(*tasks)
+
+    db.save_image_prompts(project_id, prompts)
+    return {"status": "ok", "prompts": prompts}
+
+
+@router.post("/api/projects/{project_id}/image-prompts")
+async def save_image_prompts(project_id: int, req: ImagePromptsSave):
+    """이미지 프롬프트 저장"""
+    db.save_image_prompts(project_id, req.prompts)
+    return {
+        "status": "ok",
+        "asset_readiness": sync_project_asset_readiness(project_id),
+    }
+
+
+@router.get("/api/projects/{project_id}/image-prompts")
+async def get_image_prompts(project_id: int):
+    """이미지 프롬프트 조회"""
+    return {
+        "status": "ok",
+        "prompts": db.get_image_prompts(project_id),
+        "asset_readiness": sync_project_asset_readiness(project_id),
+    }
+
+
+@router.post("/api/projects/{project_id}/bulk-update-prompts")
+async def bulk_update_prompts(project_id: int, req: BulkPromptUpdate):
+    """프롬프트 일괄 업데이트 (텍스트 목록 기반)"""
+    try:
+        lines = [line.strip() for line in req.texts.split('\n') if line.strip()]
+        if not lines:
+            raise HTTPException(400, "입력된 프롬프트가 없습니다.")
+        existing = db.get_image_prompts(project_id)
+        new_prompts = []
+        for i, line in enumerate(lines):
+            scene_number = i + 1
+            base = next((p for p in existing if p['scene_number'] == scene_number), {})
+            prompt_item = {
+                "scene_number": scene_number,
+                "scene_text": base.get("scene_text") or "Scene " + str(scene_number),
+                "prompt_ko": line,
+                "prompt_en": line,
+                "image_url": base.get("image_url", ""),
+                "video_url": base.get("video_url", ""),
+                "engine": base.get("engine", "veo"),
+                "scene_type": base.get("scene_type", ""),
+                "motion_desc": base.get("motion_desc", "")
+            }
+            new_prompts.append(prompt_item)
+        db.save_image_prompts(project_id, new_prompts)
+        return {"status": "success", "count": len(new_prompts)}
+    except Exception as e:
+        print(f"Bulk Update Error: {e}")
+        raise HTTPException(500, str(e))

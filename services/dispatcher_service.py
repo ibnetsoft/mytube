@@ -1,3 +1,6 @@
+# [DEPRECATED][AIR-0150] This dispatcher runs in the user app but topic generation
+# and employee assignment are now owned by the web-admin. This file is preserved
+# for rollback only. Activation requires ENABLE_USER_APP_DISPATCHER=true in .env.
 import os
 import time
 import json
@@ -126,6 +129,7 @@ class DispatcherService:
                 workloads[email] = assigned_count
 
             # 3. 카테고리별로 무인 자동화 주제 발굴 및 배정 실행
+            _gemini_ip_blocked = False
             for category in categories:
                 cat_id = category.get("id")
                 cat_name = category.get("name")
@@ -187,6 +191,8 @@ class DispatcherService:
                     """
                     
                     try:
+                        if _gemini_ip_blocked:
+                            raise RuntimeError("ip_blocked")
                         import asyncio
                         import json as _json
                         match_res = asyncio.run(gemini_service.generate_text(matching_prompt, model="gemini-2.5-flash", temperature=0.3))
@@ -228,6 +234,8 @@ class DispatcherService:
 
                 # [SDK Hook fallback] API 한도나 오류 시 재시도 안전장치 적용
                 topic_title = None
+                if _gemini_ip_blocked:
+                    continue
                 import asyncio
                 for attempt in range(3):
                     try:
@@ -240,8 +248,13 @@ class DispatcherService:
                         if topic_title:
                             break
                     except Exception as gen_err:
+                        if "IP address restriction" in str(gen_err):
+                            if not _gemini_ip_blocked:
+                                print("[Dispatcher] Gemini API key IP restriction detected. LLM skipped for this run.")
+                                _gemini_ip_blocked = True
+                            break
                         print(f"[Dispatcher Hook] LLM Generation attempt {attempt+1} failed: {gen_err}")
-                        time.sleep(5)  # 5초 간 대기 후 retry
+                        time.sleep(5)
 
                 if not topic_title:
                     print(f"[Dispatcher Warning] Failed to generate viral topic for category '{cat_name}' after 3 attempts.")

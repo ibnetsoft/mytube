@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import database as db
@@ -7,7 +7,7 @@ import shutil
 import uuid
 import time
 import httpx
-from fastapi.responses import RedirectResponse, HTMLResponse, Response
+from fastapi.responses import RedirectResponse, HTMLResponse, Response, JSONResponse
 from config import config
 from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 import csv
@@ -931,13 +931,13 @@ async def delete_thumbnail_style_preset(style_key: str):
         raise HTTPException(500, str(e))
 
 @router.post("/language")
-async def set_language(lang: str = Body(..., embed=True)):
+async def set_language(request: Request, lang: str = Body(..., embed=True)):
     """언어 설정 저장 및 즉시 적용 (ko / en / vi / th)"""
     allowed = {"ko", "en", "vi", "th"}
     if lang not in allowed:
         raise HTTPException(400, f"지원하지 않는 언어입니다: {lang}. 허용값: {allowed}")
     try:
-        # 1. DB 저장
+        # 1. 로컬 DB 저장
         db.save_global_setting("language", lang)
 
         # 2. language.pref 파일 저장 (서버 재시작 후 영구 보존)
@@ -947,18 +947,27 @@ async def set_language(lang: str = Body(..., embed=True)):
         except Exception as e:
             print(f"[I18N] language.pref write failed: {e}")
 
-        # 3. 실행 중인 translator 즉시 업데이트 (app_state 경유 — circular import 없음)
-        try:
-            from services import app_state
-            success = app_state.switch_language(lang)
-            if success:
-                print(f"[I18N] Language switched to: {lang} via app_state")
-            else:
-                print(f"[I18N] app_state not ready yet, will apply on next restart")
-        except Exception as e:
-            print(f"[I18N] Live translator update failed: {e}")
+        # 3. [AIR-0133] switch_language() 제거 — language는 per-request cookie 기반으로 처리
 
-        return {"status": "ok", "lang": lang}
+        # 4. [AIR-0132] Supabase profiles.preferred_language 저장 (best-effort)
+        try:
+            from services.auth_service import auth_service
+            from services.web_admin_client import web_admin_client
+            email = auth_service.get_user_email()
+            if email:
+                web_admin_client.update_preferred_language(email, lang)
+        except Exception as e:
+            print(f"[I18N] Supabase preferred_language save warning: {e}")
+
+        # 5. [AIR-0133] Set-Cookie so next page request picks up the new language immediately.
+        response = JSONResponse({"status": "ok", "lang": lang})
+        response.set_cookie(
+            key="language",
+            value=lang,
+            max_age=30 * 24 * 60 * 60,
+            httponly=False,
+        )
+        return response
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1503,3 +1512,77 @@ async def withdraw_account_api():
     except Exception as e:
         print(f"[Withdraw] Error during withdrawal: {e}")
         raise HTTPException(status_code=500, detail=f"회원 탈퇴 처리 중 오류 발생: {str(e)}")
+
+
+# [AIR-0153] main.py에서 이동된 API Key 관리 라우트
+class ApiKeySave(BaseModel):
+    youtube: Optional[str] = None
+    gemini: Optional[str] = None
+    elevenlabs: Optional[str] = None
+    suno: Optional[str] = None
+    suno_base_url: Optional[str] = None
+    music_provider: Optional[str] = None
+    music_gemini_model: Optional[str] = None
+    music_gemini_base_url: Optional[str] = None
+    music_gemini_project_id: Optional[str] = None
+    music_gemini_location: Optional[str] = None
+    typecast: Optional[str] = None
+    replicate: Optional[str] = None
+    topview: Optional[str] = None
+    topview_uid: Optional[str] = None
+    blog_client_id: Optional[str] = None
+    blog_client_secret: Optional[str] = None
+    blog_id: Optional[str] = None
+    wp_url: Optional[str] = None
+    wp_username: Optional[str] = None
+    wp_password: Optional[str] = None
+
+
+@router.get("/api-keys")
+async def get_api_keys():
+    """API 키 상태 조회 (마스킹)"""
+    return config.get_api_keys_status()
+
+
+@router.post("/api-keys")
+async def save_api_keys(req: ApiKeySave):
+    """API 키 저장"""
+    updated = []
+
+    mapping = {
+        'youtube': 'YOUTUBE_API_KEY',
+        'gemini': 'GEMINI_API_KEY',
+        'elevenlabs': 'ELEVENLABS_API_KEY',
+        'suno': 'SUNO_API_KEY',
+        'suno_base_url': 'SUNO_API_BASE_URL',
+        'music_provider': 'MUSIC_PROVIDER',
+        'music_gemini_model': 'MUSIC_GEMINI_MODEL',
+        'music_gemini_base_url': 'MUSIC_GEMINI_BASE_URL',
+        'music_gemini_project_id': 'MUSIC_GEMINI_PROJECT_ID',
+        'music_gemini_location': 'MUSIC_GEMINI_LOCATION',
+        'typecast': 'TYPECAST_API_KEY',
+        'replicate': 'REPLICATE_API_TOKEN',
+        'topview': 'TOPVIEW_API_KEY',
+        'topview_uid': 'TOPVIEW_UID',
+        'blog_client_id': 'BLOG_CLIENT_ID',
+        'blog_client_secret': 'BLOG_CLIENT_SECRET',
+        'blog_id': 'BLOG_ID',
+        'wp_url': 'WP_URL',
+        'wp_username': 'WP_USERNAME',
+        'wp_password': 'WP_PASSWORD'
+    }
+
+    req_dict = req.dict()
+    print(f"[API_KEY] Save request received. Fields present: {[k for k,v in req_dict.items() if v is not None]}")
+    for field, config_key in mapping.items():
+        val = req_dict.get(field)
+        if val is not None and val.strip():
+            print(f"[API_KEY] Updating {field} -> {config_key} (len: {len(val.strip())})")
+            config.update_api_key(config_key, val.strip())
+            updated.append(field)
+
+    return {
+        "status": "ok",
+        "updated": updated,
+        "message": f"{len(updated)}개의 API 키가 저장되었습니다"
+    }

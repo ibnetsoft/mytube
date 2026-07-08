@@ -2771,5 +2771,51 @@ Motion prompt for this image:"""
         return await asyncio.to_thread(_download)
 
 
+    async def generate_image_prompts_for_scenes(self, scenes: list, style_key: str = None, project_id: int = None, character_reference: str = None) -> list:
+        """기획 단계에서 확정된 scenes 배열을 기반으로 이미지 프롬프트 생성"""
+        import json
+        import re
+        
+        scenes_json = json.dumps(scenes, ensure_ascii=False, indent=2)
+        
+        prompt = f"""
+You are an expert Prompt Director.
+You have been given a chunk of scenes (up to 4) from the video's master scene plan.
+Your task is to generate a detailed English image generation prompt (prompt_en) for EACH scene.
+The prompts should be highly detailed, visually descriptive, and maintain consistent character/style across the scenes.
+Do NOT combine scenes together; keep them separate in the array.
+
+[STYLE HINT]
+Style: {style_key or 'cinematic'}
+Additional Reference: {character_reference or 'None'}
+
+[SCENES]
+{scenes_json}
+
+[OUTPUT FORMAT]
+Return ONLY a valid JSON array containing objects for each scene. Do not change the scene_id or scene_order.
+[
+  {{
+    "scene_id": "...",
+    "scene_order": 1,
+    "scene_text": "...",
+    "prompt_en": "Highly detailed English prompt for image generation, no text, correct anatomy..."
+  }}
+]
+"""
+        text = await self.generate_text(prompt, temperature=0.7, task_type='image_prompt_chunk')
+        cleaned = re.sub(r'```json\s*|\s*```', '', text).strip()
+        try:
+            m = re.search(r'\[[\s\S]*\]', cleaned)
+            if m:
+                return json.loads(m.group(0))
+        except Exception as e:
+            print(f"Error parsing chunk prompts: {e}")
+            
+        return []
+
+
 # 싱글톤 인스턴스
 gemini_service = GeminiService()
+
+
