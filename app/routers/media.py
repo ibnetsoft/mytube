@@ -4,7 +4,7 @@ import os
 import database as db
 from config import config
 from app.models.media import SearchRequest, GeminiRequest, TTSRequest, PromptsGenerateRequest
-from services import gemini_service, tts_service, replicate_service
+from services import gemini_service, tts_service
 
 router = APIRouter(prefix="/api/media", tags=["Media"])
 
@@ -83,12 +83,7 @@ async def generate_image_prompts(req: PromptsGenerateRequest):
 
 @router.post("/image-generate")
 async def generate_image_api(prompt: str = Body(..., embed=True), style: str = "realistic"):
-    try:
-        # replicate_service 또는 다른 서비스 이용
-        image_url = await replicate_service.generate_image(prompt, style)
-        return {"status": "success", "image_url": image_url}
-    except Exception as e:
-        raise HTTPException(500, str(e))
+    raise HTTPException(501, "이 엔드포인트는 사용되지 않습니다. /api/media/image-generate-prompts를 사용하세요.")
 
 from fastapi import Query
 from fastapi.responses import FileResponse

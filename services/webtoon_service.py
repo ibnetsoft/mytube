@@ -14,7 +14,6 @@ from config import config
 import database as db
 from services.gemini_service import gemini_service
 from services.tts_service import tts_service
-from services.replicate_service import replicate_service
 from services.video_service import video_service
 
 def finalize_scene_analysis(scene: Dict, voice_consistency_map: Dict, eleven_voices: List = None) -> Dict:
@@ -557,25 +556,8 @@ async def process_webtoon_image(img_io, prompt_type=None):
     mask.save(mask_buffer, format="PNG")
     mask_buffer.seek(0)
     
-    # 7. Call Replicate (Outpainting)
-    print(f"🎨 [Webtoon] Optimizing Image ({cut_type}): {width}x{height} -> 1080x1920")
-    
-    result_url = await replicate_service.outpaint_image(
-        canvas_buffer, 
-        mask_buffer, 
-        prompt
-    )
-    
-    if not result_url:
-        raise Exception("Image generation failed (No URL returned)")
-        
-    return {
-        "status": "success",
-        "original_url": None, 
-        "optimized_url": result_url,
-        "type": cut_type,
-        "prompt_used": prompt
-    }
+    # [REMOVED] Outpainting via Replicate is no longer supported.
+    raise Exception("이미지 아웃페인팅 기능은 더 이상 지원되지 않습니다.")
 
 async def analyze_directory_service(project_id: int, files: List[str], psd_exclude_layer: Optional[str] = None):
     """로컬 파일 리스트를 일괄 분석하는 비즈니스 로직"""
@@ -1052,24 +1034,8 @@ async def generate_single_scene_video_service(project_id: int, scene_index: int,
             
             print(f"[Wan] {prompt}")
 
-            video_data = None
-            exception_to_raise = None
-            try:
-                print(f"[Single Gen] Using Replicate (Wan 2.1)...")
-                video_data = await replicate_service.generate_video_from_image(dest_path, prompt)
-            except Exception as wan_e:
-                print(f"[Single Gen] Replicate failed: {wan_e}")
-                exception_to_raise = wan_e
-
-            if exception_to_raise and not video_data:
-                raise exception_to_raise
-
-            if video_data:
-                actual_engine = "wan"
-                out_filename = f"vid_{actual_engine}_{project_id}_{scene_num}_{now_str}.mp4"
-                out_path = os.path.join(config.OUTPUT_DIR, out_filename)
-                with open(out_path, 'wb') as f: f.write(video_data)
-                video_url = f"/output/{out_filename}"
+            # [REMOVED] Wan 2.1 (Replicate) generation is no longer supported.
+            raise Exception("Wan 2.1 영상 생성은 더 이상 지원되지 않습니다.")
 
         if video_url:
             db.update_image_prompt_video_url(project_id, scene_num, video_url)

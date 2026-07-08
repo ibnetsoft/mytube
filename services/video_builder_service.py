@@ -257,40 +257,11 @@ async def generate_scene_video_wan(
     scene_id: int,
 ) -> Optional[str]:
     """
-    Wan 2.1 i2v로 단일 씬 영상 생성.
-    성공 시 video_path 반환, 실패 시 None
+    [REMOVED] Wan 2.1 (Replicate) generation is no longer supported.
+    Always returns None (caller treats this as a failed scene).
     """
-    try:
-        from services.replicate_service import replicate_service
-        print(f"[VB] 🎬 씬 {scene_id} — Wan 2.1 시도 중...")
-
-        video_bytes = await replicate_service.generate_video_from_image(
-            image_path=image_path,
-            prompt=prompt,
-            duration=5.0,
-            method="standard",
-        )
-        if not video_bytes:
-            raise Exception("Wan 2.1: 빈 응답 (크레딧 부족 또는 서버 오류)")
-
-        out_path = os.path.join(output_dir, f"scene_{scene_id:03d}_wan.mp4")
-        with open(out_path, "wb") as f:
-            f.write(video_bytes)
-        print(f"[VB] ✅ 씬 {scene_id} — Wan 2.1 완료: {out_path}")
-        return out_path
-
-    except Exception as e:
-        err = str(e).lower()
-        # 크레딧 부족 / 결제 필요 키워드 감지
-        is_credit_error = any(k in err for k in [
-            "credit", "billing", "payment", "quota", "insufficient",
-            "rate limit", "429", "throttle", "balance", "no_credits"
-        ])
-        if is_credit_error:
-            print(f"[VB] Wan credit/billing issue: {e}")
-        else:
-            print(f"[VB] ❌ 씬 {scene_id} — Wan 오류: {e}")
-        return None
+    print(f"[VB] ❌ 씬 {scene_id} — Wan 2.1은 더 이상 지원되지 않습니다.")
+    return None
 
 
 def _extract_last_frame(video_path: str, output_dir: str, scene_id: int) -> Optional[str]:

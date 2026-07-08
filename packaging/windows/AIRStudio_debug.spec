@@ -14,7 +14,6 @@ root = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 # 데이터 수집
 datas = []
 binaries = []
-datas += copy_metadata("replicate")
 try:
     datas += copy_metadata("google-generativeai")
 except Exception:

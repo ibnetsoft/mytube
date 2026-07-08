@@ -87,7 +87,6 @@ except Exception as e:
 from config import config
 import database as db
 from services.gemini_service import gemini_service
-from services.replicate_service import replicate_service
 from services.auth_service import auth_service
 from services.drive_bundle_service import drive_bundle_service
 from services.web_admin_client import web_admin_client
@@ -798,60 +797,8 @@ class AnimateRequest(BaseModel):
 
 @app.post("/api/projects/{project_id}/scenes/animate")
 async def animate_scene(project_id: int, req: AnimateRequest):
-    """이미지를 비디오로 변환 (Replicate Wan)"""
-    from services.auth_service import auth_service
-    if not auth_service.check_credits(1000):
-        return JSONResponse(status_code=403, content={"error": "AI 토큰이 부족합니다. (영상 생성 최소 1,000 TK 필요)"})
-    
-    try:
-        # 1. 이미지 조회
-        scene_prompts = db.get_image_prompts(project_id)
-        target_scene = next((p for p in scene_prompts if p['scene_number'] == req.scene_number), None)
-        if not target_scene or not target_scene.get('image_url'):
-            return JSONResponse(status_code=404, content={"error": "해당 장면의 이미지를 찾을 수 없습니다."})
-
-        image_web_path = target_scene['image_url']
-        if image_web_path.startswith("/output/"):
-            image_abs_path = os.path.join(config.OUTPUT_DIR, image_web_path.replace("/output/", "").lstrip("/"))
-        else:
-            image_abs_path = os.path.join(config.BASE_DIR, image_web_path.lstrip("/"))
-
-        if not os.path.exists(image_abs_path):
-            return JSONResponse(status_code=404, content={"error": f"이미지 파일 없음: {image_abs_path}"})
-
-        motion_prompt = f"{req.prompt}, {target_scene.get('prompt_en', '')}"
-        video_bytes = None
-
-        # 1순위: Replicate
-        try:
-            print(f"[Animate] Trying Replicate...")
-            video_bytes = await replicate_service.generate_video_from_image(
-                image_path=image_abs_path,
-                prompt=motion_prompt[:1000],
-                duration=req.duration,
-                method=req.method
-            )
-            print(f"[Animate] Replicate OK")
-        except Exception as e:
-            print(f"[Animate] Replicate failed ({str(e)[:80]})")
-
-        if not video_bytes:
-            return JSONResponse(status_code=500, content={"error": "Replicate 영상 생성 실패. 크레딧이나 API 키를 확인하세요."})
-
-        # 저장
-        output_dir, web_dir = get_project_output_dir(project_id)
-        filename = f"motion_p{project_id}_s{req.scene_number}_{int(time.time())}.mp4"
-        output_path = os.path.join(output_dir, filename)
-        async with aiofiles.open(output_path, "wb") as f:
-            await f.write(video_bytes)
-
-        video_web_url = f"{web_dir}/{filename}"
-        db.update_image_prompt_video_url(project_id, req.scene_number, video_web_url)
-        return {"status": "success", "video_url": video_web_url}
-
-    except Exception as e:
-        print(f"Animate Error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    """[REMOVED] Replicate(Wan) 기반 이미지->영상 변환은 더 이상 지원되지 않습니다."""
+    return JSONResponse(status_code=501, content={"error": "이 영상 생성 방식은 더 이상 지원되지 않습니다."})
 
 @app.post("/api/upload-video-to-project/{project_id}/{scene_number}")
 async def upload_scene_video(project_id: int, scene_number: int, file: UploadFile = File(...)):

@@ -35,7 +35,6 @@ google-auth-httplib2>=0.2.0
 
 # Scheduler
 apscheduler
-replicate>=0.30.0
 aiohttp
 pydub
 openai>=1.0.0
@@ -48,4 +47,6 @@ pywebview
 
 pydub
 
-pyaudioop
+# Python 3.13 removed the stdlib audioop/pyaudioop modules (PEP 594);
+# this restores them for libraries (pydub) that still import pyaudioop.
+audioop-lts>=0.2.1; python_version >= "3.13"

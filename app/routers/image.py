@@ -27,7 +27,6 @@ from app.utils import (
     STYLE_PROMPTS,
 )
 from services.gemini_service import gemini_service
-from services.replicate_service import replicate_service
 from services.scene_asset_matcher import build_assignment_plan, extract_scene_number, find_missing_scenes
 from services.longform_asset_readiness import sync_project_asset_readiness
 
@@ -828,12 +827,9 @@ async def generate_character_image(
         
         print(f"👤 [Char Generation] Style: {style}, Prompt: {prompt[:100]}...")
 
-        # 이미지 생성 (전략: Gemini (Primary) -> Replicate Fallback)
         images_bytes = None
-        
-        # 1차 시도: Gemini
         try:
-            print(f"🎨 [Char Generation] Attempting Gemini (Primary)...")
+            print(f"🎨 [Char Generation] Attempting Gemini...")
             images_bytes = await gemini_service.generate_image(
                 prompt=full_prompt,
                 num_images=1,
@@ -842,16 +838,8 @@ async def generate_character_image(
         except Exception as e:
             print(f"⚠️ [Char Generation] Gemini failed: {e}")
 
-        # 2차 시도: Replicate (flux-schnell)
         if not images_bytes:
-            try:
-                print(f"🎨 [Char Generation] Attempting Replicate (Fallback 1)...")
-                images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
-            except Exception as e:
-                print(f"⚠️ [Char Generation] Replicate failed: {e}")
-
-        if not images_bytes:
-            return {"status": "error", "error": "모든 이미지 생성 서비스가 실패했습니다."}
+            return {"status": "error", "error": "이미지 생성에 실패했습니다."}
         
         output_dir, web_dir = get_project_output_dir(project_id)
         filename = f"char_{project_id}_{int(datetime.datetime.now().timestamp())}.png"

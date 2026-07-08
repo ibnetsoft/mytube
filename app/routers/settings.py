@@ -57,7 +57,6 @@ ADVANCED_GLOBAL_SETTING_FIELDS = {
     "gemini_api_key",
     "elevenlabs_api_key",
     "pexels_api_key",
-    "replicate_api_token",
     "openai_api_key",
     "qa_enable_pipeline",
     "qa_enable_technical_check",
@@ -87,7 +86,7 @@ class GlobalSettings(BaseModel):
     webtoon_motion_pan: Optional[str] = None
     webtoon_motion_zoom: Optional[str] = None
     webtoon_motion_action: Optional[str] = None
-    video_engine: Optional[str] = None # 'veo' or 'replicate'
+    video_engine: Optional[str] = None # 'veo'
     veo_model_version: Optional[str] = None
     # [NEW] Blog Settings
     blog_client_id: Optional[str] = None
@@ -107,7 +106,6 @@ class GlobalSettings(BaseModel):
     gemini_api_key: Optional[str] = None
     elevenlabs_api_key: Optional[str] = None
     pexels_api_key: Optional[str] = None
-    replicate_api_token: Optional[str] = None
     openai_api_key: Optional[str] = None
     # [NEW] Google Drive Settings
     use_external_render: Optional[bool] = None
@@ -379,8 +377,6 @@ async def save_global_settings_api(settings: GlobalSettings):
         config.update_api_key("ELEVENLABS_API_KEY", settings.elevenlabs_api_key)
     if settings.pexels_api_key is not None:
         config.update_api_key("PEXELS_API_KEY", settings.pexels_api_key)
-    if settings.replicate_api_token is not None:
-        config.update_api_key("REPLICATE_API_TOKEN", settings.replicate_api_token)
     if settings.openai_api_key is not None:
         config.update_api_key("OPENAI_API_KEY", settings.openai_api_key)
         
@@ -1527,7 +1523,6 @@ class ApiKeySave(BaseModel):
     music_gemini_project_id: Optional[str] = None
     music_gemini_location: Optional[str] = None
     typecast: Optional[str] = None
-    replicate: Optional[str] = None
     topview: Optional[str] = None
     topview_uid: Optional[str] = None
     blog_client_id: Optional[str] = None
@@ -1561,7 +1556,6 @@ async def save_api_keys(req: ApiKeySave):
         'music_gemini_project_id': 'MUSIC_GEMINI_PROJECT_ID',
         'music_gemini_location': 'MUSIC_GEMINI_LOCATION',
         'typecast': 'TYPECAST_API_KEY',
-        'replicate': 'REPLICATE_API_TOKEN',
         'topview': 'TOPVIEW_API_KEY',
         'topview_uid': 'TOPVIEW_UID',
         'blog_client_id': 'BLOG_CLIENT_ID',

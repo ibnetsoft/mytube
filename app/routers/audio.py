@@ -5,7 +5,6 @@ import os
 import time
 import database as db
 from config import config
-from services.replicate_service import replicate_service
 from services.gemini_service import gemini_service
 from services.music_generation_service import music_generation_service
 
@@ -22,7 +21,7 @@ class AudioGenRequest(BaseModel):
 
 @router.post("/generate")
 async def generate_audio(req: AudioGenRequest):
-    """Generate SFX or BGM via Replicate"""
+    """Generate BGM. SFX generation has no provider wired up yet (previously Replicate-only)."""
     try:
         # Check project
         project = db.get_project(req.project_id)
@@ -31,27 +30,21 @@ async def generate_audio(req: AudioGenRequest):
         # Output path setup
         output_dir = os.path.join(config.OUTPUT_DIR, str(req.project_id), "assets", "audio")
         os.makedirs(output_dir, exist_ok=True)
-        
+
         timestamp = int(time.time())
-        filename = f"{req.type}_scene_{req.scene_number}_{timestamp}.{ 'mp3' if req.type=='bgm' else 'wav' }" # Replicate output format varies, usually mp3 or wav
-        # Actually Replicate output is usually WAV or MP3 depending on model. 
-        # MusicGen -> WAV/MP3? AudioLDM -> WAV.
-        
+        filename = f"{req.type}_scene_{req.scene_number}_{timestamp}.{ 'mp3' if req.type=='bgm' else 'wav' }"
+
         # Call Service
         audio_data = None
         if req.type == "sfx":
-            audio_data = await replicate_service.generate_sfx(req.prompt, req.duration)
+            raise HTTPException(501, "SFX 생성 기능은 현재 사용할 수 없습니다 (제공자 미구현).")
         elif req.type == "bgm":
             config.load_remote_keys_from_supabase()
-            provider = (req.provider or music_generation_service.provider()).lower()
-            if provider == "replicate" or (provider == "elevenlabs" and not config.ELEVENLABS_API_KEY):
-                audio_data = await replicate_service.generate_music(req.prompt, req.duration)
-            else:
-                audio_data = await music_generation_service.compose(
-                    req.prompt,
-                    music_length_ms=max(3, int(req.duration or 5)) * 1000,
-                    force_instrumental=req.force_instrumental,
-                )
+            audio_data = await music_generation_service.compose(
+                req.prompt,
+                music_length_ms=max(3, int(req.duration or 5)) * 1000,
+                force_instrumental=req.force_instrumental,
+            )
         else:
             raise HTTPException(400, "Invalid type. Use 'sfx' or 'bgm'")
             

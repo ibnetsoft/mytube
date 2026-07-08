@@ -16,7 +16,6 @@ from config import config
 import database as db
 from services.video_service import video_service
 from services.storage_service import storage_service
-from services.replicate_service import replicate_service
 from app.modes import is_shorts_mode
 from services.project_publish_service import publish_project_to_youtube, queue_project_for_admin_publish
 from services.longform_asset_readiness import sync_project_asset_readiness
@@ -1319,67 +1318,9 @@ async def render_project_video(
                     engine_req = s_data.get('engine_override', 'image')
 
                     if engine_req == 'wan':
-                        # [ENHANCE] Append Camera Motion to Prompt
-                        effect_req = str(s_data.get('effect_override', 'static')).lower()
-                        
-                        # 1. Camera Motion Prefix
-                        motion_prefix = ""
-                        if effect_req in ['pan_down', 'pan_down (vertical scan)', 'tilt_down']:
-                            motion_prefix = "Camera pans down from top to bottom, strictly vertical scrolling motion, revealing the scene downwards, "
-                        elif effect_req in ['pan_up', 'pan_up (vertical scan)', 'tilt_up']:
-                            motion_prefix = "Camera pans up from bottom to top, strictly vertical scrolling motion, "
-                        elif effect_req == 'zoom_in':
-                             motion_prefix = "Slow cinematic zoom in, focusing on the center, highly detailed, "
-                        elif effect_req == 'zoom_out':
-                             motion_prefix = "Slow cinematic zoom out, revealing more of the surroundings, "
-                        elif effect_req == 'pan_left':
-                             motion_prefix = "Slow camera pan to the left, horizontal scrolling, "
-                        elif effect_req == 'pan_right':
-                             motion_prefix = "Slow camera pan to the right, horizontal scrolling, "
-                        
-                        # 2. Detailed Motion Description (Creative Prompt)
-                        # This comes from the 'Internal Content Motion' field in the UI
-                        content_motion = s_data.get('motion_desc', '').strip()
-                        if content_motion and content_motion != '[AI Motion Auto-generated]':
-                            # Add strictly to prompt
-                            content_motion = f"{content_motion}, "
-                        else:
-                            content_motion = ""
-
-                        # 3. Base Image Prompt
-                        base_prompt = prompt_map.get(base_name, "Cinematic video, high quality, smooth motion")
-                        
-                        # Combine: Camera Motion + Content Motion + Base Visuals
-                        final_prompt = f"{motion_prefix}{content_motion}{base_prompt}"
-                        
-                        # Cleanup
-                        final_prompt = final_prompt.replace("  ", " ").replace(", ,", ",").strip()
-                        
-                        print(f"🚀 [Auto-Generate] Wan required for {base_name}. Prompt: {final_prompt[:100]}... (Effect: {effect_req})")
-                        
-                        try:
-                            # Blocking Call (we are in async def, so await is fine)
-                            video_bytes = await replicate_service.generate_video_from_image(
-                                image_path=img_path,
-                                prompt=final_prompt, # Enhanced Prompt
-                                method="standard" # Default to standard 5s
-                            )
-                            
-                            if video_bytes:
-                                timestamp = int(time.time())
-                                new_filename = f"wan_auto_{project_id}_{idx}_{timestamp}.mp4"
-                                new_path = os.path.join(config.OUTPUT_DIR, new_filename)
-                                with open(new_path, "wb") as f:
-                                    f.write(video_bytes)
-                                
-                                print(f"✅ [Auto-Generate] Wan Video Created: {new_filename}")
-                                patched_images.append(new_path)
-                                upgraded_count += 1
-                                found_video = True
-                            else:
-                                print(f"❌ [Auto-Generate] Failed to generate bytes. Fallback to image.")
-                        except Exception as e:
-                             print(f"❌ [Auto-Generate] Error during generation: {e}")
+                        # [REMOVED] Wan (Replicate) video generation is no longer supported.
+                        # Falls through to "Keep original if no upgrade found" below.
+                        print(f"⚠️ [Auto-Generate] Scene {base_name} requests Wan engine, which is no longer supported. Keeping image.")
 
                 # Keep original if no upgrade found
                 if not found_video:

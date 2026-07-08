@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Request, UploadFile, File, BackgroundTasks
 from typing import List, Optional
 import re
+import asyncio
 import database as db
 from app.models.project import ProjectCreate, ProjectUpdate, ProjectSettingUpdate, ProjectSettingsSave
 from pydantic import BaseModel
@@ -117,9 +118,27 @@ async def translate_text_to_target(text: str, target_lang_code: str) -> str:
 
 
 def has_thai_text(text: str) -> bool:
-    return bool(text and re.search(r"[\\u0E00-\\u0E7F]", text))
+    # [FIX] Double-escaped \\u0E00 never matched real Thai Unicode chars, so this
+    # guard always returned False and every /api/projects call re-queued Thai
+    # translation for all projects forever. Single-escaped \u lets re parse it
+    # as the actual Unicode code point range.
+    return bool(text and re.search(r"[฀-๿]", text))
+
+# [FIX] ensure_translations_bg had no guard against concurrent invocations.
+# Every GET /api/projects queued a fresh full pass over all projects as a
+# BackgroundTask; since translations for a still-in-flight pass aren't
+# committed to the DB yet, overlapping passes redundantly re-translated the
+# same fields, multiplying wasted AI calls whenever the endpoint was polled
+# while a previous pass was still running.
+_ensure_translations_lock = asyncio.Lock()
+
 
 async def ensure_translations_bg(projects: list):
+    async with _ensure_translations_lock:
+        await _ensure_translations_bg_locked(projects)
+
+
+async def _ensure_translations_bg_locked(projects: list):
     for p in projects:
         try:
             pid = p.get("id")
@@ -480,7 +499,6 @@ class SingleVideoGenRequest(BaseModel):
 async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
     """단일 씬 비디오 생성 (Veo/Wan/Image)"""
     try:
-        from services.replicate_service import replicate_service
         from services.video_service import video_service
         from config import config
         from app.utils import STYLE_PROMPTS
@@ -602,38 +620,8 @@ async def generate_single_video(project_id: int, req: SingleVideoGenRequest):
             print(f"⚠️ [Studio] Scene {req.scene_number}: pan 씬 감지 → Wan 대신 image 엔진으로 자동 전환")
 
         if actual_engine == "wan":
-            # [Wan] Motion Generation
-            # Prioritize: Req(override) > DB(motion_desc) > prompt_en 요약 폴백
-            motion_part = effective_motion_desc
-            prompt_en   = target_p.get('prompt_en') or target_p.get('visual_desc') or ""
-            final_prompt = _build_video_prompt(prompt_en, motion_part, style_prefix, max_chars=1000)
-            
-            # [FIX] Check if full original image exists (prevents character cropping in pan effects)
-            wan_asset_filename = p_settings.get(f"scene_{req.scene_number}_wan_image", "")
-            if wan_asset_filename:
-                wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
-                wan_candidate = os.path.join(wan_asset_dir, wan_asset_filename)
-                if os.path.exists(wan_candidate):
-                    wan_source_path = wan_candidate
-                    print(f"  🎯 [Studio] Using FULL original image for Wan: {wan_asset_filename}")
-                else:
-                    wan_source_path = image_abs_path
-            else:
-                wan_source_path = image_abs_path
-            
-            print(f"🎬 [Studio] Generating Wan Video for Scene {req.scene_number}... Prompt: {final_prompt[:80]}...")
-            video_data = await replicate_service.generate_video_from_image(
-                wan_source_path,
-                prompt=final_prompt,
-                duration=5.0, # Fixed for Wan
-                method="standard" 
-            )
-            
-            if video_data:
-                filename = f"vid_wan_{project_id}_{req.scene_number}_{now.strftime('%H%M%S')}.mp4"
-                out = os.path.join(config.OUTPUT_DIR, filename)
-                with open(out, 'wb') as f: f.write(video_data)
-                video_url = f"/output/{filename}"
+            # [REMOVED] Wan (Replicate) video generation is no longer supported.
+            raise HTTPException(501, "Wan/Seedance/Akool 영상 생성 엔진은 더 이상 지원되지 않습니다. Veo 엔진을 사용하세요.")
 
         elif actual_engine == "veo":
             # [Veo] Gemini Veo 영상 생성

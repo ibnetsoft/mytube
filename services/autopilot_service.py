@@ -23,7 +23,6 @@ def print(*args, **kwargs):
 import database as db
 from services.gemini_service import gemini_service
 from services.claude_service import claude_service
-from services.replicate_service import replicate_service
 import services.ai_router as ai_router
 from services.prompts import prompts
 from services.tts_service import tts_service
@@ -658,12 +657,11 @@ Return JSON only:
                         detailed_style = style_data.get('prompt_value', style_prefix)
                         full_prompt = f"{char['prompt_en']}, {detailed_style}"
                         
-                        # Portrait aspect ratio 1:1 (Gemini (Primary) -> Replicate)
+                        # Portrait aspect ratio 1:1
                         images_bytes = None
-                        
-                        # 1. Gemini (Primary)
+
                         try:
-                            print(f"🎨 [Auto-Pilot Char] Attempting Gemini (Primary)...")
+                            print(f"🎨 [Auto-Pilot Char] Attempting Gemini...")
                             images_bytes = await gemini_service.generate_image(
                                 prompt=full_prompt,
                                 num_images=1,
@@ -672,14 +670,6 @@ Return JSON only:
                         except Exception as e:
                             print(f"⚠️ [Auto-Pilot Char] Gemini failed: {e}")
 
-                        # 2. Replicate Fallback
-                        if not images_bytes:
-                            try:
-                                print(f"🎨 [Auto-Pilot Char] Attempting Replicate (Fallback 1)...")
-                                images_bytes = await replicate_service.generate_image(prompt=full_prompt, aspect_ratio="1:1")
-                            except Exception as e:
-                                print(f"⚠️ [Auto-Pilot Char] Replicate failed: {e}")
-                        
                         if images_bytes:
                             now = config.get_kst_time()
                             filename = f"char_{project_id}_{idx}_{now.strftime('%H%M%S')}.png"
@@ -1153,7 +1143,6 @@ JSON만 출력하세요:
 
 
         # 2. Assets (Video/Image)
-        from services.replicate_service import replicate_service
         async def process_scene(p, is_video: bool):
             scene_num = p.get("scene_number")
             if p.get("image_url") and not (is_video and not p.get("video_url")): 
@@ -1189,29 +1178,18 @@ JSON만 출력하세요:
                     images = None
                     used_backend = "none"
 
-                    # 1. Gemini (Primary)
                     try:
-                        print(f"🎨 [Auto-Pilot] Attempting Gemini (Primary)...")
+                        print(f"🎨 [Auto-Pilot] Attempting Gemini...")
                         images = await gemini_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
                         if images:
                             used_backend = "Gemini"
                     except Exception as e:
                         print(f"⚠️ [Scene {scene_num}] Gemini failed: {e}")
 
-                    # 2. Replicate Fallback
-                    if not images:
-                        try:
-                            print(f"🎨 [Auto-Pilot] Attempting Replicate (Fallback 1)...")
-                            images = await replicate_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
-                            if images:
-                                used_backend = "Replicate"
-                        except Exception as e:
-                            print(f"⚠️ [Scene {scene_num}] Replicate failed: {e}")
-
                     print(f"🎨 [Scene {scene_num}] Image generated via {used_backend}")
 
-                    if not images: 
-                        err_msg = f"[Asset Gen Error] Image generation failed for Scene {scene_num} (both Gemini and Replicate failed)."
+                    if not images:
+                        err_msg = f"[Asset Gen Error] Image generation failed for Scene {scene_num}."
                         db.update_project_setting(project_id, "error_msg", err_msg)
                         db.update_project(project_id, status="error")
                         raise Exception(err_msg)
@@ -1681,13 +1659,12 @@ JSON만 출력하세요:
                 # 2. Logic (Veo or Wan)
                 
                 manual_engine = p_settings.get(f"scene_{scene_num}_engine")
-                if manual_engine in ["wan", "veo", "image"]:
-                    local_engine = manual_engine
+                if manual_engine == "image":
+                    local_engine = "image"
                     print(f"🎯 [Manual Override] Scene {scene_num} -> {local_engine}")
-                elif video_engine == "veo":
-                    local_engine = "veo"
                 else:
-                    local_engine = "wan"
+                    # [REMOVED] "wan" (Replicate) engine is no longer supported; always use Veo.
+                    local_engine = "veo"
                 
                 # [EXPERIMENTAL] 건너뛰기 로직 보완 -> [UPDATED] Image 엔진도 비디오 파일 생성 (2D Pan/Zoom)
                 if local_engine == "image":
@@ -1732,52 +1709,7 @@ JSON만 출력하세요:
                 # [USER MASTER SETTING APPLIED]
                 # GEMINI가 분석한 motion_desc(사용자 원칙이 반영된 상세 지침)를 우선 사용
                 base_visual = p.get('motion_desc') or p.get('prompt_en') or p.get('visual_desc') or "Cinematic motion"
-                manual_motion_desc = p_settings.get(f"scene_{scene_num}_motion_desc")
-                
-                if local_engine == "wan":
-                    if manual_motion_desc:
-                        # 사용자가 수동으로 입력한 모션 묘사가 있으면 결합
-                        final_prompt = f"{base_visual}, {manual_motion_desc}"
-                        log_debug(f"🔥 [Wan Content Motion Override] Scene {scene_num}: {manual_motion_desc}")
-                    else:
-                        # AI가 생성한 motion_desc를 그대로 사용 (이미 충분히 상세함)
-                        final_prompt = base_visual
-                        log_debug(f"🎬 [Wan Production Prompt] Scene {scene_num}: {final_prompt[:100]}...")
-
-                    
-                    # 카메라 이동 추가
-                    manual_motion = p_settings.get(f"scene_{scene_num}_motion")
-                    if manual_motion:
-                        # [NEW] Webtoon Motion Prompt Integration
-                        # Retrieve custom prompts from Global Settings
-                        w_pan_prompt = db.get_global_setting("webtoon_motion_pan", "Slow upward cinematic camera pan, subtle 2.5D parallax depth effect, soft volumetric lighting, floating dust particles, epic dramatic atmosphere, smooth motion, no distortion")
-                        w_zoom_prompt = db.get_global_setting("webtoon_motion_zoom", "Slow push-in camera movement, focus on character’s eyes, subtle breathing motion, soft rim lighting, cinematic depth of field, emotional atmosphere")
-                        w_action_prompt = db.get_global_setting("webtoon_motion_action", "Strong parallax effect, embers floating in the air, light flicker from fire, slight cinematic camera shake, intense dramatic lighting, high energy atmosphere")
-
-                        # Map standard motion keys to Webtoon Styles
-                        motion_map = {
-                            "zoom_in": w_zoom_prompt,
-                            "zoom_out": "dramatic zoom out", # Keep generic for now or map to zoom?
-                            "pan_left": "cinematic pan left",
-                            "pan_right": "cinematic pan right",
-                            "pan_up": w_pan_prompt, # Map 'pan_up' to Vertical Pan style
-                            "pan_down": w_pan_prompt, # Map 'pan_down' to Vertical Pan style
-                            "tilt_up": w_pan_prompt,
-                            "tilt_down": w_pan_prompt,
-                            "shake": w_action_prompt, # Map 'shake' to Action style
-                            "action": w_action_prompt, # Explicit 'action' key if used
-                            "dynamic": w_action_prompt
-                        }
-
-                        if manual_motion in motion_map:
-                            selected_prompt = motion_map[manual_motion]
-                            final_prompt += f", {selected_prompt}"
-                            log_debug(f"🎬 [Wan Camera Move] Scene {scene_num}: {manual_motion} -> {selected_prompt[:50]}...")
-                        else:
-                            # Fallback for unmapped standard motions
-                            final_prompt += f", {manual_motion.replace('_', ' ')} motion"
-                else:
-                    final_prompt = base_visual
+                final_prompt = base_visual
                 log_debug(f"🤖 [Auto-Switch] Scene {scene_num}: Dialogue={has_dialogue} -> Engine={local_engine}")
 
 
@@ -1799,62 +1731,12 @@ JSON만 출력하세요:
                             with open(out, 'wb') as f: f.write(video_bytes)
                             db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
                             log_debug(f"✅ [Veo] Success for Scene {scene_num}")
-                            continue
                         else:
-                            log_debug(f"⚠️ [Veo] Empty result for Scene {scene_num}. Falling back to Wan...")
-                            local_engine = "wan"
-                    except Exception as veo_e:
-                        log_debug(f"⚠️ [Veo] Error for Scene {scene_num}: {veo_e}. Falling back to Wan...")
-                        local_engine = "wan"
-
-
-                # Wan / Replicate (Enhanced for Camera Moves)
-                preferred_engine = p_settings.get("video_engine", "wan")
-                if preferred_engine in ["veo", "ak" + "ool", "ak" + "ool_premium"]:
-                    preferred_engine = "wan"
-
-                if preferred_engine == "wan":
-                    # [FIX] Skip Wan for Vertical Pan scenes (preserve aspect ratio)
-                    manual_motion = p_settings.get(f"scene_{scene_num}_motion")
-                    if manual_motion in ["pan_down", "pan_up", "vertical_pan"]:
-                        log_debug(f"⏩ [Auto-Pilot] Scene {scene_num} is Vertical Pan ({manual_motion}). Skipping Wan to preserve full resolution.")
+                            log_debug(f"⚠️ [Veo] Empty result for Scene {scene_num}.")
                         continue
-
-
-                    try:
-                        log_debug(f"📹 [Auto-Pilot] Generating Wan Video for Scene {scene_num}")
-                        
-                        # [FIX] Use full original image for Wan 2.1 if available (prevents character cropping)
-                        wan_asset_filename = p_settings.get(f"scene_{scene_num}_wan_image", "")
-                        if wan_asset_filename:
-                            wan_asset_dir = os.path.join(config.OUTPUT_DIR, str(project_id), "assets", "image")
-                            wan_image_path = os.path.join(wan_asset_dir, wan_asset_filename)
-                            if os.path.exists(wan_image_path):
-                                log_debug(f"  🎯 [Wan] Using FULL original image: {wan_asset_filename}")
-                                wan_source_path = wan_image_path
-                            else:
-                                wan_source_path = image_abs_path
-                                log_debug(f"  ⚠️ [Wan] wan_asset not found, fallback to sliced: {os.path.basename(image_abs_path)}")
-                        else:
-                            wan_source_path = image_abs_path
-                            log_debug(f"  ℹ️ [Wan] No wan_asset configured. Using sliced panel: {os.path.basename(image_abs_path)}")
-
-                        
-                        video_data = await replicate_service.generate_video_from_image(
-                            wan_source_path, 
-                            prompt=final_prompt,
-                            duration=video_duration,
-                            method=motion_method
-                        )
-                        if video_data:
-                            filename = f"vid_wan_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.mp4"
-                            out = os.path.join(config.OUTPUT_DIR, filename)
-                            with open(out, 'wb') as f: f.write(video_data)
-                            db.update_image_prompt_video_url(project_id, scene_num, f"/output/{filename}")
-                            with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as df:
-                                df.write(f"[{datetime.now()}] ✅ Successfully generated Wan video for Scene {scene_num}\n")
-                    except Exception as wan_e:
-                        log_debug(f"[Wan] Failed: {wan_e}")
+                    except Exception as veo_e:
+                        log_debug(f"⚠️ [Veo] Error for Scene {scene_num}: {veo_e}")
+                        continue
             except Exception as ve:
                 err_msg = f"⚠️ [Auto-Pilot] Video generation failed for Scene {scene_num}: {ve}"
                 print(err_msg)
@@ -2000,27 +1882,18 @@ JSON만 출력하세요:
             print(f"📝 Prompt: {final_thumb_prompt[:120]}...")
             
             images = None
-            
-            # 1. Replicate (Primary)
+
             try:
-                print(f"🎨 [Auto-Pilot Thumb] Attempting Replicate (Primary)...")
-                images = await replicate_service.generate_image(prompt=final_thumb_prompt, aspect_ratio=aspect_ratio)
+                print(f"🎨 [Auto-Pilot Thumb] Attempting Gemini Imagen...")
+                images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
             except Exception as e:
-                print(f"⚠️ [Auto-Pilot Thumb] Replicate failed: {e}")
-            
-            # 2. Gemini Fallback (with safe generic retry)
-            if not images:
+                print(f"⚠️ [Auto-Pilot Thumb] Gemini failed: {e}")
+                # [FALLBACK] Retry with generic prompt
+                print("🔄 [Auto-Pilot Thumb] Retrying Gemini with generic prompt due to safety/filter...")
+                generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
                 try:
-                    print(f"🎨 [Auto-Pilot Thumb] Attempting Gemini Imagen (Fallback 1)...")
-                    images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
-                except Exception as e:
-                    print(f"⚠️ [Auto-Pilot Thumb] Gemini failed: {e}")
-                    # [FALLBACK] Retry with generic prompt
-                    print("🔄 [Auto-Pilot Thumb] Retrying Gemini with generic prompt due to safety/filter...")
-                    generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
-                    try:
-                        images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
-                    except Exception: pass
+                    images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
+                except Exception: pass
 
             if not images: 
                 print("⚠️ [Auto-Pilot] No images generated for thumbnail. Skipping synthesis.")

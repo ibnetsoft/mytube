@@ -13,7 +13,6 @@ async def health_check():
             "youtube": bool(config.YOUTUBE_API_KEY),
             "gemini": bool(config.GEMINI_API_KEY),
             "elevenlabs": bool(config.ELEVENLABS_API_KEY),
-            "replicate": bool(config.REPLICATE_API_TOKEN),
             "typecast": bool(config.TYPECAST_API_KEY)
         }
     }
