@@ -21,7 +21,9 @@
     Build / task ID (informational, included in release notes).
 
 .PARAMETER GitHubRepo
-    GitHub repository in OWNER/REPO format (default: ibnetsoft/mytube).
+    GitHub repository in OWNER/REPO format (default: ibnetsoft/AIR-releases).
+    This is the separate public releases-only repo; gh must be authenticated
+    with a token that has Contents:write on it (source repo can stay private).
 
 .PARAMETER Channel
     Release channel label (default: stable).
@@ -55,7 +57,7 @@ param(
 
     [int]$Build = 0,
 
-    [string]$GitHubRepo = "ibnetsoft/mytube",
+    [string]$GitHubRepo = "ibnetsoft/AIR-releases",
 
     [ValidateSet("stable","beta","dev")]
     [string]$Channel = "stable",

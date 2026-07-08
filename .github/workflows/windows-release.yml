@@ -112,7 +112,7 @@ jobs:
             -Version $ver `
             -Build   $build `
             -Channel $channel `
-            -GitHubRepo "${{ github.repository }}"
+            -GitHubRepo "ibnetsoft/AIR-releases"
 
           # Expose artifact paths for upload step
           $zipName  = "AIRStudio-$ver-win-x64.zip"
@@ -143,7 +143,12 @@ jobs:
       - name: Publish GitHub Release
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          # [FIX] Releases now publish to the separate public ibnetsoft/AIR-releases
+          # repo so the source repo (this one) can be private. The default
+          # github.token only has write access to the repo the workflow runs in,
+          # so a fine-grained PAT with Contents:write on AIR-releases is required
+          # (stored as the RELEASES_REPO_TOKEN secret on this repo).
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         run: |
           $ver     = "${{ steps.resolve.outputs.VERSION }}"
           $build   = "${{ steps.resolve.outputs.BUILD }}"
@@ -157,7 +162,7 @@ jobs:
           .\tools\release_github.ps1 `
             -Version     $ver `
             -Build       ([int]$build) `
-            -GitHubRepo  "${{ github.repository }}" `
+            -GitHubRepo  "ibnetsoft/AIR-releases" `
             -Channel     $channel `
             @extraArgs
 

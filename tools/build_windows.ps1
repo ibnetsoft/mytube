@@ -24,7 +24,9 @@
     packaging/windows/build_counter.txt.
 
 .PARAMETER GitHubRepo
-    GitHub repository in OWNER/REPO format (default: ibnetsoft/mytube).
+    GitHub repository in OWNER/REPO format (default: ibnetsoft/AIR-releases).
+    Releases are published to a separate public repo so the source repo can
+    stay private; this only affects the URLs embedded in latest.json.
 
 .PARAMETER Channel
     Release channel: "stable" | "beta" | "dev" (default: stable).
@@ -48,7 +50,7 @@
 param(
     [string]$Version = "0.1.0",
     [int]$Build = 0,
-    [string]$GitHubRepo = "ibnetsoft/mytube",
+    [string]$GitHubRepo = "ibnetsoft/AIR-releases",
     [ValidateSet("stable","beta","dev")]
     [string]$Channel = "stable",
     [switch]$SkipInstaller,
