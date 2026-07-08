@@ -21,6 +21,15 @@ All `.sha256` sidecars present and verified. Build counter at 216 (committed to 
 - Current understanding: AIR Studio is a local FastAPI application with a substantial worker-facing UI under `templates/`, plus a Next.js admin app under `auth-web`.
 - Local main previously pointed at `c73ca016` — AIR-0123 remove fallback referral percentages — before this merge.
 
+### PR #29 / AIR-0125 — Document Referral Migration Runbook (MERGED 2026-07-03)
+- Created `REFERRAL_MIGRATION_RUNBOOK.md` to safely apply AIR-0122 ~ AIR-0124 DB changes to production.
+- Documented execution steps, prerequisites, verification SQLs, and rollback strategies.
+
+### PR #28 / AIR-0124 — Settlement Payout Processor (MERGED 2026-07-03)
+- Implemented a DB RPC (`process_referral_payout`) for atomic manual payout processing.
+- Ensured transaction safety: updates `pending` commission to `paid`, logs `paid_at`, and increments `usdt_balance` idempotently.
+- Added `/api/admin/settlements/payout` superadmin API and "Approve & Pay" UI with confirmation logic.
+
 ### PR #27 / AIR-0123 — Referral Settlement Worker (Pending) (MERGED 2026-07-03)
 - Implemented a background worker for generating referral commissions upon Admin Recharge.
 - Generates `pending` status commissions up to Level 2 based on non-hardcoded global percentages.

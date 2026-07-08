@@ -76,6 +76,10 @@ Repo: C:\Projects\AIR-Studio
   Connected 2x2 crop output to project Scenes. Panels now receive sequential Scene destinations, deterministic `scene_NNN_crop.png` filenames, and direct import into empty image slots. Documented the complete filename, matching, duplicate, missing, invalid, and large-upload contracts.
 - `AIR-0108`
   Added Longform Scene Asset Review with prompt/image/video status, final clip order, missing-visual gating, scene replacement controls, and refresh restoration from persisted scene rows. Fixed replacement so image and video slots no longer erase each other.
+- `AIR-0125`
+  Documented the Referral Migration Runbook (`REFERRAL_MIGRATION_RUNBOOK.md`). Details safe deployment instructions for `AIR-0122` ~ `AIR-0124` database migrations, including prerequisites, SQL blocks, verification steps, and testing scenarios.
+- `AIR-0124`
+  Implemented the Manual Settlement Payout Processor. Using a PostgreSQL RPC, pending commissions can be atomically transitioned to `paid` status while simultaneously increasing the beneficiary's `usdt_balance`. Included Admin API and UI integration for safe, idempotency-guaranteed manual approvals.
 - `AIR-0123`
   Implemented Referral Settlement Worker. Automatically generates `pending` referral commissions up to Level 2 based on Admin Recharge events, enforcing non-hardcoded global percentages, 2-decimal place precision, loop prevention, and `source_tx_id` idempotency. Included a read-only Admin UI for listing settlements.
 - `AIR-0122`

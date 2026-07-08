@@ -58,7 +58,7 @@
    Requires Playwright setup + Supabase test account.
 
 ## Task Pointer
-Next task ID: `AIR-0219`. Local referral work (AIR-0124/0125) still needs a PR opened against current main.
+Next task ID: `AIR-0219`. Local referral work (AIR-0124/0125) still needs a PR opened against current main. (Note: `AIR-0126` is already taken upstream by the project-status-sync task, so settlement automation/refund rollback design should use the next free ID after `AIR-0219`.)
 
 ## Reference
 - `BOOTSTRAP.md` — installer/updater system spec

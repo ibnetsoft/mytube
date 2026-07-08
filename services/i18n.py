@@ -79,7 +79,7 @@ PLATFORM_TRANSLATIONS = {
         'pos_middle': '중앙(Middle)',
         'pos_bottom': '하단(Bottom)',
         'hint_subtitle_auto': '자막 수정 시 자동으로 새 디자인이 적용됩니다.',
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'label_new': 'New',
         'label_beta': 'Beta',
         'label_active_project': '활성 프로젝트:',
@@ -1520,7 +1520,7 @@ PLATFORM_TRANSLATIONS = {
         'add_queue': '제작 대기열에 담기',
 
         # Nav & Sidebar
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': '현재 프로젝트',
         'new_project_btn': '+ New',
         'select_project_placeholder': '프로젝트 선택...',
@@ -1953,7 +1953,6 @@ PLATFORM_TRANSLATIONS = {
         'btn_reset_short': '초기화',
         'msg_wan21_quality': '✅ 검증된 품질, 안정적',
         'msg_wan21_desc': 'Wan 2.1 모델 기반 동적 카메라 효과',
-        'msg_replicate_fallback': 'Replicate 불안정 시 사용',
         'msg_veo_quality': '검증된 품질, 안정적 운영',
         'msg_veo2_enhanced': '향상된 화질과 자연스러운 동작',
         'label_preview_badge': '프리뷰',
@@ -3870,7 +3869,7 @@ PLATFORM_TRANSLATIONS = {
         'refine': 'Refine',
         'add_queue': 'Add to Queue',
 
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': 'Current Project',
         'new_project_btn': '+ New',
         'select_project_placeholder': 'Select Project...',
@@ -4300,7 +4299,6 @@ PLATFORM_TRANSLATIONS = {
         'btn_reset_short': 'Reset',
         'msg_wan21_quality': '✅ Proven quality, stable',
         'msg_wan21_desc': 'Dynamic camera effects based on Wan 2.1 model',
-        'msg_replicate_fallback': 'Use when Replicate is unstable',
         'msg_veo_quality': 'Proven quality, stable operation',
         'msg_veo2_enhanced': 'Enhanced quality and natural motion',
         'label_preview_badge': 'Preview',
@@ -6871,7 +6869,7 @@ PLATFORM_TRANSLATIONS = {
         'refine': 'Tinh chỉnh',
         'add_queue': 'Thêm vào hàng đợi',
 
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'label_new': 'Mới',
         'label_beta': 'Beta',
         'label_active_project': 'Dự án đang hoạt động:',
@@ -7445,7 +7443,6 @@ PLATFORM_TRANSLATIONS = {
         'btn_reset_short': 'Đặt lại',
         'msg_wan21_quality': '✅ Chất lượng đã kiểm chứng, ổn định',
         'msg_wan21_desc': 'Hiệu ứng camera động dựa trên Wan 2.1',
-        'msg_replicate_fallback': 'Dùng khi Replicate không ổn định',
         'msg_veo_quality': 'Chất lượng đã kiểm chứng, vận hành ổn định',
         'msg_veo2_enhanced': 'Chất lượng nâng cao và chuyển động tự nhiên',
         'label_preview_badge': 'Xem trước',
@@ -8308,7 +8305,7 @@ PLATFORM_TRANSLATIONS = {
         'topic_claimed_success': 'Đã chọn chủ đề. Đang tạo dự án...',
     },
     'es': {
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': 'Proyecto Actual',
         'new_project_btn': '+ Nuevo',
         'select_project_placeholder': 'Seleccionar...',
@@ -8567,7 +8564,7 @@ PLATFORM_TRANSLATIONS = {
         'workflow_step7': 'พร้อมสร้างวิดีโอ',
         'workflow_step7_expl': 'เมื่อเตรียมทุกอย่างเสร็จสิ้น สร้างวิดีโอสุดท้าย',
 
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'btn_more_clicky': 'ดึงดูดกว่า',
         'btn_more_clean': 'เรียบร้อยกว่า',
         'thumb_reference_samples_title': 'ภาพขนาดย่อ YouTube อ้างอิง',
@@ -8790,6 +8787,27 @@ PLATFORM_TRANSLATIONS = {
         'status_analyzing_script': 'กำลังวิเคราะห์สคริปต์...',
         'msg_scenes_analyzed': 'วิเคราะห์ฉากได้ทั้งหมด {count} ฉาก',
         'lang_change_success': 'เปลี่ยนภาษาเรียบร้อยแล้ว',
+        # settings.html - Tab labels
+        'label_tab_basic_settings': '⚙️ ตั้งค่าพื้นฐาน',
+        'label_work_history': 'ประวัติงาน',
+        'label_wallet_and_withdrawal': 'กระเป๋าเงิน USDT & ถอนเงิน',
+        'label_referral_mgmt': '👥 จัดการผู้แนะนำ',
+        'label_settlement_mgmt': '💰 จัดการการชำระบัญชี',
+        'label_subscribed': 'สมัครแล้ว',
+        'label_platform_mode_settings': 'ตั้งค่าโหมดแพลตฟอร์ม',
+        'label_user_info': 'ข้อมูลผู้ใช้',
+        'label_name': 'ชื่อ',
+        'label_nationality': 'สัญชาติ',
+        'label_phone': 'โทรศัพท์',
+        'label_email': 'อีเมล',
+        'label_my_referral_code': 'รหัสแนะนำของฉัน',
+        'placeholder_no_code': 'ยังไม่มีรหัส',
+        'btn_copy_short': 'คัดลอก',
+        'label_scene_transition': '🎬 เปลี่ยนฉาก (Scene Transition)',
+        'btn_refresh_settings': 'รีเฟรช',
+        'btn_save_changes': 'บันทึกการเปลี่ยนแปลง',
+        'placeholder_enter_name': 'กรอกชื่อของคุณ',
+        'placeholder_enter_nationality': 'กรอกสัญชาติ',
         'settings_withdraw_warning': 'เมื่อถอนบัญชี โปรเจกต์ทั้งหมด ประวัติการชำระเงิน/รายได้ และรายละเอียดกระเป๋าเงินจะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้',
         # settings.html - Withdrawal & Backup
         'settings_withdraw': 'ถอนบัญชี (Withdraw)',
@@ -8963,7 +8981,7 @@ PLATFORM_TRANSLATIONS = {
         'hint_wallet_address': 'ที่อยู่กระเป๋าเงินเฉพาะของคุณที่สร้างขึ้นโดยอัตโนมัติเมื่อสมัครสมาชิก',
     },
     'id': {
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': 'Proyek Saat Ini',
         'new_project_btn': '+ Baru',
         'select_project_placeholder': 'Pilih Proyek...',
@@ -9160,7 +9178,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': 'Total {count} adegan dianalisis.'
     },
     'fr': {
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': 'Projet Actuel',
         'new_project_btn': '+ Nouveau',
         'select_project_placeholder': 'Choisir...',
@@ -9358,7 +9376,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': '{count} scènes analysées.'
     },
     'ru': {
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': 'Текущий проект',
         'new_project_btn': '+ Новый',
         'select_project_placeholder': 'Выбрать...',
@@ -9555,7 +9573,7 @@ PLATFORM_TRANSLATIONS = {
         'msg_scenes_analyzed': 'Всего проанализировано сцен: {count}'
     },
     'pt': {
-        'app_name': 'AIR Studio',
+        'app_name': 'AIR STUDIO',
         'cur_project_label': 'Projeto Atual',
         'new_project_btn': '+ Novo',
         'select_project_placeholder': 'Selecionar...',

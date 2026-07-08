@@ -444,16 +444,23 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 ### AIR-0124 (Referral 2.0)
 - Status: Done (local, not yet in a PR)
 - Commit: `6d512fef`
+- Related files:
+  - `auth-web/migration_payout_rpc.sql`
+  - `auth-web/supabase_schema.sql`
+  - `auth-web/app/api/admin/settlements/payout/route.ts`
+  - `auth-web/app/admin/settlements/page.tsx`
 - Short summary:
-  Added a manual referral payout processor that translates `pending` commissions to `paid` and deposits into beneficiaries' `usdt_balance`.
+  Implemented a DB RPC (`process_referral_payout`) for atomic processing of referral payouts. Added an Admin API endpoint and an "Approve & Pay" UI button for `pending` commissions. Enforced strict state transitions, double-click protection (idempotency), and incremented `usdt_balance` safely. Automated cron and rollback logic are out of scope.
 - Next action:
   Open a PR against current main; verify against the post-merge codebase (Scene/Production Planner refactors landed since this was written).
 
 ### AIR-0125 (Referral 2.0)
 - Status: Done (local, not yet in a PR)
 - Commit: `b2ddd07d`
+- Related files:
+  - `docs/REFERRAL_MIGRATION_RUNBOOK.md`
 - Short summary:
-  Documented the referral migration runbook.
+  Created the Referral Migration Runbook documenting safe, sequential deployment steps for database migrations (`AIR-0122` ~ `AIR-0124`) including default sponsor check, idempotency cleanup, SQL execution, validation, rollback methods, and testing flows. No database changes were applied as part of this documentation task.
 - Next action:
   Same as AIR-0124 — needs a PR opened against current main.
 
