@@ -80,8 +80,10 @@
                     <div class="space-y-2">
                         <label class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">Resolution</label>
                         <select id="resolution" class="music-render-input">
-                            <option value="1080p">1080p</option>
+                            <option value="1080p" selected>1080p</option>
+                            {% if (membership | lower) not in ['std', 'standard'] %}
                             <option value="720p">720p</option>
+                            {% endif %}
                         </select>
                     </div>
                 </div>

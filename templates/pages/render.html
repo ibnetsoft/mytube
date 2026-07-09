@@ -15,8 +15,10 @@
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_resolution') }}</span>
             <select id="resolution"
                 class="text-xs border-gray-300 dark:border-gray-600 rounded py-1 bg-[#1c2027]/50 dark:text-white bg-[#1c2027] text-white">
+                {% if (membership | lower) not in ['std', 'standard'] %}
                 <option value="720p">720p (HD)</option>
-                <option value="1080p">1080p (Full HD)</option>
+                {% endif %}
+                <option value="1080p" selected>1080p (Full HD)</option>
             </select>
             <input type="hidden" id="aspectRatio" value="16:9">
             <label class="flex items-center gap-1 cursor-pointer ml-3">

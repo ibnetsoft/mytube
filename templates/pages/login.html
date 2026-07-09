@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>직원 로그인 - AIR STUDIO</title>
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
     <script src="/static/js/tailwind.min.js?v=2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script>
@@ -94,11 +95,11 @@
                 <div class="flex items-center gap-4 px-1">
                     <div class="flex items-center gap-1.5">
                         <input type="checkbox" id="remember-email" class="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer">
-                        <label for="remember-email" class="text-xs text-gray-400 cursor-pointer select-none" data-i18n="lbl_remember_email">아이디 저장</label>
+                        <label for="remember-email" id="label-remember-email" class="text-xs text-gray-400 cursor-pointer select-none" data-i18n="lbl_remember_email">아이디 저장</label>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <input type="checkbox" id="remember-password" class="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer">
-                        <label for="remember-password" class="text-xs text-gray-400 cursor-pointer select-none" data-i18n="lbl_remember_password">비밀번호 저장</label>
+                        <label for="remember-password" id="label-remember-password" class="text-xs text-gray-400 cursor-pointer select-none" data-i18n="lbl_remember_password">비밀번호 저장</label>
                     </div>
                 </div>
 
@@ -530,6 +531,11 @@
         const L = LANGS[currentLang] || LANGS.ko;
         // Title
         document.getElementById('page-title').textContent = L.page_title;
+        // Browser tab title
+        document.title = L.page_title + ' - AIR STUDIO';
+        // Remember email/password checkboxes
+        const lre = document.getElementById('label-remember-email'); if(lre) lre.textContent = L.lbl_remember_email;
+        const lrp = document.getElementById('label-remember-password'); if(lrp) lrp.textContent = L.lbl_remember_password;
         // Tab buttons
         const tl = document.getElementById('tab-login'); if(tl) tl.textContent = L.tab_login;
         const tr = document.getElementById('tab-register'); if(tr) tr.textContent = L.tab_register;

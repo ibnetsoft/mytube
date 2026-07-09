@@ -87,7 +87,7 @@
         </div>
 
         <!-- 오늘의 주제 가져오기 -->
-        <button onclick="fetchDailyTopic()" class="relative group overflow-hidden px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all duration-300 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center gap-1.5 border border-blue-400/20">
+        <button onclick="fetchDailyTopic()" class="hidden relative group overflow-hidden px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all duration-300 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center gap-1.5 border border-blue-400/20">
             <span class="relative z-10">{{ t('btn_get_daily_topic') }}</span>
             <span class="text-sm group-hover:translate-x-0.5 transition-transform duration-300">⚡</span>
         </button>
@@ -1135,8 +1135,11 @@
         const displayTopic = (uiLang === 'vi' ? topic.topic_vi : uiLang === 'en' ? topic.topic_en : uiLang === 'th' ? topic.topic_th : '') || topic.topic || '-';
         const durationMinutes = topic.duration_minutes || topic.recommended_duration_minutes;
         const durationText = durationMinutes ? `${durationMinutes}분` : '-';
-        const payoutMultiplier = Number(topic.payout_multiplier || 1);
-        const payoutText = topic.payout_amount ? `${Number(topic.payout_amount).toLocaleString()}원` : (payoutMultiplier !== 1 ? `x${payoutMultiplier}` : '-');
+        const payoutValue = topic.estimated_payout_usdt ?? topic.adjusted_payout_usdt;
+        const payoutNumber = Number(payoutValue || 0);
+        const payoutText = payoutNumber > 0
+            ? `$${Number.isInteger(payoutNumber) ? payoutNumber : payoutNumber.toFixed(1)}`
+            : '-';
         const imageStyle = topic.image_style || '-';
 
         document.getElementById('tcm-topic').textContent = displayTopic;
@@ -1250,7 +1253,7 @@
         </div>
 
         <p class="text-xs text-gray-300 text-center leading-relaxed mb-5">
-            수당 자격요건에 맞게<br>이 주제로 작업을 시작하시겠습니까?
+            영상품질에 따라 수당이 변경될 수 있습니다. 수당 자격요건에 맞게<br>이 주제로 작업을 시작하시겠습니까?
         </p>
 
         <div class="flex gap-3">

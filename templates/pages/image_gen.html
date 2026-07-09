@@ -72,7 +72,7 @@
 
                 <!-- Generate Prompt Button -->
                 <button onclick="generatePrompts()" id="generateBtn"
-                    class="py-2 px-4 flex items-center justify-center rounded-lg text-xs font-bold bg-transparent border border-white/20 text-white hover:bg-[#232832] transition-all">
+                    class="btn-primary py-2 px-4 flex items-center justify-center rounded-lg text-xs transition-all">
                     {{ t('btn_gen_prompts') }}
                 </button>
 
@@ -119,7 +119,7 @@
 
         <!-- AI가 배정한 스타일이 잠겼을 때 표시되는 안내 -->
         <div id="styleLockNotice" class="hidden mb-2 text-xs text-amber-300 flex items-center gap-1">
-            🔒 <span>이 프로젝트의 이미지 스타일은 AI가 주제에 맞게 배정했으며 변경할 수 없습니다.</span>
+            🔒 <span>{{ t('notice_style_locked') }}</span>
         </div>
 
         <!-- [Modified] Styles loaded dynamically -->
@@ -307,7 +307,7 @@
                 <!-- [NEW] Bulk Upload Trigger Button -->
                 <button onclick="document.getElementById('bulk-media-input-top').click()" id="bulkUploadTopBtn"
                     class="btn-secondary text-sm px-4 flex items-center gap-2 text-blue-400 border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10">
-                    <span>📤</span> <span>이미지 일괄등록</span>
+                    <span>📤</span> <span>{{ t('btn_bulk_upload_images') }}</span>
                 </button>
                 <input type="file" id="bulk-media-input-top" class="hidden" accept="image/*,video/*" multiple onchange="handleBulkSelectTop(event)">
 
@@ -786,7 +786,36 @@
         label_wordpress: {{ t('label_wordpress') | tojson }},
         label_google_blog: {{ t('label_google_blog') | tojson }},
         msg_blog_post_done: {{ t('msg_blog_post_done') | tojson }},
-        err_blog_post_fail: {{ t('err_blog_post_fail') | tojson }}
+        err_blog_post_fail: {{ t('err_blog_post_fail') | tojson }},
+
+        // Scene Asset Review panel
+        label_no_prompt: {{ t('label_no_prompt') | tojson }},
+        label_image_ready: {{ t('label_image_ready') | tojson }},
+        asset_image_missing: {{ t('asset_image_missing') | tojson }},
+        asset_video_ready: {{ t('asset_video_ready') | tojson }},
+        asset_video_missing: {{ t('asset_video_missing') | tojson }},
+        btn_view: {{ t('btn_view') | tojson }},
+        btn_replace: {{ t('btn_replace') | tojson }},
+        title_scene_asset_review: {{ t('title_scene_asset_review') | tojson }},
+        desc_scene_asset_review: {{ t('desc_scene_asset_review') | tojson }},
+        btn_2x2_crop_import: {{ t('btn_2x2_crop_import') | tojson }},
+        badge_scenes_label: {{ t('badge_scenes_label') | tojson }},
+        badge_images_label: {{ t('badge_images_label') | tojson }},
+        badge_videos_label: {{ t('badge_videos_label') | tojson }},
+        label_assets_ready: {{ t('label_assets_ready') | tojson }},
+        label_missing_visual: {{ t('label_missing_visual') | tojson }},
+        label_overall_asset_completion: {{ t('label_overall_asset_completion') | tojson }},
+        label_asset_missing_prefix: {{ t('label_asset_missing_prefix') | tojson }},
+        th_scene: {{ t('th_scene') | tojson }},
+        th_prompt: {{ t('th_prompt') | tojson }},
+        th_image: {{ t('th_image') | tojson }},
+        th_video: {{ t('th_video') | tojson }},
+        th_action: {{ t('th_action') | tojson }},
+        label_final_clip_order: {{ t('label_final_clip_order') | tojson }},
+        label_no_clips_uploaded: {{ t('label_no_clips_uploaded') | tojson }},
+        label_video_missing_prefix: {{ t('label_video_missing_prefix') | tojson }},
+        btn_continue_to_tts: {{ t('btn_continue_to_tts') | tojson }},
+        label_add_assets_first: {{ t('label_add_assets_first') | tojson }}
     };
 
     // [NEW] 캐릭터 분석 함수
@@ -1798,21 +1827,21 @@
             const prompt = scene.prompt_en || scene.prompt_ko || scene.scene_text || '';
             return `
                 <tr class="border-t border-white/5">
-                    <td class="px-3 py-2 font-bold text-white">Scene ${number}</td>
+                    <td class="px-3 py-2 font-bold text-white">${i18n.th_scene} ${number}</td>
                     <td class="px-3 py-2 text-gray-400 max-w-[360px]">
-                        <p class="truncate" title="${escapeBulkHtml(prompt)}">${escapeBulkHtml(prompt) || 'No prompt'}</p>
+                        <p class="truncate" title="${escapeBulkHtml(prompt)}">${escapeBulkHtml(prompt) || i18n.label_no_prompt}</p>
                     </td>
                     <td class="px-3 py-2">
-                        <span class="${scene.image_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.image_url ? 'Image ready' : 'Image missing'}</span>
+                        <span class="${scene.image_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.image_url ? i18n.label_image_ready : i18n.asset_image_missing}</span>
                     </td>
                     <td class="px-3 py-2">
-                        <span class="${scene.video_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.video_url ? 'Video ready' : 'Video missing'}</span>
+                        <span class="${scene.video_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.video_url ? i18n.asset_video_ready : i18n.asset_video_missing}</span>
                     </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <button type="button" onclick="document.getElementById('prompt-card-${index}')?.scrollIntoView({behavior:'smooth', block:'center'})"
-                                class="px-2 py-1 text-blue-400 hover:text-blue-300">View</button>
+                                class="px-2 py-1 text-blue-400 hover:text-blue-300">${i18n.btn_view}</button>
                         <button type="button" onclick="document.getElementById('scene-upload-${index}')?.click()"
-                                class="px-2 py-1 text-indigo-400 hover:text-indigo-300">Replace</button>
+                                class="px-2 py-1 text-indigo-400 hover:text-indigo-300">${i18n.btn_replace}</button>
                     </td>
                 </tr>`;
         }).join('');
@@ -1823,7 +1852,7 @@
                 const number = Number(scene.scene_number || index + 1);
                 return `<a href="${escapeBulkHtml(scene.video_url)}" target="_blank" rel="noopener"
                            class="flex items-center justify-between gap-3 rounded border border-white/5 bg-[#1c2027] px-3 py-2 hover:border-purple-500/40">
-                            <span class="font-bold text-white">Scene ${number}</span>
+                            <span class="font-bold text-white">${i18n.th_scene} ${number}</span>
                             <span class="truncate text-purple-400">${escapeBulkHtml(scene.video_url.split('/').pop())}</span>
                         </a>`;
             }).join('');
@@ -1831,37 +1860,37 @@
         const continueControl = readyToContinue
             ? `<a href="/tts?project_id=${encodeURIComponent(projectId || '')}"
                   class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500">
-                    Continue to TTS
+                    ${i18n.btn_continue_to_tts}
                </a>`
             : `<button type="button" disabled
                        class="cursor-not-allowed rounded-lg bg-gray-700 px-4 py-2 font-bold text-gray-400">
-                    Add assets to ${missingAssetScenes.length} scene(s) first
+                    ${i18n.label_add_assets_first.replace('{count}', missingAssetScenes.length)}
                </button>`;
 
         panel.innerHTML = `
             <div class="rounded-xl border border-white/10 bg-[#20252d] overflow-hidden">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
                     <div>
-                        <h3 class="font-bold text-white">Scene Asset Review</h3>
-                        <p class="mt-1 text-xs text-gray-400">Review prompts, imported images, and final clips before continuing.</p>
+                        <h3 class="font-bold text-white">${i18n.title_scene_asset_review}</h3>
+                        <p class="mt-1 text-xs text-gray-400">${i18n.desc_scene_asset_review}</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 text-xs">
                         <a href="/image-crop?project_id=${encodeURIComponent(projectId || '')}&start_scene=1"
                            class="rounded bg-blue-600 px-2 py-1 font-bold text-white hover:bg-blue-500">
-                            2x2 Crop Import
+                            ${i18n.btn_2x2_crop_import}
                         </a>
-                        <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">Scenes ${ordered.length}</span>
-                        <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Images ${imageCount}</span>
-                        <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">Videos ${videoCount}</span>
+                        <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">${i18n.badge_scenes_label} ${ordered.length}</span>
+                        <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">${i18n.badge_images_label} ${imageCount}</span>
+                        <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">${i18n.badge_videos_label} ${videoCount}</span>
                         <span id="asset-readiness-state"
                               class="rounded ${readyToContinue ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'} px-2 py-1">
-                            ${readyToContinue ? 'Assets ready' : `Missing visual ${missingAssetScenes.length}`}
+                            ${readyToContinue ? i18n.label_assets_ready : `${i18n.label_missing_visual} ${missingAssetScenes.length}`}
                         </span>
                     </div>
                 </div>
                 <div class="border-b border-white/5 px-4 py-3">
                     <div class="mb-1 flex items-center justify-between text-xs">
-                        <span class="text-gray-400">Overall asset completion</span>
+                        <span class="text-gray-400">${i18n.label_overall_asset_completion}</span>
                         <span id="asset-completion-percent" class="font-bold text-white">${completionPercent}%</span>
                     </div>
                     <div class="h-2 overflow-hidden rounded bg-[#15191f]">
@@ -1869,18 +1898,18 @@
                              style="width:${Math.max(0, Math.min(100, completionPercent))}%"></div>
                     </div>
                     ${missingAssetScenes.length
-                        ? `<p class="mt-2 text-xs text-amber-400">Asset missing: ${missingAssetScenes.join(', ')}</p>`
+                        ? `<p class="mt-2 text-xs text-amber-400">${i18n.label_asset_missing_prefix} ${missingAssetScenes.join(', ')}</p>`
                         : ''}
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
                         <thead class="bg-[#1c2027] text-left text-gray-500">
                             <tr>
-                                <th class="px-3 py-2">Scene</th>
-                                <th class="px-3 py-2">Prompt</th>
-                                <th class="px-3 py-2">Image</th>
-                                <th class="px-3 py-2">Video</th>
-                                <th class="px-3 py-2 text-right">Action</th>
+                                <th class="px-3 py-2">${i18n.th_scene}</th>
+                                <th class="px-3 py-2">${i18n.th_prompt}</th>
+                                <th class="px-3 py-2">${i18n.th_image}</th>
+                                <th class="px-3 py-2">${i18n.th_video}</th>
+                                <th class="px-3 py-2 text-right">${i18n.th_action}</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>
@@ -1888,11 +1917,11 @@
                 </div>
                 <div class="grid gap-4 border-t border-white/5 p-4 lg:grid-cols-[1fr_auto]">
                     <div>
-                        <h4 class="mb-2 text-xs font-bold text-gray-300">Final clip order</h4>
+                        <h4 class="mb-2 text-xs font-bold text-gray-300">${i18n.label_final_clip_order}</h4>
                         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            ${clipRows || '<p class="text-xs text-gray-500">No video clips uploaded yet.</p>'}
+                            ${clipRows || `<p class="text-xs text-gray-500">${i18n.label_no_clips_uploaded}</p>`}
                         </div>
-                        ${missingVideo.length ? `<p class="mt-2 text-xs text-amber-400">Video missing: ${missingVideo.map(item => Number(item.scene.scene_number || item.index + 1)).join(', ')}</p>` : ''}
+                        ${missingVideo.length ? `<p class="mt-2 text-xs text-amber-400">${i18n.label_video_missing_prefix} ${missingVideo.map(item => Number(item.scene.scene_number || item.index + 1)).join(', ')}</p>` : ''}
                     </div>
                     <div class="flex items-end">${continueControl}</div>
                 </div>
