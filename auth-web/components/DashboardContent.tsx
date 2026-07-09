@@ -2164,18 +2164,19 @@ export default function DashboardContent() {
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
                 <div className="flex items-center justify-between">
-                    <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
+                    <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
                         {[
-                            { id: 'topics', icon: '🤖', label: ui.topics, superOnly: false },
-                            { id: 'overview', icon: '📊', label: ui.overview, superOnly: false },
-                            { id: 'users', icon: '👥', label: ui.users, superOnly: false },
-                            { id: 'organization', icon: '📊', label: ui.organization, superOnly: false },
-                            { id: 'withdrawals', icon: '💰', label: ui.withdrawals, superOnly: false },
-                            { id: 'api', icon: '🔌', label: ui.api, superOnly: true },
-                            { id: 'render-queue', icon: '🖥️', label: ui.renderQueue, superOnly: true },
-                            { id: 'learning', icon: '🧠', label: ui.learning, superOnly: true },
-                            { id: 'styles', icon: '🎨', label: ui.styles, superOnly: true },
-                            { id: 'tenants', icon: '🏢', label: '테넌트', superOnly: true },
+                            { id: 'topics', label: ui.topics, superOnly: false },
+                            { id: 'overview', label: ui.overview, superOnly: false },
+                            { id: 'users', label: ui.users, superOnly: false },
+                            { id: 'organization', label: ui.organization, superOnly: false },
+                            { id: 'withdrawals', label: ui.withdrawals, superOnly: false },
+                            { id: 'api', label: ui.api, superOnly: true },
+                            { id: 'render-queue', label: ui.renderQueue, superOnly: true },
+                            { id: 'learning', label: ui.learning, superOnly: true },
+                            { id: 'styles', label: ui.styles, superOnly: true },
+                            { id: 'tenants', label: '테넌트', superOnly: true },
+                            { id: 'referral-admin', label: 'Referral Admin', superOnly: true, href: '/admin/referrals' },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -2184,8 +2185,8 @@ export default function DashboardContent() {
                                     type="button"
                                     disabled={locked}
                                     title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
-                                    onClick={() => !locked && setActiveTab(tab.id as any)}
-                                    className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] ${
+                                    onClick={() => !locked && (tab.href ? router.push(tab.href) : setActiveTab(tab.id as any))}
+                                    className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'bg-blue-600 text-white shadow-xl'
                                             : locked
@@ -2193,7 +2194,7 @@ export default function DashboardContent() {
                                                 : 'text-gray-500 hover:text-white'
                                     }`}
                                 >
-                                    {tab.icon} {tab.label}
+                                    {tab.label}
                                 </button>
                             )
                         })}
