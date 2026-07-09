@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 
 export default function SettlementsPage() {
     const [settlements, setSettlements] = useState<any[]>([])
@@ -63,9 +61,13 @@ export default function SettlementsPage() {
         <div className="container mx-auto p-4 max-w-6xl">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Referral Settlements</h1>
-                <Button onClick={fetchSettlements} disabled={loading}>
+                <button
+                    onClick={fetchSettlements}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium disabled:opacity-50"
+                >
                     {loading ? 'Refreshing...' : 'Refresh'}
-                </Button>
+                </button>
             </div>
 
             {error && (
@@ -74,11 +76,11 @@ export default function SettlementsPage() {
                 </div>
             )}
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Settlement History</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <div className="border rounded-lg">
+                <div className="p-4 border-b">
+                    <h2 className="text-lg font-semibold">Settlement History</h2>
+                </div>
+                <div className="p-4">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50">
@@ -124,13 +126,13 @@ export default function SettlementsPage() {
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             {s.status === 'pending' && (
-                                                <Button 
-                                                    size="sm" 
+                                                <button
                                                     onClick={() => handlePayout(s.id)}
                                                     disabled={processingId === s.id}
+                                                    className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium disabled:opacity-50"
                                                 >
                                                     {processingId === s.id ? 'Processing...' : 'Approve & Pay'}
-                                                </Button>
+                                                </button>
                                             )}
                                         </td>
                                     </tr>
@@ -138,8 +140,8 @@ export default function SettlementsPage() {
                             </tbody>
                         </table>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     )
 }
