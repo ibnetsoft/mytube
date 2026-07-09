@@ -24,9 +24,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: 'Missing email or password' }, { status: 400 })
         }
 
+        // NOTE: profiles has no 'password' column, only 'pin_code' (confirmed
+        // against the live schema) - matches the desktop app's original
+        // fallback logic which always ended up on pin_code in practice.
         const { data: profile, error } = await supabaseAdmin
             .from('profiles')
-            .select('is_approved, password, pin_code, preferred_language')
+            .select('is_approved, pin_code, preferred_language')
             .eq('email', String(email))
             .maybeSingle()
 
@@ -44,7 +47,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: '어드민 승인 대기 중이거나 비활성화된 계정입니다.' }, { status: 403 })
         }
 
-        const dbPassword = String(profile.password || '').trim() || String(profile.pin_code || '1234').trim()
+        const dbPassword = String(profile.pin_code || '1234').trim()
         const inputPassword = String(password).trim()
 
         if (dbPassword !== inputPassword) {
