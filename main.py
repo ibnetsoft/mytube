@@ -1780,16 +1780,34 @@ if __name__ == "__main__":
     is_frozen = getattr(sys, "frozen", False)
     enable_reload = bool(config.DEBUG and not is_frozen)
 
+    def _wait_for_server(host: str, port: int, timeout: float = 30.0) -> bool:
+        """Poll until the local server is actually accepting TCP connections,
+        instead of guessing with a fixed sleep. Startup time varies a lot on
+        real end-user machines (cold disk cache, antivirus scanning a fresh
+        install, etc.) — opening a browser/webview before the server is
+        actually listening produces a connection-refused page instead of
+        the app, which is exactly what a fixed short sleep risks."""
+        import socket
+        import time as _time
+        deadline = _time.time() + timeout
+        while _time.time() < deadline:
+            try:
+                with socket.create_connection((host, port), timeout=0.5):
+                    return True
+            except OSError:
+                _time.sleep(0.3)
+        return False
+
     # 1. 개발/디버그 핫리로딩 모드: uvicorn 메인 루프 실행 및 일반 브라우저 자동 오픈
     if enable_reload:
         import webbrowser
         import threading
         import time
-        
+
         def open_browser():
-            time.sleep(1.5)
+            _wait_for_server(config.HOST, config.PORT)
             webbrowser.open(f"http://{config.HOST}:{config.PORT}")
-            
+
         print("개발 모드: 브라우저 자동 실행 대기 중...")
         threading.Thread(target=open_browser, daemon=True).start()
 
@@ -1817,9 +1835,13 @@ if __name__ == "__main__":
             
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
-        
+
+        print("프로덕션 모드: 서버 준비 대기 중...")
+        if not _wait_for_server(config.HOST, config.PORT):
+            print("경고: 서버가 예상 시간 내에 응답하지 않았습니다. 계속 진행합니다.")
+
         print("프로덕션 모드: 독립 데스크톱 창(webview) 실행 중...")
-        
+
         try:
             import webview
 
@@ -1846,11 +1868,9 @@ if __name__ == "__main__":
             print(f"webview(독립 창) 초기화 실패, 기본 브라우저로 실행합니다: {webview_error}")
             import webbrowser
 
-            def open_fallback_browser():
-                time.sleep(1.5)
-                webbrowser.open(f"http://{config.HOST}:{config.PORT}")
-
-            threading.Thread(target=open_fallback_browser, daemon=True).start()
+            # Server readiness was already confirmed above (before webview was
+            # even attempted), so no additional wait is needed here — just open.
+            webbrowser.open(f"http://{config.HOST}:{config.PORT}")
 
             # server_thread (started above) is already bound to config.HOST:PORT —
             # do NOT call uvicorn.run() again here, it would try to bind the same
