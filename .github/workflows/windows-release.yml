@@ -104,6 +104,17 @@ jobs:
       - name: Build Windows package
         id: build
         shell: pwsh
+        env:
+          # Supabase credentials for the packaged app's .env (see
+          # tools/build_windows.ps1). SUPABASE_SERVICE_ROLE_KEY bypasses RLS,
+          # so this is a deliberate, tracked risk accepted for now — desktop
+          # app login itself no longer needs this key (see
+          # auth-web/app/api/desktop-login), but other Supabase-backed
+          # features (referral commissions, token balance, project sync)
+          # still call Supabase directly and need it until they're migrated
+          # to a server-side proxy too.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           $ver     = "${{ steps.resolve.outputs.VERSION }}"
           $build   = [int]"${{ steps.resolve.outputs.BUILD }}"

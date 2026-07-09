@@ -176,6 +176,23 @@ try {
 
     Copy-Item -Path (Join-Path $DistDir "*") -Destination $StagingApp -Recurse -Force
 
+    # ---- .env (Supabase credentials for packaged app) ----
+    # NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are read from the
+    # process environment (set via GitHub Actions secrets in CI). Only
+    # written when both are present, so a local dev build run without them
+    # set doesn't silently ship a broken/empty .env.
+    $EnvSupabaseUrl = $env:NEXT_PUBLIC_SUPABASE_URL
+    $EnvSupabaseKey = $env:SUPABASE_SERVICE_ROLE_KEY
+    if ($EnvSupabaseUrl -and $EnvSupabaseKey) {
+        Write-Host "Writing packaged .env with Supabase credentials..."
+        @(
+            "NEXT_PUBLIC_SUPABASE_URL=$EnvSupabaseUrl"
+            "SUPABASE_SERVICE_ROLE_KEY=$EnvSupabaseKey"
+        ) -join "`n" | Set-Content -Path (Join-Path $StagingApp ".env") -Encoding UTF8 -NoNewline
+    } else {
+        Write-Warning "NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set - packaged app will ship without Supabase credentials."
+    }
+
     # ---- PyInstaller: AIRLauncher ----
     Write-Host "Building AIRLauncher.exe..."
     & "venv\Scripts\python.exe" -m PyInstaller `
