@@ -1823,22 +1823,46 @@ if __name__ == "__main__":
         import threading
         import time
         
-        # 백그라운드 스레드에서 uvicorn 서버 실행
+        def _log_startup_event(message: str) -> None:
+            # console=False 빌드는 stdout이 보이지 않으므로, 백그라운드 서버
+            # 스레드가 조용히 죽는 경우를 진단하려면 파일 로그가 유일한 단서.
+            # main.py의 기존 DEBUG_LOG_PATH 관례를 재사용.
+            print(message)
+            try:
+                import datetime as _dt
+                with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as rf:
+                    rf.write(f"[{_dt.datetime.now()}] [startup] {message}\n")
+            except Exception:
+                pass
+
+        # 백그라운드 스레드에서 uvicorn 서버 실행. uvicorn.run()이 예외를
+        # 던지면 daemon 스레드가 조용히 죽고 아무 표시도 없이 서버가
+        # 응답하지 않는 상태가 된다 — 반드시 잡아서 로그 파일에 남긴다.
         def run_server():
-            uvicorn.run(
-                app,
-                host=config.HOST,
-                port=config.PORT,
-                reload=False,
-                log_level="info"
-            )
-            
+            _log_startup_event(f"server thread starting on {config.HOST}:{config.PORT}")
+            try:
+                uvicorn.run(
+                    app,
+                    host=config.HOST,
+                    port=config.PORT,
+                    reload=False,
+                    log_level="info"
+                )
+                _log_startup_event("uvicorn.run() returned normally (server stopped)")
+            except Exception as server_error:
+                import traceback
+                _log_startup_event(f"CRITICAL: server thread crashed: {server_error}\n{traceback.format_exc()}")
+
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
 
         print("프로덕션 모드: 서버 준비 대기 중...")
         if not _wait_for_server(config.HOST, config.PORT):
-            print("경고: 서버가 예상 시간 내에 응답하지 않았습니다. 계속 진행합니다.")
+            _log_startup_event(
+                f"WARNING: server did not become reachable within the wait timeout "
+                f"(host={config.HOST}, port={config.PORT}); the background thread may "
+                "have crashed during startup — check the lines above for a traceback."
+            )
 
         print("프로덕션 모드: 독립 데스크톱 창(webview) 실행 중...")
 
@@ -1865,7 +1889,7 @@ if __name__ == "__main__":
             )
             webview.start(icon=_ico if os.path.exists(_ico) else None)
         except Exception as webview_error:
-            print(f"webview(독립 창) 초기화 실패, 기본 브라우저로 실행합니다: {webview_error}")
+            _log_startup_event(f"webview(독립 창) 초기화 실패, 기본 브라우저로 실행합니다: {webview_error}")
             import webbrowser
 
             # Server readiness was already confirmed above (before webview was
