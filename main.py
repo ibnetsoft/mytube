@@ -13,6 +13,15 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+# PyInstaller console=False(창 없는 GUI) 빌드에서는 콘솔이 아예 없어서
+# sys.stdout/sys.stderr가 None이 된다. uvicorn 등 일부 라이브러리가 로깅 설정 중
+# sys.stdout.isatty()를 호출해 AttributeError로 죽는 문제(백그라운드 서버 스레드가
+# 포트 바인딩도 하기 전에 조용히 크래시)가 있었으므로, None인 경우 더미 스트림으로 채운다.
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, 'w')
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, 'w')
+
 # Windows 콘솔/태스크바 아이콘을 클래퍼보드(🎬)로 변경
 def _set_window_icon():
     if sys.platform != 'win32':
@@ -1846,7 +1855,8 @@ if __name__ == "__main__":
                     host=config.HOST,
                     port=config.PORT,
                     reload=False,
-                    log_level="info"
+                    log_level="info",
+                    log_config=None
                 )
                 _log_startup_event("uvicorn.run() returned normally (server stopped)")
             except Exception as server_error:
