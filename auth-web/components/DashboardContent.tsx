@@ -168,7 +168,7 @@ function StatCard({ label, value, unit, color, subLabel }: { label: string; valu
 
 export default function DashboardContent() {
     const router = useRouter()
-    const { language } = useLanguage()
+    const { language, t } = useLanguage()
     const isKor = language === 'ko'
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
