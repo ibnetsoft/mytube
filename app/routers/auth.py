@@ -371,71 +371,57 @@ async def validate_referral_api(code: str):
 @router.post("/api/auth/login")
 async def post_auth_login(req: LoginRequest, request: Request):
     try:
-        if not web_admin_client.has_supabase():
-            return {"success": False, "error": "서버 DB 연동 설정이 누락되었습니다."}
+        # 로그인 검증(비밀번호/pin_code 비교, 승인 상태 확인)은 auth-web 서버에서
+        # 수행한다. SUPABASE_SERVICE_ROLE_KEY는 서버에만 있고 데스크톱 앱에는
+        # 존재하지 않아도 로그인이 동작해야 하므로, Supabase를 직접 두드리지 않는다.
+        result = web_admin_client.desktop_login(req.email, req.password)
+        if not result.get("success"):
+            return {"success": False, "error": result.get("error") or "로그인 오류"}
 
-        profile = web_admin_client.fetch_profile_by_email(req.email)
-        if profile:
-            # [WHITELIST SECURITY CHECK]
-            is_approved = profile.get("is_approved")
-            if is_approved is False or is_approved is None or str(is_approved).lower() in ("false", "0", "none"):
-                return {"success": False, "error": "어드민 승인 대기 중이거나 비활성화된 계정입니다."}
+        # [AIR-0132] Language priority:
+        # 1. req.lang (user explicitly selected on login page)
+        # 2. profile.preferred_language (saved from previous session)
+        # 3. req.browser_lang (navigator.language from client)
+        # 4. Accept-Language header
+        # 5. fallback → en
+        db_preferred = result.get("preferred_language") or ""
+        nav_lang = (req.browser_lang or "").strip()
+        accept_lang = request.headers.get("accept-language", "")
 
-            # 비밀번호 검증: password 컬럼 우선, 없으면 pin_code, 그것도 없으면 기본값 '1234'
-            db_password = str(profile.get("password") or "").strip()
-            if not db_password:
-                db_password = str(profile.get("pin_code") or "1234").strip()
-            input_password = str(req.password).strip()
+        if req.lang and req.lang in _LANG_ALLOWED:
+            selected_lang = req.lang
+        elif db_preferred in _LANG_ALLOWED:
+            selected_lang = db_preferred
+        elif nav_lang:
+            selected_lang = _detect_lang_from_nav(nav_lang)
+        elif accept_lang:
+            selected_lang = _detect_lang_from_header(accept_lang)
+        else:
+            selected_lang = "en"
 
-            if db_password == input_password:
-                # [AIR-0132] Language priority:
-                # 1. req.lang (user explicitly selected on login page)
-                # 2. profile.preferred_language (saved from previous session)
-                # 3. req.browser_lang (navigator.language from client)
-                # 4. Accept-Language header
-                # 5. fallback → en
-                db_preferred = profile.get("preferred_language") or ""
-                nav_lang = (req.browser_lang or "").strip()
-                accept_lang = request.headers.get("accept-language", "")
+        _apply_login_language(selected_lang)
+        auth_service.login_user(req.email)
 
-                if req.lang and req.lang in _LANG_ALLOWED:
-                    selected_lang = req.lang
-                elif db_preferred in _LANG_ALLOWED:
-                    selected_lang = db_preferred
-                elif nav_lang:
-                    selected_lang = _detect_lang_from_nav(nav_lang)
-                elif accept_lang:
-                    selected_lang = _detect_lang_from_header(accept_lang)
-                else:
-                    selected_lang = "en"
+        # Save preferred_language back to Supabase (best-effort)
+        try:
+            web_admin_client.update_preferred_language(req.email, selected_lang)
+        except Exception as e:
+            print(f"[Auth] preferred_language save warning: {e}")
 
-                _apply_login_language(selected_lang)
-                auth_service.login_user(req.email)
-
-                # Save preferred_language back to Supabase (best-effort)
-                try:
-                    web_admin_client.update_preferred_language(req.email, selected_lang)
-                except Exception as e:
-                    print(f"[Auth] preferred_language save warning: {e}")
-
-                response = JSONResponse({"success": True, "lang": selected_lang})
-                response.set_cookie(
-                    key="user_email",
-                    value=req.email,
-                    max_age=30 * 24 * 60 * 60,
-                    httponly=False,
-                )
-                response.set_cookie(
-                    key="language",
-                    value=selected_lang,
-                    max_age=30 * 24 * 60 * 60,
-                    httponly=False,
-                )
-                return response
-
-            return {"success": False, "error": "비밀번호가 일치하지 않습니다."}
-
-        return {"success": False, "error": "등록되지 않은 직원 이메일입니다."}
+        response = JSONResponse({"success": True, "lang": selected_lang})
+        response.set_cookie(
+            key="user_email",
+            value=req.email,
+            max_age=30 * 24 * 60 * 60,
+            httponly=False,
+        )
+        response.set_cookie(
+            key="language",
+            value=selected_lang,
+            max_age=30 * 24 * 60 * 60,
+            httponly=False,
+        )
+        return response
     except Exception as e:
         return {"success": False, "error": f"로그인 오류: {str(e)}"}
 

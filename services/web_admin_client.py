@@ -120,13 +120,23 @@ class WebAdminClient:
             proxies={"http": None, "https": None},
         )
 
-    def supabase_post(self, table: str, payload: Dict[str, Any], *, timeout: Optional[int] = None):
+    def supabase_post(
+        self,
+        table: str,
+        payload: Dict[str, Any],
+        *,
+        timeout: Optional[int] = None,
+        return_representation: bool = False,
+    ):
         if not self.has_supabase():
             return None
         self._disable_warnings()
+        headers = self.headers(content_type=True)
+        if return_representation:
+            headers["Prefer"] = "return=representation"
         return requests.post(
             f"{self.supabase_url}/rest/v1/{table}",
-            headers=self.headers(content_type=True),
+            headers=headers,
             json=payload,
             timeout=timeout or self.timeout,
             verify=False,
@@ -371,6 +381,24 @@ class WebAdminClient:
                 if u.get("email") == email:
                     return u
         return None
+
+    def desktop_login(self, email: str, password: str) -> Dict[str, Any]:
+        """로그인 검증을 auth-web(Vercel) 서버에 위임한다.
+        SUPABASE_SERVICE_ROLE_KEY를 데스크톱 앱이 직접 쓰지 않도록,
+        비밀번호/pin_code 비교를 서버 쪽 /api/desktop-login에서 수행하고
+        결과만 돌려받는다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-login",
+                json={"email": email, "password": password},
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "로그인 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"로그인 서버 연결 오류: {e}"}
 
     def fetch_profile_by_email(self, email: str, select: str = "*") -> Optional[Dict[str, Any]]:
         if not email:
