@@ -18,9 +18,9 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
 # sys.stdout.isatty()를 호출해 AttributeError로 죽는 문제(백그라운드 서버 스레드가
 # 포트 바인딩도 하기 전에 조용히 크래시)가 있었으므로, None인 경우 더미 스트림으로 채운다.
 if sys.stdout is None:
-    sys.stdout = open(os.devnull, 'w')
+    sys.stdout = open(os.devnull, 'w', encoding='utf-8', errors='replace')
 if sys.stderr is None:
-    sys.stderr = open(os.devnull, 'w')
+    sys.stderr = open(os.devnull, 'w', encoding='utf-8', errors='replace')
 
 # Windows 콘솔/태스크바 아이콘을 클래퍼보드(🎬)로 변경
 def _set_window_icon():
