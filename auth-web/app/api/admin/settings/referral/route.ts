@@ -1,6 +1,12 @@
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { isAuthResponse, requireAdmin } from '../../_auth';
-import { getAdmin } from '../../referrals/_shared';
+
+const getAdmin = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
 
 const SETTING_KEYS = [
   'referral_mode',
