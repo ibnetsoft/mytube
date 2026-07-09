@@ -15,7 +15,7 @@ root = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
 datas = []
 binaries = []
 try:
-    datas += copy_metadata("google-generativeai")
+    datas += copy_metadata("google-genai")
 except Exception:
     pass
 

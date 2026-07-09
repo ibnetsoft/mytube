@@ -13,7 +13,6 @@ import re
 import time as _time
 import database as db
 
-import google.generativeai as genai
 from config import config
 from services.prompts import prompts
 from services.prompt_assembler import prompt_assembler
