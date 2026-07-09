@@ -1822,8 +1822,17 @@ if __name__ == "__main__":
         
         try:
             import webview
-            
-            # 독립 데스크톱 창 생성 (Edge Chromium 기반 WebView2 기동)
+
+            # 독립 데스크톱 창 생성. pywebview on Windows only has one native
+            # backend candidate (winforms, via pythonnet/.NET interop — see
+            # webview/guilib.py); there is no pure-Python fallback it can try
+            # instead. Whether that interop actually works depends on the
+            # target machine's installed .NET Framework/Core state, which
+            # varies across real end-user PCs and isn't something a frozen
+            # build can guarantee. If it fails for any reason, fall through
+            # to opening the default browser (below) rather than crashing —
+            # the app must still be usable even without the native window
+            # chrome.
             _ico = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "air_studio.ico")
             webview.create_window(
                 "AIR Studio",
@@ -1833,22 +1842,19 @@ if __name__ == "__main__":
                 resizable=True
             )
             webview.start(icon=_ico if os.path.exists(_ico) else None)
-        except ImportError:
-            print("webview 라이브러리를 찾을 수 없어 기본 브라우저로 실행합니다.")
+        except Exception as webview_error:
+            print(f"webview(독립 창) 초기화 실패, 기본 브라우저로 실행합니다: {webview_error}")
             import webbrowser
-            
+
             def open_fallback_browser():
                 time.sleep(1.5)
                 webbrowser.open(f"http://{config.HOST}:{config.PORT}")
-                
+
             threading.Thread(target=open_fallback_browser, daemon=True).start()
-            
-            # 메인 스레드에서 uvicorn 블로킹 실행
-            uvicorn.run(
-                app,
-                host=config.HOST,
-                port=config.PORT,
-                reload=False,
-                log_level="info"
-            )
+
+            # server_thread (started above) is already bound to config.HOST:PORT —
+            # do NOT call uvicorn.run() again here, it would try to bind the same
+            # port a second time and crash with "address already in use". Just
+            # keep the main thread alive on the already-running server instead.
+            server_thread.join()
 
