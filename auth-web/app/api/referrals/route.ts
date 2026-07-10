@@ -39,12 +39,42 @@ export async function GET(req: Request) {
 
         const { data: directReferrals, error: directError } = await supabase
             .from('profiles')
-            .select('id, email, full_name, referral_code, created_at')
+            .select('id, email, full_name, referral_code, referral_country, country_code, created_at')
             .eq('referred_by', user.id)
             .order('created_at', { ascending: false })
         if (directError) throw directError
 
         const directIds = (directReferrals || []).map((item: any) => item.id)
+
+        // AIR-0225: per-member commission I've earned from each direct
+        // referral's activity, so the card view can show it without a
+        // separate detail-page click.
+        const commissionBySource = new Map<string, number>()
+        if (directIds.length) {
+            const { data: commissionRows, error: commissionError } = await supabase
+                .from('referral_commissions')
+                .select('source_user_id, commission_tokens')
+                .eq('beneficiary_id', user.id)
+                .in('source_user_id', directIds)
+                .neq('commission_type', 'WITHDRAWAL')
+            if (!commissionError) {
+                for (const row of commissionRows || []) {
+                    const prev = commissionBySource.get(row.source_user_id) || 0
+                    commissionBySource.set(row.source_user_id, prev + (Number(row.commission_tokens) || 0))
+                }
+            }
+        }
+
+        const directReferralsWithStats = (directReferrals || []).map((item: any) => {
+            const earned = commissionBySource.get(item.id) || 0
+            return {
+                ...item,
+                country: item.referral_country || item.country_code || null,
+                commission_earned: earned,
+                is_active: earned > 0,
+            }
+        })
+
         let totalReferralTokens = 0
         if (directIds.length) {
             let { data: logs, error: logsError } = await supabase
@@ -70,7 +100,7 @@ export async function GET(req: Request) {
         const origin = new URL(req.url).origin
         return NextResponse.json({
             profile: profile || null,
-            directReferrals: directReferrals || [],
+            directReferrals: directReferralsWithStats,
             summary: {
                 directCount: directReferrals?.length || 0,
                 referralTokenUsage: totalReferralTokens,

@@ -166,6 +166,47 @@ function StatCard({ label, value, unit, color, subLabel }: { label: string; valu
     );
 }
 
+function formatDate(d: string | null) {
+    if (!d) return '-';
+    const date = new Date(d);
+    return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// AIR-0225: card view for a regular user's own "직속 하위자" (direct
+// referrals) list — mirrors the admin org chart's card, minus the L1/L2
+// split (a direct referral only ever generates L1 commission for the
+// viewer, so a split bar would always read 100%).
+function ReferralMemberCard({ item, isKor }: { item: any; isKor: boolean }) {
+    const initial = (item.full_name || item.email || '?').trim().charAt(0).toUpperCase() || '?';
+    const active = !!item.is_active;
+    return (
+        <div className="w-full rounded-2xl border border-white/10 bg-black/20 p-4">
+            <div className="mb-2.5 flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-bold text-cyan-300">
+                    {initial}
+                </div>
+                <div className="min-w-0">
+                    <div className="truncate text-[13px] font-bold text-gray-100">{item.full_name || item.email}</div>
+                    <div className="truncate text-[11px] text-gray-500">{item.email}</div>
+                </div>
+            </div>
+            <div className="mb-2.5 flex items-center gap-1.5">
+                {item.country && (
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-gray-400">{item.country}</span>
+                )}
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                    {active ? (isKor ? '활동중' : 'Active') : (isKor ? '휴면' : 'Idle')}
+                </span>
+            </div>
+            <div className="flex items-baseline justify-between">
+                <span className="font-mono text-base font-bold tabular-nums text-emerald-400">{Number(item.commission_earned || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} TK</span>
+                <span className="text-[10px] text-gray-600">{formatDate(item.created_at)}</span>
+            </div>
+        </div>
+    );
+}
+
 export default function DashboardContent() {
     const router = useRouter()
     const { language, t } = useLanguage()
@@ -179,6 +220,7 @@ export default function DashboardContent() {
     const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
+    const [myReferralView, setMyReferralView] = useState<'list' | 'card'>('list')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
@@ -1777,26 +1819,41 @@ export default function DashboardContent() {
                     <StatCard label={language === 'th' ? 'ค่าคอมมิชชันโดยประมาณ' : '예상 커미션'} value={(userReferralInfo?.summary?.estimatedCommissionTokens || 0).toLocaleString()} unit="TK" color="green" />
                 </div>
                 <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-                    <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">직속 하위자</h2>
-                    <div className="mt-4 space-y-2">
-                        {(userReferralInfo?.directReferrals || []).map((item: any) => (
-                            <div key={item.id} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3 text-xs font-bold text-gray-300">
-                                <span>{item.email || item.id}</span>
-                                <span className="text-gray-500">{formatDate(item.created_at)}</span>
-                            </div>
-                        ))}
-                        {(!userReferralInfo?.directReferrals || userReferralInfo.directReferrals.length === 0) && <div className="py-8 text-center text-xs font-black text-gray-600">아직 추천한 유저가 없습니다.</div>}
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">직속 하위자</h2>
+                        <div className="flex gap-1 rounded-xl border border-white/10 bg-black/30 p-1">
+                            <button
+                                onClick={() => setMyReferralView('list')}
+                                className={`rounded-lg px-3 py-1 text-[10px] font-black transition-colors ${myReferralView === 'list' ? 'bg-cyan-500 text-black' : 'text-gray-500 hover:text-white'}`}
+                            >리스트</button>
+                            <button
+                                onClick={() => setMyReferralView('card')}
+                                className={`rounded-lg px-3 py-1 text-[10px] font-black transition-colors ${myReferralView === 'card' ? 'bg-cyan-500 text-black' : 'text-gray-500 hover:text-white'}`}
+                            >카드</button>
+                        </div>
                     </div>
+                    {myReferralView === 'list' ? (
+                        <div className="mt-4 space-y-2">
+                            {(userReferralInfo?.directReferrals || []).map((item: any) => (
+                                <div key={item.id} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3 text-xs font-bold text-gray-300">
+                                    <span>{item.email || item.id}</span>
+                                    <span className="text-gray-500">{formatDate(item.created_at)}</span>
+                                </div>
+                            ))}
+                            {(!userReferralInfo?.directReferrals || userReferralInfo.directReferrals.length === 0) && <div className="py-8 text-center text-xs font-black text-gray-600">아직 추천한 유저가 없습니다.</div>}
+                        </div>
+                    ) : (
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {(userReferralInfo?.directReferrals || []).map((item: any) => (
+                                <ReferralMemberCard key={item.id} item={item} isKor={isKor} />
+                            ))}
+                            {(!userReferralInfo?.directReferrals || userReferralInfo.directReferrals.length === 0) && <div className="col-span-full py-8 text-center text-xs font-black text-gray-600">아직 추천한 유저가 없습니다.</div>}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
-
-    function formatDate(d: string | null) {
-        if (!d) return '-';
-        const date = new Date(d);
-        return `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}`;
-    }
 
     const renderDonutChart = (stats: any) => {
         const colors: Record<string, string> = {
