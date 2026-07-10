@@ -15,8 +15,17 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
+    // [Bugfix] Next.js patches the global fetch() to auto-cache requests, and
+    // that patch reaches into @supabase/supabase-js's internal HTTP calls too.
+    // dynamic='force-dynamic' does not reliably stop this for library-issued
+    // fetches, so recently-updated rows can be served stale indefinitely from
+    // Next.js's Data Cache. Force every Supabase REST call from this client
+    // to bypass that cache explicitly.
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: { persistSession: false }
+        auth: { persistSession: false },
+        global: {
+            fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }),
+        },
     })
 
     // 페이지네이션 파라미터. 미지정 시 전체 유저를 자동으로 끝까지 순회한다.
