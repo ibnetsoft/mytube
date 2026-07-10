@@ -78,10 +78,10 @@ const API = {
         }
     },
 
-    // Claude API (대본 생성 전용)
-    claude: {
+    // 대본 생성 (웹어드민 '대본 생성 모델' 설정에 따라 서버가 Claude/Gemini 자동 라우팅)
+    script: {
         async generate(prompt, options = {}) {
-            const response = await fetch('/api/claude/generate', {
+            const response = await fetch('/api/script/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

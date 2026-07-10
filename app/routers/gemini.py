@@ -157,17 +157,19 @@ async def gemini_generate(req: GeminiRequest):
         return {"status": "error", "error": str(e)}
 
 
-@router.post("/api/claude/generate")
-async def claude_generate(req: GeminiRequest):
-    """Claude 텍스트 생성 (대본 생성용, 로깅 지원)"""
+@router.post("/api/script/generate")
+async def script_generate(req: GeminiRequest):
+    """대본 생성 (웹어드민의 '대본 생성 모델' 설정을 ai_router로 존중 - Claude/Gemini 자동 라우팅 + 실패 시 Gemini 폴백)"""
     from services.auth_service import auth_service
-    from services.claude_service import claude_service
+    from services import ai_router
     if not auth_service.check_credits(200):
         return {"status": "error", "error": "AI 토큰이 부족합니다."}
 
     try:
-        text = await claude_service.generate_text(
+        selected_model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+        text = await ai_router.generate_text(
             req.prompt,
+            selected_model,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
             task_type="script_gen"
