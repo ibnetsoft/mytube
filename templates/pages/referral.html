@@ -64,6 +64,18 @@
     <div id="tab-tree" class="tab-content hidden">
         <!-- Referral Tree -->
         <div class="bg-white/5 rounded-2xl border border-white/10 p-6 overflow-hidden">
+            <div class="flex justify-end mb-4">
+                <div class="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
+                    <button id="tree-view-list-btn" onclick="setTreeView('list')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-indigo-600 text-white">
+                        <span data-i18n="view_list"></span>
+                    </button>
+                    <button id="tree-view-card-btn" onclick="setTreeView('card')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors text-white/50 hover:text-white">
+                        <span data-i18n="view_card"></span>
+                    </button>
+                </div>
+            </div>
             <div id="tree-container" class="space-y-4">
                 <!-- Skeleton -->
                 <div class="animate-pulse space-y-3">
@@ -178,6 +190,10 @@
                 tree_indirect:    "간접 추천",
                 tree_joined:      "가입일",
                 tree_contrib:     "기여 수익",
+                tree_active:      "활동중",
+                tree_idle:        "휴면",
+                view_list:        "리스트",
+                view_card:        "카드",
                 tree_err:         "트리 데이터를 불러올 수 없습니다.",
                 timeline_title:   "수익 내역",
                 timeline_empty:   "아직 수익 내역이 없습니다.",
@@ -220,6 +236,10 @@
                 tree_indirect:    "Indirect",
                 tree_joined:      "Joined",
                 tree_contrib:     "Contribution",
+                tree_active:      "Active",
+                tree_idle:        "Idle",
+                view_list:        "List",
+                view_card:        "Card",
                 tree_err:         "Failed to load referral tree.",
                 timeline_title:   "Earnings History",
                 timeline_empty:   "No earnings history yet.",
@@ -262,6 +282,10 @@
                 tree_indirect:    "Gián tiếp",
                 tree_joined:      "Ngày tham gia",
                 tree_contrib:     "Đóng góp",
+                tree_active:      "Hoạt động",
+                tree_idle:        "Không hoạt động",
+                view_list:        "Danh sách",
+                view_card:        "Thẻ",
                 tree_err:         "Không thể tải dữ liệu cây giới thiệu.",
                 timeline_title:   "Lịch Sử Thu Nhập",
                 timeline_empty:   "Chưa có lịch sử thu nhập.",
@@ -304,6 +328,10 @@
                 tree_indirect:    "แนะนำทางอ้อม",
                 tree_joined:      "วันที่สมัคร",
                 tree_contrib:     "ส่วนสนับสนุน",
+                tree_active:      "ใช้งานอยู่",
+                tree_idle:        "ไม่ได้ใช้งาน",
+                view_list:        "รายการ",
+                view_card:        "การ์ด",
                 tree_err:         "ไม่สามารถโหลดข้อมูลแผนผังได้",
                 timeline_title:   "ประวัติรายได้",
                 timeline_empty:   "ยังไม่มีประวัติรายได้",
@@ -432,6 +460,114 @@
             }
         }
 
+        let treeView = localStorage.getItem('referral_tree_view') || 'list';
+        let treeRoots = null;
+
+        function setTreeView(mode) {
+            treeView = mode;
+            localStorage.setItem('referral_tree_view', mode);
+            document.getElementById('tree-view-list-btn').className =
+                'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ' +
+                (mode === 'list' ? 'bg-indigo-600 text-white' : 'text-white/50 hover:text-white');
+            document.getElementById('tree-view-card-btn').className =
+                'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ' +
+                (mode === 'card' ? 'bg-indigo-600 text-white' : 'text-white/50 hover:text-white');
+            renderTree();
+        }
+
+        function renderNode(node, level = 0) {
+            const ml = level * 1.5;
+            const isDirect = (node.level !== undefined ? node.level : level) <= 1;
+            const badge = isDirect
+                ? `<span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/20">${t.tree_direct}</span>`
+                : `<span class="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold">${t.tree_indirect}</span>`;
+
+            let html = `
+                <div class="flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-white/5 border border-white/5 bg-black/20" style="margin-left: ${ml}rem">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+                        ${(node.display_name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-white font-medium truncate flex items-center gap-2">
+                            ${node.display_name || 'Unknown User'} ${badge}
+                        </div>
+                        <div class="text-white/40 text-xs">${t.tree_joined}: ${new Date(node.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-green-400 font-bold text-sm">${fmt(node.total_commission_generated)} USDT</div>
+                        <div class="text-white/30 text-[10px]">${t.tree_contrib}</div>
+                    </div>
+                </div>
+            `;
+            if (node.children && node.children.length > 0) {
+                html += `<div class="mt-2 space-y-2 relative before:absolute before:left-[1.35rem] before:top-0 before:bottom-6 before:w-px before:bg-white/10">`;
+                node.children.forEach(child => { html += renderNode(child, level + 1); });
+                html += `</div>`;
+            }
+            return html;
+        }
+
+        function renderCard(node, isRoot = false) {
+            const active = !!node.is_active;
+            const activityPill = active
+                ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${t.tree_active}</span>`
+                : `<span class="inline-flex items-center gap-1 rounded-full bg-white/5 text-white/40 text-[10px] font-bold px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-white/30"></span>${t.tree_idle}</span>`;
+            const countryTag = node.country
+                ? `<span class="rounded-full border border-white/10 bg-white/5 text-white/50 text-[10px] font-bold px-2 py-0.5">${node.country}</span>`
+                : '';
+
+            return `
+                <div class="w-[210px] shrink-0 rounded-2xl border p-3.5 bg-black/20 ${isRoot ? 'border-indigo-500/60 ring-1 ring-indigo-500/20' : 'border-white/10'}">
+                    <div class="flex items-center gap-2.5 mb-2.5">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-inner">
+                            ${(node.display_name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-white text-[13px] font-semibold truncate">${node.display_name || 'Unknown User'}</div>
+                            <div class="text-white/40 text-[11px] truncate">${node.email || ''}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 mb-2.5">${countryTag}${activityPill}</div>
+                    <div class="flex items-baseline justify-between mb-1">
+                        <span class="text-lg font-bold text-green-400">${fmt(node.total_commission_generated)}</span>
+                        <span class="text-[10px] uppercase tracking-wide text-white/30">USDT</span>
+                    </div>
+                    <div class="text-[10.5px] text-white/40">${t.tree_joined}: ${new Date(node.created_at).toLocaleDateString()}</div>
+                </div>
+            `;
+        }
+
+        function renderCardTree(root) {
+            let html = `<div class="flex flex-col items-center">${renderCard(root, true)}`;
+            if (root.children && root.children.length > 0) {
+                html += `
+                    <div class="h-5 w-px bg-white/10"></div>
+                    <div class="flex flex-wrap justify-center gap-4 border-t border-white/10 pt-5">
+                        ${root.children.map(child => `
+                            <div class="relative">
+                                <div class="absolute -top-5 left-1/2 h-5 w-px -translate-x-1/2 bg-white/10"></div>
+                                ${renderCard(child)}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            html += `</div>`;
+            return html;
+        }
+
+        function renderTree() {
+            const container = document.getElementById('tree-container');
+            if (!treeRoots || treeRoots.length === 0) return;
+            if (treeView === 'card') {
+                container.className = 'overflow-x-auto';
+                container.innerHTML = `<div class="flex flex-wrap gap-8 justify-center py-2">${treeRoots.map(root => renderCardTree(root)).join('')}</div>`;
+            } else {
+                container.className = 'space-y-4';
+                container.innerHTML = treeRoots.map(root => renderNode(root)).join('');
+            }
+        }
+
         async function loadTree() {
             try {
                 const res = await fetch(`/api/user/referrals/tree`, { headers });
@@ -459,39 +595,8 @@
                     }
                 });
 
-                function renderNode(node, level = 0) {
-                    const ml = level * 1.5;
-                    const isDirect = (node.level !== undefined ? node.level : level) <= 1;
-                    const badge = isDirect
-                        ? `<span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/20">${t.tree_direct}</span>`
-                        : `<span class="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold">${t.tree_indirect}</span>`;
-
-                    let html = `
-                        <div class="flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-white/5 border border-white/5 bg-black/20" style="margin-left: ${ml}rem">
-                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
-                                ${(node.display_name || 'U').charAt(0).toUpperCase()}
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-white font-medium truncate flex items-center gap-2">
-                                    ${node.display_name || 'Unknown User'} ${badge}
-                                </div>
-                                <div class="text-white/40 text-xs">${t.tree_joined}: ${new Date(node.created_at).toLocaleDateString()}</div>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-green-400 font-bold text-sm">${fmt(node.total_commission_generated)} USDT</div>
-                                <div class="text-white/30 text-[10px]">${t.tree_contrib}</div>
-                            </div>
-                        </div>
-                    `;
-                    if (node.children && node.children.length > 0) {
-                        html += `<div class="mt-2 space-y-2 relative before:absolute before:left-[1.35rem] before:top-0 before:bottom-6 before:w-px before:bg-white/10">`;
-                        node.children.forEach(child => { html += renderNode(child, level + 1); });
-                        html += `</div>`;
-                    }
-                    return html;
-                }
-
-                container.innerHTML = roots.map(root => renderNode(root)).join('');
+                treeRoots = roots;
+                setTreeView(treeView);
             } catch (err) {
                 console.error('Tree error:', err);
                 document.getElementById('tree-container').innerHTML =

@@ -145,7 +145,7 @@ def get_referral_tree(
         'profiles',
         **{
             'referred_by': f'eq.{user_id}',
-            'select': 'id,email,full_name,created_at,referred_by',
+            'select': 'id,email,full_name,created_at,referred_by,referral_country,country_code',
         }
     )
     for row in l1:
@@ -157,6 +157,8 @@ def get_referral_tree(
                 or (row.get('email') or '').split('@')[0]
                 or 'User'
             ),
+            "email": row.get('email'),
+            "country": row.get('referral_country') or row.get('country_code'),
             "created_at": row.get('created_at'),
             "total_commission_generated": 0,
             "level": 1,
@@ -173,7 +175,7 @@ def get_referral_tree(
                 'profiles',
                 **{
                     'referred_by': in_filter,
-                    'select': 'id,email,full_name,created_at,referred_by',
+                    'select': 'id,email,full_name,created_at,referred_by,referral_country,country_code',
                 }
             )
             for row in l2:
@@ -185,10 +187,40 @@ def get_referral_tree(
                         or (row.get('email') or '').split('@')[0]
                         or 'User'
                     ),
+                    "email": row.get('email'),
+                    "country": row.get('referral_country') or row.get('country_code'),
                     "created_at": row.get('created_at'),
                     "total_commission_generated": 0,
                     "level": 2,
                 })
+
+    # ── Commission earned FROM each node's activity (beneficiary = me) ─────
+    # AIR-0225: total_commission_generated was hardcoded to 0 - never
+    # actually queried. referral_commissions.source_user_id is whoever's
+    # usage generated the row; beneficiary_id is who gets paid (me, here).
+    if nodes:
+        node_ids = [n['id'] for n in nodes]
+        chunk_size = 300
+        commission_by_source = {}
+        for i in range(0, len(node_ids), chunk_size):
+            chunk = node_ids[i:i + chunk_size]
+            rows = _supabase_get(
+                'referral_commissions',
+                **{
+                    'beneficiary_id': f'eq.{user_id}',
+                    'source_user_id': f'in.({",".join(chunk)})',
+                    'commission_type': 'neq.WITHDRAWAL',
+                    'select': 'source_user_id,commission_tokens',
+                }
+            )
+            for row in rows:
+                sid = row.get('source_user_id')
+                amount = float(row.get('commission_tokens') or 0)
+                commission_by_source[sid] = commission_by_source.get(sid, 0.0) + amount
+
+        for n in nodes:
+            n['total_commission_generated'] = round(commission_by_source.get(n['id'], 0.0), 4)
+            n['is_active'] = n['id'] in commission_by_source
 
     if status and status != 'all':
         nodes = [n for n in nodes if n.get('status') == status]
@@ -335,6 +367,7 @@ def request_referral_withdrawal(req: ReferralWithdrawalRequest):
         return {"success": False, "error": f"최소 출금 가능 금액은 {min_withdrawal} USDT 입니다."}
 
     # 2. Insert into referral_commissions as a WITHDRAWAL type with negative amount
+    #    (legacy pattern — remains the system of record through AIR-0221 Stage 2)
     payload = {
         "beneficiary_id": user_id,
         "source_user_id": user_id,  # Self
@@ -343,11 +376,43 @@ def request_referral_withdrawal(req: ReferralWithdrawalRequest):
         "status": "PENDING",
         "metadata": {"dest_address": req.dest_address.strip()}
     }
-    
-    res = web_admin_client.supabase_post("referral_commissions", payload)
+
+    res = web_admin_client.supabase_post("referral_commissions", payload, return_representation=True)
     if not res or res.status_code not in (201, 204):
         return {"success": False, "error": "출금 요청 중 오류가 발생했습니다."}
-        
+
+    legacy_commission_id = None
+    try:
+        body = res.json()
+        if isinstance(body, list) and body:
+            legacy_commission_id = body[0].get("id")
+    except Exception:
+        legacy_commission_id = None
+
+    # 3. AIR-0221 Stage 2 dual-write into referral_withdrawals — additive,
+    #    best-effort only. The legacy insert above already succeeded and is
+    #    the system of record; a failure here must never surface to the user
+    #    or undo the legacy write.
+    try:
+        dual_write_payload = {
+            "user_id": user_id,
+            "amount": amount,
+            "wallet_address": req.dest_address.strip(),
+            "status": "REQUESTED",
+            "metadata": {
+                "legacy_source": "referral_negative_commission",
+                "legacy_commission_id": legacy_commission_id,
+            },
+        }
+        dw_res = web_admin_client.supabase_post("referral_withdrawals", dual_write_payload)
+        if not dw_res or dw_res.status_code not in (201, 204):
+            print(
+                f"[Stage2 dual-write] referral_withdrawals insert failed: "
+                f"{getattr(dw_res, 'status_code', 'no-response')} {getattr(dw_res, 'text', '')[:300]}"
+            )
+    except Exception as e:
+        print(f"[Stage2 dual-write] referral_withdrawals insert error: {e}")
+
     return {"success": True, "message": "출금 신청이 완료되었습니다."}
 
 
