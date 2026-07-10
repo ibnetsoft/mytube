@@ -176,12 +176,9 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'organization' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
     const [authToken, setAuthToken] = useState('')
-    const [referralReport, setReferralReport] = useState<any>(null)
     const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
-    const [referralLoading, setReferralLoading] = useState(false)
-    const [referralDays, setReferralDays] = useState(30)
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
@@ -1081,68 +1078,11 @@ export default function DashboardContent() {
         }
     }, [isAdmin, adminFetch]);
 
-    const fetchReferralReport = useCallback(async (days: number = referralDays) => {
-        if (!isAdmin) return;
-        setReferralLoading(true);
-        try {
-            const res = await adminFetch(`/api/admin/referrals?days=${days}&t=${Date.now()}`);
-            const data = await res.json();
-            if (res.ok) setReferralReport(data);
-        } catch (e) {
-            // Silently ignore errors to prevent console spam
-        } finally {
-            setReferralLoading(false);
-        }
-    }, [isAdmin, adminFetch, referralDays]);
-
     const copyReferralCode = async (code: string) => {
         if (!code) return;
         const link = `${window.location.origin}/?ref=${code}`;
         await navigator.clipboard?.writeText(link);
         alert(isKor ? '추천 링크가 복사되었습니다.' : 'Referral link copied.');
-    }
-
-    const handleCountryManagerUpdate = async (profile: any) => {
-        if (!isSuperAdmin) return;
-        const country = prompt('관리 국가 코드(예: VN, KR)', profile.referral_country || profile.country_code || 'KR');
-        if (!country) return;
-        const rateText = prompt('국가 책임자 커미션율(%)', String(profile.commission_rate || 1));
-        if (rateText === null) return;
-        const res = await adminFetch('/api/admin/referrals', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                userId: profile.id,
-                country_code: country,
-                referral_country: country,
-                commission_rate: Number(rateText) || 0,
-                make_country_manager: true,
-            })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            alert('국가 책임자 지정 실패: ' + (data.error || `HTTP ${res.status}`));
-            return;
-        }
-        alert('국가 책임자로 지정되었습니다.');
-        fetchReferralReport(referralDays);
-        fetchUsers();
-    }
-
-    const buildReferralTreeRows = (profiles: any[]) => {
-        const byId = new Map((profiles || []).map(profile => [String(profile.id), profile]));
-        const depthOf = (profile: any) => {
-            let depth = Number(profile?.referral_depth || 0);
-            let parentId = profile?.referred_by ? String(profile.referred_by) : '';
-            let guard = 0;
-            while (parentId && byId.has(parentId) && guard < 10) {
-                depth += 1;
-                parentId = byId.get(parentId)?.referred_by ? String(byId.get(parentId).referred_by) : '';
-                guard += 1;
-            }
-            return Math.min(depth, 8);
-        };
-        return [...(profiles || [])].sort((a, b) => depthOf(a) - depthOf(b) || String(a.email || '').localeCompare(String(b.email || '')));
     }
 
     const fetchSysKeys = useCallback(async () => {
@@ -1810,12 +1750,6 @@ export default function DashboardContent() {
         }
     }, [isAdmin, loading, globalPeriod, fetchGlobalStats]);
 
-    useEffect(() => {
-        if (isAdmin && !loading) {
-            fetchReferralReport(referralDays);
-        }
-    }, [isAdmin, loading, referralDays, fetchReferralReport]);
-
     if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">{ui.authenticating}</div>;
     if (!isAdmin) return (
         <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
@@ -2169,7 +2103,6 @@ export default function DashboardContent() {
                             { id: 'topics', label: ui.topics, superOnly: false },
                             { id: 'overview', label: ui.overview, superOnly: false },
                             { id: 'users', label: ui.users, superOnly: false },
-                            { id: 'organization', label: ui.organization, superOnly: false },
                             { id: 'withdrawals', label: ui.withdrawals, superOnly: false },
                             { id: 'api', label: ui.api, superOnly: true },
                             { id: 'render-queue', label: ui.renderQueue, superOnly: true },
@@ -3466,106 +3399,6 @@ export default function DashboardContent() {
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'organization' && (
-                    <div className="space-y-6 animate-in fade-in duration-500">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <h3 className="text-2xl font-black tracking-tight">📊 조직 관리</h3>
-                                <p className="mt-1 text-xs font-bold text-gray-500">
-                                    추천인 트리, 국가 태그, 토큰 사용량 기준 커미션 예상치를 확인합니다.
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {[7, 30, 90].map(days => (
-                                    <button
-                                        key={`ref-days-${days}`}
-                                        type="button"
-                                        onClick={() => { setReferralDays(days); fetchReferralReport(days); }}
-                                        className={`rounded-xl px-4 py-2 text-[10px] font-black border transition-all ${referralDays === days ? 'bg-blue-600 text-white border-blue-500' : 'bg-white/5 text-gray-400 border-white/10 hover:text-white'}`}
-                                    >
-                                        {days}일
-                                    </button>
-                                ))}
-                                <button onClick={() => fetchReferralReport(referralDays)} className="rounded-xl border border-blue-500/20 bg-blue-600/10 px-5 py-2 text-[10px] font-black text-blue-300 hover:bg-blue-600 hover:text-white">
-                                    {referralLoading ? '로딩 중...' : '새로고침'}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <StatCard label="ORG USERS" value={(referralReport?.summary?.users || 0).toLocaleString()} unit="명" color="white" />
-                            <StatCard label="TOKEN USAGE" value={(referralReport?.summary?.totalTokenUsage || 0).toLocaleString()} unit="TK" color="orange" />
-                            <StatCard label="EST. COMMISSION" value={(referralReport?.summary?.totalCommissionTokens || 0).toLocaleString()} unit="TK" color="green" />
-                            <StatCard label="COUNTRIES" value={(referralReport?.summary?.countries?.length || 0).toLocaleString()} unit="EA" color="blue" />
-                        </div>
-
-                        <div className="rounded-[2.5rem] border border-white/10 bg-[#0f172a]/60 overflow-hidden shadow-2xl">
-                            <div className="border-b border-white/10 bg-black/20 px-8 py-5 flex items-center justify-between">
-                                <h4 className="text-xs font-black uppercase tracking-[0.3em] text-blue-400">Referral Tree</h4>
-                                <span className="text-[11px] font-bold text-gray-500">
-                                    Lv1 5% · Lv2 2% · 국가 책임자 별도 커미션율
-                                </span>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-black/30 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                        <tr>
-                                            <th className="px-8 py-5">유저 / 트리</th>
-                                            <th className="px-8 py-5">추천 코드</th>
-                                            <th className="px-8 py-5">국가</th>
-                                            <th className="px-8 py-5 text-right">직속</th>
-                                            <th className="px-8 py-5 text-right">Lv2</th>
-                                            <th className="px-8 py-5 text-right">토큰 사용량</th>
-                                            <th className="px-8 py-5 text-right">예상 커미션</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {buildReferralTreeRows(referralReport?.profiles || []).map((profile: any) => {
-                                            const totalCommission = (profile.direct_commission_tokens || 0) + (profile.level2_commission_tokens || 0) + (profile.country_commission_tokens || 0)
-                                            return (
-                                                <tr key={profile.id} className="hover:bg-white/[0.03]">
-                                                    <td className="px-8 py-5">
-                                                        <div className="font-black text-white" style={{ paddingLeft: `${Math.min(Number(profile.referral_depth || 0), 6) * 18}px` }}>
-                                                            {Number(profile.referral_depth || 0) > 0 && <span className="mr-2 text-gray-600">└</span>}
-                                                            {profile.email || profile.id}
-                                                        </div>
-                                                        <div className="mt-1 text-[10px] font-bold text-gray-600">Depth {profile.referral_depth || 0}</div>
-                                                    </td>
-                                                    <td className="px-8 py-5">
-                                                        <button onClick={() => copyReferralCode(profile.referral_code)} className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-black text-cyan-300 hover:bg-cyan-500/20">
-                                                            {profile.referral_code || '-'}
-                                                        </button>
-                                                    </td>
-                                                    <td className="px-8 py-5 text-xs font-bold text-gray-300">
-                                                        {profile.referral_country || profile.country_code || 'KR'}
-                                                        {Number(profile.commission_rate || 0) > 0 && <span className="ml-2 rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">국가 {profile.commission_rate}%</span>}
-                                                        {isSuperAdmin && (
-                                                            <button onClick={() => handleCountryManagerUpdate(profile)} className="ml-2 rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-1 text-[10px] font-black text-indigo-300 hover:bg-indigo-500/20">
-                                                                책임자 지정
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-8 py-5 text-right font-black text-white">{profile.direct_referrals || 0}</td>
-                                                    <td className="px-8 py-5 text-right font-black text-white">{profile.level2_referrals || 0}</td>
-                                                    <td className="px-8 py-5 text-right font-black text-orange-300">{Number(profile.token_usage || 0).toLocaleString()}</td>
-                                                    <td className="px-8 py-5 text-right font-black text-emerald-300">{Number(totalCommission || 0).toLocaleString()} TK</td>
-                                                </tr>
-                                            )
-                                        })}
-                                        {(!referralReport?.profiles || referralReport.profiles.length === 0) && (
-                                            <tr>
-                                                <td colSpan={7} className="px-8 py-20 text-center text-xs font-black uppercase tracking-widest text-gray-600">
-                                                    조직 데이터가 없습니다.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
                         </div>
                     </div>
                 )}
