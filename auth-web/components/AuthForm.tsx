@@ -2,11 +2,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '@/lib/LanguageContext';
-import LanguageSelector from './LanguageSelector';
 
 export default function AuthForm() {
     const router = useRouter();
@@ -47,20 +45,6 @@ export default function AuthForm() {
     }, [router]);
 
     if (!mounted) return null;
-
-    const handleGoogleLogin = async () => {
-        try {
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: `${window.location.origin}/dashboard`
-                }
-            });
-            if (error) throw error;
-        } catch (error: any) {
-            setMessage({ type: 'error', text: error.message });
-        }
-    };
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -121,34 +105,14 @@ export default function AuthForm() {
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[100px] rounded-full" />
                 <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[100px] rounded-full" />
 
-                <h1 className="text-4xl font-black text-center mb-2 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
+                <h1 className="text-4xl font-black text-center mb-8 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
                     {t('auth.title')}
                 </h1>
-                <h2 className="text-lg font-medium text-center text-white/60 mb-8 tracking-wide uppercase text-[10px]">
-                    {isSignUp ? t('auth.signup') : t('auth.subtitle')}
-                </h2>
-
-                {/* Social Login */}
-                <div className="space-y-3 mb-8">
-                    <button
-                        onClick={handleGoogleLogin}
-                        className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-all font-bold text-sm shadow-lg active:scale-[0.98]"
-                    >
-                        <Image src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" width={16} height={16} unoptimized />
-                        {t('auth.social.google')}
-                    </button>
-                    {/* Github removed as per request */}
-                </div>
-
-                <div className="flex justify-center mb-6">
-                    <LanguageSelector />
-                </div>
-
-                <div className="relative flex items-center py-4 mb-4">
-                    <div className="flex-grow border-t border-white/10"></div>
-                    <span className="flex-shrink mx-4 text-white/20 text-[10px] uppercase tracking-widest font-bold">{t('auth.or')}</span>
-                    <div className="flex-grow border-t border-white/10"></div>
-                </div>
+                {isSignUp && (
+                    <h2 className="text-lg font-medium text-center text-white/60 mb-8 tracking-wide uppercase text-[10px]">
+                        {t('auth.signup')}
+                    </h2>
+                )}
 
                 <form onSubmit={handleAuth} className="space-y-4">
                     <div>

@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
-import LanguageSelector from './LanguageSelector'
 import LearningStatsPanel from './LearningStatsPanel'
 import TenantManagement from './TenantManagement'
 
@@ -2141,7 +2140,6 @@ export default function DashboardContent() {
                 <div className="max-w-[1600px] mx-auto flex justify-between items-center">
                     <span className="text-2xl font-black italic tracking-tighter text-blue-500">AIR STUDIO</span>
                     <div className="flex gap-6 items-center">
-                        <LanguageSelector />
                         <div className="text-right">
                             <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest leading-none ${isSuperAdmin ? 'border-blue-500/30 bg-blue-500/10 text-blue-300' : 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'}`}>
                                 {isSuperAdmin ? ui.superAdmin : ui.subAdminMode}
