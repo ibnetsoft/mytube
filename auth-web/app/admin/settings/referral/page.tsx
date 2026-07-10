@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuthToken, authedFetch } from '../../referrals/_hooks';
 
 interface ReferralSettings {
   referral_mode: string;
@@ -36,15 +37,17 @@ export default function ReferralSettingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const { token, ready } = useAuthToken();
 
   useEffect(() => {
+    if (!ready) return;
     fetchSettings();
     fetchUsers();
-  }, []);
+  }, [ready]);
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch('/api/admin/settings/referral');
+      const res = await authedFetch(token, '/api/admin/settings/referral');
       if (res.ok) {
         const data = await res.json();
         setSettings(prev => ({ ...prev, ...data.settings }));
@@ -56,7 +59,7 @@ export default function ReferralSettingsPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await authedFetch(token, '/api/admin/users');
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users || []);
@@ -70,9 +73,8 @@ export default function ReferralSettingsPage() {
     setIsSaving(true);
     setMessage('');
     try {
-      const res = await fetch('/api/admin/settings/referral', {
+      const res = await authedFetch(token, '/api/admin/settings/referral', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
       });
       if (res.ok) {
