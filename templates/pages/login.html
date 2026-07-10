@@ -199,6 +199,7 @@
                     <span id="label-privacy">개인정보 수집 및 이용에 동의합니다.</span>
                 </label>
 
+                <div id="register-missing-msg" class="min-h-4 text-xs font-semibold text-yellow-400 leading-relaxed"></div>
                 <button id="register-btn" onclick="submitRegister()" disabled
                     class="w-full rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-3 text-sm font-black transition">
                     회원가입 신청
@@ -256,6 +257,17 @@
             ph_video_length: '선호 영상 길이 선택',
             label_terms: '서비스 이용약관에 동의합니다.',
             label_privacy: '개인정보 수집 및 이용에 동의합니다.',
+            missing_prefix: '다음 항목을 확인해주세요: ',
+            missing_name: '이름',
+            missing_contact: '연락처',
+            missing_email_verify: '이메일 인증',
+            missing_country: '국가',
+            missing_password: '비밀번호 규칙',
+            missing_password_confirm: '비밀번호 확인 일치',
+            missing_topic: '선호 영상 주제 선택',
+            missing_video_length: '선호 영상 길이',
+            missing_terms: '이용약관 동의',
+            missing_privacy: '개인정보 동의',
             btn_register: '회원가입 신청',
             btn_login: '로그인',
             btn_forgot: '비밀번호를 잊으셨나요?',
@@ -316,6 +328,17 @@
             ph_video_length: 'เลือกความยาววิดีโอ',
             label_terms: 'ฉันยอมรับข้อกำหนดการให้บริการ',
             label_privacy: 'ฉันยอมรับนโยบายความเป็นส่วนตัว',
+            missing_prefix: 'กรุณาตรวจสอบรายการต่อไปนี้: ',
+            missing_name: 'ชื่อ-นามสกุล',
+            missing_contact: 'เบอร์ติดต่อ',
+            missing_email_verify: 'ยืนยันอีเมล',
+            missing_country: 'ประเทศ',
+            missing_password: 'กฎรหัสผ่าน',
+            missing_password_confirm: 'ยืนยันรหัสผ่านให้ตรงกัน',
+            missing_topic: 'เลือกหัวข้อวิดีโอ',
+            missing_video_length: 'ความยาววิดีโอ',
+            missing_terms: 'ยอมรับข้อกำหนดการให้บริการ',
+            missing_privacy: 'ยอมรับนโยบายความเป็นส่วนตัว',
             btn_register: 'สมัครสมาชิก',
             btn_login: 'เข้าสู่ระบบ',
             btn_forgot: 'ลืมรหัสผ่าน?',
@@ -376,6 +399,17 @@
             ph_video_length: 'Select video length',
             label_terms: 'I agree to the Terms of Service.',
             label_privacy: 'I agree to the Privacy Policy.',
+            missing_prefix: 'Please complete the following: ',
+            missing_name: 'Name',
+            missing_contact: 'Contact',
+            missing_email_verify: 'Email verification',
+            missing_country: 'Country',
+            missing_password: 'Password rules',
+            missing_password_confirm: 'Matching password confirmation',
+            missing_topic: 'Select a preferred topic',
+            missing_video_length: 'Preferred video length',
+            missing_terms: 'Agree to Terms of Service',
+            missing_privacy: 'Agree to Privacy Policy',
             btn_register: 'Apply for Membership',
             btn_login: 'Login',
             btn_forgot: 'Forgot password?',
@@ -436,6 +470,17 @@
             ph_video_length: 'Chọn độ dài',
             label_terms: 'Tôi đồng ý với điều khoản dịch vụ.',
             label_privacy: 'Tôi đồng ý với chính sách bảo mật.',
+            missing_prefix: 'Vui lòng kiểm tra các mục sau: ',
+            missing_name: 'Họ và tên',
+            missing_contact: 'Số liên hệ',
+            missing_email_verify: 'Xác minh email',
+            missing_country: 'Quốc gia',
+            missing_password: 'Quy tắc mật khẩu',
+            missing_password_confirm: 'Xác nhận mật khẩu trùng khớp',
+            missing_topic: 'Chọn chủ đề video',
+            missing_video_length: 'Độ dài video yêu thích',
+            missing_terms: 'Đồng ý điều khoản dịch vụ',
+            missing_privacy: 'Đồng ý chính sách bảo mật',
             btn_register: 'Nộp đơn đăng ký',
             btn_login: 'Đăng nhập',
             btn_forgot: 'Quên mật khẩu?',
@@ -655,6 +700,7 @@
 
         renderSignupCategories();
         renderSignupDurationOptions();
+        checkRegisterBtn();
     }
 
     let signupCategories = [], signupDurationOptions = [];
@@ -971,6 +1017,22 @@
         const categoryChecked = selectedCategoryIds.size > 0;
         const allOk = name && contact && email && emailVerified && country && pwValid && pwConfirmValid && videoLength && terms && privacy && categoryChecked;
         document.getElementById('register-btn').disabled = !allOk;
+
+        const L = LANGS[currentLang] || LANGS.ko;
+        const missing = [];
+        if (!name) missing.push(L.missing_name);
+        if (!contact) missing.push(L.missing_contact);
+        if (!email || !emailVerified) missing.push(L.missing_email_verify);
+        if (!country) missing.push(L.missing_country);
+        if (!pwValid) missing.push(L.missing_password);
+        if (!pwConfirmValid) missing.push(L.missing_password_confirm);
+        if (!categoryChecked) missing.push(L.missing_topic);
+        if (!videoLength) missing.push(L.missing_video_length);
+        if (!terms) missing.push(L.missing_terms);
+        if (!privacy) missing.push(L.missing_privacy);
+
+        const missingEl = document.getElementById('register-missing-msg');
+        missingEl.textContent = missing.length ? (L.missing_prefix + missing.join(', ')) : '';
     }
 
     // ===== 회원가입 제출 =====
@@ -1079,6 +1141,7 @@
         } catch(e) { signupCategories=[]; signupDurationOptions=[]; }
         renderSignupCategories();
         renderSignupDurationOptions();
+        checkRegisterBtn();
     }
 </script>
 </body>
