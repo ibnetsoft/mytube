@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
 import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
+import { generateJsonWithModelSetting } from '../../../../lib/aiRouter'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -160,7 +161,6 @@ async function translateAndSaveTopics(
             category_name: String(r.categories?.name || ''),
         }))
         const validIds = new Set(topics.map(t => t.id))
-        const ai = new GoogleGenAI({ apiKey: geminiApiKey })
 
         const LANG_MAP = [
             { code: 'vi', name: 'Vietnamese' },
@@ -175,12 +175,15 @@ async function translateAndSaveTopics(
         for (const lang of LANG_MAP) {
             try {
                 const prompt = buildTranslationPrompt(topics, lang.code, lang.name)
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                    config: { responseMimeType: 'application/json' },
-                })
-                const parsed = parseTranslationResponse(response.text || '[]', validIds, lang.code)
+                // AIR-0225: respects the "번역 모델" admin setting instead of
+                // always using Gemini.
+                const text = await generateJsonWithModelSetting(
+                    supabase,
+                    prompt,
+                    'sys_api_translation_model',
+                    geminiApiKey
+                )
+                const parsed = parseTranslationResponse(text, validIds, lang.code)
                 for (const [id, val] of Object.entries(parsed)) {
                     allTranslations[id][`topic_${lang.code}`] = val.topic
                     allTranslations[id][`category_name_${lang.code}`] = val.category_name
@@ -519,8 +522,9 @@ export async function POST(req: Request) {
         }).format(nowInKst)
         const currentYearKst = currentDateKst.slice(0, 4)
         
-        // 3. Gemini를 사용한 트렌드 분석 및 10개 주제 생성 (데모 속도를 위해 10개씩 벌크 생성)
-        const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+        // 3. 트렌드 분석 및 10개 주제 생성 (데모 속도를 위해 10개씩 벌크 생성).
+        // AIR-0225: 웹어드민 "주제 추천 모델" 설정(sys_api_topic_generation_model)에
+        // 따라 Claude/Gemini를 자동 라우팅한다 - 예전엔 이 설정과 무관하게 항상 Gemini만 썼다.
         const prompt = `
         You are an expert YouTube Content Planner.
         Today's date in Korea is ${currentDateKst}.
@@ -588,15 +592,12 @@ export async function POST(req: Request) {
         `}
         `
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json'
-            }
-        })
-
-        const text = response.text || '[]'
+        const text = await generateJsonWithModelSetting(
+            supabase,
+            prompt,
+            'sys_api_topic_generation_model',
+            geminiApiKey
+        )
         const topics = JSON.parse(text)
 
         if (!Array.isArray(topics) || topics.length === 0) {
