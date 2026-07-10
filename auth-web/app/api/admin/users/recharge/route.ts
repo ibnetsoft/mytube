@@ -100,10 +100,14 @@ export async function POST(req: Request) {
         if (txError) {
             console.warn('[Recharge] TX log failed (non-fatal):', txError.message)
         } else if (txData?.id) {
-            // 4. 비동기 정산 워커 호출
-            processSettlement(supabaseAdmin, userId, numAmount, txData.id).catch(err => {
+            // 4. 정산 워커 호출 - await 필수 (Vercel 서버리스 함수는 응답 반환 직후
+            // 실행이 끊길 수 있어서, fire-and-forget으로는 완료를 보장할 수 없다;
+            // /api/logs에서 동일 패턴이 실제로 커미션 미생성 원인이었던 것으로 확인됨).
+            try {
+                await processSettlement(supabaseAdmin, userId, numAmount, txData.id)
+            } catch (err) {
                 console.error('[Recharge] Settlement worker error:', err)
-            });
+            }
         }
 
         console.log(`[Recharge] Done: user=${userId}, new_balance=${newBalance}`)

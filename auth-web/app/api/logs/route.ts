@@ -60,10 +60,15 @@ export async function POST(req: Request) {
                 // 토큰 사용량을 그대로 커미션 산정 기준액(base_tokens)으로 사용 -
                 // 예: 4토큰 사용 -> 기준액 4 -> 설정된 요율만큼 커미션 계산.
                 // ai_logs row id를 source_tx_id로 사용해 중복 지급 방지(processSettlement 내장 체크).
+                // await 필수: Vercel 서버리스 함수는 응답 반환 직후 실행이 끊길 수 있어서,
+                // fire-and-forget(.catch만 걸고 await 안 함)으로는 이 작업이 완료된다는
+                // 보장이 없다 - 실제로 커미션이 생성되지 않는 문제로 확인됨.
                 if (logRow?.id) {
-                    processSettlement(supabaseAdmin, userId, totalTokens, logRow.id).catch(err => {
+                    try {
+                        await processSettlement(supabaseAdmin, userId, totalTokens, logRow.id)
+                    } catch (err) {
                         console.error(`[Logs] Settlement worker error for ${userId}:`, err)
-                    })
+                    }
                 }
             }
         }
