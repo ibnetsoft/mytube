@@ -400,6 +400,28 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"로그인 서버 연결 오류: {e}"}
 
+    def desktop_change_password(self, email: str, current_password: str, new_password: str) -> Dict[str, Any]:
+        """비밀번호 변경을 auth-web(Vercel) 서버에 위임한다.
+        SUPABASE_SERVICE_ROLE_KEY를 데스크톱 앱이 직접 쓰지 않도록,
+        현재 비밀번호 확인/신규 비밀번호 저장을 서버 쪽
+        /api/desktop-change-password에서 수행하고 결과만 돌려받는다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-change-password",
+                json={
+                    "email": email,
+                    "current_password": current_password,
+                    "new_password": new_password,
+                },
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "비밀번호 변경 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"비밀번호 변경 서버 연결 오류: {e}"}
+
     def fetch_profile_by_email(self, email: str, select: str = "*") -> Optional[Dict[str, Any]]:
         if not email:
             return None

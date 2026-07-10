@@ -464,6 +464,42 @@ async def post_forgot_password(req: ForgotPasswordRequest):
         return {"success": False, "error": f"오류: {str(e)}"}
 
 
+# ===== 비밀번호 변경 (로그인 중인 유저, 세팅 > 기본설정) =====
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    new_password_confirm: str
+
+@router.post("/api/auth/change-password")
+async def post_change_password(req: ChangePasswordRequest):
+    try:
+        email = auth_service.get_user_email()
+        if not email:
+            return {"success": False, "error": "로그인이 필요합니다."}
+
+        current_password = req.current_password.strip()
+        new_password = req.new_password.strip()
+        new_password_confirm = req.new_password_confirm.strip()
+
+        if not current_password or not new_password:
+            return {"success": False, "error": "현재 비밀번호와 새 비밀번호를 모두 입력해주세요."}
+        if new_password != new_password_confirm:
+            return {"success": False, "error": "새 비밀번호가 일치하지 않습니다."}
+
+        password_pattern = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]).{8,}$')
+        if not password_pattern.match(new_password):
+            return {"success": False, "error": "새 비밀번호는 8자 이상이며 대문자, 소문자, 숫자, 특수문자를 모두 포함해야 합니다."}
+
+        result = web_admin_client.desktop_change_password(email, current_password, new_password)
+        if not result.get("success"):
+            return {"success": False, "error": result.get("error") or "비밀번호 변경에 실패했습니다."}
+
+        return {"success": True, "message": result.get("message") or "비밀번호가 변경되었습니다."}
+    except Exception as e:
+        print(f"[ChangePassword] Error: {e}")
+        return {"success": False, "error": f"오류: {str(e)}"}
+
+
 # ===== 이메일 인증 코드 발송 =====
 class SendVerifyCodeRequest(BaseModel):
     email: str
