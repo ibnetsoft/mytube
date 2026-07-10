@@ -76,12 +76,12 @@ export async function POST(req: Request) {
         const sys_keys: Record<string, string> = {}
         if (!isPro) {
             try {
-                const KEYS = ['gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid']
+                const KEYS = ['gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid', 'claude']
                 const { data: sysSettings } = await supabaseAdmin
                     .from('global_settings')
                     .select('key, value')
                     .in('key', KEYS.map(k => `sys_api_${k}`))
-                
+
                 if (sysSettings) {
                     const sysMap: Record<string, string> = {
                         sys_api_gemini:     'GEMINI_API_KEY',
@@ -89,6 +89,7 @@ export async function POST(req: Request) {
                         sys_api_elevenlabs: 'ELEVENLABS_API_KEY',
                         sys_api_topview:    'TOPVIEW_API_KEY',
                         sys_api_topview_uid: 'TOPVIEW_UID',
+                        sys_api_claude:     'CLAUDE_API_KEY',
                     }
                     for (const row of sysSettings) {
                         const configKey = sysMap[row.key]
@@ -112,6 +113,7 @@ export async function POST(req: Request) {
             elevenlabs_api_key: 'ELEVENLABS_API_KEY',
             topview_api_key:    'TOPVIEW_API_KEY',
             topview_uid:        'TOPVIEW_UID',
+            claude_api_key:     'CLAUDE_API_KEY',
         }
         for (const [metaKey, configKey] of Object.entries(keyMap)) {
             if (meta[metaKey]) api_keys[configKey] = meta[metaKey]
@@ -125,6 +127,7 @@ export async function POST(req: Request) {
         if (customKeys.replicate) api_keys['REPLICATE_API_KEY'] = customKeys.replicate
         if (customKeys.elevenlabs) api_keys['ELEVENLABS_API_KEY'] = customKeys.elevenlabs
         if (customKeys.youtube) api_keys['YOUTUBE_API_KEY'] = customKeys.youtube
+        if (customKeys.claude) api_keys['CLAUDE_API_KEY'] = customKeys.claude
 
         const isApproved = profile?.is_approved
         if (isApproved === false || isApproved === null || isApproved === undefined || ['false', '0', 'none'].includes(String(isApproved).toLowerCase())) {
