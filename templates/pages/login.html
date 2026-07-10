@@ -139,13 +139,7 @@
                 </div>
                 <div id="verify-msg" class="text-xs font-semibold min-h-4 px-1"></div>
 
-                <select id="reg-country" class="auth-input w-full rounded-xl px-4 py-3 text-sm" onchange="checkRegisterBtn()">
-                    <option value="">국가 / Country 선택</option>
-                    <option value="한국">한국</option>
-                    <option value="베트남">베트남</option>
-                    <option value="방글라데시아">방글라데시아</option>
-                    <option value="나이지리아">나이지리아</option>
-                </select>
+                <input id="reg-country" type="text" class="auth-input w-full rounded-xl px-4 py-3 text-sm" placeholder="국가 / Country 입력" oninput="checkRegisterBtn()">
 
                 <!-- 비밀번호 -->
                 <div class="input-wrap">
@@ -253,8 +247,7 @@
             btn_verify: '인증 발송',
             ph_code: '인증 코드 6자리',
             btn_confirm: '확인',
-            ph_country: '국가 / Country 선택',
-            country_ko: '한국', country_vn: '베트남', country_bd: '방글라데시아', country_ng: '나이지리아',
+            ph_country: '국가 / Country 입력',
             ph_password: '비밀번호 / Password',
             ph_password_confirm: '비밀번호 확인 / Confirm Password',
             ph_referral: '추천인 코드 / Referral Code (선택)',
@@ -314,8 +307,7 @@
             btn_verify: 'ส่งรหัส',
             ph_code: 'รหัสยืนยัน 6 หลัก',
             btn_confirm: 'ยืนยัน',
-            ph_country: 'เลือกประเทศ',
-            country_ko: 'เกาหลี', country_vn: 'เวียดนาม', country_bd: 'บังกลาเทศ', country_ng: 'ไนจีเรีย',
+            ph_country: 'กรอกประเทศ / Country',
             ph_password: 'รหัสผ่าน',
             ph_password_confirm: 'ยืนยันรหัสผ่าน',
             ph_referral: 'รหัสแนะนำ (ไม่บังคับ)',
@@ -375,8 +367,7 @@
             btn_verify: 'Send Code',
             ph_code: '6-digit code',
             btn_confirm: 'Verify',
-            ph_country: 'Select Country',
-            country_ko: 'Korea', country_vn: 'Vietnam', country_bd: 'Bangladesh', country_ng: 'Nigeria',
+            ph_country: 'Enter Country',
             ph_password: 'Password',
             ph_password_confirm: 'Confirm Password',
             ph_referral: 'Referral Code (optional)',
@@ -436,8 +427,7 @@
             btn_verify: 'Gửi mã',
             ph_code: 'Mã xác nhận 6 số',
             btn_confirm: 'Xác nhận',
-            ph_country: 'Chọn quốc gia',
-            country_ko: 'Hàn Quốc', country_vn: 'Việt Nam', country_bd: 'Bangladesh', country_ng: 'Nigeria',
+            ph_country: 'Nhập quốc gia',
             ph_password: 'Mật khẩu',
             ph_password_confirm: 'Xác nhận mật khẩu',
             ph_referral: 'Mã giới thiệu (tùy chọn)',
@@ -598,15 +588,8 @@
 
         // Forgot link
         const fl = document.getElementById('forgot-link'); if(fl) fl.textContent = L.btn_forgot;
-        // Country select
-        const cs = document.getElementById('reg-country');
-        if(cs && cs.options.length > 0) {
-            cs.options[0].text = L.ph_country;
-            if(cs.options[1]) cs.options[1].text = L.country_ko;
-            if(cs.options[2]) cs.options[2].text = L.country_vn;
-            if(cs.options[3]) cs.options[3].text = L.country_bd;
-            if(cs.options[4]) cs.options[4].text = L.country_ng;
-        }
+        // Country input placeholder
+        set('reg-country', L.ph_country);
         // PW rules
         const rules = ['length','upper','lower','number','special'];
         const ruleKeys = ['rule_length','rule_upper','rule_lower','rule_number','rule_special'];

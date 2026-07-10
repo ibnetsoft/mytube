@@ -176,21 +176,42 @@ try {
 
     Copy-Item -Path (Join-Path $DistDir "*") -Destination $StagingApp -Recurse -Force
 
-    # ---- .env (Supabase credentials for packaged app) ----
-    # NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are read from the
-    # process environment (set via GitHub Actions secrets in CI). Only
-    # written when both are present, so a local dev build run without them
+    # ---- .env (Supabase + SMTP credentials for packaged app) ----
+    # Read from the process environment (set via GitHub Actions secrets in
+    # CI). Only written when present, so a local dev build run without them
     # set doesn't silently ship a broken/empty .env.
     $EnvSupabaseUrl = $env:NEXT_PUBLIC_SUPABASE_URL
     $EnvSupabaseKey = $env:SUPABASE_SERVICE_ROLE_KEY
+    $EnvLines = @()
     if ($EnvSupabaseUrl -and $EnvSupabaseKey) {
-        Write-Host "Writing packaged .env with Supabase credentials..."
-        @(
-            "NEXT_PUBLIC_SUPABASE_URL=$EnvSupabaseUrl"
-            "SUPABASE_SERVICE_ROLE_KEY=$EnvSupabaseKey"
-        ) -join "`n" | Set-Content -Path (Join-Path $StagingApp ".env") -Encoding UTF8 -NoNewline
+        $EnvLines += "NEXT_PUBLIC_SUPABASE_URL=$EnvSupabaseUrl"
+        $EnvLines += "SUPABASE_SERVICE_ROLE_KEY=$EnvSupabaseKey"
     } else {
         Write-Warning "NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set - packaged app will ship without Supabase credentials."
+    }
+
+    # SMTP (회원가입 이메일 인증코드 발송용). AIR-0225: previously missing here
+    # entirely, so send_verify_code() silently failed on every packaged build
+    # (services/email_service.py returns False when SMTP_USER/SMTP_PASS are
+    # unset - no crash, no visible error, just "발송에 실패했습니다").
+    $EnvSmtpHost = $env:SMTP_HOST
+    $EnvSmtpPort = $env:SMTP_PORT
+    $EnvSmtpUser = $env:SMTP_USER
+    $EnvSmtpPass = $env:SMTP_PASS
+    $EnvSmtpFrom = $env:SMTP_FROM
+    if ($EnvSmtpUser -and $EnvSmtpPass) {
+        if ($EnvSmtpHost) { $EnvLines += "SMTP_HOST=$EnvSmtpHost" }
+        if ($EnvSmtpPort) { $EnvLines += "SMTP_PORT=$EnvSmtpPort" }
+        $EnvLines += "SMTP_USER=$EnvSmtpUser"
+        $EnvLines += "SMTP_PASS=$EnvSmtpPass"
+        if ($EnvSmtpFrom) { $EnvLines += "SMTP_FROM=$EnvSmtpFrom" }
+    } else {
+        Write-Warning "SMTP_USER / SMTP_PASS not set - packaged app will ship without email-sending credentials (signup verification codes will fail to send)."
+    }
+
+    if ($EnvLines.Count -gt 0) {
+        Write-Host "Writing packaged .env with $($EnvLines.Count) credential line(s)..."
+        $EnvLines -join "`n" | Set-Content -Path (Join-Path $StagingApp ".env") -Encoding UTF8 -NoNewline
     }
 
     # ---- PyInstaller: AIRLauncher ----
