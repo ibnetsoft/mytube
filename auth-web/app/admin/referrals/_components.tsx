@@ -1,5 +1,92 @@
 'use client'
 
+import Link from 'next/link'
+import { formatUsd } from './_hooks'
+
+export interface OrgMemberCardData {
+    id: string
+    email: string
+    full_name: string | null
+    country: string | null
+    is_active: boolean
+    direct_referrals: number
+    commission_total: number
+    commission_level1_total: number
+    commission_level2_total: number
+}
+
+// AIR-0225: replaces the plain "name — $total" list row in the org Tree
+// View with a card that surfaces country, activity, and the L1/L2
+// commission split without an extra click to the member detail page.
+export function OrgMemberCard({ row, isRoot = false }: { row: OrgMemberCardData; isRoot?: boolean }) {
+    const initial = (row.full_name || row.email || '?').trim().charAt(0).toUpperCase() || '?'
+    const l1 = row.commission_level1_total || 0
+    const l2 = row.commission_level2_total || 0
+    const total = row.commission_total || 0
+    const l1Pct = total > 0 ? Math.min(100, Math.round((l1 / total) * 100)) : 0
+    const l2Pct = total > 0 ? Math.max(0, 100 - l1Pct) : 0
+
+    return (
+        <div
+            className={`w-[220px] shrink-0 rounded-2xl border p-3.5 shadow-lg shadow-black/20 ${
+                isRoot ? 'border-indigo-500 bg-gray-900 ring-1 ring-indigo-500/30' : 'border-gray-800 bg-gray-900/80'
+            }`}
+        >
+            <div className="mb-2.5 flex items-center gap-2.5">
+                <div
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                        isRoot ? 'bg-indigo-600 text-white' : 'bg-indigo-500/15 text-indigo-400'
+                    }`}
+                >
+                    {initial}
+                </div>
+                <div className="min-w-0">
+                    <Link
+                        href={`/admin/referrals/members/${row.id}`}
+                        className="block truncate text-[13px] font-semibold text-gray-100 hover:text-indigo-400 hover:underline"
+                    >
+                        {row.full_name || row.email}
+                    </Link>
+                    <div className="truncate text-[11px] text-gray-500">{row.email}</div>
+                </div>
+            </div>
+
+            <div className="mb-2.5 flex items-center gap-1.5">
+                {row.country && (
+                    <span className="rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-[10px] font-bold text-gray-400">
+                        {row.country}
+                    </span>
+                )}
+                <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        row.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-700/30 text-gray-500'
+                    }`}
+                >
+                    <span className={`h-1.5 w-1.5 rounded-full ${row.is_active ? 'bg-emerald-400' : 'bg-gray-500'}`} />
+                    {row.is_active ? 'Active' : 'Idle'}
+                </span>
+            </div>
+
+            <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="font-mono text-lg font-bold tabular-nums text-white">${formatUsd(total)}</span>
+                <span className="text-[10px] uppercase tracking-wide text-gray-600">Total</span>
+            </div>
+
+            <div className="mb-2 flex h-1.5 overflow-hidden rounded-full bg-gray-800">
+                {l1Pct > 0 && <div className="h-full bg-indigo-500" style={{ width: `${l1Pct}%` }} />}
+                {l2Pct > 0 && <div className="h-full bg-gray-500/60" style={{ width: `${l2Pct}%` }} />}
+            </div>
+
+            <div className="flex justify-between text-[10.5px] text-gray-500">
+                <span>
+                    L1 ${formatUsd(l1)} · L2 ${formatUsd(l2)}
+                </span>
+                <span className="font-mono font-semibold text-gray-300">{row.direct_referrals} direct</span>
+            </div>
+        </div>
+    )
+}
+
 export function LoadingBlock({ label = 'Loading...' }: { label?: string }) {
     return (
         <div className="flex items-center justify-center py-16 text-gray-400">

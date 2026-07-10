@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuthToken, authedFetch, formatUsd, formatDate } from '../_hooks'
-import { LoadingBlock, EmptyBlock, ErrorBlock, Pagination } from '../_components'
+import { LoadingBlock, EmptyBlock, ErrorBlock, Pagination, OrgMemberCard } from '../_components'
 
 interface OrgRow {
     id: string
@@ -177,29 +177,27 @@ export default function OrganizationPage() {
 
             {ready && !loading && !error && view === 'tree' && (
                 tree.length === 0 ? <EmptyBlock /> : (
-                    <div className="space-y-3">
-                        {tree.map(root => (
-                            <div key={root.id} className="border border-gray-800 rounded-xl p-3">
-                                <div className="flex justify-between items-center">
-                                    <Link href={`/admin/referrals/members/${root.id}`} className="font-semibold text-indigo-400 hover:underline">
-                                        {root.full_name || root.email}
-                                    </Link>
-                                    <span className="text-xs text-gray-500">${formatUsd(root.commission_total)} · {root.children.length} L2</span>
-                                </div>
-                                {root.children.length > 0 && (
-                                    <div className="mt-2 pl-4 border-l border-gray-800 space-y-1">
-                                        {root.children.map(c => (
-                                            <div key={c.id} className="flex justify-between text-sm">
-                                                <Link href={`/admin/referrals/members/${c.id}`} className="text-gray-300 hover:text-indigo-400 hover:underline">
-                                                    {c.full_name || c.email}
-                                                </Link>
-                                                <span className="text-gray-500">${formatUsd(c.commission_total)}</span>
+                    <div className="overflow-x-auto rounded-2xl border border-gray-800 bg-gray-950/40 p-6">
+                        <div className="flex flex-wrap gap-x-10 gap-y-8">
+                            {tree.map(root => (
+                                <div key={root.id} className="flex flex-col items-center">
+                                    <OrgMemberCard row={root} isRoot />
+                                    {root.children.length > 0 && (
+                                        <div className="flex flex-col items-center">
+                                            <div className="h-6 w-px bg-gray-700" />
+                                            <div className="flex gap-5 border-t border-gray-700 pt-6">
+                                                {root.children.map(child => (
+                                                    <div key={child.id} className="relative">
+                                                        <div className="absolute -top-6 left-1/2 h-6 w-px -translate-x-1/2 bg-gray-700" />
+                                                        <OrgMemberCard row={child} />
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )
             )}
