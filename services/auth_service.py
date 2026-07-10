@@ -438,7 +438,15 @@ class AuthService:
         return getattr(self, "_my_referral_code", "")
 
     def ensure_referral_code_generated(self):
-        """첫 렌더링 큐 전송 시 호출되어 추천코드가 없다면 생성 및 Supabase 갱신"""
+        """추천 코드를 조회해 반환한다.
+
+        profiles.referral_code는 가입 시 DB에서 자동 생성되는 유일한 추천
+        코드이며, 웹어드민 대시보드/추천 링크 검증(validate_referral_code)이
+        모두 이 컬럼만 사용한다. 과거에는 별도로 무작위 6자리 숫자를 생성해
+        profiles.my_referral_code에 써넣었는데, 이 코드는 실제 가입 검증에는
+        전혀 쓰이지 않아 유저에게 동작하지 않는 코드를 보여주는 버그였다.
+        이제는 항상 referral_code를 그대로 읽어 웹어드민과 동일한 값을 보여준다.
+        """
         current_code = self.get_referral_code()
         if current_code:
             return current_code
@@ -447,26 +455,12 @@ class AuthService:
         if not email:
             return ""
 
-        import random
         from services.web_admin_client import web_admin_client
-        
-        new_code = str(random.randint(100000, 999999))
-        
-        # 1. Update user_metadata in auth.users
-        profile = web_admin_client.fetch_profile_by_email(email)
-        if profile and profile.get("id"):
-            user_id = profile["id"]
-            # Fetch current metadata to merge
-            # Actually, web_admin_client.update_user_metadata replaces it or merges it depending on how supabase does it.
-            # Supabase auth.admin.updateUser merges user_metadata.
-            web_admin_client.update_user_metadata(user_id, {"my_referral_code": new_code})
 
-            # 2. Update profiles table if it also has my_referral_code column
-            web_admin_client.supabase_patch("profiles", {"my_referral_code": new_code}, params={"id": f"eq.{user_id}"})
-            
-        self._my_referral_code = new_code
-        self.logger.info(f"Generated and assigned new referral code: {new_code}")
-        return new_code
+        profile = web_admin_client.fetch_profile_by_email(email, select="referral_code")
+        code = (profile or {}).get("referral_code") or ""
+        self._my_referral_code = code
+        return code
 
     def get_or_create_wallet_info(self):
         import json

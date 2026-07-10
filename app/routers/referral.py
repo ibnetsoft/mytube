@@ -68,9 +68,14 @@ def get_referral_dashboard():
         }
     )
     my_profile = profiles[0] if profiles else {}
+    # referral_code is the sole source of truth (DB-generated at signup,
+    # matches web admin, matches validate_referral_code). my_referral_code
+    # was a legacy client-generated duplicate that never worked for actual
+    # signup validation — no longer written, kept only as a last-resort
+    # fallback for any pre-existing rows that never got a referral_code.
     ref_code = (
-        my_profile.get('my_referral_code')
-        or my_profile.get('referral_code')
+        my_profile.get('referral_code')
+        or my_profile.get('my_referral_code')
         or ''
     )
     ref_link = (
