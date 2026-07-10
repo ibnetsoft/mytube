@@ -327,7 +327,7 @@ class WebAdminClient:
             return response.json()
         return []
 
-    def fetch_categories(self, select: str = "id,name,video_type") -> List[Dict[str, Any]]:
+    def fetch_categories(self, select: str = "id,name") -> List[Dict[str, Any]]:
         response = self.supabase_get(
             "categories",
             params={"select": select, "order": "created_at.desc"},

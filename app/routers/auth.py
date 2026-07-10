@@ -251,7 +251,7 @@ _DURATION_OPTIONS = [
 async def get_signup_options():
     normalized_categories = []
     try:
-        categories = web_admin_client.fetch_categories(select="id,name,video_type")
+        categories = web_admin_client.fetch_categories(select="id,name")
         for item in categories:
             category_id = item.get("id")
             category_name = str(item.get("name") or "").strip()
