@@ -34,8 +34,11 @@
         } else if (tabName === 'thumbnail-styles') {
             loadThumbnailStylePresets();
         } else if (tabName === 'withdrawal') {
-            if (typeof fetchWithdrawalHistory === 'function') {
-                fetchWithdrawalHistory();
+            if (typeof stLoadWithdrawalInfo === 'function') {
+                stLoadWithdrawalInfo();
+            }
+            if (typeof stLoadWithdrawalHistory === 'function') {
+                stLoadWithdrawalHistory();
             }
         } else if (tabName === 'referral') {
             if (typeof loadReferralData === 'function') {

@@ -417,6 +417,45 @@ def request_referral_withdrawal(req: ReferralWithdrawalRequest):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/user/referrals/withdrawal-history
+# ---------------------------------------------------------------------------
+@router.get("/referrals/withdrawal-history")
+def get_referral_withdrawal_history():
+    """출금 내역 (날짜/지갑주소/TXID/USDT/상태).
+
+    referral_withdrawals(AIR-0221 Stage 2 dual-write 대상)에서 조회한다 -
+    legacy referral_commissions(WITHDRAWAL type)에는 tx_hash가 없어서 TXID를
+    보여줄 방법이 없다. dual-write는 best-effort라 아주 드물게 누락될 수 있지만,
+    TXID를 표시할 수 있는 유일한 소스다.
+    """
+    user_id = _get_current_user_id()
+
+    rows = _supabase_get(
+        'referral_withdrawals',
+        **{
+            'user_id': f'eq.{user_id}',
+            'select': 'id,amount,wallet_address,status,tx_hash,created_at',
+            'order': 'created_at.desc',
+            'limit': '100',
+        }
+    )
+
+    history = [
+        {
+            "id": r.get("id"),
+            "created_at": r.get("created_at"),
+            "wallet_address": r.get("wallet_address"),
+            "tx_hash": r.get("tx_hash"),
+            "amount": r.get("amount"),
+            "status": r.get("status"),
+        }
+        for r in (rows or [])
+    ]
+
+    return {"success": True, "data": history}
+
+
+# ---------------------------------------------------------------------------
 # POST /api/user/events  (telemetry — fire and forget)
 # ---------------------------------------------------------------------------
 @router.post("/events")
