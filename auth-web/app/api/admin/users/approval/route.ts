@@ -26,12 +26,32 @@ export async function POST(req: Request) {
         })
 
         const isApproved = Boolean(approved)
+
+        // 최초 승인 시 STD 회원에게 100만 토큰 자동 충전.
+        // 재승인(이미 승인된 적 있는 계정을 다시 승인)이거나 PRO 회원, 또는 이미
+        // 잔액이 있는 계정(과거에 지급/충전됨)은 중복 지급 방지를 위해 제외.
+        const { data: existingProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('is_approved, membership, token_balance')
+            .eq('id', userId)
+            .maybeSingle()
+
+        const updates: Record<string, unknown> = {
+            is_approved: isApproved,
+            signup_status: isApproved ? 'approved' : 'pending'
+        }
+
+        const wasApproved = existingProfile?.is_approved === true
+        const membership = String(existingProfile?.membership || 'std').toLowerCase()
+        const currentBalance = existingProfile?.token_balance || 0
+
+        if (isApproved && !wasApproved && membership !== 'pro' && currentBalance === 0) {
+            updates.token_balance = 1000000
+        }
+
         const { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .update({
-                is_approved: isApproved,
-                signup_status: isApproved ? 'approved' : 'pending'
-            })
+            .update(updates)
             .eq('id', userId)
 
         if (profileError) throw profileError

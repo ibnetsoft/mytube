@@ -78,6 +78,27 @@ const API = {
         }
     },
 
+    // Claude API (대본 생성 전용)
+    claude: {
+        async generate(prompt, options = {}) {
+            const response = await fetch('/api/claude/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt,
+                    temperature: options.temperature || 0.7,
+                    max_tokens: options.maxTokens || 8192
+                })
+            });
+            try {
+                return await response.json();
+            } catch (e) {
+                const text = await response.text().catch(() => '');
+                return { status: 'error', error: `서버 응답 오류 (HTTP ${response.status}): ${text.slice(0, 200)}` };
+            }
+        }
+    },
+
     // TTS API
     tts: {
         async generate(text, options = {}) {

@@ -147,10 +147,30 @@ async def gemini_generate(req: GeminiRequest):
 
     try:
         text = await gemini_service.generate_text(
-            req.prompt, 
-            temperature=req.temperature, 
+            req.prompt,
+            temperature=req.temperature,
             max_tokens=req.max_tokens,
             task_type="manual_gen"
+        )
+        return {"status": "ok", "text": text}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@router.post("/api/claude/generate")
+async def claude_generate(req: GeminiRequest):
+    """Claude 텍스트 생성 (대본 생성용, 로깅 지원)"""
+    from services.auth_service import auth_service
+    from services.claude_service import claude_service
+    if not auth_service.check_credits(200):
+        return {"status": "error", "error": "AI 토큰이 부족합니다."}
+
+    try:
+        text = await claude_service.generate_text(
+            req.prompt,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+            task_type="script_gen"
         )
         return {"status": "ok", "text": text}
     except Exception as e:
