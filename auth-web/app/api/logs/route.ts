@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { processSettlement } from '../../../lib/settlement'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,11 +15,13 @@ export async function POST(req: Request) {
 
         if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
+        const supabaseAdmin = getAdmin()
+
         // userId가 실제 존재하는 유저인지 확인
-        const { data: { user }, error: userErr } = await getAdmin().auth.admin.getUserById(userId)
+        const { data: { user }, error: userErr } = await supabaseAdmin.auth.admin.getUserById(userId)
         if (userErr || !user) return NextResponse.json({ error: 'Invalid userId' }, { status: 401 })
 
-        const { error } = await getAdmin()
+        const { data: logRow, error } = await supabaseAdmin
             .from('ai_logs')
             .insert({
                 user_id: userId,
@@ -34,6 +37,8 @@ export async function POST(req: Request) {
                 thinking_tokens: thinking_tokens || 0,
                 balance_after: balance_after
             })
+            .select('id')
+            .maybeSingle()
 
         if (error) throw error
 
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
         const NO_DEDUCT_TYPES = ['RECHARGE', 'BILLING']
         const totalTokens = (input_tokens || 0) + (output_tokens || 0) + (thinking_tokens || 0)
         if (totalTokens > 0 && (status === 'success' || status === 'done') && !NO_DEDUCT_TYPES.includes((task_type || '').toUpperCase())) {
-            const { data: deductResult, error: deductError } = await getAdmin().rpc('deduct_tokens', {
+            const { data: deductResult, error: deductError } = await supabaseAdmin.rpc('deduct_tokens', {
                 p_user_id: userId,
                 p_amount: totalTokens,
                 p_description: `${task_type} (${model_id})`
@@ -50,6 +55,16 @@ export async function POST(req: Request) {
                 console.error(`[Logs] Token deduction failed for ${userId}: ${deductError.message}`)
             } else {
                 console.log(`[Logs] Deducted ${totalTokens} tokens from ${userId}, result:`, deductResult)
+
+                // [Referral Commission] 실사용(영상 작업) 기반 추천인 1·2단계 커미션 지급.
+                // 토큰 사용량을 그대로 커미션 산정 기준액(base_tokens)으로 사용 -
+                // 예: 4토큰 사용 -> 기준액 4 -> 설정된 요율만큼 커미션 계산.
+                // ai_logs row id를 source_tx_id로 사용해 중복 지급 방지(processSettlement 내장 체크).
+                if (logRow?.id) {
+                    processSettlement(supabaseAdmin, userId, totalTokens, logRow.id).catch(err => {
+                        console.error(`[Logs] Settlement worker error for ${userId}:`, err)
+                    })
+                }
             }
         }
 
