@@ -245,20 +245,6 @@ async def page_referral(request: Request):
         app_mode="longform"
     )
 
-@router.get("/admin/referrals", response_class=HTMLResponse)
-async def page_admin_referrals(request: Request):
-    from app.routers.admin_tenant import check_superadmin
-    from fastapi import HTTPException
-    if not check_superadmin():
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return _render(
-        request,
-        "pages/admin_referrals.html",
-        "admin-referrals",
-        "Admin Referrals",
-        app_mode="longform"
-    )
-
 @router.get("/admin/voices", response_class=HTMLResponse)
 async def page_admin_voices(request: Request):
     from app.routers.admin_tenant import check_superadmin
