@@ -1766,7 +1766,10 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
     """
     
     if employee_email:
-        query += " WHERE p.employee_email = ? OR p.employee_email IS NULL OR p.employee_email = '' "
+        # [FIX] employee_email이 없는(NULL/'') 프로젝트를 "누구에게나 보이는" 항목으로
+        # 취급하던 예전 폴백이 서로 다른 직원 계정 간 프로젝트 목록을 노출시키는
+        # 데이터 격리 버그였다. 반드시 본인 이메일과 정확히 일치하는 것만 노출한다.
+        query += " WHERE p.employee_email = ? "
         query += " ORDER BY p.updated_at DESC "
         cursor.execute(query, (employee_email,))
     else:

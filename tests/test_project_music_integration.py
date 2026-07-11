@@ -145,7 +145,7 @@ class ProjectMusicStatusTest(unittest.TestCase):
         with patch.object(database, "get_db", return_value=FakeConn()):
             return database.get_projects_with_status()
 
-    def test_project_status_list_includes_unassigned_projects_for_logged_in_user(self):
+    def test_project_status_list_excludes_unassigned_projects_for_logged_in_user(self):
         executed = {}
         fake_rows = [
             {
@@ -203,8 +203,13 @@ class ProjectMusicStatusTest(unittest.TestCase):
         with patch.object(database, "get_db", return_value=FakeConn()):
             data = database.get_projects_with_status("ejsh0519@naver.com")
 
+        # [FIX] Unassigned (employee_email IS NULL/'') projects must no longer be
+        # exposed to every account - that fallback leaked one employee's projects
+        # to every other employee logged into the same local DB. Filtering must be
+        # a strict equality match on the requesting employee's own email only.
         self.assertIn("p.employee_email = ?", executed["query"])
-        self.assertIn("p.employee_email IS NULL", executed["query"])
+        self.assertNotIn("p.employee_email IS NULL", executed["query"])
+        self.assertNotIn("p.employee_email = ''", executed["query"])
         self.assertEqual(executed["params"], ("ejsh0519@naver.com",))
         self.assertEqual(data[0]["id"], 199)
 

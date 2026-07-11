@@ -90,7 +90,11 @@ async def start_autopilot_api(
          return {"status": "error", "error": "Topic (or keyword) is required"}
 
     # 3. Create Project & Get ID (Atomic)
-    pid = db.create_project(name=f"[Auto] {topic}", topic=topic, app_mode=req.mode, language=req.target_language)
+    from services.auth_service import auth_service
+    pid = db.create_project(
+        name=f"[Auto] {topic}", topic=topic, app_mode=req.mode, language=req.target_language,
+        employee_email=auth_service.get_user_email(),
+    )
 
     # 4. Save Initial Settings to DB
     db.update_project_setting(pid, "upload_privacy", req.upload_privacy)
