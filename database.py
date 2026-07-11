@@ -894,6 +894,35 @@ def migrate_db():
         )
     """)
 
+    # [FIX] 같은 문제(참조되지만 CREATE TABLE이 없던 테이블)를 database.py 전체에서
+    # 정적으로 재조사해 발견. services/commerce_service.py가 db.create_commerce_video()/
+    # update_commerce_video() 등으로 쓰는 commerce_videos 테이블도 스키마에 없어,
+    # "커머스" 모드에서 영상 생성을 시도하면 동일하게 "no such table"로 실패했다.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS commerce_videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_url TEXT,
+            product_name TEXT,
+            product_price TEXT,
+            product_description TEXT,
+            product_images TEXT,
+            style_preset TEXT DEFAULT 'electronics',
+            model_type TEXT,
+            background_type TEXT,
+            music_type TEXT,
+            message TEXT,
+            cta TEXT DEFAULT 'buy_now',
+            status TEXT DEFAULT 'pending',
+            topview_task_id TEXT,
+            error_message TEXT,
+            video_url TEXT,
+            thumbnail_url TEXT,
+            meta_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
 
     # projects에 employee_email 컬럼 추가 (없으면)
     try:
