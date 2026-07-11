@@ -10,6 +10,7 @@ import requests
 import urllib.parse
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -767,115 +768,134 @@ async def claim_topic(req: ClaimTopicRequest):
     supabase_url, headers = _supabase_headers()
     if not supabase_url:
         raise HTTPException(status_code=500, detail="Supabase configuration missing")
-    policy = _fetch_longform_policy(supabase_url, headers)
-    resolved_topic_id = _resolve_claimable_topic_id(supabase_url, headers, req.topic_id, email)
-    if resolved_topic_id is None:
-        raise HTTPException(status_code=404, detail="Topic not found")
 
-    # ????용츧????????몃뱥?????곗뒭????
-    topic_res = requests.get(
-        f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}&select=*,categories!inner(*)",
-        headers=headers,
-        timeout=5,
-        verify=False,
-        proxies={"http": None, "https": None}
-    )
-
-    if topic_res.status_code != 200 or not topic_res.json():
-        raise HTTPException(status_code=404, detail="Topic not found")
-
-    topic_data = topic_res.json()[0]
-    normalized = _normalize_topic_payload(topic_data, policy)
-    category = topic_data.get("categories") or {}
-    topic_language = normalized.get("language") or "ko"
-    project_mode = str(category.get("video_type") or "longform").strip().lower() or "longform"
-    duration_locked = str(
-        topic_data.get("duration_locked", policy.get("sys_api_longform_duration_lock_enabled", "true"))
-    ).lower() not in ("false", "0", "none")
-
-    # ????용츧???????釉먮빱????????띻콣?????썹땟???(assigned?????ㅼ뒧????
-    update_res = requests.patch(
-        f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}",
-        json={
-            "status": "assigned",
-            "assigned_employee_email": email,
-            "assigned_at": datetime.utcnow().isoformat()
-        },
-        headers=headers,
-        timeout=5,
-        verify=False,
-        proxies={"http": None, "https": None}
-    )
-
-    if update_res.status_code not in (200, 204):
-        raise HTTPException(status_code=500, detail="Failed to claim topic")
-
-    project_id = db.create_project(
-        name=(normalized.get("topic") or "Untitled")[:80],
-        topic=normalized.get("topic"),
-        app_mode=project_mode,
-        language=topic_language,
-        employee_email=email,
-        script_style=normalized.get("script_style"),
-        image_style=normalized.get("image_style"),
-    )
-
-    db.update_project_setting(project_id, "topic_queue_id", str(resolved_topic_id))
-    db.update_project_setting(project_id, "topic_queue_category_id", str(topic_data.get("category_id") or ""))
-    db.update_project_setting(project_id, "target_language", topic_language)
-    db.update_project_setting(project_id, "script_style", normalized.get("script_style") or "default")
-    db.update_project_setting(project_id, "image_style", normalized.get("image_style") or "realistic")
-    db.update_project_setting(project_id, "style_locked", "1")
-
-    if project_mode == "longform":
-        assigned_minutes = normalized.get("recommended_duration_minutes") or max(
-            15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)
-        )
-        estimated_payout = _calculate_longform_payout(assigned_minutes, policy)
-        db.update_project_setting(project_id, "duration_seconds", assigned_minutes * 60)
-        db.update_project_setting(project_id, "assigned_duration_minutes", assigned_minutes)
-        db.update_project_setting(project_id, "assigned_duration_seconds", assigned_minutes * 60)
-        db.update_project_setting(project_id, "duration_locked", "1" if duration_locked else "0")
-        db.update_project_setting(project_id, "estimated_payout", estimated_payout)
-        db.update_project_setting(project_id, "duration_reason", topic_data.get("duration_reason") or "")
-        db.update_project_setting(project_id, "difficulty_level", topic_data.get("difficulty_level") or "")
-        db.update_project_setting(project_id, "payout_policy_json", json.dumps({
-            "min_duration_minutes": max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)),
-            "base_payout": max(0.0, _to_float(policy.get("sys_api_longform_base_payout"), 4.0)),
-            "extra_minute_payout": max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0)),
-        }, ensure_ascii=False))
-
-    # ????살퓢癲?????????????띻콣?????썹땟???
+    # [FIX] 아래 블록에 예외가 나면(네트워크 오류, DB 제약 위반 등) 지금까지는
+    # try/except가 전혀 없어 Starlette의 기본 미처리 예외 핸들러가 그대로
+    # 노출되었다. 이 핸들러는 JSON이 아니라 순수 텍스트 "Internal Server
+    # Error"를 반환하는데, 프론트엔드(projects.html의 claimAndCreateProject)는
+    # 항상 res.json()을 기대하므로 "Unexpected token 'I', "Internal S"...
+    # is not valid JSON" 형태로 깨졌다. HTTPException은 그대로 다시 던져
+    # 기존의 401/404/500 상세 메시지를 유지하고, 그 외 모든 예외는 잡아서
+    # 항상 유효한 JSON으로 응답한다.
     try:
-        requests.patch(
-            f"{supabase_url}/rest/v1/user_topic_recommendations?topic_queue_id=eq.{resolved_topic_id}&employee_email=eq.{email}",
+        policy = _fetch_longform_policy(supabase_url, headers)
+        resolved_topic_id = _resolve_claimable_topic_id(supabase_url, headers, req.topic_id, email)
+        if resolved_topic_id is None:
+            raise HTTPException(status_code=404, detail="Topic not found")
+
+        # ????용츧????????몃뱥?????곗뒭????
+        topic_res = requests.get(
+            f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}&select=*,categories!inner(*)",
+            headers=headers,
+            timeout=5,
+            verify=False,
+            proxies={"http": None, "https": None}
+        )
+
+        if topic_res.status_code != 200 or not topic_res.json():
+            raise HTTPException(status_code=404, detail="Topic not found")
+
+        topic_data = topic_res.json()[0]
+        normalized = _normalize_topic_payload(topic_data, policy)
+        category = topic_data.get("categories") or {}
+        topic_language = normalized.get("language") or "ko"
+        project_mode = str(category.get("video_type") or "longform").strip().lower() or "longform"
+        duration_locked = str(
+            topic_data.get("duration_locked", policy.get("sys_api_longform_duration_lock_enabled", "true"))
+        ).lower() not in ("false", "0", "none")
+
+        # ????용츧???????釉먮빱????????띻콣?????썹땟???(assigned?????ㅼ뒧????
+        update_res = requests.patch(
+            f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}",
             json={
-                "is_claimed": True,
-                "claimed_at": datetime.utcnow().isoformat()
+                "status": "assigned",
+                "assigned_employee_email": email,
+                "assigned_at": datetime.utcnow().isoformat()
             },
             headers=headers,
             timeout=5,
             verify=False,
             proxies={"http": None, "https": None}
         )
-    except Exception as e:
-        print(f"[User Topics] Failed to update recommendation cache: {e}")
 
-    return {
-        "status": "ok",
-        "project_id": project_id,
-        "project_mode": project_mode,
-        "topic": {
-            "id": topic_data.get("id"),
-            "topic": normalized.get("topic"),
-            "language": topic_language,
-            "recommended_duration_minutes": normalized.get("recommended_duration_minutes"),
-            "estimated_payout": normalized.get("estimated_payout"),
-            "script_style": normalized.get("script_style"),
-            "image_style": normalized.get("image_style"),
-            "category_name": normalized.get("category_name")
+        if update_res.status_code not in (200, 204):
+            raise HTTPException(status_code=500, detail="Failed to claim topic")
+
+        project_id = db.create_project(
+            name=(normalized.get("topic") or "Untitled")[:80],
+            topic=normalized.get("topic"),
+            app_mode=project_mode,
+            language=topic_language,
+            employee_email=email,
+            script_style=normalized.get("script_style"),
+            image_style=normalized.get("image_style"),
+        )
+
+        db.update_project_setting(project_id, "topic_queue_id", str(resolved_topic_id))
+        db.update_project_setting(project_id, "topic_queue_category_id", str(topic_data.get("category_id") or ""))
+        db.update_project_setting(project_id, "target_language", topic_language)
+        db.update_project_setting(project_id, "script_style", normalized.get("script_style") or "default")
+        db.update_project_setting(project_id, "image_style", normalized.get("image_style") or "realistic")
+        db.update_project_setting(project_id, "style_locked", "1")
+
+        if project_mode == "longform":
+            assigned_minutes = normalized.get("recommended_duration_minutes") or max(
+                15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)
+            )
+            estimated_payout = _calculate_longform_payout(assigned_minutes, policy)
+            db.update_project_setting(project_id, "duration_seconds", assigned_minutes * 60)
+            db.update_project_setting(project_id, "assigned_duration_minutes", assigned_minutes)
+            db.update_project_setting(project_id, "assigned_duration_seconds", assigned_minutes * 60)
+            db.update_project_setting(project_id, "duration_locked", "1" if duration_locked else "0")
+            db.update_project_setting(project_id, "estimated_payout", estimated_payout)
+            db.update_project_setting(project_id, "duration_reason", topic_data.get("duration_reason") or "")
+            db.update_project_setting(project_id, "difficulty_level", topic_data.get("difficulty_level") or "")
+            db.update_project_setting(project_id, "payout_policy_json", json.dumps({
+                "min_duration_minutes": max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)),
+                "base_payout": max(0.0, _to_float(policy.get("sys_api_longform_base_payout"), 4.0)),
+                "extra_minute_payout": max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0)),
+            }, ensure_ascii=False))
+
+        # ????살퓢癲?????????????띻콣?????썹땟???
+        try:
+            requests.patch(
+                f"{supabase_url}/rest/v1/user_topic_recommendations?topic_queue_id=eq.{resolved_topic_id}&employee_email=eq.{email}",
+                json={
+                    "is_claimed": True,
+                    "claimed_at": datetime.utcnow().isoformat()
+                },
+                headers=headers,
+                timeout=5,
+                verify=False,
+                proxies={"http": None, "https": None}
+            )
+        except Exception as e:
+            print(f"[User Topics] Failed to update recommendation cache: {e}")
+
+        return {
+            "status": "ok",
+            "project_id": project_id,
+            "project_mode": project_mode,
+            "topic": {
+                "id": topic_data.get("id"),
+                "topic": normalized.get("topic"),
+                "language": topic_language,
+                "recommended_duration_minutes": normalized.get("recommended_duration_minutes"),
+                "estimated_payout": normalized.get("estimated_payout"),
+                "script_style": normalized.get("script_style"),
+                "image_style": normalized.get("image_style"),
+                "category_name": normalized.get("category_name")
+            }
         }
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[User Topics] claim_topic failed for topic_id={req.topic_id}: {e}\n{traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": f"주제를 선택하는 중 오류가 발생했습니다: {e}"}
+        )
 
 
 def _calculate_topic_score(topic: dict, user_prefs: dict, filters: dict, user_email: str) -> int:
