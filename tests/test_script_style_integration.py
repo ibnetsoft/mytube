@@ -92,8 +92,12 @@ class ManualScriptGenerateEndpointTests(unittest.IsolatedAsyncioTestCase):
             req = GeminiRequest(prompt="원본 프롬프트", script_style="no_such_style")
             result = await script_generate(req)
 
+        # [정책 변경] resolver는 이제 알 수 없는 스타일도 빈 문자열이 아니라
+        # 내장 기본 지침으로 폴백하므로, prompt에는 원본 프롬프트 + 기본 지침이
+        # 함께 담긴다 (원본 프롬프트가 사라지지는 않는다).
         self.assertEqual(result["status"], "ok")
-        self.assertEqual(captured["prompt"], "원본 프롬프트")
+        self.assertIn("원본 프롬프트", captured["prompt"])
+        self.assertIn("[Writing Style Directive]", captured["prompt"])
 
 
 class SharedResolverUsageTests(unittest.TestCase):
