@@ -1,6 +1,6 @@
 // Tab switching
     function switchTab(tabName) {
-        if (IS_STANDARD_MEMBER && !['api', 'history', 'withdrawal', 'referral'].includes(tabName)) {
+        if (IS_STANDARD_MEMBER && !['api', 'orgchart', 'history', 'withdrawal', 'referral'].includes(tabName)) {
             tabName = 'api';
         }
         console.log('Switching to tab:', tabName);
@@ -43,6 +43,10 @@
         } else if (tabName === 'referral') {
             if (typeof loadReferralData === 'function') {
                 loadReferralData();
+            }
+        } else if (tabName === 'orgchart') {
+            if (typeof stLoadTree === 'function') {
+                stLoadTree();
             }
         } else if (tabName === 'history') {
             if (typeof fetchWorkHistory === 'function') {
@@ -1476,10 +1480,6 @@
                 wp_url: safeVal('wpUrl'),
                 wp_username: safeVal('wpUsername'),
                 wp_password: safeVal('wpPassword'),
-                user_name: safeVal('userName'),
-                user_nationality: safeVal('userNationality'),
-                user_phone: safeVal('userPhone'),
-                user_email: safeVal('userEmail'),
                 qa_enable_pipeline: safeCheck('qaEnablePipeline'),
                 qa_enable_technical_check: safeCheck('qaEnableTechnicalCheck'),
                 qa_enable_semantic_check: safeCheck('qaEnableSemanticCheck'),
@@ -1513,10 +1513,6 @@
                 Object.keys(settings).forEach((key) => {
                     if (![
                         'app_mode',
-                        'user_name',
-                        'user_nationality',
-                        'user_phone',
-                        'user_email',
                         'qa_enable_pipeline',
                         'qa_enable_technical_check',
                         'qa_enable_semantic_check',
@@ -1594,11 +1590,7 @@
                 if (el) el.value = data.scene_transition_mode;
             }
 
-            // User Info
-            if (document.getElementById('userName')) document.getElementById('userName').value = data.user_name || '';
-            if (document.getElementById('userNationality')) document.getElementById('userNationality').value = data.user_nationality || '';
-            if (document.getElementById('userPhone')) document.getElementById('userPhone').value = data.user_phone || '';
-            if (document.getElementById('userEmail')) document.getElementById('userEmail').value = data.user_email || '';
+            // User Info is loaded separately via stLoadUserProfile() (real profiles table data).
 
             // Upload QA Settings
             const setCheck = (id, value) => { const el = document.getElementById(id); if (el) el.checked = !!value; };

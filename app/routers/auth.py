@@ -503,6 +503,84 @@ async def post_change_password(req: ChangePasswordRequest):
         return {"success": False, "error": f"오류: {str(e)}"}
 
 
+# ===== 내 프로필 (세팅 > 기본설정) =====
+@router.get("/api/auth/profile")
+async def get_auth_profile():
+    try:
+        email = auth_service.get_user_email()
+        if not email:
+            return {"success": False, "error": "로그인이 필요합니다."}
+
+        profile = web_admin_client.fetch_profile_by_email(
+            email,
+            select="full_name,contact,nationality,email,preferred_category_ids,preferred_video_length",
+        )
+        if not profile:
+            return {"success": False, "error": "프로필을 찾을 수 없습니다."}
+
+        return {
+            "success": True,
+            "full_name": profile.get("full_name") or "",
+            "nationality": profile.get("nationality") or "",
+            "contact": profile.get("contact") or "",
+            "email": profile.get("email") or email,
+            "preferred_category_ids": profile.get("preferred_category_ids") or [],
+            "preferred_video_length": profile.get("preferred_video_length") or "",
+        }
+    except Exception as e:
+        print(f"[GetProfile] Error: {e}")
+        return {"success": False, "error": f"오류: {str(e)}"}
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str = ""
+    nationality: str = ""
+    contact: str = ""
+    preferred_category_ids: list[int | str] = []
+
+@router.post("/api/auth/profile")
+async def post_auth_profile(req: UpdateProfileRequest):
+    try:
+        email = auth_service.get_user_email()
+        if not email:
+            return {"success": False, "error": "로그인이 필요합니다."}
+
+        full_name = req.full_name.strip()
+        nationality = req.nationality.strip()
+        contact = req.contact.strip()
+        requested_category_ids = [str(item).strip() for item in (req.preferred_category_ids or []) if str(item).strip()]
+
+        categories = web_admin_client.fetch_categories(select="id,name")
+        category_map = {str(item.get("id")): item for item in categories if item.get("id") is not None}
+        preferred_category_ids: list[int | str] = []
+        preferred_category_names: list[str] = []
+        for category_id in requested_category_ids:
+            row = category_map.get(category_id)
+            if not row:
+                continue
+            preferred_category_ids.append(row.get("id"))
+            category_name = str(row.get("name") or "").strip()
+            if category_name:
+                preferred_category_names.append(category_name)
+
+        profile_payload = {
+            "full_name": full_name,
+            "nationality": nationality,
+            "contact": contact,
+            "preferred_category_ids": preferred_category_ids,
+            "preferred_category_names": preferred_category_names,
+        }
+        response = web_admin_client.supabase_patch("profiles", profile_payload, params={"email": f"eq.{email}"}, timeout=8)
+        if response is None or response.status_code >= 400:
+            print(f"[UpdateProfile] patch failed: {response.text[:300] if response is not None else 'no response'}")
+            return {"success": False, "error": "프로필 저장에 실패했습니다."}
+
+        return {"success": True, "message": "저장되었습니다."}
+    except Exception as e:
+        print(f"[UpdateProfile] Error: {e}")
+        return {"success": False, "error": f"오류: {str(e)}"}
+
+
 # ===== 이메일 인증 코드 발송 =====
 class SendVerifyCodeRequest(BaseModel):
     email: str
