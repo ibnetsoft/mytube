@@ -171,41 +171,6 @@ function formatDate(d: string | null) {
     return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
 }
 
-// AIR-0225: card view for a regular user's own "직속 하위자" (direct
-// referrals) list — mirrors the admin org chart's card, minus the L1/L2
-// split (a direct referral only ever generates L1 commission for the
-// viewer, so a split bar would always read 100%).
-function ReferralMemberCard({ item, isKor }: { item: any; isKor: boolean }) {
-    const initial = (item.full_name || item.email || '?').trim().charAt(0).toUpperCase() || '?';
-    const active = !!item.is_active;
-    return (
-        <div className="w-full rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div className="mb-2.5 flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-bold text-cyan-300">
-                    {initial}
-                </div>
-                <div className="min-w-0">
-                    <div className="truncate text-[13px] font-bold text-gray-100">{item.full_name || item.email}</div>
-                    <div className="truncate text-[11px] text-gray-500">{item.email}</div>
-                </div>
-            </div>
-            <div className="mb-2.5 flex items-center gap-1.5">
-                {item.country && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-gray-400">{item.country}</span>
-                )}
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-gray-500'}`} />
-                    {active ? (isKor ? '활동중' : 'Active') : (isKor ? '휴면' : 'Idle')}
-                </span>
-            </div>
-            <div className="flex items-baseline justify-between">
-                <span className="font-mono text-base font-bold tabular-nums text-emerald-400">{Number(item.commission_earned || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} TK</span>
-                <span className="text-[10px] text-gray-600">{formatDate(item.created_at)}</span>
-            </div>
-        </div>
-    );
-}
-
 export default function DashboardContent() {
     const router = useRouter()
     const { language, t } = useLanguage()
@@ -218,8 +183,6 @@ export default function DashboardContent() {
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
     const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
     const [authToken, setAuthToken] = useState('')
-    const [userReferralInfo, setUserReferralInfo] = useState<any>(null)
-    const [myReferralView, setMyReferralView] = useState<'list' | 'card'>('list')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
@@ -1119,13 +1082,6 @@ export default function DashboardContent() {
         }
     }, [isAdmin, adminFetch]);
 
-    const copyReferralCode = async (code: string) => {
-        if (!code) return;
-        const link = `${window.location.origin}/?ref=${code}`;
-        await navigator.clipboard?.writeText(link);
-        alert(isKor ? '추천 링크가 복사되었습니다.' : 'Referral link copied.');
-    }
-
     const fetchSysKeys = useCallback(async () => {
         if (!canManageSystemSettings) return;
         try {
@@ -1757,17 +1713,8 @@ export default function DashboardContent() {
         authTokenRef.current = authToken;
     }, [user, authToken]);
 
-    useEffect(() => {
-        if (!user || isAdmin || !authTokenRef.current) return;
-        const headers = new Headers();
-        headers.set('Authorization', `Bearer ${authTokenRef.current}`);
-        fetch('/api/referrals', { headers })
-            .then(res => res.ok ? res.json() : null)
-            .then(data => { if (data) setUserReferralInfo(data); })
-            .catch(err => {
-                // Silently ignore errors to prevent console spam
-            });
-    }, [user, isAdmin]);
+    // [AIR-0226] auth-web is admin-only now — regular members are signed out
+    // before reaching any dashboard content, so there's no non-admin data to fetch here.
 
     // 초기 데이터 로딩을 위한 Effect
     useEffect(() => {
@@ -1792,67 +1739,26 @@ export default function DashboardContent() {
     }, [isAdmin, loading, globalPeriod, fetchGlobalStats]);
 
     if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">{ui.authenticating}</div>;
-    if (!isAdmin) return (
-        <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
-            <div className="max-w-2xl w-full rounded-[2.5rem] border border-white/10 bg-[#0f172a]/70 p-8 shadow-2xl">
-                <div className="mb-6 flex items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-black tracking-tight">{language === 'th' ? 'รหัสแนะนำของฉัน' : '내 추천 코드'}</h1>
-                        <p className="mt-2 text-xs font-bold text-gray-500">{language === 'th' ? 'แชร์ลิงก์แนะนำและตรวจสอบผลงานผู้ใช้ที่คุณแนะนำโดยตรง' : '추천 링크를 공유하고 직속 추천인 성과를 확인하세요.'}</p>
-                    </div>
-                    <button onClick={() => supabase.auth.signOut().then(() => router.push('/'))} className="rounded-xl border border-white/10 bg-white/5 px-5 py-2 text-[10px] font-black text-gray-300 hover:bg-white/10">{ui.logout}</button>
-                </div>
-                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-6">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-cyan-300">Referral Code</div>
-                    <div className="mt-2 flex items-center gap-3">
-                        <span className="text-4xl font-black text-white tracking-widest">{userReferralInfo?.profile?.referral_code || '준비 중'}</span>
-                        {userReferralInfo?.profile?.referral_code && (
-                            <button onClick={() => copyReferralCode(userReferralInfo.profile.referral_code)} className="rounded-xl bg-cyan-500 px-4 py-2 text-[10px] font-black text-white">{language === 'th' ? 'คัดลอก' : '복사'}</button>
-                        )}
-                    </div>
-                    <div className="mt-3 text-xs font-bold text-cyan-100/70 break-all">{userReferralInfo?.summary?.referralLink || ''}</div>
-                </div>
-                <div className="mt-6 grid grid-cols-3 gap-4">
-                    <StatCard label={language === 'th' ? 'ผู้ใช้ที่แนะนำ' : '추천 유저'} value={userReferralInfo?.summary?.directCount || 0} unit={language === 'th' ? 'คน' : '명'} color="blue" />
-                    <StatCard label={language === 'th' ? 'การใช้โทเค็นของทีม' : '하위 토큰 사용'} value={(userReferralInfo?.summary?.referralTokenUsage || 0).toLocaleString()} unit="TK" color="orange" />
-                    <StatCard label={language === 'th' ? 'ค่าคอมมิชชันโดยประมาณ' : '예상 커미션'} value={(userReferralInfo?.summary?.estimatedCommissionTokens || 0).toLocaleString()} unit="TK" color="green" />
-                </div>
-                <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">직속 하위자</h2>
-                        <div className="flex gap-1 rounded-xl border border-white/10 bg-black/30 p-1">
-                            <button
-                                onClick={() => setMyReferralView('list')}
-                                className={`rounded-lg px-3 py-1 text-[10px] font-black transition-colors ${myReferralView === 'list' ? 'bg-cyan-500 text-black' : 'text-gray-500 hover:text-white'}`}
-                            >리스트</button>
-                            <button
-                                onClick={() => setMyReferralView('card')}
-                                className={`rounded-lg px-3 py-1 text-[10px] font-black transition-colors ${myReferralView === 'card' ? 'bg-cyan-500 text-black' : 'text-gray-500 hover:text-white'}`}
-                            >카드</button>
-                        </div>
-                    </div>
-                    {myReferralView === 'list' ? (
-                        <div className="mt-4 space-y-2">
-                            {(userReferralInfo?.directReferrals || []).map((item: any) => (
-                                <div key={item.id} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3 text-xs font-bold text-gray-300">
-                                    <span>{item.email || item.id}</span>
-                                    <span className="text-gray-500">{formatDate(item.created_at)}</span>
-                                </div>
-                            ))}
-                            {(!userReferralInfo?.directReferrals || userReferralInfo.directReferrals.length === 0) && <div className="py-8 text-center text-xs font-black text-gray-600">아직 추천한 유저가 없습니다.</div>}
-                        </div>
-                    ) : (
-                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            {(userReferralInfo?.directReferrals || []).map((item: any) => (
-                                <ReferralMemberCard key={item.id} item={item} isKor={isKor} />
-                            ))}
-                            {(!userReferralInfo?.directReferrals || userReferralInfo.directReferrals.length === 0) && <div className="col-span-full py-8 text-center text-xs font-black text-gray-600">아직 추천한 유저가 없습니다.</div>}
-                        </div>
-                    )}
+    if (!isAdmin) {
+        // [AIR-0226] auth-web is admin-only. Regular members can still complete
+        // Supabase auth (sign-in succeeds), but never see any dashboard content —
+        // sign them back out immediately and bounce to the login screen.
+        supabase.auth.signOut().then(() => router.replace('/'));
+        return (
+            <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
+                <div className="max-w-md w-full rounded-[2.5rem] border border-white/10 bg-[#0f172a]/70 p-8 shadow-2xl text-center">
+                    <h1 className="text-2xl font-black tracking-tight">
+                        {language === 'th' ? 'ไม่มีสิทธิ์เข้าถึง' : '접근 권한이 없습니다'}
+                    </h1>
+                    <p className="mt-3 text-xs font-bold text-gray-500">
+                        {language === 'th'
+                            ? 'หน้านี้สำหรับผู้ดูแลระบบเท่านั้น'
+                            : '이 페이지는 관리자 전용입니다.'}
+                    </p>
                 </div>
             </div>
-        </div>
-    );
+        );
+    }
 
     const renderDonutChart = (stats: any) => {
         const colors: Record<string, string> = {
