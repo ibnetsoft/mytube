@@ -1158,6 +1158,12 @@ async def render_project_video(
             }
 
         script_data = db.get_script(project_id)
+        # [FIX] images_data가 이 함수 내에서 한 번도 대입되지 않은 채 아래에서
+        # (이미지 존재 여부 체크, 타임라인 폴백 구성, 나레이션 매칭 등) 여러 번
+        # 참조되고 있었다 - render_target이 drive_api가 아닌 모든 렌더링 요청이
+        # (기본값이 local이라 사실상 전부) NameError로 즉시 실패했다. 같은 값을
+        # 만드는 다른 함수(491번 줄)와 동일하게 프로젝트의 이미지 프롬프트를 로드한다.
+        images_data = db.get_image_prompts(project_id)
         # [NEW] Aspect Ratio logic (User requested absolute enforcement)
         # 쇼츠모드에서는 무조건 9:16, 롱폼에서는 무조건 16:9
         # Check project app_mode first, fallback to global app_mode
