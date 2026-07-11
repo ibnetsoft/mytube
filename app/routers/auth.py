@@ -446,12 +446,15 @@ async def post_forgot_password(req: ForgotPasswordRequest):
         temp_pw = generate_temp_password()
 
         # DB 업데이트
-        web_admin_client.supabase_patch(
+        patch_response = web_admin_client.supabase_patch(
             "profiles",
-            {"password": temp_pw},
+            {"pin_code": temp_pw},
             params={"email": f"eq.{email}"},
             timeout=5,
         )
+        if patch_response is None or patch_response.status_code >= 400:
+            print(f"[ForgotPassword] profile patch failed: {patch_response.text[:300] if patch_response is not None else 'no response'}")
+            return {"success": False, "error": "임시 비밀번호 저장에 실패했습니다."}
 
         # 이메일 발송
         ok = send_temp_password(email, temp_pw)
