@@ -144,6 +144,11 @@ jobs:
       # 6. Upload build artifacts (for debugging / manual download)
       # ----------------------------------------------------------------
       - name: Upload release artifacts to workflow run
+        # Non-essential backup copy inside the Actions run itself; the actual
+        # distribution is the "Publish GitHub Release" step below, which
+        # uploads to the separate ibnetsoft/AIR-releases repo and has its own
+        # storage quota. Don't let this step's quota exhaustion block a release.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ steps.resolve.outputs.VERSION }}-build${{ steps.resolve.outputs.BUILD }}
