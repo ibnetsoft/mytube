@@ -91,8 +91,14 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
             style_directive=style_directive
         )
 
-        if "error" in result and result["error"]:
-            return {"status": "error", "error": result.get("error_message", "Unknown error")}
+        # [FIX] scene_planner_service.plan_scenes()의 실패 응답은 error/error_message를
+        # 최상위가 아니라 planner_notes 안에 담는다. 기존에는 최상위 result["error"]만
+        # 확인해 이 조건이 절대 참이 되지 않았고, 실패해도 "status": "ok" + 빈 scenes[]가
+        # 그대로 프론트로 나가 사용자에게는 "성공했지만 장면이 하나도 없는" 상태로 보였다.
+        planner_notes = result.get("planner_notes") or {}
+        if result.get("error") or planner_notes.get("error"):
+            error_msg = result.get("error_message") or planner_notes.get("error_message") or "Unknown error"
+            return {"status": "error", "error": error_msg}
 
         return {"status": "ok", "structure": result}
 

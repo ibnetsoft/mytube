@@ -3,7 +3,13 @@ import json
 import os
 from config import config
 
-SETTINGS_FILE = os.path.join(config.BASE_DIR, "data", "settings.json")
+# [FIX] 이전에는 config.BASE_DIR(설치 폴더, PyInstaller 빌드에서는 exe가 있는
+# 위치)를 기준으로 삼아, 신규 설치 환경에서 그 하위에 data/ 폴더가 아직 없으면
+# "No such file or directory"로 저장이 실패했다 (주제 선택 -> db.create_project()
+# 경로에서 그대로 사용자에게 노출됨). DB 등 나머지 사용자 데이터가 전부 쓰는
+# config.DATA_DIR(%LOCALAPPDATA%\AIRStudio\data, 쓰기 가능이 보장되고 앱
+# 업데이트로 설치 폴더가 교체돼도 유지됨)로 통일한다.
+SETTINGS_FILE = os.path.join(config.DATA_DIR, "settings.json")
 
 class SettingsService:
     def __init__(self):
@@ -36,7 +42,12 @@ class SettingsService:
         # Simple overwrite/merge logic
         current = self.get_settings()
         current.update(settings)
-        
+
+        # [FIX] open(path, "w")는 파일은 만들어도 없는 상위 디렉터리(data/)는
+        # 만들지 않는다. 신규 설치 등 아직 data/ 폴더가 없는 환경에서 첫 저장
+        # 시도 시 FileNotFoundError([Errno 2])가 그대로 호출부(예: 주제 선택 시
+        # db.create_project() -> 이 함수)까지 전파되던 문제를 막는다.
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(current, f, ensure_ascii=False, indent=2)
 

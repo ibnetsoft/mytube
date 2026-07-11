@@ -1134,7 +1134,7 @@
         const uiLang = window.currentLang || 'ko';
         const displayTopic = (uiLang === 'vi' ? topic.topic_vi : uiLang === 'en' ? topic.topic_en : uiLang === 'th' ? topic.topic_th : '') || topic.topic || '-';
         const durationMinutes = topic.duration_minutes || topic.recommended_duration_minutes;
-        const durationText = durationMinutes ? `${durationMinutes}분` : '-';
+        const durationText = durationMinutes ? `${durationMinutes}{{ t('unit_minutes_suffix') }}` : '-';
         const payoutValue = topic.estimated_payout_usdt ?? topic.adjusted_payout_usdt;
         const payoutNumber = Number(payoutValue || 0);
         const payoutText = payoutNumber > 0
@@ -1231,39 +1231,39 @@
 <div id="topicConfirmModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
      onclick="if(event.target===this) cancelTopicConfirm()">
     <div class="bg-[#1c2027] border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
-        <h3 class="text-base font-bold text-white mb-4 text-center">작업 확인</h3>
+        <h3 class="text-base font-bold text-white mb-4 text-center">{{ t('tcm_title') }}</h3>
 
         <div class="space-y-2 mb-5 bg-[#13171f] rounded-xl p-4 border border-white/5">
             <div class="flex justify-between text-sm">
-                <span class="text-gray-400">주제</span>
+                <span class="text-gray-400">{{ t('tcm_label_topic') }}</span>
                 <span id="tcm-topic" class="text-white font-medium text-right max-w-[60%]">-</span>
             </div>
             <div class="flex justify-between text-sm">
-                <span class="text-gray-400">작업 시간</span>
+                <span class="text-gray-400">{{ t('tcm_label_duration') }}</span>
                 <span id="tcm-duration" class="text-white font-medium">-</span>
             </div>
             <div class="flex justify-between text-sm">
-                <span class="text-gray-400">수당</span>
+                <span class="text-gray-400">{{ t('tcm_label_payout') }}</span>
                 <span id="tcm-payout" class="text-yellow-400 font-bold">-</span>
             </div>
             <div class="flex justify-between text-sm">
-                <span class="text-gray-400">이미지 스타일</span>
+                <span class="text-gray-400">{{ t('tcm_label_image_style') }}</span>
                 <span id="tcm-style" class="text-indigo-300 font-medium">-</span>
             </div>
         </div>
 
         <p class="text-xs text-gray-300 text-center leading-relaxed mb-5">
-            영상품질에 따라 수당이 변경될 수 있습니다. 수당 자격요건에 맞게<br>이 주제로 작업을 시작하시겠습니까?
+            {{ t('tcm_confirm_body') }}
         </p>
 
         <div class="flex gap-3">
             <button onclick="cancelTopicConfirm()"
                 class="flex-1 py-2.5 rounded-xl border border-white/20 text-sm text-gray-300 hover:bg-white/5 transition-all">
-                아니오
+                {{ t('tcm_btn_no') }}
             </button>
             <button onclick="confirmTopicClaim()"
                 class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-bold text-white transition-all">
-                예
+                {{ t('tcm_btn_yes') }}
             </button>
         </div>
     </div>

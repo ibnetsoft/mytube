@@ -51,10 +51,14 @@ JSON SCHEMA:
             # (어드민에서 Claude 등으로 설정 가능)을 사용했으나, scene_planner.py 도입 시 GeminiService가
             # 하드코딩되어 해당 설정이 무시되고 있었다. ai_router로 되돌려 모델 선택을 다시 존중한다.
             planning_model = config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
+            # [FIX] 기본 max_tokens(8192)로는 컷 단위로 장면 수가 늘어나는 스타일
+            # (예: k_webtoon)에서 JSON이 중간에 잘려("Unterminated string") 기획이
+            # 자주 실패했다(재현율 약 2/3). 씬 개수/문체에 따라 여유가 필요해 상향한다.
             response_text = await ai_router.generate_text(
                 prompt,
                 planning_model,
                 temperature=0.4,
+                max_tokens=16384,
                 project_id=project_id,
                 task_type="planning",
             )

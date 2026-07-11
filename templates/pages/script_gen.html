@@ -1216,7 +1216,12 @@ ${modeInstruction}
 본문만 출력하세요: `;
 
                 try {
-                    const result = await API.script.generate(prompt, { temperature: 0.7, maxTokens: 2048, scriptStyle: settings.script_style });
+                    // [FIX] STD QA: 1차 정비된 script_style 지침(뉴스/사극 등)이 이전보다
+                    // 길어져(약 500자+) 프롬프트에 추가되면서, 섹션 목표 분량(약 220~280자)
+                    // 안에서도 토큰 한도에 걸려 문장 중간에 잘리는 경우가 재현되었다
+                    // (예: news 2048에서 절단, joseon_sageuk는 4096에서도 절단 재현).
+                    // scene_planner.py의 16384와 동일한 방향으로 여유를 크게 두어 8192로 상향.
+                    const result = await API.script.generate(prompt, { temperature: 0.7, maxTokens: 8192, scriptStyle: settings.script_style });
                     console.log(`Section ${i + 1} result: `, result.status);
 
                     if (result.status === 'ok' && result.text) {
