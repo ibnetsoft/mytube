@@ -825,9 +825,11 @@ Return JSON only:
         viral_benchmarks_str = "\n".join(benchmark_summaries) if benchmark_summaries else "No historical benchmarks found."
         print(f"📊 [Auto-Pilot] Loaded {len(benchmarks)} high-performing benchmark videos from DB for referencing.")
         is_music_playlist = self._is_longform_music_config(config_dict)
-        # Get script style description from DB presets if exists
-        script_presets = db.get_script_style_presets()
-        style_desc = script_presets.get(style_key, f"Style: {style_key}")
+        # [AIR] 스타일 지침 해석은 services/script_style_resolver.py 단일 지점으로 통일한다.
+        # (수동 대본생성/기획 경로와 동일한 resolver를 사용 - 더 이상 이 파일에서 직접
+        # db.get_script_style_presets()를 조회해 지침을 조립하지 않는다.)
+        from services.script_style_resolver import resolve_script_style_directive
+        style_directive = resolve_script_style_directive(style_key)
 
         # [NEW] Check for Manual Planning (Script Structure)
         manual_plan = db.get_script_structure(project_id)
@@ -843,7 +845,6 @@ Return JSON only:
                       struct_prompt = f"""Create a JSON production plan for a longform YouTube music playlist.
 
 Topic: {topic_name}
-Style directive: {style_desc}
 Target duration seconds: {music_config.get('playlist_duration_seconds', config_dict.get('duration_seconds', 3600))}
 Target track count: {music_config.get('track_count', 12)}
 Music genre/category: {music_config.get('genre', 'lofi')}
@@ -864,10 +865,11 @@ Return JSON only:
   "thumbnail_concept": "...",
   "description_angle": "..."
 }}"""
+                      if style_directive:
+                          struct_prompt += f"\n\n{style_directive}"
                   else:
                       struct_prompt = f"""Create a structured plan for a YouTube video.
 Topic: {topic_name}
-Style: {style_desc}
 
 [Benchmarked Successful Video Formulas from DB]
 {viral_benchmarks_str}
@@ -875,6 +877,8 @@ Style: {style_desc}
 Please refer to the benchmarked cases' topics and viewer needs to construct a high-performing video structure.
 Return JSON only:
 {{"hook": "...", "sections": [{{"title": "...", "key_points": ["...", "..."]}}], "cta": "..."}}"""
+                      if style_directive:
+                          struct_prompt += f"\n\n{style_directive}"
                   planning_model = config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
                   result_text_s = await generate_text_with_model(
                       struct_prompt,
@@ -931,8 +935,8 @@ Write a full script based strictly on the following USER PLANNED STRUCTURE.
 - NO situational descriptions like "(music)" or "(laughs)".
 - NO special characters or emojis.
 """
-            if style_key != "default":
-                prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly."
+            if style_directive:
+                prompt += f"\n\n{style_directive}"
         else:
             # Original Logic
             if is_music_playlist:
@@ -962,8 +966,8 @@ Create a production-ready playlist script/brief in Korean from this planning dat
                     analysis_json=json.dumps(analysis, ensure_ascii=False)
                 )
                 prompt += f"\n\n[Benchmarked Successful Video Formulas from DB]\n{viral_benchmarks_str}\n\n[Instructions]\n- Make sure to copy the successful hook patterns and address the viewer needs highlighted in the benchmarked cases above to maximize viral potential." 
-            if style_key != "default":
-                prompt += f"\n\n[Writing Style Directive]: {style_desc}\nApply this style strictly throughout the script."
+            if style_directive:
+                prompt += f"\n\n{style_directive}"
 
         # request = type('obj', (object,), {"prompt": prompt, "temperature": 0.8})
         # [SDK Autopilot Recovery Hook]

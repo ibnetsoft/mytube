@@ -63,14 +63,8 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         recent_projects = db.get_recent_projects(limit=5)
         recent_titles = [p['name'] for p in recent_projects]
 
-        from services.settings_service import settings_service
-        all_settings = settings_service.get_settings()
-        style_prompts = all_settings.get("script_styles", {})
-        style_prompt = style_prompts.get(req.script_style, "")
-
-        if not style_prompt and req.script_style:
-            style_label = req.script_style.replace('_', ' ').title()
-            style_prompt = f"Write the script in '{style_label}' style. Adapt tone, pacing, and narrative structure to match this genre/format."
+        from services.script_style_resolver import resolve_script_style_directive
+        style_directive = resolve_script_style_directive(req.script_style)
 
         db_analysis = None
         if req.project_id:
@@ -93,7 +87,8 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         result = await scene_planner_service.plan_scenes(
             topic=req.topic,
             target_duration=req.duration,
-            project_id=req.project_id
+            project_id=req.project_id,
+            style_directive=style_directive
         )
 
         if "error" in result and result["error"]:
@@ -167,8 +162,18 @@ async def script_generate(req: GeminiRequest):
 
     try:
         selected_model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+
+        prompt = req.prompt
+        # script_style이 없는 기존 호출(다른 /api/gemini/generate류 사용처 포함)은
+        # 하위 호환을 위해 프롬프트를 그대로 사용한다.
+        if req.script_style is not None:
+            from services.script_style_resolver import resolve_script_style_directive
+            style_directive = resolve_script_style_directive(req.script_style)
+            if style_directive:
+                prompt = f"{prompt}\n\n{style_directive}"
+
         text = await ai_router.generate_text(
-            req.prompt,
+            prompt,
             selected_model,
             temperature=req.temperature,
             max_tokens=req.max_tokens,

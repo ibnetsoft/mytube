@@ -3,7 +3,8 @@ from config import config
 import services.ai_router as ai_router
 
 class ScenePlannerService:
-    async def plan_scenes(self, topic: str, target_duration: int = 60, project_id: int = None) -> dict:
+    async def plan_scenes(self, topic: str, target_duration: int = 60, project_id: int = None, style_directive: str = "") -> dict:
+        style_section = f"\n{style_directive}\n" if style_directive else ""
         prompt = f"""
 You are an expert video production planner.
 Plan the SCENE STRUCTURE for a video based on the following topic.
@@ -11,14 +12,15 @@ This scene structure will act as the Source of Truth for the entire production p
 
 TOPIC: {topic}
 TARGET DURATION: {target_duration} seconds
-
+{style_section}
 Instructions:
 1. Break down the video into distinct scenes based on logical progression, location, or pacing changes.
 2. Assign a unique ID to each scene (e.g., 'scene001').
 3. Estimate the duration (in seconds) for each scene. The sum of all scene durations MUST approximate {target_duration} seconds.
 4. Provide a brief summary of what happens in the scene.
 5. Provide a visual hint for the overall background/setting of the scene.
-6. Provide the output strictly as a valid JSON object without markdown formatting.
+6. If a Writing Style Directive is provided above, let it shape the scene progression itself — pacing, section count, how much of each scene is dialogue vs narration, and where tension/hooks land — not just the wording of the summaries.
+7. Provide the output strictly as a valid JSON object without markdown formatting.
 
 JSON SCHEMA:
 {{

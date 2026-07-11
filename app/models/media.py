@@ -19,6 +19,7 @@ class GeminiRequest(BaseModel):
     prompt: str
     temperature: float = 0.7
     max_tokens: int = 8192
+    script_style: Optional[str] = None  # set only by script-writing callers (see /api/script/generate)
 
 
 class TTSRequest(BaseModel):
