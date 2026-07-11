@@ -29,7 +29,7 @@
                 {{ t('label_tab_basic_settings') }}
             </button>
             <button onclick="switchTab('orgchart')" id="tab-orgchart" class="tab-button">
-                조직도
+                {{ t('nav_orgchart') }}
             </button>
                         <button onclick="switchTab('history')" id="tab-history" class="tab-button">
                 {{ t('label_work_history') }}
@@ -73,13 +73,13 @@
                     <div class="mb-8 pb-8 border-b border-gray-700">
                         <div class="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-4">
                             <h5 class="text-xs font-bold text-purple-400 flex items-center gap-2 mb-2">
-                                <span>🔑 내 추천 코드</span>
+                                <span>🔑 {{ t('label_my_code_title') }}</span>
                             </h5>
                             <div class="flex items-center gap-2">
-                                <input type="text" id="stReferralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="첫 영상을 렌더링하면 발급됩니다">
-                                <button type="button" onclick="const c = document.getElementById('stReferralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert('복사되었습니다.'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">복사</button>
+                                <input type="text" id="stReferralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="{{ t('placeholder_no_code') }}">
+                                <button type="button" onclick="const c = document.getElementById('stReferralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert(i18n.msg_copied); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_copy_short') }}</button>
                             </div>
-                            <p class="text-[10px] text-gray-400 mt-2">* 이 코드로 가입한 회원이 영상을 2개 이상 렌더링 완성 시 보상이 지급됩니다. 조직도는 상단의 "조직도" 탭에서 확인할 수 있습니다.</p>
+                            <p class="text-[10px] text-gray-400 mt-2">* {{ t('desc_my_code_hint') }}</p>
                         </div>
                     </div>
 
@@ -216,46 +216,46 @@
                             <!-- Preferred Categories -->
                             <div class="col-span-1 md:col-span-2">
                                 <label class="text-[10px] font-bold text-gray-500 mb-2 block">
-                                    선호 영상 주제 (복수 선택 가능)
+                                    {{ t('label_preferred_topics') }}
                                 </label>
                                 <div id="stCategoryList" class="flex flex-wrap gap-2">
-                                    <div class="text-xs text-gray-500">카테고리 불러오는 중...</div>
+                                    <div class="text-xs text-gray-500">{{ t('msg_loading_categories') }}</div>
                                 </div>
                             </div>
 
                             <div class="col-span-1 md:col-span-2 flex items-center gap-3">
-                                <button type="button" id="stProfileSaveBtn" onclick="stSaveUserProfile()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white whitespace-nowrap transition">저장</button>
+                                <button type="button" id="stProfileSaveBtn" onclick="stSaveUserProfile()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_save') }}</button>
                                 <span id="stProfileMsg" class="text-xs font-bold"></span>
                             </div>
 
                             <!-- Change Password -->
                             <div class="col-span-1 md:col-span-2 mt-6 pt-4 border-t border-gray-700/50">
                                 <h5 class="text-xs font-bold text-gray-300 mb-3 flex items-center gap-2">
-                                    🔒 비밀번호 변경
+                                    🔒 {{ t('label_change_password_title') }}
                                 </h5>
                                 <form id="changePasswordForm" class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">현재 비밀번호</label>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_current_password') }}</label>
                                         <input type="password" id="cpCurrentPassword" required class="input-field w-full text-xs" autocomplete="current-password">
                                     </div>
                                     <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">새 비밀번호</label>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_new_password') }}</label>
                                         <input type="password" id="cpNewPassword" required class="input-field w-full text-xs" autocomplete="new-password" oninput="onCpPasswordInput()">
                                     </div>
                                     <div>
-                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">새 비밀번호 확인</label>
+                                        <label class="text-[10px] font-bold text-gray-500 mb-1 block">{{ t('label_new_password_confirm') }}</label>
                                         <input type="password" id="cpNewPasswordConfirm" required class="input-field w-full text-xs" autocomplete="new-password" oninput="onCpPasswordConfirmInput()">
                                     </div>
                                     <div class="col-span-1 md:col-span-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
-                                        <span id="cp-rule-length" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">8자리 이상</span></span>
-                                        <span id="cp-rule-upper" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">대문자 포함</span></span>
-                                        <span id="cp-rule-lower" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">소문자 포함</span></span>
-                                        <span id="cp-rule-number" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">숫자 포함</span></span>
-                                        <span id="cp-rule-special" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">특수문자 포함</span></span>
-                                        <span id="cp-rule-match" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">비밀번호 일치</span></span>
+                                        <span id="cp-rule-length" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">{{ t('rule_length') }}</span></span>
+                                        <span id="cp-rule-upper" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">{{ t('rule_upper') }}</span></span>
+                                        <span id="cp-rule-lower" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">{{ t('rule_lower') }}</span></span>
+                                        <span id="cp-rule-number" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">{{ t('rule_number') }}</span></span>
+                                        <span id="cp-rule-special" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">{{ t('rule_special') }}</span></span>
+                                        <span id="cp-rule-match" class="pw-rule whitespace-nowrap"><span class="dot-rule"></span><span class="rule-txt">{{ t('rule_match') }}</span></span>
                                     </div>
                                     <div class="col-span-1 md:col-span-3 flex items-center gap-3">
-                                        <button type="submit" id="cpSubmitBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white whitespace-nowrap transition">비밀번호 변경</button>
+                                        <button type="submit" id="cpSubmitBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('label_change_password_title') }}</button>
                                         <span id="cpMsg" class="text-xs font-bold"></span>
                                     </div>
                                 </form>
@@ -367,11 +367,11 @@
             <div class="card p-6 shadow-lg border border-gray-200 dark:border-white/5 bg-[#1c2027]">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="text-sm font-bold text-gray-200 flex items-center gap-2">
-                        🌳 조직도
+                        🌳 {{ t('nav_orgchart') }}
                     </h4>
                     <div class="flex gap-1 p-1 bg-black/20 rounded-xl border border-white/5">
-                        <button id="st-tree-view-list-btn" onclick="stSetTreeView('list')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-indigo-600 text-white">리스트</button>
-                        <button id="st-tree-view-card-btn" onclick="stSetTreeView('card')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors text-white/50 hover:text-white">카드</button>
+                        <button id="st-tree-view-list-btn" onclick="stSetTreeView('list')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-indigo-600 text-white">{{ t('label_view_list') }}</button>
+                        <button id="st-tree-view-card-btn" onclick="stSetTreeView('card')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors text-white/50 hover:text-white">{{ t('label_view_card') }}</button>
                     </div>
                 </div>
                 <div id="st-tree-container" class="space-y-4">
@@ -382,8 +382,8 @@
                 </div>
                 <div id="st-tree-empty" class="hidden text-center py-10">
                     <div class="text-4xl mb-4 opacity-50">🌱</div>
-                    <h3 class="text-lg font-bold text-white">아직 추천인이 없습니다.</h3>
-                    <p class="text-white/50 mt-1">코드를 공유하여 첫 추천인을 만들어보세요!</p>
+                    <h3 class="text-lg font-bold text-white">{{ t('msg_no_referrals_yet') }}</h3>
+                    <p class="text-white/50 mt-1">{{ t('msg_share_code_hint') }}</p>
                 </div>
             </div>
         </div>
@@ -431,14 +431,14 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-1 space-y-6">
                         <div class="bg-gradient-to-br from-green-900/40 to-emerald-900/40 rounded-2xl p-6 border border-green-500/30">
-                            <div class="text-green-300 text-sm font-medium mb-1">출금 가능 금액</div>
+                            <div class="text-green-300 text-sm font-medium mb-1">{{ t('label_available_balance') }}</div>
                             <div class="text-3xl font-black text-green-400 flex items-baseline gap-1">
                                 <span id="st-withdrawable-amount">0.000000</span>
                                 <span class="text-sm font-bold opacity-70">USDT</span>
                             </div>
                         </div>
                         <div class="bg-indigo-900/30 rounded-2xl p-6 border border-indigo-500/30">
-                            <div class="text-indigo-300 text-sm font-medium mb-1">대기중 출금액</div>
+                            <div class="text-indigo-300 text-sm font-medium mb-1">{{ t('label_pending_withdrawal_amount') }}</div>
                             <div class="text-xl font-bold text-indigo-400 flex items-baseline gap-1">
                                 <span id="st-pending-withdrawal-amount">0.000000</span>
                                 <span class="text-xs font-bold opacity-70">USDT</span>
@@ -447,26 +447,26 @@
                     </div>
                     <div class="lg:col-span-2">
                         <div class="bg-white/5 rounded-2xl border border-white/10 p-6">
-                            <h3 class="text-lg font-bold text-white mb-4">출금 신청</h3>
+                            <h3 class="text-lg font-bold text-white mb-4">{{ t('btn_request_withdrawal') }}</h3>
                             <form id="st-withdrawal-form" class="space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-white/70 mb-1">
-                                        받을 지갑주소(USDT) <span class="text-yellow-300 font-black">(Only BSC Network)</span>
+                                        {{ t('label_destination_wallet') }} <span class="text-yellow-300 font-black">{{ t('label_bsc_only') }}</span>
                                     </label>
                                     <input type="text" id="st-withdrawal-address" required placeholder="0x..."
                                            class="w-full bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white font-mono text-sm focus:outline-none focus:border-green-500 transition-colors">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-white/70 mb-1">출금 금액</label>
+                                    <label class="block text-sm font-medium text-white/70 mb-1">{{ t('label_withdrawal_amount') }}</label>
                                     <div class="relative">
                                         <input type="number" id="st-withdrawal-amount-input" required step="0.000001" min="10"
                                                class="w-full bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white font-mono text-sm focus:outline-none focus:border-green-500 transition-colors">
                                         <button type="button" id="st-btn-max" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded transition-colors">MAX</button>
                                     </div>
-                                    <p class="text-xs text-white/40 mt-1">최소 출금 금액: {{ min_withdrawal_usdt|default('10') }} USDT</p>
+                                    <p class="text-xs text-white/40 mt-1">{{ t('label_minimum_withdrawal') }}: {{ min_withdrawal_usdt|default('10') }} USDT</p>
                                 </div>
                                 <button type="submit" id="st-withdrawal-submit-btn" class="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
-                                    <span>출금 신청</span>
+                                    <span>{{ t('btn_request_withdrawal') }}</span>
                                 </button>
                             </form>
                             <div id="st-withdrawal-msg" class="mt-4 text-sm font-medium hidden p-3 rounded-lg"></div>
@@ -475,21 +475,21 @@
                         <!-- Withdrawal History -->
                         <div class="mt-6">
                             <h5 class="text-xs font-bold text-gray-300 mb-2 flex items-center gap-2">
-                                <span class="text-sm">📜</span> 출금 내역
+                                <span class="text-sm">📜</span> {{ t('label_withdrawal_history') }}
                             </h5>
                             <div class="overflow-x-auto bg-[#15191f] rounded-lg border border-gray-700">
                                 <table class="w-full text-left text-xs whitespace-nowrap">
                                     <thead class="bg-[#242b35] text-gray-400 border-b border-gray-700">
                                         <tr>
-                                            <th class="px-4 py-2 font-bold text-center">날짜</th>
-                                            <th class="px-4 py-2 font-bold text-center">보낸 지갑주소</th>
-                                            <th class="px-4 py-2 font-bold text-center">TXID</th>
+                                            <th class="px-4 py-2 font-bold text-center">{{ t('label_date') }}</th>
+                                            <th class="px-4 py-2 font-bold text-center">{{ t('label_sender_wallet') }}</th>
+                                            <th class="px-4 py-2 font-bold text-center">{{ t('label_txid') }}</th>
                                             <th class="px-4 py-2 font-bold text-right">USDT</th>
-                                            <th class="px-4 py-2 font-bold text-center">상태</th>
+                                            <th class="px-4 py-2 font-bold text-center">{{ t('label_status') }}</th>
                                         </tr>
                                     </thead>
                                     <tbody id="st-withdrawalHistoryBody" class="text-gray-300 divide-y divide-gray-700">
-                                        <tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">불러오는 중...</td></tr>
+                                        <tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">{{ t('msg_loading_data') }}</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1272,6 +1272,58 @@
         settlement_loading: "{{ t('settlement_loading') }}",
         settlement_fetch_error: "{{ t('settlement_fetch_error') }}",
         settlement_no_data: "{{ t('settlement_no_data') }}",
+        label_my_code_title: "{{ t('label_my_code_title') }}",
+        desc_my_code_hint: "{{ t('desc_my_code_hint') }}",
+        nav_orgchart: "{{ t('nav_orgchart') }}",
+        label_view_list: "{{ t('label_view_list') }}",
+        label_view_card: "{{ t('label_view_card') }}",
+        msg_no_referrals_yet: "{{ t('msg_no_referrals_yet') }}",
+        msg_share_code_hint: "{{ t('msg_share_code_hint') }}",
+        msg_tree_load_error: "{{ t('msg_tree_load_error') }}",
+        label_direct_referral: "{{ t('label_direct_referral') }}",
+        label_indirect_referral: "{{ t('label_indirect_referral') }}",
+        label_join_date: "{{ t('label_join_date') }}",
+        label_contribution_earnings: "{{ t('label_contribution_earnings') }}",
+        label_active_status: "{{ t('label_active_status') }}",
+        label_dormant_status: "{{ t('label_dormant_status') }}",
+        label_preferred_topics: "{{ t('label_preferred_topics') }}",
+        msg_loading_categories: "{{ t('msg_loading_categories') }}",
+        msg_no_categories_available: "{{ t('msg_no_categories_available') }}",
+        label_change_password_title: "{{ t('label_change_password_title') }}",
+        label_current_password: "{{ t('label_current_password') }}",
+        label_new_password: "{{ t('label_new_password') }}",
+        label_new_password_confirm: "{{ t('label_new_password_confirm') }}",
+        rule_length: "{{ t('rule_length') }}",
+        rule_upper: "{{ t('rule_upper') }}",
+        rule_lower: "{{ t('rule_lower') }}",
+        rule_number: "{{ t('rule_number') }}",
+        rule_special: "{{ t('rule_special') }}",
+        rule_match: "{{ t('rule_match') }}",
+        msg_password_changing: "{{ t('msg_password_changing') }}",
+        msg_password_rules_check: "{{ t('msg_password_rules_check') }}",
+        msg_password_changed: "{{ t('msg_password_changed') }}",
+        msg_password_change_failed: "{{ t('msg_password_change_failed') }}",
+        label_sender_wallet: "{{ t('label_sender_wallet') }}",
+        label_txid: "{{ t('label_txid') }}",
+        label_bsc_only: "{{ t('label_bsc_only') }}",
+        msg_withdrawal_history_empty: "{{ t('msg_withdrawal_history_empty') }}",
+        msg_withdrawal_history_load_error: "{{ t('msg_withdrawal_history_load_error') }}",
+        msg_profile_saving: "{{ t('msg_profile_saving') }}",
+        msg_profile_saved: "{{ t('msg_profile_saved') }}",
+        msg_profile_save_failed: "{{ t('msg_profile_save_failed') }}",
+        label_pending_withdrawal_amount: "{{ t('label_pending_withdrawal_amount') }}",
+        label_withdrawal_history: "{{ t('label_withdrawal_history') }}",
+        err_prefix: "{{ t('err_prefix') }}",
+        btn_save: "{{ t('btn_save') }}",
+        label_destination_wallet: "{{ t('label_destination_wallet') }}",
+        btn_request_withdrawal: "{{ t('btn_request_withdrawal') }}",
+        label_available_balance: "{{ t('label_available_balance') }}",
+        label_withdrawal_amount: "{{ t('label_withdrawal_amount') }}",
+        label_minimum_withdrawal: "{{ t('label_minimum_withdrawal') }}",
+        status_requested: "{{ t('status_requested') }}",
+        status_approved: "{{ t('status_approved') }}",
+        status_sending: "{{ t('status_sending') }}",
+        status_rejected: "{{ t('status_rejected') }}",
     };
 
     const DEFAULT_STYLE_KEYS = ['realistic', 'ghibli', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch', 'pixel_art', '3d', 'k_webtoon', 'k_manhwa', 'minimal', 'nursery_rhyme', '2d웹', '블랙카툰', '사물캐릭터', '역사/동양철/다큐', '후드티민머리'];
@@ -1399,8 +1451,8 @@
         const ml = level * 1.5;
         const isDirect = (node.level !== undefined ? node.level : level) <= 1;
         const badge = isDirect
-            ? `<span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/20">직접 추천</span>`
-            : `<span class="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold">간접 추천</span>`;
+            ? `<span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-bold border border-blue-500/20">${i18n.label_direct_referral}</span>`
+            : `<span class="px-2 py-0.5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold">${i18n.label_indirect_referral}</span>`;
         let html = `
             <div class="flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-white/5 border border-white/5 bg-black/20" style="margin-left: ${ml}rem">
                 <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-inner">
@@ -1410,11 +1462,11 @@
                     <div class="text-white font-medium truncate flex items-center gap-2">
                         ${node.display_name || 'Unknown User'} ${badge}
                     </div>
-                    <div class="text-white/40 text-xs">가입일: ${new Date(node.created_at).toLocaleDateString()}</div>
+                    <div class="text-white/40 text-xs">${i18n.label_join_date}: ${new Date(node.created_at).toLocaleDateString()}</div>
                 </div>
                 <div class="text-right">
                     <div class="text-green-400 font-bold text-sm">${(node.total_commission_generated || 0)} USDT</div>
-                    <div class="text-white/30 text-[10px]">기여 수익</div>
+                    <div class="text-white/30 text-[10px]">${i18n.label_contribution_earnings}</div>
                 </div>
             </div>
         `;
@@ -1429,8 +1481,8 @@
     function stRenderCard(node, isRoot = false) {
         const active = !!node.is_active;
         const activityPill = active
-            ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>활동중</span>`
-            : `<span class="inline-flex items-center gap-1 rounded-full bg-white/5 text-white/40 text-[10px] font-bold px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-white/30"></span>휴면</span>`;
+            ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>${i18n.label_active_status}</span>`
+            : `<span class="inline-flex items-center gap-1 rounded-full bg-white/5 text-white/40 text-[10px] font-bold px-2 py-0.5"><span class="w-1.5 h-1.5 rounded-full bg-white/30"></span>${i18n.label_dormant_status}</span>`;
         const countryTag = node.country
             ? `<span class="rounded-full border border-white/10 bg-white/5 text-white/50 text-[10px] font-bold px-2 py-0.5">${node.country}</span>`
             : '';
@@ -1450,7 +1502,7 @@
                     <span class="text-lg font-bold text-green-400">${(node.total_commission_generated || 0)}</span>
                     <span class="text-[10px] uppercase tracking-wide text-white/30">USDT</span>
                 </div>
-                <div class="text-[10.5px] text-white/40">가입일: ${new Date(node.created_at).toLocaleDateString()}</div>
+                <div class="text-[10.5px] text-white/40">${i18n.label_join_date}: ${new Date(node.created_at).toLocaleDateString()}</div>
             </div>
         `;
     }
@@ -1519,7 +1571,7 @@
         } catch (err) {
             console.error('Tree error:', err);
             const container = document.getElementById('st-tree-container');
-            if (container) container.innerHTML = `<div class="text-center text-red-400">추천인 트리 데이터를 불러올 수 없습니다.</div>`;
+            if (container) container.innerHTML = `<div class="text-center text-red-400">${i18n.msg_tree_load_error}</div>`;
         }
     }
 
@@ -1559,7 +1611,7 @@
         const container = document.getElementById('stCategoryList');
         if (!container) return;
         if (!stAllCategories.length) {
-            container.innerHTML = '<div class="text-xs text-gray-500">현재 선택 가능한 주제가 없습니다.</div>';
+            container.innerHTML = `<div class="text-xs text-gray-500">${i18n.msg_no_categories_available}</div>`;
             return;
         }
         container.innerHTML = stAllCategories.map(c => {
@@ -1586,7 +1638,7 @@
         const btn = document.getElementById('stProfileSaveBtn');
         btn.disabled = true;
         msgEl.className = 'text-xs font-bold text-gray-400';
-        msgEl.textContent = '저장 중...';
+        msgEl.textContent = i18n.msg_profile_saving;
         try {
             const res = await fetch('/api/auth/profile', {
                 method: 'POST',
@@ -1601,14 +1653,14 @@
             const data = await res.json();
             if (data.success) {
                 msgEl.className = 'text-xs font-bold text-green-400';
-                msgEl.textContent = data.message || '저장되었습니다.';
+                msgEl.textContent = i18n.msg_profile_saved;
             } else {
                 msgEl.className = 'text-xs font-bold text-red-400';
-                msgEl.textContent = data.error || '저장에 실패했습니다.';
+                msgEl.textContent = data.error || i18n.msg_profile_save_failed;
             }
         } catch (e) {
             msgEl.className = 'text-xs font-bold text-red-400';
-            msgEl.textContent = '오류: ' + e.message;
+            msgEl.textContent = i18n.err_prefix + e.message;
         } finally {
             btn.disabled = false;
         }
@@ -1636,17 +1688,17 @@
             const json = await res.json();
             const rows = (json.success && json.data) ? json.data : [];
             if (rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">출금 내역이 없습니다.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">${i18n.msg_withdrawal_history_empty}</td></tr>`;
                 return;
             }
             tbody.innerHTML = rows.map(r => {
                 const dateStr = r.created_at ? new Date(r.created_at).toLocaleString() : '-';
                 const statusMap = {
-                    REQUESTED: ['bg-yellow-500/20 text-yellow-400', '요청됨'],
-                    APPROVED: ['bg-blue-500/20 text-blue-400', '승인됨'],
-                    SENDING: ['bg-indigo-500/20 text-indigo-400', '전송중'],
-                    COMPLETED: ['bg-green-500/20 text-green-400', '완료'],
-                    REJECTED: ['bg-red-500/20 text-red-400', '거절됨'],
+                    REQUESTED: ['bg-yellow-500/20 text-yellow-400', i18n.status_requested],
+                    APPROVED: ['bg-blue-500/20 text-blue-400', i18n.status_approved],
+                    SENDING: ['bg-indigo-500/20 text-indigo-400', i18n.status_sending],
+                    COMPLETED: ['bg-green-500/20 text-green-400', i18n.status_completed],
+                    REJECTED: ['bg-red-500/20 text-red-400', i18n.status_rejected],
                 };
                 const [cls, label] = statusMap[String(r.status || '').toUpperCase()] || ['bg-gray-500/20 text-gray-400', r.status || '-'];
                 return `
@@ -1661,7 +1713,7 @@
             }).join('');
         } catch (err) {
             console.error('Withdrawal history error:', err);
-            tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-red-500">출금 내역을 불러올 수 없습니다.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-red-500">${i18n.msg_withdrawal_history_load_error}</td></tr>`;
         }
     }
 
@@ -1692,18 +1744,18 @@
                 msgEl.classList.remove('hidden');
                 if (json.success) {
                     msgEl.className = 'mt-4 text-sm font-medium p-3 rounded-lg bg-green-500/10 text-green-400';
-                    msgEl.textContent = json.message || '출금 신청이 완료되었습니다.';
+                    msgEl.textContent = i18n.msg_withdrawal_success;
                     form.reset();
                     stLoadWithdrawalInfo();
                     stLoadWithdrawalHistory();
                 } else {
                     msgEl.className = 'mt-4 text-sm font-medium p-3 rounded-lg bg-red-500/10 text-red-400';
-                    msgEl.textContent = json.error || '출금 신청에 실패했습니다.';
+                    msgEl.textContent = json.error || i18n.msg_withdrawal_failed;
                 }
             } catch (err) {
                 msgEl.classList.remove('hidden');
                 msgEl.className = 'mt-4 text-sm font-medium p-3 rounded-lg bg-red-500/10 text-red-400';
-                msgEl.textContent = '오류: ' + err.message;
+                msgEl.textContent = i18n.err_prefix + err.message;
             } finally {
                 submitBtn.disabled = false;
             }
@@ -1750,13 +1802,13 @@
 
             if (!cpEvaluateRules()) {
                 msgEl.className = 'text-xs font-bold text-red-400';
-                msgEl.textContent = '새 비밀번호 규칙을 확인해주세요.';
+                msgEl.textContent = i18n.msg_password_rules_check;
                 return;
             }
 
             submitBtn.disabled = true;
             msgEl.className = 'text-xs font-bold text-gray-400';
-            msgEl.textContent = '변경 중...';
+            msgEl.textContent = i18n.msg_password_changing;
             try {
                 const res = await fetch('/api/auth/change-password', {
                     method: 'POST',
@@ -1770,17 +1822,17 @@
                 const json = await res.json();
                 if (json.success) {
                     msgEl.className = 'text-xs font-bold text-green-400';
-                    msgEl.textContent = json.message || '비밀번호가 변경되었습니다.';
+                    msgEl.textContent = i18n.msg_password_changed;
                     form.reset();
                     ['cp-rule-length','cp-rule-upper','cp-rule-lower','cp-rule-number','cp-rule-special','cp-rule-match']
                         .forEach(id => document.getElementById(id).classList.remove('pass'));
                 } else {
                     msgEl.className = 'text-xs font-bold text-red-400';
-                    msgEl.textContent = json.error || '비밀번호 변경에 실패했습니다.';
+                    msgEl.textContent = json.error || i18n.msg_password_change_failed;
                 }
             } catch (err) {
                 msgEl.className = 'text-xs font-bold text-red-400';
-                msgEl.textContent = '오류: ' + err.message;
+                msgEl.textContent = i18n.err_prefix + err.message;
             } finally {
                 submitBtn.disabled = false;
             }
