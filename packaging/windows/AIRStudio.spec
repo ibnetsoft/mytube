@@ -30,7 +30,14 @@ for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
     ("assets", "assets"),
-    (".env", "."),
+    # [AIR-0225B, incident response] Do NOT add ".env" here. This used to blanket-
+    # copy whatever .env sits at the repo root (including a developer's own local
+    # SUPABASE_SERVICE_ROLE_KEY) straight into the frozen bundle on any local
+    # PyInstaller build, independent of and in addition to the CI-side .env write
+    # in tools/build_windows.ps1. The packaged .env is now written exclusively (and
+    # only with the public Supabase URL) by tools/build_windows.ps1 after this
+    # PyInstaller step runs - see
+    # worknote/AIR-0225B-stage0-service-role-removal-investigation.md §1.
 ]:
     path = os.path.join(root, src)
     if os.path.exists(path):

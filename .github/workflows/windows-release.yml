@@ -105,16 +105,18 @@ jobs:
         id: build
         shell: pwsh
         env:
-          # Supabase credentials for the packaged app's .env (see
-          # tools/build_windows.ps1). SUPABASE_SERVICE_ROLE_KEY bypasses RLS,
-          # so this is a deliberate, tracked risk accepted for now — desktop
-          # app login itself no longer needs this key (see
-          # auth-web/app/api/desktop-login), but other Supabase-backed
-          # features (referral commissions, token balance, project sync)
-          # still call Supabase directly and need it until they're migrated
-          # to a server-side proxy too.
+          # [AIR-0225B, incident response] SUPABASE_SERVICE_ROLE_KEY must NEVER
+          # be passed to this build again. It was injected here until 2026-07-11,
+          # which meant every public GitHub release from v2.0.8 through v2.3.5
+          # shipped this RLS-bypassing key in plaintext inside app/.env - a public
+          # repo, downloadable by anyone. See
+          # worknote/AIR-0225B-stage0-service-role-removal-investigation.md for the
+          # full investigation and worknote/AIR-0225B-affected-release-inventory.md
+          # for the list of releases whose assets were pulled as a result.
+          # Only the public Supabase URL (safe by design - NEXT_PUBLIC_*) is passed
+          # to the desktop build now. Features that still need privileged Supabase
+          # access must go through an auth-web proxy using the user's own JWT.
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # SMTP credentials for signup email verification codes
           # (services/email_service.py). Missing here silently disabled
           # email sending in every build from v2.0.8 through v2.2.1 - no
@@ -139,6 +141,19 @@ jobs:
           $instName = "AIRStudioSetup-$ver.exe"
           "ZIP_NAME=$zipName"   >> $env:GITHUB_OUTPUT
           "INST_NAME=$instName" >> $env:GITHUB_OUTPUT
+
+      # ----------------------------------------------------------------
+      # 5b. [AIR-0225B] Secret scan gate - must pass before anything built in
+      #     this run is uploaded anywhere (workflow-run artifact or public
+      #     release). See tools/scan_release_secrets.ps1 and
+      #     worknote/AIR-0225B-stage0-service-role-removal-investigation.md.
+      # ----------------------------------------------------------------
+      - name: Scan release artifacts for leaked secrets
+        shell: pwsh
+        run: |
+          .\tools\scan_release_secrets.ps1 -Path release\staging\AIRStudio, dist\AIRStudio, `
+            "release\${{ steps.build.outputs.ZIP_NAME }}", `
+            "release\${{ steps.build.outputs.INST_NAME }}"
 
       # ----------------------------------------------------------------
       # 6. Upload build artifacts (for debugging / manual download)

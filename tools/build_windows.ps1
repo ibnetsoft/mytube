@@ -176,18 +176,20 @@ try {
 
     Copy-Item -Path (Join-Path $DistDir "*") -Destination $StagingApp -Recurse -Force
 
-    # ---- .env (Supabase + SMTP credentials for packaged app) ----
-    # Read from the process environment (set via GitHub Actions secrets in
-    # CI). Only written when present, so a local dev build run without them
-    # set doesn't silently ship a broken/empty .env.
+    # ---- .env (public config + SMTP credentials for packaged app) ----
+    # [AIR-0225B] SUPABASE_SERVICE_ROLE_KEY must NEVER be written here. This key
+    # bypasses Postgres RLS entirely; embedding it in a package that ships to
+    # every end user's PC turned every public GitHub release into a full-database
+    # credential leak (see worknote/AIR-0225B-stage0-service-role-removal-investigation.md).
+    # The desktop app must only ever carry the public Supabase URL (safe to expose
+    # by design - NEXT_PUBLIC_*) plus a user JWT obtained at login time. Any feature
+    # still requiring privileged Supabase access must be proxied through auth-web.
     $EnvSupabaseUrl = $env:NEXT_PUBLIC_SUPABASE_URL
-    $EnvSupabaseKey = $env:SUPABASE_SERVICE_ROLE_KEY
     $EnvLines = @()
-    if ($EnvSupabaseUrl -and $EnvSupabaseKey) {
+    if ($EnvSupabaseUrl) {
         $EnvLines += "NEXT_PUBLIC_SUPABASE_URL=$EnvSupabaseUrl"
-        $EnvLines += "SUPABASE_SERVICE_ROLE_KEY=$EnvSupabaseKey"
     } else {
-        Write-Warning "NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set - packaged app will ship without Supabase credentials."
+        Write-Warning "NEXT_PUBLIC_SUPABASE_URL not set - packaged app will ship without a Supabase URL."
     }
 
     # SMTP (회원가입 이메일 인증코드 발송용). AIR-0225: previously missing here
