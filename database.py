@@ -877,6 +877,23 @@ def migrate_db():
         )
     """)
 
+    # [FIX] save_success_knowledge()/get_recent_knowledge()/get_all_knowledge_by_style()가
+    # 참조하는 테이블이 스키마에 아예 없었다. 이 테이블이 없으면 대본 구조 생성
+    # (/api/gemini/generate-structure)이 매번 "no such table: success_knowledge"로
+    # 전부 실패했다 — 개발용 DB에는 과거 수작업으로 테이블이 이미 있어 그동안
+    # 드러나지 않았을 뿐, 신규/기존 사용자 DB에는 애초부터 없었다.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS success_knowledge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            pattern TEXT,
+            insight TEXT,
+            source_video_id TEXT,
+            script_style TEXT DEFAULT 'story',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
 
     # projects에 employee_email 컬럼 추가 (없으면)
     try:
