@@ -678,7 +678,13 @@
         try {
             const res = await fetch('/api/settings');
             const settings = await res.json();
-            window.APP_MODE = settings.app_mode || 'longform';
+            // [FIX] /api/settings는 전역(글로벌) app_mode만 반환하지만, 이 페이지의
+            // window.APP_MODE는 서버 렌더링 시 프로젝트별 app_mode로 이미 정확히
+            // 설정되어 있다(_resolve_page_mode). 여기서 전역 값으로 덮어쓰면 현재
+            // 프로젝트의 모드와 달라져, 아래 projectStateRestored 리스너의 모드
+            // 불일치 검사(lastAppMode 비교)가 오탐하여 방금 복구된 대본 기획 결과가
+            // clearScriptPlanUI()로 즉시 사라지는 버그가 있었다.
+            window.APP_MODE = window.APP_MODE || settings.app_mode || 'longform';
             longformPolicy = {
                 minDurationMinutes: Math.max(15, Number(settings.longform_min_duration_minutes || 15)),
                 basePayout: Number(settings.longform_base_payout || 10000),
