@@ -97,6 +97,15 @@ class Config:
     TEMPLATES_DIR = os.path.join(RESOURCE_DIR, "templates")
     STATIC_DIR = os.path.join(RESOURCE_DIR, "static")
 
+    # 패키징된 릴리즈 버전 (tools/build_windows.ps1이 빌드 시 BASE_DIR에 기록)
+    APP_VERSION = ""
+    try:
+        import json as _json
+        with open(os.path.join(BASE_DIR, "version.json"), "r", encoding="utf-8") as _vf:
+            APP_VERSION = _json.load(_vf).get("version", "")
+    except Exception:
+        APP_VERSION = ""
+
     # Writable local app storage shared by dev and installed builds.
     # AppData is local Windows storage, not Supabase. Supabase sync is handled separately.
     _LOCALAPPDATA = os.getenv("LOCALAPPDATA")

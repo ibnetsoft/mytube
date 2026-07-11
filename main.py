@@ -271,6 +271,7 @@ except Exception as e:
 templates = Jinja2Templates(directory=config.TEMPLATES_DIR)
 templates.env.auto_reload = True
 templates.env.cache = {}
+templates.env.globals['app_version'] = config.APP_VERSION
 
 # Static Files
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
