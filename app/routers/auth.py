@@ -432,6 +432,19 @@ async def post_auth_login(req: LoginRequest, request: Request):
             max_age=30 * 24 * 60 * 60,
             httponly=False,
         )
+        # [AIR-0225B Batch A] Session token minted by /api/desktop-login, used
+        # to resume the session (app relaunch, periodic /api/auth/sync) without
+        # a password AND without the local backend needing service_role.
+        # HttpOnly - only this local server ever needs to read it back, no
+        # desktop UI JS touches it.
+        session_token = result.get("session_token")
+        if session_token:
+            response.set_cookie(
+                key="desktop_session_token",
+                value=session_token,
+                max_age=30 * 24 * 60 * 60,
+                httponly=True,
+            )
         return response
     except Exception as e:
         return {"success": False, "error": f"로그인 오류: {str(e)}"}
@@ -648,19 +661,34 @@ async def post_auth_logout():
     auth_service.logout_user()
     response = JSONResponse({"success": True})
     response.delete_cookie("user_email")
+    response.delete_cookie("desktop_session_token")
     return response
 
 
 @router.post("/api/auth/sync")
-async def sync_auth():
+async def sync_auth(request: Request):
     try:
         from services.updater_service import updater_service
         update_info = updater_service.check_for_update()
         has_update = update_info.get("has_update", False)
-        
+
         email = auth_service.get_user_email()
         if email:
-            profile = web_admin_client.fetch_profile_by_email(email)
+            # [AIR-0225B Batch A] session_token으로 auth-web /api/desktop-resync를
+            # 거쳐 재동기화한다 - 이전에는 여기서 fetch_profile_by_email()로
+            # service_role을 직접 썼다. 토큰이 없거나 만료된 경우만 기존 직접
+            # 조회로 폴백한다(has_supabase() 가드로 안전하게 실패).
+            session_token = request.cookies.get("desktop_session_token")
+            profile = None
+            if session_token:
+                resync_result = web_admin_client.desktop_resync(email, session_token)
+                if resync_result.get("success"):
+                    profile = {
+                        "membership": resync_result.get("membership"),
+                        "token_balance": resync_result.get("token_balance"),
+                    }
+            if profile is None:
+                profile = web_admin_client.fetch_profile_by_email(email)
             if profile:
                 auth_service._membership = profile.get("membership", "std")
                 auth_service._token_balance = profile.get("token_balance", 0)

@@ -408,6 +408,25 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"로그인 서버 연결 오류: {e}"}
 
+    def desktop_resync(self, email: str, session_token: str) -> Dict[str, Any]:
+        """비밀번호 없이 세션을 재개한다 (앱 재실행, 쿠키 기반 재접속, 주기적 동기화).
+        [AIR-0225B Batch A] auth-web이 로그인 시 발급한 session_token(HMAC 서명,
+        DESKTOP_SESSION_SECRET으로만 검증 가능)을 함께 보내야 하며, 이메일만으로는
+        절대 회원등급/토큰잔액/공용 API키를 내려주지 않는다 - 그렇지 않으면 이메일만
+        아는 누구나 그 정보를 조회할 수 있는 구멍이 된다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-resync",
+                json={"email": email, "session_token": session_token},
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "동기화 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"동기화 서버 연결 오류: {e}"}
+
     def desktop_change_password(self, email: str, current_password: str, new_password: str) -> Dict[str, Any]:
         """비밀번호 변경을 auth-web(Vercel) 서버에 위임한다.
         SUPABASE_SERVICE_ROLE_KEY를 데스크톱 앱이 직접 쓰지 않도록,

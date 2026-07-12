@@ -184,8 +184,12 @@ async def check_login_middleware(request: Request, call_next):
                 return RedirectResponse(url="/login")
             else:
                 # auth_service의 active user 이메일 및 에셋 폴더 동적 활성화
+                # [AIR-0225B Batch A] desktop_session_token 쿠키가 있으면
+                # /api/desktop-resync로 비밀번호 없이 안전하게 세션을 재개한다
+                # (service_role 불필요). 없으면(구버전 세션 등) 기존 폴백 동작.
                 from services.auth_service import auth_service
-                auth_service.login_user(user_email)
+                session_token = request.cookies.get("desktop_session_token")
+                auth_service.login_user(user_email, session_token=session_token)
 
         # [AIR-0133] Per-request language: set on request.state for all routes
         # Routers read request.state.current_lang instead of global app_lang.

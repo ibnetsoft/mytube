@@ -267,22 +267,40 @@ class AuthService:
     def is_restricted(self):
         return self._is_restricted
 
-    def login_user(self, email: str, presynced: dict | None = None):
+    def login_user(self, email: str, presynced: dict | None = None, session_token: str | None = None):
         """직원 이메일로 로그인 세션 및 에셋 폴더 활성화
 
         [AIR-0225B Batch A] presynced가 주어지면(비밀번호 로그인 직후
         /api/desktop-login 응답 - membership/token_balance/global_settings를
         이미 auth-web에서 받아온 상태) 그 값을 그대로 쓰고, 데스크톱이 직접
         service_role로 fetch_profile_by_email()/fetch_global_api_keys()를
-        또 호출하지 않는다. presynced가 없는 호출(예: main.py의 쿠키 기반
-        세션 복원 - 비밀번호 재확인 없이 이메일만 있는 경우)은 기존처럼
-        직접 조회로 폴백한다 - 이 경로는 service_role이 없으면
-        has_supabase() 가드로 조용히 실패할 뿐 크래시하지 않는다."""
+        또 호출하지 않는다.
+
+        presynced가 없고 session_token이 있으면(예: main.py의 쿠키 기반 세션
+        복원 - 비밀번호 재확인 없이 desktop_session_token 쿠키만 있는 경우)
+        /api/desktop-resync로 서버 쪽에서 토큰을 검증한 뒤 같은 데이터를
+        받아온다 - 이 경로도 service_role을 전혀 쓰지 않는다.
+
+        둘 다 없는 아주 오래된 세션(이 기능 배포 전에 로그인해서 토큰 쿠키가
+        없는 경우 등)만 기존처럼 직접 조회로 폴백한다 - 이 경로는
+        service_role이 없으면 has_supabase() 가드로 조용히 실패할 뿐
+        크래시하지 않는다."""
         if self._user_email == email and self._verified:
             return  # 이미 동일한 이메일로 검증 완료됨
 
         self._user_email = email
         self._verified = True
+
+        if presynced is None and session_token:
+            try:
+                from services.web_admin_client import web_admin_client
+                resync_result = web_admin_client.desktop_resync(email, session_token)
+                if resync_result.get("success"):
+                    presynced = resync_result
+                else:
+                    print(f"[Auth] Session resync failed ({resync_result.get('error')}), falling back to direct fetch")
+            except Exception as e:
+                print(f"[Auth] Session resync error: {e}")
 
         if presynced is not None:
             try:
