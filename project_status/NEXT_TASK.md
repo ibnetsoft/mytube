@@ -1,5 +1,24 @@
 # Next Tasks
 
+## Security Sprint Status (2026-07-12, read first)
+- AIR-0227F-0: `/api/verify` P0 hotfix (platform system keys removed, PIN 1234
+  fallback removed) — DONE, merged and deployed.
+- AIR-0227F-0B: personal/BYOK API key protection + session-token wiring —
+  SERVER DONE / DESKTOP TEST RELEASE (v2.3.7 build 243, GitHub prerelease
+  only, 자동업데이트 DISABLED).
+- AIR-0227F-0C: v2.3.7 release-integrity fix — IN PROGRESS (doc/report stage;
+  see `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the Stage 9 system-key
+  removal audit and the residual-secret audit).
+- 실계정 E2E QA: PENDING — not performed this session by explicit scope
+  (no test-account creation, no real-account login).
+- Production `global_settings` (`LATEST_APP_VERSION`/`LATEST_APP_URL`):
+  NOT modified. AIR Worker PRs #70/#71/#72 remain unmerged (Draft) as
+  required.
+- Open, unresolved, needs team/CTO confirmation (not this session's access):
+  actual Supabase `service_role` key rotation status (AIR-0225B Phase 0),
+  and whether production `global_settings.sys_api_*` / Vercel env vars still
+  hold old provider key values.
+
 ## Completed This Sprint
 - AIR-0213: Scene pipeline E2E tests + Unmatched asset board — DONE
 - AIR-0214: Windows installer + atomic-swap updater — DONE (PR #67, merged 2026-07-08)

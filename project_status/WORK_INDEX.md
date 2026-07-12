@@ -504,3 +504,48 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - [AIR-0216](../worknote/AIR-0216.md) - Release Pipeline Automation (DONE)
 - [AIR-0217](../worknote/AIR-0217.md) - Real-Install E2E QA (PLANNED — manual)
 - [AIR-0218](../worknote/AIR-0218.md) - GitHub Actions Release Automation (DONE)
+
+### AIR-0227F-0B — User API Key Protection + Desktop Security Build
+- Status: SERVER DONE / DESKTOP TEST RELEASE
+- Related files:
+  - `auth-web/app/api/verify/route.ts`
+  - `services/auth_service.py`
+  - `version.py`
+  - GitHub Release `ibnetsoft/AIR-releases` v2.3.7 (build 243, prerelease)
+- Short summary:
+  Extended the `/api/verify` P0 hotfix so personal (BYOK) API keys, not just
+  platform system keys, are withheld unless the caller presents a valid
+  session token. Wired `services/auth_service.py` to capture and send that
+  token. Built and published a test desktop release (v2.3.7, build 243)
+  carrying the fix, deliberately kept as a GitHub prerelease (no auto-update
+  activation, no production `global_settings` change).
+- Next action:
+  See AIR-0227F-0C for release-integrity follow-up; Stage 9 (system key
+  removal) and mandatory-token transition remain open per
+  `docs/AIR_0227F_DESKTOP_AUTH_REDESIGN.md`.
+
+### AIR-0227F-0C — v2.3.7 Release Integrity Fix + Pre-Distribution QA
+- Status: IN PROGRESS
+- Related files:
+  - `release/latest.json`, `release/AIRStudio-2.3.7-win-x64.zip.sha256`
+  - `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`
+  - `project_status/LATEST.md`, `project_status/NEXT_TASK.md`, `worknote/latest.md`
+- Short summary:
+  Corrected the v2.3.7 test release: fixed build-number consistency (243,
+  matching v2.3.6's 242 + 1), removed a `latest.json` `installer_url` field
+  that pointed at a nonexistent asset (confirmed unused by `AIRLauncher.py`/
+  `AIRUpdater.py` before removing), fixed a UTF-8 BOM bug that had been
+  silently breaking the Launcher's local JSON reads, rebuilt and re-uploaded
+  the portable ZIP with a corrected SHA256, marked the GitHub Release
+  prerelease with an explicit test-release banner, and completed a clean-room
+  Launcher execution test in a fresh temp directory. Also discovered and
+  remediated an unplanned ~34-minute window where this release was
+  `/releases/latest` (1 unattributed download during that window); performed
+  a Stage-9 pre-audit (no deletion) of all 5 platform system keys; and
+  cross-referenced the still-open AIR-0225B `SUPABASE_SERVICE_ROLE_KEY`
+  rotation-confirmation gap.
+- Next action:
+  Commit and PR the doc-only changes on `docs/air-0227f-0c-release-integrity`;
+  team to confirm AIR-0225B Phase 0 (service_role key value rotation) and
+  production `global_settings.sys_api_*` / Vercel env var residual key status,
+  both outside this session's access.

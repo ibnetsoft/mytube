@@ -1,3 +1,29 @@
+# AIR-0227F-0C — v2.3.7 Release Integrity Fix (most recent)
+
+**Date**: 2026-07-12
+**Status**: IN PROGRESS
+
+- AIR-0227F-0B: SERVER DONE / DESKTOP TEST RELEASE
+- AIR-0227F-0C: IN PROGRESS
+- 자동업데이트: DISABLED (v2.3.7 / build 243 is a GitHub prerelease, not
+  `/releases/latest`; briefly (~34 min) was `/releases/latest` before being
+  remediated — see `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the incident
+  note)
+- 실계정 E2E QA: PENDING (not performed, out of scope this session)
+- Stage 8 (platform key rotation): USER KEY ROTATION COMPLETED
+  (Gemini/YouTube/ElevenLabs/Claude; TopView excluded — no prior key) /
+  RESIDUAL SECRET AUDIT PENDING (production `global_settings.sys_api_*` and
+  Vercel env vars unconfirmed — no DB/dashboard access this session)
+- Stage 9 (system key removal): AUDIT ONLY / NOT DEPLOYED — see
+  `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the per-key table and
+  recommended order
+- Production `global_settings` (`LATEST_APP_VERSION`/`LATEST_APP_URL`) was
+  NOT modified this session.
+- Full detail: `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`,
+  `project_status/LATEST.md`
+
+---
+
 # Build 216 — First Real Installer Generated
 
 **Date**: 2026-07-08
