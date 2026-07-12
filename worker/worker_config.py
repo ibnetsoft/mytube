@@ -63,6 +63,18 @@ WORKER_ID = os.environ.get("AIRWORKER_ID", "poc-worker-not-real")
 # docs/AIR_WORKER_SECURITY.md §4 - never a real Worker Token, never committed.
 WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
 
+# [AIR-0227C Stage 6] Identity of THIS Manager run, not the OS PID.
+# docs/AIR_WORKER_LEASE_PROTOCOL.md: PID is unusable as a stable identity
+# (AIR-0227B found the venv launcher relaunches into a child with a
+# different pid than the one subprocess.Popen returns - see
+# AIR_WORKER_JOB_RECOVERY.md's "pid 불일치" bug writeup). manager.py
+# generates ONE uuid4 per Manager process start and exports it via this env
+# var to every child it spawns, so Render Worker's lease claims are
+# attributable to a stable "this Manager session" identity instead. A
+# script run standalone (no Manager) falls back to generating its own -
+# only meaningful for ad hoc local testing, never for a real lease claim.
+WORKER_INSTANCE_ID = os.environ.get("AIRWORKER_INSTANCE_ID") or __import__("uuid").uuid4().hex
+
 # [AIR-0227B Stage 4] Root of the main AIR Studio app (this repo), needed so
 # the Render Worker Process can import services/remote_render_service.py and
 # services/video_service.py - the one real, already-battle-tested rendering

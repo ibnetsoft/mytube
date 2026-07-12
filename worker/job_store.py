@@ -92,10 +92,31 @@ def init_db():
             max_retries INTEGER NOT NULL DEFAULT 3,
             error_code TEXT,
             error_message TEXT,
-            output_path TEXT
+            output_path TEXT,
+            lease_id TEXT,
+            worker_instance_id TEXT,
+            lease_expires_at REAL,
+            attempt_number INTEGER NOT NULL DEFAULT 1,
+            remote_job_id TEXT,
+            remote_ack_status TEXT
         )
         """
     )
+    # [AIR-0227C Stage 5/7] lease + outbox columns added after the table
+    # already existed in AIR-0227B installs - ALTER TABLE ADD COLUMN so
+    # existing local worker/state/jobs.db files upgrade in place instead of
+    # needing a wipe.
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+    for col, ddl in [
+        ("lease_id", "ALTER TABLE jobs ADD COLUMN lease_id TEXT"),
+        ("worker_instance_id", "ALTER TABLE jobs ADD COLUMN worker_instance_id TEXT"),
+        ("lease_expires_at", "ALTER TABLE jobs ADD COLUMN lease_expires_at REAL"),
+        ("attempt_number", "ALTER TABLE jobs ADD COLUMN attempt_number INTEGER NOT NULL DEFAULT 1"),
+        ("remote_job_id", "ALTER TABLE jobs ADD COLUMN remote_job_id TEXT"),
+        ("remote_ack_status", "ALTER TABLE jobs ADD COLUMN remote_ack_status TEXT"),
+    ]:
+        if col not in existing_cols:
+            conn.execute(ddl)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS job_transitions (
@@ -131,6 +152,80 @@ def submit_job(job_type: str, payload: dict, priority: int = 0, source: str = "l
     _log_transition(conn, job_id, None, QUEUED, "submitted")
     conn.commit()
     return job_id
+
+
+def create_from_remote_claim(remote_job_id: str, job_type: str, payload: dict, priority: int,
+                              lease_id: str, worker_instance_id: str, lease_expires_at: float) -> str:
+    """[AIR-0227C Stage 5] Mirrors a job just claimed from the central
+    server into the local store as CLAIMED (skipping QUEUED entirely - it
+    was already claimed server-side before render_worker.py ever saw it).
+    From here on it flows through the exact same PREPARING/RENDERING/
+    UPLOADING state machine as a local_fixture job; only the lease_id/
+    worker_instance_id/remote_job_id columns and the central_client calls
+    render_worker.py makes alongside each local transition are different."""
+    local_job_id = str(uuid.uuid4())
+    now = time.time()
+    conn = _conn()
+    conn.execute(
+        """INSERT INTO jobs (job_id, job_type, source, priority, payload, status, worker_pid,
+                              created_at, started_at, retry_count, max_retries,
+                              lease_id, worker_instance_id, lease_expires_at, remote_job_id)
+           VALUES (?, ?, 'central_server', ?, ?, ?, NULL, ?, ?, 0, 0, ?, ?, ?, ?)""",
+        (local_job_id, job_type, priority, json.dumps(payload, ensure_ascii=False), CLAIMED,
+         now, now, lease_id, worker_instance_id, lease_expires_at, remote_job_id),
+    )
+    _log_transition(conn, local_job_id, None, QUEUED, "mirrored from central server claim")
+    _log_transition(conn, local_job_id, QUEUED, CLAIMED, f"claimed via central server, lease_id={lease_id}")
+    conn.commit()
+    return local_job_id
+
+
+def update_lease(job_id: str, lease_expires_at: float):
+    conn = _conn()
+    conn.execute("UPDATE jobs SET lease_expires_at = ? WHERE job_id = ?", (lease_expires_at, job_id))
+    conn.commit()
+
+
+def mark_remote_ack_pending(job_id: str):
+    """[AIR-0227C Stage 7] The local render finished (COMPLETED/FAILED) but
+    reporting that to the central server did not succeed yet (network down,
+    5xx, retries exhausted). docs/AIR_WORKER_REMOTE_E2E_QA.md: 'render 완료
+    결과는 로컬에 보존' - the local terminal status is authoritative and
+    final regardless of this flag; it only tracks whether the *central
+    server* still needs to be told."""
+    conn = _conn()
+    conn.execute("UPDATE jobs SET remote_ack_status = 'pending' WHERE job_id = ?", (job_id,))
+    conn.commit()
+
+
+def mark_remote_acked(job_id: str):
+    conn = _conn()
+    conn.execute("UPDATE jobs SET remote_ack_status = 'acked' WHERE job_id = ?", (job_id,))
+    conn.commit()
+
+
+def mark_remote_ack_abandoned(job_id: str):
+    """[AIR-0227C Stage 7, found via a live long-network-outage test] The
+    central server definitively rejected this report (LeaseConflict/409 -
+    the lease was already completed/failed/reassigned by the time we could
+    reach the server again). Unlike 'pending', this is NOT retried by
+    list_pending_remote_acks()/_flush_pending_remote_acks() - retrying a
+    409 will never succeed and would just loop forever. See
+    docs/AIR_WORKER_REMOTE_E2E_QA.md for the discovered scenario: an outage
+    longer than the lease TTL can let the SAME worker both (a) keep this
+    now-moot report around and (b) independently re-claim and re-render the
+    same job once the expired lease is swept - documented as a known
+    limitation, not fully solved by this flag alone."""
+    conn = _conn()
+    conn.execute("UPDATE jobs SET remote_ack_status = 'abandoned' WHERE job_id = ?", (job_id,))
+    conn.commit()
+
+
+def list_pending_remote_acks() -> list[dict]:
+    rows = _conn().execute(
+        "SELECT * FROM jobs WHERE remote_ack_status = 'pending' AND status IN ('COMPLETED', 'FAILED')"
+    ).fetchall()
+    return [_row_to_dict(r) for r in rows]
 
 
 def _log_transition(conn, job_id: str, from_status: Optional[str], to_status: str, reason: str = ""):

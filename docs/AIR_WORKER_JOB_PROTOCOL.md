@@ -1,7 +1,15 @@
 # AIR Worker — 작업(Job) 프로토콜
 
-- 상태: **설계안 / CTO 승인 대기**
-- 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md)
+- 상태: **로컬 구현 및 실측 완료(AIR-0227B/C) / 프로덕션 미배포**
+- 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md)
+
+> **AIR-0227C 업데이트**: §2의 공통 필드는 실제 구현(`worker/job_store.py`)에서
+> `lease_id`/`worker_instance_id`/`lease_expires_at`/`attempt_number`/`remote_job_id`/
+> `remote_ack_status`가 추가됐고, `status`는 이 문서의 `queued|claimed|running|paused|...`
+> 대신 AIR-0227B가 도입한 `QUEUED/CLAIMED/PREPARING/RENDERING/UPLOADING/COMPLETED/FAILED/
+> CANCELED/ABANDONED` 열거형을 실제로 쓴다(§JOB_RECOVERY.md 참고) - 이 문서의 스키마는
+> 최초 설계 의도 기록으로 남겨두고, 실제 필드 목록은 [LEASE_PROTOCOL.md](./AIR_WORKER_LEASE_PROTOCOL.md) §2가
+> 최신이다.
 
 ## 1. 공통 Job Dispatcher
 

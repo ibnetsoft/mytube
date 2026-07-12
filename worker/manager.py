@@ -25,6 +25,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 import job_store
@@ -71,6 +72,13 @@ class WorkerManager:
         self._stopping = False
         self._shutdown_thread: threading.Thread | None = None
         self._shutdown_started = threading.Event()
+        # [AIR-0227C Stage 6] One instance id per Manager process start -
+        # NEVER reused across restarts (docs/AIR_WORKER_LEASE_PROTOCOL.md:
+        # "같은 PC라도 이전 instance의 만료되지 않은 작업을 임의로 완료하지
+        # 않는다" - a fresh id each run means a Render Worker from a
+        # previous Manager lifetime can never look like the current one).
+        self.worker_instance_id = uuid.uuid4().hex
+        logger.info(f"Worker instance id for this Manager run: {self.worker_instance_id}")
         for name in CHILD_SCRIPTS:
             self.registry.register(name)
         self.registry.register("updater")
@@ -98,7 +106,7 @@ class WorkerManager:
             # Forcing PYTHONIOENCODING=utf-8 for every child process is the
             # standard fix and doesn't require touching the existing
             # rendering pipeline's print statements.
-            child_env = dict(os.environ, PYTHONIOENCODING="utf-8")
+            child_env = dict(os.environ, PYTHONIOENCODING="utf-8", AIRWORKER_INSTANCE_ID=self.worker_instance_id)
             popen = subprocess.Popen([PYTHON, str(script)], cwd=str(HERE), env=child_env)
             self.popens[name] = popen
             rec.pid = popen.pid
@@ -411,6 +419,7 @@ class WorkerManager:
                 processes[name]["progress"] = state.get("progress")
         return {
             "worker_id": WORKER_ID,
+            "worker_instance_id": self.worker_instance_id,
             "processes": processes,
             "hermes_paused": PAUSE_FLAG_FILE.exists(),
         }

@@ -17,6 +17,8 @@ Usage:
     python cli_status.py --jobs           # list recent jobs
     python cli_status.py --job <job_id>   # job detail + transition history
     python cli_status.py --cancel <job_id>
+    python cli_status.py --reissue-token  # [AIR-0227C] rotate the local API auth token
+    python cli_status.py --token-info     # show which storage backend is active (never prints the token)
 """
 import argparse
 import time
@@ -24,18 +26,26 @@ from pathlib import Path
 
 import requests
 
+from local_api_token import get_or_create_token, reissue_token, storage_backend
 from worker_config import LOCAL_API_HOST, LOCAL_API_PORT
 
 BASE_URL = f"http://{LOCAL_API_HOST}:{LOCAL_API_PORT}"
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixture" / "sample_render"
 
 
+def _headers():
+    # [AIR-0227C Stage 3] token is read directly from the local DPAPI-protected
+    # store - never accepted as a CLI argument or URL query parameter, and
+    # never printed by this script.
+    return {"Authorization": f"Bearer {get_or_create_token()}"}
+
+
 def _get(path):
-    return requests.get(f"{BASE_URL}{path}", timeout=5).json()
+    return requests.get(f"{BASE_URL}{path}", headers=_headers(), timeout=5).json()
 
 
 def _post(path, json_body=None, timeout=25):
-    return requests.post(f"{BASE_URL}{path}", json=json_body, timeout=timeout).json()
+    return requests.post(f"{BASE_URL}{path}", json=json_body, headers=_headers(), timeout=timeout).json()
 
 
 def print_status():
@@ -75,7 +85,18 @@ def main():
     parser.add_argument("--jobs", action="store_true")
     parser.add_argument("--job", default=None)
     parser.add_argument("--cancel", default=None)
+    parser.add_argument("--reissue-token", action="store_true", help="Generate a new local API token, invalidating the previous one immediately")
+    parser.add_argument("--token-info", action="store_true", help="Show token storage backend (never prints the token itself)")
     args = parser.parse_args()
+
+    if args.reissue_token:
+        reissue_token()
+        print(f"Token reissued (backend={storage_backend()}). The previous token is no longer valid.")
+        return
+    if args.token_info:
+        get_or_create_token()  # ensure one exists
+        print(f"Token storage backend: {storage_backend()}")
+        return
 
     if args.start:
         print(_post(f"/processes/{args.start}/start"))

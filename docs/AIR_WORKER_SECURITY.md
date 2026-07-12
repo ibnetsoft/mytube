@@ -1,7 +1,14 @@
 # AIR Worker — 보안 설계
 
-- 상태: **설계안 / CTO 승인 대기**
-- 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md)
+- 상태: **§1(Worker Token)·§2(Local API) 구현 및 실측 완료(AIR-0227C) / §3(중앙 서버 실연동) 여전히 설계만**
+- 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md), [AUTH](./AIR_WORKER_AUTH.md), [LOCAL_API_SECURITY](./AIR_WORKER_LOCAL_API_SECURITY.md)
+
+> **AIR-0227C 업데이트**: §2의 "로컬 전용 토큰... 후속 단계에서 검토"는 이제 후속이 아니라
+> 구현·실측 완료됐다 - 상세는 [LOCAL_API_SECURITY.md](./AIR_WORKER_LOCAL_API_SECURITY.md).
+> §1의 Worker Token 형태 제안(HMAC)도 실제로 구현·검증됐다 - 상세는
+> [AUTH.md](./AIR_WORKER_AUTH.md). §5의 잔여 위험 1번(Local API 무인증)은 이번 Task로
+> 해소됐다(아래 §5 갱신 참고). §3(중앙 서버 실연동)은 로컬 모의 서버로 프로토콜 차원만
+> 검증했고 실 auth-web/Supabase 연동은 여전히 미배포·CTO 승인 대기.
 
 이 문서는 AIR-0225B(service_role 유출 사고)와 AIR-0226(Hermes 보안 설계)의 연장선이다. 핵심
 교훈 재확인: **AIR Worker가 운영자 소유의 렌더링 PC에서 돈다는 사실이 "신뢰해도 된다"는
@@ -84,10 +91,17 @@ POST /shutdown
 
 ## 5. 잔여 위험
 
-1. Local API의 `/shutdown`/`/processes/*/stop` 같은 제어 엔드포인트에 인증이 없는 채로
-   출시되면(§2에서 지적한 로컬 전용 토큰 미구현 상태), 같은 PC의 다른 악성 프로세스가
-   렌더링을 임의로 중단시킬 수 있다 — 후속 Task에서 반드시 보강.
+1. ~~Local API의 `/shutdown`/`/processes/*/stop` 같은 제어 엔드포인트에 인증이 없는 채로
+   출시되면...~~ **[AIR-0227C로 해소]** DPAPI 기반 로컬 토큰 게이트를 구현·실측 완료 -
+   [LOCAL_API_SECURITY.md](./AIR_WORKER_LOCAL_API_SECURITY.md).
 2. Worker Token 탈취 시 파급 범위는 "그 워커에게 할당된 작업 조회/결과 전송/제한된 topic
    context 조회"로 국한되지만(§1), 여러 워커가 같은 토큰을 공유하는 실수를 하면 격리가
-   무너진다 — 워커별 고유 토큰 발급/회전 절차를 운영 문서에 명시하는 것을 다음 Task
-   범위로 제안.
+   무너진다 — 워커별 고유 토큰 발급/회전 절차는 [AUTH.md](./AIR_WORKER_AUTH.md)에서
+   설계했으나(`token_id` 필드로 재발급 시 이전 토큰 폐기 가능하도록 스키마는 준비됨),
+   auth-web에 실제로 배포되지 않아 운영 절차로서는 여전히 미완성.
+3. **[AIR-0227C에서 새로 발견]** lease TTL보다 긴 네트워크 장애 중에는 같은 워커가 이미
+   끝낸 작업을 스스로 다시 렌더링할 수 있다 - 서버 쪽 idempotency가 "완료 기록 중복"은
+   막지만 "중복 렌더링 자체"는 막지 못한다. 상세와 부분 완화책은
+   [LEASE_PROTOCOL.md](./AIR_WORKER_LEASE_PROTOCOL.md) §6.
+4. **[AIR-0227C]** Local API에 반복 실패 요청에 대한 rate limiting이 없다 -
+   [LOCAL_API_SECURITY.md](./AIR_WORKER_LOCAL_API_SECURITY.md) §5.

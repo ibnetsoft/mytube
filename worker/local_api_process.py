@@ -64,9 +64,11 @@ def main():
         pass
 
     import local_api_app  # noqa: E402  (import after logging_setup is ready)
+    from local_api_token import get_or_create_token, storage_backend  # noqa: E402
 
     clear_shutdown_flag("local_api")  # discard any stale flag from a previous instance of this process
-    logger.info(f"Local API starting on {LOCAL_API_HOST}:{LOCAL_API_PORT} (loopback only), pid={__import__('os').getpid()}")
+    get_or_create_token()  # ensure a token exists before accepting requests - never logged
+    logger.info(f"Local API starting on {LOCAL_API_HOST}:{LOCAL_API_PORT} (loopback only), pid={__import__('os').getpid()}, auth_token_backend={storage_backend()}")
     write_state("starting")
 
     config = uvicorn.Config(local_api_app.app, host=LOCAL_API_HOST, port=LOCAL_API_PORT, log_level="warning")

@@ -1,16 +1,16 @@
 """
-[AIR-0227B Stage 4/12] Upload adapter abstraction.
+[AIR-0227B Stage 4/12, AIR-0227C Stage 8] Upload adapter abstraction.
 
-Stage 1 re-verification of services/google_drive_service.py found upload
-(upsert_file) and download (download_file) both require a per-user OAuth
-token_path, not a service_role/admin credential - a materially different
-(and much narrower) kind of secret than the AIR-0225B incident's exposed
-key. Wiring the real Drive adapter into a worker running on an
-operator-controlled remote PC is still explicitly out of this Task's scope
-(local E2E fixture only, per the task's own "가짜 업로드 또는 로컬 copy
-adapter" instruction) - GoogleDriveUploadAdapter below is documented but
-deliberately left unimplemented (NotImplementedError) so nothing here can
-accidentally reach a real Drive account.
+AIR-0227B left GoogleDriveUploadAdapter unimplemented (NotImplementedError)
+since real Drive connection was out of that Task's scope. AIR-0227C Stage 8
+implements it for real via worker/drive_adapter.py, scoped to a single
+configured folder with filename/extension/size validation - see that
+module's docstring for the full security rationale. It is NOT live-tested
+this Task (no isolated test Drive account/folder/token available in this
+environment - docs/AIR_WORKER_DRIVE_ADAPTER.md documents what a
+CTO-provisioned test folder would let a future session verify).
+LocalCopyUploadAdapter remains the adapter actually used by the local E2E
+fixture and all of this Task's live QA.
 """
 import shutil
 import time
@@ -40,14 +40,14 @@ class LocalCopyUploadAdapter(UploadAdapter):
 
 
 class GoogleDriveUploadAdapter(UploadAdapter):
-    """[Documented, NOT wired up this Task] Would call
-    services/google_drive_service.py::upsert_file(...) using a per-project
-    Drive OAuth token_path, mirroring remote_drive_worker.py's existing
-    upload step. Left unimplemented until a real production connection is
-    explicitly approved (docs/AIR_WORKER_ARCHITECTURE.md §0)."""
+    """[AIR-0227C Stage 8] Real implementation, delegating to
+    worker/drive_adapter.py::upload_output. Requires
+    AIRWORKER_DRIVE_TOKEN_PATH and AIRWORKER_DRIVE_FOLDER_ID to be
+    configured (both provisioned by CTO/ops, never committed) - raises
+    DriveAdapterError immediately if either is missing rather than
+    silently falling back to some other behavior."""
 
     def upload(self, local_output_path: Path, job: dict) -> str:
-        raise NotImplementedError(
-            "GoogleDriveUploadAdapter is a design placeholder only - "
-            "not connected in AIR-0227B (local E2E fixture uses LocalCopyUploadAdapter)."
-        )
+        from drive_adapter import upload_output
+        remote_filename = f"{job['job_id']}.mp4"
+        return upload_output(local_output_path, remote_filename)
