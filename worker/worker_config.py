@@ -1,0 +1,91 @@
+"""
+[AIR-0227B Stage 1] AIR Worker shared configuration.
+
+Named worker_config.py (not config.py) deliberately: the Render Worker
+Process now imports services/remote_render_service.py, which itself does
+`from config import config` expecting the *main AIR Studio app's* root
+config.py. Since worker/ is the child script's own directory, it is always
+sys.path[0] for these subprocess.Popen'd scripts - a module named
+config.py living in here would permanently shadow the real one and break
+every real-pipeline import. Renaming this module is the fix (AIR-0227A's
+worker/config.py caused no problem only because nothing under worker/ ever
+imported the real pipeline yet - AIR-0227B is the first Task that does).
+"""
+import os
+import sys
+from pathlib import Path
+
+# In a real install this would be %LOCALAPPDATA%\AIRWorker\. For local dev/QA
+# we default to a folder inside the worker/ dir itself so it never touches
+# the real AIR Studio data directory (%LOCALAPPDATA%\AIRStudio\), matching
+# AIR_WORKER_UPDATE_STRATEGY.md §2's "완전히 분리된 설치 경로" principle.
+BASE_DIR = Path(os.environ.get("AIRWORKER_HOME", Path(__file__).resolve().parent))
+STATE_DIR = BASE_DIR / "state"
+LOG_DIR = BASE_DIR / "logs"
+JOB_LOG_DIR = LOG_DIR / "jobs"
+COMMAND_DIR = STATE_DIR / "commands"
+RESULT_DIR = STATE_DIR / "results"
+CANCEL_FLAG_DIR = STATE_DIR / "cancel_flags"
+SHUTDOWN_FLAG_DIR = STATE_DIR / "shutdown_flags"
+for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, COMMAND_DIR, RESULT_DIR, CANCEL_FLAG_DIR, SHUTDOWN_FLAG_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
+
+JOB_DB_PATH = STATE_DIR / "jobs.db"
+
+# docs/AIR_WORKER_PROCESS_MODEL.md §4 - one log file per process, no shared file.
+LOG_FILES = {
+    "manager": LOG_DIR / "manager.log",
+    "render_worker": LOG_DIR / "render_worker.log",
+    "hermes_worker": LOG_DIR / "hermes_worker.log",
+    "local_api": LOG_DIR / "local_api.log",
+    "updater": LOG_DIR / "updater.log",
+}
+
+# docs/AIR_WORKER_PROCESS_MODEL.md §3 - bounded auto-restart.
+CRASH_WINDOW_SECONDS = 600          # 10 minutes
+MAX_CRASHES_IN_WINDOW = 3           # disable the module after this many crashes in the window
+RESTART_BACKOFF_SECONDS = 2         # small delay before restarting a crashed process
+
+# docs/AIR_WORKER_SECURITY.md §2 - Local API bind address.
+# MUST be loopback-only, never configurable to a real interface address.
+LOCAL_API_HOST = "127.0.0.1"
+LOCAL_API_PORT = int(os.environ.get("AIRWORKER_LOCAL_API_PORT", "8765"))
+
+HEARTBEAT_STALE_SECONDS = 15        # a process is considered unresponsive if its heartbeat file is older than this
+MANAGER_TICK_SECONDS = 1.0          # how often the manager's supervisor loop runs
+
+# [AIR-0227B Stage 3] graceful shutdown protocol timings (docs/AIR_WORKER_SHUTDOWN_PROTOCOL.md).
+SHUTDOWN_GRACE_SECONDS = 8.0        # time given to a child process to exit cleanly after SIGTERM/terminate()
+SHUTDOWN_JOB_ABORT_GRACE_SECONDS = 5.0  # extra time given to Render Worker to reach a safe checkpoint if a job is active
+COMMAND_RESULT_TIMEOUT_SECONDS = 10.0   # how long Local API waits for Manager to answer a command via ipc.py
+
+WORKER_ID = os.environ.get("AIRWORKER_ID", "poc-worker-not-real")
+# docs/AIR_WORKER_SECURITY.md §4 - never a real Worker Token, never committed.
+WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
+
+# [AIR-0227B Stage 4] Root of the main AIR Studio app (this repo), needed so
+# the Render Worker Process can import services/remote_render_service.py and
+# services/video_service.py - the one real, already-battle-tested rendering
+# code path (docs/AIR_WORKER_RENDER_ADAPTER.md). This does NOT pull in any
+# Supabase/service_role dependency - services/remote_render_service.py's
+# remote_render_executor_func() takes no credentials at all, and
+# database.py (imported transitively) is pure local SQLite (verified
+# Stage 1). Only the Render Worker Process needs this; Manager/Hermes/Local
+# API never import project-root modules.
+PROJECT_ROOT = Path(os.environ.get("AIRWORKER_PROJECT_ROOT", Path(__file__).resolve().parent.parent))
+
+
+def ensure_project_root_on_path():
+    root = str(PROJECT_ROOT)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
+
+# [AIR-0227B Stage 9] Honest GPU/CPU status display - docs/AIR_WORKER_ARCHITECTURE.md
+# Stage 1 finding: no encoding path in this codebase actually uses GPU
+# acceleration (zero hits for nvenc|qsv|amf|cuda|hwaccel anywhere in the
+# rendering code). remote_render_executor_func's use_gpu parameter is
+# accepted but never read. Do not imply GPU accel is happening.
+RENDER_ENCODER = "libx264"
+RENDER_ACCELERATION = "CPU"
+GPU_RENDERING_ACTIVE = False

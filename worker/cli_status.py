@@ -13,23 +13,29 @@ Usage:
     python cli_status.py --stop hermes
     python cli_status.py --logs manager
     python cli_status.py --shutdown
+    python cli_status.py --submit-fixture # [AIR-0227B] enqueue the local E2E fixture as a render_video job
+    python cli_status.py --jobs           # list recent jobs
+    python cli_status.py --job <job_id>   # job detail + transition history
+    python cli_status.py --cancel <job_id>
 """
 import argparse
 import time
+from pathlib import Path
 
 import requests
 
-from config import LOCAL_API_HOST, LOCAL_API_PORT
+from worker_config import LOCAL_API_HOST, LOCAL_API_PORT
 
 BASE_URL = f"http://{LOCAL_API_HOST}:{LOCAL_API_PORT}"
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixture" / "sample_render"
 
 
 def _get(path):
     return requests.get(f"{BASE_URL}{path}", timeout=5).json()
 
 
-def _post(path):
-    return requests.post(f"{BASE_URL}{path}", timeout=5).json()
+def _post(path, json_body=None, timeout=25):
+    return requests.post(f"{BASE_URL}{path}", json=json_body, timeout=timeout).json()
 
 
 def print_status():
@@ -65,6 +71,10 @@ def main():
     parser.add_argument("--stop", choices=["render", "hermes"])
     parser.add_argument("--logs", default=None)
     parser.add_argument("--shutdown", action="store_true")
+    parser.add_argument("--submit-fixture", action="store_true")
+    parser.add_argument("--jobs", action="store_true")
+    parser.add_argument("--job", default=None)
+    parser.add_argument("--cancel", default=None)
     args = parser.parse_args()
 
     if args.start:
@@ -80,6 +90,28 @@ def main():
         return
     if args.shutdown:
         print(_post("/shutdown"))
+        return
+    if args.submit_fixture:
+        if not (FIXTURE_DIR / "config.json").exists():
+            print(f"[!] Fixture not found at {FIXTURE_DIR} - run: python fixture/build_fixture.py")
+            return
+        result = _post("/jobs/submit", {
+            "job_type": "render_video",
+            "priority": 100,
+            "payload": {"source_path": str(FIXTURE_DIR)},
+        })
+        print(result)
+        return
+    if args.jobs:
+        result = _get("/jobs")
+        for job in result.get("jobs", []):
+            print(f"{job['job_id']}  {job['job_type']:<12} {job['status']:<10} progress={job['progress']:>3}% retries={job['retry_count']}/{job['max_retries']}")
+        return
+    if args.job:
+        print(_get(f"/jobs/{args.job}"))
+        return
+    if args.cancel:
+        print(_post(f"/jobs/{args.cancel}/cancel", timeout=25))
         return
 
     if args.watch:

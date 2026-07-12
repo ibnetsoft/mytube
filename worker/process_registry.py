@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from config import CRASH_WINDOW_SECONDS, MAX_CRASHES_IN_WINDOW
+from worker_config import CRASH_WINDOW_SECONDS, MAX_CRASHES_IN_WINDOW
 
 
 @dataclass

@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-from config import STATE_DIR
+from worker_config import STATE_DIR
 from logging_setup import get_logger
 
 STATE_FILE = STATE_DIR / "render_worker.json"

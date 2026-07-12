@@ -15,8 +15,9 @@ import signal
 import time
 from pathlib import Path
 
-from config import STATE_DIR
+from worker_config import STATE_DIR
 from logging_setup import get_logger
+from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 STATE_FILE = STATE_DIR / "hermes_worker.json"
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
@@ -26,9 +27,16 @@ _shutdown_requested = False
 
 
 def _handle_signal(signum, frame):
+    # [Windows caveat - see worker/shutdown_flag.py] only fires for a real
+    # Ctrl+C, not for a Manager-issued Popen.terminate(). _should_stop()'s
+    # flag-file check is the real shutdown path on Windows.
     global _shutdown_requested
     logger.info(f"Received signal {signum}, requesting graceful shutdown")
     _shutdown_requested = True
+
+
+def _should_stop() -> bool:
+    return _shutdown_requested or is_shutdown_requested("hermes_worker")
 
 
 def write_state(status: str, current_job: dict | None, progress: int):
@@ -70,26 +78,27 @@ def main():
     except (AttributeError, ValueError):
         pass
 
+    clear_shutdown_flag("hermes_worker")  # discard any stale flag from a previous instance of this process
     logger.info("Hermes Worker (mock) starting")
     write_state("running", None, 0)
 
     jobs = fake_job_source()
     try:
         for job in jobs:
-            if _shutdown_requested:
+            if _should_stop():
                 break
 
             # Checkpoint: don't even START a new job while paused.
-            while is_paused() and not _shutdown_requested:
+            while is_paused() and not _should_stop():
                 write_state("paused", None, 0)
                 logger.info("Paused (render job in progress) - waiting before starting next job")
                 time.sleep(1)
-            if _shutdown_requested:
+            if _should_stop():
                 break
 
             logger.info(f"Picked up job {job['job_id']}")
             for step, pct in enumerate((0, 20, 40, 60, 80, 100)):
-                if _shutdown_requested:
+                if _should_stop():
                     logger.info(f"Shutdown requested mid-job {job['job_id']}, stopping cleanly")
                     break
                 write_state("running", job, pct)
@@ -99,7 +108,7 @@ def main():
                 # never abandon a step half-done.
                 if is_paused() and pct < 100:
                     logger.info(f"Pause requested mid-job {job['job_id']} - finishing current step, will pause before next")
-            if not _shutdown_requested:
+            if not _should_stop():
                 logger.info(f"Completed job {job['job_id']}")
             time.sleep(1)
     finally:
