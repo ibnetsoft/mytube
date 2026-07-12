@@ -64,13 +64,29 @@ export async function POST(req: Request) {
         // that fails verification is rejected outright (not silently
         // downgraded to "no token") - only an absent Authorization header is
         // treated leniently.
+        //
+        // [AIR-0227F-0B Stage 2] hasValidToken gates whether this response
+        // includes raw personal API key values (below) - a request with no
+        // token, or a garbage token, gets zero raw key material. A request
+        // with a genuinely valid token still gets raw values FOR NOW - this
+        // is the one remaining "temporary compatibility exception" the
+        // task spec explicitly allows, because personal keys have no
+        // alternate authenticated delivery channel the way platform system
+        // keys do (those are also delivered via /api/desktop-login and
+        // /api/desktop-resync's global_settings; personal
+        // user_metadata/app_metadata keys are ONLY ever delivered here).
+        // Deprecation plan: once BYOK/server-proxy work (AIR-0227F-0B
+        // Stage 9) lands, this endpoint stops returning raw key material
+        // at all, token or not - see docs/AIR_0227F_DESKTOP_AUTH_REDESIGN.md.
         const authHeader = req.headers.get('authorization') || ''
         const bearerMatch = /^Bearer\s+(\S+)$/.exec(authHeader)
+        let hasValidToken = false
         if (bearerMatch && user.email) {
             const tokenValid = verifyDesktopSessionToken(user.email, bearerMatch[1])
             if (!tokenValid) {
                 return NextResponse.json({ error: 'Invalid or expired session token' }, { status: 401 })
             }
+            hasValidToken = true
         }
 
         const meta = user.user_metadata || {}
@@ -116,32 +132,46 @@ export async function POST(req: Request) {
         const membership = profile?.membership || user.app_metadata?.membership || 'std';
 
         // [AIR-0227F-0 P0 hotfix] platform system keys removed entirely -
-        // see file header. Only the user's own keys are ever returned from
-        // this endpoint now.
+        // see file header. Personal (user-owned) keys below.
+        //
+        // [AIR-0227F-0B Stage 2] raw personal key values are now ONLY
+        // populated when hasValidToken is true. A token-less request gets
+        // api_keys: {} - safe by construction, not just by convention:
+        // services/auth_service.py::Config.load_remote_keys() iterates
+        // key/value pairs and no-ops on an empty dict, so old clients
+        // degrade to "no personal keys loaded" rather than crashing. This
+        // is a real functional loss for accounts using personal/custom
+        // keys (not the free-tier system-shared keys, which remain
+        // available via the already-authenticated desktop-login/resync
+        // channel) until they run a build that sends the session token.
+        // Deprecation plan for the valid-token exception itself: Stage 9
+        // (BYOK/server-proxy).
         const api_keys: Record<string, string> = {}
 
-        // 과거 meta 필드 지원
-        const keyMap: Record<string, string> = {
-            gemini_api_key:     'GEMINI_API_KEY',
-            youtube_api_key:    'YOUTUBE_API_KEY',
-            elevenlabs_api_key: 'ELEVENLABS_API_KEY',
-            topview_api_key:    'TOPVIEW_API_KEY',
-            topview_uid:        'TOPVIEW_UID',
-            claude_api_key:     'CLAUDE_API_KEY',
-        }
-        for (const [metaKey, configKey] of Object.entries(keyMap)) {
-            if (meta[metaKey]) api_keys[configKey] = meta[metaKey]
-        }
+        if (hasValidToken) {
+            // 과거 meta 필드 지원
+            const keyMap: Record<string, string> = {
+                gemini_api_key:     'GEMINI_API_KEY',
+                youtube_api_key:    'YOUTUBE_API_KEY',
+                elevenlabs_api_key: 'ELEVENLABS_API_KEY',
+                topview_api_key:    'TOPVIEW_API_KEY',
+                topview_uid:        'TOPVIEW_UID',
+                claude_api_key:     'CLAUDE_API_KEY',
+            }
+            for (const [metaKey, configKey] of Object.entries(keyMap)) {
+                if (meta[metaKey]) api_keys[configKey] = meta[metaKey]
+            }
 
-        // app_metadata의 custom_api_keys 우선 적용
-        const customKeys = appMeta.custom_api_keys || {}
-        if (customKeys.openai) api_keys['OPENAI_API_KEY'] = customKeys.openai
-        if (customKeys.gemini) api_keys['GEMINI_API_KEY'] = customKeys.gemini
-        if (customKeys.pexels) api_keys['PEXELS_API_KEY'] = customKeys.pexels
-        if (customKeys.replicate) api_keys['REPLICATE_API_KEY'] = customKeys.replicate
-        if (customKeys.elevenlabs) api_keys['ELEVENLABS_API_KEY'] = customKeys.elevenlabs
-        if (customKeys.youtube) api_keys['YOUTUBE_API_KEY'] = customKeys.youtube
-        if (customKeys.claude) api_keys['CLAUDE_API_KEY'] = customKeys.claude
+            // app_metadata의 custom_api_keys 우선 적용
+            const customKeys = appMeta.custom_api_keys || {}
+            if (customKeys.openai) api_keys['OPENAI_API_KEY'] = customKeys.openai
+            if (customKeys.gemini) api_keys['GEMINI_API_KEY'] = customKeys.gemini
+            if (customKeys.pexels) api_keys['PEXELS_API_KEY'] = customKeys.pexels
+            if (customKeys.replicate) api_keys['REPLICATE_API_KEY'] = customKeys.replicate
+            if (customKeys.elevenlabs) api_keys['ELEVENLABS_API_KEY'] = customKeys.elevenlabs
+            if (customKeys.youtube) api_keys['YOUTUBE_API_KEY'] = customKeys.youtube
+            if (customKeys.claude) api_keys['CLAUDE_API_KEY'] = customKeys.claude
+        }
 
         const isApproved = profile?.is_approved
         if (isApproved === false || isApproved === null || isApproved === undefined || ['false', '0', 'none'].includes(String(isApproved).toLowerCase())) {
