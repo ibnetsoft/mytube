@@ -27,6 +27,12 @@ export async function GET(req: Request) {
         const { data: { user }, error } = await getAdmin().auth.admin.getUserById(userId)
         if (error || !user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
+        // [AIR-0227D-SECURITY-HOTFIX Stage 6] the *_val fields used to
+        // return the real key values ("입력란 pre-fill용" per the old
+        // comment) - removed. Per policy, API keys are never returned in
+        // plaintext to the browser, even to an authenticated super admin;
+        // an admin overwrites a key without being able to read the
+        // existing one first.
         const meta = user.user_metadata || {}
         return NextResponse.json({
             gemini:      meta.gemini_api_key     ? '••••' : '',
@@ -34,12 +40,6 @@ export async function GET(req: Request) {
             elevenlabs:  meta.elevenlabs_api_key ? '••••' : '',
             topview:     meta.topview_api_key    ? '••••' : '',
             topview_uid: meta.topview_uid        ? '••••' : '',
-            // 실제 값도 함께 반환 (입력란 pre-fill용)
-            gemini_val:      meta.gemini_api_key      || '',
-            youtube_val:     meta.youtube_api_key     || '',
-            elevenlabs_val:  meta.elevenlabs_api_key  || '',
-            topview_val:     meta.topview_api_key     || '',
-            topview_uid_val: meta.topview_uid         || '',
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })

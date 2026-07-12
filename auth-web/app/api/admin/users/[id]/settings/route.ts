@@ -28,16 +28,24 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
             .eq('id', params.id)
             .maybeSingle()
 
+        // [AIR-0227D-SECURITY-HOTFIX Stage 5/6] no more plaintext API keys
+        // or pin_code (the user's actual login password) in this response,
+        // even to an authenticated super admin - only whether each is
+        // configured, plus a display-only last-4 for API keys so an admin
+        // can sanity-check *which* key is saved without being able to read
+        // or copy it out. youtube_channel/youtube_handle are not secrets
+        // (public channel identifiers), left as-is.
+        const maskKey = (v: unknown) => (typeof v === 'string' && v.length > 0 ? { configured: true, last_four: v.slice(-4) } : { configured: false, last_four: null })
         const meta = user.user_metadata || {}
         return NextResponse.json({
-            gemini: meta.gemini_api_key || '',
-            youtube: meta.youtube_api_key || '',
-            elevenlabs: meta.elevenlabs_api_key || '',
-            topview: meta.topview_api_key || '',
-            topview_uid: meta.topview_uid || '',
+            gemini: maskKey(meta.gemini_api_key),
+            youtube: maskKey(meta.youtube_api_key),
+            elevenlabs: maskKey(meta.elevenlabs_api_key),
+            topview: maskKey(meta.topview_api_key),
+            topview_uid: maskKey(meta.topview_uid),
             youtube_channel: meta.youtube_channel || '',
             youtube_handle: meta.youtube_handle || '',
-            pin_code: profile?.pin_code || '1234',
+            pin_configured: !!profile?.pin_code,
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
