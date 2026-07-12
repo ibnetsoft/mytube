@@ -1,12 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireSuperAdmin, isAuthResponse } from '../_auth'
 
 export const dynamic = 'force-dynamic'
 
+// [AIR-0227D-VALIDATION Stage 1 - security hotfix] This route had NO admin
+// auth check at all until this fix - GET/DELETE went straight to a
+// service-role client, meaning anyone who found the URL could list or
+// delete production render-queue rows with zero login. requireSuperAdmin
+// matches how this feature is gated in the UI (DashboardContent.tsx's
+// render-queue tab has `superOnly: true`), and the frontend already sends
+// `Authorization: Bearer <supabase session token>` via its `adminFetch`
+// helper (components/DashboardContent.tsx:388-392) - this fix only makes
+// the server actually check what the client was already sending, so it
+// does not change the existing admin UI's behavior.
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// Minimal structured audit trail (server log only - no dedicated audit
+// table exists yet in this codebase, and adding one is out of scope for an
+// emergency, standalone security commit). Never logs secrets/tokens.
+function auditLog(action: string, requesterEmail: string | undefined, detail: Record<string, unknown>) {
+    console.warn(`[admin-audit] action=${action} requester=${requesterEmail || 'unknown'} detail=${JSON.stringify(detail)}`)
+}
 
 function normalizeQueueItem(row: any) {
     const metadata = row?.metadata || {}
@@ -61,7 +79,10 @@ function normalizeQueueItem(row: any) {
     }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const sb = getAdmin()
         const { data, error } = await sb
@@ -78,6 +99,9 @@ export async function GET() {
 }
 
 export async function DELETE(req: Request) {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const { searchParams } = new URL(req.url)
         const id = searchParams.get('id')
@@ -90,6 +114,7 @@ export async function DELETE(req: Request) {
             .eq('id', id)
 
         if (error) throw error
+        auditLog('render_queue.delete', requester.user.email, { job_id: id })
         return NextResponse.json({ success: true })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
