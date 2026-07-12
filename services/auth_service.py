@@ -27,6 +27,12 @@ class AuthService:
         self._verified = False
         self._last_verified = None
         self._is_restricted = False
+        # [AIR-0227F-0 P0 hotfix] the HMAC-signed session token desktop-login
+        # issues (services/web_admin_client.py::desktop_login /
+        # desktop_resync), stashed here so verify_license()'s periodic
+        # /api/verify polling can present it too - previously only used for
+        # /api/desktop-resync, never sent to /api/verify at all.
+        self._session_token = None
         self._token_balance = self._load_persisted_balance()  # 재시작 시 마지막 잔액 복원
         self._remote_keys_loaded = False
         self.logger = logging.getLogger(__name__)
@@ -137,12 +143,20 @@ class AuthService:
 
             hwid = self.get_hwid()
             print(f"[Auth] Attempting verification at: {self.verify_url} (User: {user_id})")
+            # [AIR-0227F-0 P0 hotfix] present the session token if we have
+            # one - the server verifies it when sent but does not yet
+            # require it (lenient period, see auth-web/app/api/verify/
+            # route.ts's header comment). Never log the token itself.
+            headers = {}
+            if self._session_token:
+                headers["Authorization"] = f"Bearer {self._session_token}"
             response = requests.post(
                 self.verify_url,
                 json={
                     "userId": user_id,
                     "hwid": hwid
                 },
+                headers=headers,
                 timeout=10,
                 proxies={"http": None, "https": None}
             )
@@ -291,6 +305,13 @@ class AuthService:
         self._user_email = email
         self._verified = True
 
+        # [AIR-0227F-0 P0 hotfix] capture whichever session token this login
+        # call has access to - either passed in directly (cookie-restored
+        # session resume) or, below, extracted from the desktop-login
+        # response itself.
+        if session_token:
+            self._session_token = session_token
+
         if presynced is None and session_token:
             try:
                 from services.web_admin_client import web_admin_client
@@ -306,6 +327,8 @@ class AuthService:
             try:
                 self._membership = presynced.get("membership") or "std"
                 self._token_balance = presynced.get("token_balance") or 0
+                if presynced.get("session_token"):
+                    self._session_token = presynced.get("session_token")
                 print(f"[Auth] Logged in user {email} (presynced). Membership: {self._membership}, Balance: {self._token_balance}")
                 self.enforce_app_mode()
 

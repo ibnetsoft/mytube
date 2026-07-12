@@ -33,7 +33,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: '등록되지 않은 직원 이메일입니다.' }, { status: 404 })
         }
 
-        const dbPassword = String(pinRow.pin_code || '1234').trim()
+        // [AIR-0227F-0 P0 hotfix] the '1234' default fallback is removed -
+        // an account with no pin_code set can no longer be logged into by
+        // guessing/knowing that default. A NULL/empty pin_code now means
+        // "not configured", a distinct state from "wrong password" so a
+        // future client can prompt for setup instead of showing a generic
+        // auth-failed message.
+        if (!pinRow.pin_code) {
+            return NextResponse.json({ success: false, error: 'PIN이 설정되지 않았습니다. 관리자에게 문의하세요.', status: 'pin_not_configured' }, { status: 401 })
+        }
+        const dbPassword = String(pinRow.pin_code).trim()
         const inputPassword = String(password).trim()
         if (dbPassword !== inputPassword) {
             return NextResponse.json({ success: false, error: '비밀번호가 일치하지 않습니다.' }, { status: 401 })
