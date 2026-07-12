@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireSuperAdmin, isAuthResponse } from '../_auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,13 @@ const getAdmin = () => createClient(
   { auth: { persistSession: false } }
 )
 
-export async function GET() {
+// [AIR-0227D-VALIDATION additional static check 3 - security hotfix] had no
+// admin auth check at all - matches the sibling admin/style-presets/route.ts
+// (same style_presets table) which already correctly uses requireSuperAdmin.
+export async function GET(req: Request) {
+  const requester = await requireSuperAdmin(req)
+  if (isAuthResponse(requester)) return requester
+
   try {
     const supabase = getAdmin()
     const { data, error } = await supabase
@@ -26,6 +33,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const requester = await requireSuperAdmin(req)
+  if (isAuthResponse(requester)) return requester
+
   try {
     const body = await req.json()
     const {
@@ -67,6 +77,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const requester = await requireSuperAdmin(req)
+  if (isAuthResponse(requester)) return requester
+
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')

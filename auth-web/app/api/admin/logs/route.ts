@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireAdmin, isAuthResponse } from '../_auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,12 @@ const getAdmin = () => createClient(
     { auth: { persistSession: false } }
 )
 
+// [AIR-0227D-VALIDATION additional static check 3 - security hotfix] had no
+// admin auth check at all - found during the full /api/admin/** audit.
 export async function GET(req: Request) {
+    const requester = await requireAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const { searchParams } = new URL(req.url)
         const days = parseInt(searchParams.get('days') || '1')
