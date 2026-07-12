@@ -16,8 +16,12 @@
       - the literal string "SUPABASE_SERVICE_ROLE_KEY=" appearing anywhere
         (catches the env-var-style leak even if the value itself isn't a JWT,
         e.g. a placeholder or a differently-shaped secret)
-      - the mere presence of a ".env" file anywhere in the scanned tree, since a
-        packaged desktop app should never ship one at all after AIR-0225B
+      - any ".env" file anywhere in the scanned tree whose key names are not on
+        the explicit allow-list below. The packaged app is still expected to
+        ship a *public*-config-only .env (NEXT_PUBLIC_SUPABASE_URL + SMTP
+        credentials for signup email, per AIR-0225B Stage 0's own design) -
+        this script fails the build if that file ever grows an unexpected key,
+        not merely for existing.
 
     Run this BEFORE "Publish GitHub Release" in the Windows release workflow.
     A non-zero exit code must block the publish step.
@@ -44,9 +48,22 @@ $ErrorActionPreference = "Stop"
 $JwtPattern = [regex]'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
 $EnvVarLiteralPattern = [regex]'SUPABASE_SERVICE_ROLE_KEY\s*='
 
+# [AIR-0225B] Keys the packaged .env is allowed to carry (see
+# tools/build_windows.ps1's own EnvLines construction - keep in sync).
+# Anything else appearing as a key in a shipped .env fails the build.
+$EnvAllowedKeys = @(
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASS",
+    "SMTP_FROM"
+)
+
 $script:FindingsCount = 0
 $script:ScannedFiles = 0
 $script:EnvFilesFound = @()
+$script:EnvViolations = @()
 
 function Test-JwtIsServiceRole {
     param([string]$Token)
@@ -100,7 +117,22 @@ function Scan-File {
     $leaf = Split-Path $FilePath -Leaf
     if ($leaf -ieq ".env") {
         $script:EnvFilesFound += $FilePath
-        Write-Host "##[error] .env file present in packaged output: $FilePath"
+        try {
+            $envLines = Get-Content -LiteralPath $FilePath -ErrorAction Stop
+        } catch {
+            $envLines = @()
+        }
+        foreach ($line in $envLines) {
+            $trimmed = $line.Trim()
+            if (-not $trimmed -or $trimmed.StartsWith("#")) { continue }
+            $eq = $trimmed.IndexOf("=")
+            if ($eq -lt 0) { continue }
+            $key = $trimmed.Substring(0, $eq).Trim()
+            if ($EnvAllowedKeys -notcontains $key) {
+                $script:EnvViolations += "$FilePath -> unexpected key '$key'"
+                Write-Host "##[error] Unexpected key '$key' in packaged .env: $FilePath"
+            }
+        }
     }
 
     if ($leaf -match '\.(zip)$') {
@@ -151,14 +183,18 @@ Write-Host ""
 Write-Host "Files scanned: $script:ScannedFiles"
 Write-Host "Findings: $script:FindingsCount"
 if ($script:EnvFilesFound.Count -gt 0) {
-    Write-Host "'.env' files present: $($script:EnvFilesFound.Count)"
+    Write-Host "'.env' files present (informational - allowed if keys are all on the allow-list): $($script:EnvFilesFound.Count)"
     foreach ($f in $script:EnvFilesFound) { Write-Host "  - $f" }
 }
+if ($script:EnvViolations.Count -gt 0) {
+    Write-Host "'.env' allow-list violations: $($script:EnvViolations.Count)"
+    foreach ($v in $script:EnvViolations) { Write-Host "  - $v" }
+}
 
-if ($script:FindingsCount -gt 0 -or $script:EnvFilesFound.Count -gt 0) {
+if ($script:FindingsCount -gt 0 -or $script:EnvViolations.Count -gt 0) {
     Write-Host "##[error] Secret scan FAILED. Blocking release."
     exit 1
 }
 
-Write-Host "Secret scan passed - no service_role JWT, no SUPABASE_SERVICE_ROLE_KEY literal, no .env file found."
+Write-Host "Secret scan passed - no service_role JWT, no SUPABASE_SERVICE_ROLE_KEY literal, no unexpected .env keys."
 exit 0
