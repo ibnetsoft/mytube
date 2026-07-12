@@ -374,7 +374,13 @@ async def post_auth_login(req: LoginRequest, request: Request):
         # 로그인 검증(비밀번호/pin_code 비교, 승인 상태 확인)은 auth-web 서버에서
         # 수행한다. SUPABASE_SERVICE_ROLE_KEY는 서버에만 있고 데스크톱 앱에는
         # 존재하지 않아도 로그인이 동작해야 하므로, Supabase를 직접 두드리지 않는다.
-        result = web_admin_client.desktop_login(req.email, req.password)
+        #
+        # [AIR-0225B Batch A] req.lang이 이미 확정되어 있으면(로그인 화면에서
+        # 명시적으로 언어를 고른 경우 - 실사용에서 가장 흔한 경로) 같은 요청
+        # 안에서 저장까지 끝낸다. membership/token_balance/global_settings도
+        # 이 한 번의 호출로 함께 받아온다.
+        precomputed_lang = req.lang if (req.lang and req.lang in _LANG_ALLOWED) else ""
+        result = web_admin_client.desktop_login(req.email, req.password, lang=precomputed_lang)
         if not result.get("success"):
             return {"success": False, "error": result.get("error") or "로그인 오류"}
 
@@ -388,8 +394,9 @@ async def post_auth_login(req: LoginRequest, request: Request):
         nav_lang = (req.browser_lang or "").strip()
         accept_lang = request.headers.get("accept-language", "")
 
-        if req.lang and req.lang in _LANG_ALLOWED:
-            selected_lang = req.lang
+        if precomputed_lang:
+            # 이미 위 desktop_login() 호출에서 서버가 저장까지 끝냈다.
+            selected_lang = precomputed_lang
         elif db_preferred in _LANG_ALLOWED:
             selected_lang = db_preferred
         elif nav_lang:
@@ -400,13 +407,17 @@ async def post_auth_login(req: LoginRequest, request: Request):
             selected_lang = "en"
 
         _apply_login_language(selected_lang)
-        auth_service.login_user(req.email)
+        auth_service.login_user(req.email, presynced=result)
 
-        # Save preferred_language back to Supabase (best-effort)
-        try:
-            web_admin_client.update_preferred_language(req.email, selected_lang)
-        except Exception as e:
-            print(f"[Auth] preferred_language save warning: {e}")
+        if not precomputed_lang:
+            # [AIR-0225B Batch A] req.lang이 없었던 드문 경로(브라우저/Accept-Language
+            # 기반 추정)만 별도로 저장한다 - service_role 경유, best-effort.
+            # 흔한 경로(로그인 화면에서 언어를 직접 고른 경우)는 위에서 이미
+            # 한 번의 요청으로 저장이 끝나 이 호출이 발생하지 않는다.
+            try:
+                web_admin_client.update_preferred_language(req.email, selected_lang)
+            except Exception as e:
+                print(f"[Auth] preferred_language save warning: {e}")
 
         response = JSONResponse({"success": True, "lang": selected_lang})
         response.set_cookie(

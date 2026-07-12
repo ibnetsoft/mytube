@@ -267,15 +267,43 @@ class AuthService:
     def is_restricted(self):
         return self._is_restricted
 
-    def login_user(self, email: str):
-        """직원 이메일로 로그인 세션 및 에셋 폴더 활성화"""
+    def login_user(self, email: str, presynced: dict | None = None):
+        """직원 이메일로 로그인 세션 및 에셋 폴더 활성화
+
+        [AIR-0225B Batch A] presynced가 주어지면(비밀번호 로그인 직후
+        /api/desktop-login 응답 - membership/token_balance/global_settings를
+        이미 auth-web에서 받아온 상태) 그 값을 그대로 쓰고, 데스크톱이 직접
+        service_role로 fetch_profile_by_email()/fetch_global_api_keys()를
+        또 호출하지 않는다. presynced가 없는 호출(예: main.py의 쿠키 기반
+        세션 복원 - 비밀번호 재확인 없이 이메일만 있는 경우)은 기존처럼
+        직접 조회로 폴백한다 - 이 경로는 service_role이 없으면
+        has_supabase() 가드로 조용히 실패할 뿐 크래시하지 않는다."""
         if self._user_email == email and self._verified:
             return  # 이미 동일한 이메일로 검증 완료됨
 
         self._user_email = email
         self._verified = True
 
-        # Supabase에서 사용자 프로필 정보 동기화
+        if presynced is not None:
+            try:
+                self._membership = presynced.get("membership") or "std"
+                self._token_balance = presynced.get("token_balance") or 0
+                print(f"[Auth] Logged in user {email} (presynced). Membership: {self._membership}, Balance: {self._token_balance}")
+                self.enforce_app_mode()
+
+                global_settings_rows = presynced.get("global_settings") or []
+                if global_settings_rows:
+                    from services.web_admin_client import web_admin_client
+                    sys_keys = web_admin_client.translate_global_settings_rows(global_settings_rows)
+                    if sys_keys:
+                        from config import config
+                        config.load_remote_keys(sys_keys)
+                        print(f"[Auth] Loaded global API keys from desktop-login response: {list(sys_keys.keys())}")
+            except Exception as e:
+                print(f"[Auth] Failed to apply presynced login data: {e}")
+            return
+
+        # Supabase에서 사용자 프로필 정보 동기화 (presynced 미제공 시 폴백)
         try:
             from services.web_admin_client import web_admin_client
 

@@ -380,15 +380,25 @@ class WebAdminClient:
                     return u
         return None
 
-    def desktop_login(self, email: str, password: str) -> Dict[str, Any]:
+    def desktop_login(self, email: str, password: str, lang: str = "") -> Dict[str, Any]:
         """로그인 검증을 auth-web(Vercel) 서버에 위임한다.
         SUPABASE_SERVICE_ROLE_KEY를 데스크톱 앱이 직접 쓰지 않도록,
         비밀번호/pin_code 비교를 서버 쪽 /api/desktop-login에서 수행하고
-        결과만 돌려받는다."""
+        결과만 돌려받는다.
+
+        [AIR-0225B Batch A] 같은 요청에서 회원등급(membership)/토큰잔액
+        (token_balance)/공용 API 키(global_settings)까지 함께 받아오고,
+        lang이 주어지면 preferred_language 저장까지 서버 쪽에서 같이
+        처리한다 - 로그인 직후 데스크톱이 따로 service_role로
+        fetch_profile_by_email()/fetch_global_api_keys()/
+        update_preferred_language()를 호출하지 않아도 되게 하기 위함."""
         try:
+            payload = {"email": email, "password": password}
+            if lang:
+                payload["lang"] = lang
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-login",
-                json={"email": email, "password": password},
+                json=payload,
                 timeout=self.timeout,
             )
             data = response.json()
@@ -476,20 +486,26 @@ class WebAdminClient:
             return {}
         return {item.get("key"): item.get("value") for item in response.json() or []}
 
+    def translate_global_settings_rows(self, rows: List[Dict[str, Any]]) -> Dict[str, str]:
+        """global_settings의 {key,value} 원시 행 목록을 KEY_MAP으로 변환한다.
+        [AIR-0225B Batch A] fetch_global_api_keys()(직접 service_role 조회)와
+        desktop_login()의 presynced global_settings(auth-web에서 이미 받아온
+        원시 행) 양쪽이 동일한 매핑 로직을 공유하기 위해 분리했다."""
+        keys: Dict[str, str] = {}
+        for item in rows or []:
+            config_key = self.KEY_MAP.get(item.get("key"))
+            value = item.get("value")
+            if config_key and value:
+                keys[config_key] = value
+        return keys
+
     def fetch_global_api_keys(self) -> Dict[str, str]:
         response = self.supabase_get("global_settings", params={"select": "key,value"}, timeout=8)
         if response is None or response.status_code != 200:
             if response is not None:
                 print(f"[WebAdmin] global_settings load failed: HTTP {response.status_code} {response.text[:200]}")
             return {}
-
-        keys = {}
-        for item in response.json():
-            config_key = self.KEY_MAP.get(item.get("key"))
-            value = item.get("value")
-            if config_key and value:
-                keys[config_key] = value
-        return keys
+        return self.translate_global_settings_rows(response.json())
 
     def fetch_music_plan_templates(self) -> List[Dict[str, Any]]:
         response = self.supabase_get(
