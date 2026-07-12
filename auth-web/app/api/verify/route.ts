@@ -132,11 +132,31 @@ export async function POST(req: Request) {
 
         const tokenBalance = profile?.token_balance ?? 0
         console.log(`Verify SUCCESS for user ${userId}: channel=${meta.youtube_channel}, token_balance=${tokenBalance}`);
+        // [AIR-0227D-SECURITY-HOTFIX Stage 5/6] pin_code removed from this
+        // response - it is the user's actual login password in plaintext
+        // (see desktop-change-password/route.ts's own comment), and
+        // grepping services/auth_service.py (the only caller of this
+        // endpoint) confirms the desktop client never reads a pin_code
+        // field from the verify response. Dead data that was also a
+        // credential leak - pure downside, safe to remove outright.
+        //
+        // NOTE (not fixed here, flagged for urgent separate review): this
+        // endpoint authenticates the caller by trusting a bare `userId` in
+        // the request body with no session/license token, and the HWID
+        // check three lines above only fires when BOTH registeredHwid AND
+        // incomingHwid are non-empty - omitting `hwid` from the request
+        // entirely bypasses it. That means any caller who obtains a valid,
+        // approved userId can retrieve that user's full profile and the
+        // merged api_keys object (including shared system-wide provider
+        // keys for non-PRO accounts) without proving device ownership. This
+        // is a pre-existing, severe, and NOT fixed-here vulnerability -
+        // redesigning the verify/device-approval flow safely requires
+        // understanding how a brand-new device's approved_hwid gets set in
+        // the first place, which this hotfix's scope does not cover.
         return NextResponse.json({
             success: true,
             membership: profile?.membership || user.app_metadata?.membership || 'std',
             email: user.email,
-            pin_code: profile?.pin_code || '1234',
             full_name: meta.full_name || '',
             nationality: meta.nationality || '',
             contact: meta.contact || '',

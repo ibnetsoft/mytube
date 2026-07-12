@@ -82,7 +82,11 @@ export async function GET(req: Request) {
                     wallet_address: profileData.wallet_address || '',
                     membership_tier: membership,
                     membership: membership,
-                    pin_code: profileData.pin_code || '1234',
+                    // [AIR-0227D-SECURITY-HOTFIX Stage 5/6] pin_code (the
+                    // user's actual login password) is no longer returned
+                    // in plaintext to every admin in the bulk user list -
+                    // only whether one has been explicitly set.
+                    pin_configured: !!profileData.pin_code,
                     is_approved: profileData.is_approved === true,
                     signup_status: profileData.signup_status || (profileData.is_approved ? 'approved' : 'pending'),
                     signup_source: profileData.signup_source || '',
@@ -129,7 +133,7 @@ export async function GET(req: Request) {
                     wallet_address: p.wallet_address || '',
                     membership_tier: membership,
                     membership: membership,
-                    pin_code: p.pin_code || '1234',
+                    pin_configured: !!p.pin_code,
                     is_approved: p.is_approved === true,
                     signup_status: p.signup_status || (p.is_approved ? 'approved' : 'pending'),
                     signup_source: p.signup_source || '',

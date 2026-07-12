@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { isAuthResponse, requireAdmin } from '../../_auth';
+import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../../_auth';
 
 const getAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,9 +44,15 @@ export async function GET(req: Request) {
   }
 }
 
+// [AIR-0227D-SECURITY-HOTFIX Stage 2 - role-level upgrade] POST changes
+// referral commission percentages and payout cycle system-wide (a real
+// financial policy lever) but was only requireAdmin (sub_admin-eligible) -
+// upgraded to requireSuperAdmin, matching the equally-sensitive
+// admin/settings/global route. GET (read-only settings view) left as
+// requireAdmin.
 export async function POST(request: Request) {
   try {
-    const requester = await requireAdmin(request);
+    const requester = await requireSuperAdmin(request);
     if (isAuthResponse(requester)) return requester;
 
     const supabase = getAdmin();
