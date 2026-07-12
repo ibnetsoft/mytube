@@ -1,8 +1,22 @@
-# AIR Worker — Lease 기반 작업 소유권 (AIR-0227C Stage 5/6)
+# AIR Worker — Lease 기반 작업 소유권 (AIR-0227C Stage 5/6, AIR-0227D §7 갱신)
 
-- 상태: **구현 + 로컬 모의 중앙 서버로 실측 검증 완료**
-- 구현: `worker/job_store.py` (lease 컬럼), `worker/central_client.py`, `worker/render_worker.py`, `worker/dev_central_server/server.py`
-- 관련 문서: [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md) (AIR-0227B의 PID 기반 로컬 복구는 그대로 유지 - 로컬 dev job에는 계속 적용), [REMOTE_E2E_QA](./AIR_WORKER_REMOTE_E2E_QA.md)
+- 상태(워커 쪽): **구현 + 로컬 모의 중앙 서버로 실측 검증 완료, AIR-0227D에서 재회귀 확인**
+- 상태(실 중앙 서버 쪽, AIR-0227D): **RPC로 구현(`migrations/air_0227d_worker_central_protocol.sql`), 실제 Postgres에 미적용 - staging 접속 정보 없음**
+- 구현: `worker/job_store.py` (lease 컬럼), `worker/central_client.py`, `worker/render_worker.py`, `worker/dev_central_server/server.py` (모의), `auth-web/app/api/internal/worker/**` + `claim_worker_render_job`/`renew_worker_render_job_lease`/`report_worker_render_job_progress`/`report_worker_render_job_outcome` RPC (실 서버, AIR-0227D)
+- 관련 문서: [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md) (AIR-0227B의 PID 기반 로컬 복구는 그대로 유지 - 로컬 dev job에는 계속 적용), [REMOTE_E2E_QA](./AIR_WORKER_REMOTE_E2E_QA.md), [CENTRAL_API](./AIR_WORKER_CENTRAL_API.md), [DB_SCHEMA](./AIR_WORKER_DB_SCHEMA.md)
+
+## 0. AIR-0227D: 실 중앙 서버 쪽 lease 구현 요약
+
+로컬 모의 서버(`worker/dev_central_server/server.py`)가 SQLite `BEGIN IMMEDIATE`로 보장하던
+원자성을, 실 Postgres에서는 `claim_worker_render_job()` RPC의 `FOR UPDATE SKIP LOCKED`로
+구현했다(§DB_SCHEMA.md §6). `central_client.py`는 모의 서버와 실 auth-web을 wire-contract
+수준에서 구분하지 않으므로, 워커 쪽 코드 변경 없이 `AIRWORKER_CENTRAL_SERVER_URL`을 실
+auth-web URL로 바꾸는 것만으로 전환 가능하도록 설계했다(§AUTH.md §0의 기존 원칙 그대로).
+
+한 가지 프로토콜 강화: `report_worker_render_job_outcome()`은 같은 idempotency key로
+**다른 payload**가 재전송되면 (기존 모의 서버처럼 조용히 replay하지 않고) `409 conflict`로
+명시 거부하고 감사 로그(`worker_job_events.event_type='idempotent_conflict'`)를 남긴다 -
+AIR-0227D 작업 지시서의 명시적 요구사항이었고, 모의 서버보다 엄격하다.
 
 ## 1. 왜 PID를 버렸는가
 

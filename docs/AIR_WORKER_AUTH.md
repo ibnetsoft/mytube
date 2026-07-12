@@ -1,7 +1,28 @@
-# AIR Worker — 중앙 서버 인증 계약 (AIR-0227C)
+# AIR Worker — 중앙 서버 인증 계약 (AIR-0227C, AIR-0227D §0-A에서 실제 구현으로 갱신)
 
-- 상태: **프로토콜 구현 + 로컬 모의 서버로 실측 검증 완료 / auth-web 실배포 미승인**
-- 관련 문서: [SECURITY](./AIR_WORKER_SECURITY.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [REMOTE_E2E_QA](./AIR_WORKER_REMOTE_E2E_QA.md), [MIGRATION_PLAN](./AIR_WORKER_MIGRATION_PLAN.md)
+- 상태: **AIR-0227D에서 auth-web에 실제 라우트/토큰 저장 구현 완료 - 실 DB(staging/production) 어디에도 미적용, 미배포**
+- 관련 문서: [SECURITY](./AIR_WORKER_SECURITY.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [REMOTE_E2E_QA](./AIR_WORKER_REMOTE_E2E_QA.md), [MIGRATION_PLAN](./AIR_WORKER_MIGRATION_PLAN.md), [CENTRAL_API](./AIR_WORKER_CENTRAL_API.md)
+
+## 0-A. AIR-0227D: §3(아래)의 서명 토큰 설계에서 저장-해시 토큰으로 변경한 이유
+
+§3은 원래 `desktopSession.ts`처럼 **자기완결적 HMAC 서명 토큰**(비밀만 알면 검증 가능,
+서버는 아무것도 저장 안 함)을 계획했다. AIR-0227D 구현 중 이 설계로는 작업 지시서 Stage 4의
+"재발급 시 즉시 이전 토큰 무효화"를 만족시킬 수 없다는 걸 확인했다 - 서명 토큰은 서버가
+별도 폐기(revocation) 목록을 유지하지 않는 한 자기 만료 시각까지는 계속 유효하다. 그래서
+실제 구현(`auth-web/lib/workerAuth.ts`)은 **저장-해시 토큰**으로 바꿨다:
+
+- 발급 시 `token_id`(공개, 조회용)와 `secret`(비밀)을 따로 생성 - 원문 토큰은
+  `awt_<token_id>_<secret>` 형태.
+- DB(`worker_tokens.token_hash`)에는 `sha256(secret)`만 저장, 원문은 발급 응답에만
+  1회 등장(§CENTRAL_API.md §4).
+- 검증은 매 요청마다 DB를 다시 읽는다(캐시 없음) - `revoked_at`/`expires_at`을 지운다는
+  것 자체가 즉시 무효화다. `local_api_token.py`(로컬 Local API 토큰, AIR-0227C Stage 3)와
+  똑같은 "캐시하지 않고 매번 재확인" 원칙을 중앙 서버 쪽에도 그대로 적용했다.
+- 비교는 `crypto.timingSafeEqual`(Node) - 해시끼리 비교라 원문 길이 유추 위험은 없지만,
+  일관성을 위해 상수시간 비교를 유지했다.
+
+§1~§3(아래)은 AIR-0227C 시점의 최초 설계 스케치로 그대로 남겨둔다 - 실제 구현과 다른
+부분은 위 §0-A를 우선한다.
 
 ## 0. 이번 Task의 범위 결정 (투명하게 명시)
 

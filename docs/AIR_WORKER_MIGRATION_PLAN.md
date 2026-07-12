@@ -1,7 +1,48 @@
-# AIR Worker — 운영 DB 마이그레이션 초안 (AIR-0227C)
+# AIR Worker — 운영 DB 마이그레이션 초안 (AIR-0227C, AIR-0227D에서 갱신)
 
-- 상태: **SQL 초안만 - 운영 DB에 실행하지 않았음, CTO 승인 필요**
-- 관련 문서: [AUTH](./AIR_WORKER_AUTH.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md)
+- 상태: **SQL 초안만 - 운영 DB에 실행하지 않았음, staging DB에도 아직 적용 안 함(접속 정보 없음), CTO 승인 필요**
+- 관련 문서: [AUTH](./AIR_WORKER_AUTH.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [CENTRAL_API](./AIR_WORKER_CENTRAL_API.md), [DB_SCHEMA](./AIR_WORKER_DB_SCHEMA.md)
+
+## AIR-0227D 갱신 사항 (이 섹션이 최신 - §1~4는 AIR-0227C 시점의 초기 스케치로 보존만 함)
+
+AIR-0227C 당시엔 auth-web의 실제 스키마를 조사하지 않은 채 스케치만 했다. AIR-0227D에서
+실제 `auth-web/supabase_schema.sql`을 읽어보니 **치명적인 이름 충돌을 스스로 만들 뻔했다**:
+아래 §1이 제안한 `worker_jobs` 테이블명이 **이미 `migrations/air_0164a_worker_jobs.sql`에
+존재하는, 완전히 무관한 기능**(일반 사용자용 태스크보드, `auth.uid()` 기반 RLS)과 충돌한다.
+
+실제 구현은 아래처럼 바뀌었다 - 최종 SQL은
+`migrations/air_0227d_worker_central_protocol.sql`:
+
+1. **새 `worker_jobs` 테이블을 만들지 않는다.** 대신 이미 프로덕션에 존재하고 레거시
+   PicadiriRemoteWorker가 실제로 사용 중인 `public.remote_render_queue`
+   (`auth-web/supabase_schema.sql:519-540`)를 확장한다 - lease 컬럼(`lease_id`,
+   `lease_expires_at`, `worker_instance_id`, `heartbeat_at`, `attempt_number` 등)과
+   세분화된 `worker_status`(QUEUED/CLAIMED/PREPARING/RENDERING/UPLOADING/COMPLETED/
+   FAILED/CANCELED/ABANDONED)를 추가하되, 기존 `status`(pending/rendering/completed/
+   failed) 컬럼은 그대로 유지해 레거시 워커의 맹목적 PostgREST PATCH
+   (`?status=eq.pending`)를 절대 깨지 않는다. 근거: `worknote/AIR-0227A-stage1-render-worker-analysis.md`가
+   기록한 레거시 claim 방식.
+2. **`worker_registry` 대신 `workers`/`worker_tokens`로 분리.** §1의 단일
+   `worker_registry` 테이블은 "worker 신원"과 "토큰"을 한 테이블에 섞고 있었다 -
+   실제로는 토큰 회전(재발급)이 신원과 독립적으로 자주 일어나므로 분리했다
+   (§DB_SCHEMA.md 참고). `tenant_id UUID REFERENCES profiles(id)` FK도 뺐다 -
+   워커는 특정 tenant에 속하지 않고 여러 tenant의 작업을 처리하는 인프라이므로,
+   FK보다는 작업 행 자체의 `tenant_id`(remote_render_queue에 추가)가 맞는 자리다.
+3. **원자적 claim을 실제로 구현했다.** §1엔 인덱스만 있고 claim 로직 자체가 없었다 -
+   AIR-0227D는 `claim_worker_render_job()` RPC(`FOR UPDATE SKIP LOCKED`)로 구현
+   (§DB_SCHEMA.md §6).
+4. **idempotency를 페이로드 해시까지 검증하도록 강화.** AIR-0227C의 로컬 모의 서버는
+   같은 키의 재전송을 무조건 replay 처리했다(다른 payload여도). AIR-0227D의
+   `report_worker_render_job_outcome()` RPC는 같은 키+다른 payload를 `409 conflict`로
+   명시 거부하고 감사 로그를 남긴다(작업 지시서의 명시적 요구사항).
+
+### 미적용 상태 (정직하게 명시)
+
+`migrations/air_0227d_worker_central_protocol.sql`과 rollback 파일은 **작성만 됐고 어떤
+DB에도 적용되지 않았다** - 이 세션에는 staging Supabase 프로젝트 접속 정보가 없어 실제
+`CREATE TABLE`/`CREATE FUNCTION` 실행 자체를 검증하지 못했다. SQL은 신중하게 수기 리뷰했지만
+(FOR UPDATE 락 순서, RETURN QUERY 흐름, idempotency 분기 등) **실제 Postgres 실행 검증 없이는
+staging에도 적용해선 안 된다** - AIR_WORKER_OPERATIONS.md §2의 적용 절차를 따를 것.
 
 ## 0. 원칙
 

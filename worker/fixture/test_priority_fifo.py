@@ -17,17 +17,27 @@ sys.path.insert(0, ".")
 import requests
 
 import job_store
+from local_api_token import get_or_create_token
 from worker_config import LOCAL_API_HOST, LOCAL_API_PORT
 
 BASE_URL = f"http://{LOCAL_API_HOST}:{LOCAL_API_PORT}"
 BAD_PAYLOAD = {"source_path": "C:\\does\\not\\exist\\nope"}
 
 
+def _headers():
+    # [AIR-0227D Stage 1 regression fix] this script predates AIR-0227C
+    # Stage 3 Local API auth and was never updated to send it - submit()
+    # was getting a bare 401 with no 'job_id' key, not the seed job it
+    # expected. Local direct job_store reads/writes below are unaffected
+    # (no HTTP, no auth boundary).
+    return {"Authorization": f"Bearer {get_or_create_token()}"}
+
+
 def submit(priority, label):
     r = requests.post(f"{BASE_URL}/jobs/submit", json={
         "job_type": "render_video", "priority": priority,
         "payload": BAD_PAYLOAD, "max_retries": 0, "source": f"fifo-test-{label}",
-    }, timeout=5).json()
+    }, headers=_headers(), timeout=5).json()
     return r["job_id"]
 
 
