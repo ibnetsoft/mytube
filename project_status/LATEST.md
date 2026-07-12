@@ -1,47 +1,58 @@
 # Latest Worknote
 
-Date: 2026-07-12
+Date: 2026-07-13
 Repo: C:\Projects\에어스튜디오\LongformGenerator
 
 ## Security status (most recent, read this first)
 
-- **AIR-0227F-0B**: SERVER DONE / DESKTOP TEST RELEASE
+- **AIR-0227F-0B**: DONE
   `/api/verify` no longer returns platform system keys unconditionally; personal
   (BYOK) keys are now gated behind a valid `Authorization: Bearer` session
   token (see `auth-web/app/api/verify/route.ts`). Desktop-side wiring
-  (`services/auth_service.py`) captures and sends the session token. A test
-  build (AIR Studio v2.3.7, build 243) carrying this fix was published to
-  `ibnetsoft/AIR-releases` as a **prerelease** only — not activated for
-  general auto-update distribution.
-- **AIR-0227F-0C**: IN PROGRESS
+  (`services/auth_service.py`) captures and sends the session token.
+- **AIR-0227F-0C**: DONE
   v2.3.7 release-integrity pass: build-number consistency audit, `latest.json`
-  correction (removed a broken `installer_url`), portable ZIP re-verified
-  (SHA256 `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0`),
-  clean-room Launcher execution test passed, release marked prerelease with an
-  explicit test-release banner. Full report: see worknote for this task and
-  `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`.
+  correction (removed a broken `installer_url`), clean-room Launcher
+  execution test passed, release marked prerelease with an explicit
+  test-release banner. Full report: `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`.
+- **AIR-0227F-0D**: DONE
+  v2.3.7 build 243 was rebuilt from source (fresh PyInstaller build) and its
+  GitHub prerelease assets replaced in place via `gh release upload
+  --clobber` (no new Release created, tag/prerelease status unchanged). Final
+  approved asset values:
+  - ZIP: `AIRStudio-2.3.7-win-x64.zip`, size **456,147,733 bytes**
+  - SHA256: **`ff73df7a751578ee8c0a05c0aa6b4a89cddde00d8717755f6b643e0289dddc4a`**
+  - `installer_url`: none (portable ZIP only)
+  - **폐기된 이전 자산값** (AIR-0227F-0C 시점의 첫 빌드, 더 이상 유효하지 않음):
+    ZIP 456,147,806 bytes / SHA256
+    `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0` — 이
+    값들은 AIR-0227F-0D 재빌드로 교체되었다.
+  - `v2.3.7` remains a **GitHub prerelease** —
+    not activated for general auto-update distribution.
 - 자동업데이트: **DISABLED** (release is `prerelease`, not `/releases/latest`; no
   general client fleet will pull this build automatically)
-- 실계정 E2E QA: **PENDING** (explicitly not performed this session per task
-  scope — no test-account creation, no real-account login test)
+- 일반 사용자 배포: **NOT APPROVED**
+- 실계정 E2E QA: **PENDING** (not performed — no test-account creation, no
+  real-account login test)
 - Stage 8 (platform key rotation): **USER KEY ROTATION COMPLETED** for
   Gemini/YouTube/ElevenLabs/Claude (personally re-issued by the user into
   BYOK/`user_metadata`, not `global_settings`); TopView excluded (no prior
   key/usage). **RESIDUAL SECRET AUDIT PENDING** for production
-  `global_settings.sys_api_*` and Vercel env vars — this session has no DB/
-  dashboard access to confirm old key values were rotated there.
-- Stage 9 (system key removal): **AUDIT ONLY / NOT DEPLOYED** — see
+  `global_settings.sys_api_*` and Vercel env vars — no DB/dashboard access to
+  confirm old key values were rotated there.
+- Stage 9 (system key removal): **NOT STARTED** — see
   `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the full per-key table and
   recommended removal order. No system key was deleted and no production
-  policy was changed this session.
+  policy was changed.
 - **Production `global_settings` (`LATEST_APP_VERSION`/`LATEST_APP_URL`) was
-  NOT modified this session** — the v2.3.7 test build was distributed via
-  GitHub Release only, per explicit user instruction.
-- Separate, higher-priority open item found while auditing (not caused by
-  this session, not yet resolved): whether the `SUPABASE_SERVICE_ROLE_KEY`
-  exposed in 19 public releases (AIR-0225B, see `worknote/AIR-0225B-*`) has
-  actually had its **value** rotated in Supabase remains unconfirmed —
-  recommend the team/CTO confirm this directly.
+  NOT modified** — the v2.3.7 test build is distributed via GitHub Release
+  only, per explicit CTO instruction.
+- `SUPABASE_SERVICE_ROLE_KEY` rotation confirmation: **PENDING** —
+  `docs/AIR_0225B_R0_SERVICE_ROLE_ROTATION_AUDIT.md` records this as
+  `UNABLE_TO_VERIFY` / `BLOCKED — SUPABASE OWNER ACTION REQUIRED` (no
+  Supabase dashboard/API access this session). Higher priority than the
+  Gemini-etc key rotation above; recommend the Supabase project owner
+  confirm directly.
 
 ## Current understanding
 - AIR Studio is a local FastAPI application with a Next.js admin app.

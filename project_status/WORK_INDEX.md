@@ -506,7 +506,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - [AIR-0218](../worknote/AIR-0218.md) - GitHub Actions Release Automation (DONE)
 
 ### AIR-0227F-0B — User API Key Protection + Desktop Security Build
-- Status: SERVER DONE / DESKTOP TEST RELEASE
+- Status: DONE
 - Related files:
   - `auth-web/app/api/verify/route.ts`
   - `services/auth_service.py`
@@ -525,7 +525,7 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   `docs/AIR_0227F_DESKTOP_AUTH_REDESIGN.md`.
 
 ### AIR-0227F-0C — v2.3.7 Release Integrity Fix + Pre-Distribution QA
-- Status: IN PROGRESS
+- Status: DONE (PR [#78](https://github.com/ibnetsoft/mytube/pull/78), MERGED)
 - Related files:
   - `release/latest.json`, `release/AIRStudio-2.3.7-win-x64.zip.sha256`
   - `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`
@@ -545,7 +545,36 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
   cross-referenced the still-open AIR-0225B `SUPABASE_SERVICE_ROLE_KEY`
   rotation-confirmation gap.
 - Next action:
-  Commit and PR the doc-only changes on `docs/air-0227f-0c-release-integrity`;
-  team to confirm AIR-0225B Phase 0 (service_role key value rotation) and
-  production `global_settings.sys_api_*` / Vercel env var residual key status,
-  both outside this session's access.
+  Superseded by AIR-0227F-0D (rebuild) below; AIR-0225B-R0 opened separately
+  for the service_role rotation gap.
+
+### AIR-0227F-0D — v2.3.7 Rebuild + Asset Finalization
+- Status: DONE
+- Related files:
+  - `release/AIRStudio-2.3.7-win-x64.zip`, `release/AIRStudio-2.3.7-win-x64.zip.sha256`, `release/latest.json`
+  - `release/staging/AIRStudio/app/version.json`, `release/staging/AIRStudio/current.json`
+  - `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` (build-evidence addendum)
+  - `project_status/LATEST.md`, `project_status/NEXT_TASK.md`, `worknote/latest.md`
+- Short summary:
+  Rebuilt v2.3.7 build 243 from source in this session (fresh PyInstaller
+  build via the project venv, `./venv/Scripts/python.exe -m PyInstaller
+  packaging/windows/AIRStudio.spec`), confirmed `Build complete!` in
+  `rebuild_2372_log.txt` (not committed — local build log only), replaced
+  `release/staging/AIRStudio/app` from the new `dist/AIRStudio` output
+  (file timestamps/sizes verified identical between `dist/` and staging
+  post-copy), rewrote `version.json`/`current.json` without BOM, launch-
+  tested the rebuilt exe (MainWindowTitle "AIR Studio", Responding=True,
+  clean shutdown, no leftover process), rebuilt the portable ZIP, and
+  replaced the existing GitHub prerelease's 3 assets in place via
+  `gh release upload v2.3.7 --clobber` — no new Release created, tag and
+  prerelease status unchanged. Reconfirmed `/releases/latest` still returns
+  `v2.3.6` after the asset swap. Final asset: `AIRStudio-2.3.7-win-x64.zip`,
+  456,147,733 bytes, SHA256
+  `ff73df7a751578ee8c0a05c0aa6b4a89cddde00d8717755f6b643e0289dddc4a`
+  (supersedes the AIR-0227F-0C build's 456,147,806 bytes /
+  `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0`).
+- Next action:
+  Team to confirm AIR-0225B-R0 (`SUPABASE_SERVICE_ROLE_KEY` rotation,
+  currently BLOCKED) and the Stage 8 residual `global_settings.sys_api_*` /
+  Vercel env var audit, both outside this session's access. Real-account
+  E2E QA and any general-distribution decision remain separately gated.
