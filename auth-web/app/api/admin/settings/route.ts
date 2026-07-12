@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireSuperAdmin, isAuthResponse } from '../_auth'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,7 +8,17 @@ const getAdmin = () => createClient(
 )
 
 // GET: 현재 저장된 키 로드
+// [AIR-0227D-VALIDATION additional static check 3 - security hotfix, SEVERE]
+// had no admin auth check at all - returned another user's real API key
+// VALUES in plaintext (gemini_val/youtube_val/elevenlabs_val/topview_val)
+// for any userId supplied as a query param, no login required. Matches the
+// already-secured sibling admin/users/api-keys/route.ts (same concern,
+// already requireSuperAdmin-gated) - this route appears to be an
+// older/duplicate path that was left behind unsecured.
 export async function GET(req: Request) {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const { searchParams } = new URL(req.url)
         const userId = searchParams.get('userId')
@@ -16,6 +27,12 @@ export async function GET(req: Request) {
         const { data: { user }, error } = await getAdmin().auth.admin.getUserById(userId)
         if (error || !user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
+        // [AIR-0227D-SECURITY-HOTFIX Stage 6] the *_val fields used to
+        // return the real key values ("입력란 pre-fill용" per the old
+        // comment) - removed. Per policy, API keys are never returned in
+        // plaintext to the browser, even to an authenticated super admin;
+        // an admin overwrites a key without being able to read the
+        // existing one first.
         const meta = user.user_metadata || {}
         return NextResponse.json({
             gemini:      meta.gemini_api_key     ? '••••' : '',
@@ -23,12 +40,6 @@ export async function GET(req: Request) {
             elevenlabs:  meta.elevenlabs_api_key ? '••••' : '',
             topview:     meta.topview_api_key    ? '••••' : '',
             topview_uid: meta.topview_uid        ? '••••' : '',
-            // 실제 값도 함께 반환 (입력란 pre-fill용)
-            gemini_val:      meta.gemini_api_key      || '',
-            youtube_val:     meta.youtube_api_key     || '',
-            elevenlabs_val:  meta.elevenlabs_api_key  || '',
-            topview_val:     meta.topview_api_key     || '',
-            topview_uid_val: meta.topview_uid         || '',
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
@@ -37,6 +48,9 @@ export async function GET(req: Request) {
 
 // POST: 키 저장 (userId를 body로 받아서 해당 유저의 user_metadata에 저장)
 export async function POST(req: Request) {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const body = await req.json()
         const { userId, gemini, youtube, elevenlabs, topview, topview_uid } = body

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireAdmin, isAuthResponse } from '../../../_auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,12 @@ const getAdmin = () => createClient(
 )
 
 // GET: 특정 유저의 토큰 트랜잭션 내역 조회 (어드민 전용)
+// [AIR-0227D-VALIDATION additional static check 3 - security hotfix] had no
+// admin auth check at all.
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+    const requester = await requireAdmin(_req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const userId = params.id
         if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
