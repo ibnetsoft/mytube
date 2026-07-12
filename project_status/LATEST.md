@@ -1,7 +1,47 @@
 # Latest Worknote
 
-Date: 2026-07-07
-Repo: C:\Projects\AIR-Studio
+Date: 2026-07-12
+Repo: C:\Projects\에어스튜디오\LongformGenerator
+
+## Security status (most recent, read this first)
+
+- **AIR-0227F-0B**: SERVER DONE / DESKTOP TEST RELEASE
+  `/api/verify` no longer returns platform system keys unconditionally; personal
+  (BYOK) keys are now gated behind a valid `Authorization: Bearer` session
+  token (see `auth-web/app/api/verify/route.ts`). Desktop-side wiring
+  (`services/auth_service.py`) captures and sends the session token. A test
+  build (AIR Studio v2.3.7, build 243) carrying this fix was published to
+  `ibnetsoft/AIR-releases` as a **prerelease** only — not activated for
+  general auto-update distribution.
+- **AIR-0227F-0C**: IN PROGRESS
+  v2.3.7 release-integrity pass: build-number consistency audit, `latest.json`
+  correction (removed a broken `installer_url`), portable ZIP re-verified
+  (SHA256 `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0`),
+  clean-room Launcher execution test passed, release marked prerelease with an
+  explicit test-release banner. Full report: see worknote for this task and
+  `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`.
+- 자동업데이트: **DISABLED** (release is `prerelease`, not `/releases/latest`; no
+  general client fleet will pull this build automatically)
+- 실계정 E2E QA: **PENDING** (explicitly not performed this session per task
+  scope — no test-account creation, no real-account login test)
+- Stage 8 (platform key rotation): **USER KEY ROTATION COMPLETED** for
+  Gemini/YouTube/ElevenLabs/Claude (personally re-issued by the user into
+  BYOK/`user_metadata`, not `global_settings`); TopView excluded (no prior
+  key/usage). **RESIDUAL SECRET AUDIT PENDING** for production
+  `global_settings.sys_api_*` and Vercel env vars — this session has no DB/
+  dashboard access to confirm old key values were rotated there.
+- Stage 9 (system key removal): **AUDIT ONLY / NOT DEPLOYED** — see
+  `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the full per-key table and
+  recommended removal order. No system key was deleted and no production
+  policy was changed this session.
+- **Production `global_settings` (`LATEST_APP_VERSION`/`LATEST_APP_URL`) was
+  NOT modified this session** — the v2.3.7 test build was distributed via
+  GitHub Release only, per explicit user instruction.
+- Separate, higher-priority open item found while auditing (not caused by
+  this session, not yet resolved): whether the `SUPABASE_SERVICE_ROLE_KEY`
+  exposed in 19 public releases (AIR-0225B, see `worknote/AIR-0225B-*`) has
+  actually had its **value** rotated in Supabase remains unconfirmed —
+  recommend the team/CTO confirm this directly.
 
 ## Current understanding
 - AIR Studio is a local FastAPI application with a Next.js admin app.
