@@ -1,7 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireSuperAdmin, isAuthResponse } from '../../../_auth'
 
+// [AIR-0227D-VALIDATION additional static check 3 - security hotfix, SEVERE]
+// had no admin auth check at all - returned another user's real API key
+// values AND their pin_code (used as their actual login password per
+// desktop-change-password/route.ts's own comment) in plaintext for any
+// user id, no login required, and POST let anyone overwrite both. This is
+// a full credential-theft/account-takeover primitive with zero auth.
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+    const requester = await requireSuperAdmin(_req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const supabaseAdmin = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +45,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+    const requester = await requireSuperAdmin(req)
+    if (isAuthResponse(requester)) return requester
+
     try {
         const body = await req.json()
         const userId = params.id
