@@ -1,6 +1,6 @@
 
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
@@ -9,10 +9,6 @@ export async function GET(req: Request) {
     if (!userId) {
         return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
     try {
         const { data, error } = await supabaseAdmin
@@ -29,10 +25,6 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
-
     try {
         const { userId, requestId, status } = await req.json()
 
@@ -65,11 +57,6 @@ export async function PATCH(req: Request) {
 }
 
 export async function POST(req: Request) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
-
     try {
         const { userId, videoUrl, metadata } = await req.json()
 
