@@ -96,3 +96,37 @@
 ③ ElevenLabs/YouTube(사용자 영향 확인 후) → ④ Gemini(서버 프록시 또는 std 등급 BYOK 강제화
 완성 후, 가장 마지막). 각 단계마다 삭제 전 해당 키에 의존하는 실사용자 비율을 먼저 파악 권장
 (이 세션은 그 데이터에 접근할 수 없음).
+
+## AIR-0227F-0D — v2.3.7 재빌드 증거 기록
+
+로그 전체(`rebuild_2372_log.txt`)는 로컬 절대 경로를 포함하므로 커밋하지
+않았다. 아래는 그 로그와 실행 검증에서 확인한 사실만 요약한 것이다.
+
+- **재빌드 명령**: `./venv/Scripts/python.exe -m PyInstaller
+  packaging/windows/AIRStudio.spec --distpath dist --workpath build
+  --noconfirm` (프로젝트 venv의 PyInstaller 6.21.0 사용)
+- **완료 확인**: `rebuild_2372_log.txt` 마지막 줄 `Build complete! The
+  results are available in: ...\dist` 직접 확인
+- **`dist/AIRStudio/AIRStudio.exe` 생성 시각**: 2026-07-13 07:43:00 (로컬)
+- **staging 교체 방식**: `Copy-Item -Recurse -Force`로
+  `release\staging\AIRStudio\app`를 `dist\AIRStudio\*`로 덮어씀(병합 복사 —
+  `dist`에 없는 `app\uploads`는 삭제되지 않고 보존됨)
+- **파일 일치 확인**: `_internal\base_library.zip`을 예시로 `dist`와 교체
+  후 staging 양쪽의 크기/수정 시각이 정확히 동일함을 확인(2026-07-13
+  07:43:02, 1,401,781 bytes)
+- **`version.json`/`current.json`**: Python `json.dump`로 재작성, 첫 3바이트가
+  `{`+개행으로 시작함을 확인 — BOM 없음. `version=2.3.7`, `build=243`
+- **실행 결과**: staging의 재빌드된 `AIRStudio.exe`를 `Start-Process`로 실행,
+  20초 대기 후 `MainWindowTitle: "AIR Studio"`, `Responding: True` 확인
+- **종료 확인**: `Stop-Process -Force` 후 `Get-Process -Name AIRStudio`
+  결과 없음(잔여 프로세스 없음)
+- **ZIP/자산**: `Compress-Archive`로 재생성, `Get-FileHash -Algorithm
+  SHA256`로 계산 — 456,147,733 bytes,
+  `ff73df7a751578ee8c0a05c0aa6b4a89cddde00d8717755f6b643e0289dddc4a`
+  (**폐기된 이전 값**: AIR-0227F-0C 최초 빌드의 456,147,806 bytes /
+  `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0` — 이
+  값은 이 재빌드로 교체되었으며 더 이상 유효하지 않다)
+- **Release 반영**: 새 Release를 만들지 않고 `gh release upload v2.3.7
+  --repo ibnetsoft/AIR-releases --clobber`로 기존 prerelease의 자산 3개만
+  교체. 업로드 후 `isPrerelease: true` 유지, `/releases/latest`가 여전히
+  `v2.3.6`을 반환함을 재확인 — 이전 라운드의 노출 사고가 재현되지 않았음

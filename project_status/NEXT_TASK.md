@@ -1,23 +1,32 @@
 # Next Tasks
 
-## Security Sprint Status (2026-07-12, read first)
+## Security Sprint Status (2026-07-13, read first)
 - AIR-0227F-0: `/api/verify` P0 hotfix (platform system keys removed, PIN 1234
   fallback removed) — DONE, merged and deployed.
 - AIR-0227F-0B: personal/BYOK API key protection + session-token wiring —
-  SERVER DONE / DESKTOP TEST RELEASE (v2.3.7 build 243, GitHub prerelease
-  only, 자동업데이트 DISABLED).
-- AIR-0227F-0C: v2.3.7 release-integrity fix — IN PROGRESS (doc/report stage;
-  see `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the Stage 9 system-key
-  removal audit and the residual-secret audit).
-- 실계정 E2E QA: PENDING — not performed this session by explicit scope
+  DONE.
+- AIR-0227F-0C: v2.3.7 release-integrity fix — DONE.
+- AIR-0227F-0D: v2.3.7 build 243 rebuilt from source, GitHub prerelease
+  assets replaced in place (`gh release upload --clobber`, no new Release,
+  tag/prerelease status unchanged) — DONE. Final asset: ZIP 456,147,733
+  bytes, SHA256 `ff73df7a751578ee8c0a05c0aa6b4a89cddde00d8717755f6b643e0289dddc4a`.
+  Earlier AIR-0227F-0C build (456,147,806 bytes /
+  `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0`) is
+  superseded — see `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the full
+  build-evidence record.
+- v2.3.7: REBUILT / TEST RELEASE / PRERELEASE. 자동업데이트: DISABLED.
+  일반 사용자 배포: NOT APPROVED.
+- 실계정 E2E QA: PENDING — not performed by explicit scope
   (no test-account creation, no real-account login).
 - Production `global_settings` (`LATEST_APP_VERSION`/`LATEST_APP_URL`):
   NOT modified. AIR Worker PRs #70/#71/#72 remain unmerged (Draft) as
   required.
-- Open, unresolved, needs team/CTO confirmation (not this session's access):
-  actual Supabase `service_role` key rotation status (AIR-0225B Phase 0),
-  and whether production `global_settings.sys_api_*` / Vercel env vars still
-  hold old provider key values.
+- Stage 9 (system key removal): NOT STARTED.
+- `SUPABASE_SERVICE_ROLE_KEY` rotation: PENDING — see
+  `docs/AIR_0225B_R0_SERVICE_ROLE_ROTATION_AUDIT.md`
+  (`UNABLE_TO_VERIFY` / `BLOCKED — SUPABASE OWNER ACTION REQUIRED`, no
+  Supabase dashboard/API access). Higher priority than provider-key
+  rotation; needs team/CTO confirmation.
 
 ## Completed This Sprint
 - AIR-0213: Scene pipeline E2E tests + Unmatched asset board — DONE
