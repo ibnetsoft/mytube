@@ -112,6 +112,39 @@ lease_expires_at > NOW()` 조건에 맞는 행이 없으면 빈 결과 반환 �
 응답만 유실"과 "처리 자체가 안 됨"을 idempotency 조회로 구분할 수 있다 - 재시도가 절대
 같은 작업을 두 번 완료 처리하지 않는다.
 
+## 9-A. AIR-0227D-VALIDATION Stage 4: 정적 재검토에서 실제로 발견하고 고친 문제
+
+실 Postgres 실행 없이도 수기 리뷰만으로 3개의 실질적 문제를 발견했다 - 전부 이미 migration
+파일에 반영 완료:
+
+1. **EXECUTE 권한이 기본적으로 PUBLIC(=anon/authenticated 포함)에 부여됨** - Postgres는
+   `CREATE FUNCTION` 시 기본적으로 PUBLIC에 EXECUTE를 준다. `SECURITY DEFINER`는 "누구
+   권한으로 실행되는가"만 정하지 "누가 호출할 수 있는가"는 막지 않는다 - 고치지 않았다면
+   브라우저에서 anon key만으로 `supabase.rpc('claim_worker_render_job', ...)`를 직접 호출해
+   Worker Token 인증 전체를 건너뛸 수 있었다. `REVOKE ALL ... FROM PUBLIC` +
+   `GRANT EXECUTE ... TO service_role`로 4개 함수 전부 수정(§9 파일 끝).
+2. **`SET search_path` 미지정** - Supabase가 공식적으로 경고하는 `SECURITY DEFINER` 취약점
+   클래스(search_path를 통한 함수/테이블 shadowing으로 상승된 권한을 탈취). 4개 함수 전부
+   `SET search_path = ''`로 고정 - 모든 테이블 참조가 이미 `public.` 접두사로 완전
+   한정되어 있음을 먼저 확인한 뒤 적용했다(내장 함수 `gen_random_uuid`/`make_interval`/
+   `now`/`json_build_object` 등은 `pg_catalog`가 항상 암묵적으로 검색되므로 영향 없음).
+3. **신설 테이블 4개 모두 RLS 미설정** - AIR-0227C 계획 문서(§MIGRATION_PLAN.md)는 RLS를
+   의도했다고 적었지만 실제 SQL에는 빠져 있었다. `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+   4개 추가, 정책은 0개(= anon/authenticated 완전 차단, service_role은 RLS를 원천
+   우회하므로 무정책으로 충분).
+
+부수적으로 2건 더 고쳤다:
+- `CREATE INDEX` → `CREATE INDEX CONCURRENTLY` (운영 테이블 락 회피, rollback의
+  `DROP INDEX`도 동일하게 `CONCURRENTLY`로 통일 - 파일을 트랜잭션으로 감싸면 안 된다는
+  주의사항을 파일 상단에 명시).
+- `worker_job_events.job_id`의 FK `ON DELETE CASCADE` → `ON DELETE SET NULL`로 변경 -
+  감사 로그 테이블이 CASCADE였다면 render-queue 행 삭제 시(관리자 삭제 포함) 그 행에 대한
+  감사 기록까지 함께 사라져 "무슨 일이 있었는지"를 삭제로 지울 수 있는 구멍이 됐을 것.
+
+기존 `remote_render_queue` 자체의 RLS 미설정 상태는 **의도적으로 건드리지 않았다** - 이미
+프로덕션에 그 상태로 존재하고 레거시 워커가 어떻게 접근하는지 확실치 않아, 바꾸면 레거시를
+깨뜨릴 위험이 이번 migration 범위보다 크다고 판단했다. 별도 검토 대상으로 문서에만 남긴다.
+
 ## 10. 검증되지 않은 것
 
 이 파일 전체가 **실 Postgres 실행 없이 작성**됐다. 문법/락 순서/트랜잭션 경계를 신중히

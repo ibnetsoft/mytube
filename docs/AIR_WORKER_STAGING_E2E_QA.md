@@ -14,12 +14,30 @@
 그래서 이 문서는 "실행 결과"가 아니라 **실행 계획 + 완료 기준**이다. §AIR_WORKER_OPERATIONS.md
 §2에 실제 적용 절차가 있다.
 
-## 1. 사전 준비 (CTO 또는 인프라 담당자)
+## 1. 사전 준비 (CTO 또는 인프라 담당자) — AIR-0227D-VALIDATION Stage 3에서 전면 갱신
 
-1. staging Supabase 프로젝트(운영과 분리된 프로젝트, 또는 최소한 별도 스키마) 접속 정보
-2. `migrations/air_0227d_worker_central_protocol.sql` 적용 권한
-3. auth-web을 그 staging Supabase를 가리키도록 배포(Vercel preview 배포 또는 별도 staging URL)
-4. `AIRWORKER_LEASE_TTL_SECONDS` 등 환경변수 설정 권한
+**아래 전부가 없으면 이 문서의 §2 이후 어떤 항목도 실행할 수 없다.** 자격증명 원문은
+채팅·문서·코드·로그 어디에도 출력하지 않는다 - 안전한 채널(비밀 관리 도구, 직접 전달 등)로
+전달해달라.
+
+1. **격리된 staging Supabase 프로젝트** - 운영과 완전히 분리된 프로젝트(같은 프로젝트의
+   별도 스키마 정도로는 부족 - `service_role`이 스키마 경계를 넘어서므로 진짜 격리가 아님).
+2. **staging용 `SUPABASE_SERVICE_ROLE_KEY`** - 이 프로젝트 전용, 운영 키와 다른 값.
+3. **staging URL + `NEXT_PUBLIC_SUPABASE_ANON_KEY`** - auth-web 배포와
+   `requireAdmin`/`requireSuperAdmin`(Supabase 세션 JWT 검증)이 필요로 함(§AIR_WORKER_CENTRAL_API.md §0).
+4. **staging에 `migrations/air_0227d_worker_central_protocol.sql` 적용 권한** (SQL 에디터
+   또는 psql 접속).
+5. **staging auth-web 배포 환경** - Vercel preview 배포 또는 별도 staging URL, 위 URL/키로
+   설정.
+6. **테스트 관리자 계정** - staging Supabase의 `auth.users`에 super admin으로 등록된 계정
+   1개(이메일+비밀번호) - `/admin/workers` 페이지 접근 및 `/api/admin/worker-tokens` 호출에
+   필요.
+7. **Worker Token 발급용 관리자 접근** - 위 6번 계정으로 실제 로그인해 토큰을 발급할 수
+   있어야 함(이 세션이 직접 발급할 방법이 없음 - staging auth-web에 로그인 세션을 만들
+   수 없다).
+8. **격리된 Google Drive 테스트 자격증명 + 입력/출력 폴더 ID + 테스트 영상 파일** -
+   상세 요구사항은 §AIR_WORKER_DRIVE_LIVE_QA.md §1.
+9. `AIRWORKER_LEASE_TTL_SECONDS` 등 환경변수 설정 권한.
 
 ## 2. 실행 계획
 

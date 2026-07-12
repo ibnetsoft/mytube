@@ -18,6 +18,12 @@
 -- COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS / CREATE OR REPLACE
 -- FUNCTION only) but it must still go through staging verification first,
 -- per AIR-0227D's explicit prohibition on unreviewed production migrations.
+--
+-- EXECUTION NOTE: contains CREATE INDEX CONCURRENTLY statements (to avoid
+-- locking the live remote_render_queue table). CONCURRENTLY cannot run
+-- inside a transaction block - run this file statement-by-statement (the
+-- Supabase SQL editor and plain `psql -f` both do this by default already;
+-- do NOT wrap the whole file in an explicit BEGIN/COMMIT).
 -- =============================================================
 
 -- -----------------------------------------------------------------
@@ -45,11 +51,18 @@ ALTER TABLE public.remote_render_queue
     ADD COLUMN IF NOT EXISTS error_code            TEXT,
     ADD COLUMN IF NOT EXISTS tenant_id             TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_remote_render_queue_claimable
+-- [AIR-0227D-VALIDATION Stage 4 static review] CONCURRENTLY - remote_render_queue
+-- is a live production table; a plain CREATE INDEX takes a lock that blocks
+-- writes (including the legacy worker's claim PATCH) for the build duration.
+-- CONCURRENTLY avoids that at the cost of needing to run outside an explicit
+-- transaction block (true by default for both the Supabase SQL editor and
+-- psql running this file statement-by-statement - this file does not wrap
+-- itself in BEGIN/COMMIT).
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_remote_render_queue_claimable
     ON public.remote_render_queue (job_type, status, priority DESC, created_at ASC)
     WHERE status = 'pending';
 
-CREATE INDEX IF NOT EXISTS idx_remote_render_queue_lease_expiry
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_remote_render_queue_lease_expiry
     ON public.remote_render_queue (lease_expires_at)
     WHERE status = 'rendering';
 
@@ -103,7 +116,13 @@ CREATE INDEX IF NOT EXISTS idx_worker_tokens_worker ON public.worker_tokens (wor
 -- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.worker_job_events (
     id                  BIGSERIAL PRIMARY KEY,
-    job_id              UUID REFERENCES public.remote_render_queue(id) ON DELETE CASCADE,  -- nullable: register/heartbeat events aren't tied to a job
+    -- [AIR-0227D-VALIDATION Stage 4 static review] ON DELETE SET NULL, not
+    -- CASCADE - this is an audit log; deleting the render-queue row it
+    -- describes (e.g. via the admin render-queue DELETE endpoint) must not
+    -- also delete the record of what happened to it. job_id is already
+    -- nullable for register/heartbeat events, so SET NULL fits the existing
+    -- column semantics.
+    job_id              UUID REFERENCES public.remote_render_queue(id) ON DELETE SET NULL,
     worker_id           TEXT,
     worker_instance_id  TEXT,
     event_type          TEXT NOT NULL,  -- claim | heartbeat | renew_lease | progress | complete | fail | reject_stale_lease | reject_invalid_transition | idempotent_replay | idempotent_conflict
@@ -132,6 +151,29 @@ CREATE TABLE IF NOT EXISTS public.worker_idempotency_keys (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (job_id, idempotency_key)
 );
+
+-- -----------------------------------------------------------------
+-- 5-A. RLS - [AIR-0227D-VALIDATION Stage 4 static review finding] the
+-- original draft never actually enabled RLS on these 4 new tables (the
+-- AIR-0227C sketch in AIR_WORKER_MIGRATION_PLAN.md documented the intent
+-- but the SQL was never written). No policies are added - Supabase's
+-- default with RLS enabled and zero policies is deny-all for `anon` and
+-- `authenticated`; `service_role` bypasses RLS entirely regardless (it has
+-- the BYPASSRLS role attribute), which is exactly what auth-web's server
+-- code needs and exactly what nothing else should get. worker_tokens
+-- especially must never be client-readable even in aggregate (token_hash
+-- is sensitive even though it's not the raw credential).
+-- Deliberately NOT touching remote_render_queue's own RLS status here -
+-- it has no RLS enabled today (confirmed: absent from
+-- auth-web/supabase_schema.sql's list of ENABLE ROW LEVEL SECURITY
+-- statements) and the legacy worker's PostgREST-based claim may depend on
+-- that; changing it is a separate, higher-risk decision outside this
+-- migration's scope (documented as a pre-existing gap, not introduced or
+-- fixed here).
+ALTER TABLE public.workers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.worker_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.worker_job_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.worker_idempotency_keys ENABLE ROW LEVEL SECURITY;
 
 -- -----------------------------------------------------------------
 -- 6. Atomic claim RPC - FOR UPDATE SKIP LOCKED, single round trip.
@@ -186,7 +228,7 @@ BEGIN
 
     RETURN QUERY SELECT * FROM public.remote_render_queue WHERE id = v_job_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- -----------------------------------------------------------------
 -- 7. Lease renewal RPC - rejects (returns no row) if the lease_id no
@@ -216,7 +258,7 @@ BEGIN
 
     RETURN QUERY SELECT * FROM public.remote_render_queue WHERE id = p_job_id AND lease_id = p_lease_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- -----------------------------------------------------------------
 -- 8. Progress update RPC - lease-gated but not idempotency-gated (progress
@@ -268,7 +310,7 @@ BEGIN
 
     RETURN QUERY SELECT * FROM public.remote_render_queue WHERE id = p_job_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- -----------------------------------------------------------------
 -- 9. Complete / fail RPC - idempotency-key gated. Distinguishes:
@@ -349,4 +391,24 @@ BEGIN
 
     RETURN v_response;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+-- -----------------------------------------------------------------
+-- 10. Execute permissions - [AIR-0227D-VALIDATION Stage 4 static review
+-- finding] Postgres grants EXECUTE on newly created functions to PUBLIC by
+-- default, which in Supabase means `anon` and `authenticated` could call
+-- these RPCs directly (e.g. supabase.rpc('claim_worker_render_job', ...)
+-- from a browser with just an anon key) and completely bypass Worker Token
+-- auth - SECURITY DEFINER alone does not prevent this, it only controls
+-- whose privileges the function body runs with once called. Revoke first,
+-- then grant only to service_role (the role auth-web's server-side client
+-- executes as when using SUPABASE_SERVICE_ROLE_KEY).
+REVOKE ALL ON FUNCTION public.claim_worker_render_job(TEXT, TEXT, TEXT[], TEXT, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.renew_worker_render_job_lease(UUID, UUID, TEXT, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.report_worker_render_job_progress(UUID, UUID, TEXT, TEXT, INTEGER, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.report_worker_render_job_outcome(UUID, UUID, TEXT, TEXT, BOOLEAN, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.claim_worker_render_job(TEXT, TEXT, TEXT[], TEXT, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.renew_worker_render_job_lease(UUID, UUID, TEXT, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.report_worker_render_job_progress(UUID, UUID, TEXT, TEXT, INTEGER, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.report_worker_render_job_outcome(UUID, UUID, TEXT, TEXT, BOOLEAN, TEXT, TEXT, TEXT, TEXT, TEXT) TO service_role;

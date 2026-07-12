@@ -105,3 +105,55 @@ POST /shutdown
    [LEASE_PROTOCOL.md](./AIR_WORKER_LEASE_PROTOCOL.md) §6.
 4. **[AIR-0227C]** Local API에 반복 실패 요청에 대한 rate limiting이 없다 -
    [LOCAL_API_SECURITY.md](./AIR_WORKER_LOCAL_API_SECURITY.md) §5.
+
+## 6. AIR-0227D-VALIDATION에서 발견·수정한 보안 사고 (별도 긴급 커밋)
+
+AIR-0227D 작업 중(신규 Worker API를 auth-web에 붙이는 과정에서 기존 auth-web 코드를
+훑어보다가) 발견한, **이 Task의 신규 코드와 무관한 기존 auth-web의 실제 프로덕션
+취약점 2건**. 전부 즉시 수정 완료, 별도 긴급 커밋으로 분리.
+
+### 6.1 관리자 API 무인증 (심각)
+
+- **`/api/admin/render-queue`**(GET/DELETE): `requireAdmin`/`requireSuperAdmin` 호출이
+  전혀 없이 service_role 클라이언트로 직행 - 로그인 없이 누구나 렌더 큐 전체를 조회하고
+  임의 행을 삭제할 수 있었다. 프론트(`DashboardContent.tsx`의 `adminFetch`)는 이미
+  `Authorization: Bearer <세션토큰>`을 보내고 있었으므로, 서버가 그걸 검증만 안 하고
+  있던 상태 - 수정은 프론트 변경 없이 서버에 `requireSuperAdmin` 게이트만 추가.
+- **`/api/admin/users/ban`**(POST): 같은 패턴 - 로그인 없이 임의 `userId`를 밴/언밴 가능.
+  전체 저장소를 grep해도 이 라우트를 호출하는 현재 코드가 없어(죽은 로컬 patch 파일에만
+  참조가 남아있음) 호환성 리스크 없이 즉시 게이트 추가.
+- 두 라우트 모두: `requireSuperAdmin` 게이트, 실패 시 401/403(기존 `_auth.ts` 응답 형식과
+  동일), destructive action(DELETE/ban)은 요청자 이메일 + 대상 id를 서버 로그에 기록
+  (`[admin-audit] action=... requester=... detail=...` 형식 - 전용 감사 테이블은 아직
+  없음, 긴급 수정 범위 밖으로 명시).
+- QA: 로컬 dev 서버로 무인증 GET/DELETE/POST가 401/403으로 막히는 것을 실측 확인(Supabase
+  자격증명이 이 환경에 없어 "정상 관리자 토큰으로 성공" 경로는 staging에서 재확인 필요).
+
+### 6.2 `service_role` 미설정 시 anon key로 조용한 폴백 (심각)
+
+`lib/supabaseAdmin.ts` + 7개 라우트 파일이 전부 `process.env.SUPABASE_SERVICE_ROLE_KEY ||
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!` 패턴을 썼다 - `SUPABASE_SERVICE_ROLE_KEY`가
+배포 환경에 누락되면(설정 실수, 환경 분리 실수 등) 관리자/내부 전용 기능이 **에러 없이
+익명 권한으로 조용히 계속 동작**했을 것 - RLS가 있는 테이블은 대부분 막히겠지만 RLS가
+없거나 허술한 테이블/함수가 있다면 그대로 뚫린다. 8개 파일 전부
+`process.env[name] || 실패` 대신 **즉시 throw**하는 `requireEnv()`로 교체, 나머지 7개
+라우트는 중복 클라이언트 생성 대신 이 공유 `supabaseAdmin`을 import하도록 통합(관리자
+client와 일반 client의 경계가 이제 코드 구조로도 명확 - 서비스 전용 client는 이 파일
+하나뿐).
+
+QA: dev 서버에 Supabase 환경변수가 아예 없는 상태(이 환경의 실제 상태)로 8개 라우트 중
+2개를 직접 호출 - 전부 "anon key로 계속 진행" 대신 `NEXT_PUBLIC_SUPABASE_URL is not
+configured - refusing to start a privileged Supabase client (no anon-key fallback)`로
+즉시 명시 실패(500)함을 실측 확인. "service_role 정상 설정" 성공 경로는 이 환경에 실
+자격증명이 없어 검증 못함 - staging에서 재확인 필요.
+
+### 6.3 QA에서 확인하지 못한 항목 (정직하게 명시)
+
+- 만료된 관리자 세션, 변조된 JWT에 대한 거동 - `requireAdmin`이 내부적으로
+  `supabase.auth.getUser(token)`을 호출하므로 이미 Supabase Auth가 처리하는 부분이라
+  별도 코드 경로는 없지만, 실제 만료 토큰으로 재현 테스트는 안 함(실 Supabase 프로젝트
+  필요).
+- "일반 사용자(비관리자) 토큰으로 시도" - 실 사용자 계정이 있는 staging에서만 재현 가능.
+- 기존 관리자 UI 회귀 - 코드 리뷰로 `adminFetch`가 이미 Bearer 헤더를 보내고 있음을
+  확인했을 뿐, 실제 브라우저로 렌더 큐 탭을 열어보지는 못함(dev 서버에 실 Supabase 연결
+  없음).

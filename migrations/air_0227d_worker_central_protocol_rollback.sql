@@ -15,8 +15,11 @@ DROP TABLE IF EXISTS public.worker_job_events;
 DROP TABLE IF EXISTS public.worker_tokens;
 DROP TABLE IF EXISTS public.workers;
 
-DROP INDEX IF EXISTS public.idx_remote_render_queue_lease_expiry;
-DROP INDEX IF EXISTS public.idx_remote_render_queue_claimable;
+-- CONCURRENTLY mirrors the CREATE INDEX CONCURRENTLY used in the forward
+-- migration - avoids locking remote_render_queue (a live production table)
+-- during index removal too.
+DROP INDEX CONCURRENTLY IF EXISTS public.idx_remote_render_queue_lease_expiry;
+DROP INDEX CONCURRENTLY IF EXISTS public.idx_remote_render_queue_claimable;
 
 ALTER TABLE public.remote_render_queue
     DROP COLUMN IF EXISTS tenant_id,
