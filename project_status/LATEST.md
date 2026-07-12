@@ -27,7 +27,7 @@ Repo: C:\Projects\에어스튜디오\LongformGenerator
     ZIP 456,147,806 bytes / SHA256
     `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0` — 이
     값들은 AIR-0227F-0D 재빌드로 교체되었다.
-  - Both `v2.3.7` (this test build) remain a **GitHub prerelease** —
+  - `v2.3.7` remains a **GitHub prerelease** —
     not activated for general auto-update distribution.
 - 자동업데이트: **DISABLED** (release is `prerelease`, not `/releases/latest`; no
   general client fleet will pull this build automatically)
