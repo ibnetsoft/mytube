@@ -43,7 +43,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: '어드민 승인 대기 중이거나 비활성화된 계정입니다.' }, { status: 403 })
         }
 
-        const dbPassword = String(profile.pin_code || '1234').trim()
+        // [AIR-0227F-0 P0 hotfix] '1234' default fallback removed - see
+        // desktop-login/route.ts. This route requires knowing the CURRENT
+        // password, so an unset pin_code has no legitimate value to compare
+        // against; it must fail here rather than accept any current_password.
+        // Setting an INITIAL PIN for an account that has none is a distinct
+        // flow (requires re-proving identity some other way, e.g. email
+        // verification) - not implemented in this hotfix, tracked under
+        // AIR-0227F-1.
+        if (!profile.pin_code) {
+            return NextResponse.json({ success: false, error: 'PIN이 설정되지 않았습니다. 관리자에게 문의하세요.', status: 'pin_not_configured' }, { status: 401 })
+        }
+        const dbPassword = String(profile.pin_code).trim()
         if (dbPassword !== String(current_password).trim()) {
             return NextResponse.json({ success: false, error: '현재 비밀번호가 일치하지 않습니다.' }, { status: 401 })
         }

@@ -1,9 +1,50 @@
 
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { verifyDesktopSessionToken } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
 
+// [AIR-0227F-0 P0 hotfix]
+//
+// This endpoint used to authenticate the caller by trusting a bare `userId`
+// in the request body, with an HWID check that (per a follow-up audit -
+// docs/AIR_0227F_DESKTOP_AUTH_REDESIGN.md §5-1) never actually gated
+// anything: approved_hwid/device_hwid are never written anywhere in this
+// codebase, so the comparison was always against an empty value. Anyone who
+// obtained a valid, approved userId could call this endpoint and receive
+// that user's profile plus a merged api_keys object - including shared,
+// platform-owned provider keys (Gemini/YouTube/ElevenLabs/TopView/Claude)
+// for non-PRO accounts.
+//
+// Two changes, deliberately staged differently by risk:
+//
+// 1. Platform system keys (sys_api_*) are removed from this response
+//    UNCONDITIONALLY, regardless of auth state. This is the actual
+//    credential-leak containment and ships immediately. It does not break
+//    currently-running desktop clients: login_user() in
+//    services/auth_service.py already loads these same keys via
+//    /api/desktop-login and /api/desktop-resync's `global_settings` field
+//    (see desktopSession.ts::fetchDesktopProfileSnapshot) - a properly
+//    authenticated channel this hotfix does not touch. Removing them here
+//    only means a running app's system keys stop refreshing on this
+//    endpoint's ~30s poll cycle (services/auth_service.py::start_monitoring)
+//    until the next login/resync, not an immediate loss of already-loaded
+//    keys.
+//
+// 2. A session token (Authorization: Bearer <token>, the same HMAC-signed
+//    token desktop-login already issues via signDesktopSessionToken) is now
+//    ACCEPTED and, when present, VERIFIED against the resolved user's
+//    email - a bad/mismatched token is rejected. But a MISSING token is
+//    still allowed through for now: no client build that sends this token
+//    has shipped yet (this session has no way to package/distribute one),
+//    and hard-requiring it immediately would make this endpoint's ~30s
+//    poll cycle fail for every currently-running install within seconds,
+//    which is a materially worse outcome than the vulnerability itself.
+//    This is a deliberate, temporary lenient period - see
+//    docs/AIR_0227F_DESKTOP_AUTH_REDESIGN.md for the plan to make the token
+//    mandatory once a client build that sends it has actually reached
+//    users.
 export async function POST(req: Request) {
     try {
         const { userId, hwid } = await req.json()
@@ -17,6 +58,19 @@ export async function POST(req: Request) {
 
         if (error || !user) {
             return NextResponse.json({ error: 'Invalid license key' }, { status: 401 })
+        }
+
+        // Session token: verified when present, not yet required. A token
+        // that fails verification is rejected outright (not silently
+        // downgraded to "no token") - only an absent Authorization header is
+        // treated leniently.
+        const authHeader = req.headers.get('authorization') || ''
+        const bearerMatch = /^Bearer\s+(\S+)$/.exec(authHeader)
+        if (bearerMatch && user.email) {
+            const tokenValid = verifyDesktopSessionToken(user.email, bearerMatch[1])
+            if (!tokenValid) {
+                return NextResponse.json({ error: 'Invalid or expired session token' }, { status: 401 })
+            }
         }
 
         const meta = user.user_metadata || {}
@@ -60,42 +114,12 @@ export async function POST(req: Request) {
         }
 
         const membership = profile?.membership || user.app_metadata?.membership || 'std';
-        const isPro = String(membership).toLowerCase() === 'pro';
 
-        // 1. 시스템 전역 키 조회 (공용 fallback) - PRO 모드가 아닐 때만
-        const sys_keys: Record<string, string> = {}
-        if (!isPro) {
-            try {
-                const KEYS = ['gemini', 'youtube', 'elevenlabs', 'topview', 'topview_uid', 'claude']
-                const { data: sysSettings } = await supabaseAdmin
-                    .from('global_settings')
-                    .select('key, value')
-                    .in('key', KEYS.map(k => `sys_api_${k}`))
+        // [AIR-0227F-0 P0 hotfix] platform system keys removed entirely -
+        // see file header. Only the user's own keys are ever returned from
+        // this endpoint now.
+        const api_keys: Record<string, string> = {}
 
-                if (sysSettings) {
-                    const sysMap: Record<string, string> = {
-                        sys_api_gemini:     'GEMINI_API_KEY',
-                        sys_api_youtube:    'YOUTUBE_API_KEY',
-                        sys_api_elevenlabs: 'ELEVENLABS_API_KEY',
-                        sys_api_topview:    'TOPVIEW_API_KEY',
-                        sys_api_topview_uid: 'TOPVIEW_UID',
-                        sys_api_claude:     'CLAUDE_API_KEY',
-                    }
-                    for (const row of sysSettings) {
-                        const configKey = sysMap[row.key]
-                        if (configKey && row.value) {
-                            sys_keys[configKey] = row.value
-                        }
-                    }
-                }
-            } catch (sysErr) {
-                console.warn('[Verify] Failed to load global_settings fallback:', sysErr)
-            }
-        }
-
-        // 2. 유저 개별 키 조회 및 병합 (PRO 모드면 sys_keys가 비어있음 -> 공통 API 무시)
-        const api_keys: Record<string, string> = { ...sys_keys }
-        
         // 과거 meta 필드 지원
         const keyMap: Record<string, string> = {
             gemini_api_key:     'GEMINI_API_KEY',
@@ -108,7 +132,7 @@ export async function POST(req: Request) {
         for (const [metaKey, configKey] of Object.entries(keyMap)) {
             if (meta[metaKey]) api_keys[configKey] = meta[metaKey]
         }
-        
+
         // app_metadata의 custom_api_keys 우선 적용
         const customKeys = appMeta.custom_api_keys || {}
         if (customKeys.openai) api_keys['OPENAI_API_KEY'] = customKeys.openai
@@ -132,30 +156,9 @@ export async function POST(req: Request) {
 
         const tokenBalance = profile?.token_balance ?? 0
         console.log(`Verify SUCCESS for user ${userId}: channel=${meta.youtube_channel}, token_balance=${tokenBalance}`);
-        // [AIR-0227D-SECURITY-HOTFIX Stage 5/6] pin_code removed from this
-        // response - it is the user's actual login password in plaintext
-        // (see desktop-change-password/route.ts's own comment), and
-        // grepping services/auth_service.py (the only caller of this
-        // endpoint) confirms the desktop client never reads a pin_code
-        // field from the verify response. Dead data that was also a
-        // credential leak - pure downside, safe to remove outright.
-        //
-        // NOTE (not fixed here, flagged for urgent separate review): this
-        // endpoint authenticates the caller by trusting a bare `userId` in
-        // the request body with no session/license token, and the HWID
-        // check three lines above only fires when BOTH registeredHwid AND
-        // incomingHwid are non-empty - omitting `hwid` from the request
-        // entirely bypasses it. That means any caller who obtains a valid,
-        // approved userId can retrieve that user's full profile and the
-        // merged api_keys object (including shared system-wide provider
-        // keys for non-PRO accounts) without proving device ownership. This
-        // is a pre-existing, severe, and NOT fixed-here vulnerability -
-        // redesigning the verify/device-approval flow safely requires
-        // understanding how a brand-new device's approved_hwid gets set in
-        // the first place, which this hotfix's scope does not cover.
         return NextResponse.json({
             success: true,
-            membership: profile?.membership || user.app_metadata?.membership || 'std',
+            membership,
             email: user.email,
             full_name: meta.full_name || '',
             nationality: meta.nationality || '',
@@ -163,7 +166,7 @@ export async function POST(req: Request) {
             youtube_channel: meta.youtube_channel || '',
             youtube_handle: meta.youtube_handle || '',
             token_balance: tokenBalance,
-            api_keys,              // 메모리 전용 로드 — 로컬 저장 안 함
+            api_keys,              // 메모리 전용 로드 — 로컬 저장 안 함 (개인 키만, 플랫폼 시스템 키 없음)
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
