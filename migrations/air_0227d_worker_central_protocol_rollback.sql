@@ -15,11 +15,16 @@ DROP TABLE IF EXISTS public.worker_job_events;
 DROP TABLE IF EXISTS public.worker_tokens;
 DROP TABLE IF EXISTS public.workers;
 
--- CONCURRENTLY mirrors the CREATE INDEX CONCURRENTLY used in the forward
--- migration - avoids locking remote_render_queue (a live production table)
--- during index removal too.
-DROP INDEX CONCURRENTLY IF EXISTS public.idx_remote_render_queue_lease_expiry;
-DROP INDEX CONCURRENTLY IF EXISTS public.idx_remote_render_queue_claimable;
+-- Plain DROP INDEX mirrors the plain CREATE INDEX used in the forward
+-- migration (staging / small-table path - see the migration file's header
+-- and docs/AIR_WORKER_DB_SCHEMA.md §9-B). If this rollback is being run in
+-- an environment where the indexes were instead built via
+-- air_0227d_worker_central_protocol_PRODUCTION_INDEXES.sql, use
+-- `DROP INDEX CONCURRENTLY` for both (non-transactional, run standalone)
+-- instead of the plain form below, for the same live-table-lock reason
+-- documented there.
+DROP INDEX IF EXISTS public.idx_remote_render_queue_lease_expiry;
+DROP INDEX IF EXISTS public.idx_remote_render_queue_claimable;
 
 ALTER TABLE public.remote_render_queue
     DROP COLUMN IF EXISTS tenant_id,

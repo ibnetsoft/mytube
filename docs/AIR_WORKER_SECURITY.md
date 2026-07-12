@@ -147,6 +147,58 @@ configured - refusing to start a privileged Supabase client (no anon-key fallbac
 즉시 명시 실패(500)함을 실측 확인. "service_role 정상 설정" 성공 경로는 이 환경에 실
 자격증명이 없어 검증 못함 - staging에서 재확인 필요.
 
+### 6.2-A AIR-0227D-VALIDATION 계속: 추가 정적 확인 3 — `/api/admin/**` 전수조사
+
+§6.1이 발견한 2건 외에 동일 취약점이 더 있는지 39개 admin 라우트 파일 전부를 조사했다 -
+**6개 파일, 9개 엔드포인트에서 추가로 발견**, 전부 즉시 수정. 이 중 2개(`admin/settings`,
+`admin/users/[id]/settings`)는 **다른 사용자의 실제 API 키 원문 + PIN코드(실제 로그인
+비밀번호)를 무인증으로 조회·변조 가능**했던 가장 심각한 등급.
+
+| 경로 | Method | 읽기/파괴적 | 적용 인증 | 요구 역할 | 감사 로그 |
+|---|---|---|---|---|---|
+| `admin/categories` | GET,POST,DELETE,PUT | 혼합 | requireAdmin/requireSuperAdmin | 혼합 | ✗ |
+| `admin/learning` | GET | 읽기 | requireAdmin | admin | ✗ |
+| `admin/logs` | GET | 읽기 | requireAdmin | admin | ✗ |
+| `admin/logs` **[이번 라운드 수정]** | GET | 읽기 | requireAdmin | admin | ✗ |
+| `admin/music-plan-templates` **[이번 라운드 수정]** | GET,POST,DELETE | 혼합(POST/DELETE 파괴적) | requireSuperAdmin | super admin | ✗ |
+| `admin/publishing` | GET,POST,PATCH | 혼합 | requireAdmin/requireSuperAdmin | 혼합 | ✗ |
+| `admin/referrals/*` (7개 파일) | GET/PATCH | 대부분 읽기 | requireAdmin(대부분)/requireSuperAdmin(withdrawals/[id], 최상위 PATCH) | 혼합 | ✗ |
+| `admin/render-queue` **[직전 라운드 수정]** | GET,DELETE | 혼합(DELETE 파괴적) | requireSuperAdmin | super admin | ✅(DELETE) |
+| `admin/settings` **[이번 라운드 수정, 심각]** | GET,POST | 혼합(GET이 API키 원문 반환, POST 변조) | requireSuperAdmin | super admin | ✗ |
+| `admin/settings/global` | GET,POST | 혼합 | requireSuperAdmin | super admin | ✗ |
+| `admin/settings/referral` | GET,POST | 혼합 | requireAdmin | admin | ✗ |
+| `admin/settlements` | GET | 읽기 | requireSuperAdmin | super admin | ✗ |
+| `admin/settlements/payout` | POST | 파괴적(잔액 지급) | requireSuperAdmin | super admin | ✗ |
+| `admin/style-presets` | GET,POST,DELETE | 혼합 | requireSuperAdmin | super admin | ✗ |
+| `admin/tenants`, `admin/tenants/[key]` | GET,POST,PATCH,DELETE | 혼합 | requireSuperAdmin | super admin | ✗ |
+| `admin/topics-queue` | GET,POST,PUT,DELETE,PATCH | 혼합 | requireAdmin/requireSuperAdmin | 혼합 | ✗ |
+| `admin/users` | GET | 읽기 | requireAdmin | admin | ✗ |
+| `admin/users/admin-role` | POST | 파괴적(권한 변경) | requireSuperAdmin | super admin | ✗ |
+| `admin/users/api-keys` | POST | 파괴적(API키 변조) | requireSuperAdmin | super admin | ✗ |
+| `admin/users/approval` | POST | 파괴적(가입승인) | requireAdmin | admin | ✗ |
+| `admin/users/ban` **[직전 라운드 수정]** | POST | 파괴적(계정 정지) | requireSuperAdmin | super admin | ✅ |
+| `admin/users/recharge` | POST | 파괴적(토큰 충전) | requireSuperAdmin | super admin | ✗ |
+| `admin/users/role` | POST | 파괴적 | requireSuperAdmin | super admin | ✗ |
+| `admin/users/superadmin` | PATCH | 파괴적 | requireSuperAdmin | super admin | ✗ |
+| `admin/users/update-metadata` | POST | 파괴적 | requireAdmin | admin | ✗ |
+| `admin/users/[id]/logs` **[이번 라운드 수정]** | GET | 읽기 | requireAdmin | admin | ✗ |
+| `admin/users/[id]/settings` **[이번 라운드 수정, 심각]** | GET,POST | 혼합(GET이 API키+PIN 원문 반환, POST 변조) | requireSuperAdmin | super admin | ✗ |
+| `admin/users/[id]/transactions` **[이번 라운드 수정]** | GET | 읽기 | requireAdmin | admin | ✗ |
+| `admin/voices` | GET,POST,DELETE | 혼합 | requireSuperAdmin | super admin | ✗ |
+| `admin/withdrawals` | GET,PATCH | 혼합 | requireAdmin | admin | ✗ |
+| `admin/worker-tokens`, `admin/worker-tokens/[tokenId]` (AIR-0227D 신규) | GET,POST,DELETE | 혼합 | requireSuperAdmin | super admin | ✗(토큰 발급/폐기는 원문 토큰 미로깅이 곧 최소한의 안전장치) |
+| `admin/workers` (AIR-0227D 신규) | GET | 읽기 | requireAdmin | admin | ✗ |
+
+**결과: POST/PATCH/PUT/DELETE 무인증 라우트 0건, 민감한 GET 무인증 라우트 0건** (39개 파일
+전수, `grep`으로 `requireAdmin`/`requireSuperAdmin` 부재 재확인 - 전부 존재).
+
+**감사 로그는 render-queue DELETE와 users/ban POST 2곳뿐** - 나머지는 admin 인증 게이트는
+있지만 "누가 언제 무엇을 바꿨는지"의 별도 기록은 없다(Supabase 자체 로그에 요청이 남을
+수는 있으나 이 앱 레벨에서 구조화된 감사 로그는 아님). 특히 `admin/users/admin-role`,
+`admin/users/role`, `admin/users/superadmin`(권한 상승/강등), `admin/settlements/payout`,
+`admin/users/recharge`(금전적 영향)는 감사 로그가 없는 파괴적 라우트로 남아있다 - 이번
+라운드 범위(무인증 게이트 폐쇄)를 넘어서는 별도 개선 과제로 플래그만 해둔다.
+
 ### 6.3 QA에서 확인하지 못한 항목 (정직하게 명시)
 
 - 만료된 관리자 세션, 변조된 JWT에 대한 거동 - `requireAdmin`이 내부적으로

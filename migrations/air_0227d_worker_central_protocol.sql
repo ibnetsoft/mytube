@@ -19,11 +19,20 @@
 -- FUNCTION only) but it must still go through staging verification first,
 -- per AIR-0227D's explicit prohibition on unreviewed production migrations.
 --
--- EXECUTION NOTE: contains CREATE INDEX CONCURRENTLY statements (to avoid
--- locking the live remote_render_queue table). CONCURRENTLY cannot run
--- inside a transaction block - run this file statement-by-statement (the
--- Supabase SQL editor and plain `psql -f` both do this by default already;
--- do NOT wrap the whole file in an explicit BEGIN/COMMIT).
+-- EXECUTION NOTE (AIR-0227D-VALIDATION additional static check 1): this
+-- file uses plain CREATE INDEX IF NOT EXISTS, not CONCURRENTLY, and is safe
+-- to run as a single transactional script (whether the executing tool -
+-- Supabase SQL editor, psql -f, a migration runner - wraps it in an
+-- implicit transaction or not; every statement here is transaction-safe).
+-- An earlier draft used CONCURRENTLY for the two remote_render_queue
+-- indexes below, but CONCURRENTLY cannot run inside a transaction block,
+-- and this session could not confirm whether the staging execution tool
+-- wraps a pasted multi-statement script in one - assuming it does was the
+-- safer assumption to design around, not the riskier one. The
+-- CONCURRENTLY-safe production procedure is a SEPARATE file:
+-- migrations/air_0227d_worker_central_protocol_PRODUCTION_INDEXES.sql -
+-- see that file's header and docs/AIR_WORKER_DB_SCHEMA.md §9-B for why the
+-- two need different handling.
 -- =============================================================
 
 -- -----------------------------------------------------------------
@@ -51,18 +60,19 @@ ALTER TABLE public.remote_render_queue
     ADD COLUMN IF NOT EXISTS error_code            TEXT,
     ADD COLUMN IF NOT EXISTS tenant_id             TEXT;
 
--- [AIR-0227D-VALIDATION Stage 4 static review] CONCURRENTLY - remote_render_queue
--- is a live production table; a plain CREATE INDEX takes a lock that blocks
--- writes (including the legacy worker's claim PATCH) for the build duration.
--- CONCURRENTLY avoids that at the cost of needing to run outside an explicit
--- transaction block (true by default for both the Supabase SQL editor and
--- psql running this file statement-by-statement - this file does not wrap
--- itself in BEGIN/COMMIT).
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_remote_render_queue_claimable
+-- Plain CREATE INDEX (not CONCURRENTLY) - see the file header and
+-- docs/AIR_WORKER_DB_SCHEMA.md §9-B. Staging's remote_render_queue is a
+-- fresh/small clone, so a brief write-lock here is a non-issue - this is
+-- the "staging data volume is small" branch of the two options this
+-- decision requires. The production application of this migration uses
+-- migrations/air_0227d_worker_central_protocol_PRODUCTION_INDEXES.sql
+-- instead of these two statements (run that file's CONCURRENTLY versions
+-- in production, skip these two when applying this file there).
+CREATE INDEX IF NOT EXISTS idx_remote_render_queue_claimable
     ON public.remote_render_queue (job_type, status, priority DESC, created_at ASC)
     WHERE status = 'pending';
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_remote_render_queue_lease_expiry
+CREATE INDEX IF NOT EXISTS idx_remote_render_queue_lease_expiry
     ON public.remote_render_queue (lease_expires_at)
     WHERE status = 'rendering';
 

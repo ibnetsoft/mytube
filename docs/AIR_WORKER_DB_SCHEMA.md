@@ -145,6 +145,55 @@ lease_expires_at > NOW()` 조건에 맞는 행이 없으면 빈 결과 반환 �
 프로덕션에 그 상태로 존재하고 레거시 워커가 어떻게 접근하는지 확실치 않아, 바꾸면 레거시를
 깨뜨릴 위험이 이번 migration 범위보다 크다고 판단했다. 별도 검토 대상으로 문서에만 남긴다.
 
+## 9-B. AIR-0227D-VALIDATION 계속: 추가 정적 확인 1 — CONCURRENTLY 재검토
+
+§9-A에서 두 인덱스를 `CREATE INDEX CONCURRENTLY`로 바꿨었으나, 재검토 결과 **메인
+migration 파일에서는 다시 일반 `CREATE INDEX IF NOT EXISTS`로 되돌렸다.** 이유:
+
+1. `CREATE INDEX CONCURRENTLY`는 트랜잭션 블록 안에서 실행할 수 없다. 이 세션은 staging
+   migration을 실제로 어떤 도구(Supabase SQL 에디터가 붙여넣은 스크립트 전체를 암묵적
+   트랜잭션으로 감싸는지, `psql -f`가 파일을 문장 단위로 실행하는지)로 적용할지 확정할
+   방법이 없었다 - "감싸지 않는다"고 가정하는 것보다 "감쌀 수도 있다"고 가정하고 설계하는
+   쪽이 안전했다.
+2. staging의 `remote_render_queue`는 작은/새로 만든 클론이므로 일반 `CREATE INDEX`의
+   짧은 쓰기 락은 실질적으로 무해하다 - 작업 지시서가 제시한 두 옵션 중 "staging
+   데이터량이 작으면 일반 CREATE INDEX 사용" 쪽을 그대로 채택.
+3. **운영(production) 적용 시에는 다르다** - `remote_render_queue`가 실사용 중인 테이블이라
+   일반 `CREATE INDEX`의 락이 레거시 워커의 claim PATCH를 체감 가능한 시간 동안 막을 수
+   있다. 그래서 두 인덱스 문장을 별도 파일
+   `migrations/air_0227d_worker_central_protocol_PRODUCTION_INDEXES.sql`로 분리했다 -
+   `CONCURRENTLY` 버전, **반드시 트랜잭션 밖에서, 다른 문장과 섞지 않고 단독 실행**.
+   운영 적용 순서는: 메인 migration 파일에서 이 두 인덱스 문장만 제외하고 적용 → 이
+   파일을 별도로 실행.
+4. **실패한 CONCURRENTLY의 위험을 그 파일 자체에 명시**했다 - 중단되면 Postgres가 자동
+   정리하지 않고 `INVALID` 인덱스를 남긴다(쿼리 플래너는 무시하지만 디스크·쓰기 비용은
+   그대로 남음). 복구는 `DROP INDEX CONCURRENTLY IF EXISTS <name>;` 후 재실행. 파일 끝에
+   `pg_index.indisvalid` 체크 쿼리를 넣어 실행 직후 확인할 수 있게 했다.
+5. rollback 파일의 `DROP INDEX`도 일반 형태로 되돌리되, 운영에서
+   PRODUCTION_INDEXES.sql로 만들었다면 `DROP INDEX CONCURRENTLY`를 대신 써야 한다는
+   주석을 남겼다.
+
+## 9-C. AIR-0227D-VALIDATION 계속: 추가 정적 확인 2 — search_path 재검사 결과
+
+4개 함수 본문 전체를 다시 훑어 `public.`로 완전 수식되지 않은 테이블/컬럼/타입 참조가
+있는지 재검사했다(`grep -nE "^\s*(FROM|UPDATE|INSERT INTO|JOIN)\s+[a-z_]"`로 비수식 참조를
+찾는 방식 + 모든 함수 호출형 식별자 목록을 수동 대조) - **비수식 참조 없음**을 재확인:
+
+- 테이블 참조: `public.remote_render_queue`, `public.worker_job_events`,
+  `public.worker_idempotency_keys` - 전부 완전 수식.
+- 함수 호출: `gen_random_uuid()`, `make_interval()`, `now()` (대문자 `NOW()`),
+  `json_build_object()`, `jsonb_build_object()` - 전부 `pg_catalog` 내장 함수. `pg_catalog`는
+  `search_path`에 무엇이 설정돼 있든(빈 문자열이어도) **항상 암묵적으로 가장 먼저
+  검색된다**(Postgres 공식 동작) - 스키마 수식이 필요 없다. `gen_random_uuid()`는 PG13+
+  코어 내장(pgcrypto 확장 불필요)이고, 이 프로젝트의 기존 스키마(`remote_render_queue.id
+  DEFAULT gen_random_uuid()`)가 이미 같은 함수를 쓰고 있어 이 Supabase 프로젝트에서
+  실제로 해석 가능함이 간접 확인된다.
+- ENUM/커스텀 타입 참조: 없음(전부 표준 TEXT/UUID/INTEGER/BOOLEAN/JSONB/TIMESTAMPTZ 사용,
+  커스텀 타입·시퀀스 직접 참조 없음 - `BIGSERIAL`은 컬럼 정의 시점에만 쓰이고 함수 본문
+  안에서 시퀀스를 이름으로 참조하지 않는다).
+- REVOKE/GRANT 4쌍의 인자 시그니처를 각 `CREATE OR REPLACE FUNCTION` 선언과 한 줄씩
+  재대조 - 전부 정확히 일치 확인(타입 순서·개수 포함).
+
 ## 10. 검증되지 않은 것
 
 이 파일 전체가 **실 Postgres 실행 없이 작성**됐다. 문법/락 순서/트랜잭션 경계를 신중히
