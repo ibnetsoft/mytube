@@ -1,10 +1,24 @@
 """
-[AIR-0227C Stage 4/5/7] HTTP client for the central server's /api/worker/*
-contract (docs/AIR_WORKER_AUTH.md, docs/AIR_WORKER_LEASE_PROTOCOL.md).
+[AIR-0227C Stage 4/5/7, path fix AIR-0227D-STAGING-UNBLOCK] HTTP client for
+the central server's /api/internal/worker/* contract (docs/AIR_WORKER_AUTH.md,
+docs/AIR_WORKER_LEASE_PROTOCOL.md, docs/AIR_WORKER_CENTRAL_API.md).
 
-Talks to whatever CENTRAL_SERVER_URL points at - in production that would be
-auth-web (docs/AIR_WORKER_AUTH.md documents the real route design there,
-not implemented/deployed this Task); for local dev/E2E it points at
+[AIR-0227D-STAGING-UNBLOCK] Found via staging-unblock research: this module
+previously called /api/worker/* (matching only the AIR-0227C-era design
+sketch and worker/dev_central_server's mock), but the REAL, actually
+implemented and staging-ready auth-web routes live at
+auth-web/app/api/internal/worker/** (confirmed by directory listing -
+register, heartbeat, jobs/claim, jobs/[jobId]/{progress,complete,fail,renew}).
+Pointing AIRWORKER_CENTRAL_SERVER_URL at a real staging/production auth-web
+deployment with the old paths would 404 on every call - fixed here, and
+worker/dev_central_server/server.py's mock routes were updated to match
+(so local E2E continues to exercise the same paths the real deployment
+uses, instead of a stale contract). Also note: the real route is
+"renew" (auth-web/app/api/internal/worker/jobs/[jobId]/renew/route.ts),
+not "renew-lease".
+
+Talks to whatever CENTRAL_SERVER_URL points at - in production/staging that
+is a real deployed auth-web instance; for local dev/E2E it points at
 worker/dev_central_server (a Python FastAPI stand-in implementing the
 identical wire contract, explicitly labeled test-only - same "documented
 substitute" pattern AIR-0226 used with Gemini standing in for Hermes).
@@ -90,20 +104,20 @@ def _request(method: str, path: str, json_body: dict | None = None, idempotency_
 
 
 def register(worker_id: str, worker_instance_id: str, allowed_job_types: list[str]) -> dict:
-    return _request("POST", "/api/worker/register", {
+    return _request("POST", "/api/internal/worker/register", {
         "worker_id": worker_id, "worker_instance_id": worker_instance_id,
         "allowed_job_types": allowed_job_types,
     })
 
 
 def heartbeat(worker_id: str, worker_instance_id: str) -> dict:
-    return _request("POST", "/api/worker/heartbeat", {
+    return _request("POST", "/api/internal/worker/heartbeat", {
         "worker_id": worker_id, "worker_instance_id": worker_instance_id,
     })
 
 
 def claim_job(worker_id: str, worker_instance_id: str, allowed_job_types: list[str]) -> dict | None:
-    result = _request("POST", "/api/worker/jobs/claim", {
+    result = _request("POST", "/api/internal/worker/jobs/claim", {
         "worker_id": worker_id, "worker_instance_id": worker_instance_id,
         "allowed_job_types": allowed_job_types,
     })
@@ -111,27 +125,27 @@ def claim_job(worker_id: str, worker_instance_id: str, allowed_job_types: list[s
 
 
 def report_progress(remote_job_id: str, lease_id: str, worker_instance_id: str, progress: int, message: str) -> dict:
-    return _request("POST", f"/api/worker/jobs/{remote_job_id}/progress", {
+    return _request("POST", f"/api/internal/worker/jobs/{remote_job_id}/progress", {
         "lease_id": lease_id, "worker_instance_id": worker_instance_id,
         "progress": progress, "message": message,
     })
 
 
 def complete_job(remote_job_id: str, lease_id: str, worker_instance_id: str, idempotency_key: str, output_ref: str) -> dict:
-    return _request("POST", f"/api/worker/jobs/{remote_job_id}/complete", {
+    return _request("POST", f"/api/internal/worker/jobs/{remote_job_id}/complete", {
         "lease_id": lease_id, "worker_instance_id": worker_instance_id, "output_ref": output_ref,
     }, idempotency_key=idempotency_key)
 
 
 def fail_job(remote_job_id: str, lease_id: str, worker_instance_id: str, idempotency_key: str, error_code: str, error_message: str) -> dict:
-    return _request("POST", f"/api/worker/jobs/{remote_job_id}/fail", {
+    return _request("POST", f"/api/internal/worker/jobs/{remote_job_id}/fail", {
         "lease_id": lease_id, "worker_instance_id": worker_instance_id,
         "error_code": error_code, "error_message": error_message,
     }, idempotency_key=idempotency_key)
 
 
 def renew_lease(remote_job_id: str, lease_id: str, worker_instance_id: str) -> dict:
-    return _request("POST", f"/api/worker/jobs/{remote_job_id}/renew-lease", {
+    return _request("POST", f"/api/internal/worker/jobs/{remote_job_id}/renew", {
         "lease_id": lease_id, "worker_instance_id": worker_instance_id,
     })
 

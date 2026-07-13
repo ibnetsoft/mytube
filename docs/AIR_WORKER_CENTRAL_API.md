@@ -1,6 +1,6 @@
 # AIR Worker — 실제 auth-web 중앙 서버 API (AIR-0227D)
 
-- 상태: **코드 구현 완료, TypeScript 컴파일 통과 - 실 DB에 연결해 실행한 적은 없음(staging 접속 정보 없음)**
+- 상태: **코드 구현 완료, TypeScript 컴파일 통과 - 실 DB에 연결해 실행한 적은 없음(staging 접속 정보 없음). [AIR-0227D-STAGING-UNBLOCK] Python 워커 측(`worker/central_client.py`)이 이 실제 경로가 아니라 구식 `/api/worker/*`(+`renew-lease`) 경로를 호출하고 있던 실제 버그를 발견·수정 — 그 전까지는 staging 접속 정보가 있었어도 워커가 이 API에 전부 404를 받았을 것. `worker/dev_central_server`(로컬 모의 서버)도 동일 경로로 맞춰 로컬 E2E 재검증 완료.**
 - 구현 위치: `auth-web/app/api/internal/worker/**`, `auth-web/lib/workerAuth.ts`
 - 관련 문서: [AUTH](./AIR_WORKER_AUTH.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [DB_SCHEMA](./AIR_WORKER_DB_SCHEMA.md), [STAGING_E2E_QA](./AIR_WORKER_STAGING_E2E_QA.md)
 

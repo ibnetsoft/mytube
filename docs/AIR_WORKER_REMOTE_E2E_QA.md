@@ -1,6 +1,6 @@
 # AIR Worker — 원격 렌더링 E2E QA 결과 (AIR-0227C Stage 9/14)
 
-- 상태: **로컬 모의 중앙 서버 기준 실측 완료 / 실 auth-web·실 Drive 기준 미검증**
+- 상태: **로컬 모의 중앙 서버 기준 실측 완료 / 실 auth-web·실 Drive 기준 미검증. [AIR-0227D-STAGING-UNBLOCK] 이 §의 로컬 E2E가 사용하던 경로(`/api/worker/*`)가 실제 auth-web 구현(`/api/internal/worker/**`)과 다르다는 실제 버그를 발견 — `worker/central_client.py`와 `worker/dev_central_server`를 실제 경로로 맞춰 수정 후 register→claim→lease 갱신→progress→complete 전체 라운드트립 재검증 완료(worknote/AIR-0227D-STAGING-UNBLOCK.md). 이 문서 이하 결과는 구 경로 기준이었으나 프로토콜 동작 자체(claim/lease/progress/complete/재시도)는 경로 변경과 무관하게 그대로 유효.**
 - 관련 문서: [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [AUTH](./AIR_WORKER_AUTH.md)
 
 ## 0. 왜 "실제 원격"이 아니라 로컬 모의 서버인가
