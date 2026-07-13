@@ -473,6 +473,9 @@ class AuthService:
     def get_user_email(self):
         return self._user_email
 
+    def get_session_token(self):
+        return self._session_token
+
     def get_youtube_channel(self):
         return self._youtube_channel
 
