@@ -15,11 +15,18 @@ import os
 import sys
 from pathlib import Path
 
-# In a real install this would be %LOCALAPPDATA%\AIRWorker\. For local dev/QA
-# we default to a folder inside the worker/ dir itself so it never touches
-# the real AIR Studio data directory (%LOCALAPPDATA%\AIRStudio\), matching
-# AIR_WORKER_UPDATE_STRATEGY.md §2's "완전히 분리된 설치 경로" principle.
-BASE_DIR = Path(os.environ.get("AIRWORKER_HOME", Path(__file__).resolve().parent))
+# [AIR-0227E-P2] The installed binaries live under Program Files (or wherever
+# Inno Setup puts them) - a standard (non-admin) Windows user cannot write
+# there. All mutable state (logs, SQLite, IPC files, DPAPI token) must live
+# somewhere the user account running AIRWorker.exe can always write to,
+# regardless of install location or privilege level - %LOCALAPPDATA% is the
+# standard answer (matches AIR Studio's own %LOCALAPPDATA%\AIRStudio\, kept
+# in a sibling, never-shared %LOCALAPPDATA%\AIRWorker\ directory per
+# AIR_WORKER_UPDATE_STRATEGY.md §2's "완전히 분리된 설치 경로" principle).
+# AIRWORKER_HOME remains the override for dev/QA/tests that want an isolated,
+# disposable location instead of touching the real user profile.
+_DEFAULT_LOCALAPPDATA_HOME = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "AIRWorker"
+BASE_DIR = Path(os.environ.get("AIRWORKER_HOME", _DEFAULT_LOCALAPPDATA_HOME))
 STATE_DIR = BASE_DIR / "state"
 LOG_DIR = BASE_DIR / "logs"
 JOB_LOG_DIR = LOG_DIR / "jobs"

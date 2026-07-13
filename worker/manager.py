@@ -513,6 +513,9 @@ class WorkerManager:
 
 
 def main():
+    import single_instance
+    single_instance.acquire_or_exit(logger)  # [AIR-0227E-P2] exits immediately if another Manager is already running - render_worker/hermes_worker/local_api never call this (see single_instance.py docstring)
+
     manager = WorkerManager()
     manager.run_startup_recovery()
     manager.start_all()

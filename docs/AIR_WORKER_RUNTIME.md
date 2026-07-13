@@ -1,11 +1,15 @@
-# AIR Worker — Runtime (AIR-0227B, §6 이후 AIR-0227E)
+# AIR Worker — Runtime (AIR-0227B, §6 이후 AIR-0227E, §7 이후 AIR-0227E-P2)
 
 - 상태: **로컬 E2E 검증 완료(AIR-0227B, 소스 실행) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E,
-  §6) / 프로덕션 미배포**
+  §6) + Onedir 설치 패키징/Mutex/경로분리 개발머신 격리 QA 통과(AIR-0227E-P2, Conditional Go,
+  클린 OS·Inno Setup 실컴파일 미검증) / 프로덕션 미배포**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md),
   [RENDER_ADAPTER](./AIR_WORKER_RENDER_ADAPTER.md), [SHUTDOWN_PROTOCOL](./AIR_WORKER_SHUTDOWN_PROTOCOL.md),
   [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md), [LOCAL_E2E_QA](./AIR_WORKER_LOCAL_E2E_QA.md),
-  [`worknote/AIR-0227E-PACKAGING-POC.md`](../worknote/AIR-0227E-PACKAGING-POC.md)(전체 검증 로그)
+  [FFMPEG_LICENSE](./AIR_WORKER_FFMPEG_LICENSE.md), [VERSIONING](./AIR_WORKER_VERSIONING.md),
+  [CODE_SIGNING_PLAN](./AIR_WORKER_CODE_SIGNING_PLAN.md),
+  [`worknote/AIR-0227E-PACKAGING-POC.md`](../worknote/AIR-0227E-PACKAGING-POC.md)(P1 전체 검증 로그),
+  [`worknote/AIR-0227E-P2-INSTALLER-HARDENING.md`](../worknote/AIR-0227E-P2-INSTALLER-HARDENING.md)(P2 전체 검증 로그)
 
 AIR-0227A(#12 스켈레톤)는 3개 프로세스가 뜨고/죽고/재시작되는 것만 모의로 증명했다.
 AIR-0227B는 그 골격 위에 **실제로 동작하는 렌더링**을 연결하고, 스켈레톤 QA에서 발견된

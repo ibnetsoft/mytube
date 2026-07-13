@@ -1,6 +1,9 @@
 # AIR Worker — 업데이트 전략
 
-- 상태: **설계안 / CTO 승인 대기 — AIR-0227E가 만든 것은 "빌드 가능한 단일 `AIRWorker.exe`"뿐이며, 이 문서가 다루는 설치 프로그램/자동 업데이트/버전 관리는 여전히 전혀 착수되지 않았다([RUNTIME §6](./AIR_WORKER_RUNTIME.md) 참고)**
+- 상태: **설계안 / CTO 승인 대기 — AIR-0227E-P2가 원자적 스왑/롤백 패턴(`_dev/simulate_worker_update.py`,
+  `packaging/windows/launcher/AIRUpdater.py`의 검증된 방식 재사용)을 독립 스크립트로
+  시뮬레이션·검증했으나, 실제 설치 파이프라인에는 아직 통합하지 않음. Inno Setup 인스톨러
+  자체도 미컴파일(ISCC.exe 미설치)이라 설치 프로그램은 여전히 실체가 없음([RUNTIME §7](./AIR_WORKER_RUNTIME.md) 참고)**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md)
 
 ## 0. 출발점: 지금은 업데이트가 아예 없다
