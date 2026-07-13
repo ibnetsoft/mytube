@@ -58,7 +58,7 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 # Every child is now spawned by re-invoking the current running program with
 # `--role <name>` instead - see _child_command() below and
 # worker/air_worker_entry.py's docstring for the full rationale.
-CHILD_SCRIPTS = ("render_worker", "hermes_worker", "local_api")  # hermes_worker still runs hermes_worker_mock.py under the hood - real Hermes connection out of this Task's scope
+CHILD_SCRIPTS = ("render_worker", "hermes_worker", "local_api")  # [AIR-0227E-P3] hermes_worker now runs the real hermes_worker.py (topic_research via services.ai_router) - see air_worker_entry.py's role dispatch
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
     "hermes_worker": STATE_DIR / "hermes_worker.json",
@@ -439,6 +439,11 @@ class WorkerManager:
             if state:
                 processes[name]["current_job"] = state.get("current_job")
                 processes[name]["progress"] = state.get("progress")
+                # [AIR-0227E-P3 item 11] surfaced for Local API /status - both
+                # render_worker.py and hermes_worker.py now write these two
+                # fields (additive, not a job_store/RPC change).
+                processes[name]["last_success_at"] = state.get("last_success_at")
+                processes[name]["last_error"] = state.get("last_error")
         return {
             "worker_id": WORKER_ID,
             "worker_instance_id": self.worker_instance_id,

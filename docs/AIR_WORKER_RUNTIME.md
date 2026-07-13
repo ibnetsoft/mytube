@@ -3,7 +3,11 @@
 - 상태: **로컬 E2E 검증 완료(AIR-0227B, 소스 실행) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E,
   §6) + 실제 Inno Setup 설치파일 생성·설치·제거·업데이트/롤백까지 라이브 검증 완료
   (AIR-0227E-P2-VALIDATION, Conditional Go) / 프로덕션 미배포. 클린 Windows/Sandbox 검증과
-  코드 서명만 여전히 미실시 — worknote/AIR-0227E-P2-VALIDATION.md 참고**
+  코드 서명만 여전히 미실시 — worknote/AIR-0227E-P2-VALIDATION.md 참고.
+  [AIR-0227E-P3] `hermes_worker` role이 이제 `worker/hermes_worker.py`(실제 주제 조사, mock
+  아님)를 실행 - 소스 실행/onedir 빌드/실제 설치본 3곳 모두에서 real Gemini API 호출 성공 확인
+  (worknote/AIR-0227E-P3-HERMES-INTEGRATION.md). `hermes_worker_mock.py`는 테스트 전용으로
+  남아있으나 `air_worker_entry.py`의 역할 디스패치에서는 더 이상 참조되지 않는다.**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md),
   [RENDER_ADAPTER](./AIR_WORKER_RENDER_ADAPTER.md), [SHUTDOWN_PROTOCOL](./AIR_WORKER_SHUTDOWN_PROTOCOL.md),
   [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md), [LOCAL_E2E_QA](./AIR_WORKER_LOCAL_E2E_QA.md),

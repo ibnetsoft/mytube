@@ -9,4 +9,4 @@ packaging/windows/AIRWorker.iss reads this via the AIRWORKER_VERSION env var
 (set by a build script), the same pattern AIRStudio.iss uses for AIR_VERSION
 from the root version.py - two parallel, independent single sources of truth.
 """
-WORKER_VERSION = "0.1.0"
+WORKER_VERSION = "0.2.0"  # [AIR-0227E-P3] real Hermes Worker integration

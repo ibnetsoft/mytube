@@ -1,6 +1,6 @@
 # AIR Worker — 프로세스 모델
 
-- 상태: **로컬 E2E 검증 완료(AIR-0227B) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E, `--role` 재실행 패턴으로 자식 스폰 방식 변경 — [RUNTIME §6.1](./AIR_WORKER_RUNTIME.md) 참고) / 프로덕션 미배포·CTO 승인 대기**
+- 상태: **로컬 E2E 검증 완료(AIR-0227B) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E, `--role` 재실행 패턴으로 자식 스폰 방식 변경 — [RUNTIME §6.1](./AIR_WORKER_RUNTIME.md) 참고) / 프로덕션 미배포·CTO 승인 대기. [AIR-0227E-P3] `hermes_worker` 역할 크래시 격리(강제 종료 시 render_worker/local_api 무영향, hermes만 재시작) + render 우선순위 정책(§RESOURCE_POLICY) 실측 완료(설치본 포함) — 프로세스 슈퍼비전 로직 자체는 변경 없음, hermes_worker.py 내부 구현만 mock에서 실제로 교체됨.**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md), [RUNTIME](./AIR_WORKER_RUNTIME.md), [SHUTDOWN_PROTOCOL](./AIR_WORKER_SHUTDOWN_PROTOCOL.md)
 
 > **AIR-0227B 업데이트 — §5와 §7은 더 이상 최신이 아니다, 아래 참고**: Local API는

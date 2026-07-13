@@ -1,6 +1,6 @@
 # AIR Worker — 아키텍처 설계
 
-- 상태: **로컬 E2E 검증 완료(AIR-0227B) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E, [RUNTIME §6](./AIR_WORKER_RUNTIME.md) 참고) / 프로덕션 미배포·CTO 승인 대기, 설치 프로그램/자동 업데이트/실 Hermes/실 Drive/실 중앙 서버 전부 미착수**
+- 상태: **로컬 E2E 검증 완료(AIR-0227B) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E, [RUNTIME §6](./AIR_WORKER_RUNTIME.md) 참고) + 실제 Inno Setup 설치까지 검증 완료(AIR-0227E-P2-VALIDATION) / 프로덕션 미배포·CTO 승인 대기. [AIR-0227E-P3] Mock Hermes를 실제 Hermes Worker(`worker/hermes_worker.py`, 주제 조사 전용, `services/ai_router.py` 재사용, 실 Gemini API로 5회 이상 실측)로 교체 완료, 설치본에서 Render+Hermes 동시 실행/렌더 우선 정책/역할별 crash isolation까지 실측 완료(worknote/AIR-0227E-P3-HERMES-INTEGRATION.md). 실 Drive/실 중앙 서버는 여전히 미착수.**
 - 선행 문서: [`worknote/AIR-0227A-stage1-render-worker-analysis.md`](../worknote/AIR-0227A-stage1-render-worker-analysis.md)
 - 관련 문서: [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md), [SECURITY](./AIR_WORKER_SECURITY.md), [UPDATE_STRATEGY](./AIR_WORKER_UPDATE_STRATEGY.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md), [RUNTIME](./AIR_WORKER_RUNTIME.md)
 

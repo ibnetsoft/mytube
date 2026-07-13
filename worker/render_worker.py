@@ -76,8 +76,15 @@ def _should_stop() -> bool:
     return _shutdown_requested or is_shutdown_requested("render_worker")
 
 
-def write_state(status: str, current_job: dict | None, progress: int, job_id: str | None = None):
+def write_state(status: str, current_job: dict | None, progress: int, job_id: str | None = None,
+                 last_success_at: float | None = None, last_error: str | None = None):
     import json
+    prev = {}
+    if STATE_FILE.exists():
+        try:
+            prev = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            prev = {}
     STATE_FILE.write_text(
         json.dumps(
             {
@@ -88,6 +95,12 @@ def write_state(status: str, current_job: dict | None, progress: int, job_id: st
                 "progress": progress,
                 "worker_instance_id": WORKER_INSTANCE_ID,
                 "heartbeat_at": time.time(),
+                # [AIR-0227E-P3 item 11] mirrors hermes_worker.py's state
+                # shape so Local API /status can show both workers'
+                # last-success/last-error uniformly - additive fields only,
+                # existing consumers of this file ignore unknown keys.
+                "last_success_at": last_success_at if last_success_at is not None else prev.get("last_success_at"),
+                "last_error": last_error if last_error is not None else prev.get("last_error"),
             },
             ensure_ascii=False,
         ),
@@ -221,6 +234,8 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
 
     renew_thread, renew_stop = _start_lease_renewal(job, job_log)
     temp_dir = None
+    _last_success_at = None
+    _last_error = None
     try:
         job_store.transition(job_id, job_store.PREPARING, reason="preparing render inputs")
         write_state("preparing", job, 0, job_id)
@@ -265,6 +280,7 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
         job_log.info("-> COMPLETED")
         logger.info(f"Completed job {job_id} -> {delivered_path}")
         _report_remote_outcome(job, job_log, success=True, output_ref=delivered_path)
+        _last_success_at = time.time()
 
     except job_store.InvalidTransitionError as e:
         # Someone else (Manager, cancel command) already moved this job out
@@ -274,12 +290,13 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
     except Exception as e:
         _fail_and_maybe_retry(job, error_code="RENDER_EXCEPTION", error_message=str(e), job_log=job_log)
         _report_remote_outcome(job, job_log, success=False, error_code="RENDER_EXCEPTION", error_message=str(e))
+        _last_error = str(e)
     finally:
         if renew_stop:
             renew_stop.set()
         if temp_dir:
             cleanup_temp_dir(temp_dir)
-        write_state("idle", None, 0)
+        write_state("idle", None, 0, last_success_at=_last_success_at, last_error=_last_error)
 
 
 def _try_remote_claim() -> dict | None:

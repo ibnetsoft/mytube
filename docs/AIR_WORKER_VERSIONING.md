@@ -1,6 +1,6 @@
 # AIR Worker — 버전 단일 공급원 검토 (AIR-0227E-P2 §15)
 
-- 상태: **검토 완료, `worker/worker_version.py` 신규 도입**
+- 상태: **검토 완료, `worker/worker_version.py` 신규 도입. [AIR-0227E-P3] 실제 Hermes Worker 통합으로 `WORKER_VERSION`을 `0.1.0` → `0.2.0`으로 올림 - `version.py`(AIR Studio Desktop)와는 여전히 완전히 독립.**
 
 ## 결론
 

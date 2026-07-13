@@ -64,7 +64,7 @@ def _dispatch(role: str, crash_now: bool):
     elif role == "render_worker":
         import render_worker as mod
     elif role == "hermes_worker":
-        import hermes_worker_mock as mod
+        import hermes_worker as mod  # [AIR-0227E-P3] real Hermes Worker - hermes_worker_mock.py remains for test-only direct import, never dispatched here
     elif role == "local_api":
         import local_api_process as mod
     else:
