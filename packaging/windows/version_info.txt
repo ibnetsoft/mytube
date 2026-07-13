@@ -1,0 +1,34 @@
+# [AIR-0227E-P2-VALIDATION §12] Windows version resource for AIRWorker.exe,
+# embedding worker/worker_version.py's WORKER_VERSION so the exe's own
+# Properties > Details tab, PyInstaller build metadata, the Inno Setup
+# installer's AppVersion, and the installer filename (AIRWorkerSetup-{ver}.exe)
+# all show the same value from one source of truth. PyInstaller's
+# `version=` EXE() parameter reads this file (Python-literal syntax, not
+# plain text) - see PyInstaller docs "Capturing Windows version data".
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(0, 1, 0, 0),
+    prodvers=(0, 1, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        u'040904B0',
+        [StringStruct(u'CompanyName', u'AIR Studio'),
+        StringStruct(u'FileDescription', u'AIR Worker - render/task worker for AIR Studio'),
+        StringStruct(u'FileVersion', u'0.1.0.0'),
+        StringStruct(u'InternalName', u'AIRWorker'),
+        StringStruct(u'OriginalFilename', u'AIRWorker.exe'),
+        StringStruct(u'ProductName', u'AIR Worker'),
+        StringStruct(u'ProductVersion', u'0.1.0.0')])
+      ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)

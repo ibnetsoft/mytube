@@ -15,26 +15,53 @@ import os
 import sys
 from pathlib import Path
 
-# [AIR-0227E-P2] The installed binaries live under Program Files (or wherever
-# Inno Setup puts them) - a standard (non-admin) Windows user cannot write
-# there. All mutable state (logs, SQLite, IPC files, DPAPI token) must live
-# somewhere the user account running AIRWorker.exe can always write to,
-# regardless of install location or privilege level - %LOCALAPPDATA% is the
-# standard answer (matches AIR Studio's own %LOCALAPPDATA%\AIRStudio\, kept
-# in a sibling, never-shared %LOCALAPPDATA%\AIRWorker\ directory per
-# AIR_WORKER_UPDATE_STRATEGY.md §2's "완전히 분리된 설치 경로" principle).
-# AIRWORKER_HOME remains the override for dev/QA/tests that want an isolated,
-# disposable location instead of touching the real user profile.
-_DEFAULT_LOCALAPPDATA_HOME = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "AIRWorker"
+# [AIR-0227E-P2-VALIDATION] The installed binaries live under Program Files
+# (Inno Setup's AIRWorker.iss, admin-required) - a standard user cannot
+# write there. All mutable state must live somewhere the user account
+# running AIRWorker.exe can always write to, regardless of install location
+# or privilege level. Final confirmed path (per this Task's explicit
+# decision, superseding the P2 hardening branch's standalone
+# %LOCALAPPDATA%\AIRWorker\): %LOCALAPPDATA%\AIRStudio\AIRWorker\ - nested
+# under the same top-level vendor folder AIR Studio Desktop already uses
+# (%LOCALAPPDATA%\AIRStudio\), as a SIBLING data directory. This is a data-
+# location choice only, not a channel merge: install path, registry Run key,
+# version source (worker_version.py), and update mechanism all remain fully
+# independent of AIR Studio Desktop's own channel (docs/AIR_WORKER_VERSIONING.md).
+#
+# No production users exist yet for AIR Worker (still Conditional Go, never
+# deployed) - there is nothing to migrate, so this is a direct default-path
+# change, not a migration. A pre-existing dev-only %LOCALAPPDATA%\AIRWorker\
+# directory from earlier PoC/QA sessions is simply orphaned (ignored, not
+# read, not deleted) - it holds no real data.
+#
+# AIRWORKER_HOME remains the override for dev/QA/tests that want an
+# isolated, disposable location instead of touching the real user profile -
+# confirmed still takes priority whenever set (regression-tested).
+_DEFAULT_LOCALAPPDATA_HOME = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "AIRStudio" / "AIRWorker"
 BASE_DIR = Path(os.environ.get("AIRWORKER_HOME", _DEFAULT_LOCALAPPDATA_HOME))
 STATE_DIR = BASE_DIR / "state"
 LOG_DIR = BASE_DIR / "logs"
 JOB_LOG_DIR = LOG_DIR / "jobs"
-COMMAND_DIR = STATE_DIR / "commands"
-RESULT_DIR = STATE_DIR / "results"
+IPC_DIR = BASE_DIR / "ipc"
+COMMAND_DIR = IPC_DIR / "commands"
+RESULT_DIR = IPC_DIR / "results"
 CANCEL_FLAG_DIR = STATE_DIR / "cancel_flags"
 SHUTDOWN_FLAG_DIR = STATE_DIR / "shutdown_flags"
-for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, COMMAND_DIR, RESULT_DIR, CANCEL_FLAG_DIR, SHUTDOWN_FLAG_DIR):
+# [P2-VALIDATION §1] Canonical subpath set. output/ is in active use
+# (render_worker.py's DELIVERED_DIR, renamed from state/delivered/). temp/,
+# config/, crash/, update/, quarantine/ are created for structural
+# completeness but have no consumer yet - reserved, not wired into any
+# code path this Task (documented honestly in the worknote, not claimed as
+# implemented features).
+OUTPUT_DIR = BASE_DIR / "output"
+TEMP_DIR = BASE_DIR / "temp"            # reserved - render scratch still uses tempfile.mkdtemp() under system %TEMP%, not migrated here
+CONFIG_DIR = BASE_DIR / "config"        # reserved - no user-editable config file lives here yet
+CRASH_DIR = BASE_DIR / "crash"          # reserved - no crash-dump writer exists yet
+UPDATE_DIR = BASE_DIR / "update"        # reserved - _dev/simulate_worker_update.py operates on the install dir directly, doesn't stage through here yet
+QUARANTINE_DIR = BASE_DIR / "quarantine"  # reserved - partial/abandoned render outputs are not yet moved here (see docs/AIR_WORKER_JOB_RECOVERY.md for current abandon policy)
+for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, IPC_DIR, COMMAND_DIR, RESULT_DIR,
+           CANCEL_FLAG_DIR, SHUTDOWN_FLAG_DIR, OUTPUT_DIR, TEMP_DIR, CONFIG_DIR,
+           CRASH_DIR, UPDATE_DIR, QUARANTINE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 JOB_DB_PATH = STATE_DIR / "jobs.db"

@@ -1,8 +1,9 @@
-# AIR Worker — Runtime (AIR-0227B, §6 이후 AIR-0227E, §7 이후 AIR-0227E-P2)
+# AIR Worker — Runtime (AIR-0227B, §6 이후 AIR-0227E, §7 이후 AIR-0227E-P2/P2-VALIDATION)
 
 - 상태: **로컬 E2E 검증 완료(AIR-0227B, 소스 실행) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E,
-  §6) + Onedir 설치 패키징/Mutex/경로분리 개발머신 격리 QA 통과(AIR-0227E-P2, Conditional Go,
-  클린 OS·Inno Setup 실컴파일 미검증) / 프로덕션 미배포**
+  §6) + 실제 Inno Setup 설치파일 생성·설치·제거·업데이트/롤백까지 라이브 검증 완료
+  (AIR-0227E-P2-VALIDATION, Conditional Go) / 프로덕션 미배포. 클린 Windows/Sandbox 검증과
+  코드 서명만 여전히 미실시 — worknote/AIR-0227E-P2-VALIDATION.md 참고**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md),
   [RENDER_ADAPTER](./AIR_WORKER_RENDER_ADAPTER.md), [SHUTDOWN_PROTOCOL](./AIR_WORKER_SHUTDOWN_PROTOCOL.md),
   [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md), [LOCAL_E2E_QA](./AIR_WORKER_LOCAL_E2E_QA.md),

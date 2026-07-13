@@ -1,6 +1,18 @@
-# AIR Worker — 코드 서명 계획 (AIR-0227E-P2 §16)
+# AIR Worker — 코드 서명 계획 (AIR-0227E-P2 §16, AIR-0227E-P2-VALIDATION §13 재확인)
 
-- 상태: **계획 문서만 — 실제 서명 미실시(서명 인증서 없음, 이번 PoC 범위 아님)**
+- 상태: **계획 문서만 — 실제 서명 여전히 미실시(서명 인증서 없음).** P2-VALIDATION에서 실제
+  `AIRWorker.exe`/`AIRWorkerSetup-0.1.0.exe`를 빌드·설치까지 완료했지만, 둘 다 **미서명
+  상태 그대로 배포 산출물이다** — production-ready로 표기하지 않는다.
+
+## 0. P2-VALIDATION에서 다시 확인한 것
+
+- `dist/onedir/AIRWorker/AIRWorker.exe`, `release/AIRWorkerSetup-0.1.0.exe` 둘 다 Authenticode
+  서명 없음(`signtool verify` 실행 시 "서명되지 않음" 판정이 나올 것으로 예상 — 인증서가
+  없어 signtool 자체를 실행할 수 없어 직접 실행하지는 않음).
+- SmartScreen 검증도 인증서 없이는 의미 없음(신규 미서명 실행 파일은 SmartScreen 경고가
+  뜨는 게 정상 동작).
+- 서명 후 SHA256은 서명 전/후 값이 달라진다는 점만 이 문서에 미리 기록 — 실제 서명 시
+  §12(버전 일치)의 SHA256 기록도 다시 갱신해야 함.
 
 ## 1. 무엇을 서명해야 하는가
 

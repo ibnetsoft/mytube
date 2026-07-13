@@ -34,6 +34,38 @@ for _pkg in ("imageio", "imageio-ffmpeg", "moviepy"):
     except Exception:
         pass
 
+# [AIR-0227E-P2-VALIDATION §4] ffprobe.exe - matched build/version to the
+# bundled ffmpeg.exe (both gyan.dev "essentials" 7.1, see
+# docs/AIR_WORKER_FFMPEG_LICENSE.md). Fetched by _dev/fetch_ffprobe.py into
+# a gitignored vendor cache, never committed. Placed at the top level of
+# the onedir tree (sibling to AIRWorker.exe), not inside _internal/, so an
+# operator can find and run it directly for diagnostics.
+_ffprobe_path = os.path.join(root, "_dev", "vendor", "ffprobe", "ffprobe.exe")
+if os.path.exists(_ffprobe_path):
+    binaries.append((_ffprobe_path, "."))
+else:
+    print(f"WARNING: ffprobe.exe not found at {_ffprobe_path} - run `python _dev/fetch_ffprobe.py` first. Building WITHOUT ffprobe bundled.")
+
+_ffprobe_license_path = os.path.join(root, "_dev", "vendor", "ffprobe", "FFmpeg-LICENSE.txt")
+if os.path.exists(_ffprobe_license_path):
+    datas.append((_ffprobe_license_path, "licenses"))
+
+# [AIR-0227E-P2-VALIDATION §5] THIRD_PARTY_NOTICES - copy the tracked .md
+# source to a .txt name at build time (single source of truth, no drifting
+# duplicate file to maintain) since the installer wants a plain .txt name.
+# Written under build/ (gitignored, never a tracked source file) rather
+# than packaging/windows/ itself.
+_notices_src = os.path.join(SPECPATH, "THIRD_PARTY_NOTICES.md")
+if os.path.exists(_notices_src):
+    _notices_build_dir = os.path.join(root, "build", "_generated")
+    os.makedirs(_notices_build_dir, exist_ok=True)
+    _notices_txt = os.path.join(_notices_build_dir, "THIRD_PARTY_NOTICES.txt")
+    with open(_notices_src, "r", encoding="utf-8") as _f:
+        _notices_content = _f.read()
+    with open(_notices_txt, "w", encoding="utf-8") as _f:
+        _f.write(_notices_content)
+    datas.append((_notices_txt, "licenses"))
+
 pykakasi_datas, pykakasi_binaries, pykakasi_hiddenimports = collect_all("pykakasi")
 datas += pykakasi_datas
 binaries += pykakasi_binaries
@@ -116,6 +148,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version=os.path.join(SPECPATH, "version_info.txt"),
 )
 
 coll = COLLECT(

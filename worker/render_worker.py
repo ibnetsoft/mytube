@@ -50,10 +50,10 @@ import upload_adapter
 from logging_setup import get_job_logger, get_logger
 from render_pipeline_adapter import RenderPipelineError, cleanup_temp_dir, prepare_temp_dir, run_render
 from shutdown_flag import is_shutdown_requested
-from worker_config import CANCEL_FLAG_DIR, STATE_DIR, WORKER_ID, WORKER_INSTANCE_ID
+from worker_config import CANCEL_FLAG_DIR, OUTPUT_DIR, STATE_DIR, WORKER_ID, WORKER_INSTANCE_ID
 
 STATE_FILE = STATE_DIR / "render_worker.json"
-DELIVERED_DIR = STATE_DIR / "delivered"
+DELIVERED_DIR = OUTPUT_DIR / "delivered"  # [P2-VALIDATION] moved out of state/ into the canonical output/ subpath
 logger = get_logger("render_worker")
 
 _shutdown_requested = False

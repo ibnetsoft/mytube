@@ -31,6 +31,25 @@ AIR Worker는 **`version.py`(AIR Studio Desktop의 `APP_VERSION`)를 공유하�
 - 두 버전 소스(`version.py`의 `APP_VERSION`, `worker/worker_version.py`의 `WORKER_VERSION`)는
   **서로 독립적으로 증가**하며 어느 쪽도 다른 쪽을 참조/의존하지 않는다.
 
+## 버전 일치 검증 (AIR-0227E-P2-VALIDATION §12)
+
+단일 공급원(`worker/worker_version.py::WORKER_VERSION = "0.1.0"`)에서 다음 값들이 실제로
+전부 `0.1.0`(또는 그 파생 형식)으로 일치하는지 확인:
+
+| 값 | 확인 결과 |
+|---|---|
+| AIR Worker 내부 버전 (`worker_version.py`) | `0.1.0` — 단일 공급원 |
+| PyInstaller 빌드 메타데이터 (exe 파일 속성) | `packaging/windows/version_info.txt` 신규 추가 + `EXE(..., version=...)`로 임베드 — `FileVersion`/`ProductVersion` = `0.1.0.0` (Windows 버전 리소스는 4-필드 정수만 허용해 `0.1.0` → `0.1.0.0`으로 표기, 실질적으로 동일 값) |
+| `AIRWorker.iss` 버전(`AppVersion`) | `AIRWORKER_VERSION` env var(수동 설정, "0.1.0") → `{#MyAppVersion}` |
+| 설치파일 이름 | `AIRWorkerSetup-0.1.0.exe` |
+| 로그 버전 | 로그 자체에는 버전 문자열이 없음 — Manager `/status` 응답에 노출하는 것은 여전히 후속 작업(아래) |
+| 로컬 update manifest | `_dev/simulate_worker_update.py`는 버전 문자열을 다루지 않음(파일 마커만 사용) — 실제 매니페스트 기반 버전 비교는 후속 작업 |
+| QA 보고서 | `worknote/AIR-0227E-P2-VALIDATION.md`에 `0.1.0` 일관 기재 |
+
+**주의**: `worker_version.py`와 `AIRWORKER_VERSION` env var는 아직 자동으로 연결되어 있지
+않다 — 빌드 시 수동으로 `$env:AIRWORKER_VERSION="0.1.0"`을 설정해야 `.iss`가 올바른 값을
+읽는다. 사람이 두 값을 따로 관리하다 실수로 어긋날 위험이 남아있음(§후속 작업 참고).
+
 ## 후속 작업 (이번 PoC 범위 밖)
 
 - `worker/worker_version.py`를 읽어 `AIRWORKER_VERSION` env var를 자동 설정하는 빌드
