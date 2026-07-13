@@ -1,6 +1,6 @@
 # AIR Worker — 프로세스 모델
 
-- 상태: **로컬 E2E 검증 완료(AIR-0227B) / 프로덕션 미배포·CTO 승인 대기**
+- 상태: **로컬 E2E 검증 완료(AIR-0227B) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E, `--role` 재실행 패턴으로 자식 스폰 방식 변경 — [RUNTIME §6.1](./AIR_WORKER_RUNTIME.md) 참고) / 프로덕션 미배포·CTO 승인 대기**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md), [RUNTIME](./AIR_WORKER_RUNTIME.md), [SHUTDOWN_PROTOCOL](./AIR_WORKER_SHUTDOWN_PROTOCOL.md)
 
 > **AIR-0227B 업데이트 — §5와 §7은 더 이상 최신이 아니다, 아래 참고**: Local API는

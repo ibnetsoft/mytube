@@ -1,6 +1,6 @@
 # AIR Worker — 업데이트 전략
 
-- 상태: **설계안 / CTO 승인 대기**
+- 상태: **설계안 / CTO 승인 대기 — AIR-0227E가 만든 것은 "빌드 가능한 단일 `AIRWorker.exe`"뿐이며, 이 문서가 다루는 설치 프로그램/자동 업데이트/버전 관리는 여전히 전혀 착수되지 않았다([RUNTIME §6](./AIR_WORKER_RUNTIME.md) 참고)**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md)
 
 ## 0. 출발점: 지금은 업데이트가 아예 없다

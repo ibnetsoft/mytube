@@ -49,12 +49,16 @@ logger = get_logger("manager")
 
 HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
+ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 
-CHILD_SCRIPTS = {
-    "render_worker": HERE / "render_worker.py",
-    "hermes_worker": HERE / "hermes_worker_mock.py",   # unchanged - real Hermes connection out of this Task's scope
-    "local_api": HERE / "local_api_process.py",
-}
+# [AIR-0227E] Role names only, not .py paths - this used to map name ->
+# sibling script path (HERE / "render_worker.py" etc), but that breaks under
+# a frozen PyInstaller build: there is no python.exe to point at (sys.executable
+# IS the frozen exe) and no standalone .py files on disk to Popen by path.
+# Every child is now spawned by re-invoking the current running program with
+# `--role <name>` instead - see _child_command() below and
+# worker/air_worker_entry.py's docstring for the full rationale.
+CHILD_SCRIPTS = ("render_worker", "hermes_worker", "local_api")  # hermes_worker still runs hermes_worker_mock.py under the hood - real Hermes connection out of this Task's scope
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
     "hermes_worker": STATE_DIR / "hermes_worker.json",
@@ -62,6 +66,24 @@ STATE_FILES = {
 }
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
 MANAGER_STATUS_FILE = STATE_DIR / "manager_status.json"
+
+
+def _child_command(role: str) -> list[str]:
+    """[AIR-0227E] Build the Popen argv for child process `role`.
+
+    Frozen (PyInstaller onefile AIRWorker.exe): sys.executable IS the exe
+    itself, so re-invoke it directly with --role - there is no separate
+    python.exe and no on-disk .py file to point at.
+
+    From source (dev/QA): sys.executable is a real python.exe, so run it
+    against air_worker_entry.py, same as always.
+
+    Either way the target module's main() runs via
+    worker/air_worker_entry.py's role dispatch, not by importing the child
+    script directly."""
+    if getattr(sys, "frozen", False):
+        return [sys.executable, "--role", role]
+    return [PYTHON, str(ENTRY_SCRIPT), "--role", role]
 
 
 class WorkerManager:
@@ -96,8 +118,8 @@ class WorkerManager:
                 return True
 
             clear_shutdown_flag(name)  # a leftover flag from a previous stop would make the new instance exit immediately
-            script = CHILD_SCRIPTS[name]
-            logger.info(f"Starting '{name}' ({script.name})")
+            cmd = _child_command(name)
+            logger.info(f"Starting '{name}' ({' '.join(cmd)})")
             # [AIR-0227B Stage 4 finding, not a regression introduced here]
             # services/video_service.py prints emoji/non-ASCII to stdout.
             # On a Windows console using a non-UTF-8 codepage (observed:
@@ -107,7 +129,7 @@ class WorkerManager:
             # standard fix and doesn't require touching the existing
             # rendering pipeline's print statements.
             child_env = dict(os.environ, PYTHONIOENCODING="utf-8", AIRWORKER_INSTANCE_ID=self.worker_instance_id)
-            popen = subprocess.Popen([PYTHON, str(script)], cwd=str(HERE), env=child_env)
+            popen = subprocess.Popen(cmd, cwd=str(HERE), env=child_env)
             self.popens[name] = popen
             rec.pid = popen.pid
             rec.status = "starting"
