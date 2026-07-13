@@ -87,7 +87,80 @@ Central server acknowledged completion (POST /api/internal/worker/jobs/{id}/comp
 이번 세션은 이 중 아무것도 갖고 있지 않아 §STAGING_E2E_QA/§DRIVE_LIVE_QA의 나머지 항목은
 착수하지 못했다.
 
+## 다음 단계 (갱신: 사용자가 staging 대신 프로덕션 직접 진행을 명시적으로 선택함, 위험 인지)
+
+사용자 지시: "staging Supabase 하지말고 현재 supabase 계정에 바로 연결... 위험 인지하고
+진행한다." 이에 따라 아래 5. 항목으로 이어서 실제 프로덕션 DB에 대해 진행함.
+
+## 5. 프로덕션 DB 적용 + 등록/토큰 발급 + RPC 레벨 실측 (Method A)
+
+- `migrations/air_0227d_worker_central_protocol.sql`을 사용자가 직접 Supabase SQL Editor
+  (프로젝트 `picadiri`, `main/PRODUCTION`)에서 실행 — "Success. No rows returned" 확인.
+- `service_role` 키(`auth-web/.env.local`, 사용자가 직접 저장)를 이용해 PostgREST로
+  `workers` 테이블에 `worker_id=air-worker-01` 등록, `worker_tokens` 테이블에
+  `auth-web/lib/workerAuth.ts`와 동일한 스킴(`awt_<token_id>_<secret>`,
+  `token_hash=sha256(secret)` hex)으로 토큰 1건 직접 발급 — 실제 admin UI/API 배포 없이
+  DB에 바로 삽입(Method A). 원문 토큰은 채팅에 노출하지 않고 로컬 파일에만 저장.
+- **RPC 레벨 실제 왕복 테스트** — 임시로 태그된 테스트 잡(`project_id=-999001`,
+  `project_name=AIR-0227D-DB-RPC-TEST-DELETE-ME`, 실 프로젝트와 FK 없음)을 실 프로덕션
+  `remote_render_queue`에 seed 후, `service_role` 키로 4개 RPC를 실제 순서대로 호출:
+  `claim_worker_render_job`(200, 정상 claim+lease 발급) → `renew_worker_render_job_lease`
+  (200) → `report_worker_render_job_progress` x2 (PREPARING→RENDERING, 200) →
+  `report_worker_render_job_outcome`(success=true, 200, `outcome:"ok"`, 최종
+  `status=completed`/`worker_status=COMPLETED`) → 같은 idempotency-key로 재호출(다른
+  `output_ref`) → 최초 저장값(`test-output-ref`)이 그대로 유지됨을 확인(재적용 안 됨) →
+  테스트 잡 즉시 삭제(cleanup, 204) — 실 admin 대시보드의 "리모트 렌더 큐" 탭에 남지 않도록.
+- **경계 정직하게 명시**: 이 테스트는 `service_role` 키로 **RPC를 직접 호출**한 것이지,
+  실제 auth-web Next.js 라우트(`/api/internal/worker/**`, `workerAuth.ts`의
+  `authenticateWorkerRequest` 포함)를 거친 것이 아니다 — 그 라우트 코드는 아직 배포
+  브랜치(main 미병합)에만 있어 이번 세션에서 배포하지 않았다(배포는 별도 승인 필요 - 사용자
+  질의 결과 "DB 레벨만 테스트"로 범위를 명시적으로 좁힘). 따라서 검증된 것은 **마이그레이션
+  SQL(테이블+RPC 함수)이 실 프로덕션 Postgres에서 정확히 설계대로 동작한다**는 것이고,
+  **HTTP 인증 레이어(Bearer 토큰 파싱, 401/409 응답, Idempotency-Key 헤더 처리)는 여전히
+  미검증**이다.
+- **사소한 설계 관찰**(버그 아님, 기록만): `report_worker_render_job_outcome`이 저장하는
+  `response_snapshot`의 `idempotent_replay` 필드는 최초 저장 시점 값(`false`)이 그대로
+  재생되므로, 재호출 응답 바디만 봐서는 "이번 호출이 replay였는지"를 알 수 없다(감사로그
+  `worker_job_events`에는 `idempotent_replay` 이벤트가 별도로 남아 실제로는 구분 가능).
+  데이터 무결성(중복 미적용)에는 영향 없음 — 응답 바디의 자기서술 정확성만의 문제.
+
+## 6. 실 HTTP 레이어 왕복 테스트 (사용자 승인 후 진행) — 완료
+
+사용자가 "HTTP 테스트도 진행" + "자동화 우회 키 만들어서 계속"을 명시적으로 승인함에 따라
+진행:
+
+- PR #85(`feat/air-0227d-staging-unblock`, base `feat/air-0227e-p2-installer-validation`)가
+  GitHub 연동으로 이미 자동 배포해 둔 실제 Vercel 프리뷰
+  (`mytube-git-feat-air-0227d-staging-unblock-eclozers-projects.vercel.app`)를 그대로 사용 —
+  새로 배포하지 않음. 이 프리뷰의 환경변수(Preview 스코프)는 프로덕션과 동일한
+  `SUPABASE_SERVICE_ROLE_KEY`/`NEXT_PUBLIC_SUPABASE_URL`을 씀 — 별도 staging Supabase가
+  없다는 이번 세션의 전제와 일치.
+- Vercel의 프리뷰 배포 보호(Deployment Protection/SSO)가 처음엔 모든 요청을 401로 막음 —
+  앱 코드의 Worker Token 인증과 무관한, Vercel 자체 보안 레이어. `vercel project protection
+  enable mytube --protection-bypass`로 "자동화 우회 비밀키"를 발급받아
+  `x-vercel-protection-bypass` 헤더로 우회(SSO 보호 자체는 끄지 않음 - 다른 사람의 접근은
+  여전히 차단됨).
+- **실제 HTTP 라운드트립 실측** (모두 실제 배포 코드 + 실제 프로덕션 Postgres 대상):
+  - 가짜/오염된 토큰으로 `register` 호출 → **401 `unauthorized`/`unknown_token`** (실제
+    `workerAuth.ts::authenticateWorkerRequest`가 진짜로 검증하고 있음을 확인)
+  - 발급된 진짜 토큰으로 `register`(200) → `heartbeat`(200) → 임시 태그 잡 1건 DB에 seed →
+    `claim`(200, 우리 잡을 정확히 반환) → `renew`(200) → `progress`(PREPARING→RENDERING,
+    각 200) → `complete`(Idempotency-Key 헤더 포함, 200, `outcome:"ok"`,
+    `status:COMPLETED`)
+  - `Idempotency-Key` 헤더 누락 시 `complete` 재호출 → **400** (필수 헤더 검증 확인)
+  - 최종 DB 상태 조회로 `status=completed`/`result_reference` 정상 반영 확인 후 테스트 잡
+    즉시 삭제(204) — 실 관리자 화면에 흔적 없음.
+- **결론**: Worker Token → 실제 배포된 auth-web 라우트(`/api/internal/worker/**`) → RPC →
+  실 프로덕션 Postgres까지 전체 경로가 실측으로 검증됨. AIR-0227D의 "실 DB/실 서버 기준
+  미검증" 상태는 이제 해소됨 — 단, 이번 세션에서 검증한 것은 이 **PR 브랜치의 Vercel
+  프리뷰**이지 `main`에 병합된 프로덕션 배포가 아니다(PR은 여전히 미병합 상태 유지, 병합
+  여부는 별도 결정).
+- **정리 완료**: 테스트 종료 후 사용자 확인을 받아 `vercel project protection disable
+  mytube --protection-bypass --protection-bypass-secret <secret>`으로 자동화 우회 키 제거,
+  `vercel project protection mytube --format json`으로 `protectionBypass: {}` 확인 —
+  프로젝트 보안 설정이 테스트 이전 상태로 원복됨.
+
 ## 다음 단계
 
-사용자에게 위 5개 항목 중 무엇을 안전한 채널(절대 채팅/로그/git에 값 자체를 남기지 않는
-방식)로 제공할 수 있는지 확인 필요 — 이 문서 다음 메시지에서 질의함.
+- Google Drive 실 자격증명 기반 업로드/다운로드 E2E는 여전히 미착수.
+- PR #85를 언제/어떻게 병합할지(단계적 rollout, 관리자 UI 배포 시점 등)는 별도 결정 필요.

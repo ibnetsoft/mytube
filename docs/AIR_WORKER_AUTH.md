@@ -1,6 +1,6 @@
 # AIR Worker — 중앙 서버 인증 계약 (AIR-0227C, AIR-0227D §0-A에서 실제 구현으로 갱신)
 
-- 상태: **AIR-0227D에서 auth-web에 실제 라우트/토큰 저장 구현 완료 - 실 DB(staging/production) 어디에도 미적용, 미배포. [AIR-0227D-STAGING-UNBLOCK] `worker/central_client.py`가 실제로는 §1-3의 구식 스케치 경로(`/api/worker/*`, `renew-lease`)를 호출하던 실제 코드 버그를 발견·수정함 — 실 구현 경로는 `/api/internal/worker/**` + `renew`(§CENTRAL_API 참고). 로컬 모의 서버 기준 register→claim→lease 갱신→progress→complete 전체 라운드트립 재검증 완료(worknote/AIR-0227D-STAGING-UNBLOCK.md).**
+- 상태: **[AIR-0227D-STAGING-UNBLOCK 최종] 마이그레이션을 실제 프로덕션 Supabase에 적용, Method A(관리자 UI 없이 DB 직접 조작)로 워커 등록+토큰 발급, 실제 배포된 Vercel 프리뷰(PR #85)를 통해 `authenticateWorkerRequest`(§0-A 저장-해시 토큰 검증)가 진짜 HTTP 요청에서 정상 동작함을 실측 확인(가짜 토큰 401, 진짜 토큰 register~complete 전부 200). worker/central_client.py의 구 경로 버그(`/api/worker/*`→`/api/internal/worker/**`)는 이미 수정, 이번 실측은 그 수정본 기준. 상세: worknote/AIR-0227D-STAGING-UNBLOCK.md.**
 - 관련 문서: [SECURITY](./AIR_WORKER_SECURITY.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [REMOTE_E2E_QA](./AIR_WORKER_REMOTE_E2E_QA.md), [MIGRATION_PLAN](./AIR_WORKER_MIGRATION_PLAN.md), [CENTRAL_API](./AIR_WORKER_CENTRAL_API.md)
 
 ## 0-A. AIR-0227D: §3(아래)의 서명 토큰 설계에서 저장-해시 토큰으로 변경한 이유
