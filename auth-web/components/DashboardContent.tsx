@@ -87,7 +87,7 @@ interface PublishingRequest {
     id: string
     user_id: string
     video_url: string
-    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'failed' | 'rejected'
+    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'release_requested' | 'public' | 'failed' | 'rejected'
     metadata: any
     created_at: string
     profiles?: {
@@ -832,7 +832,7 @@ export default function DashboardContent() {
     }
 
     const handlePublishVideo = async (requestId: string) => {
-        if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Would you like to switch this video to Public on YouTube?')) return;
+        if (!confirm(isKor ? '이 영상을 유튜브에 비공개(Private)로 업로드하시겠습니까? 업로드 후 직접 확인하고 별도로 공개 전환할 수 있습니다.' : 'Upload this video to YouTube as Private? You can review it and switch it to Public separately afterward.')) return;
         try {
             const res = await adminFetch('/api/admin/publishing', {
                 method: 'PATCH',
@@ -840,7 +840,24 @@ export default function DashboardContent() {
                 body: JSON.stringify({ requestId, status: 'approved' })
             });
             if (res.ok) {
-                alert(isKor ? '전환 요청 완료! 잠시 후 유튜브에 반영됩니다.' : 'Request Complete! Will reflect on YouTube shortly.');
+                alert(isKor ? '업로드 요청 완료! 잠시 후 비공개로 유튜브에 올라갑니다.' : 'Upload requested! It will be uploaded as Private on YouTube shortly.');
+                fetchPublishingRequests();
+            } else {
+                alert('요청 실패');
+            }
+        } catch (e) { alert('오류 발생'); }
+    }
+
+    const handleReleaseToPublic = async (requestId: string) => {
+        if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Switch this video to Public on YouTube?')) return;
+        try {
+            const res = await adminFetch('/api/admin/publishing', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId, status: 'release_requested' })
+            });
+            if (res.ok) {
+                alert(isKor ? '공개 전환 요청 완료! 잠시 후 유튜브에 반영됩니다.' : 'Release requested! Will reflect on YouTube shortly.');
                 fetchPublishingRequests();
             } else {
                 alert('요청 실패');
@@ -918,7 +935,25 @@ export default function DashboardContent() {
                             PROJECT ID MISSING
                         </span>
                     )}
-                    {req.status === 'published' && req.metadata?.drive_folder_link && (
+                    {isSuperAdmin && req.status === 'published' && (
+                        <button
+                            onClick={() => handleReleaseToPublic(req.id)}
+                            className="mr-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black rounded-xl shadow-lg transition-all uppercase tracking-widest"
+                        >
+                            {isKor ? '공개로 전환' : 'Make Public'}
+                        </button>
+                    )}
+                    {req.status === 'release_requested' && (
+                        <span className="mr-2 px-4 py-2 bg-blue-500/15 text-blue-300 text-[10px] font-black rounded-xl border border-blue-500/30 inline-block uppercase tracking-widest animate-pulse">
+                            {isKor ? '공개 전환 중' : 'Releasing...'}
+                        </span>
+                    )}
+                    {req.status === 'public' && (
+                        <span className="mr-2 px-4 py-2 bg-emerald-500/15 text-emerald-300 text-[10px] font-black rounded-xl border border-emerald-500/30 inline-block uppercase tracking-widest">
+                            {isKor ? '🌐 공개됨' : '🌐 Public'}
+                        </span>
+                    )}
+                    {(req.status === 'published' || req.status === 'release_requested' || req.status === 'public') && req.metadata?.drive_folder_link && (
                         <a
                             href={req.metadata.drive_folder_link}
                             target="_blank"
@@ -952,7 +987,9 @@ export default function DashboardContent() {
 
     const getPublishingStatusMeta = (req: PublishingRequest) => {
         if (req.metadata?.is_invalid_request) return { label: 'INVALID', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
-        if (req.status === 'published') return { label: isKor ? '✓ 업로드 완료' : '✓ Published', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
+        if (req.status === 'public') return { label: isKor ? '🌐 공개됨' : '🌐 Public', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
+        if (req.status === 'release_requested') return { label: isKor ? '🚀 공개 전환 중' : '🚀 Releasing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
+        if (req.status === 'published') return { label: isKor ? '✓ 비공개 업로드 완료' : '✓ Uploaded (Private)', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
         if (req.status === 'approved' || req.status === 'to_be_published') return { label: isKor ? '⚡ 발행 진행 중' : '⚡ Publishing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
         if (req.status === 'failed') return { label: isKor ? '❌ 업로드 실패' : '❌ Failed', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
         if (req.status === 'rejected') return { label: isKor ? '🚫 제외됨' : '🚫 Rejected', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30 font-black' }
@@ -963,7 +1000,7 @@ export default function DashboardContent() {
         return publishingRequests.reduce((acc, req) => {
             acc.total += 1
             if (req.metadata?.is_invalid_request) acc.invalid += 1
-            else if (req.status === 'published') acc.published += 1
+            else if (req.status === 'published' || req.status === 'release_requested' || req.status === 'public') acc.published += 1
             else if (req.status === 'approved' || req.status === 'to_be_published') acc.processing += 1
             else if (req.status === 'failed') acc.failed += 1
             else acc.pending += 1
@@ -975,6 +1012,7 @@ export default function DashboardContent() {
         if (publishingFilter === 'all') return publishingRequests
         if (publishingFilter === 'invalid') return publishingRequests.filter(req => Boolean(req.metadata?.is_invalid_request))
         if (publishingFilter === 'processing') return publishingRequests.filter(req => req.status === 'approved' || req.status === 'to_be_published')
+        if (publishingFilter === 'published') return publishingRequests.filter(req => req.status === 'published' || req.status === 'release_requested' || req.status === 'public')
         return publishingRequests.filter(req => req.status === publishingFilter)
     }, [publishingRequests, publishingFilter])
 
