@@ -1703,6 +1703,27 @@ export default function DashboardContent() {
             }
             setLoading(false);
         });
+
+        // [AIR-admin-auth-token-refresh] authToken was only ever captured once
+        // at mount - Supabase silently refreshes the underlying access token
+        // in the background (autoRefreshToken), but this component's own
+        // authToken state never followed along. Any admin dashboard tab left
+        // open past the token's ~1h lifetime would keep sending an expired
+        // JWT on every adminFetch call, which the server can't distinguish
+        // from "not a real session" - so it fell through to the generic
+        // "Super admin access required" 403, even for the actual super admin.
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                router.push('/');
+                return;
+            }
+            setUser(session.user);
+            setAuthToken(session.access_token || '');
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
     }, [router]);
 
     const userIdRef = useRef<string | null>(null);
