@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import crypto from 'crypto'
 import { verifyDesktopSessionToken } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
@@ -23,25 +22,33 @@ export const dynamic = 'force-dynamic'
 //   - user-app (many, less-trusted machines): email + session_token, same
 //     HMAC session mechanism as desktop-topics-bridge.
 //   - render worker (single, company-controlled machine): already holds
-//     SUPABASE_SERVICE_ROLE_KEY locally for its own Supabase polling - reusing
-//     that exact secret as proof of "trusted machine" here avoids handing it
-//     yet another distinct standing credential.
+//     SUPABASE_SERVICE_ROLE_KEY locally for its own Supabase polling. Rather
+//     than comparing it against a second copy of the same secret stored in
+//     this server's own env (which can silently drift - e.g. one copy gets
+//     rotated and not the other), the presented key is verified LIVE against
+//     Supabase's Auth Admin API, which only a genuine service_role key can
+//     call. If it works there, it's real; no separate worker secret needed.
 
 function unauthorized(detail: string) {
     return NextResponse.json({ status: 'error', detail }, { status: 401 })
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-    const bufA = Buffer.from(a)
-    const bufB = Buffer.from(b)
-    if (bufA.length !== bufB.length) return false
-    return crypto.timingSafeEqual(bufA, bufB)
+async function isValidServiceRoleKey(candidateKey: string): Promise<boolean> {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl || !candidateKey) return false
+    try {
+        const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/admin/users?page=1&per_page=1`, {
+            headers: { apikey: candidateKey, Authorization: `Bearer ${candidateKey}` },
+        })
+        return res.ok
+    } catch {
+        return false
+    }
 }
 
-function isAuthorized(email: unknown, session_token: unknown, worker_key: unknown): boolean {
+async function isAuthorized(email: unknown, session_token: unknown, worker_key: unknown): Promise<boolean> {
     if (typeof worker_key === 'string' && worker_key.length > 0) {
-        const expected = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-        if (expected && timingSafeEqual(worker_key, expected)) return true
+        if (await isValidServiceRoleKey(worker_key)) return true
     }
     if (typeof email === 'string' && typeof session_token === 'string') {
         return verifyDesktopSessionToken(email, session_token)
@@ -58,7 +65,7 @@ export async function POST(req: Request) {
     }
 
     const { email, session_token, worker_key } = body || {}
-    if (!isAuthorized(email, session_token, worker_key)) {
+    if (!(await isAuthorized(email, session_token, worker_key))) {
         return unauthorized('invalid_or_expired_session')
     }
 
