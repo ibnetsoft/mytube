@@ -121,6 +121,13 @@ export interface DesktopProfileSnapshot {
     token_balance: number
     preferred_language: string
     global_settings: { key: string; value: string }[]
+    full_name: string
+    nationality: string
+    contact: string
+    referral_code: string
+    preferred_category_ids: (string | number)[]
+    preferred_video_length: string
+    categories: { id: string | number; name: string; video_type: string }[]
 }
 
 /**
@@ -128,6 +135,14 @@ export interface DesktopProfileSnapshot {
  * established (fresh password login, or a verified resync) in one place, so
  * /api/desktop-login and /api/desktop-resync return an identical shape.
  * Returns null if no profile row exists for the email.
+ *
+ * [AIR-0225B Phase 1] Also carries the settings-page profile fields
+ * (full_name/nationality/contact/referral_code/preferred_category_ids/
+ * preferred_video_length) and the categories list - these used to be fetched
+ * by the desktop app directly from Supabase with SUPABASE_SERVICE_ROLE_KEY
+ * (services/web_admin_client.py's fetch_profile_by_email/fetch_categories),
+ * which stopped working once that key was removed from the packaged app
+ * (worknote/AIR-0225B-stage0-service-role-removal-investigation.md Phase 2).
  */
 export async function fetchDesktopProfileSnapshot(
     email: string,
@@ -135,7 +150,7 @@ export async function fetchDesktopProfileSnapshot(
 ): Promise<{ profile: DesktopProfileSnapshot; isApproved: boolean } | null> {
     const { data: profile, error } = await supabaseAdmin
         .from('profiles')
-        .select('is_approved, preferred_language, membership, token_balance')
+        .select('is_approved, preferred_language, membership, token_balance, full_name, nationality, contact, referral_code, preferred_category_ids, preferred_video_length')
         .eq('email', email)
         .maybeSingle()
 
@@ -180,6 +195,21 @@ export async function fetchDesktopProfileSnapshot(
         console.warn('[DesktopSession] global_settings fetch error:', sysErr?.message)
     }
 
+    let categories: { id: string | number; name: string; video_type: string }[] = []
+    try {
+        const { data: catRows, error: catError } = await supabaseAdmin
+            .from('categories')
+            .select('id, name, video_type')
+            .order('created_at', { ascending: false })
+        if (catError) {
+            console.warn('[DesktopSession] categories fetch warning:', catError.message)
+        } else if (catRows) {
+            categories = catRows
+        }
+    } catch (catErr: any) {
+        console.warn('[DesktopSession] categories fetch error:', catErr?.message)
+    }
+
     return {
         isApproved,
         profile: {
@@ -187,6 +217,13 @@ export async function fetchDesktopProfileSnapshot(
             token_balance: profile.token_balance ?? 0,
             preferred_language: effectiveLang,
             global_settings: globalSettings,
+            full_name: profile.full_name || '',
+            nationality: profile.nationality || '',
+            contact: profile.contact || '',
+            referral_code: profile.referral_code || '',
+            preferred_category_ids: profile.preferred_category_ids || [],
+            preferred_video_length: profile.preferred_video_length || '',
+            categories,
         },
     }
 }

@@ -527,10 +527,20 @@ class AuthService:
         if not email:
             return ""
 
+        session_token = self.get_session_token()
+        if not session_token:
+            return ""
+
+        # [AIR-0225B Phase 1] fetch_profile_by_email()로 SUPABASE_SERVICE_ROLE_KEY를
+        # 직접 쓰던 경로 - 그 키가 패키징된 앱에서 제거되어 더 이상 동작하지 않는다
+        # (worknote/AIR-0225B-stage0-service-role-removal-investigation.md).
+        # /api/auth/sync와 같은 desktop_resync 브릿지로 대체.
         from services.web_admin_client import web_admin_client
 
-        profile = web_admin_client.fetch_profile_by_email(email, select="referral_code")
-        code = (profile or {}).get("referral_code") or ""
+        result = web_admin_client.desktop_resync(email, session_token)
+        if not result.get("success"):
+            return ""
+        code = result.get("referral_code") or ""
         self._my_referral_code = code
         return code
 
