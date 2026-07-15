@@ -1606,26 +1606,17 @@
         try {
             const res = await fetch('/api/auth/profile');
             const data = await res.json();
-            if (!data.success) return;
-            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-            setVal('userName', data.full_name);
-            setVal('userNationality', data.nationality);
-            setVal('userPhone', data.contact);
-            setVal('userEmail', data.email);
-            stSelectedCategoryIds = new Set((data.preferred_category_ids || []).map(String));
+            if (data.success) {
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+                setVal('userName', data.full_name);
+                setVal('userNationality', data.nationality);
+                setVal('userPhone', data.contact);
+                setVal('userEmail', data.email);
+                stSelectedCategoryIds = new Set((data.preferred_category_ids || []).map(String));
+                stAllCategories = Array.isArray(data.categories) ? data.categories : [];
+            }
         } catch (e) {
             console.error('Failed to load profile:', e);
-        }
-        await stLoadCategoryOptions();
-    }
-
-    async function stLoadCategoryOptions() {
-        try {
-            const res = await fetch('/api/auth/signup-options');
-            const data = await res.json();
-            stAllCategories = Array.isArray(data.categories) ? data.categories : [];
-        } catch (e) {
-            stAllCategories = [];
         }
         stRenderCategoryList();
     }

@@ -427,6 +427,40 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"동기화 서버 연결 오류: {e}"}
 
+    def desktop_update_profile(
+        self,
+        email: str,
+        session_token: str,
+        *,
+        full_name: str = "",
+        nationality: str = "",
+        contact: str = "",
+        preferred_category_ids: Optional[list] = None,
+    ) -> Dict[str, Any]:
+        """설정 페이지의 회원정보(이름/국적/연락처/선호 카테고리) 저장을
+        auth-web(Vercel) 서버에 위임한다. [AIR-0225B Phase 1] 기존에는
+        supabase_patch("profiles", ...)로 SUPABASE_SERVICE_ROLE_KEY를 직접
+        썼으나, 그 키가 패키징된 앱에서 제거되어 더 이상 동작하지 않는다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-profile-update",
+                json={
+                    "email": email,
+                    "session_token": session_token,
+                    "full_name": full_name,
+                    "nationality": nationality,
+                    "contact": contact,
+                    "preferred_category_ids": preferred_category_ids or [],
+                },
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "프로필 저장 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"프로필 저장 서버 연결 오류: {e}"}
+
     def desktop_change_password(self, email: str, current_password: str, new_password: str) -> Dict[str, Any]:
         """비밀번호 변경을 auth-web(Vercel) 서버에 위임한다.
         SUPABASE_SERVICE_ROLE_KEY를 데스크톱 앱이 직접 쓰지 않도록,
