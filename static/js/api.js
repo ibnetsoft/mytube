@@ -137,12 +137,16 @@ const API = {
     // 이미지 API
     // 이미지 API
     image: {
-        async generatePrompts(script, style = 'realistic', count = 5, characterReference = null, projectId = null) {
+        async generatePrompts(scenes, style = 'realistic', count = 5, characterReference = null, projectId = null) {
+            // [AIR-0209 후속 수정] 서버는 script 텍스트가 아니라 기획 단계에서
+            // 확정된 scenes 배열(Planning Scene Source of Truth)을 요구한다.
+            // scenes는 /api/projects/{id}/script-structure 응답의
+            // structure.sections 배열을 그대로 전달한다.
             const response = await fetch('/api/image/generate-prompts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    script,
+                    scenes,
                     style,
                     count,
                     character_reference: characterReference,
