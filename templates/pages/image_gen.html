@@ -1279,35 +1279,27 @@
     }
 
     async function generatePrompts() {
-        const scriptData = Utils.storage.get('fullScript');
-        let script = "";
-
-        if (scriptData) {
-            if (typeof scriptData === 'object') {
-                script = scriptData.full_script || scriptData.content || scriptData.text || scriptData.script || JSON.stringify(scriptData);
-            } else {
-                script = String(scriptData);
-            }
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast(i18n.err_no_script, 'warning');
+            return;
         }
 
-        // 기존 로직 유지 (DB Fallback 등)
-        if (!script) {
-            // [NEW] 로컬 스토리지에 없으면 DB에서 가져오기 시도
-            const projectId = getCurrentProject();
-            if (projectId) {
-                try {
-                    const result = await API.project.getScript(projectId);
-                    if (result && result.full_script) {
-                        script = result.full_script;
-                        console.log("Script fetched from DB for image prompt generation.");
-                    }
-                } catch (e) {
-                    console.error("Failed to fetch script from DB:", e);
-                }
-            }
+        // [AIR-0209 후속 수정] 이미지 프롬프트 생성은 대본 원문(script)이 아니라
+        // 기획 단계에서 확정된 scenes 배열(Planning Scene Source of Truth)을
+        // 필요로 한다 (app/models/media.py PromptsGenerateRequest,
+        // app/routers/image.py generate_image_prompts_api). AIR-0209가 이 서버
+        // 쪽 계약만 바꾸고 이 페이지는 그대로 두어 "scenes 배열이 필요합니다"
+        // 500 에러로 항상 실패하고 있었다.
+        let scenes = [];
+        try {
+            const structureResult = await API.project.getScriptStructure(projectId);
+            scenes = (structureResult && structureResult.structure && structureResult.structure.sections) || [];
+        } catch (e) {
+            console.error("Failed to fetch script structure:", e);
         }
 
-        if (!script) {
+        if (!scenes.length) {
             Utils.showToast(i18n.err_no_script, 'warning');
             return;
         }
@@ -1329,7 +1321,7 @@
 
         try {
             // [Modified] Pass global prompt separately for intelligent application
-            const result = await API.image.generatePrompts(script, styleVal, parseInt(count), globalPrompt, getCurrentProject());
+            const result = await API.image.generatePrompts(scenes, styleVal, parseInt(count), globalPrompt, projectId);
 
             if (result.status === 'error' || result.error) {
                 Utils.showToast(result.error || i18n.err_gen_fail, 'error');
