@@ -670,6 +670,87 @@
         }
     }
 
+    // [AIR-0228] ChatGPT Plus subscription verification badge
+    let subverifSelectedFile = null;
+
+    function handleSubverifFileSelect(input) {
+        if (!input.files || !input.files[0]) return;
+        subverifSelectedFile = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const preview = document.getElementById('subverifPreviewImg');
+            const placeholder = document.getElementById('subverifPreviewPlaceholder');
+            if (subverifSelectedFile.type.startsWith('image/')) {
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            } else {
+                placeholder.textContent = subverifSelectedFile.name;
+            }
+        };
+        if (subverifSelectedFile.type.startsWith('image/')) {
+            reader.readAsDataURL(subverifSelectedFile);
+        }
+        document.getElementById('subverifSubmitBtn').disabled = false;
+    }
+
+    async function submitSubverif() {
+        if (!subverifSelectedFile) return;
+        const btn = document.getElementById('subverifSubmitBtn');
+        const msg = document.getElementById('subverifMsg');
+        btn.disabled = true;
+        msg.textContent = i18n.msg_loading || '...';
+        msg.className = 'text-[10px] font-bold text-gray-400';
+        try {
+            const formData = new FormData();
+            formData.append('file', subverifSelectedFile);
+            const res = await fetch('/api/settings/chatgpt-plus/verify', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.detail || 'error');
+            }
+            msg.textContent = i18n.msg_submitted || '제출 완료';
+            msg.className = 'text-[10px] font-bold text-emerald-400';
+            subverifSelectedFile = null;
+            loadSubverifStatus();
+        } catch (e) {
+            msg.textContent = i18n.err_occurred || '오류가 발생했습니다';
+            msg.className = 'text-[10px] font-bold text-red-400';
+            btn.disabled = false;
+        }
+    }
+
+    async function loadSubverifStatus() {
+        const box = document.getElementById('subverifStatusBox');
+        const uploadBox = document.getElementById('subverifUploadBox');
+        if (!box) return;
+        try {
+            const res = await fetch('/api/settings/chatgpt-plus/status');
+            const data = await res.json();
+            const rows = (data && data.rows) || [];
+            const latest = rows[0];
+            if (!latest) {
+                box.textContent = i18n.label_no_verification_yet || '아직 제출한 인증이 없습니다.';
+                uploadBox.classList.remove('hidden');
+                return;
+            }
+            const statusLabels = {
+                UPLOADED: '⏳ 업로드됨 (분석 대기)',
+                ANALYZING: '⏳ 분석 중...',
+                NEEDS_REVIEW: '🕵️ 관리자 검토 중',
+                APPROVED: '✅ 인증 완료' + (latest.expires_at ? ` (만료: ${new Date(latest.expires_at).toLocaleDateString()})` : ''),
+                REJECTED: '❌ 반려됨' + (latest.rejection_reason ? `: ${latest.rejection_reason}` : ''),
+                EXPIRED: '⌛ 만료됨 - 다시 제출해주세요.',
+                REVOKED: '🚫 인증이 취소되었습니다.',
+            };
+            box.textContent = statusLabels[latest.status] || latest.status;
+            uploadBox.classList.toggle('hidden', latest.status === 'APPROVED' || latest.status === 'UPLOADED' || latest.status === 'ANALYZING' || latest.status === 'NEEDS_REVIEW');
+        } catch (e) {
+            box.textContent = i18n.err_occurred || '상태를 불러올 수 없습니다.';
+            uploadBox.classList.remove('hidden');
+        }
+    }
+
     // [NEW] AI Style/Character Analysis (Dual Image)
     async function analyzeStyleImage() {
         const styleInput = document.getElementById('customStyleImageStyle');
@@ -1995,6 +2076,7 @@
         loadStylePresets(); // [NEW] 스타일 프리셋 로드
         loadThumbnailStylePresets();
         loadWebtoonRules();
+        loadSubverifStatus(); // [AIR-0228] ChatGPT Plus verification status
 
         // Load history on tab switch
         if (document.getElementById('history-tbody')) {

@@ -2130,6 +2130,7 @@ export default function DashboardContent() {
                             { id: 'styles', label: ui.styles, superOnly: true },
                             { id: 'tenants', label: '테넌트', superOnly: true },
                             { id: 'referral-admin', label: 'Referral Admin', superOnly: true, href: '/admin/referrals' },
+                            { id: 'subscription-verifications', label: '구독 인증', superOnly: false, href: '/admin/subscription-verifications' },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (

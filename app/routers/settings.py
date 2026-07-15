@@ -1580,3 +1580,59 @@ async def save_api_keys(req: ApiKeySave):
         "updated": updated,
         "message": f"{len(updated)}개의 API 키가 저장되었습니다"
     }
+
+
+# [AIR-0228 Stage 3] ChatGPT Plus subscription verification - thin proxy to
+# auth-web only. No approval/scoring logic here (see
+# services/subscription_verification_client.py docstring).
+_SUBVERIF_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
+_SUBVERIF_MIME_BY_EXT = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf",
+}
+
+
+@router.post("/chatgpt-plus/verify")
+async def submit_chatgpt_plus_verification(file: UploadFile = File(...)):
+    from services.subscription_verification_client import submit_verification, SubscriptionVerificationError
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _SUBVERIF_ALLOWED_EXT:
+        raise HTTPException(400, "지원하지 않는 파일 형식입니다 (jpg/png/webp/pdf만 가능).")
+
+    tmp_dir = os.path.join(config.BASE_DIR, "tmp_uploads")
+    os.makedirs(tmp_dir, exist_ok=True)
+    tmp_path = os.path.join(tmp_dir, f"subverif_{uuid.uuid4().hex[:12]}{ext}")
+    try:
+        with open(tmp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        result = submit_verification(
+            provider="chatgpt_plus",
+            file_path=tmp_path,
+            filename=file.filename or f"upload{ext}",
+            mimetype=_SUBVERIF_MIME_BY_EXT.get(ext, "application/octet-stream"),
+        )
+        return result
+    except SubscriptionVerificationError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
+@router.get("/chatgpt-plus/status")
+async def get_chatgpt_plus_verification_status():
+    from services.subscription_verification_client import get_status, SubscriptionVerificationError
+    try:
+        return get_status("chatgpt_plus")
+    except SubscriptionVerificationError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/badges/me")
+async def get_my_badges():
+    from services.subscription_verification_client import get_active_badges
+    return {"status": "ok", "badges": get_active_badges()}
