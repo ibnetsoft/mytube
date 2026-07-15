@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
 import LearningStatsPanel from './LearningStatsPanel'
 import TenantManagement from './TenantManagement'
+import ReferralAdminPanel from './ReferralAdminPanel'
+import SubscriptionVerificationsPanel from './SubscriptionVerificationsPanel'
 
 interface UserProfile {
     id: string
@@ -181,7 +183,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -2118,7 +2120,7 @@ export default function DashboardContent() {
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
                 <div className="flex items-center justify-between">
-                    <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
+                    <div className="flex flex-wrap gap-1 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
                             { id: 'topics', label: ui.topics, superOnly: false },
                             { id: 'overview', label: ui.overview, superOnly: false },
@@ -2129,8 +2131,8 @@ export default function DashboardContent() {
                             { id: 'learning', label: ui.learning, superOnly: true },
                             { id: 'styles', label: ui.styles, superOnly: true },
                             { id: 'tenants', label: '테넌트', superOnly: true },
-                            { id: 'referral-admin', label: 'Referral Admin', superOnly: true, href: '/admin/referrals' },
-                            { id: 'subscription-verifications', label: '구독 인증', superOnly: false, href: '/admin/subscription-verifications' },
+                            { id: 'referral-admin', label: '추천인 관리', superOnly: true },
+                            { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -2139,8 +2141,8 @@ export default function DashboardContent() {
                                     type="button"
                                     disabled={locked}
                                     title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
-                                    onClick={() => !locked && (tab.href ? router.push(tab.href) : setActiveTab(tab.id as any))}
-                                    className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] whitespace-nowrap ${
+                                    onClick={() => !locked && setActiveTab(tab.id as any)}
+                                    className={`px-3.5 py-2 rounded-xl text-[10px] font-black transition-all uppercase tracking-tight whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'bg-blue-600 text-white shadow-xl'
                                             : locked
@@ -4113,6 +4115,14 @@ export default function DashboardContent() {
 
                 {activeTab === 'tenants' && isSuperAdmin && (
                     <TenantManagement authToken={authToken} isSuperAdmin={isSuperAdmin} />
+                )}
+
+                {activeTab === 'referral-admin' && isSuperAdmin && (
+                    <ReferralAdminPanel />
+                )}
+
+                {activeTab === 'subscription-verifications' && (
+                    <SubscriptionVerificationsPanel />
                 )}
 
                 {activeTab === 'styles' && canManageStyles && (

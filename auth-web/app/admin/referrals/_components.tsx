@@ -63,13 +63,13 @@ export function OrgMemberCard({ row, isRoot = false }: { row: OrgMemberCardData;
                     }`}
                 >
                     <span className={`h-1.5 w-1.5 rounded-full ${row.is_active ? 'bg-emerald-400' : 'bg-gray-500'}`} />
-                    {row.is_active ? 'Active' : 'Idle'}
+                    {row.is_active ? '활성' : '비활성'}
                 </span>
             </div>
 
             <div className="mb-1.5 flex items-baseline justify-between">
                 <span className="font-mono text-lg font-bold tabular-nums text-white">${formatUsd(total)}</span>
-                <span className="text-[10px] uppercase tracking-wide text-gray-600">Total</span>
+                <span className="text-[10px] uppercase tracking-wide text-gray-600">합계</span>
             </div>
 
             <div className="mb-2 flex h-1.5 overflow-hidden rounded-full bg-gray-800">
@@ -81,13 +81,13 @@ export function OrgMemberCard({ row, isRoot = false }: { row: OrgMemberCardData;
                 <span>
                     L1 ${formatUsd(l1)} · L2 ${formatUsd(l2)}
                 </span>
-                <span className="font-mono font-semibold text-gray-300">{row.direct_referrals} direct</span>
+                <span className="font-mono font-semibold text-gray-300">직속 {row.direct_referrals}명</span>
             </div>
         </div>
     )
 }
 
-export function LoadingBlock({ label = 'Loading...' }: { label?: string }) {
+export function LoadingBlock({ label = '불러오는 중...' }: { label?: string }) {
     return (
         <div className="flex items-center justify-center py-16 text-gray-400">
             <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24" fill="none">
@@ -99,7 +99,7 @@ export function LoadingBlock({ label = 'Loading...' }: { label?: string }) {
     )
 }
 
-export function EmptyBlock({ label = 'No data found.' }: { label?: string }) {
+export function EmptyBlock({ label = '데이터가 없습니다.' }: { label?: string }) {
     return <div className="text-center py-16 text-gray-500 text-sm">{label}</div>
 }
 
@@ -131,7 +131,7 @@ export function Pagination({
     return (
         <div className="flex items-center justify-between mt-4 text-sm text-gray-400">
             <div>
-                Page {page} / {totalPages} ({total} total)
+                {page} / {totalPages} 페이지 (총 {total}건)
             </div>
             <div className="flex gap-2">
                 <button
@@ -139,18 +139,28 @@ export function Pagination({
                     disabled={page <= 1}
                     onClick={() => onPage(page - 1)}
                 >
-                    Prev
+                    이전
                 </button>
                 <button
                     className="px-3 py-1 rounded border border-gray-700 disabled:opacity-40"
                     disabled={page >= totalPages}
                     onClick={() => onPage(page + 1)}
                 >
-                    Next
+                    다음
                 </button>
             </div>
         </div>
     )
+}
+
+export const STATUS_LABELS_KO: Record<string, string> = {
+    REQUESTED: '요청됨',
+    APPROVED: '승인됨',
+    SENDING: '전송 중',
+    COMPLETED: '완료',
+    PAID: '지급완료',
+    REJECTED: '반려됨',
+    PENDING: '대기중',
 }
 
 export function StatusBadge({ status }: { status: string }) {
@@ -165,5 +175,5 @@ export function StatusBadge({ status }: { status: string }) {
         PENDING: 'bg-yellow-900 text-yellow-300 border-yellow-700',
     }
     const cls = colorMap[s] || 'bg-gray-800 text-gray-300 border-gray-700'
-    return <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${cls}`}>{s}</span>
+    return <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${cls}`}>{STATUS_LABELS_KO[s] || s}</span>
 }
