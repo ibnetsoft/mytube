@@ -197,14 +197,22 @@ export async function fetchDesktopProfileSnapshot(
 
     let categories: { id: string | number; name: string; video_type: string }[] = []
     try {
+        // NOTE: categories has no video_type column (confirmed against the live
+        // schema - the old desktop-side fetch_categories() only ever selected
+        // id,name and defaulted video_type to "longform" in Python). Match that
+        // here instead of selecting a column that doesn't exist.
         const { data: catRows, error: catError } = await supabaseAdmin
             .from('categories')
-            .select('id, name, video_type')
+            .select('id, name')
             .order('created_at', { ascending: false })
         if (catError) {
             console.warn('[DesktopSession] categories fetch warning:', catError.message)
         } else if (catRows) {
-            categories = catRows
+            categories = catRows.map((row: any) => ({
+                id: row.id,
+                name: row.name,
+                video_type: 'longform',
+            }))
         }
     } catch (catErr: any) {
         console.warn('[DesktopSession] categories fetch error:', catErr?.message)

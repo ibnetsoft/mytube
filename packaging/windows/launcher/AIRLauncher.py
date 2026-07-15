@@ -89,7 +89,13 @@ def launcher_dir() -> Path:
 
 def read_json(path: Path) -> dict:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        # utf-8-sig: tools/build_windows.ps1 writes current.json/version.json
+        # with a UTF-8 BOM (Windows PowerShell 5.1's Set-Content -Encoding UTF8
+        # always adds one). Plain "utf-8" throws on the BOM, silently falls
+        # into the except below, and this function's caller then falls through
+        # to the next version source in its priority chain - masking the real
+        # installed version as "0.0.0" further down that chain.
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except Exception:
         return {}
 
