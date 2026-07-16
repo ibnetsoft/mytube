@@ -670,7 +670,9 @@ async def sync_auth(request: Request):
             # 거쳐 재동기화한다 - 이전에는 여기서 fetch_profile_by_email()로
             # service_role을 직접 썼다. 토큰이 없거나 만료된 경우만 기존 직접
             # 조회로 폴백한다(has_supabase() 가드로 안전하게 실패).
-            session_token = request.cookies.get("desktop_session_token")
+            # 쿠키가 없으면(예: 프론트가 아닌 내부 호출) auth_service에 로그인 시
+            # 저장해 둔 토큰으로 폴백한다 - service_role 직접 조회 폴백보다 우선.
+            session_token = request.cookies.get("desktop_session_token") or auth_service.get_session_token()
             profile = None
             if session_token:
                 resync_result = web_admin_client.desktop_resync(email, session_token)
@@ -679,6 +681,25 @@ async def sync_auth(request: Request):
                         "membership": resync_result.get("membership"),
                         "token_balance": resync_result.get("token_balance"),
                     }
+                    # [AIR-0225B 자동 복구] 공용 AI 키(global_settings)는 원래
+                    # login_user()의 최초 1회 resync에서만 로드된다. 그 한 번이
+                    # 실패하면(auth-web 콜드스타트/일시적 네트워크 오류 등) 앱을
+                    # 재시작할 때까지 Gemini/Claude 등 모든 AI 기능이 "키 없음"으로
+                    # 조용히 죽는다 - 실제 발생 사례 확인됨. sync는 프론트가 모든
+                    # 페이지 로드마다 호출하므로, 여기서 같은 응답에 실려 오는
+                    # global_settings를 매번 적용해 자연 복구되게 한다.
+                    try:
+                        rows = resync_result.get("global_settings") or []
+                        if rows:
+                            sys_keys = web_admin_client.translate_global_settings_rows(rows)
+                            if sys_keys:
+                                from config import config
+                                was_missing = not config.GEMINI_API_KEY
+                                loaded = config.load_remote_keys(sys_keys)
+                                if loaded and was_missing:
+                                    print(f"[Sync] Recovered missing global API keys via resync: {loaded}")
+                    except Exception as key_err:
+                        print(f"[Sync] Failed to apply global API keys from resync: {key_err}")
             if profile is None:
                 profile = web_admin_client.fetch_profile_by_email(email)
             if profile:
