@@ -150,7 +150,7 @@ export async function fetchDesktopProfileSnapshot(
 ): Promise<{ profile: DesktopProfileSnapshot; isApproved: boolean } | null> {
     const { data: profile, error } = await supabaseAdmin
         .from('profiles')
-        .select('is_approved, preferred_language, membership, token_balance, full_name, nationality, contact, referral_code, preferred_category_ids, preferred_video_length')
+        .select('id, is_approved, preferred_language, membership, token_balance, full_name, nationality, contact, referral_code, preferred_category_ids, preferred_video_length')
         .eq('email', email)
         .maybeSingle()
 
@@ -159,6 +159,25 @@ export async function fetchDesktopProfileSnapshot(
     }
     if (!profile) {
         return null
+    }
+
+    // [AIR-0225B Phase 1 follow-up] The admin dashboard (app/api/admin/users/route.ts)
+    // treats auth.users.user_metadata as the primary source for
+    // full_name/contact/nationality, falling back to the profiles row only if
+    // user_metadata lacks a field - most existing accounts were signed up
+    // through a flow that wrote these into user_metadata, not profiles. The
+    // desktop app was only reading the profiles row, so it showed blank
+    // fields even for accounts the admin dashboard displays correctly.
+    let authMetadata: Record<string, any> = {}
+    try {
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+        if (authError) {
+            console.warn('[DesktopSession] auth user metadata fetch warning:', authError.message)
+        } else if (authUser?.user?.user_metadata) {
+            authMetadata = authUser.user.user_metadata
+        }
+    } catch (authErr: any) {
+        console.warn('[DesktopSession] auth user metadata fetch error:', authErr?.message)
     }
 
     const isApproved = !(
@@ -225,9 +244,9 @@ export async function fetchDesktopProfileSnapshot(
             token_balance: profile.token_balance ?? 0,
             preferred_language: effectiveLang,
             global_settings: globalSettings,
-            full_name: profile.full_name || '',
-            nationality: profile.nationality || '',
-            contact: profile.contact || '',
+            full_name: authMetadata.full_name || profile.full_name || '',
+            nationality: authMetadata.nationality || profile.nationality || '',
+            contact: authMetadata.contact || profile.contact || '',
             referral_code: profile.referral_code || '',
             preferred_category_ids: profile.preferred_category_ids || [],
             preferred_video_length: profile.preferred_video_length || '',

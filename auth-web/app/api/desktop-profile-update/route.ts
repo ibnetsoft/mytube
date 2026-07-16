@@ -44,20 +44,53 @@ export async function POST(req: Request) {
             }
         }
 
-        const { error: updateError } = await supabaseAdmin
+        const normalizedFullName = String(full_name || '').trim()
+        const normalizedNationality = String(nationality || '').trim()
+        const normalizedContact = String(contact || '').trim()
+
+        const { data: updatedRows, error: updateError } = await supabaseAdmin
             .from('profiles')
             .update({
-                full_name: String(full_name || '').trim(),
-                nationality: String(nationality || '').trim(),
-                contact: String(contact || '').trim(),
+                full_name: normalizedFullName,
+                nationality: normalizedNationality,
+                contact: normalizedContact,
                 preferred_category_ids: resolvedIds,
                 preferred_category_names: resolvedNames,
             })
             .eq('email', normalizedEmail)
+            .select('id')
 
         if (updateError) {
             console.error('[DesktopProfileUpdate] Update error:', updateError.message)
             return NextResponse.json({ success: false, error: '프로필 저장에 실패했습니다.' }, { status: 500 })
+        }
+
+        // [AIR-0225B Phase 1 follow-up] The admin dashboard
+        // (app/api/admin/users/route.ts) reads full_name/contact/nationality
+        // from auth.users.user_metadata FIRST, falling back to the profiles
+        // row - most existing accounts have these set in user_metadata from
+        // signup, not in profiles. Without this, saving here only updates
+        // profiles, so the desktop app's own next fetch would show the new
+        // value but the admin dashboard would keep showing the old
+        // user_metadata value - exactly the "웹어드민에는 여전히 원래 정보가
+        // 뜨고" symptom reported after the read-side fix (see
+        // fetchDesktopProfileSnapshot in lib/desktopSession.ts).
+        const profileId = updatedRows?.[0]?.id
+        if (profileId) {
+            try {
+                const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(profileId, {
+                    user_metadata: {
+                        full_name: normalizedFullName,
+                        nationality: normalizedNationality,
+                        contact: normalizedContact,
+                    },
+                })
+                if (metaError) {
+                    console.warn('[DesktopProfileUpdate] user_metadata update warning:', metaError.message)
+                }
+            } catch (metaErr: any) {
+                console.warn('[DesktopProfileUpdate] user_metadata update error:', metaErr?.message)
+            }
         }
 
         return NextResponse.json({ success: true, message: '저장되었습니다.' })
