@@ -1656,7 +1656,7 @@
                             <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400">📝 Script Context</label>
                             <div class="p-2.5 bg-gray-50 dark:bg-[#1c2128]/50 rounded-lg border border-gray-100 dark:border-gray-800 flex flex-col gap-1.5">
                                 <p class="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed font-medium">${rawSceneText || i18n.no_script_desc}</p>
-                                ${p.scene_text_vi ? `<p class="text-[10.5px] text-purple-500 dark:text-purple-400 leading-relaxed font-semibold border-t border-white/5 pt-1.5">${p.scene_text_vi}</p>` : ''}
+                                ${window.currentLang === 'vi' && p.scene_text_vi ? `<p class="text-[10.5px] text-purple-500 dark:text-purple-400 leading-relaxed font-semibold border-t border-white/5 pt-1.5">${p.scene_text_vi}</p>` : ''}
                             </div>
                         </div>
 
@@ -1698,11 +1698,11 @@
                         <div class="grid grid-cols-12 gap-2 items-start">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                    ${window.currentLang === 'vi' ? '🖼️ Prompt lưới' : window.currentLang === 'th' ? '🖼️ พรอมต์กริด' : '🖼️ 격자 프롬프트'}
+                                    ${window.currentLang === 'vi' ? '🖼️ Prompt video' : window.currentLang === 'th' ? '🖼️ พรอมต์วิดีโอ' : window.currentLang === 'en' ? '🖼️ Video Prompt' : '🖼️ 영상 프롬프트'}
                                 </label>
                                 <div class="flex items-center gap-1">
-                                    <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast(window.currentLang === 'vi' ? 'Sao chép thành công!' : window.currentLang === 'th' ? 'คัดลอกสำเร็จ!' : '복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">
-                                        ${window.currentLang === 'vi' ? 'Sao chép' : window.currentLang === 'th' ? 'คัดลอก' : '복사'}
+                                    <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast(window.currentLang === 'vi' ? 'Sao chép thành công!' : window.currentLang === 'th' ? 'คัดลอกสำเร็จ!' : window.currentLang === 'en' ? 'Copied!' : '복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">
+                                        ${window.currentLang === 'vi' ? 'Sao chép' : window.currentLang === 'th' ? 'คัดลอก' : window.currentLang === 'en' ? 'Copy' : '복사'}
                                     </button>
                                 </div>
                             </div>
