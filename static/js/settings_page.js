@@ -735,13 +735,13 @@
                 return;
             }
             const statusLabels = {
-                UPLOADED: '⏳ 업로드됨 (분석 대기)',
-                ANALYZING: '⏳ 분석 중...',
-                NEEDS_REVIEW: '🕵️ 관리자 검토 중',
-                APPROVED: '✅ 인증 완료' + (latest.expires_at ? ` (만료: ${new Date(latest.expires_at).toLocaleDateString()})` : ''),
-                REJECTED: '❌ 반려됨' + (latest.rejection_reason ? `: ${latest.rejection_reason}` : ''),
-                EXPIRED: '⌛ 만료됨 - 다시 제출해주세요.',
-                REVOKED: '🚫 인증이 취소되었습니다.',
+                UPLOADED: i18n.subverif_status_uploaded || '⏳ 업로드됨 (분석 대기)',
+                ANALYZING: i18n.subverif_status_analyzing || '⏳ 분석 중...',
+                NEEDS_REVIEW: i18n.subverif_status_needs_review || '🕵️ 관리자 검토 중',
+                APPROVED: (i18n.subverif_status_approved || '✅ 인증 완료') + (latest.expires_at ? ` (${i18n.subverif_label_expiry || '만료'}: ${new Date(latest.expires_at).toLocaleDateString()})` : ''),
+                REJECTED: (i18n.subverif_status_rejected || '❌ 반려됨') + (latest.rejection_reason ? `: ${latest.rejection_reason}` : ''),
+                EXPIRED: i18n.subverif_status_expired || '⌛ 만료됨 - 다시 제출해주세요.',
+                REVOKED: i18n.subverif_status_revoked || '🚫 인증이 취소되었습니다.',
             };
             box.textContent = statusLabels[latest.status] || latest.status;
             uploadBox.classList.toggle('hidden', latest.status === 'APPROVED' || latest.status === 'UPLOADED' || latest.status === 'ANALYZING' || latest.status === 'NEEDS_REVIEW');
