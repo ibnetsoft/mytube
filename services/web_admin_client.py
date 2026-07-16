@@ -427,6 +427,37 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"동기화 서버 연결 오류: {e}"}
 
+    def desktop_referrals(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """추천인/출금 조회·신청을 auth-web(Vercel) 서버에 위임한다.
+        [AIR-0225B Phase 1] app/routers/referral.py가 SUPABASE_SERVICE_ROLE_KEY로
+        직접 조회하던 6개 액션(dashboard/tree/timeline/withdrawal_info/withdraw/
+        withdrawal_history)을 session_token 검증 기반 브릿지로 이전. 출금 잔액
+        검증도 이제 서버에서 수행된다."""
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-referrals",
+                json=payload,
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "추천인 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"추천인 서버 연결 오류: {e}"}
+
     def desktop_update_profile(
         self,
         email: str,
