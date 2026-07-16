@@ -323,6 +323,11 @@ class AuthService:
             except Exception as e:
                 print(f"[Auth] Session resync error: {e}")
 
+        # NOTE: presynced 경로에서 return으로 빠지면 안 된다 - 아래의 디렉토리
+        # 격리(사용자별 output/log/asset 폴더 전환)와 Jinja 전역 갱신(사이드바
+        # user_email 표시)이 두 경로 공통의 후처리이기 때문. 과거에 이 블록이
+        # return으로 끝나서, 세션 복원(resync)이 성공하는 정상 경로에서만
+        # 사이드바 이메일이 사라지고 폴더 격리가 안 되는 버그가 있었다.
         if presynced is not None:
             try:
                 self._membership = presynced.get("membership") or "std"
@@ -342,27 +347,26 @@ class AuthService:
                         print(f"[Auth] Loaded global API keys from desktop-login response: {list(sys_keys.keys())}")
             except Exception as e:
                 print(f"[Auth] Failed to apply presynced login data: {e}")
-            return
+        else:
+            # Supabase에서 사용자 프로필 정보 동기화 (presynced 미제공 시 폴백)
+            try:
+                from services.web_admin_client import web_admin_client
 
-        # Supabase에서 사용자 프로필 정보 동기화 (presynced 미제공 시 폴백)
-        try:
-            from services.web_admin_client import web_admin_client
+                profile = web_admin_client.fetch_profile_by_email(email)
+                if profile:
+                    self._membership = profile.get("membership", "std")
+                    self._token_balance = profile.get("token_balance", 0)
+                    self._verified = True
+                    print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
+                    self.enforce_app_mode()
 
-            profile = web_admin_client.fetch_profile_by_email(email)
-            if profile:
-                self._membership = profile.get("membership", "std")
-                self._token_balance = profile.get("token_balance", 0)
-                self._verified = True
-                print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
-                self.enforce_app_mode()
-
-            sys_keys = web_admin_client.fetch_global_api_keys()
-            if sys_keys:
-                from config import config
-                config.load_remote_keys(sys_keys)
-                print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
-        except Exception as e:
-            print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
+                sys_keys = web_admin_client.fetch_global_api_keys()
+                if sys_keys:
+                    from config import config
+                    config.load_remote_keys(sys_keys)
+                    print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
+            except Exception as e:
+                print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
 
         # [ISOLATION] C:/Users/사용자/AppData/Local/picadilly/{employee_email}/ 경로로 에셋 저장소 격리
         try:
