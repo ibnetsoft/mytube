@@ -9,6 +9,7 @@ import LearningStatsPanel from './LearningStatsPanel'
 import TenantManagement from './TenantManagement'
 import ReferralAdminPanel from './ReferralAdminPanel'
 import SubscriptionVerificationsPanel from './SubscriptionVerificationsPanel'
+import SupportInboxPanel from './SupportInboxPanel'
 
 interface UserProfile {
     id: string
@@ -183,7 +184,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -2133,6 +2134,7 @@ export default function DashboardContent() {
                             { id: 'tenants', label: '테넌트', superOnly: true },
                             { id: 'referral-admin', label: '추천인 관리', superOnly: true },
                             { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
+                            { id: 'support', label: '문의 Inbox', superOnly: false },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -4123,6 +4125,10 @@ export default function DashboardContent() {
 
                 {activeTab === 'subscription-verifications' && (
                     <SubscriptionVerificationsPanel />
+                )}
+
+                {activeTab === 'support' && (
+                    <SupportInboxPanel />
                 )}
 
                 {activeTab === 'styles' && canManageStyles && (

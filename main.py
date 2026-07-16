@@ -382,6 +382,7 @@ from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
 from app.routers import referral as referral_router
+from app.routers import support as support_router
 from app.routers import director_api
 from app.routers import admin_voices as admin_voices_router
 from app.routers import voices as voices_router
@@ -418,6 +419,7 @@ app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
 app.include_router(referral_router.router, prefix="/api")
+app.include_router(support_router.router, prefix="/api")
 app.include_router(admin_voices_router.router)
 app.include_router(voices_router.router)
 app.include_router(script_api_router.router, prefix="/api/script")  # [AIR-0203]
