@@ -156,7 +156,7 @@ class GeminiService:
         
         return text.strip().strip(',').strip()
 
-    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL, use_search: bool = False) -> str:
+    async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL, use_search: bool = False, json_mode: bool = False) -> str:
         """텍스트 생성"""
         if not self.api_key:
             raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
@@ -170,6 +170,11 @@ class GeminiService:
                 "maxOutputTokens": max_tokens
             }
         }
+
+        # JSON 응답이 필요한 호출은 Gemini의 구조화 출력 모드를 사용
+        # (프롬프트 내 따옴표 미이스케이프 등 깨진 JSON 응답 방지)
+        if json_mode:
+            payload["generationConfig"]["responseMimeType"] = "application/json"
 
         if use_search:
             payload["tools"] = [{"googleSearch": {}}]
@@ -1427,7 +1432,9 @@ Examples of GOOD detailed prompts:
 
 Now write the motion prompt for THIS scene:"""
 
-        result = await self.generate_text(prompt, temperature=0.7, project_id=project_id, task_type='motion_guide')
+        # [FIX] 어드민의 이미지 프롬프트 모델 설정(IMAGE_PROMPT_MODEL)을 존중하도록 ai_router 경유
+        from services import ai_router
+        result = await ai_router.generate_text(prompt, config.IMAGE_PROMPT_MODEL, temperature=0.7, project_id=project_id, task_type='motion_guide')
         result = result.strip().strip('"').strip("'").splitlines()[0].strip()
         # 300자 제한 - 단어 중간에서 잘리지 않도록
         if len(result) > 300:
@@ -2783,15 +2790,29 @@ Return ONLY a valid JSON array containing objects for each scene. Do not change 
   }}
 ]
 """
-        text = await self.generate_text(prompt, temperature=0.7, task_type='image_prompt_chunk')
-        cleaned = re.sub(r'```json\s*|\s*```', '', text).strip()
-        try:
-            m = re.search(r'\[[\s\S]*\]', cleaned)
-            if m:
-                return json.loads(m.group(0))
-        except Exception as e:
-            print(f"Error parsing chunk prompts: {e}")
-            
+        # [FIX] 어드민의 이미지 프롬프트 모델 설정(IMAGE_PROMPT_MODEL)을 존중하도록
+        # ai_router 경유로 변경. (scene_planner와 동일했던 Gemini 하드코딩 버그)
+        # json_mode는 Gemini 전용 힌트이며 Claude 라우팅 시에는 아래 재시도가 방어선.
+        from services import ai_router
+        # JSON 모드 + 파싱 실패 시 1회 재시도 (모델 응답이 간헐적으로 깨질 수 있음)
+        for attempt in range(2):
+            text = await ai_router.generate_text(
+                prompt,
+                config.IMAGE_PROMPT_MODEL,
+                temperature=0.7,
+                project_id=project_id,
+                task_type='image_prompt_chunk',
+                json_mode=True,
+            )
+            cleaned = re.sub(r'```json\s*|\s*```', '', text).strip()
+            try:
+                m = re.search(r'\[[\s\S]*\]', cleaned)
+                if m:
+                    return json.loads(m.group(0))
+                print(f"No JSON array found in chunk response (attempt {attempt + 1})")
+            except Exception as e:
+                print(f"Error parsing chunk prompts (attempt {attempt + 1}): {e}")
+
         return []
 
 
