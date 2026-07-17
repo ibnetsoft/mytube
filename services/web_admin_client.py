@@ -506,6 +506,39 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"공지사항 서버 연결 오류: {e}"}
 
+    def desktop_project_sync(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """[AIR-0225B] desktop_project_metadata 테이블 접근을 session_token
+        브릿지로 위임한다. 예전에는 services/project_sync_service.py가
+        SUPABASE_SERVICE_ROLE_KEY로 직접 조회/upsert했는데, 그 키가 패키징된
+        빌드에서 제거된 뒤로 has_supabase()가 항상 False가 되어 프로젝트
+        복원(fetch_remote_projects/ensure_local_projects_from_remote)이
+        에러 없이 조용히 0건으로 끝나고 있었다 - 새 설치에서 프로젝트
+        목록이 비어 보이는 원인."""
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-project-sync",
+                json=payload,
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "프로젝트 동기화 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"프로젝트 동기화 서버 연결 오류: {e}"}
+
     def desktop_update_profile(
         self,
         email: str,
