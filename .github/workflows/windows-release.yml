@@ -195,9 +195,18 @@ jobs:
           $channel = "${{ steps.resolve.outputs.CHANNEL }}"
           $tag     = "v$ver"
 
+          # [FIX] release_github.ps1's -Draft/-Prerelease are PowerShell switch
+          # parameters (single dash). These were being splatted as "--draft"/
+          # "--prerelease" (bash/gh-CLI double-dash convention), which
+          # PowerShell's parameter binder does not match to a switch - it
+          # silently fell through as an unbound positional argument instead of
+          # erroring, so every prerelease/draft request via workflow_dispatch
+          # was quietly published as a normal stable release. Discovered when
+          # v2.3.9 (requested as prerelease) came back isPrerelease:false and
+          # briefly occupied the "latest" auto-update slot for all users.
           $extraArgs = @()
-          if ("${{ steps.resolve.outputs.DRAFT }}"      -eq "true") { $extraArgs += "--draft" }
-          if ("${{ steps.resolve.outputs.PRERELEASE }}" -eq "true") { $extraArgs += "--prerelease" }
+          if ("${{ steps.resolve.outputs.DRAFT }}"      -eq "true") { $extraArgs += "-Draft" }
+          if ("${{ steps.resolve.outputs.PRERELEASE }}" -eq "true") { $extraArgs += "-Prerelease" }
 
           .\tools\release_github.ps1 `
             -Version     $ver `
