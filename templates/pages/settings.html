@@ -40,6 +40,9 @@
             <button onclick="switchTab('support')" id="tab-support" class="tab-button">
                 {{ t('label_support_inquiry') }}
             </button>
+            <button onclick="switchTab('announcements')" id="tab-announcements" class="tab-button">
+                {{ t('label_announcements') }}
+            </button>
             {# AIR-0225: superseded by the 기본설정 tab's referral tree + my code section, and the withdrawal tab's history table. Hidden, not deleted. #}
                     {% if not is_standard_member %}
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
@@ -557,6 +560,16 @@
                             <p class="text-xs text-gray-500 text-center py-4">{{ t('msg_loading_data') }}</p>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Announcements Board Tab -->
+        <div id="tab-content-announcements" class="tab-content">
+            <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027]">
+                <h3 class="text-lg font-bold text-white mb-4">{{ t('label_announcements') }}</h3>
+                <div id="st-announcements-list" class="space-y-2">
+                    <p class="text-xs text-gray-500 text-center py-4">{{ t('msg_loading_data') }}</p>
                 </div>
             </div>
         </div>
@@ -1328,6 +1341,8 @@
         status_support_closed: "{{ t('status_support_closed') }}",
         msg_support_sent: "{{ t('msg_support_sent') }}",
         msg_support_failed: "{{ t('msg_support_failed') }}",
+        msg_announcements_empty: "{{ t('msg_announcements_empty') }}",
+        label_pinned: "{{ t('label_pinned') }}",
         // Additional Thai/VI i18n keys
         referral_loading: "{{ t('referral_loading') }}",
         referral_reward_done: "{{ t('referral_reward_done') }}",
@@ -1863,8 +1878,13 @@
             listEl.innerHTML = messages.map(m => {
                 const [cls, label] = statusMap[String(m.status || '').toUpperCase()] || ['bg-gray-500/20 text-gray-400', m.status || '-'];
                 const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '-';
+                // 쪽지(1:1 채팅)가 아니라 게시판(내 글+답글) 형식으로 - 내 질문을
+                // "Q" 글로, 어드민 답변을 그 아래 "A" 댓글로 보여준다.
                 const replySection = m.admin_reply
-                    ? `<div class="mt-2 pl-3 border-l-2 border-green-500/50 text-gray-300">${stEscapeHtml(m.admin_reply)}</div>`
+                    ? `<div class="mt-2 pl-3 border-l-2 border-green-500/50">
+                        <span class="text-[10px] font-black text-green-400">A</span>
+                        <span class="text-xs text-gray-300">${stEscapeHtml(m.admin_reply)}</span>
+                       </div>`
                     : '';
                 return `
                     <div class="bg-[#15191f] rounded-lg border border-gray-700 p-3">
@@ -1873,7 +1893,10 @@
                             <span class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${cls}">${label}</span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">${dateStr}</div>
-                        <div class="mt-2 text-xs text-gray-400">${stEscapeHtml(m.body)}</div>
+                        <div class="mt-2 pl-3 border-l-2 border-blue-500/50">
+                            <span class="text-[10px] font-black text-blue-400">Q</span>
+                            <span class="text-xs text-gray-400">${stEscapeHtml(m.body)}</span>
+                        </div>
                         ${replySection}
                     </div>
                 `;
@@ -1921,6 +1944,55 @@
             }
         });
     })();
+
+    // ── Announcements Board (웹어드민 -> 전체 유저 공지, 쪽지 아님 - 게시판) ──
+    let stAnnouncementsExpanded = new Set();
+
+    function stToggleAnnouncement(id) {
+        if (stAnnouncementsExpanded.has(id)) {
+            stAnnouncementsExpanded.delete(id);
+        } else {
+            stAnnouncementsExpanded.add(id);
+        }
+        const bodyEl = document.getElementById(`st-announcement-body-${id}`);
+        if (bodyEl) bodyEl.classList.toggle('hidden');
+    }
+
+    async function stLoadAnnouncements() {
+        const listEl = document.getElementById('st-announcements-list');
+        if (!listEl) return;
+        try {
+            const res = await fetch('/api/user/announcements/list');
+            const json = await res.json();
+            const items = json.announcements || [];
+            if (items.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">${i18n.msg_announcements_empty || 'No announcements yet.'}</p>`;
+                return;
+            }
+            listEl.innerHTML = items.map(a => {
+                const dateStr = (a.published_at || a.created_at) ? new Date(a.published_at || a.created_at).toLocaleString() : '-';
+                const pinnedBadge = a.is_pinned
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 shrink-0">📌 ${i18n.label_pinned || 'Pinned'}</span>`
+                    : '';
+                return `
+                    <div class="bg-[#15191f] rounded-lg border ${a.is_pinned ? 'border-amber-500/40' : 'border-gray-700'} overflow-hidden">
+                        <button type="button" onclick="stToggleAnnouncement('${a.id}')"
+                            class="w-full flex justify-between items-center gap-2 p-3 text-left hover:bg-[#1c2027] transition-colors">
+                            <span class="flex items-center gap-2 min-w-0">
+                                ${pinnedBadge}
+                                <span class="text-sm font-bold text-white truncate">${stEscapeHtml(a.title)}</span>
+                            </span>
+                            <span class="text-[10px] text-gray-500 shrink-0">${dateStr}</span>
+                        </button>
+                        <div id="st-announcement-body-${a.id}" class="hidden px-3 pb-3 text-xs text-gray-300 whitespace-pre-wrap border-t border-gray-800 pt-2">${stEscapeHtml(a.body)}</div>
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Announcements load error:', err);
+            listEl.innerHTML = `<p class="text-xs text-red-500 text-center py-4">${i18n.err_prefix || 'Error: '}${err.message}</p>`;
+        }
+    }
 
     function cpEvaluateRules() {
         const val = document.getElementById('cpNewPassword').value;

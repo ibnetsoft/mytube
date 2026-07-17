@@ -488,6 +488,24 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"문의 서버 연결 오류: {e}"}
 
+    def desktop_announcements(self, email: str, session_token: str) -> Dict[str, Any]:
+        """웹어드민이 전체 유저에게 발행한 공지사항 게시판 목록을 조회한다.
+        쪽지(1:1)가 아니라 게시판(1:N) - 모든 유저가 동일한 글을 본다.
+        session_token 검증은 미승인/비로그인 클라이언트의 내부 공지 열람을
+        막기 위함이지 개인화를 위한 것이 아니다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-announcements",
+                json={"email": email, "session_token": session_token, "action": "list"},
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "공지사항 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"공지사항 서버 연결 오류: {e}"}
+
     def desktop_update_profile(
         self,
         email: str,
