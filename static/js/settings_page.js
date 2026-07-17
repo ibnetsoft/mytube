@@ -1,6 +1,6 @@
 // Tab switching
     function switchTab(tabName) {
-        if (IS_STANDARD_MEMBER && !['api', 'orgchart', 'history', 'withdrawal', 'referral'].includes(tabName)) {
+        if (IS_STANDARD_MEMBER && !['api', 'orgchart', 'history', 'withdrawal', 'referral', 'support', 'announcements'].includes(tabName)) {
             tabName = 'api';
         }
         console.log('Switching to tab:', tabName);
@@ -55,6 +55,14 @@
         } else if (tabName === 'settlement') {
             if (typeof fetchSettlementData === 'function') {
                 fetchSettlementData();
+            }
+        } else if (tabName === 'support') {
+            if (typeof stLoadSupportMessages === 'function') {
+                stLoadSupportMessages();
+            }
+        } else if (tabName === 'announcements') {
+            if (typeof stLoadAnnouncements === 'function') {
+                stLoadAnnouncements();
             }
         }
     }

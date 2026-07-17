@@ -4534,6 +4534,7 @@
         if (!panel) return;
 
         const matched = result.matched || result.updates || [];
+        const needsReview = result.needs_review || [];
         const duplicates = result.duplicates || [];
         const unmatched = result.unmatched || [];
         const invalid = result.invalid || [];
@@ -4553,9 +4554,50 @@
                </div>`
             : '';
 
+        // AI 추정 매칭 리뷰 스트립: 미리보기 + 제안 씬 + 확인/변경 후 반영
+        const sceneNumbers = (prompts || []).map(p => parseInt(p.scene_number)).filter(n => n > 0);
+        const reviewRows = needsReview.map((item, idx) => {
+            const preview = item.is_video
+                ? `<video src="${escapeBulkHtml(item.url)}" class="h-16 w-24 rounded object-cover" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>`
+                : `<img src="${escapeBulkHtml(item.url)}" class="h-16 w-24 rounded object-cover">`;
+            const suggested = parseInt(item.scene_number);
+            const options = sceneNumbers.map(n =>
+                `<option value="${n}" ${n === suggested ? 'selected' : ''}>Scene ${n}</option>`).join('');
+            const confBadge = item.confidence
+                ? `<span class="rounded bg-purple-500/15 px-1.5 py-0.5 text-purple-300 text-[11px]">AI ${escapeBulkHtml(item.confidence)}</span>`
+                : '';
+            const occupied = item.slot_occupied
+                ? `<span class="text-amber-400 text-[11px]">슬롯 사용 중 - 확인 시 교체됨</span>`
+                : '';
+            return `
+                <div class="flex items-center gap-3 rounded bg-[#1c2027]/60 p-2" id="bulk-review-row-${idx}">
+                    ${preview}
+                    <div class="min-w-0 flex-1">
+                        <div class="truncate text-gray-200">${escapeBulkHtml(item.original_name)}</div>
+                        <div class="mt-1 flex items-center gap-2">${confBadge}${occupied}</div>
+                    </div>
+                    <select id="bulk-review-scene-${idx}" class="rounded bg-[#12151a] px-2 py-1 text-gray-200 border border-gray-700">
+                        ${options}
+                    </select>
+                    <button onclick="confirmBulkReviewItem(${idx})"
+                        class="rounded bg-emerald-600 px-3 py-1 text-white hover:bg-emerald-500">확인</button>
+                    <button onclick="dismissBulkReviewItem(${idx})"
+                        class="rounded bg-gray-700 px-2 py-1 text-gray-300 hover:bg-gray-600">건너뜀</button>
+                </div>`;
+        }).join('');
+        const reviewSection = needsReview.length
+            ? `<div class="mt-3">
+                <div class="mb-2 text-amber-300">AI 추정 매칭 ${needsReview.length}건 - 확인 후 반영됩니다 (자동 반영 안 됨)</div>
+                <div class="space-y-2 max-h-72 overflow-y-auto">${reviewRows}</div>
+               </div>`
+            : '';
+
+        window._bulkReviewItems = needsReview;
+
         panel.innerHTML = `
             <div class="flex flex-wrap gap-2">
                 <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">Matched ${matched.length}</span>
+                <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-300">Review ${needsReview.length}</span>
                 <span class="rounded bg-amber-500/15 px-2 py-1 text-amber-400">Duplicate ${duplicates.length}</span>
                 <span class="rounded bg-red-500/15 px-2 py-1 text-red-400">Unmatched ${unmatched.length + invalid.length}</span>
             </div>
@@ -4563,8 +4605,57 @@
                 Missing image scenes: ${missing.images?.length ? missing.images.join(', ') : 'none'}<br>
                 Missing video scenes: ${missing.videos?.length ? missing.videos.join(', ') : 'none'}
             </div>
+            ${reviewSection}
             ${details}`;
         panel.classList.remove('hidden');
+    }
+
+    async function confirmBulkReviewItem(idx) {
+        const item = (window._bulkReviewItems || [])[idx];
+        if (!item) return;
+        const select = document.getElementById(`bulk-review-scene-${idx}`);
+        const sceneNumber = select ? parseInt(select.value) : parseInt(item.scene_number);
+        const projectId = getCurrentProject();
+        if (!projectId || !sceneNumber) return;
+
+        try {
+            const res = await fetch('/api/image/assign-scene-media', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: parseInt(projectId),
+                    scene_number: sceneNumber,
+                    url: item.url,
+                    is_video: !!item.is_video,
+                    replace_existing: true,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.status !== 'ok') {
+                throw new Error(data.error || '배정 실패');
+            }
+            assetReadiness = data.asset_readiness || assetReadiness;
+            const row = document.getElementById(`bulk-review-row-${idx}`);
+            if (row) {
+                row.innerHTML = `<div class="text-emerald-400">✅ Scene ${sceneNumber} 에 반영됨 - ${escapeBulkHtml(item.original_name)}</div>`;
+            }
+            // 씬 목록 새로고침
+            if (typeof loadPromptsFromServer === 'function') {
+                await loadPromptsFromServer();
+            }
+            Utils.showToast(`Scene ${sceneNumber} 반영 완료`, 'success');
+        } catch (e) {
+            console.error('Review confirm error:', e);
+            Utils.showToast('반영 실패: ' + e.message, 'error');
+        }
+    }
+
+    function dismissBulkReviewItem(idx) {
+        const row = document.getElementById(`bulk-review-row-${idx}`);
+        if (row) {
+            const item = (window._bulkReviewItems || [])[idx];
+            row.innerHTML = `<div class="text-gray-500">건너뜀 - ${escapeBulkHtml(item ? item.original_name : '')} (파일은 프로젝트 폴더에 저장돼 있음)</div>`;
+        }
     }
 
     async function processBulkFiles(files) {

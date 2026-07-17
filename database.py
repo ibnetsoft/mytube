@@ -4504,6 +4504,20 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                 print("[Sync] Could not resolve Supabase profile UUID for remote log push")
                 return
 
+            # [AIR-0225B] /api/logs는 이제 email + HMAC session_token을 검증한다
+            # (평문 userId 신뢰 구멍 제거). 로그인 세션이 없으면 원격 푸시를 건너뛴다 -
+            # 서버가 어차피 401로 거절하고, 로컬 DB에는 이미 기록돼 있다.
+            try:
+                from services.auth_service import auth_service as _auth
+                push_email = _auth.get_user_email()
+                push_session_token = _auth.get_session_token()
+            except Exception:
+                push_email = ""
+                push_session_token = ""
+            if not push_email or not push_session_token:
+                print("[Sync] Skipping remote log push - no active login session (email/session_token).")
+                return
+
             # DASHBOARD_URL 환경변수 사용
             base_url = _os.getenv("DASHBOARD_URL", "https://mytube-ashy-seven.vercel.app")
             
@@ -4518,6 +4532,8 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                     pass
 
             payload = {
+                "email": push_email,
+                "session_token": push_session_token,
                 "userId": user_id,
                 "task_type": task_type,
                 "model_id": model_id,

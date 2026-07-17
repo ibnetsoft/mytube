@@ -27,7 +27,12 @@ from app.utils import (
     STYLE_PROMPTS,
 )
 from services.gemini_service import gemini_service
-from services.scene_asset_matcher import build_assignment_plan, extract_scene_number, find_missing_scenes
+from services.scene_asset_matcher import (
+    build_assignment_plan,
+    extract_scene_hint,
+    extract_scene_number,
+    find_missing_scenes,
+)
 from services.longform_asset_readiness import sync_project_asset_readiness
 
 router = APIRouter(tags=["Image"])
@@ -1294,14 +1299,27 @@ async def upload_scene_media(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+def _resolve_output_url_to_path(url: str) -> Optional[str]:
+    """'/output/...' 웹 URL을 디스크 절대경로로 변환 (youtube.py와 동일 패턴)."""
+    if not url or not isinstance(url, str) or not url.startswith("/output/"):
+        return None
+    rel = url.replace("/output/", "", 1).replace("/", os.sep)
+    path = os.path.join(config.OUTPUT_DIR, rel)
+    return path if os.path.exists(path) else None
+
+
 @router.post("/api/image/bulk-match")
 async def bulk_match_scene_media(
     project_id: int = Form(...),
     files: List[UploadFile] = File(...)
 ):
     """
-    여러 이미지/비디오 파일을 업로드받아, 비디오는 중간 프레임을 추출하고,
-    Gemini Vision API를 활용해 가장 알맞은 씬 번호와 일괄 매칭합니다.
+    여러 이미지/비디오 파일을 업로드받아 씬에 일괄 매칭합니다.
+
+    [재설계] 각 씬에 이미 배정된 이미지(크롭 산출물)를 레퍼런스로 Gemini에
+    함께 보내, 업로드된 영상 프레임과 이미지 대 이미지 대조로 매칭합니다.
+    확정 근거(명시적 파일명, AI high 신뢰도)만 자동 반영하고, 추정 매칭은
+    needs_review로 분리해 사용자 확인 후 반영합니다.
     """
     try:
         from app.utils import get_project_output_dir, ALLOWED_IMAGE_EXT, ALLOWED_VIDEO_EXT
@@ -1363,17 +1381,20 @@ async def bulk_match_scene_media(
             async with aiofiles.open(abs_path, "wb") as f:
                 await f.write(content)
 
-            # Gemini 분석을 위한 바이트 추출
+            # Gemini 분석용 바이트 추출.
+            # 명시적 씬 파일명(scene_03 등)만 AI 대조를 건너뛴다 - 순수
+            # 숫자 파일명(1_final.mp4)은 외부 툴의 테이크 번호일 수 있어
+            # AI 검증을 함께 돌린다 (이전에는 숫자만 있어도 스킵해서
+            # 우연한 오탐이 무검증 확정되던 구멍).
+            _, hint_explicit = extract_scene_hint(original_name)
             gemini_bytes = None
-            if extract_scene_number(original_name) is not None:
+            if hint_explicit:
                 pass
             elif is_video:
                 try:
-                    # 중간 프레임 이미지 추출
                     gemini_bytes = video_matcher.extract_middle_frame_bytes(abs_path)
                 except Exception as ex:
                     print(f"Failed extracting keyframe for {file.filename}: {ex}")
-                    # 실패 시 첫 프레임이라도 시도하거나 빈 이미지 전달 방지
             else:
                 gemini_bytes = content
 
@@ -1390,9 +1411,25 @@ async def bulk_match_scene_media(
         if not uploaded_assets and not saved_file_infos and not invalid_files:
             return {"status": "error", "error": "분석할 이미지나 비디오 파일이 없습니다."}
 
-        # 2. Gemini Vision을 통해 매칭 정보 가져오기
+        # 2. 씬 레퍼런스(각 씬의 기존 이미지) 구성 후 Gemini 대조
+        scene_refs = []
+        for scene in scenes:
+            ref_bytes = None
+            ref_path = _resolve_output_url_to_path(scene.get("image_url") or "")
+            if ref_path:
+                try:
+                    with open(ref_path, "rb") as rf:
+                        ref_bytes = rf.read()
+                except Exception:
+                    ref_bytes = None
+            scene_refs.append({
+                "scene_number": int(scene["scene_number"]),
+                "description": scene.get("scene_text") or scene.get("scene") or scene.get("prompt_ko") or "",
+                "image_bytes": ref_bytes,
+            })
+
         mapping = (
-            await video_matcher.match_assets_to_scenes(project_id, uploaded_assets)
+            await video_matcher.match_assets_to_scenes(project_id, uploaded_assets, scene_refs)
             if uploaded_assets
             else {}
         )
@@ -1405,32 +1442,27 @@ async def bulk_match_scene_media(
             mapping,
         )
         plan["invalid"].extend(invalid_files)
-        mapping = {
-            item["original_name"]: item["scene_number"]
-            for item in plan["matched"]
-        }
 
-        # 3. 매칭 결과를 바탕으로 DB 업데이트
+        # 3. 확정 매칭만 DB 반영 (needs_review는 사용자 확인 후
+        #    /api/image/assign-scene-media 로 반영된다)
         matched_count = 0
         updates = []
-        for info in saved_file_infos:
-            orig_name = info["original_name"]
-            matched_scene = mapping.get(orig_name)
-            if matched_scene:
-                matched_scene = int(matched_scene)
-                # DB 저장
-                if info["is_video"]:
-                    db.update_image_prompt_video_url(project_id, matched_scene, info["url"])
-                else:
-                    db.update_image_prompt_url(project_id, matched_scene, info["url"])
-                
-                updates.append({
-                    "original_name": orig_name,
-                    "scene_number": matched_scene,
-                    "url": info["url"],
-                    "is_video": info["is_video"]
-                })
-                matched_count += 1
+        for item in plan["matched"]:
+            matched_scene = int(item["scene_number"])
+            if item["is_video"]:
+                db.update_image_prompt_video_url(project_id, matched_scene, item["url"])
+            else:
+                db.update_image_prompt_url(project_id, matched_scene, item["url"])
+
+            updates.append({
+                "original_name": item["original_name"],
+                "scene_number": matched_scene,
+                "url": item["url"],
+                "is_video": item["is_video"],
+                "match_source": item.get("match_source", ""),
+                "confidence": item.get("confidence", ""),
+            })
+            matched_count += 1
 
         # 원본 이미지 프롬프트 상태 최신화 반환을 위해 씬 목록 가져오기
         latest_scenes = db.get_image_prompts(project_id)
@@ -1441,6 +1473,7 @@ async def bulk_match_scene_media(
             "matched_count": matched_count,
             "matched": plan["matched"],
             "updates": updates,
+            "needs_review": plan["needs_review"],
             "unmatched": plan["unmatched"],
             "duplicates": plan["duplicates"],
             "invalid": plan["invalid"],
@@ -1453,6 +1486,65 @@ async def bulk_match_scene_media(
         print(f"Bulk match error: {e}")
         import traceback
         traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.post("/api/image/assign-scene-media")
+async def assign_scene_media(
+    project_id: int = Body(...),
+    scene_number: int = Body(...),
+    url: str = Body(...),
+    is_video: bool = Body(...),
+    replace_existing: bool = Body(False),
+):
+    """
+    이미 업로드된 파일(디스크에 저장돼 있고 URL로 참조 가능)을 특정 씬
+    슬롯에 배정합니다. bulk-match의 needs_review 항목을 사용자가 확인한 뒤
+    확정하는 용도입니다.
+    """
+    try:
+        # 프로젝트 출력 경로의 파일만 배정 허용 (임의 URL 주입 방지)
+        if not _resolve_output_url_to_path(url):
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "error": "URL does not point to a stored project file."},
+            )
+
+        target_scene = next(
+            (
+                scene for scene in db.get_image_prompts(project_id)
+                if int(scene.get("scene_number") or 0) == int(scene_number)
+            ),
+            None,
+        )
+        if not target_scene:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "error", "error": "Scene does not exist."},
+            )
+
+        slot_value = target_scene.get("video_url" if is_video else "image_url")
+        if slot_value and not replace_existing:
+            return JSONResponse(
+                status_code=409,
+                content={"status": "error", "error": "Scene slot is already occupied."},
+            )
+
+        if is_video:
+            db.update_image_prompt_video_url(project_id, int(scene_number), url)
+        else:
+            db.update_image_prompt_url(project_id, int(scene_number), url)
+        readiness = sync_project_asset_readiness(project_id)
+
+        return {
+            "status": "ok",
+            "scene_number": int(scene_number),
+            "url": url,
+            "is_video": is_video,
+            "asset_readiness": readiness,
+        }
+    except Exception as e:
+        print(f"Assign scene media error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 

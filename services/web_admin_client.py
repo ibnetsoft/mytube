@@ -458,6 +458,54 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"추천인 서버 연결 오류: {e}"}
 
+    def desktop_support(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """유저 -> 웹어드민 문의 전송/조회를 auth-web(Vercel) 서버에 위임한다.
+        desktop_referrals와 동일한 session_token 검증 기반 브릿지 - 문의는
+        AI 초안(있으면)이 서버 측에서 자동 생성되지만, list 응답에는 절대
+        포함되지 않는다(어드민이 확정 발송한 답장만 노출)."""
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-support",
+                json=payload,
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "문의 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"문의 서버 연결 오류: {e}"}
+
+    def desktop_announcements(self, email: str, session_token: str) -> Dict[str, Any]:
+        """웹어드민이 전체 유저에게 발행한 공지사항 게시판 목록을 조회한다.
+        쪽지(1:1)가 아니라 게시판(1:N) - 모든 유저가 동일한 글을 본다.
+        session_token 검증은 미승인/비로그인 클라이언트의 내부 공지 열람을
+        막기 위함이지 개인화를 위한 것이 아니다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-announcements",
+                json={"email": email, "session_token": session_token, "action": "list"},
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "공지사항 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"공지사항 서버 연결 오류: {e}"}
+
     def desktop_update_profile(
         self,
         email: str,

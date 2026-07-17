@@ -3,8 +3,10 @@
 -- =============================================================
 
 -- 1. profiles 테이블에 토큰 잔액 필드 추가
-ALTER TABLE public.profiles 
-ADD COLUMN IF NOT EXISTS token_balance BIGINT NOT NULL DEFAULT 50000; -- 기본 5만 토큰 지급
+-- [AIR-0225B] 스타터 토큰 지급 폐지 - 신규 가입은 0으로 시작한다
+-- (사용량 누적 모델로 전환. migration_usage_accounting.sql 참조).
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS token_balance BIGINT NOT NULL DEFAULT 0;
 
 -- 2. 토큰 트랜잭션 기록 테이블 생성
 CREATE TABLE IF NOT EXISTS public.token_transactions (

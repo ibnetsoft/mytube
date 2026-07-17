@@ -431,20 +431,18 @@ class AuthService:
 
     def sync_profile(self, name: str, nationality: str, contact: str):
         """Sync local user profile info to the SaaS server"""
-        if not os.path.exists(self.license_file):
+        # [AIR-0225B] /api/user/update-profile은 이제 email + HMAC session_token을
+        # 검증한다(평문 userId 신뢰 구멍 제거). 서버가 세션 email로 user_id를
+        # 해석하므로 license.key의 userId는 더 이상 보내지 않는다.
+        if not self._user_email or not self._session_token:
             return False
 
         try:
-            with open(self.license_file, "r") as f:
-                user_id = f.read().strip()
-
-            if not user_id:
-                return False
-
             response = requests.post(
                 self.update_profile_url,
                 json={
-                    "userId": user_id,
+                    "email": self._user_email,
+                    "session_token": self._session_token,
                     "full_name": name,
                     "nationality": nationality,
                     "contact": contact
@@ -503,10 +501,11 @@ class AuthService:
         return self._token_balance
 
     def check_credits(self, required_amount: int = 1000):
-        """작업 시작 전 충분한 토큰이 있는지 확인 (당분간 글로벌 서비스 시작 전까지 시스템 미가동으로 항상 True 반환)"""
-        # if self._token_balance < required_amount:
-        #     self.logger.warning(f"Insufficient tokens: Available {self._token_balance}, Required {required_amount}")
-        #     return False
+        """[AIR-0225B] 과금 모델이 잔액 차감에서 사용량 누적(metering)으로 바뀌면서,
+        토큰 잔액을 이유로 작업을 막지 않는다. 항상 True 를 반환한다 (게이트 폐지).
+        사용량은 /api/logs -> record_token_usage 로 서버에서 누적 집계된다.
+        호출부(gemini/image/settings/autopilot의 '토큰 부족' 분기)는 이 값으로
+        게이트되므로 실질적으로 비활성 상태다 - 남겨두되 절대 참이 되지 않는다."""
         return True
 
 
