@@ -1133,6 +1133,7 @@ export default function DashboardContent() {
             setSysKeys({
                 gemini: data.gemini || '',
                 youtube: data.youtube || '',
+                claude: data.claude || '',
                 elevenlabs: data.elevenlabs || '',
                 suno: data.suno || '',
                 suno_base_url: data.suno_base_url || '',
