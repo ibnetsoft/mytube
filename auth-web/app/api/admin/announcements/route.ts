@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireAdmin } from '../_auth'
+import { translateAndSaveAnnouncement } from './_shared'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,11 +62,19 @@ export async function POST(req: Request) {
                 published_at: published ? now : null,
                 created_by: requester.user.id,
                 updated_by: requester.user.id,
+                translation_status: 'pending',
             })
             .select('id')
             .maybeSingle()
 
         if (error) throw error
+
+        // AIR-0229: 저장 즉시 en/vi/th 자동번역 - 텍스트가 짧아 동기로 처리해도
+        // admin 화면에서 바로 번역 프리뷰를 볼 수 있다.
+        if (data?.id) {
+            await translateAndSaveAnnouncement(data.id, cleanTitle, cleanBody, supabase)
+        }
+
         return NextResponse.json({ status: 'ok', id: data?.id })
     } catch (error: any) {
         console.error('[AdminAnnouncements] POST Error:', error?.message)
