@@ -1026,42 +1026,49 @@ async def delete_webtoon_rule_api(rule_id: int):
 @router.post("/crop-grid")
 async def crop_grid_image(
     file: UploadFile = File(...),
-    panel: int = Form(...) # 1: Top-Left, 2: Top-Right, 3: Bottom-Left, 4: Bottom-Right
+    panel: int = Form(...),  # 1-indexed, row-major order (row0col0, row0col1, ..., row1col0, ...)
+    cols: int = Form(2),
+    rows: int = Form(2),
 ):
-    """2x2 격자판 이미지에서 지정된 패널 영역을 자동으로 Crop하여 반환"""
+    """NxM 격자판 이미지에서 지정된 패널 영역을 자동으로 Crop하여 반환.
+    cols/rows 기본값 2x2는 기존 호출(패널 1~4, 좌상/우상/좌하/우하)과 완전히 동일하게 동작한다."""
     try:
         from PIL import Image
         import io
         from fastapi.responses import StreamingResponse
-        
+
+        if cols < 1 or cols > 10 or rows < 1 or rows > 10:
+            raise HTTPException(400, "격자 크기는 1~10 사이여야 합니다.")
+        total_panels = cols * rows
+        if panel < 1 or panel > total_panels:
+            raise HTTPException(400, f"잘못된 패널 번호입니다. (1-{total_panels}만 허용)")
+
         # Read image
         img_bytes = await file.read()
         image = Image.open(io.BytesIO(img_bytes))
         width, height = image.size
-        
-        # Calculate grid middle bounds
-        mid_x = width // 2
-        mid_y = height // 2
-        
-        # Define crop boxes based on panel index (1-indexed)
-        if panel == 1: # Top-Left
-            box = (0, 0, mid_x, mid_y)
-        elif panel == 2: # Top-Right
-            box = (mid_x, 0, width, mid_y)
-        elif panel == 3: # Bottom-Left
-            box = (0, mid_y, mid_x, height)
-        elif panel == 4: # Bottom-Right
-            box = (mid_x, mid_y, width, height)
-        else:
-            raise HTTPException(400, "잘못된 패널 번호입니다. (1-4만 허용)")
-            
+
+        # panel은 1-indexed, row-major(행 우선) 순서 - row0col0, row0col1, ..., row1col0, ...
+        row = (panel - 1) // cols
+        col = (panel - 1) % cols
+
+        # round()로 각 셀 경계를 계산해 나눗셈 나머지로 인한 픽셀 손실/겹침 없이
+        # 격자 전체(0~width, 0~height)를 정확히 덮도록 한다.
+        x0 = round(col * width / cols)
+        x1 = round((col + 1) * width / cols)
+        y0 = round(row * height / rows)
+        y1 = round((row + 1) * height / rows)
+        box = (x0, y0, x1, y1)
+
         # Crop and save to byte stream
         cropped_img = image.crop(box)
         output_stream = io.BytesIO()
         cropped_img.save(output_stream, format="PNG")
         output_stream.seek(0)
-        
+
         return StreamingResponse(output_stream, media_type="image/png")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"이미지 자르기 실패: {str(e)}")
 
