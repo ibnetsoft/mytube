@@ -22,7 +22,9 @@ const EXACT_KEYS = [
     'qa_enable_pipeline', 'qa_enable_technical_check', 'qa_enable_semantic_check',
     'qa_auto_normalize_lufs', 'qa_hold_on_technical_fail', 'qa_hold_on_semantic_fail',
     'qa_target_lufs', 'qa_lufs_tolerance', 'qa_blackdetect_min_duration',
-    'qa_min_width', 'qa_min_height'
+    'qa_min_width', 'qa_min_height',
+    // [AIR-0230] 모델별 단가표 - JSON 문자열로 저장 { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
+    'model_pricing'
 ]
 
 const getAdmin = () => createClient(
