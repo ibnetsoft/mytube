@@ -37,6 +37,7 @@ export async function POST(req: Request) {
             task_type, model_id, provider, status,
             prompt_summary, error_msg, elapsed_time,
             input_tokens, output_tokens, balance_after, thinking_tokens,
+            worker_email,
         } = body
 
         if (!email || !session_token) {
@@ -66,7 +67,10 @@ export async function POST(req: Request) {
                 input_tokens: input_tokens || 0,
                 output_tokens: output_tokens || 0,
                 thinking_tokens: thinking_tokens || 0,
-                balance_after: balance_after
+                balance_after: balance_after,
+                // [AIR-0230] "누가" API를 많이 썼는지 웹어드민에서 집계할 수 있도록
+                // 프로젝트에 태깅된 담당 직원 이메일을 함께 저장한다.
+                worker_email: worker_email || null,
             })
             .select('id')
             .maybeSingle()

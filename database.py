@@ -4545,7 +4545,10 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "thinking_tokens": thinking_tokens,
-                "balance_after": balance_after
+                "balance_after": balance_after,
+                # [AIR-0230] 로컬 ai_generation_logs에는 이미 기록되던 worker_email을
+                # 원격 push에도 실어보내 웹어드민에서 "누가" 사용했는지 집계 가능하게 한다.
+                "worker_email": worker_email,
             }
             
             resp = _req.post(f"{base_url}/api/logs", json=payload, timeout=10, proxies={"http": None, "https": None})
