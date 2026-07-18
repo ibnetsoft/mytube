@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireAdmin } from '../../_auth'
+import { translateAndSaveAnnouncement } from '../_shared'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,8 +22,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         const updates: Record<string, unknown> = { updated_by: requester.user.id, updated_at: new Date().toISOString() }
         const now = new Date().toISOString()
 
-        if (typeof body.title === 'string') updates.title = body.title.trim().slice(0, 200)
-        if (typeof body.body === 'string') updates.body = body.body.trim().slice(0, 10000)
+        const nextTitle = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : undefined
+        const nextBody = typeof body.body === 'string' ? body.body.trim().slice(0, 10000) : undefined
+        if (nextTitle !== undefined) updates.title = nextTitle
+        if (nextBody !== undefined) updates.body = nextBody
         if (typeof body.is_pinned === 'boolean') {
             updates.is_pinned = body.is_pinned
             updates.pinned_at = body.is_pinned ? now : null
@@ -33,15 +36,36 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         }
 
         const supabase = getAdmin()
+
+        // AIR-0229: title/body가 바뀌면 en/vi/th 번역이 원문과 어긋나므로 다시
+        // 번역해야 한다 - 기존 값과 비교하기 위해 갱신 전에 한 번 읽는다.
+        let contentChanged = false
+        if (nextTitle !== undefined || nextBody !== undefined) {
+            const { data: existing } = await supabase
+                .from('announcements')
+                .select('title, body')
+                .eq('id', params.id)
+                .maybeSingle()
+            if (existing) {
+                contentChanged = (nextTitle !== undefined && nextTitle !== existing.title) ||
+                    (nextBody !== undefined && nextBody !== existing.body)
+            }
+        }
+        if (contentChanged) updates.translation_status = 'pending'
+
         const { data, error } = await supabase
             .from('announcements')
             .update(updates)
             .eq('id', params.id)
-            .select('id')
+            .select('id, title, body')
             .maybeSingle()
 
         if (error) throw error
         if (!data) return NextResponse.json({ error: 'Announcement not found' }, { status: 404 })
+
+        if (contentChanged) {
+            await translateAndSaveAnnouncement(data.id, data.title, data.body, supabase)
+        }
 
         return NextResponse.json({ status: 'ok' })
     } catch (error: any) {
