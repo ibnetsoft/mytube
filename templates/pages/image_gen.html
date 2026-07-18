@@ -181,7 +181,10 @@
             </div>
             <span id="workflowToggleIcon" class="text-white transform transition-transform duration-200">▼</span>
         </button>
-        <div id="workflowGuideContent" class="p-4 space-y-1 relative">
+        <div id="workflowGuideContent" class="p-4 relative">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <!-- Left column: STEP 1-7 checklist -->
+        <div class="space-y-1">
             <!-- Step 1 -->
             <div class="flex items-start gap-3 p-3 rounded-lg border border-white/5 hover:bg-[#232832] transition-colors relative z-10">
                 <input type="checkbox" disabled id="wf_step1" class="mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 bg-transparent cursor-not-allowed">
@@ -203,14 +206,13 @@
                             <span>STEP 2: {{ t('workflow_step2') }}</span>
                             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
                         </span>
-                        <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step2_expl') }}</p>
                         <p class="text-xs text-amber-300/80 mt-1 flex items-center gap-1">
                             <span>💡</span> {{ t('workflow_step2_desc') }}
                         </p>
                     </label>
                     <div class="flex flex-col gap-1.5 mt-2">
                         <div class="flex gap-2">
-                            <button type="button" onclick="copyAllPrompts()" class="px-3 py-1.5 bg-[#2a303b] hover:bg-[#323946] border border-white/10 text-xs text-white rounded transition-colors flex items-center gap-1"><span>📋</span> Prompt 복사</button>
+                            <button type="button" onclick="copyAllPrompts()" class="px-3 py-1.5 bg-[#2a303b] hover:bg-[#323946] border border-white/10 text-xs text-white rounded transition-colors flex items-center gap-1"><span>📋</span> {{ t('btn_copy_prompt') }}</button>
                             <a href="https://chatgpt.com/" target="_blank" class="px-3 py-1.5 bg-[#10a37f]/90 hover:bg-[#10a37f] border border-[#10a37f]/50 text-xs text-white rounded transition-colors flex items-center gap-1"><span>🤖</span> Open ChatGPT</a>
                         </div>
                         <p class="text-[11px] text-gray-400 ml-1 mt-1 leading-relaxed">{{ t('workflow_step2_chatgpt_hint') | safe }}</p>
@@ -229,9 +231,6 @@
                             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ t('workflow_badge_external') }}</span>
                         </span>
                         <p class="text-xs text-gray-400 mt-1">→ {{ t('workflow_step3_expl') }}</p>
-                        <p class="text-xs text-green-300/80 mt-1 flex items-center gap-1 leading-tight">
-                            <span>💰</span> <span>{{ t('workflow_step3_desc') | safe }}</span>
-                        </p>
                     </label>
                 </div>
             </div>
@@ -289,6 +288,40 @@
                     </label>
                 </div>
             </div>
+        </div>
+        <!-- Right column: inline Crop tool (STEP 3 실제 작업 공간) -->
+        <div class="bg-[#1c2027] rounded-lg border border-white/5 p-4 space-y-3 lg:sticky lg:top-4" id="wfCropPanel">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2"><span>✂️</span> <span id="wfc_title"></span></h4>
+                <div class="flex gap-1.5">
+                    <button type="button" onclick="wfcSetGridSize(2,2)" data-cols="2" data-rows="2" class="wfc-grid-btn px-2.5 py-1 rounded text-[10px] font-bold transition-all">2x2</button>
+                    <button type="button" onclick="wfcSetGridSize(3,3)" data-cols="3" data-rows="3" class="wfc-grid-btn px-2.5 py-1 rounded text-[10px] font-bold transition-all">3x3</button>
+                    <button type="button" onclick="wfcSetGridSize(4,3)" data-cols="4" data-rows="3" class="wfc-grid-btn px-2.5 py-1 rounded text-[10px] font-bold transition-all">4x3</button>
+                    <button type="button" onclick="wfcSetGridSize(4,4)" data-cols="4" data-rows="4" class="wfc-grid-btn px-2.5 py-1 rounded text-[10px] font-bold transition-all">4x4</button>
+                </div>
+            </div>
+
+            <div id="wfc-upload-zone" class="border-2 border-dashed border-white/10 hover:border-blue-500/40 bg-[#232832]/50 hover:bg-[#232832]/80 transition-all rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center min-h-[96px]">
+                <input type="file" id="wfc-file-input" class="hidden" accept="image/*" multiple>
+                <div class="text-xl">📥</div>
+                <p class="text-xs font-bold text-gray-300 mt-1" id="wfc_upload_title"></p>
+            </div>
+
+            <div id="wfc-files-list" class="hidden space-y-1.5 max-h-[120px] overflow-y-auto pr-1"></div>
+
+            <button onclick="wfcCropAll()" id="wfc-crop-all-btn" class="hidden w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs py-2.5 rounded-lg transition flex items-center justify-center gap-1.5">
+                <span>⚡</span> <span id="wfc_crop_btn_text"></span>
+            </button>
+
+            <div id="wfc-results" class="hidden space-y-3 pt-2 border-t border-white/5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-gray-400" id="wfc_results_title"></span>
+                    <button onclick="wfcImportAll()" id="wfc-import-all-btn" class="text-[10px] px-2.5 py-1 rounded bg-blue-600 text-white font-bold hover:bg-blue-500"></button>
+                </div>
+                <div id="wfc-panels-container" class="space-y-3 max-h-[420px] overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+        </div>
         </div>
     </div>
 </div>
@@ -1278,6 +1311,43 @@
         setTimeout(() => globalTextarea.classList.remove('ring-2', 'ring-indigo-400'), 500);
     }
 
+    // [FIX] AIR-0209 이후 /api/image/generate-prompts는 기획 단계에서 확정된
+    // scenes[] (Scene Source of Truth)를 필수로 요구한다. 로컬 scriptStructure
+    // -> DB(script_structure) 순으로 조회하며, scene 모드에서는 scenes[]가
+    // sections 컬럼에 그대로 저장되므로 둘 다 확인한다.
+    async function resolvePlannedScenes() {
+        const pick = (s) => {
+            if (!s) return null;
+            const inner = s.structure || s;
+            if (Array.isArray(inner.scenes) && inner.scenes.length > 0) return inner.scenes;
+            if (Array.isArray(inner.sections) && inner.sections.length > 0) return inner.sections;
+            return null;
+        };
+
+        let scenes = pick(Utils.storage.get('scriptStructure'));
+
+        if (!scenes) {
+            const projectId = getCurrentProject();
+            if (projectId) {
+                try {
+                    const res = await fetch(`/api/projects/${projectId}/full`);
+                    const data = await res.json();
+                    scenes = pick(data.script_structure) || pick(data.structure);
+                } catch (e) {
+                    console.error("Failed to fetch planned scenes from DB:", e);
+                }
+            }
+        }
+
+        if (!scenes) return null;
+
+        // 구식 sections(문자열/{title,key_points})도 백엔드 스키마에 맞게 정규화
+        return scenes.map((s, i) => {
+            if (typeof s === 'string') return { scene_order: i + 1, scene_text: s };
+            return { ...s, scene_order: s.scene_order || (i + 1) };
+        });
+    }
+
     async function generatePrompts() {
         const scriptData = Utils.storage.get('fullScript');
         let script = "";
@@ -1328,11 +1398,18 @@
         Utils.setLoading(btn, true, i18n.status_generating);
 
         try {
-            // [Modified] Pass global prompt separately for intelligent application
-            const result = await API.image.generatePrompts(script, styleVal, parseInt(count), globalPrompt, getCurrentProject());
+            // [FIX] AIR-0209: 기획 단계 scenes[]를 함께 전달 (백엔드 필수 파라미터)
+            const scenes = await resolvePlannedScenes();
+            if (!scenes) {
+                Utils.showToast(i18n.err_no_structure_data || i18n.err_gen_fail, 'warning');
+                return;
+            }
 
-            if (result.status === 'error' || result.error) {
-                Utils.showToast(result.error || i18n.err_gen_fail, 'error');
+            // [Modified] Pass global prompt separately for intelligent application
+            const result = await API.image.generatePrompts(script, styleVal, parseInt(count), globalPrompt, getCurrentProject(), scenes);
+
+            if (result.status === 'error' || result.error || result.detail) {
+                Utils.showToast(result.error || result.detail || i18n.err_gen_fail, 'error');
                 return;
             }
 
@@ -4700,6 +4777,248 @@
         const container = document.getElementById('workflowGuideContainer');
         if (container && container.classList.contains('hidden')) {
             container.classList.remove('hidden');
+        }
+    }
+
+    // ============================================================
+    // [NEW] Inline Crop Tool - 워크플로우 가이드 오른쪽 컬럼(STEP 3 실제 작업 공간).
+    // 별도 "이미지 자르기" 메뉴(templates/pages/image_crop.html)와 로직은 같지만,
+    // 여기서는 현재 프로젝트가 이미 정해져 있으므로 project_id를 URL로 받는 대신
+    // getCurrentProject()를 그대로 쓰고, 잘라낸 패널을 다음 빈 Scene 슬롯에
+    // 순서대로 자동 배정한다.
+    // ============================================================
+    let wfcFiles = [];
+    let wfcCroppedResults = {}; // { fileIdx: { panelIdx: { blob, sceneNumber } } }
+    let wfcGridCols = 2;
+    let wfcGridRows = 2;
+    let wfcEmptySceneQueue = [];
+
+    const wfcLang = "{{ current_lang }}" || window.currentLang || localStorage.getItem('language') || localStorage.getItem('login_lang') || 'ko';
+    const wfcI18n = {
+        title: { ko: '이미지 자르기', en: 'Image Crop', vi: 'Cắt ảnh', th: 'ครอบตัดรูปภาพ' }[wfcLang] || 'Image Crop',
+        uploadTitle: { ko: '격자 이미지를 드래그하거나 클릭하여 업로드', en: 'Drag & drop or click to upload grid images', vi: 'Kéo thả hoặc nhấp để tải ảnh lưới', th: 'ลากวางหรือคลิกเพื่ออัปโหลดรูปภาพตาราง' }[wfcLang] || 'Drag & drop or click to upload grid images',
+        cropAllBtn: { ko: '모든 파일 한 번에 자르기', en: 'Batch Crop All Files', vi: 'Cắt tất cả các tệp', th: 'ตัดไฟล์ทั้งหมด' }[wfcLang] || 'Batch Crop All Files',
+        processing: { ko: '자르는 중...', en: 'Cropping...', vi: 'Đang cắt...', th: 'กำลังตัด...' }[wfcLang] || 'Cropping...',
+        resultsTitle: { ko: '잘라낸 결과', en: 'Cropped Results', vi: 'Kết quả', th: 'ผลลัพธ์' }[wfcLang] || 'Cropped Results',
+        importAllBtn: { ko: '모두 Scene에 삽입', en: 'Import All to Scenes', vi: 'Nhập tất cả vào Scene', th: 'นำเข้าทั้งหมดไปยัง Scene' }[wfcLang] || 'Import All to Scenes',
+        download: { ko: '다운로드', en: 'Download', vi: 'Tải xuống', th: 'ดาวน์โหลด' }[wfcLang] || 'Download',
+        noProject: { ko: '먼저 프로젝트를 선택해주세요.', en: 'Please select a project first.', vi: 'Vui lòng chọn dự án trước.', th: 'กรุณาเลือกโปรเจกต์ก่อน' }[wfcLang] || 'Please select a project first.',
+        noEmptySlot: { ko: '빈 슬롯 없음', en: 'No empty slot', vi: 'Không còn ô trống', th: 'ไม่มีช่องว่าง' }[wfcLang] || 'No empty slot',
+        importTo: { ko: 'Scene {n}에 삽입', en: 'Import to Scene {n}', vi: 'Nhập vào Scene {n}', th: 'นำเข้าไปยัง Scene {n}' }[wfcLang] || 'Import to Scene {n}',
+        imported: { ko: 'Scene {n} 완료', en: 'Scene {n} done', vi: 'Scene {n} xong', th: 'Scene {n} เสร็จแล้ว' }[wfcLang] || 'Scene {n} done',
+        successToast: { ko: '일괄 자르기가 완료되었습니다!', en: 'Batch cropping completed!', vi: 'Đã cắt hàng loạt xong!', th: 'ตัดรูปภาพเสร็จแล้ว!' }[wfcLang] || 'Batch cropping completed!',
+        errorToast: { ko: '자르기 오류: ', en: 'Crop error: ', vi: 'Lỗi cắt ảnh: ', th: 'เกิดข้อผิดพลาด: ' }[wfcLang] || 'Crop error: ',
+        importSuccessToast: { ko: '{n}개 Scene에 삽입 완료', en: '{n} scene(s) imported', vi: 'Đã nhập {n} scene', th: 'นำเข้า {n} Scene แล้ว' }[wfcLang] || '{n} scene(s) imported',
+    };
+
+    document.getElementById('wfc_title').textContent = wfcI18n.title;
+    document.getElementById('wfc_upload_title').textContent = wfcI18n.uploadTitle;
+    document.getElementById('wfc_crop_btn_text').textContent = wfcI18n.cropAllBtn;
+    document.getElementById('wfc_results_title').textContent = wfcI18n.resultsTitle;
+    document.getElementById('wfc-import-all-btn').textContent = wfcI18n.importAllBtn;
+
+    function wfcGetPanelCount() { return wfcGridCols * wfcGridRows; }
+
+    function wfcSetGridSize(cols, rows) {
+        wfcGridCols = cols;
+        wfcGridRows = rows;
+        document.querySelectorAll('.wfc-grid-btn').forEach(btn => {
+            const active = Number(btn.dataset.cols) === cols && Number(btn.dataset.rows) === rows;
+            btn.className = `wfc-grid-btn px-2.5 py-1 rounded text-[10px] font-bold transition-all ${active ? 'bg-blue-600 text-white' : 'bg-[#232832] text-gray-400 hover:text-white'}`;
+        });
+    }
+    wfcSetGridSize(2, 2);
+
+    const wfcUploadZone = document.getElementById('wfc-upload-zone');
+    const wfcFileInput = document.getElementById('wfc-file-input');
+    const wfcFilesList = document.getElementById('wfc-files-list');
+    const wfcCropAllBtn = document.getElementById('wfc-crop-all-btn');
+    const wfcResultsSection = document.getElementById('wfc-results');
+    const wfcPanelsContainer = document.getElementById('wfc-panels-container');
+
+    wfcUploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        wfcUploadZone.classList.add('border-blue-500', 'bg-blue-500/5');
+    });
+    wfcUploadZone.addEventListener('dragleave', () => {
+        wfcUploadZone.classList.remove('border-blue-500', 'bg-blue-500/5');
+    });
+    wfcUploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        wfcUploadZone.classList.remove('border-blue-500', 'bg-blue-500/5');
+        if (e.dataTransfer.files.length > 0) wfcAddFiles(e.dataTransfer.files);
+    });
+    wfcUploadZone.addEventListener('click', (e) => {
+        if (e.target !== wfcFileInput) wfcFileInput.click();
+    });
+    wfcFileInput.addEventListener('change', () => {
+        if (wfcFileInput.files.length > 0) wfcAddFiles(wfcFileInput.files);
+    });
+
+    function wfcAddFiles(fileList) {
+        for (let i = 0; i < fileList.length; i++) wfcFiles.push(fileList[i]);
+        wfcRenderFilesList();
+    }
+
+    function wfcRemoveFile(idx) {
+        wfcFiles.splice(idx, 1);
+        delete wfcCroppedResults[idx];
+        wfcRenderFilesList();
+    }
+
+    function wfcRenderFilesList() {
+        if (wfcFiles.length === 0) {
+            wfcFilesList.classList.add('hidden');
+            wfcCropAllBtn.classList.add('hidden');
+            return;
+        }
+        wfcFilesList.classList.remove('hidden');
+        wfcCropAllBtn.classList.remove('hidden');
+        wfcFilesList.innerHTML = wfcFiles.map((file, idx) => `
+            <div class="flex items-center justify-between px-2.5 py-1.5 rounded bg-[#232832]/60 border border-white/5 text-[11px]">
+                <span class="truncate flex-1 text-gray-300">${file.name}</span>
+                <button onclick="wfcRemoveFile(${idx})" class="ml-2 text-gray-500 hover:text-red-400">✕</button>
+            </div>
+        `).join('');
+    }
+
+    async function wfcLoadProjectScenes(projectId) {
+        let scenes = [];
+        try {
+            const res = await fetch(`/api/projects/${projectId}/image-prompts`);
+            const result = await res.json();
+            scenes = result.prompts || [];
+        } catch (e) {
+            console.error('wfc: failed to load project scenes', e);
+        }
+        wfcEmptySceneQueue = scenes
+            .filter(s => !s.image_url)
+            .map(s => Number(s.scene_number))
+            .sort((a, b) => a - b);
+    }
+
+    function wfcNextEmptyScene() {
+        return wfcEmptySceneQueue.length ? wfcEmptySceneQueue.shift() : null;
+    }
+
+    async function wfcCropAll() {
+        if (wfcFiles.length === 0) return;
+        const projectId = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
+        if (!projectId) {
+            Utils.showToast(wfcI18n.noProject, 'warning');
+            return;
+        }
+
+        Utils.setLoading(wfcCropAllBtn, true, wfcI18n.processing);
+        wfcPanelsContainer.innerHTML = '';
+        wfcCroppedResults = {};
+        const panelCount = wfcGetPanelCount();
+
+        try {
+            await wfcLoadProjectScenes(projectId);
+
+            for (let fIdx = 0; fIdx < wfcFiles.length; fIdx++) {
+                const file = wfcFiles[fIdx];
+                wfcCroppedResults[fIdx] = {};
+
+                const fileGroup = document.createElement('div');
+                fileGroup.innerHTML = `
+                    <p class="text-[10px] font-bold text-gray-500 truncate mb-1.5">${file.name}</p>
+                    <div class="grid gap-2" style="grid-template-columns: repeat(${Math.min(wfcGridCols, 4)}, minmax(0, 1fr))" id="wfc-panels-grid-${fIdx}"></div>
+                `;
+                wfcPanelsContainer.appendChild(fileGroup);
+                const panelsGrid = document.getElementById(`wfc-panels-grid-${fIdx}`);
+
+                for (let panelIdx = 1; panelIdx <= panelCount; panelIdx++) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('panel', panelIdx);
+                    formData.append('cols', wfcGridCols);
+                    formData.append('rows', wfcGridRows);
+
+                    const res = await fetch('/api/settings/crop-grid', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error(`${file.name} -> panel ${panelIdx}`);
+                    const blob = await res.blob();
+                    const sceneNumber = wfcNextEmptyScene();
+                    wfcCroppedResults[fIdx][panelIdx] = { blob, sceneNumber };
+
+                    const objectURL = URL.createObjectURL(blob);
+                    const card = document.createElement('div');
+                    card.className = 'bg-[#232832]/60 rounded-lg border border-white/5 p-1.5 flex flex-col gap-1';
+                    card.innerHTML = `
+                        <div class="aspect-video bg-black rounded overflow-hidden border border-white/10 relative">
+                            <img src="${objectURL}" class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex gap-1">
+                            <a href="${objectURL}" download="${file.name.replace(/\.[^.]+$/, '')}_p${panelIdx}.png" class="flex-1 py-1 bg-[#1c2027] hover:bg-white/5 text-gray-400 rounded text-[9px] font-bold text-center">${wfcI18n.download}</a>
+                            <button id="wfc-import-${fIdx}-${panelIdx}"
+                                    onclick="wfcImportPanel(${fIdx}, ${panelIdx})"
+                                    ${sceneNumber ? '' : 'disabled'}
+                                    class="flex-1 py-1 rounded text-[9px] font-bold ${sceneNumber ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}">
+                                ${sceneNumber ? wfcI18n.importTo.replace('{n}', sceneNumber) : wfcI18n.noEmptySlot}
+                            </button>
+                        </div>
+                    `;
+                    panelsGrid.appendChild(card);
+                }
+            }
+
+            wfcResultsSection.classList.remove('hidden');
+            Utils.showToast(wfcI18n.successToast, 'success');
+            if (typeof autoCheckWorkflowStep === 'function') autoCheckWorkflowStep(3);
+        } catch (e) {
+            console.error(e);
+            Utils.showToast(`${wfcI18n.errorToast}${e.message}`, 'error');
+        } finally {
+            Utils.setLoading(wfcCropAllBtn, false);
+        }
+    }
+
+    async function wfcImportPanel(fIdx, panelIdx, quiet = false) {
+        const entry = wfcCroppedResults[fIdx]?.[panelIdx];
+        if (!entry || !entry.sceneNumber) return false;
+        const projectId = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
+        if (!projectId) return false;
+
+        const button = document.getElementById(`wfc-import-${fIdx}-${panelIdx}`);
+        if (button) button.disabled = true;
+
+        const file = new File([entry.blob], `scene_${String(entry.sceneNumber).padStart(3, '0')}_crop.png`, { type: 'image/png' });
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('project_id', projectId);
+        formData.append('scene_number', entry.sceneNumber);
+        formData.append('replace_existing', 'false');
+
+        try {
+            const response = await fetch('/api/image/upload-scene', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (!response.ok || result.status !== 'ok') throw new Error(result.error || 'Import failed');
+            if (button) {
+                button.textContent = wfcI18n.imported.replace('{n}', entry.sceneNumber);
+                button.className = 'flex-1 py-1 rounded text-[9px] font-bold bg-emerald-600/20 text-emerald-400';
+            }
+            if (!quiet) Utils.showToast(wfcI18n.imported.replace('{n}', entry.sceneNumber), 'success');
+            return true;
+        } catch (error) {
+            if (button) button.disabled = false;
+            if (!quiet) Utils.showToast(`${wfcI18n.errorToast}${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    async function wfcImportAll() {
+        let imported = 0;
+        for (const fIdx of Object.keys(wfcCroppedResults)) {
+            for (const panelIdx of Object.keys(wfcCroppedResults[fIdx])) {
+                const ok = await wfcImportPanel(Number(fIdx), Number(panelIdx), true);
+                if (ok) imported += 1;
+            }
+        }
+        Utils.showToast(wfcI18n.importSuccessToast.replace('{n}', imported), imported ? 'success' : 'warning');
+        // 방금 삽입한 결과가 위쪽 Scene 그리드에도 바로 반영되도록 새로고침한다.
+        if (typeof loadPromptsFromServer === 'function') {
+            try { loadPromptsFromServer(); } catch (e) { /* ignore */ }
         }
     }
 
