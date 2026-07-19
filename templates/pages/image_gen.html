@@ -215,6 +215,7 @@
                             <button type="button" onclick="copyAllPrompts()" class="px-3 py-1.5 bg-[#2a303b] hover:bg-[#323946] border border-white/10 text-xs text-white rounded transition-colors flex items-center gap-1"><span>📋</span> {{ t('btn_copy_prompt') }}</button>
                             <a href="https://chatgpt.com/" target="_blank" class="px-3 py-1.5 bg-[#10a37f]/90 hover:bg-[#10a37f] border border-[#10a37f]/50 text-xs text-white rounded transition-colors flex items-center gap-1"><span>🤖</span> Open ChatGPT</a>
                         </div>
+                        <div id="wf_step2_grid_copy_buttons" class="flex flex-wrap gap-2 mt-2"></div>
                         <p class="text-[11px] text-gray-400 ml-1 mt-1 leading-relaxed">{{ t('workflow_step2_chatgpt_hint') | safe }}</p>
                     </div>
                 </div>
@@ -1353,11 +1354,8 @@
         Utils.setLoading(btn, true, i18n.status_generating);
 
         try {
-            // [FIX] api.js의 generatePrompts 시그니처가 (script, style, count,
-            // characterReference, projectId, scenes)로 바뀌었는데 이 호출부는
-            // 옛 시그니처(scenes가 1번 인자)로 호출하고 있었다 - scenes가 script
-            // 자리로 잘못 들어가고 실제 scenes 인자는 비어서 매번 400으로 실패했다.
-            const result = await API.image.generatePrompts(null, styleVal, parseInt(count), globalPrompt, projectId, scenes);
+            // [Modified] Pass global prompt separately for intelligent application
+            const result = await API.image.generatePrompts(scenes, styleVal, parseInt(count), globalPrompt, projectId);
 
             if (result.status === 'error' || result.error || result.detail) {
                 Utils.showToast(result.error || result.detail || i18n.err_gen_fail, 'error');
@@ -1464,35 +1462,32 @@
 
         const container = document.getElementById('promptsList');
 
-        // 상단 격자형 프롬프트 복사 패널 동적 추가
+        // [FIX] STEP 2 섹션에 격자(N~M) 복사 버튼 렌더링. 예전엔 프롬프트 원문을
+        // encodeURIComponent()로 인코딩해 onclick 속성 문자열 안에 그대로 박아 넣었는데,
+        // encodeURIComponent는 작은따옴표(')를 이스케이프하지 않아서 장면 텍스트에
+        // 아포스트로피가 하나라도 들어가면 그 버튼의 onclick이 깨져 "안 눌리는" 버튼이
+        // 생겼다 (어떤 청크가 깨지는지는 그 청크 텍스트에 '가 있느냐에 따라 달라짐).
+        // 이제는 문자열을 속성에 넣지 않고 배열에 저장한 뒤 인덱스로만 호출한다.
         const generatedGridScenes = data.filter(scene => String(
             scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || ''
         ).trim());
-        let gridPanelHtml = '';
+        window.gridPromptChunks = [];
+        const step2GridButtonsEl = document.getElementById('wf_step2_grid_copy_buttons');
         if (generatedGridScenes.length > 0) {
-            let titleText = "2x2 격자 이미지 생성 프롬프트 (ChatGPT/DALL-E용 복사)";
             let copyText = "복사";
             let gridText = "씬 격자";
             let copyToastText = "격자 프롬프트 복사 완료!";
             if (window.currentLang === 'vi') {
-                titleText = "Prompt tạo ảnh lưới 2x2 (Sao chép cho ChatGPT/DALL-E)";
                 copyText = "Sao chép";
                 gridText = "Ghép cảnh";
                 copyToastText = "Sao chép prompt lưới thành công!";
             } else if (window.currentLang === 'th') {
-                titleText = "พรอมต์สร้างภาพ 2x2 (คัดลอกสำหรับ ChatGPT/DALL-E)";
                 copyText = "คัดลอก";
                 gridText = "ฉากกริด";
                 copyToastText = "คัดลอกพรอมต์กริดสำเร็จ!";
             }
-            gridPanelHtml = `
-            <div class="mb-6 bg-[#232832] p-4 rounded-xl border border-white/5 shadow-md">
-                <h4 class="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
-                    <span>🖼️</span> ${titleText}
-                </h4>
-                <div class="flex flex-wrap gap-3">
-            `;
             const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
+            let gridButtonsHtml = '';
             for (let i = 0; i < generatedGridScenes.length; i += 4) {
                 const chunk = generatedGridScenes.slice(i, i + 4);
                 let gridPrompt = `Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Each of the 4 panels must have a widescreen ${ratio} aspect ratio. There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. The panels must touch seamlessly. Each panel must represent one scene:\n`;
@@ -1503,29 +1498,28 @@
                 });
                 gridPrompt += `\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid with absolutely NO black borders, NO outlines, NO white borders, and NO dividing lines/crosses. Every panel must seamlessly connect to the edge with a ${ratio} aspect ratio. No more, no less. Maintain consistent characters across all panels.`;
 
-                const encodedPrompt = encodeURIComponent(gridPrompt);
+                const chunkIndex = window.gridPromptChunks.length;
+                window.gridPromptChunks.push({ text: gridPrompt, toast: copyToastText });
 
-                gridPanelHtml += `
+                gridButtonsHtml += `
                     <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-2 rounded-lg border border-white/5">
                         <span class="text-xs text-gray-300 font-bold">${gridText} ${i+1}~${i + chunk.length}</span>
-                        <button onclick="Utils.copyToClipboard(decodeURIComponent('${encodedPrompt}')); Utils.showToast('${copyToastText}', 'success')"
+                        <button type="button" onclick="copyGridPromptChunk(${chunkIndex})"
                                 class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded transition-colors">
                             ${copyText}
                         </button>
                     </div>
                 `;
             }
-            gridPanelHtml += `
-                </div>
-            </div>
-            `;
+            if (step2GridButtonsEl) step2GridButtonsEl.innerHTML = gridButtonsHtml;
+        } else if (step2GridButtonsEl) {
+            step2GridButtonsEl.innerHTML = '';
         }
 
         // Change to vertical list layout
         container.className = 'space-y-4';
 
-        let listHtml = gridPanelHtml;
-        listHtml += data.map((p, i) => {
+        let listHtml = data.map((p, i) => {
             // [FIX] Resilience: if image_url contains a video file (due to previous bug), swap it to video_url
             if (p.image_url && (p.image_url.toLowerCase().endsWith('.mp4') || p.image_url.toLowerCase().endsWith('.mov')) && !p.video_url) {
                 p.video_url = p.image_url;
@@ -2318,6 +2312,13 @@
         const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || p.scene || ''}\n${p.prompt_en || p.prompt_content || p.prompt || ''}`).join('\n\n');
         Utils.copyToClipboard(text);
         Utils.showToast('All copied', 'success');
+    }
+
+    function copyGridPromptChunk(idx) {
+        const chunk = window.gridPromptChunks && window.gridPromptChunks[idx];
+        if (!chunk) return;
+        Utils.copyToClipboard(chunk.text);
+        Utils.showToast(chunk.toast || 'Copied!', 'success');
     }
 
     async function downloadAllImages() {
