@@ -636,16 +636,34 @@
         }
     }
 
-    function downloadSingleFileBlob(fIdx, panelIdx) {
-        if (!croppedResults[fIdx] || !croppedResults[fIdx][panelIdx]) return;
-        const blob = croppedResults[fIdx][panelIdx];
-        const url = URL.createObjectURL(blob);
+    async function downloadBlobViaServer(blob, filename) {
+        // [FIX] pywebview의 Windows(EdgeChromium) 백엔드는 blob: URL에 대한
+        // <a download> 트리거를 지원하지 않아 다운로드 버튼이 조용히 아무
+        // 반응이 없었다. blob을 서버 임시 폴더에 저장해 실제 /output/... URL로
+        // 받아온 뒤 그걸로 다운로드한다.
+        const formData = new FormData();
+        formData.append('file', blob, filename);
+        formData.append('filename', filename);
+        const res = await fetch('/api/settings/save-temp-download', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
         const a = document.createElement('a');
-        a.href = url;
-        a.download = getCroppedFilename(fIdx, panelIdx);
+        a.href = data.url;
+        a.download = data.filename || filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+
+    async function downloadSingleFileBlob(fIdx, panelIdx) {
+        if (!croppedResults[fIdx] || !croppedResults[fIdx][panelIdx]) return;
+        const blob = croppedResults[fIdx][panelIdx];
+        try {
+            await downloadBlobViaServer(blob, getCroppedFilename(fIdx, panelIdx));
+        } catch (e) {
+            console.error('downloadSingleFileBlob failed', e);
+            Utils.showToast(`Download failed: ${e.message}`, 'error');
+        }
     }
 
     async function importCroppedPanel(fIdx, panelIdx, quiet = false) {
@@ -722,15 +740,14 @@
 
         Utils.showToast(i18nCrop.zipProcessing, 'info');
         const content = await zip.generateAsync({ type: 'blob' });
-        
-        const url = URL.createObjectURL(content);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'cropped_images_batch.zip';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        Utils.showToast(i18nCrop.zipSuccess, 'success');
+
+        try {
+            await downloadBlobViaServer(content, 'cropped_images_batch.zip');
+            Utils.showToast(i18nCrop.zipSuccess, 'success');
+        } catch (e) {
+            console.error('downloadAllZip failed', e);
+            Utils.showToast(`Download failed: ${e.message}`, 'error');
+        }
     }
 </script>
 {% endblock %}

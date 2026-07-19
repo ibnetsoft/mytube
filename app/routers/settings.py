@@ -1072,6 +1072,46 @@ async def crop_grid_image(
     except Exception as e:
         raise HTTPException(500, f"이미지 자르기 실패: {str(e)}")
 
+
+@router.post("/save-temp-download")
+async def save_temp_download(
+    file: UploadFile = File(...),
+    filename: str = Form(...),
+):
+    """[FIX] pywebview의 Windows(EdgeChromium) 백엔드는 blob: URL에 대한
+    <a download> 트리거를 지원하지 않아, 크롭 패널 다운로드 버튼이 브라우저에선
+    되고 실제 설치본에서는 조용히 아무 일도 안 일어나는 문제가 있었다. 방금
+    자른 이미지를 서버 임시 폴더에 실제로 저장해 /output/... 실제 URL로
+    돌려주면, 그건 일반 네트워크 리소스라 정상적으로 다운로드된다."""
+    safe_name = os.path.basename(filename).strip() or "download.png"
+    # 확장자만 남기고 나머지는 영숫자/./-/_ 로 제한 (경로 조작 방지)
+    safe_name = "".join(c for c in safe_name if c.isalnum() or c in "._-") or "download.png"
+
+    tmp_dir = os.path.join(config.OUTPUT_DIR, "tmp_downloads")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    # 오래된 임시 다운로드 파일 정리 (별도 스케줄러 없이, 새 다운로드가 생길 때
+    # 기회적으로 24시간 지난 파일들을 지운다 - 저사용 로컬 데스크톱 앱이라
+    # 이 정도로 충분하고 전용 cron job을 새로 만들 필요는 없다)
+    try:
+        cutoff = time.time() - 24 * 3600
+        for name in os.listdir(tmp_dir):
+            path = os.path.join(tmp_dir, name)
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+    except Exception:
+        pass
+
+    unique_name = f"{uuid.uuid4().hex}_{safe_name}"
+    dest_path = os.path.join(tmp_dir, unique_name)
+
+    content = await file.read()
+    with open(dest_path, "wb") as f:
+        f.write(content)
+
+    return {"url": f"/output/tmp_downloads/{unique_name}", "filename": safe_name}
+
+
 from pydantic import BaseModel
 class WithdrawalRequest(BaseModel):
     amount: float
