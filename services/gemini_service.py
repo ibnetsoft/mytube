@@ -1404,6 +1404,7 @@ Rules:
 - English only.
 - Include: [camera movement] + [character action] + [background/environment movement] + [atmosphere/lighting]
 - Be SPECIFIC to THIS scene — avoid generic phrases like "character looks up" unless the scene calls for it.
+- Do NOT describe or request any dialogue, speech, narration, singing, sound effects, or audio of any kind — this video will use a separately recorded voice-over track, and any audio the video model generates on its own would clash with it. Visual motion only.
 
 Camera options (choose what fits the mood):
   Crisis/fall: slow push in, dramatic zoom in, slight camera shake, tilt down
@@ -2190,7 +2191,11 @@ Motion prompt for this image:"""
                     image=image_arg,
                     config={
                         'number_of_videos': 1,
-                        'aspect_ratio': aspect_ratio
+                        'aspect_ratio': aspect_ratio,
+                        # [FIX] 이 영상은 별도로 녹음된 TTS 나레이션 트랙과 합성되므로,
+                        # Veo가 자체적으로 대사/음성/효과음을 생성하면 실제 나레이션과
+                        # 충돌한다. generate_audio=False로 무음 클립만 받는다.
+                        'generate_audio': False,
                     }
                 )
                 self.log_debug(f"🎬 [Veo] Operation started: {type(operation).__name__} (id: {getattr(operation, 'id', 'unknown')})")
