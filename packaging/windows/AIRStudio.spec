@@ -17,6 +17,21 @@ try:
 except Exception:
     pass
 
+# [FIX] moviepy(via imageio) reads its own package metadata at import time.
+# Without it bundled, the FIRST `from moviepy import ...` attempt in
+# services/tts_service.py raises "No package metadata was found for
+# imageio", which leaves moviepy.audio.AudioClip partially initialized in
+# sys.modules - every subsequent fallback import then fails with the more
+# confusing "cannot import name 'CompositeAudioClip' from partially
+# initialized module ... (most likely due to a circular import)", which is
+# what actually surfaced as a broken TTS generation button in v2.3.13/14.
+# Reproduced and confirmed fixed with a minimal PyInstaller build before
+# adding this.
+try:
+    datas += copy_metadata("imageio")
+except Exception:
+    pass
+
 pykakasi_datas, pykakasi_binaries, pykakasi_hiddenimports = collect_all("pykakasi")
 datas += pykakasi_datas
 binaries += pykakasi_binaries
