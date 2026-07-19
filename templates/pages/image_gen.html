@@ -4986,6 +4986,7 @@
                     wfcCroppedResults[fIdx][panelIdx] = { blob, sceneNumber };
 
                     const objectURL = URL.createObjectURL(blob);
+                    const downloadName = `${file.name.replace(/\.[^.]+$/, '')}_p${panelIdx}.png`;
                     const card = document.createElement('div');
                     card.className = 'bg-[#232832]/60 rounded-lg border border-white/5 p-1.5 flex flex-col gap-1';
                     card.innerHTML = `
@@ -4993,7 +4994,7 @@
                             <img src="${objectURL}" class="w-full h-full object-cover">
                         </div>
                         <div class="flex gap-1">
-                            <a href="${objectURL}" download="${file.name.replace(/\.[^.]+$/, '')}_p${panelIdx}.png" class="flex-1 py-1 bg-[#1c2027] hover:bg-white/5 text-gray-400 rounded text-[9px] font-bold text-center">${wfcI18n.download}</a>
+                            <button type="button" onclick="wfcDownloadPanel(${fIdx}, ${panelIdx}, '${downloadName}')" class="flex-1 py-1 bg-[#1c2027] hover:bg-white/5 text-gray-400 rounded text-[9px] font-bold text-center">${wfcI18n.download}</button>
                             <button id="wfc-import-${fIdx}-${panelIdx}"
                                     onclick="wfcImportPanel(${fIdx}, ${panelIdx})"
                                     ${sceneNumber ? '' : 'disabled'}
@@ -5014,6 +5015,32 @@
             Utils.showToast(`${wfcI18n.errorToast}${e.message}`, 'error');
         } finally {
             Utils.setLoading(wfcCropAllBtn, false);
+        }
+    }
+
+    async function wfcDownloadPanel(fIdx, panelIdx, filename) {
+        // [FIX] pywebview의 Windows(EdgeChromium) 백엔드는 blob: URL에 대한
+        // <a download> 트리거를 지원하지 않아 다운로드 버튼이 조용히 아무
+        // 반응이 없었다. 크롭된 이미지를 서버 임시 폴더에 저장해 실제
+        // /output/... URL을 받아온 뒤 그걸로 다운로드한다.
+        const entry = wfcCroppedResults[fIdx]?.[panelIdx];
+        if (!entry) return;
+        try {
+            const formData = new FormData();
+            formData.append('file', entry.blob, filename);
+            formData.append('filename', filename);
+            const res = await fetch('/api/settings/save-temp-download', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const a = document.createElement('a');
+            a.href = data.url;
+            a.download = data.filename || filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (e) {
+            console.error('wfcDownloadPanel failed', e);
+            Utils.showToast(`${wfcI18n.errorToast}${e.message}`, 'error');
         }
     }
 
