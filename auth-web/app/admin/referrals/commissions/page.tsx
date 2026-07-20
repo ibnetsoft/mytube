@@ -28,7 +28,7 @@ export default function CommissionsPage() {
             .then(res => res.json())
             .then(json => {
                 if (json.success) { setRows(json.data.rows); setTotal(json.data.total) }
-                else setError(json.error || 'Failed to load commissions')
+                else setError(json.error || '커미션 내역을 불러오지 못했습니다')
             })
             .catch(e => setError(e.message))
             .finally(() => setLoading(false))
@@ -53,25 +53,25 @@ export default function CommissionsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                 <select className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={level} onChange={e => { setPage(1); setLevel(e.target.value) }}>
-                    <option value="">All Levels</option>
-                    <option value="1">Level 1</option>
-                    <option value="2">Level 2</option>
+                    <option value="">전체 단계</option>
+                    <option value="1">1단계</option>
+                    <option value="2">2단계</option>
                 </select>
                 <input type="date" className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={from} onChange={e => { setPage(1); setFrom(e.target.value) }} />
                 <input type="date" className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={to} onChange={e => { setPage(1); setTo(e.target.value) }} />
                 <input className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm sm:col-span-2"
-                    placeholder="Search member" value={member} onChange={e => { setPage(1); setMember(e.target.value) }} />
+                    placeholder="멤버 검색" value={member} onChange={e => { setPage(1); setMember(e.target.value) }} />
                 <button className="px-3 py-2 rounded bg-gray-800 text-sm" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
-                    {sortDir === 'asc' ? '↑ Oldest first' : '↓ Newest first'}
+                    {sortDir === 'asc' ? '↑ 오래된순' : '↓ 최신순'}
                 </button>
             </div>
 
             <div className="flex justify-end">
                 <button onClick={exportCsv} disabled={rows.length === 0}
                     className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-sm">
-                    Export CSV (current page)
+                    CSV 내보내기 (현재 페이지)
                 </button>
             </div>
 
@@ -85,10 +85,10 @@ export default function CommissionsPage() {
                             <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
                                 <tr>
                                     <th className="px-3 py-2 text-left">발생일</th>
-                                    <th className="px-3 py-2 text-left">Level</th>
-                                    <th className="px-3 py-2 text-left">Beneficiary</th>
+                                    <th className="px-3 py-2 text-left">단계</th>
+                                    <th className="px-3 py-2 text-left">수령인</th>
                                     <th className="px-3 py-2 text-left">원인 Job</th>
-                                    <th className="px-3 py-2 text-right">Net Settlement Amount*</th>
+                                    <th className="px-3 py-2 text-right">정산 순액*</th>
                                     <th className="px-3 py-2 text-right">적용 %</th>
                                     <th className="px-3 py-2 text-right">수당</th>
                                     <th className="px-3 py-2 text-left">상태</th>
@@ -114,7 +114,7 @@ export default function CommissionsPage() {
             )}
 
             <p className="text-xs text-gray-600">
-                * &quot;Net Settlement Amount&quot; currently reflects <code>base_tokens</code> (the recharge amount today) — the real Net Settlement Amount calculation (refunds/discounts/fees/promotions netted out) is deferred to a future Settlement Engine Specification per <code>AIR-0221D_REFERRAL_ACTIVATION_PLAN.md</code>. Not yet implemented.
+                * &quot;정산 순액&quot;은 현재 <code>base_tokens</code>(당일 충전 금액)를 그대로 반영합니다 — 환불/할인/수수료/프로모션을 뺀 실제 정산 순액 계산은 추후 Settlement Engine 명세에서 구현될 예정으로, 아직 미구현 상태입니다.
             </p>
 
             {ready && !loading && !error && <Pagination page={page} limit={limit} total={total} onPage={setPage} />}

@@ -504,3 +504,77 @@ Future ChatGPT/Codex sessions should use this file to understand what has been d
 - [AIR-0216](../worknote/AIR-0216.md) - Release Pipeline Automation (DONE)
 - [AIR-0217](../worknote/AIR-0217.md) - Real-Install E2E QA (PLANNED — manual)
 - [AIR-0218](../worknote/AIR-0218.md) - GitHub Actions Release Automation (DONE)
+
+### AIR-0227F-0B — User API Key Protection + Desktop Security Build
+- Status: DONE
+- Related files:
+  - `auth-web/app/api/verify/route.ts`
+  - `services/auth_service.py`
+  - `version.py`
+  - GitHub Release `ibnetsoft/AIR-releases` v2.3.7 (build 243, prerelease)
+- Short summary:
+  Extended the `/api/verify` P0 hotfix so personal (BYOK) API keys, not just
+  platform system keys, are withheld unless the caller presents a valid
+  session token. Wired `services/auth_service.py` to capture and send that
+  token. Built and published a test desktop release (v2.3.7, build 243)
+  carrying the fix, deliberately kept as a GitHub prerelease (no auto-update
+  activation, no production `global_settings` change).
+- Next action:
+  See AIR-0227F-0C for release-integrity follow-up; Stage 9 (system key
+  removal) and mandatory-token transition remain open per
+  `docs/AIR_0227F_DESKTOP_AUTH_REDESIGN.md`.
+
+### AIR-0227F-0C — v2.3.7 Release Integrity Fix + Pre-Distribution QA
+- Status: DONE (PR [#78](https://github.com/ibnetsoft/mytube/pull/78), MERGED)
+- Related files:
+  - `release/latest.json`, `release/AIRStudio-2.3.7-win-x64.zip.sha256`
+  - `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`
+  - `project_status/LATEST.md`, `project_status/NEXT_TASK.md`, `worknote/latest.md`
+- Short summary:
+  Corrected the v2.3.7 test release: fixed build-number consistency (243,
+  matching v2.3.6's 242 + 1), removed a `latest.json` `installer_url` field
+  that pointed at a nonexistent asset (confirmed unused by `AIRLauncher.py`/
+  `AIRUpdater.py` before removing), fixed a UTF-8 BOM bug that had been
+  silently breaking the Launcher's local JSON reads, rebuilt and re-uploaded
+  the portable ZIP with a corrected SHA256, marked the GitHub Release
+  prerelease with an explicit test-release banner, and completed a clean-room
+  Launcher execution test in a fresh temp directory. Also discovered and
+  remediated an unplanned ~34-minute window where this release was
+  `/releases/latest` (1 unattributed download during that window); performed
+  a Stage-9 pre-audit (no deletion) of all 5 platform system keys; and
+  cross-referenced the still-open AIR-0225B `SUPABASE_SERVICE_ROLE_KEY`
+  rotation-confirmation gap.
+- Next action:
+  Superseded by AIR-0227F-0D (rebuild) below; AIR-0225B-R0 opened separately
+  for the service_role rotation gap.
+
+### AIR-0227F-0D — v2.3.7 Rebuild + Asset Finalization
+- Status: DONE
+- Related files:
+  - `release/AIRStudio-2.3.7-win-x64.zip`, `release/AIRStudio-2.3.7-win-x64.zip.sha256`, `release/latest.json`
+  - `release/staging/AIRStudio/app/version.json`, `release/staging/AIRStudio/current.json`
+  - `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` (build-evidence addendum)
+  - `project_status/LATEST.md`, `project_status/NEXT_TASK.md`, `worknote/latest.md`
+- Short summary:
+  Rebuilt v2.3.7 build 243 from source in this session (fresh PyInstaller
+  build via the project venv, `./venv/Scripts/python.exe -m PyInstaller
+  packaging/windows/AIRStudio.spec`), confirmed `Build complete!` in
+  `rebuild_2372_log.txt` (not committed — local build log only), replaced
+  `release/staging/AIRStudio/app` from the new `dist/AIRStudio` output
+  (file timestamps/sizes verified identical between `dist/` and staging
+  post-copy), rewrote `version.json`/`current.json` without BOM, launch-
+  tested the rebuilt exe (MainWindowTitle "AIR Studio", Responding=True,
+  clean shutdown, no leftover process), rebuilt the portable ZIP, and
+  replaced the existing GitHub prerelease's 3 assets in place via
+  `gh release upload v2.3.7 --clobber` — no new Release created, tag and
+  prerelease status unchanged. Reconfirmed `/releases/latest` still returns
+  `v2.3.6` after the asset swap. Final asset: `AIRStudio-2.3.7-win-x64.zip`,
+  456,147,733 bytes, SHA256
+  `ff73df7a751578ee8c0a05c0aa6b4a89cddde00d8717755f6b643e0289dddc4a`
+  (supersedes the AIR-0227F-0C build's 456,147,806 bytes /
+  `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0`).
+- Next action:
+  Team to confirm AIR-0225B-R0 (`SUPABASE_SERVICE_ROLE_KEY` rotation,
+  currently BLOCKED) and the Stage 8 residual `global_settings.sys_api_*` /
+  Vercel env var audit, both outside this session's access. Real-account
+  E2E QA and any general-distribution decision remain separately gated.

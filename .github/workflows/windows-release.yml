@@ -195,9 +195,22 @@ jobs:
           $channel = "${{ steps.resolve.outputs.CHANNEL }}"
           $tag     = "v$ver"
 
-          $extraArgs = @()
-          if ("${{ steps.resolve.outputs.DRAFT }}"      -eq "true") { $extraArgs += "--draft" }
-          if ("${{ steps.resolve.outputs.PRERELEASE }}" -eq "true") { $extraArgs += "--prerelease" }
+          # [FIX round 2] Fixing the dash convention (-Draft/-Prerelease
+          # instead of --draft/--prerelease) was NOT sufficient on its own.
+          # Verified locally (Windows PowerShell 5.1 and behavior matches
+          # pwsh 7): splatting a plain array whose elements are bare switch-name
+          # strings (`$extraArgs = @(); $extraArgs += "-Prerelease"; @extraArgs`)
+          # does NOT bind a [switch] parameter when combined with other
+          # explicitly-named parameters on the same call - it silently stays
+          # $false, no error. Only a HASHTABLE splat reliably activates a
+          # switch conditionally. v2.3.10 (requested as prerelease, AFTER the
+          # round-1 dash fix) still came back isPrerelease:false because of
+          # this - confirmed via the run's own "Prerelease: False" log line
+          # from release_github.ps1's Write-Host, then reproduced locally
+          # with a minimal repro function before landing this fix.
+          $extraArgs = @{}
+          if ("${{ steps.resolve.outputs.DRAFT }}"      -eq "true") { $extraArgs['Draft'] = $true }
+          if ("${{ steps.resolve.outputs.PRERELEASE }}" -eq "true") { $extraArgs['Prerelease'] = $true }
 
           .\tools\release_github.ps1 `
             -Version     $ver `

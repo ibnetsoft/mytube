@@ -1026,44 +1026,91 @@ async def delete_webtoon_rule_api(rule_id: int):
 @router.post("/crop-grid")
 async def crop_grid_image(
     file: UploadFile = File(...),
-    panel: int = Form(...) # 1: Top-Left, 2: Top-Right, 3: Bottom-Left, 4: Bottom-Right
+    panel: int = Form(...),  # 1-indexed, row-major order (row0col0, row0col1, ..., row1col0, ...)
+    cols: int = Form(2),
+    rows: int = Form(2),
 ):
-    """2x2 격자판 이미지에서 지정된 패널 영역을 자동으로 Crop하여 반환"""
+    """NxM 격자판 이미지에서 지정된 패널 영역을 자동으로 Crop하여 반환.
+    cols/rows 기본값 2x2는 기존 호출(패널 1~4, 좌상/우상/좌하/우하)과 완전히 동일하게 동작한다."""
     try:
         from PIL import Image
         import io
         from fastapi.responses import StreamingResponse
-        
+
+        if cols < 1 or cols > 10 or rows < 1 or rows > 10:
+            raise HTTPException(400, "격자 크기는 1~10 사이여야 합니다.")
+        total_panels = cols * rows
+        if panel < 1 or panel > total_panels:
+            raise HTTPException(400, f"잘못된 패널 번호입니다. (1-{total_panels}만 허용)")
+
         # Read image
         img_bytes = await file.read()
         image = Image.open(io.BytesIO(img_bytes))
         width, height = image.size
-        
-        # Calculate grid middle bounds
-        mid_x = width // 2
-        mid_y = height // 2
-        
-        # Define crop boxes based on panel index (1-indexed)
-        if panel == 1: # Top-Left
-            box = (0, 0, mid_x, mid_y)
-        elif panel == 2: # Top-Right
-            box = (mid_x, 0, width, mid_y)
-        elif panel == 3: # Bottom-Left
-            box = (0, mid_y, mid_x, height)
-        elif panel == 4: # Bottom-Right
-            box = (mid_x, mid_y, width, height)
-        else:
-            raise HTTPException(400, "잘못된 패널 번호입니다. (1-4만 허용)")
-            
+
+        # panel은 1-indexed, row-major(행 우선) 순서 - row0col0, row0col1, ..., row1col0, ...
+        row = (panel - 1) // cols
+        col = (panel - 1) % cols
+
+        # round()로 각 셀 경계를 계산해 나눗셈 나머지로 인한 픽셀 손실/겹침 없이
+        # 격자 전체(0~width, 0~height)를 정확히 덮도록 한다.
+        x0 = round(col * width / cols)
+        x1 = round((col + 1) * width / cols)
+        y0 = round(row * height / rows)
+        y1 = round((row + 1) * height / rows)
+        box = (x0, y0, x1, y1)
+
         # Crop and save to byte stream
         cropped_img = image.crop(box)
         output_stream = io.BytesIO()
         cropped_img.save(output_stream, format="PNG")
         output_stream.seek(0)
-        
+
         return StreamingResponse(output_stream, media_type="image/png")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"이미지 자르기 실패: {str(e)}")
+
+
+@router.post("/save-temp-download")
+async def save_temp_download(
+    file: UploadFile = File(...),
+    filename: str = Form(...),
+):
+    """[FIX] pywebview의 Windows(EdgeChromium) 백엔드는 blob: URL에 대한
+    <a download> 트리거를 지원하지 않아, 크롭 패널 다운로드 버튼이 브라우저에선
+    되고 실제 설치본에서는 조용히 아무 일도 안 일어나는 문제가 있었다. 방금
+    자른 이미지를 서버 임시 폴더에 실제로 저장해 /output/... 실제 URL로
+    돌려주면, 그건 일반 네트워크 리소스라 정상적으로 다운로드된다."""
+    safe_name = os.path.basename(filename).strip() or "download.png"
+    # 확장자만 남기고 나머지는 영숫자/./-/_ 로 제한 (경로 조작 방지)
+    safe_name = "".join(c for c in safe_name if c.isalnum() or c in "._-") or "download.png"
+
+    tmp_dir = os.path.join(config.OUTPUT_DIR, "tmp_downloads")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    # 오래된 임시 다운로드 파일 정리 (별도 스케줄러 없이, 새 다운로드가 생길 때
+    # 기회적으로 24시간 지난 파일들을 지운다 - 저사용 로컬 데스크톱 앱이라
+    # 이 정도로 충분하고 전용 cron job을 새로 만들 필요는 없다)
+    try:
+        cutoff = time.time() - 24 * 3600
+        for name in os.listdir(tmp_dir):
+            path = os.path.join(tmp_dir, name)
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+    except Exception:
+        pass
+
+    unique_name = f"{uuid.uuid4().hex}_{safe_name}"
+    dest_path = os.path.join(tmp_dir, unique_name)
+
+    content = await file.read()
+    with open(dest_path, "wb") as f:
+        f.write(content)
+
+    return {"url": f"/output/tmp_downloads/{unique_name}", "filename": safe_name}
+
 
 from pydantic import BaseModel
 class WithdrawalRequest(BaseModel):
@@ -1580,3 +1627,59 @@ async def save_api_keys(req: ApiKeySave):
         "updated": updated,
         "message": f"{len(updated)}개의 API 키가 저장되었습니다"
     }
+
+
+# [AIR-0228 Stage 3] ChatGPT Plus subscription verification - thin proxy to
+# auth-web only. No approval/scoring logic here (see
+# services/subscription_verification_client.py docstring).
+_SUBVERIF_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
+_SUBVERIF_MIME_BY_EXT = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf",
+}
+
+
+@router.post("/chatgpt-plus/verify")
+async def submit_chatgpt_plus_verification(file: UploadFile = File(...)):
+    from services.subscription_verification_client import submit_verification, SubscriptionVerificationError
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _SUBVERIF_ALLOWED_EXT:
+        raise HTTPException(400, "지원하지 않는 파일 형식입니다 (jpg/png/webp/pdf만 가능).")
+
+    tmp_dir = os.path.join(config.BASE_DIR, "tmp_uploads")
+    os.makedirs(tmp_dir, exist_ok=True)
+    tmp_path = os.path.join(tmp_dir, f"subverif_{uuid.uuid4().hex[:12]}{ext}")
+    try:
+        with open(tmp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        result = submit_verification(
+            provider="chatgpt_plus",
+            file_path=tmp_path,
+            filename=file.filename or f"upload{ext}",
+            mimetype=_SUBVERIF_MIME_BY_EXT.get(ext, "application/octet-stream"),
+        )
+        return result
+    except SubscriptionVerificationError as e:
+        raise HTTPException(400, str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
+@router.get("/chatgpt-plus/status")
+async def get_chatgpt_plus_verification_status():
+    from services.subscription_verification_client import get_status, SubscriptionVerificationError
+    try:
+        return get_status("chatgpt_plus")
+    except SubscriptionVerificationError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/badges/me")
+async def get_my_badges():
+    from services.subscription_verification_client import get_active_badges
+    return {"status": "ok", "badges": get_active_badges()}

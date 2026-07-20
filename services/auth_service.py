@@ -323,6 +323,11 @@ class AuthService:
             except Exception as e:
                 print(f"[Auth] Session resync error: {e}")
 
+        # NOTE: presynced 경로에서 return으로 빠지면 안 된다 - 아래의 디렉토리
+        # 격리(사용자별 output/log/asset 폴더 전환)와 Jinja 전역 갱신(사이드바
+        # user_email 표시)이 두 경로 공통의 후처리이기 때문. 과거에 이 블록이
+        # return으로 끝나서, 세션 복원(resync)이 성공하는 정상 경로에서만
+        # 사이드바 이메일이 사라지고 폴더 격리가 안 되는 버그가 있었다.
         if presynced is not None:
             try:
                 self._membership = presynced.get("membership") or "std"
@@ -342,27 +347,26 @@ class AuthService:
                         print(f"[Auth] Loaded global API keys from desktop-login response: {list(sys_keys.keys())}")
             except Exception as e:
                 print(f"[Auth] Failed to apply presynced login data: {e}")
-            return
+        else:
+            # Supabase에서 사용자 프로필 정보 동기화 (presynced 미제공 시 폴백)
+            try:
+                from services.web_admin_client import web_admin_client
 
-        # Supabase에서 사용자 프로필 정보 동기화 (presynced 미제공 시 폴백)
-        try:
-            from services.web_admin_client import web_admin_client
+                profile = web_admin_client.fetch_profile_by_email(email)
+                if profile:
+                    self._membership = profile.get("membership", "std")
+                    self._token_balance = profile.get("token_balance", 0)
+                    self._verified = True
+                    print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
+                    self.enforce_app_mode()
 
-            profile = web_admin_client.fetch_profile_by_email(email)
-            if profile:
-                self._membership = profile.get("membership", "std")
-                self._token_balance = profile.get("token_balance", 0)
-                self._verified = True
-                print(f"[Auth] Logged in user {email}. Membership: {self._membership}, Balance: {self._token_balance}")
-                self.enforce_app_mode()
-
-            sys_keys = web_admin_client.fetch_global_api_keys()
-            if sys_keys:
-                from config import config
-                config.load_remote_keys(sys_keys)
-                print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
-        except Exception as e:
-            print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
+                sys_keys = web_admin_client.fetch_global_api_keys()
+                if sys_keys:
+                    from config import config
+                    config.load_remote_keys(sys_keys)
+                    print(f"[Auth] Loaded global API keys from Supabase: {list(sys_keys.keys())}")
+            except Exception as e:
+                print(f"[Auth] Failed to sync user profile from Supabase on login: {e}")
 
         # [ISOLATION] C:/Users/사용자/AppData/Local/picadilly/{employee_email}/ 경로로 에셋 저장소 격리
         try:
@@ -427,20 +431,18 @@ class AuthService:
 
     def sync_profile(self, name: str, nationality: str, contact: str):
         """Sync local user profile info to the SaaS server"""
-        if not os.path.exists(self.license_file):
+        # [AIR-0225B] /api/user/update-profile은 이제 email + HMAC session_token을
+        # 검증한다(평문 userId 신뢰 구멍 제거). 서버가 세션 email로 user_id를
+        # 해석하므로 license.key의 userId는 더 이상 보내지 않는다.
+        if not self._user_email or not self._session_token:
             return False
 
         try:
-            with open(self.license_file, "r") as f:
-                user_id = f.read().strip()
-
-            if not user_id:
-                return False
-
             response = requests.post(
                 self.update_profile_url,
                 json={
-                    "userId": user_id,
+                    "email": self._user_email,
+                    "session_token": self._session_token,
                     "full_name": name,
                     "nationality": nationality,
                     "contact": contact
@@ -473,6 +475,9 @@ class AuthService:
     def get_user_email(self):
         return self._user_email
 
+    def get_session_token(self):
+        return self._session_token
+
     def get_youtube_channel(self):
         return self._youtube_channel
 
@@ -496,10 +501,11 @@ class AuthService:
         return self._token_balance
 
     def check_credits(self, required_amount: int = 1000):
-        """작업 시작 전 충분한 토큰이 있는지 확인 (당분간 글로벌 서비스 시작 전까지 시스템 미가동으로 항상 True 반환)"""
-        # if self._token_balance < required_amount:
-        #     self.logger.warning(f"Insufficient tokens: Available {self._token_balance}, Required {required_amount}")
-        #     return False
+        """[AIR-0225B] 과금 모델이 잔액 차감에서 사용량 누적(metering)으로 바뀌면서,
+        토큰 잔액을 이유로 작업을 막지 않는다. 항상 True 를 반환한다 (게이트 폐지).
+        사용량은 /api/logs -> record_token_usage 로 서버에서 누적 집계된다.
+        호출부(gemini/image/settings/autopilot의 '토큰 부족' 분기)는 이 값으로
+        게이트되므로 실질적으로 비활성 상태다 - 남겨두되 절대 참이 되지 않는다."""
         return True
 
 
@@ -524,10 +530,20 @@ class AuthService:
         if not email:
             return ""
 
+        session_token = self.get_session_token()
+        if not session_token:
+            return ""
+
+        # [AIR-0225B Phase 1] fetch_profile_by_email()로 SUPABASE_SERVICE_ROLE_KEY를
+        # 직접 쓰던 경로 - 그 키가 패키징된 앱에서 제거되어 더 이상 동작하지 않는다
+        # (worknote/AIR-0225B-stage0-service-role-removal-investigation.md).
+        # /api/auth/sync와 같은 desktop_resync 브릿지로 대체.
         from services.web_admin_client import web_admin_client
 
-        profile = web_admin_client.fetch_profile_by_email(email, select="referral_code")
-        code = (profile or {}).get("referral_code") or ""
+        result = web_admin_client.desktop_resync(email, session_token)
+        if not result.get("success"):
+            return ""
+        code = result.get("referral_code") or ""
         self._my_referral_code = code
         return code
 

@@ -427,6 +427,154 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"동기화 서버 연결 오류: {e}"}
 
+    def desktop_referrals(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """추천인/출금 조회·신청을 auth-web(Vercel) 서버에 위임한다.
+        [AIR-0225B Phase 1] app/routers/referral.py가 SUPABASE_SERVICE_ROLE_KEY로
+        직접 조회하던 6개 액션(dashboard/tree/timeline/withdrawal_info/withdraw/
+        withdrawal_history)을 session_token 검증 기반 브릿지로 이전. 출금 잔액
+        검증도 이제 서버에서 수행된다."""
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-referrals",
+                json=payload,
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "추천인 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"추천인 서버 연결 오류: {e}"}
+
+    def desktop_support(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """유저 -> 웹어드민 문의 전송/조회를 auth-web(Vercel) 서버에 위임한다.
+        desktop_referrals와 동일한 session_token 검증 기반 브릿지 - 문의는
+        AI 초안(있으면)이 서버 측에서 자동 생성되지만, list 응답에는 절대
+        포함되지 않는다(어드민이 확정 발송한 답장만 노출)."""
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-support",
+                json=payload,
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "문의 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"문의 서버 연결 오류: {e}"}
+
+    def desktop_announcements(self, email: str, session_token: str, lang: str = "ko") -> Dict[str, Any]:
+        """웹어드민이 전체 유저에게 발행한 공지사항 게시판 목록을 조회한다.
+        쪽지(1:1)가 아니라 게시판(1:N) - 모든 유저가 동일한 글을 본다.
+        session_token 검증은 미승인/비로그인 클라이언트의 내부 공지 열람을
+        막기 위함이지 개인화를 위한 것이 아니다.
+        [AIR-0229] lang을 함께 보내면 auth-web이 저장해둔 자동번역
+        (title_en/title_vi/title_th 등)을 title/body 자리에 대신 채워 응답한다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-announcements",
+                json={"email": email, "session_token": session_token, "action": "list", "lang": lang},
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "공지사항 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"공지사항 서버 연결 오류: {e}"}
+
+    def desktop_project_sync(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """[AIR-0225B] desktop_project_metadata 테이블 접근을 session_token
+        브릿지로 위임한다. 예전에는 services/project_sync_service.py가
+        SUPABASE_SERVICE_ROLE_KEY로 직접 조회/upsert했는데, 그 키가 패키징된
+        빌드에서 제거된 뒤로 has_supabase()가 항상 False가 되어 프로젝트
+        복원(fetch_remote_projects/ensure_local_projects_from_remote)이
+        에러 없이 조용히 0건으로 끝나고 있었다 - 새 설치에서 프로젝트
+        목록이 비어 보이는 원인."""
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-project-sync",
+                json=payload,
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "프로젝트 동기화 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"프로젝트 동기화 서버 연결 오류: {e}"}
+
+    def desktop_update_profile(
+        self,
+        email: str,
+        session_token: str,
+        *,
+        full_name: str = "",
+        nationality: str = "",
+        contact: str = "",
+        preferred_category_ids: Optional[list] = None,
+    ) -> Dict[str, Any]:
+        """설정 페이지의 회원정보(이름/국적/연락처/선호 카테고리) 저장을
+        auth-web(Vercel) 서버에 위임한다. [AIR-0225B Phase 1] 기존에는
+        supabase_patch("profiles", ...)로 SUPABASE_SERVICE_ROLE_KEY를 직접
+        썼으나, 그 키가 패키징된 앱에서 제거되어 더 이상 동작하지 않는다."""
+        try:
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-profile-update",
+                json={
+                    "email": email,
+                    "session_token": session_token,
+                    "full_name": full_name,
+                    "nationality": nationality,
+                    "contact": contact,
+                    "preferred_category_ids": preferred_category_ids or [],
+                },
+                timeout=self.timeout,
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "프로필 저장 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"프로필 저장 서버 연결 오류: {e}"}
+
     def desktop_change_password(self, email: str, current_password: str, new_password: str) -> Dict[str, Any]:
         """비밀번호 변경을 auth-web(Vercel) 서버에 위임한다.
         SUPABASE_SERVICE_ROLE_KEY를 데스크톱 앱이 직접 쓰지 않도록,

@@ -79,6 +79,40 @@ def _resolve_project_thumbnail_path(settings: Dict[str, Any]) -> Optional[str]:
     return _resolve_local_output_asset_path(thumb_candidate)
 
 
+def release_project_to_public(project_id: int, requested_channel_id: Optional[int] = None) -> Dict[str, Any]:
+    """Flip an already-uploaded (private) video to public on YouTube.
+
+    Videos are uploaded private by default so a human can watch the actual
+    rendered output before it goes live - this is the second, explicit step
+    that makes it public once someone has reviewed it.
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise FileNotFoundError(f"Project not found: {project_id}")
+
+    settings = db.get_project_settings(project_id) or {}
+    video_id = settings.get("youtube_video_id")
+    if not video_id:
+        raise RuntimeError(f"No youtube_video_id recorded for project {project_id} - was it ever uploaded?")
+
+    token_path = _resolve_youtube_token_path(settings, requested_channel_id)
+    youtube_upload_service.update_video_privacy(video_id, "public", token_path=token_path)
+
+    db.update_project_setting(project_id, "admin_publish_status", "public")
+    learning_service.log_event(project_id, "made_public", "upload", {
+        "youtube_video_id": video_id,
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+        "source": "project_publish_service",
+    }, source="system")
+
+    return {
+        "status": "ok",
+        "project_id": project_id,
+        "video_id": video_id,
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+    }
+
+
 def publish_project_to_youtube(
     project_id: int,
     *,

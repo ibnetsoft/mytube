@@ -186,7 +186,10 @@ export async function PATCH(req: Request) {
             .single()
 
         if (existingError) throw existingError
-        if ((status === 'approved' || status === 'to_be_published') && !existing?.metadata?.project_id) {
+        if (
+            (status === 'approved' || status === 'to_be_published' || status === 'release_requested') &&
+            !existing?.metadata?.project_id
+        ) {
             return NextResponse.json({ error: 'Missing project_id in publishing request metadata' }, { status: 400 })
         }
 

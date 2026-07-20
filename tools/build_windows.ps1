@@ -249,10 +249,15 @@ try {
     }
     $VersionRecordJson = $VersionRecord | ConvertTo-Json -Depth 3
 
-    $VersionRecordJson | Set-Content `
-        -Path (Join-Path $StagingRoot "current.json") -Encoding UTF8
-    $VersionRecordJson | Set-Content `
-        -Path (Join-Path $StagingApp  "version.json") -Encoding UTF8
+    # NOTE: `Set-Content -Encoding UTF8` in Windows PowerShell 5.1 always emits a
+    # UTF-8 BOM (there is no utf8NoBOM encoding until PS Core 6+, and this script
+    # targets 5.1 - see #Requires above). config.py reads this file with plain
+    # "utf-8", so a BOM makes json.load() throw and APP_VERSION silently ends up
+    # "" - the sidebar version display then never renders. Write without a BOM
+    # explicitly via .NET instead of Set-Content.
+    $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText((Join-Path $StagingRoot "current.json"), $VersionRecordJson, $Utf8NoBom)
+    [System.IO.File]::WriteAllText((Join-Path $StagingApp  "version.json"), $VersionRecordJson, $Utf8NoBom)
 
     # ---- Portable ZIP ----
     Write-Host "Creating portable ZIP: $ZipName"

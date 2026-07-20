@@ -31,7 +31,11 @@ export async function GET(req: Request) {
             .select('*')
             .gte('created_at', sinceISO)
             .order('created_at', { ascending: false })
-            .limit(2000)
+            // [AIR-0230] 2000건 하드캡은 활동이 많은 달에는 실제 사용량의 일부만
+            // 반영해 비용 집계가 부정확해질 수 있었다. 20000으로 상향 - 이 이상
+            // 커지면 클라이언트 집계 대신 Postgres RPC 기반 서버사이드 집계로
+            // 전환이 필요하다(범위 밖, 다음 단계로 남겨둠).
+            .limit(20000)
 
         // 테이블이 없을 경우 폴백 (42P01: undefined_table)
         if (error && (error.code === '42P01' || error.code === 'PGRST116')) {
@@ -41,7 +45,11 @@ export async function GET(req: Request) {
                 .select('*')
                 .gte('created_at', sinceISO)
                 .order('created_at', { ascending: false })
-                .limit(2000)
+                // [AIR-0230] 2000건 하드캡은 활동이 많은 달에는 실제 사용량의 일부만
+            // 반영해 비용 집계가 부정확해질 수 있었다. 20000으로 상향 - 이 이상
+            // 커지면 클라이언트 집계 대신 Postgres RPC 기반 서버사이드 집계로
+            // 전환이 필요하다(범위 밖, 다음 단계로 남겨둠).
+            .limit(20000)
             data = fallback.data
             error = fallback.error
         }

@@ -37,6 +37,12 @@
             <button onclick="switchTab('withdrawal')" id="tab-withdrawal" class="tab-button">
                 {{ t('label_wallet_and_withdrawal') }}
             </button>
+            <button onclick="switchTab('support')" id="tab-support" class="tab-button">
+                {{ t('label_support_inquiry') }}
+            </button>
+            <button onclick="switchTab('announcements')" id="tab-announcements" class="tab-button">
+                {{ t('label_announcements') }}
+            </button>
             {# AIR-0225: superseded by the 기본설정 tab's referral tree + my code section, and the withdrawal tab's history table. Hidden, not deleted. #}
                     {% if not is_standard_member %}
             <button onclick="switchTab('image-styles')" id="tab-image-styles" class="tab-button">
@@ -259,6 +265,29 @@
                                         <span id="cpMsg" class="text-xs font-bold"></span>
                                     </div>
                                 </form>
+                            </div>
+
+                            <!-- [AIR-0228] ChatGPT Plus Subscription Verification Badge -->
+                            <div class="col-span-1 md:col-span-2 mt-6 pt-4 border-t border-gray-700/50">
+                                <h5 class="text-xs font-bold text-gray-300 mb-3 flex items-center gap-2">
+                                    ✅ {{ t('label_chatgpt_plus_verification_title') }}
+                                </h5>
+                                <div id="subverifStatusBox" class="text-xs text-gray-400 mb-3">{{ t('msg_loading') }}</div>
+                                <div id="subverifUploadBox" class="hidden flex flex-col md:flex-row items-start md:items-center gap-3">
+                                    <div class="relative group w-24 h-24 bg-[#0a0f1d] rounded-lg overflow-hidden border border-dashed border-gray-100 dark:border-white/5 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-all shrink-0"
+                                         onclick="document.getElementById('subverifFileInput').click()">
+                                        <img id="subverifPreviewImg" class="hidden w-full h-full object-cover" />
+                                        <span id="subverifPreviewPlaceholder" class="text-[10px] text-gray-500 text-center px-2">{{ t('label_upload_screenshot') }}</span>
+                                    </div>
+                                    <input type="file" id="subverifFileInput" accept="image/*,.pdf" class="hidden" onchange="handleSubverifFileSelect(this)">
+                                    <div class="flex flex-col gap-2">
+                                        <button type="button" id="subverifSubmitBtn" onclick="submitSubverif()" disabled
+                                            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded text-xs font-bold text-white whitespace-nowrap transition">
+                                            {{ t('btn_submit') }}
+                                        </button>
+                                        <span id="subverifMsg" class="text-[10px] font-bold"></span>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Withdrawal Section -->
@@ -495,6 +524,52 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Support / Inquiry Tab -->
+        <div id="tab-content-support" class="tab-content">
+            <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027]">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-4">{{ t('label_support_new_inquiry') }}</h3>
+                        <form id="st-support-form" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-white/70 mb-1">{{ t('label_support_subject') }}</label>
+                                <input type="text" id="st-support-subject" maxlength="200"
+                                    placeholder="{{ t('placeholder_support_subject') }}"
+                                    class="w-full bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-white/70 mb-1">{{ t('label_support_body') }}</label>
+                                <textarea id="st-support-body" required rows="6" maxlength="4000"
+                                    placeholder="{{ t('placeholder_support_body') }}"
+                                    class="w-full bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"></textarea>
+                            </div>
+                            <button type="submit" id="st-support-submit-btn" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2">
+                                <span>{{ t('btn_support_send') }}</span>
+                            </button>
+                        </form>
+                        <div id="st-support-msg" class="mt-4 text-sm font-medium hidden p-3 rounded-lg"></div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-4">{{ t('label_support_history') }}</h3>
+                        <div id="st-support-list" class="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                            <p class="text-xs text-gray-500 text-center py-4">{{ t('msg_loading_data') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Announcements Board Tab -->
+        <div id="tab-content-announcements" class="tab-content">
+            <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027]">
+                <h3 class="text-lg font-bold text-white mb-4">{{ t('label_announcements') }}</h3>
+                <div id="st-announcements-list" class="space-y-2">
+                    <p class="text-xs text-gray-500 text-center py-4">{{ t('msg_loading_data') }}</p>
                 </div>
             </div>
         </div>
@@ -1224,6 +1299,17 @@
         err_delete_fail: "{{ t('err_delete_fail') }}",
         err_occurred: "{{ t('err_occurred') }}",
         err_server_short: "{{ t('err_server_short') }}",
+        msg_loading: "{{ t('msg_loading') }}",
+        msg_submitted: "{{ t('msg_submitted') }}",
+        label_no_verification_yet: "{{ t('label_no_verification_yet') }}",
+        subverif_status_uploaded: "{{ t('subverif_status_uploaded') }}",
+        subverif_status_analyzing: "{{ t('subverif_status_analyzing') }}",
+        subverif_status_needs_review: "{{ t('subverif_status_needs_review') }}",
+        subverif_status_approved: "{{ t('subverif_status_approved') }}",
+        subverif_status_rejected: "{{ t('subverif_status_rejected') }}",
+        subverif_status_expired: "{{ t('subverif_status_expired') }}",
+        subverif_status_revoked: "{{ t('subverif_status_revoked') }}",
+        subverif_label_expiry: "{{ t('subverif_label_expiry') }}",
         msg_eleven_loading: "{{ t('msg_eleven_loading') }}",
         err_voice_load_fail: "{{ t('err_voice_load_fail') }}",
         toast_settings_mode_switched: "{{ t('toast_settings_mode_switched') }}",
@@ -1248,6 +1334,15 @@
         msg_no_clipboard: "{{ t('msg_no_clipboard') }}",
         status_pending: "{{ t('status_pending') }}",
         status_completed: "{{ t('status_completed') }}",
+        // Support / Inquiry
+        msg_support_no_history: "{{ t('msg_support_no_history') }}",
+        status_support_open: "{{ t('status_support_open') }}",
+        status_support_answered: "{{ t('status_support_answered') }}",
+        status_support_closed: "{{ t('status_support_closed') }}",
+        msg_support_sent: "{{ t('msg_support_sent') }}",
+        msg_support_failed: "{{ t('msg_support_failed') }}",
+        msg_announcements_empty: "{{ t('msg_announcements_empty') }}",
+        label_pinned: "{{ t('label_pinned') }}",
         // Additional Thai/VI i18n keys
         referral_loading: "{{ t('referral_loading') }}",
         referral_reward_done: "{{ t('referral_reward_done') }}",
@@ -1583,26 +1678,17 @@
         try {
             const res = await fetch('/api/auth/profile');
             const data = await res.json();
-            if (!data.success) return;
-            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-            setVal('userName', data.full_name);
-            setVal('userNationality', data.nationality);
-            setVal('userPhone', data.contact);
-            setVal('userEmail', data.email);
-            stSelectedCategoryIds = new Set((data.preferred_category_ids || []).map(String));
+            if (data.success) {
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+                setVal('userName', data.full_name);
+                setVal('userNationality', data.nationality);
+                setVal('userPhone', data.contact);
+                setVal('userEmail', data.email);
+                stSelectedCategoryIds = new Set((data.preferred_category_ids || []).map(String));
+                stAllCategories = Array.isArray(data.categories) ? data.categories : [];
+            }
         } catch (e) {
             console.error('Failed to load profile:', e);
-        }
-        await stLoadCategoryOptions();
-    }
-
-    async function stLoadCategoryOptions() {
-        try {
-            const res = await fetch('/api/auth/signup-options');
-            const data = await res.json();
-            stAllCategories = Array.isArray(data.categories) ? data.categories : [];
-        } catch (e) {
-            stAllCategories = [];
         }
         stRenderCategoryList();
     }
@@ -1761,6 +1847,152 @@
             }
         });
     })();
+
+    // ── Support / Inquiry ──
+    // AI 초안(ai_draft_reply)은 브릿지 응답에 애초에 포함되지 않으므로
+    // 여기서는 status/admin_reply만 렌더링한다 - 사용자에게는 어드민이
+    // 확정 발송한 답장만 보인다.
+    function stEscapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value ?? '');
+        return div.innerHTML;
+    }
+
+    async function stLoadSupportMessages() {
+        const listEl = document.getElementById('st-support-list');
+        if (!listEl) return;
+        try {
+            const res = await fetch('/api/user/support/list');
+            const json = await res.json();
+            const messages = json.messages || [];
+            if (messages.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">${i18n.msg_support_no_history || 'No inquiries yet.'}</p>`;
+                return;
+            }
+            const statusMap = {
+                OPEN: ['bg-yellow-500/20 text-yellow-400', i18n.status_support_open || 'Waiting'],
+                AI_DRAFTED: ['bg-yellow-500/20 text-yellow-400', i18n.status_support_open || 'Waiting'],
+                ANSWERED: ['bg-green-500/20 text-green-400', i18n.status_support_answered || 'Answered'],
+                CLOSED: ['bg-gray-500/20 text-gray-400', i18n.status_support_closed || 'Closed'],
+            };
+            listEl.innerHTML = messages.map(m => {
+                const [cls, label] = statusMap[String(m.status || '').toUpperCase()] || ['bg-gray-500/20 text-gray-400', m.status || '-'];
+                const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '-';
+                // 쪽지(1:1 채팅)가 아니라 게시판(내 글+답글) 형식으로 - 내 질문을
+                // "Q" 글로, 어드민 답변을 그 아래 "A" 댓글로 보여준다.
+                const replySection = m.admin_reply
+                    ? `<div class="mt-2 pl-3 border-l-2 border-green-500/50">
+                        <span class="text-[10px] font-black text-green-400">A</span>
+                        <span class="text-xs text-gray-300">${stEscapeHtml(m.admin_reply)}</span>
+                       </div>`
+                    : '';
+                return `
+                    <div class="bg-[#15191f] rounded-lg border border-gray-700 p-3">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="text-sm font-bold text-white truncate">${stEscapeHtml(m.subject || '(no subject)')}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${cls}">${label}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">${dateStr}</div>
+                        <div class="mt-2 pl-3 border-l-2 border-blue-500/50">
+                            <span class="text-[10px] font-black text-blue-400">Q</span>
+                            <span class="text-xs text-gray-400">${stEscapeHtml(m.body)}</span>
+                        </div>
+                        ${replySection}
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Support list error:', err);
+            listEl.innerHTML = `<p class="text-xs text-red-500 text-center py-4">${i18n.err_prefix || 'Error: '}${err.message}</p>`;
+        }
+    }
+
+    (function initStSupportForm() {
+        const form = document.getElementById('st-support-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('st-support-submit-btn');
+            const msgEl = document.getElementById('st-support-msg');
+            const subject = document.getElementById('st-support-subject').value.trim();
+            const body = document.getElementById('st-support-body').value.trim();
+            if (!body) return;
+            submitBtn.disabled = true;
+            try {
+                const res = await fetch('/api/user/support/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subject, body })
+                });
+                const json = await res.json();
+                msgEl.classList.remove('hidden');
+                if (res.ok && json.success !== false) {
+                    msgEl.className = 'mt-4 text-sm font-medium p-3 rounded-lg bg-green-500/10 text-green-400';
+                    msgEl.textContent = i18n.msg_support_sent || 'Inquiry sent.';
+                    form.reset();
+                    stLoadSupportMessages();
+                } else {
+                    msgEl.className = 'mt-4 text-sm font-medium p-3 rounded-lg bg-red-500/10 text-red-400';
+                    msgEl.textContent = json.detail || json.error || i18n.msg_support_failed || 'Failed to send inquiry.';
+                }
+            } catch (err) {
+                msgEl.classList.remove('hidden');
+                msgEl.className = 'mt-4 text-sm font-medium p-3 rounded-lg bg-red-500/10 text-red-400';
+                msgEl.textContent = (i18n.err_prefix || 'Error: ') + err.message;
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    })();
+
+    // ── Announcements Board (웹어드민 -> 전체 유저 공지, 쪽지 아님 - 게시판) ──
+    let stAnnouncementsExpanded = new Set();
+
+    function stToggleAnnouncement(id) {
+        if (stAnnouncementsExpanded.has(id)) {
+            stAnnouncementsExpanded.delete(id);
+        } else {
+            stAnnouncementsExpanded.add(id);
+        }
+        const bodyEl = document.getElementById(`st-announcement-body-${id}`);
+        if (bodyEl) bodyEl.classList.toggle('hidden');
+    }
+
+    async function stLoadAnnouncements() {
+        const listEl = document.getElementById('st-announcements-list');
+        if (!listEl) return;
+        try {
+            const res = await fetch('/api/user/announcements/list');
+            const json = await res.json();
+            const items = json.announcements || [];
+            if (items.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">${i18n.msg_announcements_empty || 'No announcements yet.'}</p>`;
+                return;
+            }
+            listEl.innerHTML = items.map(a => {
+                const dateStr = (a.published_at || a.created_at) ? new Date(a.published_at || a.created_at).toLocaleString() : '-';
+                const pinnedBadge = a.is_pinned
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 shrink-0">📌 ${i18n.label_pinned || 'Pinned'}</span>`
+                    : '';
+                return `
+                    <div class="bg-[#15191f] rounded-lg border ${a.is_pinned ? 'border-amber-500/40' : 'border-gray-700'} overflow-hidden">
+                        <button type="button" onclick="stToggleAnnouncement('${a.id}')"
+                            class="w-full flex justify-between items-center gap-2 p-3 text-left hover:bg-[#1c2027] transition-colors">
+                            <span class="flex items-center gap-2 min-w-0">
+                                ${pinnedBadge}
+                                <span class="text-sm font-bold text-white truncate">${stEscapeHtml(a.title)}</span>
+                            </span>
+                            <span class="text-[10px] text-gray-500 shrink-0">${dateStr}</span>
+                        </button>
+                        <div id="st-announcement-body-${a.id}" class="hidden px-3 pb-3 text-xs text-gray-300 whitespace-pre-wrap border-t border-gray-800 pt-2">${stEscapeHtml(a.body)}</div>
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('Announcements load error:', err);
+            listEl.innerHTML = `<p class="text-xs text-red-500 text-center py-4">${i18n.err_prefix || 'Error: '}${err.message}</p>`;
+        }
+    }
 
     function cpEvaluateRules() {
         const val = document.getElementById('cpNewPassword').value;

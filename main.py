@@ -382,6 +382,8 @@ from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
 from app.routers import referral as referral_router
+from app.routers import support as support_router
+from app.routers import announcements as announcements_router
 from app.routers import director_api
 from app.routers import admin_voices as admin_voices_router
 from app.routers import voices as voices_router
@@ -418,6 +420,8 @@ app.include_router(auth_router.router)
 app.include_router(admin_tenant_router.router)  # [NEW]
 app.include_router(user_topics_router.router)  # [NEW]
 app.include_router(referral_router.router, prefix="/api")
+app.include_router(support_router.router, prefix="/api")
+app.include_router(announcements_router.router, prefix="/api")
 app.include_router(admin_voices_router.router)
 app.include_router(voices_router.router)
 app.include_router(script_api_router.router, prefix="/api/script")  # [AIR-0203]
@@ -1900,7 +1904,17 @@ if __name__ == "__main__":
                 height=800,
                 resizable=True
             )
-            webview.start(icon=_ico if os.path.exists(_ico) else None)
+            # [FIX] pywebview 기본값은 private_mode=True(시크릿 모드)라서
+            # localStorage/쿠키가 앱 종료 시 삭제된다 — 로그인 화면의
+            # "아이디/비밀번호 저장"이 재시작 후 풀리는 원인. 영구 프로필
+            # 디렉터리를 지정해 브라우저 저장소를 재시작 간에 유지한다.
+            _webview_storage = os.path.join(config.LOCAL_APP_DATA_DIR, "webview")
+            os.makedirs(_webview_storage, exist_ok=True)
+            webview.start(
+                icon=_ico if os.path.exists(_ico) else None,
+                private_mode=False,
+                storage_path=_webview_storage,
+            )
         except Exception as webview_error:
             _log_startup_event(f"webview(독립 창) 초기화 실패, 기본 브라우저로 실행합니다: {webview_error}")
             import webbrowser

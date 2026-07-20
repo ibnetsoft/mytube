@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuthToken, authedFetch, formatUsd, formatDate } from '../_hooks'
-import { LoadingBlock, EmptyBlock, ErrorBlock, Pagination, StatusBadge } from '../_components'
+import { LoadingBlock, EmptyBlock, ErrorBlock, Pagination, StatusBadge, STATUS_LABELS_KO } from '../_components'
 
 const STATUSES = ['REQUESTED', 'APPROVED', 'SENDING', 'COMPLETED', 'REJECTED']
 
@@ -32,7 +32,7 @@ export default function WithdrawalsPage() {
             .then(res => res.json())
             .then(json => {
                 if (json.success) { setRows(json.data.rows); setTotal(json.data.total) }
-                else setError(json.error || 'Failed to load withdrawals')
+                else setError(json.error || '출금 내역을 불러오지 못했습니다')
             })
             .catch(e => setError(e.message))
             .finally(() => setLoading(false))
@@ -41,7 +41,7 @@ export default function WithdrawalsPage() {
     useEffect(load, [ready, token, page, status, from, to, member])
 
     const act = async (id: string, action: 'approve' | 'reject') => {
-        if (!confirm(`${action === 'approve' ? 'Approve & complete' : 'Reject'} this withdrawal?`)) return
+        if (!confirm(`이 출금을 ${action === 'approve' ? '승인하고 완료 처리' : '반려'}하시겠습니까?`)) return
         setActionError('')
         setProcessingId(id)
         try {
@@ -50,7 +50,7 @@ export default function WithdrawalsPage() {
                 body: JSON.stringify({ action }),
             })
             const json = await res.json()
-            if (!json.success) setActionError(json.error || 'Action failed')
+            if (!json.success) setActionError(json.error || '처리에 실패했습니다')
             else {
                 setDetailRow(null)
                 load()
@@ -67,15 +67,15 @@ export default function WithdrawalsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                 <select className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={status} onChange={e => { setPage(1); setStatus(e.target.value) }}>
-                    <option value="">All Statuses</option>
-                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    <option value="">전체 상태</option>
+                    {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS_KO[s] || s}</option>)}
                 </select>
                 <input type="date" className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={from} onChange={e => { setPage(1); setFrom(e.target.value) }} />
                 <input type="date" className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={to} onChange={e => { setPage(1); setTo(e.target.value) }} />
                 <input className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm sm:col-span-2"
-                    placeholder="Search member" value={member} onChange={e => { setPage(1); setMember(e.target.value) }} />
+                    placeholder="멤버 검색" value={member} onChange={e => { setPage(1); setMember(e.target.value) }} />
             </div>
 
             {actionError && <ErrorBlock message={actionError} />}
@@ -88,11 +88,11 @@ export default function WithdrawalsPage() {
                         <table className="w-full text-sm">
                             <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
                                 <tr>
-                                    <th className="px-3 py-2 text-left">Requested</th>
-                                    <th className="px-3 py-2 text-left">Member</th>
-                                    <th className="px-3 py-2 text-right">Amount</th>
-                                    <th className="px-3 py-2 text-left">Status</th>
-                                    <th className="px-3 py-2 text-right">Actions</th>
+                                    <th className="px-3 py-2 text-left">요청일</th>
+                                    <th className="px-3 py-2 text-left">멤버</th>
+                                    <th className="px-3 py-2 text-right">금액</th>
+                                    <th className="px-3 py-2 text-left">상태</th>
+                                    <th className="px-3 py-2 text-right">작업</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -103,19 +103,19 @@ export default function WithdrawalsPage() {
                                         <td className="px-3 py-2 text-right">${formatUsd(r.amount)}</td>
                                         <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                                         <td className="px-3 py-2 text-right space-x-2">
-                                            <button className="text-indigo-400 hover:underline text-xs" onClick={() => setDetailRow(r)}>Detail</button>
+                                            <button className="text-indigo-400 hover:underline text-xs" onClick={() => setDetailRow(r)}>상세</button>
                                             {!['COMPLETED', 'REJECTED'].includes(r.status) && (
                                                 <>
                                                     <button
                                                         className="text-green-400 hover:underline text-xs disabled:opacity-40"
                                                         disabled={processingId === r.id}
                                                         onClick={() => act(r.id, 'approve')}
-                                                    >Approve</button>
+                                                    >승인</button>
                                                     <button
                                                         className="text-red-400 hover:underline text-xs disabled:opacity-40"
                                                         disabled={processingId === r.id}
                                                         onClick={() => act(r.id, 'reject')}
-                                                    >Reject</button>
+                                                    >반려</button>
                                                 </>
                                             )}
                                         </td>
@@ -133,21 +133,21 @@ export default function WithdrawalsPage() {
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setDetailRow(null)}>
                     <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold">Withdrawal Detail</h3>
+                            <h3 className="text-lg font-bold">출금 상세</h3>
                             <button onClick={() => setDetailRow(null)} className="text-gray-400 hover:text-white">✕</button>
                         </div>
                         <dl className="text-sm space-y-2">
                             <div className="flex justify-between"><dt className="text-gray-400">ID</dt><dd className="font-mono text-xs">{detailRow.id}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Member</dt><dd>{detailRow.member?.email || detailRow.user_id}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Amount</dt><dd>${formatUsd(detailRow.amount)}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Status</dt><dd><StatusBadge status={detailRow.status} /></dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Wallet</dt><dd className="font-mono text-xs break-all">{detailRow.wallet_address}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Requested</dt><dd>{formatDate(detailRow.requested_at)}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Approved</dt><dd>{formatDate(detailRow.approved_at)}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Sending</dt><dd>{formatDate(detailRow.sent_at)}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Completed</dt><dd>{formatDate(detailRow.completed_at)}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Rejected</dt><dd>{formatDate(detailRow.rejected_at)}</dd></div>
-                            <div className="flex justify-between"><dt className="text-gray-400">Reason</dt><dd>{detailRow.reason || '-'}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">멤버</dt><dd>{detailRow.member?.email || detailRow.user_id}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">금액</dt><dd>${formatUsd(detailRow.amount)}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">상태</dt><dd><StatusBadge status={detailRow.status} /></dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">지갑 주소</dt><dd className="font-mono text-xs break-all">{detailRow.wallet_address}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">요청일</dt><dd>{formatDate(detailRow.requested_at)}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">승인일</dt><dd>{formatDate(detailRow.approved_at)}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">전송일</dt><dd>{formatDate(detailRow.sent_at)}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">완료일</dt><dd>{formatDate(detailRow.completed_at)}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">반려일</dt><dd>{formatDate(detailRow.rejected_at)}</dd></div>
+                            <div className="flex justify-between"><dt className="text-gray-400">사유</dt><dd>{detailRow.reason || '-'}</dd></div>
                         </dl>
                     </div>
                 </div>

@@ -35,11 +35,14 @@ async def generate_text(
     project_id: int = None,
     task_type: str = "text_gen",
     use_search: bool = False,
+    json_mode: bool = False,
 ) -> str:
     """Route a text-generation call to the correct provider.
 
     If model is empty, falls back to gemini-2.5-flash.
     If Claude is selected but fails, falls back to gemini-2.5-flash.
+    json_mode is a Gemini-only structured-output hint (responseMimeType);
+    Claude has no equivalent so callers must still parse/retry defensively.
     """
     selected = (model or FALLBACK_GEMINI_MODEL).strip() or FALLBACK_GEMINI_MODEL
     provider = detect_provider(selected)
@@ -66,6 +69,7 @@ async def generate_text(
                 task_type=task_type,
                 model=FALLBACK_GEMINI_MODEL,
                 use_search=use_search,
+                json_mode=json_mode,
             )
 
     return await gemini_service.generate_text(
@@ -76,4 +80,5 @@ async def generate_text(
         task_type=task_type,
         model=selected,
         use_search=use_search,
+        json_mode=json_mode,
     )

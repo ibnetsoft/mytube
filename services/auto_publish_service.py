@@ -6,7 +6,7 @@ from datetime import datetime
 import requests
 
 import database as db
-from services.project_publish_service import publish_project_to_youtube
+from services.project_publish_service import publish_project_to_youtube, release_project_to_public
 from services.web_admin_client import web_admin_client
 
 
@@ -68,6 +68,10 @@ class AutoPublishService:
             data = res.json()
             requests_list = data.get("requests", [])
             publish_queue = [r for r in requests_list if r.get("status") in ("approved", "to_be_published")]
+            release_queue = [r for r in requests_list if r.get("status") == "release_requested"]
+
+            if release_queue:
+                self._process_release_queue(release_queue)
 
             if not publish_queue:
                 return
@@ -85,9 +89,13 @@ class AutoPublishService:
 
                 try:
                     db.update_project_setting(int(project_id), "admin_publish_status", str(req.get("status") or "approved"))
+                    # [private-first release flow] Videos upload as private by
+                    # default so a human can watch the actual rendered output
+                    # before it goes live - this must not silently fall back to
+                    # "public" if metadata.privacy_status is ever missing.
                     result = publish_project_to_youtube(
                         int(project_id),
-                        requested_privacy=str(metadata.get("privacy_status") or "public"),
+                        requested_privacy=str(metadata.get("privacy_status") or "private"),
                         requested_publish_at=metadata.get("publish_at"),
                         requested_channel_id=metadata.get("channel_id"),
                     )
@@ -148,6 +156,59 @@ class AutoPublishService:
 
         except Exception:
             pass
+
+    def _process_release_queue(self, release_queue):
+        print(f"[Info] Found {len(release_queue)} videos to release to public.")
+        for req in release_queue:
+            req_id = req.get("id")
+            metadata = req.get("metadata") or {}
+            project_id = metadata.get("project_id")
+
+            if not project_id:
+                print(f"[Warning] Release request {req_id} missing project_id in metadata.")
+                continue
+
+            try:
+                result = release_project_to_public(int(project_id), requested_channel_id=metadata.get("channel_id"))
+
+                patch_res = web_admin_client.supabase_patch(
+                    "publishing_requests",
+                    {
+                        "status": "public",
+                        "metadata": {
+                            **metadata,
+                            "made_public_at": datetime.utcnow().isoformat() + "Z",
+                        },
+                    },
+                    params={"id": f"eq.{req_id}"},
+                    timeout=15,
+                )
+
+                if patch_res is not None and patch_res.status_code in (200, 204):
+                    print(f"[Success] Released to public {req_id}: {result.get('url')}")
+                else:
+                    body = patch_res.text[:200] if patch_res is not None else "no response"
+                    print(f"[Warning] Server update failed for release {req_id}: {body}")
+
+            except Exception as e:
+                err_msg = str(e)
+                print(f"[Error] Failed to release {req_id} to public: {err_msg}")
+                try:
+                    web_admin_client.supabase_patch(
+                        "publishing_requests",
+                        {
+                            "status": "published",
+                            "metadata": {
+                                **metadata,
+                                "release_error": err_msg,
+                                "release_failed_at": datetime.utcnow().isoformat() + "Z",
+                            },
+                        },
+                        params={"id": f"eq.{req_id}"},
+                        timeout=5,
+                    )
+                except Exception:
+                    pass
 
 
 auto_publish_service = AutoPublishService()

@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
 import LearningStatsPanel from './LearningStatsPanel'
 import TenantManagement from './TenantManagement'
+import ReferralAdminPanel from './ReferralAdminPanel'
+import SubscriptionVerificationsPanel from './SubscriptionVerificationsPanel'
+import SupportInboxPanel from './SupportInboxPanel'
+import AnnouncementsAdminPanel from './AnnouncementsAdminPanel'
 
 interface UserProfile {
     id: string
@@ -87,7 +91,7 @@ interface PublishingRequest {
     id: string
     user_id: string
     video_url: string
-    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'failed' | 'rejected'
+    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'release_requested' | 'public' | 'failed' | 'rejected'
     metadata: any
     created_at: string
     profiles?: {
@@ -181,7 +185,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -300,12 +304,15 @@ export default function DashboardContent() {
         image_prompt_model: 'gemini-2.5-flash',
         translation_model: 'gemini-2.5-flash',
         image_generation_model: 'gemini-3.1-flash-image-preview',
-        video_generation_model: 'veo-3.1-fast-generate-preview'
+        video_generation_model: 'veo-3.1-fast-generate-preview',
+        // [AIR-0230] 모델별 단가표(JSON 문자열): { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
+        model_pricing: '{}'
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
+    const [newPricingModelId, setNewPricingModelId] = useState('')
     const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi' | 'th'>('ko')
-    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'music' | 'video' | 'legal' | 'policy'>('ai')
+    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'music' | 'video' | 'legal' | 'policy' | 'pricing'>('ai')
 
     // Style Presets state
     const [stylePresets, setStylePresets] = useState<any[]>([])
@@ -832,7 +839,7 @@ export default function DashboardContent() {
     }
 
     const handlePublishVideo = async (requestId: string) => {
-        if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Would you like to switch this video to Public on YouTube?')) return;
+        if (!confirm(isKor ? '이 영상을 유튜브에 비공개(Private)로 업로드하시겠습니까? 업로드 후 직접 확인하고 별도로 공개 전환할 수 있습니다.' : 'Upload this video to YouTube as Private? You can review it and switch it to Public separately afterward.')) return;
         try {
             const res = await adminFetch('/api/admin/publishing', {
                 method: 'PATCH',
@@ -840,7 +847,24 @@ export default function DashboardContent() {
                 body: JSON.stringify({ requestId, status: 'approved' })
             });
             if (res.ok) {
-                alert(isKor ? '전환 요청 완료! 잠시 후 유튜브에 반영됩니다.' : 'Request Complete! Will reflect on YouTube shortly.');
+                alert(isKor ? '업로드 요청 완료! 잠시 후 비공개로 유튜브에 올라갑니다.' : 'Upload requested! It will be uploaded as Private on YouTube shortly.');
+                fetchPublishingRequests();
+            } else {
+                alert('요청 실패');
+            }
+        } catch (e) { alert('오류 발생'); }
+    }
+
+    const handleReleaseToPublic = async (requestId: string) => {
+        if (!confirm(isKor ? '이 영상을 유튜브에서 공개(Public)로 전환하시겠습니까?' : 'Switch this video to Public on YouTube?')) return;
+        try {
+            const res = await adminFetch('/api/admin/publishing', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId, status: 'release_requested' })
+            });
+            if (res.ok) {
+                alert(isKor ? '공개 전환 요청 완료! 잠시 후 유튜브에 반영됩니다.' : 'Release requested! Will reflect on YouTube shortly.');
                 fetchPublishingRequests();
             } else {
                 alert('요청 실패');
@@ -918,7 +942,25 @@ export default function DashboardContent() {
                             PROJECT ID MISSING
                         </span>
                     )}
-                    {req.status === 'published' && req.metadata?.drive_folder_link && (
+                    {isSuperAdmin && req.status === 'published' && (
+                        <button
+                            onClick={() => handleReleaseToPublic(req.id)}
+                            className="mr-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black rounded-xl shadow-lg transition-all uppercase tracking-widest"
+                        >
+                            {isKor ? '공개로 전환' : 'Make Public'}
+                        </button>
+                    )}
+                    {req.status === 'release_requested' && (
+                        <span className="mr-2 px-4 py-2 bg-blue-500/15 text-blue-300 text-[10px] font-black rounded-xl border border-blue-500/30 inline-block uppercase tracking-widest animate-pulse">
+                            {isKor ? '공개 전환 중' : 'Releasing...'}
+                        </span>
+                    )}
+                    {req.status === 'public' && (
+                        <span className="mr-2 px-4 py-2 bg-emerald-500/15 text-emerald-300 text-[10px] font-black rounded-xl border border-emerald-500/30 inline-block uppercase tracking-widest">
+                            {isKor ? '🌐 공개됨' : '🌐 Public'}
+                        </span>
+                    )}
+                    {(req.status === 'published' || req.status === 'release_requested' || req.status === 'public') && req.metadata?.drive_folder_link && (
                         <a
                             href={req.metadata.drive_folder_link}
                             target="_blank"
@@ -952,7 +994,9 @@ export default function DashboardContent() {
 
     const getPublishingStatusMeta = (req: PublishingRequest) => {
         if (req.metadata?.is_invalid_request) return { label: 'INVALID', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
-        if (req.status === 'published') return { label: isKor ? '✓ 업로드 완료' : '✓ Published', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
+        if (req.status === 'public') return { label: isKor ? '🌐 공개됨' : '🌐 Public', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
+        if (req.status === 'release_requested') return { label: isKor ? '🚀 공개 전환 중' : '🚀 Releasing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
+        if (req.status === 'published') return { label: isKor ? '✓ 비공개 업로드 완료' : '✓ Uploaded (Private)', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
         if (req.status === 'approved' || req.status === 'to_be_published') return { label: isKor ? '⚡ 발행 진행 중' : '⚡ Publishing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
         if (req.status === 'failed') return { label: isKor ? '❌ 업로드 실패' : '❌ Failed', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
         if (req.status === 'rejected') return { label: isKor ? '🚫 제외됨' : '🚫 Rejected', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30 font-black' }
@@ -963,7 +1007,7 @@ export default function DashboardContent() {
         return publishingRequests.reduce((acc, req) => {
             acc.total += 1
             if (req.metadata?.is_invalid_request) acc.invalid += 1
-            else if (req.status === 'published') acc.published += 1
+            else if (req.status === 'published' || req.status === 'release_requested' || req.status === 'public') acc.published += 1
             else if (req.status === 'approved' || req.status === 'to_be_published') acc.processing += 1
             else if (req.status === 'failed') acc.failed += 1
             else acc.pending += 1
@@ -975,8 +1019,48 @@ export default function DashboardContent() {
         if (publishingFilter === 'all') return publishingRequests
         if (publishingFilter === 'invalid') return publishingRequests.filter(req => Boolean(req.metadata?.is_invalid_request))
         if (publishingFilter === 'processing') return publishingRequests.filter(req => req.status === 'approved' || req.status === 'to_be_published')
+        if (publishingFilter === 'published') return publishingRequests.filter(req => req.status === 'published' || req.status === 'release_requested' || req.status === 'public')
         return publishingRequests.filter(req => req.status === publishingFilter)
     }, [publishingRequests, publishingFilter])
+
+    // [AIR-0230] 모델별 단가표. sysKeys.model_pricing은 JSON 문자열로 저장되므로
+    // (다른 sysKeys 필드들과 동일한 패턴) 렌더링 시 파싱해서 쓴다.
+    const modelPricingMap: Record<string, { input_per_1k?: number; output_per_1k?: number; thinking_per_1k?: number; currency?: string }> = useMemo(() => {
+        try {
+            const parsed = JSON.parse(sysKeys.model_pricing || '{}');
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch {
+            return {};
+        }
+    }, [sysKeys.model_pricing]);
+
+    const updateModelPricing = (modelId: string, patch: Record<string, any>) => {
+        const next = { ...modelPricingMap, [modelId]: { ...(modelPricingMap[modelId] || {}), ...patch } };
+        setSysKeys(prev => ({ ...prev, model_pricing: JSON.stringify(next) }));
+    };
+
+    const removeModelPricing = (modelId: string) => {
+        const next = { ...modelPricingMap };
+        delete next[modelId];
+        setSysKeys(prev => ({ ...prev, model_pricing: JSON.stringify(next) }));
+    };
+
+    // 단가가 설정된 모델은 실제 단가로, 미설정 모델은 기존 flat-rate(토큰당 $0.00002)로
+    // 추정한다 - estimated:true면 UI에서 "추정치"로 구분 표시해야 한다.
+    const calcLogCost = (log: any): { cost: number; estimated: boolean } => {
+        const price = modelPricingMap[log.model_id];
+        const inputT = log.input_tokens || 0;
+        const outputT = log.output_tokens || 0;
+        const thinkingT = log.thinking_tokens || 0;
+        if (price && (price.input_per_1k || price.output_per_1k)) {
+            const thinkingRate = price.thinking_per_1k ?? price.output_per_1k ?? 0;
+            const cost = (inputT / 1000) * (price.input_per_1k || 0)
+                + (outputT / 1000) * (price.output_per_1k || 0)
+                + (thinkingT / 1000) * thinkingRate;
+            return { cost, estimated: false };
+        }
+        return { cost: (inputT + outputT + thinkingT) * 0.00002, estimated: true };
+    };
 
     const calcGeneralStats = (logs: any[], days: number) => {
         const coreTasks = ['video', 'image', 'script', 'text_gen', 'vision_gen', 'subtitle_fix'];
@@ -985,10 +1069,13 @@ export default function DashboardContent() {
         coreTasks.forEach(task => {
             breakdown[task] = { tokens: 0, count: 0, buckets: new Array(days === 1 ? 24 : days).fill(0).map(() => ({ tokens: 0, count: 0 })) };
         });
-        if (!logs || !logs.length) return { total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, totalThinkingTokens: 0, breakdown };
+        const byWorker: Record<string, { count: number; inputTokens: number; outputTokens: number; thinkingTokens: number; cost: number; costEstimated: boolean; lastActiveAt: string | null }> = {};
+        const byModel: Record<string, { provider: string; count: number; inputTokens: number; outputTokens: number; thinkingTokens: number; cost: number; costEstimated: boolean; taskTypes: Set<string> }> = {};
+        if (!logs || !logs.length) return { total: 0, successRate: 0, avgLatency: 0, totalTokens: 0, totalCost: 0, totalThinkingTokens: 0, breakdown, byWorker, byModel };
         const total = logs.length;
         const successes = logs.filter(l => (l.task_type !== 'RECHARGE' && ((l.status || '').toLowerCase() === 'success' || (l.status || '').toLowerCase() === 'done'))).length;
         const tokens = logs.reduce((acc, l) => acc + (l.task_type === 'RECHARGE' ? 0 : (l.input_tokens || 0) + (l.output_tokens || 0) + (l.thinking_tokens || 0)), 0);
+        let totalCost = 0;
         logs.forEach(l => {
             if (l.task_type === 'RECHARGE') return;
             let stage = (l.task_type || 'unknown').toLowerCase();
@@ -1000,9 +1087,37 @@ export default function DashboardContent() {
             breakdown[stage].tokens += t;
             breakdown[stage].count += 1;
             totalThinkingTokens += (l.thinking_tokens || 0);
+
+            const { cost, estimated } = calcLogCost(l);
+            totalCost += cost;
+
+            // [AIR-0230] 직원별 집계 - "누가" API를 많이 썼는지. worker_email이 없는
+            // 옛 로그(동기화 픽스 이전)는 '(미확인)' 버킷으로 묶는다.
+            const workerKey = l.worker_email || '(미확인)';
+            if (!byWorker[workerKey]) byWorker[workerKey] = { count: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, cost: 0, costEstimated: false, lastActiveAt: null };
+            byWorker[workerKey].count += 1;
+            byWorker[workerKey].inputTokens += (l.input_tokens || 0);
+            byWorker[workerKey].outputTokens += (l.output_tokens || 0);
+            byWorker[workerKey].thinkingTokens += (l.thinking_tokens || 0);
+            byWorker[workerKey].cost += cost;
+            byWorker[workerKey].costEstimated = byWorker[workerKey].costEstimated || estimated;
+            if (!byWorker[workerKey].lastActiveAt || l.created_at > byWorker[workerKey].lastActiveAt!) {
+                byWorker[workerKey].lastActiveAt = l.created_at;
+            }
+
+            // [AIR-0230] 모델별 집계 - "어떤 모델이 얼마나" 쓰였는지.
+            const modelKey = l.model_id || '(unknown)';
+            if (!byModel[modelKey]) byModel[modelKey] = { provider: l.provider || '', count: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, cost: 0, costEstimated: false, taskTypes: new Set() };
+            byModel[modelKey].count += 1;
+            byModel[modelKey].inputTokens += (l.input_tokens || 0);
+            byModel[modelKey].outputTokens += (l.output_tokens || 0);
+            byModel[modelKey].thinkingTokens += (l.thinking_tokens || 0);
+            byModel[modelKey].cost += cost;
+            byModel[modelKey].costEstimated = byModel[modelKey].costEstimated || estimated;
+            byModel[modelKey].taskTypes.add(stage);
         });
         const avgLat = total > 0 ? parseFloat((logs.reduce((acc, l) => acc + (l.elapsed_time || 0), 0) / total).toFixed(1)) : 0;
-        return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: avgLat, totalTokens: tokens, totalThinkingTokens, breakdown };
+        return { total, successRate: total > 0 ? Math.round((successes / total)*100) : 0, avgLatency: avgLat, totalTokens: tokens, totalCost, totalThinkingTokens, breakdown, byWorker, byModel };
     }
 
     const fetchGlobalStats = useCallback(async (days: number) => {
@@ -1014,7 +1129,9 @@ export default function DashboardContent() {
             setGlobalLogs(data.logs || []);
             setGlobalStats(calcGeneralStats(data.logs || [], days));
         } finally { setGlobalLoading(false); }
-    }, [isAdmin, adminFetch]);
+        // [AIR-0230] calcGeneralStats가 sysKeys.model_pricing(모델 단가표)를 참조하므로,
+        // 단가를 수정한 뒤 "새로고침"을 눌러도 최신 단가로 재계산되도록 의존성에 포함한다.
+    }, [isAdmin, adminFetch, sysKeys.model_pricing]);
 
     
     const fetchWithdrawals = useCallback(async () => {
@@ -1091,6 +1208,7 @@ export default function DashboardContent() {
             setSysKeys({
                 gemini: data.gemini || '',
                 youtube: data.youtube || '',
+                claude: data.claude || '',
                 elevenlabs: data.elevenlabs || '',
                 suno: data.suno || '',
                 suno_base_url: data.suno_base_url || '',
@@ -1133,7 +1251,8 @@ export default function DashboardContent() {
                 image_prompt_model: data.image_prompt_model || 'gemini-2.5-flash',
                 translation_model: data.translation_model || 'gemini-2.5-flash',
                 image_generation_model: data.image_generation_model || 'gemini-3.1-flash-image-preview',
-                video_generation_model: data.video_generation_model || 'veo-3.1-fast-generate-preview'
+                video_generation_model: data.video_generation_model || 'veo-3.1-fast-generate-preview',
+                model_pricing: data.model_pricing || '{}'
             });
         } catch (e) {
             // Silently ignore errors to prevent console spam
@@ -1703,6 +1822,27 @@ export default function DashboardContent() {
             }
             setLoading(false);
         });
+
+        // [AIR-admin-auth-token-refresh] authToken was only ever captured once
+        // at mount - Supabase silently refreshes the underlying access token
+        // in the background (autoRefreshToken), but this component's own
+        // authToken state never followed along. Any admin dashboard tab left
+        // open past the token's ~1h lifetime would keep sending an expired
+        // JWT on every adminFetch call, which the server can't distinguish
+        // from "not a real session" - so it fell through to the generic
+        // "Super admin access required" 403, even for the actual super admin.
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session) {
+                router.push('/');
+                return;
+            }
+            setUser(session.user);
+            setAuthToken(session.access_token || '');
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
     }, [router]);
 
     const userIdRef = useRef<string | null>(null);
@@ -1853,6 +1993,109 @@ export default function DashboardContent() {
                         </div>
                     </div>
                 ))}
+            </div>
+        );
+    };
+
+    // [AIR-0230] task_type -> 관리자가 설정한 "카테고리별 모델" 키. 애매한 카테고리
+    // (text_gen/vision_gen/subtitle_fix 등)는 1:1 대응이 없어 의도적으로 뺐다 -
+    // 잘못된 뱃지를 붙이는 것보다 안 붙이는 게 낫다.
+    const TASK_TYPE_TO_MODEL_SETTING: Record<string, { key: keyof typeof sysKeys; label: string }> = {
+        video: { key: 'video_generation_model', label: '영상생성' },
+        image: { key: 'image_generation_model', label: '이미지생성' },
+        script: { key: 'script_generation_model', label: '대본생성' },
+        translation: { key: 'translation_model', label: '번역' },
+    };
+
+    // [AIR-0230] 현황요약 탭 - "직원별 사용량" / "모델별 사용량" 테이블.
+    // API 비용이 많이 나왔을 때 "누가/어떤 모델이" 그 비용을 만들었는지 바로
+    // 보이게 하는 게 이 섹션의 존재 이유다 - calcGeneralStats가 이미 만들어둔
+    // byWorker/byModel을 비용 내림차순으로 나열하기만 한다.
+    const renderUsageBreakdownTables = (stats: any) => {
+        const byWorker = Object.entries(stats.byWorker || {}) as [string, any][];
+        const byModel = Object.entries(stats.byModel || {}) as [string, any][];
+        if (!byWorker.length && !byModel.length) return null;
+
+        byWorker.sort((a, b) => b[1].cost - a[1].cost);
+        byModel.sort((a, b) => b[1].cost - a[1].cost);
+
+        const fmtCost = (c: number, estimated: boolean) => `${estimated ? '~' : ''}$${c.toFixed(2)}`;
+        const fmtTokens = (row: any) => (row.inputTokens + row.outputTokens + row.thinkingTokens).toLocaleString();
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-[#0f172a]/60 border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="px-5 py-3 border-b border-white/5 bg-black/20">
+                        <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">직원별 사용량</h4>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                        <table className="w-full text-xs">
+                            <thead className="text-[9px] text-gray-500 uppercase tracking-wider sticky top-0 bg-[#0f172a]">
+                                <tr>
+                                    <th className="text-left px-4 py-2">직원</th>
+                                    <th className="text-right px-2 py-2">건수</th>
+                                    <th className="text-right px-2 py-2">토큰</th>
+                                    <th className="text-right px-2 py-2">비용</th>
+                                    <th className="text-right px-4 py-2">마지막 활동</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {byWorker.map(([email, row]) => (
+                                    <tr key={email} className="border-t border-white/5 hover:bg-white/[0.02]">
+                                        <td className="px-4 py-2 text-gray-200 truncate max-w-[160px]" title={email}>{email}</td>
+                                        <td className="px-2 py-2 text-right text-gray-400 tabular-nums">{row.count}</td>
+                                        <td className="px-2 py-2 text-right text-blue-400 tabular-nums">{fmtTokens(row)}</td>
+                                        <td className="px-2 py-2 text-right text-orange-300 font-bold tabular-nums">{fmtCost(row.cost, row.costEstimated)}</td>
+                                        <td className="px-4 py-2 text-right text-gray-500 text-[10px] tabular-nums">{row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleString() : '-'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="bg-[#0f172a]/60 border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="px-5 py-3 border-b border-white/5 bg-black/20">
+                        <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">모델별 사용량</h4>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                        <table className="w-full text-xs">
+                            <thead className="text-[9px] text-gray-500 uppercase tracking-wider sticky top-0 bg-[#0f172a]">
+                                <tr>
+                                    <th className="text-left px-4 py-2">모델</th>
+                                    <th className="text-right px-2 py-2">건수</th>
+                                    <th className="text-right px-2 py-2">토큰</th>
+                                    <th className="text-right px-4 py-2">비용</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {byModel.map(([modelId, row]) => {
+                                    const currentBadges = Array.from(row.taskTypes as Set<string>)
+                                        .map(tt => TASK_TYPE_TO_MODEL_SETTING[tt])
+                                        .filter(m => m && (sysKeys as any)[m.key] === modelId);
+                                    return (
+                                        <tr key={modelId} className="border-t border-white/5 hover:bg-white/[0.02]">
+                                            <td className="px-4 py-2 text-gray-200">
+                                                <div className="truncate max-w-[180px]" title={modelId}>{modelId}</div>
+                                                <div className="text-[9px] text-gray-600">{row.provider}</div>
+                                                {currentBadges.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {currentBadges.map((b: any) => (
+                                                            <span key={b.label} className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">현재 설정됨: {b.label}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-2 py-2 text-right text-gray-400 tabular-nums">{row.count}</td>
+                                            <td className="px-2 py-2 text-right text-blue-400 tabular-nums">{fmtTokens(row)}</td>
+                                            <td className="px-4 py-2 text-right text-orange-300 font-bold tabular-nums">{fmtCost(row.cost, row.costEstimated)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         );
     };
@@ -2059,7 +2302,7 @@ export default function DashboardContent() {
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
                 <div className="flex items-center justify-between">
-                    <div className="flex gap-2 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
+                    <div className="flex flex-wrap gap-1 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
                             { id: 'topics', label: ui.topics, superOnly: false },
                             { id: 'overview', label: ui.overview, superOnly: false },
@@ -2070,7 +2313,10 @@ export default function DashboardContent() {
                             { id: 'learning', label: ui.learning, superOnly: true },
                             { id: 'styles', label: ui.styles, superOnly: true },
                             { id: 'tenants', label: '테넌트', superOnly: true },
-                            { id: 'referral-admin', label: 'Referral Admin', superOnly: true, href: '/admin/referrals' },
+                            { id: 'referral-admin', label: '추천인 관리', superOnly: true },
+                            { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
+                            { id: 'support', label: '문의 Inbox', superOnly: false },
+                            { id: 'announcements', label: '공지사항', superOnly: false },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -2079,8 +2325,8 @@ export default function DashboardContent() {
                                     type="button"
                                     disabled={locked}
                                     title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
-                                    onClick={() => !locked && (tab.href ? router.push(tab.href) : setActiveTab(tab.id as any))}
-                                    className={`px-10 py-3.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-[0.1em] whitespace-nowrap ${
+                                    onClick={() => !locked && setActiveTab(tab.id as any)}
+                                    className={`px-3.5 py-2 rounded-xl text-[10px] font-black transition-all uppercase tracking-tight whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'bg-blue-600 text-white shadow-xl'
                                             : locked
@@ -2887,20 +3133,21 @@ export default function DashboardContent() {
                                 <StatCard label="TOTAL TASKS" value={globalStats.total} unit="UNITS" color="white" />
                                 <StatCard label="SUCCESS RATE" value={globalStats.successRate + '%'} unit="GLOBAL" color="green" />
                                 <StatCard label="AVG LATENCY" value={globalStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                                <StatCard 
-                                    label={isKor ? "토큰 소모량" : "TOKEN USAGE"} 
-                                    value={globalStats.totalTokens.toLocaleString()} 
-                                    unit="TOKENS" 
-                                    color="orange" 
-                                    subLabel={isKor 
-                                        ? `예상 비용: 약 $${((globalStats.totalTokens || 0) * 0.00002).toFixed(2)}` 
-                                        : `Est. Cost: ~$${((globalStats.totalTokens || 0) * 0.00002).toFixed(2)}`
+                                <StatCard
+                                    label={isKor ? "토큰 소모량" : "TOKEN USAGE"}
+                                    value={globalStats.totalTokens.toLocaleString()}
+                                    unit="TOKENS"
+                                    color="orange"
+                                    subLabel={isKor
+                                        ? `예상 비용: 약 $${((globalStats as any).totalCost || 0).toFixed(2)}`
+                                        : `Est. Cost: ~$${((globalStats as any).totalCost || 0).toFixed(2)}`
                                     }
                                 />
                             </div>
                             {renderDonutChart(globalStats)}
                         </div>
                         {renderChartRow(globalStats, globalTopTasks)}
+                        {renderUsageBreakdownTables(globalStats)}
                         <div className="flex items-center gap-4 py-2">
                              <div className="text-[11px] font-black text-gray-500 uppercase tracking-[0.4em] flex items-center gap-4"><div className="w-2 h-2 rounded-full bg-blue-500" /> GENERATION HISTORY</div>
                              <div className="h-[1px] flex-1 bg-white/5"></div>
@@ -3380,6 +3627,7 @@ export default function DashboardContent() {
                                     { key: 'video',  icon: '🎬', label: '영상/결제' },
                                     { key: 'legal',  icon: '📋', label: '약관' },
                                     { key: 'policy', icon: '⚙️', label: '운영정책' },
+                                    { key: 'pricing', icon: '💵', label: '모델 단가' },
                                 ] as const).map(t => (
                                     <button
                                         key={t.key}
@@ -3865,6 +4113,112 @@ export default function DashboardContent() {
                                 </div>
                             )}
 
+                            {/* ── 탭 6: 모델 단가 ── */}
+                            {apiSettingsTab === 'pricing' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div>
+                                        <h4 className="text-xs font-black text-yellow-300 uppercase tracking-widest">모델별 단가표</h4>
+                                        <p className="text-[10px] text-gray-500 mt-1">현황요약 탭의 예상 비용/직원별·모델별 사용량 집계에 사용됩니다. 단가가 없는 모델은 대략치(토큰당 $0.00002)로 표시됩니다.</p>
+                                    </div>
+
+                                    {Object.keys(modelPricingMap).length === 0 && (
+                                        <p className="text-[11px] text-gray-500">등록된 단가가 없습니다. 아래에서 모델을 추가하세요.</p>
+                                    )}
+
+                                    <div className="space-y-2">
+                                        {Object.entries(modelPricingMap).map(([modelId, price]) => (
+                                            <div key={modelId} className="rounded-xl border border-white/10 bg-black/20 p-3 grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                                                <div>
+                                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">모델 ID</label>
+                                                    <div className="text-xs font-bold text-white px-3 py-2 truncate">{modelId}</div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Input / 1K</label>
+                                                    <input
+                                                        type="number" step="0.0001" min="0"
+                                                        value={price.input_per_1k ?? ''}
+                                                        onChange={e => updateModelPricing(modelId, { input_per_1k: parseFloat(e.target.value) || 0 })}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/50 text-gray-200"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Output / 1K</label>
+                                                    <input
+                                                        type="number" step="0.0001" min="0"
+                                                        value={price.output_per_1k ?? ''}
+                                                        onChange={e => updateModelPricing(modelId, { output_per_1k: parseFloat(e.target.value) || 0 })}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/50 text-gray-200"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Thinking / 1K</label>
+                                                    <input
+                                                        type="number" step="0.0001" min="0"
+                                                        placeholder={String(price.output_per_1k ?? 0)}
+                                                        value={price.thinking_per_1k ?? ''}
+                                                        onChange={e => updateModelPricing(modelId, { thinking_per_1k: e.target.value === '' ? undefined : (parseFloat(e.target.value) || 0) })}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/50 text-gray-200"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeModelPricing(modelId)}
+                                                    className="px-3 py-2 rounded-lg text-[10px] font-black bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20"
+                                                >
+                                                    삭제
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-2 items-center pt-2 border-t border-white/5">
+                                        <input
+                                            type="text"
+                                            value={newPricingModelId}
+                                            onChange={e => setNewPricingModelId(e.target.value)}
+                                            placeholder="모델 ID 입력 (예: gemini-2.5-flash)"
+                                            className="flex-1 bg-black/40 border border-white/10 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500/50 text-gray-200 placeholder:text-gray-700"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const id = newPricingModelId.trim();
+                                                if (!id || modelPricingMap[id]) return;
+                                                updateModelPricing(id, { input_per_1k: 0, output_per_1k: 0, currency: 'USD' });
+                                                setNewPricingModelId('');
+                                            }}
+                                            disabled={!newPricingModelId.trim()}
+                                            className="px-4 py-2.5 rounded-xl text-[10px] font-black bg-yellow-500/10 text-yellow-300 hover:bg-yellow-500/20 border border-yellow-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            + 추가
+                                        </button>
+                                    </div>
+
+                                    {(() => {
+                                        const seenModels = Array.from(new Set((globalLogs || []).map((l: any) => l.model_id).filter(Boolean)))
+                                            .filter((id: any) => !modelPricingMap[id]);
+                                        if (!seenModels.length) return null;
+                                        return (
+                                            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 space-y-2">
+                                                <p className="text-[10px] text-blue-300 font-bold">최근 사용 기록에서 단가 미설정 모델 발견:</p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {seenModels.map((id: any) => (
+                                                        <button
+                                                            key={id}
+                                                            type="button"
+                                                            onClick={() => updateModelPricing(id, { input_per_1k: 0, output_per_1k: 0, currency: 'USD' })}
+                                                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-black/30 text-blue-300 hover:bg-black/50 border border-blue-500/20"
+                                                        >
+                                                            + {id}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
                             {/* 저장 버튼 */}
                             {sysKeysSaved && <p className="text-xs text-green-400 font-bold text-center">✓ 저장 완료</p>}
                             <button
@@ -4053,6 +4407,22 @@ export default function DashboardContent() {
 
                 {activeTab === 'tenants' && isSuperAdmin && (
                     <TenantManagement authToken={authToken} isSuperAdmin={isSuperAdmin} />
+                )}
+
+                {activeTab === 'referral-admin' && isSuperAdmin && (
+                    <ReferralAdminPanel />
+                )}
+
+                {activeTab === 'subscription-verifications' && (
+                    <SubscriptionVerificationsPanel />
+                )}
+
+                {activeTab === 'support' && (
+                    <SupportInboxPanel />
+                )}
+
+                {activeTab === 'announcements' && (
+                    <AnnouncementsAdminPanel />
                 )}
 
                 {activeTab === 'styles' && canManageStyles && (
@@ -4402,14 +4772,14 @@ export default function DashboardContent() {
                                     <StatCard label="TOTAL TASKS" value={logStats.total} unit="UNITS" color="white" />
                                     <StatCard label="SUCCESS RATE" value={logStats.successRate + '%'} unit="GLOBAL" color="green" />
                                     <StatCard label="AVG LATENCY" value={logStats.avgLatency + 's'} unit="PER TASK" color="blue" />
-                                    <StatCard 
-                                        label="TOKEN USAGE" 
-                                        value={logStats.totalTokens.toLocaleString()} 
-                                        unit="TOKENS" 
-                                        color="orange" 
-                                        subLabel={isKor 
-                                            ? `예상 비용: 약 $${((logStats.totalTokens || 0) * 0.00002).toFixed(2)}` 
-                                            : `Est. Cost: ~$${((logStats.totalTokens || 0) * 0.00002).toFixed(2)}`
+                                    <StatCard
+                                        label="TOKEN USAGE"
+                                        value={logStats.totalTokens.toLocaleString()}
+                                        unit="TOKENS"
+                                        color="orange"
+                                        subLabel={isKor
+                                            ? `예상 비용: 약 $${((logStats as any).totalCost || 0).toFixed(2)}`
+                                            : `Est. Cost: ~$${((logStats as any).totalCost || 0).toFixed(2)}`
                                         }
                                     />
                                 </div>

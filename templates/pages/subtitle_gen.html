@@ -737,6 +737,7 @@
         btn_select_all: "{{ t('btn_select_all') }}",
         btn_delete_selected: "{{ t('btn_delete_selected') }}",
         status_rendered: "{{ t('status_rendered') }}",
+        label_missing_visual: "{{ t('label_missing_visual') }}",
         toast_save_success: "{{ t('toast_save_success') }}",
         err_save_fail: "{{ t('err_save_fail') }}",
         confirm_auto_sync: "{{ t('confirm_auto_sync') }}",
@@ -3355,7 +3356,18 @@
                 // Start Polling
                 pollRenderStatus(btn, originalText);
             } else {
-                throw new Error(data.error || "Unknown Error");
+                // [FIX] FastAPI HTTPException(409, detail={...})는 { detail: {...} }로
+                // 응답한다 - data.error만 보고 있어서 씬 누락 안내(longform_assets_not_ready)가
+                // 항상 "Unknown Error"로만 표시되던 버그.
+                const detail = data.detail;
+                let errMsg = data.error || "Unknown Error";
+                if (detail && typeof detail === 'object') {
+                    errMsg = detail.message || errMsg;
+                    if (Array.isArray(detail.missing_scene_numbers) && detail.missing_scene_numbers.length) {
+                        errMsg += ` (${i18n.label_missing_visual}: ${detail.missing_scene_numbers.join(', ')})`;
+                    }
+                }
+                throw new Error(errMsg);
             }
 
         } catch (e) {

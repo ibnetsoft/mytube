@@ -37,17 +37,52 @@ class TopicTranslationRequest(BaseModel):
     topics: List[TopicTranslationItem]
 
 
-def _supabase_headers():
-    """Build Supabase headers."""
-    supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not supabase_url or not supabase_key:
-        return None, None
+class BridgeError(Exception):
+    """[AIR-0227E-P4] Raised when the desktop-topics-bridge call itself fails
+    (network/auth/unexpected server error) - distinct from a well-formed
+    'status': 'error' business response (e.g. topic_already_claimed), which
+    callers handle explicitly via the returned dict."""
 
-    return supabase_url.rstrip("/"), {
-        "apikey": supabase_key,
-        "Authorization": f"Bearer {supabase_key}",
-    }
+
+def _call_bridge(action: str, params: dict | None = None) -> dict:
+    """[AIR-0227E-P4] Every Supabase read/write this router needs now goes
+    through auth-web's POST /api/desktop-topics-bridge instead of a direct
+    SUPABASE_SERVICE_ROLE_KEY-authenticated request.
+
+    Why: AIR-0225B (commit 83951d8f) stopped bundling SUPABASE_SERVICE_ROLE_KEY
+    into packaged desktop releases (it was leaking into public release zips),
+    but this router was never migrated off direct service_role usage - every
+    packaged build's topic page has been 500ing ever since. The bridge reuses
+    the exact same email+session_token auth already established for
+    /api/desktop-resync (services/web_admin_client.py::desktop_resync) - no
+    service_role value ever exists on the desktop side of this call.
+    """
+    email = auth_service.get_user_email()
+    session_token = auth_service.get_session_token()
+    if not email or not session_token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    try:
+        r = requests.post(
+            f"{web_admin_client.dashboard_url}/api/desktop-topics-bridge",
+            json={"email": email, "session_token": session_token, "action": action, "params": params or {}},
+            timeout=15,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+    except Exception as e:
+        raise BridgeError(f"desktop-topics-bridge unreachable ({action}): {e}")
+
+    try:
+        body = r.json()
+    except Exception:
+        raise BridgeError(f"desktop-topics-bridge returned a non-JSON response ({action}, HTTP {r.status_code})")
+
+    if r.status_code == 401:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if r.status_code >= 500:
+        raise BridgeError(f"desktop-topics-bridge error ({action}): {body.get('detail')}")
+    return body
 
 
 def _normalize_content_language(value: str, default: str = "ko") -> str:
@@ -70,7 +105,7 @@ def _to_float(value, default: float) -> float:
         return default
 
 
-def _fetch_longform_policy(supabase_url: str, headers: dict) -> dict:
+def _fetch_longform_policy() -> dict:
     defaults = {
         "sys_api_longform_min_duration_minutes": "15",
         "sys_api_longform_base_payout": "4",
@@ -78,13 +113,10 @@ def _fetch_longform_policy(supabase_url: str, headers: dict) -> dict:
         "sys_api_longform_duration_lock_enabled": "true",
     }
     try:
-        keys = ",".join(defaults.keys())
-        url = f"{supabase_url}/rest/v1/global_settings?select=key,value&key=in.({keys})"
-        r = requests.get(url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-        if r.status_code == 200:
-            for row in r.json() or []:
-                if row.get("key"):
-                    defaults[row["key"]] = row.get("value")
+        result = _call_bridge("get_longform_policy")
+        for row in result.get("rows") or []:
+            if row.get("key"):
+                defaults[row["key"]] = row.get("value")
     except Exception as e:
         print(f"[User Topics] Failed to fetch longform policy: {e}")
     return defaults
@@ -350,92 +382,54 @@ async def _translate_topics_batch(items: list[dict], target_lang_code: str) -> d
     return translated
 
 
-def _fetch_stored_translations(
-    supabase_url: str,
-    headers: dict,
-    topic_ids: list[str],
-    lang_code: str,
-) -> dict:
-    """Fetch already-persisted translations from Supabase topics_queue.
-
-    Returns {str(id): {"topic_{lang}": "...", "category_name_{lang}": "..."}}.
-    Returns an empty dict when the translation columns have not been migrated yet
-    or on any network/parse error — callers fall back to runtime AI translation.
-    """
+def _fetch_stored_translations(topic_ids: list[str], lang_code: str) -> dict:
+    """Fetch already-persisted translations from Supabase topics_queue via
+    the bridge. Returns {str(id): {"topic_{lang}": "...", "category_name_{lang}": "..."}}.
+    Returns an empty dict when the translation columns have not been migrated
+    yet or on any network/parse error - callers fall back to runtime AI translation."""
     if not topic_ids or lang_code not in {"en", "vi", "th"}:
         return {}
 
-    ids_param = ",".join(str(tid) for tid in topic_ids)
     lang = lang_code
-    url = (
-        f"{supabase_url}/rest/v1/topics_queue"
-        f"?id=in.({ids_param})"
-        f"&select=id,topic_{lang},category_name_{lang}"
-    )
     try:
-        r = requests.get(
-            url,
-            headers=headers,
-            timeout=5,
-            verify=False,
-            proxies={"http": None, "https": None},
-        )
-        if r.status_code != 200:
-            # Columns absent (migration not yet run) or other transient error — degrade gracefully.
-            return {}
-        result = {}
-        for row in (r.json() or []):
+        result = _call_bridge("get_stored_translations", {"topic_ids": [str(t) for t in topic_ids], "lang": lang})
+        out = {}
+        for row in result.get("rows") or []:
             rid = str(row.get("id") or "").strip()
             if not rid:
                 continue
             topic_t = str(row.get(f"topic_{lang}") or "").strip()
             if topic_t:
-                result[rid] = {
+                out[rid] = {
                     f"topic_{lang}": topic_t,
                     f"category_name_{lang}": str(row.get(f"category_name_{lang}") or "").strip(),
                 }
-        return result
+        return out
     except Exception as e:
         print(f"[User Topics] Failed to fetch stored translations ({lang}): {e}")
         return {}
 
 
-async def _save_translations_to_db(
-    supabase_url: str,
-    headers: dict,
-    translations: dict,
-    lang_code: str,
-) -> None:
-    """Persist newly AI-translated topic fields back to Supabase topics_queue.
-
-    Fire-and-forget: errors are logged but not propagated to the caller.
-    Skips rows where the translated topic text is empty.
-    """
+async def _save_translations_to_db(translations: dict, lang_code: str) -> None:
+    """Persist newly AI-translated topic fields back to Supabase topics_queue
+    via the bridge. Fire-and-forget: errors are logged but not propagated to
+    the caller. Skips rows where the translated topic text is empty."""
     if not translations or lang_code not in {"en", "vi", "th"}:
         return
 
     lang = lang_code
-    save_headers = {**headers, "Content-Type": "application/json", "Prefer": "return=minimal"}
 
     async def _patch_one(topic_id: str, data: dict) -> None:
         topic_val = str(data.get(f"topic_{lang}") or "").strip()
         if not topic_val:
             return
-        body = {
+        fields = {
             f"topic_{lang}": topic_val,
             f"category_name_{lang}": str(data.get(f"category_name_{lang}") or "").strip(),
         }
-        url = f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_id}"
         try:
             await asyncio.to_thread(
-                lambda: requests.patch(
-                    url,
-                    json=body,
-                    headers=save_headers,
-                    timeout=5,
-                    verify=False,
-                    proxies={"http": None, "https": None},
-                )
+                _call_bridge, "save_translations", {"topic_id": topic_id, "lang": lang, "fields": fields}
             )
         except Exception as e:
             print(f"[User Topics] Failed to save translation for topic {topic_id} ({lang}): {e}")
@@ -504,40 +498,6 @@ def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
     }
 
 
-def _resolve_claimable_topic_id(supabase_url: str, headers: dict, raw_topic_id: str, email: str):
-    candidate = str(raw_topic_id or "").strip()
-    if not candidate:
-        return None
-
-    try:
-        lookup_url = (
-            f"{supabase_url}/rest/v1/user_topic_recommendations"
-            f"?id=eq.{candidate}"
-            f"&employee_email=eq.{email}"
-            f"&select=topic_queue_id"
-            f"&limit=1"
-        )
-        r = requests.get(
-            lookup_url,
-            headers=headers,
-            timeout=5,
-            verify=False,
-            proxies={"http": None, "https": None},
-        )
-        if r.status_code == 200 and r.json():
-            resolved = (r.json()[0] or {}).get("topic_queue_id")
-            return int(resolved) if resolved is not None else None
-    except Exception as e:
-        print(f"[User Topics] Failed to resolve recommendation id {candidate}: {e}")
-
-    try:
-        return int(candidate)
-    except Exception:
-        pass
-
-    return None
-
-
 def _has_complete_topic_metadata(topic: dict) -> bool:
     return bool(
         topic.get("topic")
@@ -572,10 +532,7 @@ async def get_recommended_topics(
     if not email:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    supabase_url, headers = _supabase_headers()
-    if not supabase_url:
-        raise HTTPException(status_code=500, detail="Supabase configuration missing")
-    policy = _fetch_longform_policy(supabase_url, headers)
+    policy = _fetch_longform_policy()
     # ????袁ｋ쨨???????
 
     # ????袁ｋ쨨???????
@@ -586,26 +543,18 @@ async def get_recommended_topics(
 
     # ???????꿔꺂??틝?????(????亦????숈?????????밸븶?????β뼯援????
     if not refresh:
-        now = datetime.utcnow().isoformat()
         try:
-            cached_url = (
-                f"{supabase_url}/rest/v1/user_topic_recommendations"
-                f"?employee_email=eq.{email}"
-                f"&is_claimed=eq.false"
-                f"&expires_at=gte.{now}"
-                f"&order=created_at.desc"
-                f"&limit={limit}"
-            )
-            r = requests.get(cached_url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-            if r.status_code == 200 and r.json():
-                topics = [_normalize_topic_payload(topic, policy) for topic in _apply_multipliers_to_topics(r.json())]
+            cached = _call_bridge("get_cached_recommendations", {"limit": limit})
+            rows = cached.get("rows") or []
+            if rows:
+                topics = [_normalize_topic_payload(topic, policy) for topic in _apply_multipliers_to_topics(rows)]
                 if topics and all(_has_complete_topic_metadata(topic) for topic in topics):
                     return {"status": "ok", "topics": topics, "cached": True}
         except Exception as e:
             print(f"[User Topics] Failed to fetch cached recommendations: {e}")
 
     # ??????????밸븶?ⓥ뮧??????곗뒭????
-    profile = web_admin_client.fetch_profile_by_email(email)
+    profile = (_call_bridge("get_profile_prefs") or {}).get("profile")
     user_prefs = {}
     if profile:
         user_prefs = {
@@ -622,30 +571,20 @@ async def get_recommended_topics(
     # ???숆강?붺춯?筌????????利????濚밸Ŧ??????곗뒭????
     rebalancing_settings = {}
     try:
-        settings_url = f"{supabase_url}/rest/v1/payout_rebalancing_settings?limit=1"
-        r = requests.get(settings_url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-        if r.status_code == 200 and r.json():
-            rebalancing_settings = r.json()[0] or {}
+        rebalancing_result = _call_bridge("get_rebalancing_settings")
+        rows = rebalancing_result.get("rows") or []
+        if rows:
+            rebalancing_settings = rows[0] or {}
     except Exception:
         pass
 
     # ????용츧????????????????ル봿????μ떝?롳쭗??????용츧??????곗뒭????
-    topic_query_url = (
-        f"{supabase_url}/rest/v1/topics_queue"
-        f"?status=eq.pending"
-        f"&order=created_at.desc"
-        f"&limit=100"
-        f"&select=*,categories!inner(*)"
-    )
-
     try:
-        r = requests.get(topic_query_url, headers=headers, timeout=10, verify=False, proxies={"http": None, "https": None})
-        if r.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to fetch available topics")
-        available_topics = r.json() or []
+        available_result = _call_bridge("get_pending_topics", {"limit": 100})
+        available_topics = available_result.get("rows") or []
     except HTTPException:
         raise
-    except Exception as e:
+    except BridgeError as e:
         raise HTTPException(status_code=500, detail=f"Supabase topics unavailable: {str(e)}")
 
     # ????용츧???????袁ｋ쨨?耀붾굛????????????壤굿?????
@@ -697,14 +636,7 @@ async def get_recommended_topics(
         ]
 
         try:
-            insert_r = requests.post(
-                f"{supabase_url}/rest/v1/user_topic_recommendations",
-                json=recommendations,
-                headers=headers,
-                timeout=10,
-                verify=False,
-                proxies={"http": None, "https": None}
-            )
+            _call_bridge("save_recommendations", {"rows": recommendations})
         except Exception as e:
             print(f"[User Topics] Failed to save recommendations: {e}")
 
@@ -731,11 +663,8 @@ async def translate_recommended_topics(req: TopicTranslationRequest):
         return {"status": "ok", "translations": {}}
 
     # --- Step 1: DB-first lookup (no AI call when translation already stored) ---
-    supabase_url, supabase_headers = _supabase_headers()
     all_ids = [str(item["id"]) for item in payload]
-    stored: dict = {}
-    if supabase_url:
-        stored = _fetch_stored_translations(supabase_url, supabase_headers, all_ids, ui_language)
+    stored: dict = _fetch_stored_translations(all_ids, ui_language)
 
     # --- Step 2: AI fallback only for topics without a stored translation ---
     needs_translation = [
@@ -746,10 +675,8 @@ async def translate_recommended_topics(req: TopicTranslationRequest):
     if needs_translation:
         ai_translations = await _translate_topics_batch(needs_translation, ui_language)
         # Persist new translations back to DB (fire-and-forget; does not block response)
-        if ai_translations and supabase_url:
-            asyncio.create_task(
-                _save_translations_to_db(supabase_url, supabase_headers, ai_translations, ui_language)
-            )
+        if ai_translations:
+            asyncio.create_task(_save_translations_to_db(ai_translations, ui_language))
 
     # --- Step 3: Merge — stored (DB) takes precedence, AI fills the gaps ---
     translations = {**ai_translations, **stored}
@@ -765,10 +692,6 @@ async def claim_topic(req: ClaimTopicRequest):
     if not email:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    supabase_url, headers = _supabase_headers()
-    if not supabase_url:
-        raise HTTPException(status_code=500, detail="Supabase configuration missing")
-
     # [FIX] 아래 블록에 예외가 나면(네트워크 오류, DB 제약 위반 등) 지금까지는
     # try/except가 전혀 없어 Starlette의 기본 미처리 예외 핸들러가 그대로
     # 노출되었다. 이 핸들러는 JSON이 아니라 순수 텍스트 "Internal Server
@@ -778,24 +701,19 @@ async def claim_topic(req: ClaimTopicRequest):
     # 기존의 401/404/500 상세 메시지를 유지하고, 그 외 모든 예외는 잡아서
     # 항상 유효한 JSON으로 응답한다.
     try:
-        policy = _fetch_longform_policy(supabase_url, headers)
-        resolved_topic_id = _resolve_claimable_topic_id(supabase_url, headers, req.topic_id, email)
-        if resolved_topic_id is None:
+        policy = _fetch_longform_policy()
+
+        # [AIR-0227E-P4] resolve+fetch+patch(topics_queue)+patch(user_topic_recommendations)
+        # now happens as one atomic action on the bridge (auth-web), not four
+        # separate direct-to-Supabase calls from here.
+        bridge_result = _call_bridge("claim_topic", {"topic_id": req.topic_id})
+        if bridge_result.get("status") != "ok":
+            detail = bridge_result.get("detail") or "topic_not_found"
+            if detail == "topic_already_claimed":
+                raise HTTPException(status_code=409, detail="Topic already claimed")
             raise HTTPException(status_code=404, detail="Topic not found")
 
-        # ????용츧????????몃뱥?????곗뒭????
-        topic_res = requests.get(
-            f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}&select=*,categories!inner(*)",
-            headers=headers,
-            timeout=5,
-            verify=False,
-            proxies={"http": None, "https": None}
-        )
-
-        if topic_res.status_code != 200 or not topic_res.json():
-            raise HTTPException(status_code=404, detail="Topic not found")
-
-        topic_data = topic_res.json()[0]
+        topic_data = bridge_result["topic"]
         normalized = _normalize_topic_payload(topic_data, policy)
         category = topic_data.get("categories") or {}
         topic_language = normalized.get("language") or "ko"
@@ -803,23 +721,7 @@ async def claim_topic(req: ClaimTopicRequest):
         duration_locked = str(
             topic_data.get("duration_locked", policy.get("sys_api_longform_duration_lock_enabled", "true"))
         ).lower() not in ("false", "0", "none")
-
-        # ????용츧???????釉먮빱????????띻콣?????썹땟???(assigned?????ㅼ뒧????
-        update_res = requests.patch(
-            f"{supabase_url}/rest/v1/topics_queue?id=eq.{resolved_topic_id}",
-            json={
-                "status": "assigned",
-                "assigned_employee_email": email,
-                "assigned_at": datetime.utcnow().isoformat()
-            },
-            headers=headers,
-            timeout=5,
-            verify=False,
-            proxies={"http": None, "https": None}
-        )
-
-        if update_res.status_code not in (200, 204):
-            raise HTTPException(status_code=500, detail="Failed to claim topic")
+        resolved_topic_id = topic_data.get("id")
 
         project_id = db.create_project(
             name=(normalized.get("topic") or "Untitled")[:80],
@@ -856,21 +758,8 @@ async def claim_topic(req: ClaimTopicRequest):
                 "extra_minute_payout": max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0)),
             }, ensure_ascii=False))
 
-        # ????살퓢癲?????????????띻콣?????썹땟???
-        try:
-            requests.patch(
-                f"{supabase_url}/rest/v1/user_topic_recommendations?topic_queue_id=eq.{resolved_topic_id}&employee_email=eq.{email}",
-                json={
-                    "is_claimed": True,
-                    "claimed_at": datetime.utcnow().isoformat()
-                },
-                headers=headers,
-                timeout=5,
-                verify=False,
-                proxies={"http": None, "https": None}
-            )
-        except Exception as e:
-            print(f"[User Topics] Failed to update recommendation cache: {e}")
+        # [AIR-0227E-P4] user_topic_recommendations.is_claimed is already set
+        # by the bridge's claim_topic action itself - no separate PATCH needed here.
 
         return {
             "status": "ok",
@@ -956,21 +845,15 @@ def _calculate_topic_score(topic: dict, user_prefs: dict, filters: dict, user_em
 def _apply_multipliers_to_topics(topics: list) -> list:
     """Apply category boost multipliers to cached topics."""
     # ???ㅳ늾???雅?퍔瑗?????숈?????????????????癲ル슢???쇳맪?????뉖???????깅렰 ???곗뒭????
-    supabase_url, headers = _supabase_headers()
-    if not supabase_url or not headers:
-        return topics
-
     try:
-        boosts_url = f"{supabase_url}/rest/v1/category_priority_boosts"
-        r = requests.get(boosts_url, headers=headers, timeout=5, verify=False, proxies={"http": None, "https": None})
-        if r.status_code == 200:
-            boosts = {b.get("category_id"): b.get("boost_multiplier", 1.0) for b in r.json() or []}
-            for topic in topics:
-                category_id = topic.get("category_id")
-                if category_id and category_id in boosts:
-                    topic["payout_multiplier"] = boosts[category_id]
-                else:
-                    topic["payout_multiplier"] = 1.0
+        boosts_result = _call_bridge("get_boosts")
+        boosts = {b.get("category_id"): b.get("boost_multiplier", 1.0) for b in boosts_result.get("rows") or []}
+        for topic in topics:
+            category_id = topic.get("category_id")
+            if category_id and category_id in boosts:
+                topic["payout_multiplier"] = boosts[category_id]
+            else:
+                topic["payout_multiplier"] = 1.0
     except Exception as e:
         print(f"[User Topics] Failed to apply multipliers: {e}")
         for topic in topics:

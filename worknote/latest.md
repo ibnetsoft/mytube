@@ -1,3 +1,45 @@
+# AIR-0227F-0D — v2.3.7 Rebuild + Asset Finalization (most recent)
+
+**Date**: 2026-07-13
+**Status**: DONE
+
+- AIR-0227F-0B: DONE
+- AIR-0227F-0C: DONE
+- AIR-0227F-0D: DONE — v2.3.7 build 243 rebuilt from source this session
+  (fresh PyInstaller build, `dist/AIRStudio/AIRStudio.exe` produced
+  2026-07-13 07:43 local), staging (`release/staging/AIRStudio/app`)
+  replaced from the new `dist/AIRStudio` output, `version.json`/
+  `current.json` rewritten without BOM (`version=2.3.7`, `build=243`),
+  rebuilt exe launch-tested (MainWindowTitle "AIR Studio", Responding=True,
+  clean exit, no leftover process), portable ZIP rebuilt and its GitHub
+  prerelease assets replaced in place via `gh release upload --clobber`
+  (no new Release created, tag/prerelease status unchanged).
+  - Final asset: `AIRStudio-2.3.7-win-x64.zip`, 456,147,733 bytes, SHA256
+    `ff73df7a751578ee8c0a05c0aa6b4a89cddde00d8717755f6b643e0289dddc4a`.
+  - 폐기된 이전 값 (AIR-0227F-0C 최초 빌드): 456,147,806 bytes /
+    `4c6666877258f66d0fe3460b1d47e42e1015af1fc43a35028fd103fd4affdfc0`.
+- 자동업데이트: DISABLED (v2.3.7 / build 243 remains a GitHub prerelease;
+  `/releases/latest` reconfirmed as `v2.3.6` after the asset swap)
+- 일반 사용자 배포: NOT APPROVED
+- 실계정 E2E QA: PENDING (not performed, out of scope this session)
+- Stage 8 (platform key rotation): USER KEY ROTATION COMPLETED
+  (Gemini/YouTube/ElevenLabs/Claude; TopView excluded — no prior key) /
+  RESIDUAL SECRET AUDIT PENDING (production `global_settings.sys_api_*` and
+  Vercel env vars unconfirmed — no DB/dashboard access this session)
+- Stage 9 (system key removal): NOT STARTED — see
+  `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md` for the per-key table and
+  recommended order
+- Production `global_settings` (`LATEST_APP_VERSION`/`LATEST_APP_URL`) was
+  NOT modified.
+- `SUPABASE_SERVICE_ROLE_KEY` rotation: PENDING — see
+  `docs/AIR_0225B_R0_SERVICE_ROLE_ROTATION_AUDIT.md`
+  (`UNABLE_TO_VERIFY` / BLOCKED, no Supabase dashboard/API access)
+- Full detail: `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`,
+  `docs/AIR_0225B_R0_SERVICE_ROLE_ROTATION_AUDIT.md`,
+  `project_status/LATEST.md`
+
+---
+
 # Build 216 — First Real Installer Generated
 
 **Date**: 2026-07-08
