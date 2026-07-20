@@ -1900,7 +1900,17 @@ if __name__ == "__main__":
                 height=800,
                 resizable=True
             )
-            webview.start(icon=_ico if os.path.exists(_ico) else None)
+            # [FIX] pywebview 기본값은 private_mode=True(시크릿 모드)라서
+            # localStorage/쿠키가 앱 종료 시 삭제된다 — 로그인 화면의
+            # "아이디/비밀번호 저장"이 재시작 후 풀리는 원인. 영구 프로필
+            # 디렉터리를 지정해 브라우저 저장소를 재시작 간에 유지한다.
+            _webview_storage = os.path.join(config.LOCAL_APP_DATA_DIR, "webview")
+            os.makedirs(_webview_storage, exist_ok=True)
+            webview.start(
+                icon=_ico if os.path.exists(_ico) else None,
+                private_mode=False,
+                storage_path=_webview_storage,
+            )
         except Exception as webview_error:
             _log_startup_event(f"webview(독립 창) 초기화 실패, 기본 브라우저로 실행합니다: {webview_error}")
             import webbrowser
