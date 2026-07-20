@@ -113,7 +113,7 @@
     </div>
 
     <!-- 스타일 선택 (위로 올라옴) -->
-    <div class="mt-3">
+    <div class="mt-3" id="imageStyleSection">
         <label class="block text-sm font-medium text-gray-700 dark:text-white mb-2">{{ t('label_image_style') }}</label>
         <input type="hidden" id="imageStyle" value="realistic">
 
@@ -3290,14 +3290,9 @@
     let _imageStyleLocked = false;
     function applyImageStyleLock(locked) {
         _imageStyleLocked = !!locked;
-        const grid = document.getElementById('styleSelectorGrid');
-        const notice = document.getElementById('styleLockNotice');
-        if (notice) notice.classList.toggle('hidden', !_imageStyleLocked);
-        if (grid) {
-            grid.style.pointerEvents = _imageStyleLocked ? 'none' : '';
-            grid.style.opacity = _imageStyleLocked ? '0.55' : '';
-            grid.setAttribute('aria-disabled', _imageStyleLocked ? 'true' : 'false');
-        }
+        const section = document.getElementById('imageStyleSection');
+        // STD 모드(스타일 잠김)에서는 어차피 선택이 무의미하므로 섹션 자체를 숨긴다.
+        if (section) section.classList.toggle('hidden', _imageStyleLocked);
     }
 
     function selectStyle(style, element, skipAutoSave = false) {
