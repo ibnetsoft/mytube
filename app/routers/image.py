@@ -180,7 +180,10 @@ async def generate_image_prompts_api(req: PromptsGenerateRequest):
                 print(f"[DB] Auto-save image prompts failed: {e}")
 
         return {"prompts": prompts_list}
-        
+
+    except HTTPException:
+        # 400(scenes 누락) 등 의도된 에러가 500으로 둔갑하지 않도록 그대로 전달
+        raise
     except Exception as e:
         import traceback
         err_detail = traceback.format_exc()

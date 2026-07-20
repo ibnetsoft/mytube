@@ -137,7 +137,7 @@ const API = {
     // 이미지 API
     // 이미지 API
     image: {
-        async generatePrompts(script, style = 'realistic', count = 5, characterReference = null, projectId = null) {
+        async generatePrompts(script, style = 'realistic', count = 5, characterReference = null, projectId = null, scenes = null) {
             const response = await fetch('/api/image/generate-prompts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -146,7 +146,8 @@ const API = {
                     style,
                     count,
                     character_reference: characterReference,
-                    project_id: projectId ? parseInt(projectId) : null
+                    project_id: projectId ? parseInt(projectId) : null,
+                    scenes
                 })
             });
             return response.json();
