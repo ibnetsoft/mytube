@@ -56,7 +56,7 @@ export default function OrganizationPage() {
                 if (json.success) {
                     setRows(json.data.rows)
                     setTotal(json.data.total)
-                } else setError(json.error || 'Failed to load organization data')
+                } else setError(json.error || '조직도 데이터를 불러오지 못했습니다')
             })
             .catch(e => setError(e.message))
             .finally(() => setLoading(false))
@@ -82,24 +82,24 @@ export default function OrganizationPage() {
                     <button
                         className={`px-3 py-1.5 rounded text-sm ${view === 'table' ? 'bg-indigo-600' : 'bg-gray-800'}`}
                         onClick={() => setView('table')}
-                    >Table View</button>
+                    >테이블 보기</button>
                     <button
                         className={`px-3 py-1.5 rounded text-sm ${view === 'tree' ? 'bg-indigo-600' : 'bg-gray-800'}`}
                         onClick={() => setView('tree')}
-                    >Tree View</button>
+                    >트리 보기</button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                 <input
                     className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm sm:col-span-2"
-                    placeholder="Search name / email / referral code"
+                    placeholder="이름/이메일/추천코드 검색"
                     value={search}
                     onChange={e => { setPage(1); setSearch(e.target.value) }}
                 />
                 <input
                     className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
-                    placeholder="Country (e.g. KR)"
+                    placeholder="국가 (예: KR)"
                     value={country}
                     onChange={e => { setPage(1); setCountry(e.target.value.toUpperCase()) }}
                 />
@@ -109,23 +109,23 @@ export default function OrganizationPage() {
                     value={to} onChange={e => { setPage(1); setTo(e.target.value) }} />
                 <select className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
                     value={activity} onChange={e => { setPage(1); setActivity(e.target.value) }}>
-                    <option value="all">All activity</option>
-                    <option value="active">Active (has commission)</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="all">전체 활동</option>
+                    <option value="active">활성 (커미션 있음)</option>
+                    <option value="inactive">비활성</option>
                 </select>
             </div>
 
             {view === 'table' && (
                 <div className="flex gap-2 text-sm">
-                    <span className="text-gray-400 py-1">Sort:</span>
-                    {[['created_at', 'Signup'], ['referrals', 'Referral Count'], ['commission', 'Commission']].map(([key, label]) => (
+                    <span className="text-gray-400 py-1">정렬:</span>
+                    {[['created_at', '가입일'], ['referrals', '추천 수'], ['commission', '커미션']].map(([key, label]) => (
                         <button key={key}
                             className={`px-2 py-1 rounded ${sortBy === key ? 'bg-indigo-600' : 'bg-gray-800'}`}
                             onClick={() => setSortBy(key)}
                         >{label}</button>
                     ))}
                     <button className="px-2 py-1 rounded bg-gray-800" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
-                        {sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
+                        {sortDir === 'asc' ? '↑ 오름차순' : '↓ 내림차순'}
                     </button>
                 </div>
             )}
@@ -139,13 +139,13 @@ export default function OrganizationPage() {
                         <table className="w-full text-sm">
                             <thead className="bg-gray-900 text-gray-400 text-xs uppercase">
                                 <tr>
-                                    <th className="px-3 py-2 text-left">Member</th>
-                                    <th className="px-3 py-2 text-left">Level</th>
-                                    <th className="px-3 py-2 text-left">Sponsor</th>
-                                    <th className="px-3 py-2 text-left">Country</th>
-                                    <th className="px-3 py-2 text-left">Signup</th>
-                                    <th className="px-3 py-2 text-right">Referrals</th>
-                                    <th className="px-3 py-2 text-right">Commission</th>
+                                    <th className="px-3 py-2 text-left">멤버</th>
+                                    <th className="px-3 py-2 text-left">단계</th>
+                                    <th className="px-3 py-2 text-left">추천인</th>
+                                    <th className="px-3 py-2 text-left">국가</th>
+                                    <th className="px-3 py-2 text-left">가입일</th>
+                                    <th className="px-3 py-2 text-right">추천 수</th>
+                                    <th className="px-3 py-2 text-right">커미션</th>
                                 </tr>
                             </thead>
                             <tbody>

@@ -1,7 +1,16 @@
 """Best-effort Supabase sync for desktop project text metadata.
 
 Media files remain local. This service mirrors project text/config snapshots to
-Supabase when credentials and the remote table are available.
+Supabase via the desktop-project-sync auth-web bridge.
+
+[AIR-0225B] Used to call web_admin_client.supabase_get/upsert_by_key directly
+with SUPABASE_SERVICE_ROLE_KEY. That key was removed from packaged desktop
+builds, so has_supabase() has silently returned False in every build since -
+fetch_remote_projects()/ensure_local_projects_from_remote() quietly no-opped
+on every call, with no error surfaced anywhere. A fresh install (or any
+machine whose local SQLite lost a project row) showed an empty project list
+even though the row was sitting in Supabase. Migrated to the same
+email + HMAC session_token bridge pattern as referral.py/support.py.
 """
 import datetime
 import json
@@ -13,8 +22,16 @@ import database as db
 from services.web_admin_client import web_admin_client
 
 
-PROJECT_METADATA_TABLE = "desktop_project_metadata"
 _PATH_KEY_RE = re.compile(r"(path|url|file|image|video|audio|thumbnail)", re.IGNORECASE)
+
+
+def _bridge(action: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    from services.auth_service import auth_service
+    email = auth_service.get_user_email()
+    session_token = auth_service.get_session_token()
+    if not email or not session_token:
+        return {"success": False, "error": "not_logged_in"}
+    return web_admin_client.desktop_project_sync(email, session_token, action, params)
 
 
 def _utc_now() -> str:
@@ -90,34 +107,14 @@ def build_project_payload(project_id: int) -> Optional[Dict[str, Any]]:
     return _sanitize(payload)
 
 
-def _resolve_user_id(email: str) -> str:
-    try:
-        profile = web_admin_client.fetch_profile_by_email(email, select="id,email")
-        return (profile or {}).get("id") or ""
-    except Exception:
-        return ""
-
-
 def sync_project_metadata(project_id: int, employee_email: str = "") -> bool:
     project = db.get_project(project_id)
     if not project:
         return False
 
-    if not web_admin_client.has_supabase():
-        db.mark_project_dirty(project_id)
-        return False
-
     payload = build_project_payload(project_id)
     if payload is None:
         return False
-
-    email = employee_email or project.get("employee_email") or ""
-    if not email:
-        try:
-            from services.auth_service import auth_service
-            email = auth_service.get_user_email() or ""
-        except Exception:
-            email = ""
 
     full_data = db.get_project_full_data_v2(project_id) or {}
     progress_payload = {}
@@ -133,10 +130,8 @@ def sync_project_metadata(project_id: int, employee_email: str = "") -> bool:
         db.mark_project_dirty(project_id)
         return False
 
-    body = {
+    result = _bridge("push", {
         "sync_id": sync_id,
-        "user_id": _resolve_user_id(email) or None,
-        "employee_email": email or None,
         "local_project_id": project_id,
         "name": project.get("name") or "",
         "topic": project.get("topic") or "",
@@ -146,51 +141,29 @@ def sync_project_metadata(project_id: int, employee_email: str = "") -> bool:
         "project_payload": payload,
         "progress_payload": progress_payload,
         "deleted_at": project.get("remote_deleted_at"),
-        "updated_at": now,
-        "synced_at": now,
-    }
+    })
 
-    try:
-        ok = web_admin_client.upsert_by_key(PROJECT_METADATA_TABLE, "sync_id", sync_id, body, timeout=10)
-        if ok:
-            db.mark_project_synced(project_id, now)
-            return True
-        db.mark_project_dirty(project_id)
-        return False
-    except Exception as e:
-        print(f"[ProjectSync] Failed to sync project {project_id}: {e}")
-        db.mark_project_dirty(project_id)
-        return False
+    if result.get("success"):
+        db.mark_project_synced(project_id, now)
+        return True
+    db.mark_project_dirty(project_id)
+    if result.get("error") != "not_logged_in":
+        print(f"[ProjectSync] Failed to sync project {project_id}: {result.get('error')}")
+    return False
 
 
 def sync_project_deleted(project: Dict[str, Any]) -> bool:
     if not project or not project.get("sync_id"):
         return False
-    if not web_admin_client.has_supabase():
-        return False
-    now = _utc_now()
-    try:
-        ok = web_admin_client.upsert_by_key(
-            PROJECT_METADATA_TABLE,
-            "sync_id",
-            project["sync_id"],
-            {
-                "sync_id": project["sync_id"],
-                "employee_email": project.get("employee_email") or None,
-                "local_project_id": project.get("id"),
-                "name": project.get("name") or "",
-                "topic": project.get("topic") or "",
-                "status": project.get("status") or "deleted",
-                "deleted_at": now,
-                "updated_at": now,
-                "synced_at": now,
-            },
-            timeout=8,
-        )
-        return bool(ok)
-    except Exception as e:
-        print(f"[ProjectSync] Failed to soft-delete remote project {project.get('id')}: {e}")
-        return False
+    result = _bridge("soft_delete", {
+        "sync_id": project["sync_id"],
+        "local_project_id": project.get("id"),
+        "name": project.get("name") or "",
+        "topic": project.get("topic") or "",
+    })
+    if not result.get("success") and result.get("error") != "not_logged_in":
+        print(f"[ProjectSync] Failed to soft-delete remote project {project.get('id')}: {result.get('error')}")
+    return bool(result.get("success"))
 
 
 def sync_dirty_projects(employee_email: str = "", limit: int = 20) -> Dict[str, int]:
@@ -211,28 +184,19 @@ def sync_dirty_projects(employee_email: str = "", limit: int = 20) -> Dict[str, 
 
 
 def fetch_remote_projects(employee_email: str) -> list:
-    """Supabase에서 사용자의 프로젝트 목록을 가져옵니다."""
-    if not web_admin_client.has_supabase() or not employee_email:
+    """Supabase에서 사용자의 프로젝트 목록을 가져옵니다 (project_payload 포함 -
+    복원 시 설정값까지 함께 복원하려면 필요. 예전 코드는 select에서
+    project_payload를 빼먹어 복원돼도 항상 빈 설정으로 생성되는 별개의
+    잠재 버그가 있었다 - 브릿지로 옮기며 같이 고쳤다)."""
+    if not employee_email:
         return []
 
-    try:
-        response = web_admin_client.supabase_get(
-            PROJECT_METADATA_TABLE,
-            params={
-                "select": "id,sync_id,name,topic,status,language,app_mode,employee_email,deleted_at,created_at,updated_at",
-                "employee_email": f"eq.{employee_email}",
-                "deleted_at": "is.null",
-                "order": "updated_at.desc"
-            },
-            timeout=10
-        )
-
-        if response and response.status_code == 200:
-            return response.json() or []
+    result = _bridge("list")
+    if not result.get("success"):
+        if result.get("error") != "not_logged_in":
+            print(f"[ProjectSync] Failed to fetch remote projects: {result.get('error')}")
         return []
-    except Exception as e:
-        print(f"[ProjectSync] Failed to fetch remote projects: {e}")
-        return []
+    return result.get("projects") or []
 
 
 def ensure_local_projects_from_remote(employee_email: str) -> Dict[str, int]:
@@ -241,7 +205,7 @@ def ensure_local_projects_from_remote(employee_email: str) -> Dict[str, int]:
     Returns:
         Dict with 'fetched', 'restored', 'skipped', 'failed' counts
     """
-    if not web_admin_client.has_supabase() or not employee_email:
+    if not employee_email:
         return {"fetched": 0, "restored": 0, "skipped": 0, "failed": 0}
 
     result = {"fetched": 0, "restored": 0, "skipped": 0, "failed": 0}

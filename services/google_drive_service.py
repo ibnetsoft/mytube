@@ -3,10 +3,11 @@ import os
 import re
 from io import BytesIO
 
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-from services.youtube_upload_service import youtube_upload_service
+from services import drive_bridge_client
 
 
 class GoogleDriveService:
@@ -14,8 +15,11 @@ class GoogleDriveService:
         self.logger = logging.getLogger("GoogleDriveService")
 
     def _get_drive_service(self, token_path=None):
-        """Build a Google Drive client from the existing YouTube OAuth credentials."""
-        credentials = youtube_upload_service.get_authenticated_service(token_path=token_path)._http.credentials
+        """Build a Google Drive client using a short-lived access token from
+        the central Drive bridge (auth-web) - no local token.pickle needed.
+        `token_path` is kept only for call-site backward compatibility."""
+        access_token = drive_bridge_client.get_access_token()
+        credentials = Credentials(token=access_token)
         return build("drive", "v3", credentials=credentials)
 
     def upload_file(

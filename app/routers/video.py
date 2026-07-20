@@ -2,7 +2,7 @@
 Video Rendering & Subtitle Router
 영상 렌더링 및 자막 생성 관련 API 엔드포인트
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Body, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Body, Query, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Union
@@ -19,6 +19,7 @@ from services.storage_service import storage_service
 from app.modes import is_shorts_mode
 from services.project_publish_service import publish_project_to_youtube, queue_project_for_admin_publish
 from services.longform_asset_readiness import sync_project_asset_readiness
+from services.i18n import Translator
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -1079,7 +1080,8 @@ async def create_slideshow(
 async def render_project_video(
     project_id: int,
     request: RenderRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    http_request: Request
 ):
     """프로젝트 영상 최종 렌더링 (이미지 + 오디오 + 자막)"""
     print(f"DEBUG: render_project_video called for Project {project_id}")
@@ -1095,7 +1097,7 @@ async def render_project_video(
                     status_code=409,
                     detail={
                         "code": "longform_assets_not_ready",
-                        "message": "Scene assets are not ready for rendering.",
+                        "message": Translator(getattr(http_request.state, "current_lang", "ko")).t("err_scene_assets_not_ready"),
                         "completion_percent": readiness.get("completion_percent", 0),
                         "missing_scene_numbers": readiness.get(
                             "missing_asset_scenes"

@@ -1161,6 +1161,27 @@
 
         const narrationMode = document.querySelector('input[name="narrationMode"]:checked')?.value || 'single';
         const isMulti = narrationMode === 'multi';
+        // [MOD] 섹션이 각각 독립적으로 생성되다 보니, Gemini가 섹션마다 새로운
+        // 인물 이름을 즉흥으로 만들어내 등장인물이 스토리 필요와 무관하게
+        // 계속 늘어나는 문제가 있었다. 이전 섹션에서 이미 쓴 이름을 다음
+        // 섹션 프롬프트에 넘겨 재사용을 유도한다.
+        let introducedCharacters = [];
+        // 화자 감지 정규식은 templates/pages/tts.html의 analyzeScriptForCharacters와
+        // 동일한 패턴을 사용한다 - 최종 화자 집계 로직과 일치시켜야 여기서
+        // "이미 등장함"으로 잡은 이름이 실제 TTS 화자 목록과도 어긋나지 않는다.
+        const SPEAKER_LINE_REGEX = /^\s*(?:([^\s:\[\]\(\)]+)(?:\(.*\))?[:：]|([^\s:\[\]\(\)]+)[\)）\]])/;
+        function extractSpeakerNames(text) {
+            const names = new Set();
+            (text || '').split('\n').forEach(line => {
+                const match = line.trim().match(SPEAKER_LINE_REGEX);
+                const raw = match ? (match[1] || match[2]) : null;
+                if (raw) {
+                    const clean = raw.trim().replace(/[\*\_\#\[\]\(\)\{\}]/g, '').trim();
+                    if (clean) names.add(clean);
+                }
+            });
+            return names;
+        }
 
         try {
             for (let i = 0; i < sections.length; i++) {
@@ -1177,10 +1198,15 @@
 
                 let modeInstruction = "";
                 if (isMulti) {
+                    const knownCharsLine = introducedCharacters.length > 0
+                        ? `\n[이미 등장한 인물 - 이 파트에서 같은 인물이 다시 말하면 반드시 이 이름을 그대로 재사용하세요. 새 인물은 스토리 전개상 꼭 필요할 때만 추가하세요]\n${introducedCharacters.join(', ')}\n`
+                        : '';
                     modeInstruction = `
-1. 반드시 **두 명 이상의 대화(Dialogue) 또는 상황극** 형식으로 작성하세요.
-2. 각 대사 앞에 반드시 **"화자 이름:"**을 붙이세요. (예: "철수: 안녕하세요", "영희: 네 반갑습니다")
-3. 화자 이름은 한글로 간결하게 작성하세요.
+1. **기본은 나레이터의 서술**입니다. 인물의 행동이나 상황은 나레이터가 설명하듯 전달하세요 (예: "철수는 화를 내며 소리쳤다").
+2. 인물이 **직접 한 말을 그대로 전달할 필요가 있는 대목에서만** 그 인물 이름으로 화자를 전환하세요. (예: "철수: 당장 나가!") 그 외에는 전부 나레이터입니다.
+3. 나레이터 화자 이름은 "나레이터:"로 표시하세요.
+4. 한 문장짜리 대사 때문에 새로운 이름을 만들지 마세요 - 비중이 작은 인물의 말은 나레이터가 요약해서 전달하는 쪽을 우선하세요 (예: "나레이터: 옆에 있던 상인이 값을 깎아달라고 투덜거렸다").
+5. 이 파트에서 실제로 등장인물이 몇 명 필요한지는 스토리 전개가 결정합니다 - 인위적으로 늘리거나 줄이지 마세요. 단, 같은 인물은 항상 같은 이름을 쓰세요.${knownCharsLine}
 `;
                 } else {
                     modeInstruction = `
@@ -1238,6 +1264,14 @@ ${modeInstruction}
                             sectionText = sectionText.replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '');
                         }
                         sectionText = sectionText.trim();
+
+                        if (isMulti) {
+                            // 이번 섹션에서 쓰인 이름을 다음 섹션 프롬프트의 재사용
+                            // 목록에 누적 (중복 없이, 등장 순서 유지)
+                            extractSpeakerNames(sectionText).forEach(name => {
+                                if (!introducedCharacters.includes(name)) introducedCharacters.push(name);
+                            });
+                        }
 
                         finalScript += (finalScript ? '\n\n' : '') + sectionText;
                     } else {

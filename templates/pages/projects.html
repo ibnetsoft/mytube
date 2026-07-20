@@ -41,6 +41,10 @@
     <div id="recommendedTopicsEmpty" class="hidden text-center py-8 bg-[#1c2027]/30 rounded-lg border border-white/5">
         <p class="text-sm text-gray-400">{{ t('no_recommendations') }}</p>
     </div>
+
+    <div id="recommendedTopicsError" class="hidden text-center py-8 bg-[#1c2027]/30 rounded-lg border border-red-900/30">
+        <p id="recommendedTopicsErrorText" class="text-sm text-red-400">{{ t('error_loading_recommendations') }}</p>
+    </div>
 </div>
 {% endif %}
 {% if is_projects_view %}
@@ -907,6 +911,7 @@
         const grid = document.getElementById('recommendedTopicsGrid');
         const loading = document.getElementById('recommendedTopicsLoading');
         const empty = document.getElementById('recommendedTopicsEmpty');
+        const errorEl = document.getElementById('recommendedTopicsError');
         const filterDurationEl = document.getElementById('filterDuration');
         const filterLanguageEl = document.getElementById('filterLanguage');
 
@@ -914,7 +919,25 @@
 
         grid.classList.add('hidden');
         empty.classList.add('hidden');
+        if (errorEl) errorEl.classList.add('hidden');
         loading.classList.remove('hidden');
+
+        // [AIR-0227E-P4] A failed request used to fall through into the same
+        // "no recommendations" empty state as a genuinely-empty result,
+        // silently hiding real server errors (500s, auth failures, etc.)
+        // from the user. res.ok/data.status are now checked explicitly so a
+        // real error shows a real error message instead.
+        const showError = () => {
+            allRecommendedTopics = [];
+            recommendedTopics = [];
+            grid.innerHTML = '';
+            loading.classList.add('hidden');
+            if (errorEl) {
+                errorEl.classList.remove('hidden');
+            } else {
+                empty.classList.remove('hidden');
+            }
+        };
 
         try {
             const filterDuration = filterDurationEl.value;
@@ -934,6 +957,11 @@
             }
 
             const res = await fetch(`/api/user/recommended-topics?${params.toString()}`);
+            if (!res.ok) {
+                console.error('Failed to load recommended topics: HTTP', res.status);
+                showError();
+                return;
+            }
             const data = await res.json();
 
             if (data.status === 'ok' && Array.isArray(data.topics) && data.topics.length > 0) {
@@ -945,6 +973,13 @@
                 return;
             }
 
+            if (data.status !== 'ok') {
+                console.error('Failed to load recommended topics:', data);
+                showError();
+                return;
+            }
+
+            // A well-formed 'ok' response with zero topics IS the genuine empty state.
             allRecommendedTopics = [];
             recommendedTopics = [];
             grid.innerHTML = '';
@@ -952,11 +987,7 @@
             empty.classList.remove('hidden');
         } catch (e) {
             console.error('Failed to load recommended topics:', e);
-            allRecommendedTopics = [];
-            recommendedTopics = [];
-            grid.innerHTML = '';
-            loading.classList.add('hidden');
-            empty.classList.remove('hidden');
+            showError();
         }
     }
 

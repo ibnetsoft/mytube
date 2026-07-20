@@ -44,48 +44,48 @@ export default function ReferralDashboardPage() {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <KpiCard label="Total Referral Members" value={String(data.totalReferralMembers)} />
-                <KpiCard label="Level 1 Members" value={String(data.level1Members)} />
-                <KpiCard label="Level 2 Members" value={String(data.level2Members)} />
-                <KpiCard label="Today's Commission" value={`$${formatUsd(data.todaysCommission)}`} />
-                <KpiCard label="Monthly Commission" value={`$${formatUsd(data.monthlyCommission)}`} />
-                <KpiCard label="Total Paid Commission" value={`$${formatUsd(data.totalPaidCommission)}`} />
-                <KpiCard label="Total Withdrawal Requested" value={`$${formatUsd(data.totalWithdrawalRequested)}`} />
-                <KpiCard label="Total Withdrawal Completed" value={`$${formatUsd(data.totalWithdrawalCompleted)}`} />
+                <KpiCard label="전체 추천인 멤버" value={String(data.totalReferralMembers)} />
+                <KpiCard label="1단계 멤버" value={String(data.level1Members)} />
+                <KpiCard label="2단계 멤버" value={String(data.level2Members)} />
+                <KpiCard label="오늘 커미션" value={`$${formatUsd(data.todaysCommission)}`} />
+                <KpiCard label="이번 달 커미션" value={`$${formatUsd(data.monthlyCommission)}`} />
+                <KpiCard label="누적 지급 커미션" value={`$${formatUsd(data.totalPaidCommission)}`} />
+                <KpiCard label="출금 요청 총액" value={`$${formatUsd(data.totalWithdrawalRequested)}`} />
+                <KpiCard label="출금 완료 총액" value={`$${formatUsd(data.totalWithdrawalCompleted)}`} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
-                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Top Sponsor</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">최고 추천인</div>
                     {data.topSponsor ? (
                         <>
                             <div className="text-lg font-bold">{data.topSponsor.name}</div>
                             <div className="text-sm text-gray-400">${formatUsd(data.topSponsor.total)}</div>
                         </>
-                    ) : <div className="text-gray-500 text-sm">No data yet</div>}
+                    ) : <div className="text-gray-500 text-sm">아직 데이터가 없습니다</div>}
                 </Card>
                 <Card>
-                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Top Country</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">최다 국가</div>
                     {data.topCountry ? (
                         <>
                             <div className="text-lg font-bold">{data.topCountry.country}</div>
-                            <div className="text-sm text-gray-400">{data.topCountry.count} members</div>
+                            <div className="text-sm text-gray-400">{data.topCountry.count}명</div>
                         </>
-                    ) : <div className="text-gray-500 text-sm">No data yet</div>}
+                    ) : <div className="text-gray-500 text-sm">아직 데이터가 없습니다</div>}
                 </Card>
                 <Card>
-                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">Top Worker</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">최고 작업자</div>
                     {data.topWorker ? (
                         <>
                             <div className="text-lg font-bold">{data.topWorker.name}</div>
-                            <div className="text-sm text-gray-400">${formatUsd(data.topWorker.total)} generated</div>
+                            <div className="text-sm text-gray-400">${formatUsd(data.topWorker.total)} 발생</div>
                         </>
-                    ) : <div className="text-gray-500 text-sm">No data yet</div>}
+                    ) : <div className="text-gray-500 text-sm">아직 데이터가 없습니다</div>}
                 </Card>
             </div>
 
             <div className="text-xs text-gray-600">
-                Data source: <code>referral_commissions</code> / <code>referral_withdrawals</code> (AIR-0221 data model). No production referral activity has occurred yet as of AIR-0223 — see <code>AIR-0221D_REFERRAL_ACTIVATION_PLAN.md</code>.
+                데이터 출처: <code>referral_commissions</code> / <code>referral_withdrawals</code> (AIR-0221 데이터 모델).
             </div>
         </div>
     )

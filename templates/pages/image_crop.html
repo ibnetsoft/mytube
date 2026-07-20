@@ -33,6 +33,17 @@
         <p id="crop-scene-range" class="mt-3 text-xs text-gray-500"></p>
     </div>
 
+    <!-- Grid Size Selector -->
+    <div class="mb-6 bg-[#232832] rounded-2xl border border-white/5 p-4 flex flex-wrap items-center gap-3">
+        <span class="text-xs font-black uppercase tracking-wider text-gray-400" id="grid-size-label-text">Grid size</span>
+        <div class="flex gap-2">
+            <button type="button" onclick="setGridSize(2,2)" data-cols="2" data-rows="2" class="grid-size-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all">2x2</button>
+            <button type="button" onclick="setGridSize(3,3)" data-cols="3" data-rows="3" class="grid-size-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all">3x3</button>
+            <button type="button" onclick="setGridSize(4,3)" data-cols="4" data-rows="3" class="grid-size-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all">4x3</button>
+            <button type="button" onclick="setGridSize(4,4)" data-cols="4" data-rows="4" class="grid-size-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all">4x4</button>
+        </div>
+    </div>
+
     <!-- Main Workspace Grid -->
     <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
         <!-- Left Column: Upload & Files List -->
@@ -130,7 +141,9 @@
 <script>
     let uploadedFiles = []; // Array of File objects
     let selectedFileIdx = 0;
-    const croppedResults = {}; // { fileIdx: { 1: Blob, 2: Blob, 3: Blob, 4: Blob } }
+    const croppedResults = {}; // { fileIdx: { panelIdx: Blob, ... } }
+    let gridCols = 2;
+    let gridRows = 2;
     const cropParams = new URLSearchParams(window.location.search);
     const cropProjectId = cropParams.get('project_id');
     let projectScenes = [];
@@ -154,9 +167,44 @@
         startSceneInput.value = Math.max(1, Number(cropParams.get('start_scene')) || 1);
     }
 
+    function getPanelCount() {
+        return gridCols * gridRows;
+    }
+
+    // 2x2(기본값)는 기존 코너 이름표를 그대로 쓰고, 그 외 격자 크기는 "P{n} (R{row}C{col})"로 표시한다.
+    function getPanelLabel(panelIdx) {
+        if (gridCols === 2 && gridRows === 2) {
+            return panelLabels[panelIdx - 1];
+        }
+        const row = Math.floor((panelIdx - 1) / gridCols) + 1;
+        const col = ((panelIdx - 1) % gridCols) + 1;
+        return `P${panelIdx} (R${row}C${col})`;
+    }
+
+    function getPanelSuffix(panelIdx) {
+        if (gridCols === 2 && gridRows === 2) {
+            return ['top_left', 'top_right', 'bottom_left', 'bottom_right'][panelIdx - 1];
+        }
+        const row = Math.floor((panelIdx - 1) / gridCols) + 1;
+        const col = ((panelIdx - 1) % gridCols) + 1;
+        return `r${row}c${col}`;
+    }
+
+    function setGridSize(cols, rows) {
+        gridCols = cols;
+        gridRows = rows;
+        document.querySelectorAll('.grid-size-btn').forEach(btn => {
+            const active = Number(btn.dataset.cols) === cols && Number(btn.dataset.rows) === rows;
+            btn.className = `grid-size-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-blue-600 text-white' : 'bg-[#1c2027] text-gray-400 hover:text-white'}`;
+        });
+        const badge = document.getElementById('badge-raw-text');
+        if (badge) badge.textContent = i18nCrop.rawGridBadgeTemplate.replace('{size}', `${cols}x${rows}`);
+        updateSceneRangeText();
+    }
+
     function getTargetSceneNumber(fileIndex, panelIndex) {
         const start = Math.max(1, Number(startSceneInput.value) || 1);
-        return start + (fileIndex * 4) + panelIndex - 1;
+        return start + (fileIndex * getPanelCount()) + panelIndex - 1;
     }
 
     function getCroppedFilename(fileIndex, panelIndex) {
@@ -166,8 +214,7 @@
         }
         const file = uploadedFiles[fileIndex];
         const rawName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-        const suffixes = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
-        return `${rawName}_cropped_${suffixes[panelIndex - 1]}.png`;
+        return `${rawName}_cropped_${getPanelSuffix(panelIndex)}.png`;
     }
 
     function getProjectScene(sceneNumber) {
@@ -178,7 +225,7 @@
         const range = document.getElementById('crop-scene-range');
         if (!range || !cropProjectId) return;
         const start = Math.max(1, Number(startSceneInput.value) || 1);
-        const panelCount = Math.max(4, uploadedFiles.length * 4);
+        const panelCount = Math.max(getPanelCount(), uploadedFiles.length * getPanelCount());
         range.textContent = `Destination: Scene ${start} - ${start + panelCount - 1}. Existing image slots are skipped.`;
     }
 
@@ -206,11 +253,18 @@
     const lang = "{{ current_lang }}" || window.currentLang || localStorage.getItem('language') || localStorage.getItem('login_lang') || 'ko';
     const i18nCrop = {
         pageDesc: {
-            ko: "2x2 격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다.",
-            en: "Upload multiple 2x2 grid images at once to batch crop them, and download all cropped images at once.",
-            vi: "Tải lên cùng lúc nhiều ảnh lưới 2x2 để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần.",
-            th: "อัปโหลดรูปภาพแบบตาราง 2x2 หลายภาพพร้อมกัน เพื่อตัดแบบชุด และดาวน์โหลดรูปที่ตัดแล้วทั้งหมดในครั้งเดียว"
-        }[lang] || "Upload multiple 2x2 grid images at once to batch crop them, and download all cropped images at once.",
+            ko: "격자 이미지들을 한 번에 여러 장 업로드하여 일괄로 자르고, 잘린 모든 이미지들을 한 번에 다운로드할 수 있습니다. 아래에서 격자 크기(2x2/3x3/4x3/4x4)를 선택하세요.",
+            en: "Upload multiple grid images at once to batch crop them, and download all cropped images at once. Select the grid size (2x2/3x3/4x3/4x4) below.",
+            vi: "Tải lên cùng lúc nhiều ảnh lưới để cắt hàng loạt và tải xuống tất cả các ảnh đã cắt trong một lần. Chọn kích thước lưới (2x2/3x3/4x3/4x4) bên dưới.",
+            th: "อัปโหลดรูปภาพแบบตารางหลายภาพพร้อมกัน เพื่อตัดแบบชุด และดาวน์โหลดรูปที่ตัดแล้วทั้งหมดในครั้งเดียว เลือกขนาดตาราง (2x2/3x3/4x3/4x4) ด้านล่าง"
+        }[lang] || "Upload multiple grid images at once to batch crop them, and download all cropped images at once. Select the grid size (2x2/3x3/4x3/4x4) below.",
+
+        gridSizeLabel: {
+            ko: "격자 크기",
+            en: "Grid size",
+            vi: "Kích thước lưới",
+            th: "ขนาดตาราง"
+        }[lang] || "Grid size",
 
         dragDropDesc: {
             ko: "마우스로 드래그하거나 클릭하여 다중 선택",
@@ -261,12 +315,13 @@
             th: "ตัวอย่างไฟล์ที่เลือก"
         }[lang] || "Selected File Preview",
 
-        rawGridBadge: {
-            ko: "2x2 원본",
-            en: "2x2 Raw Grid",
-            vi: "Ảnh gốc 2x2",
-            th: "ต้นฉบับ 2x2"
-        }[lang] || "2x2 Raw Grid",
+        // {size}는 "2x2"/"3x3" 등 실제 선택된 격자 크기로 치환된다.
+        rawGridBadgeTemplate: {
+            ko: "{size} 원본",
+            en: "{size} Raw Grid",
+            vi: "Ảnh gốc {size}",
+            th: "ต้นฉบับ {size}"
+        }[lang] || "{size} Raw Grid",
 
         batchResultHeading: {
             ko: "잘라낸 모든 이미지 결과 목록",
@@ -289,12 +344,13 @@
             th: "กำลังตัดไฟล์ทั้งหมด..."
         }[lang] || "Cropping all files...",
 
-        panelDone: {
-            ko: "4개 패널 자르기 완료",
-            en: "4 panels cropped successfully",
-            vi: "Cắt xong 4 ô ảnh",
-            th: "ตัดครบ 4 ช่องแล้ว"
-        }[lang] || "4 panels cropped successfully",
+        // {n}은 실제 패널 개수(4/9/12/16)로 치환된다.
+        panelDoneTemplate: {
+            ko: "{n}개 패널 자르기 완료",
+            en: "{n} panels cropped successfully",
+            vi: "Cắt xong {n} ô ảnh",
+            th: "ตัดครบ {n} ช่องแล้ว"
+        }[lang] || "{n} panels cropped successfully",
 
         download: {
             ko: "다운로드",
@@ -341,9 +397,11 @@
     document.getElementById('empty-title-text').textContent = i18nCrop.batchResultTitle;
     document.getElementById('empty-desc-text').textContent = i18nCrop.batchResultDesc;
     document.getElementById('preview-filename-title').textContent = i18nCrop.previewSelected;
-    document.getElementById('badge-raw-text').textContent = i18nCrop.rawGridBadge;
+    document.getElementById('badge-raw-text').textContent = i18nCrop.rawGridBadgeTemplate.replace('{size}', `${gridCols}x${gridRows}`);
     document.getElementById('batch-results-heading-text').textContent = i18nCrop.batchResultHeading;
     document.getElementById('download-all-zip-btn-text').textContent = i18nCrop.downloadZipBtn;
+    document.getElementById('grid-size-label-text').textContent = i18nCrop.gridSizeLabel;
+    setGridSize(gridCols, gridRows); // 버튼 활성 스타일을 기본값(2x2)에 맞춰 초기화
 
     const panelLabels = {
         ko: ['좌측 상단 (P1)', '우측 상단 (P2)', '좌측 하단 (P3)', '우측 하단 (P4)'],
@@ -490,9 +548,11 @@
             return;
         }
         startSceneInput.disabled = true;
+        document.querySelectorAll('.grid-size-btn').forEach(b => b.disabled = true);
         Utils.setLoading(document.getElementById('btn-crop-all'), true, i18nCrop.processing);
         batchFilesResultsContainer.innerHTML = '';
-        
+        const panelCount = getPanelCount();
+
         try {
             for (let fIdx = 0; fIdx < uploadedFiles.length; fIdx++) {
                 const file = uploadedFiles[fIdx];
@@ -506,19 +566,21 @@
                             <span class="text-emerald-400">📄</span>
                             <span class="text-sm font-bold text-white">${file.name}</span>
                         </div>
-                        <span class="text-[10px] text-gray-400">${i18nCrop.panelDone}</span>
+                        <span class="text-[10px] text-gray-400">${i18nCrop.panelDoneTemplate.replace('{n}', panelCount)}</span>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="panels-grid-${fIdx}">
-                        <!-- 4 crop panels will load here -->
+                    <div class="grid gap-4" style="grid-template-columns: repeat(${gridCols}, minmax(0, 1fr))" id="panels-grid-${fIdx}">
+                        <!-- ${panelCount} crop panels will load here -->
                     </div>
                 `;
                 batchFilesResultsContainer.appendChild(fileGroup);
                 const panelsGrid = document.getElementById(`panels-grid-${fIdx}`);
 
-                for (let panelIdx = 1; panelIdx <= 4; panelIdx++) {
+                for (let panelIdx = 1; panelIdx <= panelCount; panelIdx++) {
                     const formData = new FormData();
                     formData.append('file', file);
                     formData.append('panel', panelIdx);
+                    formData.append('cols', gridCols);
+                    formData.append('rows', gridRows);
 
                     const res = await fetch('/api/settings/crop-grid', {
                         method: 'POST',
@@ -531,7 +593,7 @@
                     croppedResults[fIdx][panelIdx] = blob;
 
                     const objectURL = URL.createObjectURL(blob);
-                    
+
                     const card = document.createElement('div');
                     card.className = "bg-[#1c2027]/50 rounded-xl border border-white/5 p-3 flex flex-col gap-2 group";
                     const sceneNumber = getTargetSceneNumber(fIdx, panelIdx);
@@ -546,7 +608,7 @@
                     card.innerHTML = `
                         <div class="aspect-video bg-black rounded-lg overflow-hidden border border-white/10 relative">
                             <img src="${objectURL}" class="w-full h-full object-cover">
-                            <span class="absolute top-1.5 left-1.5 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">${panelLabels[panelIdx-1]}</span>
+                            <span class="absolute top-1.5 left-1.5 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">${getPanelLabel(panelIdx)}</span>
                             ${cropProjectId ? `<span class="absolute top-1.5 right-1.5 bg-blue-600/90 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">Scene ${sceneNumber}</span>` : ''}
                         </div>
                         <button onclick="downloadSingleFileBlob(${fIdx}, ${panelIdx})" class="w-full py-1.5 bg-[#1c2027] hover:bg-emerald-500/10 hover:text-emerald-400 text-gray-400 rounded-lg text-[10px] font-bold transition">${i18nCrop.download}</button>
@@ -570,19 +632,38 @@
             Utils.showToast(`${i18nCrop.errorToast}${e.message}`, 'error');
         } finally {
             Utils.setLoading(document.getElementById('btn-crop-all'), false);
+            document.querySelectorAll('.grid-size-btn').forEach(b => b.disabled = false);
         }
     }
 
-    function downloadSingleFileBlob(fIdx, panelIdx) {
-        if (!croppedResults[fIdx] || !croppedResults[fIdx][panelIdx]) return;
-        const blob = croppedResults[fIdx][panelIdx];
-        const url = URL.createObjectURL(blob);
+    async function downloadBlobViaServer(blob, filename) {
+        // [FIX] pywebview의 Windows(EdgeChromium) 백엔드는 blob: URL에 대한
+        // <a download> 트리거를 지원하지 않아 다운로드 버튼이 조용히 아무
+        // 반응이 없었다. blob을 서버 임시 폴더에 저장해 실제 /output/... URL로
+        // 받아온 뒤 그걸로 다운로드한다.
+        const formData = new FormData();
+        formData.append('file', blob, filename);
+        formData.append('filename', filename);
+        const res = await fetch('/api/settings/save-temp-download', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
         const a = document.createElement('a');
-        a.href = url;
-        a.download = getCroppedFilename(fIdx, panelIdx);
+        a.href = data.url;
+        a.download = data.filename || filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+
+    async function downloadSingleFileBlob(fIdx, panelIdx) {
+        if (!croppedResults[fIdx] || !croppedResults[fIdx][panelIdx]) return;
+        const blob = croppedResults[fIdx][panelIdx];
+        try {
+            await downloadBlobViaServer(blob, getCroppedFilename(fIdx, panelIdx));
+        } catch (e) {
+            console.error('downloadSingleFileBlob failed', e);
+            Utils.showToast(`Download failed: ${e.message}`, 'error');
+        }
     }
 
     async function importCroppedPanel(fIdx, panelIdx, quiet = false) {
@@ -636,7 +717,7 @@
         let imported = 0;
         let skipped = 0;
         for (let fIdx = 0; fIdx < uploadedFiles.length; fIdx++) {
-            for (let panelIdx = 1; panelIdx <= 4; panelIdx++) {
+            for (let panelIdx = 1; panelIdx <= getPanelCount(); panelIdx++) {
                 const ok = await importCroppedPanel(fIdx, panelIdx, true);
                 if (ok) imported += 1;
                 else skipped += 1;
@@ -649,7 +730,7 @@
         const zip = new JSZip();
         
         uploadedFiles.forEach((file, fIdx) => {
-            for (let panelIdx = 1; panelIdx <= 4; panelIdx++) {
+            for (let panelIdx = 1; panelIdx <= getPanelCount(); panelIdx++) {
                 if (croppedResults[fIdx] && croppedResults[fIdx][panelIdx]) {
                     const blob = croppedResults[fIdx][panelIdx];
                     zip.file(getCroppedFilename(fIdx, panelIdx), blob);
@@ -659,15 +740,14 @@
 
         Utils.showToast(i18nCrop.zipProcessing, 'info');
         const content = await zip.generateAsync({ type: 'blob' });
-        
-        const url = URL.createObjectURL(content);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'cropped_images_batch.zip';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        Utils.showToast(i18nCrop.zipSuccess, 'success');
+
+        try {
+            await downloadBlobViaServer(content, 'cropped_images_batch.zip');
+            Utils.showToast(i18nCrop.zipSuccess, 'success');
+        } catch (e) {
+            console.error('downloadAllZip failed', e);
+            Utils.showToast(`Download failed: ${e.message}`, 'error');
+        }
     }
 </script>
 {% endblock %}

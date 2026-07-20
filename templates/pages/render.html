@@ -219,6 +219,7 @@
     var i18n_render = {
         status_loading_short: "{{ t('status_loading_short') }}",
         status_fail_prefix: "{{ t('status_fail_prefix') }}",
+        label_missing_visual: "{{ t('label_missing_visual') }}",
         err_occurred: "{{ t('err_occurred') }}",
         status_render_started: "{{ t('status_render_started') }}",
         status_render_success: "{{ t('status_render_success') }}",
@@ -383,7 +384,18 @@
                 startRenderingUI();
                 pollRenderStatus(projectId);
             } else {
-                Utils.showToast(i18n_render.status_fail_prefix + (res.message || 'Error'), 'error');
+                // [FIX] FastAPI HTTPException(409, detail={...})는 { detail: {...} }로
+                // 응답한다 - res.message만 보고 있어서 씬 누락 안내(longform_assets_not_ready)가
+                // 항상 "Error"로만 표시되던 버그.
+                const detail = res.detail;
+                let errMsg = res.message || 'Error';
+                if (detail && typeof detail === 'object') {
+                    errMsg = detail.message || errMsg;
+                    if (Array.isArray(detail.missing_scene_numbers) && detail.missing_scene_numbers.length) {
+                        errMsg += ` (${i18n_render.label_missing_visual}: ${detail.missing_scene_numbers.join(', ')})`;
+                    }
+                }
+                Utils.showToast(i18n_render.status_fail_prefix + errMsg, 'error');
                 Utils.setLoading(btn, false);
             }
         } catch (e) {

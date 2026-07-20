@@ -19,25 +19,31 @@ class StorageService:
             self.logger.error(f"File not found: {local_file_path}")
             return None
 
+        # [AIR-0225B] /api/publishing/presigned-url은 이제 email + HMAC
+        # session_token을 검증한다(평문 userId 신뢰 구멍 제거). 서버가 세션
+        # email로 user_id를 해석하므로, 서비스롤이 필요한 resolve_user_id에
+        # 더 이상 의존하지 않는다(패키징 앱에서 깨지던 경로).
         try:
             from services.auth_service import auth_service
             email = auth_service.get_user_email()
+            session_token = auth_service.get_session_token()
         except Exception:
             email = ""
-        resolved_user_id = web_admin_client.resolve_user_id(email=email, candidate=user_id)
-        if not resolved_user_id:
-            self.logger.error("Could not resolve Supabase user UUID for cloud upload")
+            session_token = ""
+        if not email or not session_token:
+            self.logger.error("Cloud upload requires an active login session (email/session_token).")
             return None
 
         file_name = os.path.basename(local_file_path)
-        
+
         try:
             # Step 1: Request Signed URL
             self.logger.info(f"Requesting signed URL for {file_name}...")
             res = requests.post(
                 f"{self.auth_base_url}/api/publishing/presigned-url",
                 json={
-                    "userId": resolved_user_id,
+                    "email": email,
+                    "session_token": session_token,
                     "fileName": file_name
                 },
                 timeout=10

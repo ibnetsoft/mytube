@@ -12,6 +12,7 @@ from services.auth_service import auth_service
 from services.google_drive_service import google_drive_service
 from services.project_publish_service import queue_project_for_admin_publish
 from services.remote_render_service import package_project_assets
+from services.web_admin_client import web_admin_client
 
 
 class RemoteDriveRenderService:
@@ -42,100 +43,76 @@ class RemoteDriveRenderService:
             or None
         )
 
-    def _supabase_headers(self):
-        key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        if not key:
+    def _desktop_auth(self):
+        """[AIR-0225B] email/session_token for the desktop-render-queue bridge.
+        Returns None if the user isn't logged in with a valid session (no
+        service_role fallback - that key no longer ships in the desktop
+        package, see worknote/AIR-0225B-stage0-service-role-removal-investigation.md)."""
+        email = auth_service.get_user_email()
+        token = auth_service.get_session_token()
+        if not email or not token:
             return None
-        return {
-            "apikey": key,
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation",
-        }
-
-    def _queue_url(self):
-        url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-        if not url:
-            return None
-        return f"{url.rstrip('/')}/rest/v1/remote_render_queue"
+        return email, token
 
     def _post_queue_row(self, payload):
-        queue_url = self._queue_url()
-        headers = self._supabase_headers()
-        if not queue_url or not headers:
+        auth = self._desktop_auth()
+        if not auth:
             raise RuntimeError("Supabase queue credentials are not configured.")
-
-        import urllib3
-
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        email, token = auth
 
         response = requests.post(
-            queue_url,
-            headers=headers,
-            json=payload,
+            f"{web_admin_client.dashboard_url}/api/desktop-render-queue",
+            json={"email": email, "session_token": token, "payload": payload},
             timeout=20,
-            verify=False,
-            proxies={"http": None, "https": None},
-        )
-        if response.status_code not in (200, 201):
-            raise RuntimeError(f"Supabase remote_render_queue insert failed: {response.status_code} {response.text}")
-        data = response.json()
-        return data[0] if isinstance(data, list) and data else data
-
-    def get_queue_row(self, task_id: str):
-        queue_url = self._queue_url()
-        headers = self._supabase_headers()
-        if not queue_url or not headers:
-            return None
-
-        import urllib3
-
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-        response = requests.get(
-            queue_url,
-            headers=headers,
-            params={"select": "*", "id": f"eq.{task_id}", "limit": "1"},
-            timeout=15,
-            verify=False,
-            proxies={"http": None, "https": None},
         )
         if response.status_code >= 400:
-            raise RuntimeError(f"Supabase remote_render_queue fetch failed: {response.status_code} {response.text}")
-        rows = response.json()
-        return rows[0] if rows else None
+            raise RuntimeError(f"remote_render_queue insert failed: {response.status_code} {response.text}")
+        data = response.json()
+        if not data.get("success"):
+            raise RuntimeError(f"remote_render_queue insert failed: {data.get('error')}")
+        return data.get("row")
+
+    def get_queue_row(self, task_id: str):
+        auth = self._desktop_auth()
+        if not auth:
+            return None
+        email, token = auth
+
+        response = requests.get(
+            f"{web_admin_client.dashboard_url}/api/desktop-render-queue",
+            params={"email": email, "session_token": token, "task_id": task_id},
+            timeout=15,
+        )
+        if response.status_code >= 400:
+            raise RuntimeError(f"remote_render_queue fetch failed: {response.status_code} {response.text}")
+        data = response.json()
+        if not data.get("success"):
+            raise RuntimeError(f"remote_render_queue fetch failed: {data.get('error')}")
+        return data.get("row")
 
     def list_queue_rows(self, *, statuses=None, limit: int = 50):
-        queue_url = self._queue_url()
-        headers = self._supabase_headers()
-        if not queue_url or not headers:
+        auth = self._desktop_auth()
+        if not auth:
             return []
+        email, token = auth
 
-        import urllib3
-
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-        params = {
-            "select": "*",
-            "order": "updated_at.desc",
-            "limit": str(max(1, int(limit))),
-        }
+        params = {"email": email, "session_token": token, "limit": str(max(1, int(limit)))}
         if statuses:
             joined = ",".join(str(s).strip() for s in statuses if str(s).strip())
             if joined:
-                params["status"] = f"in.({joined})"
+                params["statuses"] = joined
 
         response = requests.get(
-            queue_url,
-            headers=headers,
+            f"{web_admin_client.dashboard_url}/api/desktop-render-queue",
             params=params,
             timeout=15,
-            verify=False,
-            proxies={"http": None, "https": None},
         )
         if response.status_code >= 400:
-            raise RuntimeError(f"Supabase remote_render_queue list failed: {response.status_code} {response.text}")
-        rows = response.json()
+            raise RuntimeError(f"remote_render_queue list failed: {response.status_code} {response.text}")
+        data = response.json()
+        if not data.get("success"):
+            raise RuntimeError(f"remote_render_queue list failed: {data.get('error')}")
+        rows = data.get("rows")
         return rows if isinstance(rows, list) else []
 
     def _project_output_dir(self, project_id: int):

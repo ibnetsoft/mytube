@@ -58,6 +58,8 @@
                     </span>
                     {% endif %}
                 </a>
+                <!-- [AIR-0228] Active subscription-verification badges -->
+                <div id="sidebarBadgeContainer" class="flex flex-wrap gap-1 mt-1.5"></div>
 
                 <!-- 모드 표시 및 언어 선택 (사이드바로 이전하여 겹침 현상 원천 방지) -->
                 <div class="mt-4 px-3 py-3 bg-[#1c2027]/40 rounded-2xl border border-white/5 flex flex-col gap-2.5">
@@ -691,7 +693,37 @@
             // Ideally visual feedback is good.
             // Let's assume re-render handles it, but for active state:
             // We can check cookies? Or just reliance on reload.
+
+            loadSidebarBadges();
         });
+
+        // [AIR-0228] Sidebar badge indicator - shows currently ACTIVE
+        // subscription-verification badges (e.g. ChatGPT Plus). Fails silently
+        // (no badge shown) on any error - this is a status indicator, not a
+        // critical path.
+        const SIDEBAR_BADGE_LABELS = {
+            CHATGPT_PLUS_VERIFIED: '✅ ChatGPT Plus',
+            CHATGPT_PRO_VERIFIED: '✅ ChatGPT Pro',
+            GEMINI_ADVANCED_VERIFIED: '✅ Gemini Advanced',
+            CLAUDE_PRO_VERIFIED: '✅ Claude Pro',
+        };
+
+        async function loadSidebarBadges() {
+            const container = document.getElementById('sidebarBadgeContainer');
+            if (!container) return;
+            try {
+                const res = await fetch('/api/settings/badges/me');
+                if (!res.ok) return;
+                const data = await res.json();
+                const badges = (data && data.badges) || [];
+                container.innerHTML = badges.map(b => {
+                    const label = SIDEBAR_BADGE_LABELS[b.badge_code] || `✅ ${b.badge_code}`;
+                    return `<span class="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20" title="${b.expires_at ? new Date(b.expires_at).toLocaleDateString() : ''}">${label}</span>`;
+                }).join('');
+            } catch (e) {
+                // silent - status indicator only
+            }
+        }
     </script>
 
     <script>

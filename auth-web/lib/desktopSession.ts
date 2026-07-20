@@ -121,6 +121,13 @@ export interface DesktopProfileSnapshot {
     token_balance: number
     preferred_language: string
     global_settings: { key: string; value: string }[]
+    full_name: string
+    nationality: string
+    contact: string
+    referral_code: string
+    preferred_category_ids: (string | number)[]
+    preferred_video_length: string
+    categories: { id: string | number; name: string; video_type: string }[]
 }
 
 /**
@@ -128,6 +135,14 @@ export interface DesktopProfileSnapshot {
  * established (fresh password login, or a verified resync) in one place, so
  * /api/desktop-login and /api/desktop-resync return an identical shape.
  * Returns null if no profile row exists for the email.
+ *
+ * [AIR-0225B Phase 1] Also carries the settings-page profile fields
+ * (full_name/nationality/contact/referral_code/preferred_category_ids/
+ * preferred_video_length) and the categories list - these used to be fetched
+ * by the desktop app directly from Supabase with SUPABASE_SERVICE_ROLE_KEY
+ * (services/web_admin_client.py's fetch_profile_by_email/fetch_categories),
+ * which stopped working once that key was removed from the packaged app
+ * (worknote/AIR-0225B-stage0-service-role-removal-investigation.md Phase 2).
  */
 export async function fetchDesktopProfileSnapshot(
     email: string,
@@ -135,7 +150,7 @@ export async function fetchDesktopProfileSnapshot(
 ): Promise<{ profile: DesktopProfileSnapshot; isApproved: boolean } | null> {
     const { data: profile, error } = await supabaseAdmin
         .from('profiles')
-        .select('is_approved, preferred_language, membership, token_balance')
+        .select('id, is_approved, preferred_language, membership, token_balance, full_name, nationality, contact, referral_code, preferred_category_ids, preferred_video_length')
         .eq('email', email)
         .maybeSingle()
 
@@ -144,6 +159,25 @@ export async function fetchDesktopProfileSnapshot(
     }
     if (!profile) {
         return null
+    }
+
+    // [AIR-0225B Phase 1 follow-up] The admin dashboard (app/api/admin/users/route.ts)
+    // treats auth.users.user_metadata as the primary source for
+    // full_name/contact/nationality, falling back to the profiles row only if
+    // user_metadata lacks a field - most existing accounts were signed up
+    // through a flow that wrote these into user_metadata, not profiles. The
+    // desktop app was only reading the profiles row, so it showed blank
+    // fields even for accounts the admin dashboard displays correctly.
+    let authMetadata: Record<string, any> = {}
+    try {
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+        if (authError) {
+            console.warn('[DesktopSession] auth user metadata fetch warning:', authError.message)
+        } else if (authUser?.user?.user_metadata) {
+            authMetadata = authUser.user.user_metadata
+        }
+    } catch (authErr: any) {
+        console.warn('[DesktopSession] auth user metadata fetch error:', authErr?.message)
     }
 
     const isApproved = !(
@@ -180,6 +214,29 @@ export async function fetchDesktopProfileSnapshot(
         console.warn('[DesktopSession] global_settings fetch error:', sysErr?.message)
     }
 
+    let categories: { id: string | number; name: string; video_type: string }[] = []
+    try {
+        // NOTE: categories has no video_type column (confirmed against the live
+        // schema - the old desktop-side fetch_categories() only ever selected
+        // id,name and defaulted video_type to "longform" in Python). Match that
+        // here instead of selecting a column that doesn't exist.
+        const { data: catRows, error: catError } = await supabaseAdmin
+            .from('categories')
+            .select('id, name')
+            .order('created_at', { ascending: false })
+        if (catError) {
+            console.warn('[DesktopSession] categories fetch warning:', catError.message)
+        } else if (catRows) {
+            categories = catRows.map((row: any) => ({
+                id: row.id,
+                name: row.name,
+                video_type: 'longform',
+            }))
+        }
+    } catch (catErr: any) {
+        console.warn('[DesktopSession] categories fetch error:', catErr?.message)
+    }
+
     return {
         isApproved,
         profile: {
@@ -187,6 +244,13 @@ export async function fetchDesktopProfileSnapshot(
             token_balance: profile.token_balance ?? 0,
             preferred_language: effectiveLang,
             global_settings: globalSettings,
+            full_name: authMetadata.full_name || profile.full_name || '',
+            nationality: authMetadata.nationality || profile.nationality || '',
+            contact: authMetadata.contact || profile.contact || '',
+            referral_code: profile.referral_code || '',
+            preferred_category_ids: profile.preferred_category_ids || [],
+            preferred_video_length: profile.preferred_video_length || '',
+            categories,
         },
     }
 }

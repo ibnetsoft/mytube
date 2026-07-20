@@ -1,6 +1,6 @@
 # ChatGPT Plus 구독 인증 뱃지 시스템 — 기능 명세 (SPEC)
 
-- 상태: **설계안 / CTO 승인 대기** (코드/마이그레이션 미적용)
+- 상태: **Stage 1 적용 완료 (2026-07-15)** — `migrations/air_0228_chatgpt_plus_verification_stage1*.sql` 프로덕션 반영 확인됨(테이블 3개 생성+빈 상태 확인, Private Storage 버킷 확인). Stage 2(auth-web API + Gemini 분석)부터는 아직 미착수.
 - 관련 문서: [SECURITY](./CHATGPT_PLUS_VERIFICATION_SECURITY.md), [QA](./CHATGPT_PLUS_VERIFICATION_QA.md)
 - 작성 근거: 저장소 조사 결과 (아래 각 절에 실제 파일 경로 인용)
 

@@ -101,7 +101,11 @@ class Config:
     APP_VERSION = ""
     try:
         import json as _json
-        with open(os.path.join(BASE_DIR, "version.json"), "r", encoding="utf-8") as _vf:
+        # utf-8-sig: tools/build_windows.ps1 writes this with `Set-Content -Encoding UTF8`,
+        # which in Windows PowerShell 5.1 always emits a UTF-8 BOM. Plain "utf-8" then
+        # fails to parse (JSONDecodeError -> silently swallowed below -> APP_VERSION
+        # stays "" and the sidebar version display never renders).
+        with open(os.path.join(BASE_DIR, "version.json"), "r", encoding="utf-8-sig") as _vf:
             APP_VERSION = _json.load(_vf).get("version", "")
     except Exception:
         APP_VERSION = ""
