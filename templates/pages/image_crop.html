@@ -118,9 +118,14 @@
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
                 <span>📦</span> <span id="batch-results-heading-text">{{ t('crop_batch_result_list') }}</span>
             </h3>
-            <button onclick="downloadAllZip()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/15">
-                <span>📥</span> <span id="download-all-zip-btn-text">{{ t('crop_download_all_zip') }}</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <button onclick="openDownloadFolder()" class="bg-[#1c2027] hover:bg-white/10 text-gray-300 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-white/10">
+                    <span id="open-download-folder-btn-text">📂 Open Folder</span>
+                </button>
+                <button onclick="downloadAllZip()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/15">
+                    <span>📥</span> <span id="download-all-zip-btn-text">{{ t('crop_download_all_zip') }}</span>
+                </button>
+            </div>
         </div>
 
         <button id="import-all-cropped-btn" onclick="importAllCroppedPanels()"
@@ -385,7 +390,21 @@
             en: "Batch download completed!",
             vi: "Tải xuống hàng loạt hoàn tất!",
             th: "ดาวน์โหลดแบบชุดเสร็จแล้ว!"
-        }[lang] || "Batch download completed!"
+        }[lang] || "Batch download completed!",
+
+        openFolderBtn: {
+            ko: "📂 폴더 열기",
+            en: "📂 Open Folder",
+            vi: "📂 Mở thư mục",
+            th: "📂 เปิดโฟลเดอร์"
+        }[lang] || "📂 Open Folder",
+
+        openFolderError: {
+            ko: "폴더 열기 실패: 아직 다운로드한 파일이 없습니다.",
+            en: "Couldn't open folder: no file downloaded yet.",
+            vi: "Không mở được thư mục: chưa có tệp nào được tải xuống.",
+            th: "เปิดโฟลเดอร์ไม่ได้: ยังไม่มีไฟล์ที่ดาวน์โหลด"
+        }[lang] || "Couldn't open folder: no file downloaded yet."
     };
 
     // Apply translations on load
@@ -394,6 +413,7 @@
     document.getElementById('uploaded-files-title').innerHTML = `${i18nCrop.listTitle} (<span id="files-count">0</span>)`;
     document.getElementById('clear-all-btn-text').textContent = i18nCrop.clearAll;
     document.getElementById('btn-crop-all-text').textContent = i18nCrop.cropAllBtn;
+    document.getElementById('open-download-folder-btn-text').textContent = i18nCrop.openFolderBtn;
     document.getElementById('empty-title-text').textContent = i18nCrop.batchResultTitle;
     document.getElementById('empty-desc-text').textContent = i18nCrop.batchResultDesc;
     document.getElementById('preview-filename-title').textContent = i18nCrop.previewSelected;
@@ -636,6 +656,8 @@
         }
     }
 
+    let lastDownloadUniqueName = null; // 방금 받은 파일을 "폴더 열기"에서 바로 선택해 보여주기 위한 추적
+
     async function downloadBlobViaServer(blob, filename) {
         // [FIX] pywebview의 Windows(EdgeChromium) 백엔드는 blob: URL에 대한
         // <a download> 트리거를 지원하지 않아 다운로드 버튼이 조용히 아무
@@ -647,12 +669,29 @@
         const res = await fetch('/api/settings/save-temp-download', { method: 'POST', body: formData });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+        lastDownloadUniqueName = data.unique_name || null;
         const a = document.createElement('a');
         a.href = data.url;
         a.download = data.filename || filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+    }
+
+    async function openDownloadFolder() {
+        // pywebview 환경에서는 다운로드 알림/막대가 뜨지 않아 파일을 어디서
+        // 받았는지 찾기 어렵다는 피드백에 따라 추가. 방금 받은 파일이 있으면
+        // 탐색기에서 그 파일을 선택한 채로, 없으면 임시 다운로드 폴더만 연다.
+        try {
+            await fetch('/api/settings/reveal-tmp-download-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ unique_name: lastDownloadUniqueName })
+            });
+        } catch (e) {
+            console.error('openDownloadFolder failed', e);
+            Utils.showToast(i18nCrop.openFolderError, 'error');
+        }
     }
 
     async function downloadSingleFileBlob(fIdx, panelIdx) {
