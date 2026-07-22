@@ -1109,7 +1109,44 @@ async def save_temp_download(
     with open(dest_path, "wb") as f:
         f.write(content)
 
-    return {"url": f"/output/tmp_downloads/{unique_name}", "filename": safe_name}
+    return {"url": f"/output/tmp_downloads/{unique_name}", "filename": safe_name, "unique_name": unique_name}
+
+
+@router.post("/reveal-tmp-download-folder")
+async def reveal_tmp_download_folder(unique_name: Optional[str] = Body(None, embed=True)):
+    """[EXE/Local Only] 크롭 다운로드가 저장된 임시 폴더를 탐색기로 직접 연다.
+    pywebview 환경에서는 브라우저 다운로드 알림/막대가 뜨지 않아 방금 받은
+    파일을 어디서 찾아야 할지 알기 어렵다는 사용자 피드백에 따라 추가.
+    unique_name이 있으면 해당 파일을 선택한 채로 열고, 없으면 폴더만 연다."""
+    tmp_dir = os.path.join(config.OUTPUT_DIR, "tmp_downloads")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    target_path = tmp_dir
+    if unique_name:
+        safe_name = os.path.basename(unique_name)
+        candidate = os.path.join(tmp_dir, safe_name)
+        if os.path.isfile(candidate):
+            target_path = candidate
+
+    try:
+        import platform
+        import subprocess
+        system = platform.system()
+        if system == "Windows":
+            if target_path != tmp_dir:
+                subprocess.run(["explorer", f"/select,{target_path}"])
+            else:
+                os.startfile(target_path)
+        elif system == "Darwin":
+            if target_path != tmp_dir:
+                subprocess.run(["open", "-R", target_path])
+            else:
+                subprocess.run(["open", target_path])
+        else:
+            subprocess.run(["xdg-open", tmp_dir])
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 from pydantic import BaseModel
