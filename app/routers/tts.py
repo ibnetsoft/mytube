@@ -29,6 +29,20 @@ async def tts_generate(req: TTSRequest):
     import time
     from services.tts_service import tts_service
 
+    start_time = time.time()
+    tts_model_id = "multi-voice" if req.multi_voice else (req.voice_id or "default")
+
+    def _log_tts(status: str, error_msg: str = ""):
+        try:
+            db.add_ai_log(
+                req.project_id, "tts", tts_model_id, req.provider, status,
+                prompt_summary=(req.text or "")[:100],
+                error_msg=error_msg,
+                elapsed_time=time.time() - start_time,
+            )
+        except Exception as log_e:
+            print(f"[TTS] Failed to write ai_log: {log_e}")
+
     now_kst = config.get_kst_time()
     from services.tts_service import language_code_for_tts
     if req.project_id and (not req.language or req.language == "ko-KR"):
@@ -279,9 +293,13 @@ async def tts_generate(req: TTSRequest):
                          try: os.remove(af)
                          except Exception: pass
                 else:
-                    return {"status": "error", "error": "오디오 병합 실패 (Pydub 및 MoviePy 모두 실패)"}
+                    error_msg = "오디오 병합 실패 (Pydub 및 MoviePy 모두 실패)"
+                    _log_tts("failed", error_msg)
+                    return {"status": "error", "error": error_msg}
             else:
-                 return {"status": "error", "error": "생성된 오디오 세그먼트가 없습니다."}
+                 error_msg = "생성된 오디오 세그먼트가 없습니다."
+                 _log_tts("failed", error_msg)
+                 return {"status": "error", "error": error_msg}
 
         # ----------------------------------------------------------------
         # 일반(단일) 모드 처리
@@ -378,6 +396,7 @@ async def tts_generate(req: TTSRequest):
         else:
             final_url = f"/output/{filename}"
 
+        _log_tts("success")
         return {
             "status": "ok",
             "file": filename,
@@ -386,6 +405,7 @@ async def tts_generate(req: TTSRequest):
         }
 
     except Exception as e:
+        _log_tts("failed", str(e))
         return {"status": "error", "error": str(e)}
 
 
