@@ -4,6 +4,7 @@ TTS (Text-to-Speech) 서비스
 - Google Cloud TTS (유료, 고품질)
 - gTTS (무료, Google 번역 기반)
 """
+import asyncio
 import httpx
 import os
 from typing import Optional
