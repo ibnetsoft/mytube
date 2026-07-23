@@ -220,8 +220,8 @@ class TTSService:
         text = re.sub(r'\(([^)]*)\)', replace_ko_emotions, text)
         text = self.clean_text(text)
         
-        # [NEW] 문장 단위 분할 처리 (제한 10,000자, 안전빵 8,000자)
-        max_chars = 8000
+        # [FIX] ElevenLabs 실제 제한은 5,000자 (초과 시 text_too_long 오류). 안전빵 4,500자.
+        max_chars = 4500
         if len(text) > max_chars:
             chunks = self._split_text(text, max_chars)
             print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for ElevenLabs.")
