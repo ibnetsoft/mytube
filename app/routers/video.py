@@ -484,7 +484,14 @@ async def generate_subtitles_api(req: dict = Body(...)):
             
         # Update DB
         db.update_project_setting(project_id, 'subtitle_path', save_path)
-        
+        # [FIX] Keep an untouched snapshot so the "초기화" reset button can restore
+        # subtitles even after manual edits (e.g. deleting rows) overwrite subtitle_path.
+        db.update_project_setting(project_id, 'subtitle_path_original', save_path)
+        # Fresh generation invalidates any previous manual timeline edits.
+        db.update_project_setting(project_id, 'image_timings_path', None)
+        db.update_project_setting(project_id, 'timeline_images_path', None)
+        db.update_project_setting(project_id, 'image_effects_path', None)
+
         # Calculate Image Timings for Frontend Preview
         image_timings = []
         image_urls = []
@@ -738,6 +745,13 @@ async def get_project_subtitles(project_id: int, force_refresh: bool = False, ui
             print(f"DEBUG: Force Refresh requested for Project {project_id}. Ignoring saved timeline/timings.")
             image_timings_path = None
             timeline_images_path = None
+            # [FIX] Reset button (초기화) should restore subtitles to the state right
+            # after generation too, not just the image timeline. Without this, deleting
+            # subtitle rows and saving permanently overwrote subtitle_path, so reset had
+            # nothing to fall back to and the removed subtitles never came back.
+            original_subtitle_path = settings.get('subtitle_path_original')
+            if original_subtitle_path and os.path.exists(original_subtitle_path):
+                subtitle_path = original_subtitle_path
 
         # [FIX] Load Audio Data (Crucial for Frontend)
         audio_url = None
@@ -913,7 +927,7 @@ Subtitles to translate:
 
         # Load Image Effects
         image_effects = []
-        effects_path = settings.get('image_effects_path')
+        effects_path = None if force_refresh else settings.get('image_effects_path')
         if effects_path and os.path.exists(effects_path):
              try:
                  with open(effects_path, "r", encoding="utf-8") as f:
