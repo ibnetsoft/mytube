@@ -19,12 +19,39 @@ TERMINAL_PROJECT_STATUSES = {
     "youtube_published",
 }
 
+# Matches the char-count/7.5 heuristic used for scripts.estimated_duration
+# (see database.py update_project_setting) — no TTS audio exists yet at the
+# image-gen stage, so scene start times can only be estimated this way.
+CHARS_PER_SECOND = 7.5
+DEFAULT_VIDEO_REQUIRED_UNTIL_SEC = 180
+
 
 def _has_value(value: Any) -> bool:
     return bool(str(value or "").strip())
 
 
-def evaluate_scene_asset_readiness(scenes: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+def _estimate_scene_start_seconds(
+    expected_scene_numbers: List[int], scene_map: Dict[int, Dict[str, Any]]
+) -> Dict[int, float]:
+    """Estimate each scene's start time from cumulative scene_text length.
+
+    This is a rough placement, not a real timestamp — actual sync only exists
+    once TTS audio and the subtitle timeline are generated later in the flow.
+    """
+    starts: Dict[int, float] = {}
+    cumulative_chars = 0
+    for number in expected_scene_numbers:
+        starts[number] = cumulative_chars / CHARS_PER_SECOND
+        scene = scene_map.get(number) or {}
+        cumulative_chars += len(str(scene.get("scene_text") or ""))
+    return starts
+
+
+def evaluate_scene_asset_readiness(
+    scenes: Iterable[Dict[str, Any]],
+    *,
+    video_required_until_sec: float = 0,
+) -> Dict[str, Any]:
     """Evaluate ordered Scene readiness using the Longform MVP policy."""
     scene_map: Dict[int, Dict[str, Any]] = {}
     duplicate_scene_numbers: List[int] = []
@@ -65,6 +92,20 @@ def evaluate_scene_asset_readiness(scenes: Iterable[Dict[str, Any]]) -> Dict[str
             or _has_value(scene_map[number].get("video_url"))
         )
     ]
+    # [Soft rule] Intro scenes (estimated start before video_required_until_sec)
+    # should have a real video clip, not just a still image. This never affects
+    # assets_ready/missing_asset_scenes — it's advisory only, surfaced in the UI
+    # as a warning so creators can still proceed with images if they choose to.
+    required_video_zone_scenes: List[int] = []
+    missing_required_video_scenes: List[int] = []
+    if video_required_until_sec and video_required_until_sec > 0:
+        estimated_starts = _estimate_scene_start_seconds(expected_scene_numbers, scene_map)
+        for number in expected_scene_numbers:
+            if estimated_starts.get(number, 0.0) < video_required_until_sec:
+                required_video_zone_scenes.append(number)
+                if number not in scene_map or not _has_value(scene_map[number].get("video_url")):
+                    missing_required_video_scenes.append(number)
+
     ready_scene_count = len(expected_scene_numbers) - len(missing_asset_scenes)
     completion_percent = (
         round((ready_scene_count / len(expected_scene_numbers)) * 100)
@@ -89,6 +130,9 @@ def evaluate_scene_asset_readiness(scenes: Iterable[Dict[str, Any]]) -> Dict[str
         "missing_video_scenes": missing_video_scenes,
         "missing_scene_rows": missing_scene_rows,
         "duplicate_scene_numbers": duplicate_scene_numbers,
+        "video_required_until_sec": video_required_until_sec,
+        "required_video_zone_scenes": required_video_zone_scenes,
+        "missing_required_video_scenes": missing_required_video_scenes,
     }
 
 
@@ -120,7 +164,18 @@ def sync_project_asset_readiness(
             "project_complete": False,
         }
 
-    result = evaluate_scene_asset_readiness(db.get_image_prompts(project_id))
+    raw_cutoff = settings.get("video_required_until_sec")
+    try:
+        video_required_until_sec = (
+            float(raw_cutoff) if raw_cutoff not in (None, "") else DEFAULT_VIDEO_REQUIRED_UNTIL_SEC
+        )
+    except (TypeError, ValueError):
+        video_required_until_sec = DEFAULT_VIDEO_REQUIRED_UNTIL_SEC
+
+    result = evaluate_scene_asset_readiness(
+        db.get_image_prompts(project_id),
+        video_required_until_sec=video_required_until_sec,
+    )
     project_status = str(project.get("status") or "").strip().lower()
     result.update(
         {

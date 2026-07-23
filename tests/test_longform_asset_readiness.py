@@ -38,6 +38,33 @@ def test_readiness_reports_missing_assets_gaps_and_duplicates():
     assert result["duplicate_scene_numbers"] == [3]
 
 
+def test_readiness_flags_missing_video_in_intro_zone_without_blocking_ready():
+    # Scene 1 text is 75 chars (~10s @7.5 cps) -> scene 2 starts near t=10s,
+    # well inside a 180s cutoff, so scene 2 needs a real clip even though it
+    # already has an image (soft rule: assets_ready stays true either way).
+    result = readiness.evaluate_scene_asset_readiness(
+        [
+            {"scene_number": 1, "scene_text": "x" * 75, "video_url": "/scene_001.mp4"},
+            {"scene_number": 2, "scene_text": "y" * 20, "image_url": "/scene_002.png"},
+        ],
+        video_required_until_sec=180,
+    )
+
+    assert result["assets_ready"] is True
+    assert result["required_video_zone_scenes"] == [1, 2]
+    assert result["missing_required_video_scenes"] == [2]
+
+
+def test_readiness_ignores_intro_zone_rule_when_cutoff_disabled():
+    result = readiness.evaluate_scene_asset_readiness(
+        [{"scene_number": 1, "scene_text": "x" * 75, "image_url": "/scene_001.png"}],
+        video_required_until_sec=0,
+    )
+
+    assert result["required_video_zone_scenes"] == []
+    assert result["missing_required_video_scenes"] == []
+
+
 def test_sync_persists_ready_and_project_complete(monkeypatch):
     writes = {}
     monkeypatch.setattr(
