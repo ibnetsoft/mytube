@@ -4498,15 +4498,9 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
             import requests as _req, os as _os
             from pathlib import Path
             base_dir = Path(__file__).parent
-            
-            user_id = resolve_remote_user_id_for_log(project_id)
-            if not user_id:
-                print("[Sync] Could not resolve Supabase profile UUID for remote log push")
-                return
 
-            # [AIR-0225B] /api/logs는 이제 email + HMAC session_token을 검증한다
-            # (평문 userId 신뢰 구멍 제거). 로그인 세션이 없으면 원격 푸시를 건너뛴다 -
-            # 서버가 어차피 401로 거절하고, 로컬 DB에는 이미 기록돼 있다.
+            user_id = resolve_remote_user_id_for_log(project_id)
+
             try:
                 from services.auth_service import auth_service as _auth
                 push_email = _auth.get_user_email()
@@ -4514,13 +4508,10 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
             except Exception:
                 push_email = ""
                 push_session_token = ""
-            if not push_email or not push_session_token:
-                print("[Sync] Skipping remote log push - no active login session (email/session_token).")
-                return
 
             # DASHBOARD_URL 환경변수 사용
             base_url = _os.getenv("DASHBOARD_URL", "https://mytube-ashy-seven.vercel.app")
-            
+
             # 로컬 배포 환경 자동 감지 (localhost:3000 우선)
             if _os.getenv("DEBUG") == "true" or _os.path.exists(_os.path.join(base_dir, ".env.local")):
                 try:
@@ -4530,6 +4521,36 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
                         base_url = "http://localhost:3000"
                 except Exception:
                     pass
+
+            # [AIR-0225B] /api/logs는 email + HMAC session_token을 검증한다
+            # (평문 userId 신뢰 구멍 제거). 로그인 세션(또는 profile UUID)이 없으면
+            # 이 인증 경로는 쓸 수 없다.
+            #
+            # [무음 실패 로그 방지] 예전엔 여기서 그냥 return해서 실패 로그가
+            # 콘솔에만 찍히고 완전히 사라졌다 - 실제로 한 외부 유저의 ai_logs가
+            # Supabase에 단 한 건도 없어서 TTS 실패 신고를 받고도 원인 추적이
+            # 불가능했던 사고로 발견됨. status='failed'이고 이메일은 있는 경우
+            # (세션 토큰만 없는 구버전 로그인 등) /api/logs/anonymous로 최소
+            # 진단 정보라도 보낸다. 이 경로는 정산/사용량 집계를 아예 하지 않아
+            # 금전적 악용 여지가 없다 - see auth-web/app/api/logs/anonymous/route.ts.
+            if not user_id or not push_email or not push_session_token:
+                fallback_email = push_email or worker_email
+                if status == 'failed' and fallback_email:
+                    try:
+                        _req.post(f"{base_url}/api/logs/anonymous", json={
+                            "email": fallback_email,
+                            "task_type": task_type,
+                            "model_id": model_id,
+                            "provider": provider,
+                            "error_msg": error_msg,
+                            "worker_email": worker_email,
+                        }, timeout=5, proxies={"http": None, "https": None})
+                        print("[Sync] Sent failed log via anonymous fallback (no active session).")
+                    except Exception as e:
+                        print(f"[Sync] Anonymous fallback push failed: {e}")
+                else:
+                    print("[Sync] Skipping remote log push - no active login session and no email to fall back on.")
+                return
 
             payload = {
                 "email": push_email,
