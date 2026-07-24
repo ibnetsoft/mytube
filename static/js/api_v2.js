@@ -129,6 +129,33 @@ const API = {
         }
     },
 
+    // 음성 지능(성별/연령대 추론, 추천) API
+    voices: {
+        async inferCharacters(script, language, characters) {
+            const response = await fetch('/api/voices/infer-characters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ script, language, characters })
+            });
+            return response.json();
+        },
+
+        async recommend(options = {}) {
+            const response = await fetch('/api/voices/recommend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    language: options.language || 'ko',
+                    gender: options.gender || null,
+                    age_group: options.age_group || null,
+                    tone: options.tone || null,
+                    genre: options.genre || null
+                })
+            });
+            return response.json();
+        }
+    },
+
     // 이미지 API
     // 이미지 API
     image: {
