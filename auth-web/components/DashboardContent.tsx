@@ -11,6 +11,7 @@ import ReferralAdminPanel from './ReferralAdminPanel'
 import SubscriptionVerificationsPanel from './SubscriptionVerificationsPanel'
 import SupportInboxPanel from './SupportInboxPanel'
 import AnnouncementsAdminPanel from './AnnouncementsAdminPanel'
+import ErrorLogsPanel from './ErrorLogsPanel'
 
 interface UserProfile {
     id: string
@@ -185,7 +186,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements' | 'error-logs'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -200,7 +201,6 @@ export default function DashboardContent() {
     const [newCatName, setNewCatName] = useState('')
     const [newCatKeywords, setNewCatKeywords] = useState('')
     const [newCatChannel, setNewCatChannel] = useState('')
-    const [newCatEmployee, setNewCatEmployee] = useState('')
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [newCatLanguage, setNewCatLanguage] = useState('ko')
@@ -230,7 +230,6 @@ export default function DashboardContent() {
         name: '',
         keywords: '',
         benchmark_channel_url: '',
-        assigned_employee_email: '',
         default_script_style: 'default',
         default_image_style: 'realistic',
         language: 'ko',
@@ -1504,7 +1503,6 @@ export default function DashboardContent() {
                     name: newCatName,
                     keywords: newCatKeywords,
                     benchmark_channel_url: newCatChannel,
-                    assigned_employee_email: newCatEmployee || null,
                     default_script_style: newCatScriptStyle || 'default',
                     default_image_style: newCatImageStyle || 'realistic',
                     language: normalizeContentLanguage(newCatLanguage),
@@ -1519,7 +1517,6 @@ export default function DashboardContent() {
                 setNewCatName('')
                 setNewCatKeywords('')
                 setNewCatChannel('')
-                setNewCatEmployee('')
                 setNewCatScriptStyle('default')
                 setNewCatImageStyle('realistic')
                 setNewCatLanguage('ko')
@@ -1561,8 +1558,8 @@ export default function DashboardContent() {
     const handleSaveCategory = async () => {
         if (!canManageTopics) return
         if (!editCategory) return
-        if (!editCatForm.name || !editCatForm.assigned_employee_email) {
-            alert('카테고리명과 해당 직원 이메일은 필수입니다.')
+        if (!editCatForm.name) {
+            alert('카테고리명은 필수입니다.')
             return
         }
         try {
@@ -2317,6 +2314,7 @@ export default function DashboardContent() {
                             { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
                             { id: 'support', label: '문의 Inbox', superOnly: false },
                             { id: 'announcements', label: '공지사항', superOnly: false },
+                            { id: 'error-logs', label: '에러 로그', superOnly: false },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -2464,32 +2462,12 @@ export default function DashboardContent() {
                                         onClick={() => setShowAdvanced(!showAdvanced)}
                                         className="text-xs font-black text-gray-400 hover:text-white flex items-center gap-1.5 transition-all"
                                     >
-                                        {showAdvanced ? '🔼 고급 설정 접기' : '🔽 고급 설정 (담당 직원 및 기본 스타일 수동 지정)'}
+                                        {showAdvanced ? '🔼 고급 설정 접기' : '🔽 고급 설정 (기본 스타일 수동 지정)'}
                                     </button>
                                 </div>
 
                                 {showAdvanced && (
                                     <>
-                                        <div>
-                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일</label>
-                                            <select
-                                                value={newCatEmployee}
-                                                onChange={e => setNewCatEmployee(e.target.value)}
-                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                            >
-                                                <option value="">-- AI 자동 배정 (선택 사항) --</option>
-                                                {users.map(user => {
-                                                    const email = user.email?.toLowerCase();
-                                                    if (!email) return null;
-                                                    const name = user.user_metadata?.full_name || '';
-                                                    return (
-                                                        <option key={user.id} value={email} className="bg-[#111] text-white">
-                                                            {email} {name ? `(${name})` : ''}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </div>
                                         <div>
                                             <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일</label>
                                             <select
@@ -2620,7 +2598,6 @@ export default function DashboardContent() {
                                                                         name: cat.name || '',
                                                                         keywords: cat.keywords || '',
                                                                         benchmark_channel_url: cat.benchmark_channel_url || '',
-                                                                        assigned_employee_email: cat.assigned_employee_email || '',
                                                                         default_script_style: cat.default_script_style || 'default',
                                                                         default_image_style: cat.default_image_style || 'realistic',
                                                                         language: normalizeContentLanguage(cat.language),
@@ -2645,7 +2622,6 @@ export default function DashboardContent() {
                                                         )}
                                                     </div>
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
-                                                        <p>담당 직원: <strong className="text-gray-200">{cat.assigned_employee_email}</strong></p>
                                                         <p>키워드: <strong className="text-gray-200">{cat.keywords || '(없음)'}</strong></p>
                                                         <p className="truncate">벤치 채널: <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
                                                         <p>
@@ -2791,7 +2767,7 @@ export default function DashboardContent() {
 
                         {/* 3. 전체 주제 대기열 및 모니터링 */}
                         {(() => {
-                            const getTopicAssignee = (item: any) => item.categories?.assigned_employee_email || item.assigned_employee_email;
+                            const getTopicAssignee = (item: any) => item.assigned_employee_email;
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
                             const isPendingTopic = (item: any) => item.status === 'pending';
                             const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
@@ -2819,14 +2795,15 @@ export default function DashboardContent() {
                                 : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t));
                             const availableTopicQueueEmployees = Array.from(
                                 new Set(
-                                    statusFilteredTopics
-                                        .map(item => String(getTopicAssignee(item) || '').trim())
+                                    users
+                                        .filter(u => u.profile?.is_approved === true && u.email)
+                                        .map(u => String(u.email).toLowerCase().trim())
                                         .filter(Boolean)
                                 )
                             ).sort((a, b) => a.localeCompare(b, 'en'));
                             const filteredTopics = topicQueueEmployeeFilter === 'all'
                                 ? statusFilteredTopics
-                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').trim() === topicQueueEmployeeFilter);
+                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').toLowerCase().trim() === topicQueueEmployeeFilter);
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
@@ -4425,6 +4402,10 @@ export default function DashboardContent() {
                     <AnnouncementsAdminPanel />
                 )}
 
+                {activeTab === 'error-logs' && (
+                    <ErrorLogsPanel />
+                )}
+
                 {activeTab === 'styles' && canManageStyles && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 1. 스타일 추가/수정 */}
@@ -4889,26 +4870,6 @@ export default function DashboardContent() {
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
                                     placeholder="카테고리명 입력" 
                                 />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">담당 직원 이메일 *</label>
-                                <select
-                                    value={editCatForm.assigned_employee_email}
-                                    onChange={e => setEditCatForm(p => ({ ...p, assigned_employee_email: e.target.value }))}
-                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
-                                >
-                                    <option value="">-- 직원을 선택하세요 --</option>
-                                    {users.map(user => {
-                                        const email = user.email?.toLowerCase();
-                                        if (!email) return null;
-                                        const name = user.user_metadata?.full_name || '';
-                                        return (
-                                            <option key={user.id} value={email} className="bg-[#111] text-white">
-                                                {email} {name ? `(${name})` : ''}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
                             </div>
                             <div>
                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">주요 리서치 키워드</label>

@@ -231,7 +231,9 @@ class TTSService:
             cumulative_time = 0.0
             
             for i, chunk in enumerate(chunks):
-                chunk_filename = f"temp_{i}_{filename}"
+                # [FIX] filename이 절대 경로일 경우를 대비해 basename만 사용 (안그러면 경로 중간에 콜론이 섞여 Errno 22 발생)
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
                 result = await self.generate_elevenlabs(chunk, voice_id, chunk_filename, return_alignment, voice_settings)
                 
                 if result and result.get("audio_path"):
@@ -730,7 +732,8 @@ class TTSService:
             
             chunk_files = []
             for i, chunk in enumerate(chunks):
-                chunk_filename = f"temp_{i}_{filename}"
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
                 chunk_path = await self.generate_google_cloud(chunk, voice_name, language_code, chunk_filename, speaking_rate)
                 if chunk_path:
                     chunk_files.append(chunk_path)
@@ -796,7 +799,8 @@ class TTSService:
             
             chunk_files = []
             for i, chunk in enumerate(chunks):
-                chunk_filename = f"temp_{i}_{filename}"
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
                 chunk_path = await self.generate_openai(chunk, voice, model, chunk_filename, speed)
                 if chunk_path:
                     chunk_files.append(chunk_path)
@@ -1127,8 +1131,8 @@ class TTSService:
                 clips.append(AudioFileClip(f))
             
             final_clip = concatenate_audioclips(clips)
-            # FFmpeg 로그 억제 (verbose=False, logger=None)
-            final_clip.write_audiofile(output_path, verbose=False, logger=None)
+            # [FIX] 최신 MoviePy는 verbose 파라미터를 받지 않음 (logger=None으로 로그 억제)
+            final_clip.write_audiofile(output_path, logger=None)
             final_clip.close()
         finally:
             for clip in clips:

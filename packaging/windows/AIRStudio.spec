@@ -41,6 +41,23 @@ try:
 except Exception:
     pass
 
+# [FIX] pydantic v2's compiled extension (_pydantic_core.*.pyd) is not picked up
+# by pyinstaller-hooks-contrib's hook-pydantic.py (which only collects `pydantic`
+# submodules) nor by collect_all/collect_dynamic_libs (both return zero binaries
+# for pydantic_core - verified locally). Without it, the frozen app fails to
+# start at all with "ModuleNotFoundError: No module named
+# 'pydantic_core._pydantic_core'" (v2.3.21/22). Locate and bundle the compiled
+# extension explicitly, next to pydantic_core's own __init__.py so the package's
+# `from ._pydantic_core import (...)` resolves at runtime.
+try:
+    import pydantic_core as _pydantic_core_mod
+    _pydantic_core_dir = os.path.dirname(_pydantic_core_mod.__file__)
+    for _f in os.listdir(_pydantic_core_dir):
+        if _f.startswith("_pydantic_core") and _f.endswith((".pyd", ".so", ".dylib")):
+            binaries.append((os.path.join(_pydantic_core_dir, _f), "pydantic_core"))
+except Exception as _e:
+    print(f"WARNING: could not locate pydantic_core compiled extension: {_e}")
+
 for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
@@ -71,6 +88,7 @@ hiddenimports = [
     "uvicorn.lifespan.on",
     "pydub",
     "webview",
+    "pydantic_core._pydantic_core",
 ]
 hiddenimports += pykakasi_hiddenimports
 hiddenimports += collect_submodules("pykakasi")
