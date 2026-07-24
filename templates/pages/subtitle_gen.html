@@ -338,10 +338,6 @@
                         class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
                         {{ t('btn_save') }}
                     </button>
-                    <button id="renderBtn" onclick="renderVideoInPlace()" title="{{ t('btn_render') }}"
-                        class="btn-primary text-[10px] px-3 py-1.5 rounded-md transition-all disabled:opacity-50">
-                        {{ t('btn_render') }}
-                    </button>
                 </div>
             </div>
 
@@ -3313,101 +3309,6 @@
         // ...
     }
 
-    // [NEW] In-Place Rendering Logic
-    async function renderVideoInPlace() {
-        const btn = document.getElementById('renderBtn');
-        const originalText = btn.innerHTML;
-
-        if (!confirm(i18n.confirm_render_now)) return;
-
-        // UI Loading State
-        btn.disabled = true;
-        btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> ${i18n.status_rendering_and_saving}`;
-
-        try {
-            // [FIX] Ensure current state is saved before rendering
-            await saveSubtitles(true);
-
-            // 1. Request Render
-            // Note: API expects resolution, use_subtitles, etc. Defaulting for now.
-            const renderPayload = {
-                project_id: projectId,
-                use_subtitles: true,
-                resolution: "1080p", // or load from settings
-                render_target: "drive_api"
-            };
-            // BGM 설정 포함
-            if (bgmState.enabled && bgmState.url) {
-                renderPayload.bgm_url = bgmState.url;
-                renderPayload.bgm_volume = bgmState.volume;
-            }
-            // SFX 설정 포함
-            if (sfxState.enabled && sfxState.url) {
-                renderPayload.sfx_url = sfxState.url;
-            }
-
-            const res = await fetch(`/api/projects/${projectId}/render`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(renderPayload)
-            });
-            const data = await res.json();
-
-            if (data.status === 'processing' || data.status === 'queued') {
-                Utils.showToast(i18n.toast_rendering_started, "info");
-                // Start Polling
-                pollRenderStatus(btn, originalText);
-            } else {
-                // [FIX] FastAPI HTTPException(409, detail={...})는 { detail: {...} }로
-                // 응답한다 - data.error만 보고 있어서 씬 누락 안내(longform_assets_not_ready)가
-                // 항상 "Unknown Error"로만 표시되던 버그.
-                const detail = data.detail;
-                let errMsg = data.error || "Unknown Error";
-                if (detail && typeof detail === 'object') {
-                    errMsg = detail.message || errMsg;
-                    if (Array.isArray(detail.missing_scene_numbers) && detail.missing_scene_numbers.length) {
-                        errMsg += ` (${i18n.label_missing_visual}: ${detail.missing_scene_numbers.join(', ')})`;
-                    }
-                }
-                throw new Error(errMsg);
-            }
-
-        } catch (e) {
-            console.error(e);
-            Utils.showToast(i18n.err_render_failed + ": " + e.message, 'error');
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
-    }
-
-    async function pollRenderStatus(btn, originalText) {
-        const pollInterval = 2000; // 2 seconds
-
-        const timer = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/projects/${projectId}/status`);
-                const data = await res.json();
-
-                if (data.status === 'ok') {
-                    if (data.project_status === 'rendered' && data.video_path) {
-                        clearInterval(timer);
-                        onRenderComplete(data.video_path, btn, originalText);
-                    } else if (data.project_status === 'failed') {
-                        clearInterval(timer);
-                        throw new Error("Render Failed on Server");
-                    }
-                    // Else: keep polling
-                }
-            } catch (e) {
-                console.error("Polling Error", e);
-                clearInterval(timer);
-                Utils.showToast(i18n.err_status_poll_fail + ": " + e.message, 'error');
-                btn.disabled = false;
-                btn.innerHTML = originalText;
-            }
-        }, pollInterval);
-    } // Close pollRenderStatus
-
     // [NEW] Call Auto Sync API
     async function distributeImages(btn) {
         if (!confirm(i18n.confirm_auto_sync)) {
@@ -3825,19 +3726,6 @@
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
-    }
-
-    function onRenderComplete(videoPath, btn, originalText) {
-        Utils.showToast(i18n.toast_render_complete_redirect, "success");
-
-        // Reset Button
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-
-        // [CHANGED] Redirect to render page instead of showing video here
-        setTimeout(() => {
-            window.location.href = `/render?project_id=${currentProjectId}`;
-        }, 1000); // 1초 후 이동 (토스트 메시지를 볼 수 있도록)
     }
 
     function closeRenderedVideo() {

@@ -1448,6 +1448,9 @@ PLATFORM_TRANSLATIONS = {
 
         'th_desc': '설명',
         'th_publish': '발행',
+        'th_submit': '제출',
+        'title_submit_to_drive': '모든 에셋이 준비되면 구글 드라이브로 제출합니다',
+        'toast_submit_queued': '구글 드라이브 업로드 대기열에 등록되었습니다. 백그라운드에서 진행됩니다.',
         'th_upload': '업로드',
         'landscape_mode': '풍경 모드',
 
@@ -1826,6 +1829,7 @@ PLATFORM_TRANSLATIONS = {
         'label_assets_ready': '에셋 준비 완료',
         'label_missing_visual': '비주얼 누락',
         'err_scene_assets_not_ready': '일부 씬의 이미지/영상 자산이 아직 준비되지 않아 렌더링할 수 없습니다.',
+        'err_submit_assets_not_ready': '아직 준비되지 않은 항목이 있어 제출할 수 없습니다.',
         'label_overall_asset_completion': '전체 에셋 완성도',
         'label_asset_missing_prefix': '에셋 누락:',
         'th_scene': '씬',
@@ -3970,6 +3974,9 @@ PLATFORM_TRANSLATIONS = {
 
         'th_desc': 'Desc',
         'th_publish': 'Publish',
+        'th_submit': 'Submit',
+        'title_submit_to_drive': 'Submit to Google Drive once all assets are ready',
+        'toast_submit_queued': 'Queued for Google Drive upload. This will continue in the background.',
         'th_upload': 'Upload',
         'landscape_mode': 'Landscape Mode',
 
@@ -4317,6 +4324,7 @@ PLATFORM_TRANSLATIONS = {
         'label_assets_ready': 'Assets ready',
         'label_missing_visual': 'Missing visual',
         'err_scene_assets_not_ready': 'Some scenes are missing image/video assets, so rendering cannot start.',
+        'err_submit_assets_not_ready': 'Some required items are not ready yet, so this cannot be submitted.',
         'label_overall_asset_completion': 'Overall asset completion',
         'label_asset_missing_prefix': 'Asset missing:',
         'th_scene': 'Scene',
@@ -7105,6 +7113,9 @@ PLATFORM_TRANSLATIONS = {
 
         'th_desc': 'Mô tả',
         'th_publish': 'Xuất bản',
+        'th_submit': 'Gửi',
+        'title_submit_to_drive': 'Gửi lên Google Drive khi tất cả tài nguyên đã sẵn sàng',
+        'toast_submit_queued': 'Đã đưa vào hàng đợi tải lên Google Drive. Việc này sẽ tiếp tục ở chế độ nền.',
         'th_upload': 'Tải lên',
         'landscape_mode': 'Cách thức phong cảnh',
 
@@ -7534,6 +7545,7 @@ PLATFORM_TRANSLATIONS = {
         'label_assets_ready': 'Tài nguyên đã sẵn sàng',
         'label_missing_visual': 'Thiếu hình ảnh',
         'err_scene_assets_not_ready': 'Một số cảnh chưa có tài sản hình ảnh/video nên chưa thể kết xuất.',
+        'err_submit_assets_not_ready': 'Một số mục vẫn chưa sẵn sàng nên chưa thể gửi.',
         'label_overall_asset_completion': 'Tổng tiến độ tài nguyên',
         'label_asset_missing_prefix': 'Thiếu tài nguyên:',
         'th_scene': 'Cảnh',
@@ -9205,6 +9217,7 @@ PLATFORM_TRANSLATIONS = {
         'label_assets_ready': 'ทรัพยากรพร้อมแล้ว',
         'label_missing_visual': 'ขาดภาพ',
         'err_scene_assets_not_ready': 'บางฉากยังไม่มีไฟล์ภาพ/วิดีโอ จึงยังเรนเดอร์ไม่ได้',
+        'err_submit_assets_not_ready': 'มีบางรายการยังไม่พร้อม จึงยังส่งไม่ได้',
         'label_overall_asset_completion': 'ความสมบูรณ์ของทรัพยากรทั้งหมด',
         'label_asset_missing_prefix': 'ขาดทรัพยากร:',
         'th_scene': 'ฉาก',

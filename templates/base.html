@@ -239,7 +239,7 @@
                             <span data-i18n-key="nav_subtitle">{{ t('nav_subtitle') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce'] %}hidden{% endif %}">
+                    <li class="{% if app_mode in ['commerce'] or (membership | lower) in ['std', 'standard'] %}hidden{% endif %}">
                         <a href="/render" id="nav-render"
                             class="sidebar-item {% if page == 'render' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -485,6 +485,7 @@
                                 </a>
 
                                 <!-- Step 11: Render -->
+                                {% if not ((membership | lower) in ['std', 'standard']) %}
                                 <a href="/render"
                                     class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                     data-step="render">
@@ -494,6 +495,7 @@
                                     </div>
                                     <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_render') }}</span>
                                 </a>
+                                {% endif %}
 
                                 <!-- Step 12: Upload -->
                                 <a href="/video-upload"
@@ -1299,7 +1301,7 @@
                 const isStandard = '{{ membership }}'.trim().toLowerCase() === 'std' || '{{ membership }}'.trim().toLowerCase() === 'standard';
                 const setVisible = (el, show) => {
                     if (!el) return;
-                    if ((el === navTopic || el === navUpload) && isStandard) {
+                    if ((el === navTopic || el === navUpload || el === navRender) && isStandard) {
                         el.parentElement.classList.add('hidden');
                         return;
                     }

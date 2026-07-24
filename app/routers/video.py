@@ -1161,16 +1161,28 @@ async def render_project_video(
         if request.render_target == "drive_api":
             db.update_project(project_id, status="remote_packaging")
             from services.remote_drive_render_service import remote_drive_render_service
-            result = remote_drive_render_service.enqueue_project(
-                project_id,
-                use_subtitles=request.use_subtitles,
-                resolution=request.resolution,
-            )
+
+            def _enqueue_drive_render(pid=project_id, use_subtitles=request.use_subtitles, resolution=request.resolution):
+                try:
+                    remote_drive_render_service.enqueue_project(
+                        pid,
+                        use_subtitles=use_subtitles,
+                        resolution=resolution,
+                    )
+                except Exception as e:
+                    print(f"[Drive Render] enqueue failed for project {pid}: {e}")
+                    db.update_project(pid, status="failed")
+                    db.update_project_setting(pid, "remote_render_error", str(e))
+
+            # [FIX] zip 패키징 + Drive 업로드 + Supabase 큐 등록이 요청-응답 사이클 안에서
+            # 동기적으로 실행되어 사용자가 버튼을 누르고 페이지를 벗어나지 못한 채 오래
+            # 대기해야 했다. local 렌더 경로(아래 background_tasks.add_task)와 동일하게
+            # 백그라운드로 넘기고 즉시 응답한다 - 진행 상태는 이미 있는 폴링
+            # (status: remote_packaging/remote_queued)이 처리한다.
+            background_tasks.add_task(_enqueue_drive_render)
             return {
                 "status": "queued",
                 "message": "Google Drive API 렌더 대기열에 등록되었습니다.",
-                "task_id": result.get("task_id"),
-                "asset_file_id": (result.get("drive_file") or {}).get("id"),
             }
 
         script_data = db.get_script(project_id)
@@ -1928,6 +1940,42 @@ async def render_project_video(
         print(error_msg)
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": error_msg, "traceback": traceback.format_exc()})
+
+
+@router.post("/projects/{project_id}/submit")
+async def submit_project_to_drive(project_id: int, background_tasks: BackgroundTasks, http_request: Request):
+    """프로젝트 페이지의 '제출' 버튼: 모든 에셋이 준비됐는지 확인 후 구글 드라이브 업로드를
+    백그라운드로 실행한다 (업로드가 끝날 때까지 요청을 붙잡지 않는다)."""
+    from services.project_publish_service import check_project_submit_readiness
+
+    readiness = check_project_submit_readiness(project_id)
+    if not readiness["ready"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "submit_assets_not_ready",
+                "message": Translator(getattr(http_request.state, "current_lang", "ko")).t("err_submit_assets_not_ready"),
+                "missing": readiness["missing"],
+                "missing_scene_numbers": readiness["missing_scene_numbers"],
+            },
+        )
+
+    db.update_project(project_id, status="remote_packaging")
+    from services.remote_drive_render_service import remote_drive_render_service
+
+    def _enqueue_submit(pid=project_id):
+        try:
+            remote_drive_render_service.enqueue_project(pid, use_subtitles=True, resolution="1080p")
+        except Exception as e:
+            print(f"[Submit] enqueue failed for project {pid}: {e}")
+            db.update_project(pid, status="failed")
+            db.update_project_setting(pid, "remote_render_error", str(e))
+
+    background_tasks.add_task(_enqueue_submit)
+    return {
+        "status": "queued",
+        "message": "구글 드라이브 업로드 대기열에 등록되었습니다.",
+    }
 
 
 @router.get("/projects/{project_id}/status")
