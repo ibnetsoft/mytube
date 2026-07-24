@@ -1,8 +1,10 @@
+import json
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
 
 from services.web_admin_client import web_admin_client
+from services.gemini_service import gemini_service
 
 router = APIRouter(prefix="/api/voices", tags=["Voices"])
 
@@ -80,5 +82,59 @@ def recommend_voices(req: RecommendRequest):
     
     # Return Top 5
     top_5 = scored_voices[:5]
-    
+
     return {"voices": top_5}
+
+
+class InferCharactersRequest(BaseModel):
+    script: str
+    language: Optional[str] = "ko"
+    characters: Optional[List[str]] = None
+
+
+@router.post("/infer-characters")
+async def infer_characters(req: InferCharactersRequest):
+    """대본 문맥을 바탕으로 각 화자(등장인물)의 성별/연령대를 AI로 추론.
+    멀티보이스 자동 배정이 이름 순서가 아니라 실제 성별에 맞는 목소리를 고르도록 하기 위함."""
+    script_excerpt = (req.script or "")[:6000]
+    names_hint = ""
+    if req.characters:
+        names_hint = "이미 감지된 화자 이름 목록(참고용, 이 목록에 있는 이름을 우선 사용): " + ", ".join(req.characters)
+
+    prompt = f"""다음 대본에 등장하는 화자(내레이터 포함)의 성별과 연령대를 추론하세요.
+이름/호칭(예: 할머니, 아빠, 민수)뿐 아니라 대사 내용과 문맥도 함께 고려하세요.
+
+{names_hint}
+
+대본:
+{script_excerpt}
+
+각 화자에 대해 아래 JSON 스키마로만 응답하세요 (마크다운 없이 순수 JSON):
+{{
+  "characters": [
+    {{
+      "name": "화자 이름 또는 호칭 (대본에 등장하는 표기 그대로)",
+      "gender": "male, female 중 하나 (판단 불가 시 male)",
+      "age_group": "child, young, adult, senior 중 하나"
+    }}
+  ]
+}}"""
+
+    try:
+        response_text = await gemini_service.generate_text(
+            prompt=prompt,
+            temperature=0.1,
+            task_type="voice_gender_infer",
+            json_mode=True
+        )
+        response_text = response_text.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        data = json.loads(response_text.strip())
+        return {"characters": data.get("characters", [])}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Character gender inference failed: {e}")

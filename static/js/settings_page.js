@@ -1531,7 +1531,6 @@
             const settings = {
                 // Base Settings
                 app_mode: safeVal('appMode'),
-                scene_transition_mode: safeVal('sceneTransitionMode', 'ai_auto'),
 
                 // Gemini TTS
                 gemini_tts: {
@@ -1674,10 +1673,6 @@
             // Base Settings
             if (data.app_mode) setAppMode(data.app_mode);
             if (data.template_image_url) updateTemplatePreview(data.template_image_url);
-            if (data.scene_transition_mode !== undefined) {
-                const el = document.getElementById('sceneTransitionMode');
-                if (el) el.value = data.scene_transition_mode;
-            }
 
             // User Info is loaded separately via stLoadUserProfile() (real profiles table data).
 

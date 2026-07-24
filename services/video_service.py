@@ -11,6 +11,23 @@ import requests
 from typing import List, Optional, Union
 from config import config
 
+
+def _get_scene_transition_mode() -> str:
+    """씬 전환 효과는 웹어드민(스타일세팅 > 이미지 스타일)에서만 관리되는 값이다.
+    렌더링 시점에 Supabase global_settings에서 최신 값을 가져와 로컬 캐시에 반영한 뒤 사용한다."""
+    import database as db
+    try:
+        from services.web_admin_client import web_admin_client
+        remote = web_admin_client.fetch_global_setting_values(["scene_transition_mode"])
+        value = remote.get("scene_transition_mode")
+        if value is not None:
+            db.save_global_setting("scene_transition_mode", value)
+            return value
+    except Exception:
+        pass
+    return db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str")
+
+
 class VideoService:
     def __init__(self):
         self.output_dir = config.OUTPUT_DIR
@@ -971,8 +988,7 @@ class VideoService:
             else:
                 try:
                     import datetime
-                    import database as db
-                    transition_mode = db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str")
+                    transition_mode = _get_scene_transition_mode()
                     
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
                         _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose, mode={transition_mode}\n")
