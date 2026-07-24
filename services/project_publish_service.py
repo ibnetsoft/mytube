@@ -260,6 +260,46 @@ def publish_project_to_youtube(
                 pass
 
 
+def check_project_submit_readiness(project_id: int) -> Dict[str, Any]:
+    """제출(구글 드라이브 업로드) 전 필수 에셋이 모두 준비됐는지 확인한다."""
+    settings = db.get_project_settings(project_id) or {}
+    project_mode = str(settings.get("app_mode") or "longform").strip().lower()
+
+    script = db.get_script(project_id)
+    tts = db.get_tts(project_id)
+    thumbnails = db.get_thumbnails(project_id)
+    metadata = db.get_metadata(project_id)
+
+    missing_scene_numbers = []
+    if project_mode == "longform":
+        from services.longform_asset_readiness import sync_project_asset_readiness
+        scene_readiness = sync_project_asset_readiness(project_id)
+        scenes_ok = bool(scene_readiness.get("assets_ready"))
+        missing_scene_numbers = scene_readiness.get("missing_asset_scenes") or []
+    else:
+        images = db.get_image_prompts(project_id) or []
+        scenes_ok = bool(images) and all(
+            (img.get("image_url") or img.get("video_url")) for img in images
+        )
+
+    checks = {
+        "scenes": scenes_ok,
+        "script": bool(script),
+        "voice": bool(tts),
+        "subtitles": bool(settings.get("subtitle_path")) or bool(tts and settings.get("subtitle_style_enum")),
+        "thumbnail": bool(thumbnails),
+        "title": bool(settings.get("title")),
+        "description": bool(metadata and metadata.get("description")),
+    }
+    missing = [key for key, ok in checks.items() if not ok]
+    return {
+        "ready": not missing,
+        "checks": checks,
+        "missing": missing,
+        "missing_scene_numbers": missing_scene_numbers,
+    }
+
+
 def queue_project_for_admin_publish(
     project_id: int,
     *,
