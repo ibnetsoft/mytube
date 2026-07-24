@@ -1131,8 +1131,8 @@ class TTSService:
                 clips.append(AudioFileClip(f))
             
             final_clip = concatenate_audioclips(clips)
-            # FFmpeg 로그 억제 (verbose=False, logger=None)
-            final_clip.write_audiofile(output_path, verbose=False, logger=None)
+            # [FIX] 최신 MoviePy는 verbose 파라미터를 받지 않음 (logger=None으로 로그 억제)
+            final_clip.write_audiofile(output_path, logger=None)
             final_clip.close()
         finally:
             for clip in clips:
