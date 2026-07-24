@@ -24,7 +24,9 @@ const EXACT_KEYS = [
     'qa_target_lufs', 'qa_lufs_tolerance', 'qa_blackdetect_min_duration',
     'qa_min_width', 'qa_min_height',
     // [AIR-0230] 모델별 단가표 - JSON 문자열로 저장 { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
-    'model_pricing'
+    'model_pricing',
+    // 씬 전환 효과 - 유저 설정에서 어드민 전용 제어로 이전
+    'scene_transition_mode'
 ]
 
 const getAdmin = () => createClient(

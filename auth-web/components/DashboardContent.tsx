@@ -294,6 +294,7 @@ export default function DashboardContent() {
         qa_auto_normalize_lufs: 'true', qa_hold_on_technical_fail: 'true', qa_hold_on_semantic_fail: 'true',
         qa_target_lufs: '-14', qa_lufs_tolerance: '2', qa_blackdetect_min_duration: '1.0',
         qa_min_width: '1920', qa_min_height: '1080',
+        scene_transition_mode: 'ai_auto',
         terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
         privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: '',
         topic_generation_model: 'gemini-2.5-flash',
@@ -1199,7 +1200,7 @@ export default function DashboardContent() {
     }, [isAdmin, adminFetch]);
 
     const fetchSysKeys = useCallback(async () => {
-        if (!canManageSystemSettings) return;
+        if (!canManageSystemSettings && !canManageStyles) return;
         try {
             const res = await adminFetch('/api/admin/settings/global');
             if (!res.ok) return;
@@ -1235,6 +1236,7 @@ export default function DashboardContent() {
                 qa_blackdetect_min_duration: data.qa_blackdetect_min_duration || '1.0',
                 qa_min_width: data.qa_min_width || '1920',
                 qa_min_height: data.qa_min_height || '1080',
+                scene_transition_mode: data.scene_transition_mode || 'ai_auto',
                 terms_ko: data.terms_ko || '',
                 terms_en: data.terms_en || '',
                 terms_vi: data.terms_vi || '',
@@ -1256,7 +1258,7 @@ export default function DashboardContent() {
         } catch (e) {
             // Silently ignore errors to prevent console spam
         }
-    }, [canManageSystemSettings, adminFetch]);
+    }, [canManageSystemSettings, canManageStyles, adminFetch]);
 
     const saveSysKeys = async () => {
         setSysKeysSaving(true); setSysKeysSaved(false);
@@ -1858,7 +1860,7 @@ export default function DashboardContent() {
         if (isAdmin && !loading) {
             fetchUsers();
             fetchPublishingRequests();
-            if (canManageSystemSettings) fetchSysKeys();
+            if (canManageSystemSettings || canManageStyles) fetchSysKeys();
             fetchCategories();
             fetchTopics();
             if (canManageStyles) {
@@ -4550,6 +4552,39 @@ export default function DashboardContent() {
                                     새로고침
                                 </button>
                             </div>
+                            {styleCatalogTab === 'image' && (
+                                <div className="mx-6 mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-3">
+                                    <div>
+                                        <h4 className="text-xs font-black text-blue-300 uppercase tracking-widest">씬 전환 효과 (Scene Transition)</h4>
+                                        <p className="text-[10px] text-gray-500 mt-1">렌더링 시 씬 사이 전환 효과를 중앙에서 제어합니다. 유저 설정 화면에는 더 이상 노출되지 않으며, 렌더링 PC는 이 값을 Supabase global_settings에서 가져와 적용합니다.</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-end gap-3">
+                                        <div className="flex-1 min-w-[200px]">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">전환 모드</label>
+                                            <select
+                                                value={sysKeys.scene_transition_mode}
+                                                onChange={e => setSysKeys(prev => ({ ...prev, scene_transition_mode: e.target.value }))}
+                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                            >
+                                                <option value="ai_auto">AI 자동 추천</option>
+                                                <option value="none">전환 없음 (컷)</option>
+                                                <option value="crossfade">크로스페이드</option>
+                                                <option value="slide_left">슬라이드 (좌)</option>
+                                                <option value="fade_to_black">페이드 투 블랙</option>
+                                                <option value="zoom_in">줌 인</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={saveSysKeys}
+                                            disabled={sysKeysSaving}
+                                            className="px-6 py-3 rounded-xl text-xs font-black bg-blue-600 text-white shadow-lg disabled:opacity-50 hover:bg-blue-500 transition-all"
+                                        >
+                                            {sysKeysSaving ? '저장 중...' : (sysKeysSaved ? '저장됨 ✓' : '저장')}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             <div className="p-6">
                                 {styleCatalogTab === 'voice' ? (
                                     <div className="space-y-6">

@@ -310,8 +310,8 @@ async def save_global_settings_api(settings: GlobalSettings):
         db.save_global_setting("gemini_tts", settings.gemini_tts)
     if settings.script_styles:
         db.save_global_setting("script_styles", settings.script_styles)
-    if settings.scene_transition_mode is not None:
-        db.save_global_setting("scene_transition_mode", settings.scene_transition_mode)
+    # scene_transition_mode는 더 이상 유저가 직접 설정하지 않는다 — 웹어드민(스타일세팅 > 이미지 스타일)에서만
+    # 관리되며, video_service.py가 렌더링 시점에 Supabase global_settings에서 직접 동기화해 온다.
 
     # [NEW] Webtoon Save
     if settings.webtoon_auto_split is not None:
