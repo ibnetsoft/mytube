@@ -2898,9 +2898,6 @@ export default function DashboardContent() {
                                         <tr>
                                             <th className="px-10 py-6">카테고리</th>
                                             <th className="px-10 py-6">제안 영상 주제</th>
-                                            {topicQueueStatusFilter === 'working' && (
-                                                <th className="px-10 py-6">작업 진행</th>
-                                            )}
                                             <th className="px-10 py-6">배정된 직원 이메일</th>
                                             <th className="px-10 py-6 text-center">배당 상태</th>
                                             <th className="px-10 py-6 text-right">{t('admin.manage')}</th>
@@ -2997,9 +2994,19 @@ export default function DashboardContent() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                {topicQueueStatusFilter === 'working' && (
-                                                    <td className="px-10 py-6">
-                                                        {(() => {
+                                                <td className="px-10 py-6 text-gray-400">
+                                                    {getTopicAssignee(item)}
+                                                </td>
+                                                <td className="px-10 py-6">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
+                                                            item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                                                            isWorkingTopic(item) ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                                            'bg-green-500/10 text-green-500 border-green-500/20'
+                                                        }`}>
+                                                            {item.status === 'pending' ? '대기중' : isWorkingTopic(item) ? '작업중' : '시작 완료'}
+                                                        </span>
+                                                        {isWorkingTopic(item) && (() => {
                                                             const stepDefs = [
                                                                 { key: 'plan', label: '기획' },
                                                                 { key: 'script', label: '대본' },
@@ -3014,10 +3021,10 @@ export default function DashboardContent() {
                                                             const submittedStatuses = ['remote_packaging', 'remote_queued', 'rendering', 'rendered', 'completed'];
                                                             const isSubmitted = submittedStatuses.includes(String(item.progress_payload?.project_status || ''));
                                                             if (!hasProgress) {
-                                                                return <span className="text-[11px] font-bold text-gray-500">수신 대기</span>;
+                                                                return <span className="text-[10px] font-bold text-gray-500">수신 대기</span>;
                                                             }
                                                             return (
-                                                                <div className="space-y-2">
+                                                                <div className="flex flex-col items-center gap-1">
                                                                     <div className="flex items-center gap-1">
                                                                         {stepDefs.map(step => {
                                                                             const done = !!stepMap[step.key];
@@ -3047,19 +3054,7 @@ export default function DashboardContent() {
                                                                 </div>
                                                             );
                                                         })()}
-                                                    </td>
-                                                )}
-                                                <td className="px-10 py-6 text-gray-400">
-                                                    {getTopicAssignee(item)}
-                                                </td>
-                                                <td className="px-10 py-6 text-center">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
-                                                        item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                        isWorkingTopic(item) ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                                        'bg-green-500/10 text-green-500 border-green-500/20'
-                                                    }`}>
-                                                        {item.status === 'pending' ? '대기중' : isWorkingTopic(item) ? '작업중' : '시작 완료'}
-                                                    </span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-10 py-6 text-right">
                                                     {canManageTopics && item.status === 'pending' ? (
@@ -3089,7 +3084,7 @@ export default function DashboardContent() {
                                         ))}
                                         {filteredTopics.length === 0 && (
                                             <tr>
-                                                <td colSpan={topicQueueStatusFilter === 'working' ? 6 : 5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                <td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
                                                     {selectedCategory ? '선택한 카테고리에 등록된 주제가 없습니다.' : '대기열에 등록된 주제가 없습니다. 카테고리를 먼저 선택해 주세요.'}
                                                 </td>
                                             </tr>
