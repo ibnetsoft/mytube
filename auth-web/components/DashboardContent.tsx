@@ -216,7 +216,7 @@ export default function DashboardContent() {
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
-    const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | 'image' | null>(null)
+    const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
 
     const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -1757,38 +1757,38 @@ export default function DashboardContent() {
         }
     }
 
-    const handleAssignTopicStyles = async (targetType: 'script' | 'image') => {
+    // 이미지 스타일은 더 이상 AI 재배정 대상이 아니다 — 카테고리별 default_image_style을
+    // 관리자가 직접 지정한다 (AI가 topic 단위로 추측하면 거의 항상 realistic만 나오던 문제 폐지).
+    const handleAssignTopicStyles = async () => {
         if (!canManageTopics) return
-        const label = targetType === 'script' ? '대본 스타일' : '이미지 스타일'
         const categoryLabel = topicQueueCategoryFilter === 'all' ? '전체 카테고리' : '선택한 카테고리'
-        if (!confirm(`${categoryLabel}의 대기중 주제에 ${label}을 AI로 재배정할까요?`)) return
+        if (!confirm(`${categoryLabel}의 대기중 주제에 대본 스타일을 AI로 재배정할까요?`)) return
 
-        setTopicStyleAssigningType(targetType)
+        setTopicStyleAssigningType('script')
         try {
             const res = await adminFetch('/api/admin/topics-queue', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    targetType,
+                    targetType: 'script',
                     categoryId: topicQueueCategoryFilter,
                     limit: 100,
                 })
             })
             const data = await res.json()
             if (!res.ok || !data.success) {
-                alert(`${label} 자동배정 실패: ` + (data.error || `HTTP ${res.status}`))
+                alert('대본 스타일 자동배정 실패: ' + (data.error || `HTTP ${res.status}`))
                 return
             }
 
-            const styleField = targetType === 'script' ? 'assigned_script_style' : 'assigned_image_style'
             const updateMap = new Map((data.updates || []).map((item: any) => [String(item.id), item.style]))
             setTopics(prev => prev.map(item => {
                 const nextStyle = updateMap.get(String(item.id))
-                return nextStyle ? { ...item, [styleField]: nextStyle } : item
+                return nextStyle ? { ...item, assigned_script_style: nextStyle } : item
             }))
-            alert(`${label} 자동배정 완료: ${data.updatedCount || 0}개 주제`)
+            alert(`대본 스타일 자동배정 완료: ${data.updatedCount || 0}개 주제`)
         } catch (err: any) {
-            alert(`${label} 자동배정 오류: ` + (err?.message || String(err)))
+            alert('대본 스타일 자동배정 오류: ' + (err?.message || String(err)))
         } finally {
             setTopicStyleAssigningType(null)
         }
@@ -2507,20 +2507,12 @@ export default function DashboardContent() {
                                     <button
                                         type="button"
                                         disabled={topicStyleAssigningType !== null}
-                                        onClick={() => handleAssignTopicStyles('script')}
+                                        onClick={() => handleAssignTopicStyles()}
                                         className="px-6 py-3 rounded-xl text-xs font-black border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
                                     >
                                         {topicStyleAssigningType === 'script' ? '대본 스타일 배정 중...' : '대본 스타일 자동배정'}
                                     </button>
                                     <button
-                                        type="button"
-                                        disabled={topicStyleAssigningType !== null}
-                                        onClick={() => handleAssignTopicStyles('image')}
-                                        className="px-6 py-3 rounded-xl text-xs font-black border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
-                                    >
-                                        {topicStyleAssigningType === 'image' ? '이미지 스타일 배정 중...' : '이미지 스타일 자동배정'}
-                                    </button>
-                                    <button 
                                         type="submit"
                                         className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
                                     >
@@ -3007,25 +2999,54 @@ export default function DashboardContent() {
                                                 </td>
                                                 {topicQueueStatusFilter === 'working' && (
                                                     <td className="px-10 py-6">
-                                                        {Array.isArray(item.progress_payload?.completed_steps) && item.progress_payload.completed_steps.length > 0 ? (
-                                                            <div className="space-y-2">
-                                                                <div className="flex flex-wrap gap-1.5">
-                                                                    {item.progress_payload.completed_steps.map((step: string) => (
-                                                                        <span
-                                                                            key={`${item.id}-step-${step}`}
-                                                                            className="px-2 py-1 rounded-full text-[10px] font-black bg-green-500/10 text-green-400 border border-green-500/20"
-                                                                        >
-                                                                            {step}
-                                                                        </span>
-                                                                    ))}
+                                                        {(() => {
+                                                            const stepDefs = [
+                                                                { key: 'plan', label: '기획' },
+                                                                { key: 'script', label: '대본' },
+                                                                { key: 'image', label: '이미지' },
+                                                                { key: 'tts', label: 'TTS' },
+                                                                { key: 'subtitle', label: '자막' },
+                                                                { key: 'template', label: '썸네일' },
+                                                                { key: 'upload', label: '업로드' },
+                                                            ];
+                                                            const stepMap = item.progress_payload?.steps || {};
+                                                            const hasProgress = Object.keys(stepMap).length > 0;
+                                                            const submittedStatuses = ['remote_packaging', 'remote_queued', 'rendering', 'rendered', 'completed'];
+                                                            const isSubmitted = submittedStatuses.includes(String(item.progress_payload?.project_status || ''));
+                                                            if (!hasProgress) {
+                                                                return <span className="text-[11px] font-bold text-gray-500">수신 대기</span>;
+                                                            }
+                                                            return (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-1">
+                                                                        {stepDefs.map(step => {
+                                                                            const done = !!stepMap[step.key];
+                                                                            return (
+                                                                                <span
+                                                                                    key={`${item.id}-progress-${step.key}`}
+                                                                                    title={step.label}
+                                                                                    className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-black border shrink-0 ${
+                                                                                        done
+                                                                                            ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                                                                                            : 'bg-white/5 text-gray-600 border-white/10'
+                                                                                    }`}
+                                                                                >
+                                                                                    ●
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                        {isSubmitted && (
+                                                                            <span className="ml-1 shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-black text-sky-300">
+                                                                                제출됨
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] font-bold text-emerald-300">
+                                                                        현재 단계: {item.progress_payload?.current_step || '진행 중'}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[10px] font-bold text-emerald-300">
-                                                                    현재 단계: {item.progress_payload?.current_step || '진행 중'}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[11px] font-bold text-gray-500">수신 대기</span>
-                                                        )}
+                                                            );
+                                                        })()}
                                                     </td>
                                                 )}
                                                 <td className="px-10 py-6 text-gray-400">
