@@ -241,6 +241,25 @@ async def _ensure_translations_bg_locked(projects: list):
             print(f"[BG Translation Error] {e}")
 
 
+def sync_remote_render_results_bg(projects: list):
+    """[FIX] The project list never reflected a finished (or failed) remote
+    Drive render - db.video_path/status only got refreshed by sync_completed_result()
+    when the user opened a specific project's detail/render page, never on
+    the list itself. That's why the '제출' icon stayed its default blue
+    forever, win or lose, and a failed remote job was invisible until you
+    happened to click into that exact project. Piggyback the same sync used
+    by /projects/{id}/full and /projects/{id}/status here so a plain list
+    reload (or its next poll) picks up completion/failure automatically."""
+    in_flight_statuses = {"remote_packaging", "remote_queued"}
+    from services.remote_drive_render_service import remote_drive_render_service
+    for p in projects:
+        try:
+            if p.get("status") in in_flight_statuses:
+                remote_drive_render_service.sync_completed_result(p["id"])
+        except Exception as e:
+            print(f"[RemoteDrive] List sync skipped for project {p.get('id')}: {e}")
+
+
 @router.get("/projects/current")
 async def get_current_project(background_tasks: BackgroundTasks):
     """가장 최근에 작업한 프로젝트 정보 반환 (연결 폴백용)"""
@@ -312,6 +331,10 @@ async def get_projects(background_tasks: BackgroundTasks):
 
         # Run translations sequentially in the background
         background_tasks.add_task(ensure_translations_bg, projects)
+        # Pick up remote render completion/failure so the submit icon and
+        # status reflect reality on the next list load, not just when the
+        # user happens to open that exact project.
+        background_tasks.add_task(sync_remote_render_results_bg, projects)
 
         return {"status": "success", "projects": projects}
     except Exception as e:

@@ -146,10 +146,18 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
         project_aspect = '9:16' if is_shorts_project else '16:9'
 
         audio_path = tts_data.get('audio_path')
-        audio_filename = None
-        if audio_path and os.path.exists(audio_path):
-            audio_filename = os.path.basename(audio_path)
-            shutil.copy2(audio_path, os.path.join(audio_dir, audio_filename))
+        if not audio_path or not os.path.exists(audio_path):
+            # [FIX] This used to silently continue with audio_filename=None,
+            # producing a package that uploads fine and only fails ~10+
+            # minutes later on the remote worker with "TTS audio file was
+            # not found." Fail fast here instead, before any Drive upload.
+            raise RuntimeError(
+                f"TTS audio file is missing on disk for project {project_id} "
+                f"(expected at: {audio_path or '(no audio_path saved)'}). "
+                "Regenerate TTS before submitting for remote render."
+            )
+        audio_filename = os.path.basename(audio_path)
+        shutil.copy2(audio_path, os.path.join(audio_dir, audio_filename))
 
         images = []
         timeline_path = p_settings.get('timeline_images_path')
