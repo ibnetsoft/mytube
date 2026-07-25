@@ -1739,6 +1739,7 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END as has_tts,
         ps.video_path,
         ps.external_video_path,
+        ps.subtitle_path,
         ps.template_image_url,
         ps.thumbnail_url,
         ps.upload_schedule_at,
@@ -1801,12 +1802,14 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         has_remote_delivery = str(r.get("project_status") or "") in {
             "remote_packaging", "remote_queued", "rendering", "rendered", "completed"
         } or bool(r.get("video_path")) or bool(r.get("external_video_path"))
+        has_subtitle = bool(r.get("subtitle_path"))   # 자막 페이지에서 저장을 눌러야 켜짐
         progress = { # Detailed progress
             "plan": bool(r["has_structure"]),     # 대본 기획
             "script": bool(r["has_script"]),      # 대본 생성
             "image": int(r["image_count"] or 0) > 0,        # 이미지 생성 (하나라도 있으면)
             "tts": bool(r["has_tts"]),            # TTS
             "video": bool(r["video_path"]),       # 영상 렌더링
+            "subtitle": has_subtitle,             # 자막 저장
             "thumbnail": int(r["thumbnail_count"] or 0) > 0,# 썸네일
             "upload": bool(r["is_uploaded"]),     # 업로드
             "publish": bool(r.get("is_published", 0)), # 발행

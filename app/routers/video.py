@@ -1962,6 +1962,13 @@ async def submit_project_to_drive(project_id: int, background_tasks: BackgroundT
 
     db.update_project(project_id, status="remote_packaging")
     from services.remote_drive_render_service import remote_drive_render_service
+    from services.topic_queue_sync_service import sync_topic_progress
+
+    try:
+        # 제출 즉시 웹어드민 큐에 "제출됨" 상태가 보이도록 동기화한다.
+        sync_topic_progress(project_id)
+    except Exception as sync_err:
+        print(f"[Submit] Failed to sync topic progress on submit: {sync_err}")
 
     def _enqueue_submit(pid=project_id):
         try:
@@ -1970,6 +1977,11 @@ async def submit_project_to_drive(project_id: int, background_tasks: BackgroundT
             print(f"[Submit] enqueue failed for project {pid}: {e}")
             db.update_project(pid, status="failed")
             db.update_project_setting(pid, "remote_render_error", str(e))
+        finally:
+            try:
+                sync_topic_progress(pid)
+            except Exception as sync_err:
+                print(f"[Submit] Failed to sync topic progress after enqueue: {sync_err}")
 
     background_tasks.add_task(_enqueue_submit)
     return {

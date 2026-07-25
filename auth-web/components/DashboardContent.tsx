@@ -2999,25 +2999,54 @@ export default function DashboardContent() {
                                                 </td>
                                                 {topicQueueStatusFilter === 'working' && (
                                                     <td className="px-10 py-6">
-                                                        {Array.isArray(item.progress_payload?.completed_steps) && item.progress_payload.completed_steps.length > 0 ? (
-                                                            <div className="space-y-2">
-                                                                <div className="flex flex-wrap gap-1.5">
-                                                                    {item.progress_payload.completed_steps.map((step: string) => (
-                                                                        <span
-                                                                            key={`${item.id}-step-${step}`}
-                                                                            className="px-2 py-1 rounded-full text-[10px] font-black bg-green-500/10 text-green-400 border border-green-500/20"
-                                                                        >
-                                                                            {step}
-                                                                        </span>
-                                                                    ))}
+                                                        {(() => {
+                                                            const stepDefs = [
+                                                                { key: 'plan', label: '기획' },
+                                                                { key: 'script', label: '대본' },
+                                                                { key: 'image', label: '이미지' },
+                                                                { key: 'tts', label: 'TTS' },
+                                                                { key: 'subtitle', label: '자막' },
+                                                                { key: 'template', label: '썸네일' },
+                                                                { key: 'upload', label: '업로드' },
+                                                            ];
+                                                            const stepMap = item.progress_payload?.steps || {};
+                                                            const hasProgress = Object.keys(stepMap).length > 0;
+                                                            const submittedStatuses = ['remote_packaging', 'remote_queued', 'rendering', 'rendered', 'completed'];
+                                                            const isSubmitted = submittedStatuses.includes(String(item.progress_payload?.project_status || ''));
+                                                            if (!hasProgress) {
+                                                                return <span className="text-[11px] font-bold text-gray-500">수신 대기</span>;
+                                                            }
+                                                            return (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-1">
+                                                                        {stepDefs.map(step => {
+                                                                            const done = !!stepMap[step.key];
+                                                                            return (
+                                                                                <span
+                                                                                    key={`${item.id}-progress-${step.key}`}
+                                                                                    title={step.label}
+                                                                                    className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-black border shrink-0 ${
+                                                                                        done
+                                                                                            ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                                                                                            : 'bg-white/5 text-gray-600 border-white/10'
+                                                                                    }`}
+                                                                                >
+                                                                                    ●
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                        {isSubmitted && (
+                                                                            <span className="ml-1 shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-black text-sky-300">
+                                                                                제출됨
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] font-bold text-emerald-300">
+                                                                        현재 단계: {item.progress_payload?.current_step || '진행 중'}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[10px] font-bold text-emerald-300">
-                                                                    현재 단계: {item.progress_payload?.current_step || '진행 중'}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[11px] font-bold text-gray-500">수신 대기</span>
-                                                        )}
+                                                            );
+                                                        })()}
                                                     </td>
                                                 )}
                                                 <td className="px-10 py-6 text-gray-400">

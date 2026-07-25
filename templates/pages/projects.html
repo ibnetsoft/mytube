@@ -240,7 +240,7 @@
             `{{ t('th_script') }}`,
             `{{ t('th_image') }}`,
             `{{ t('th_tts') }}`,
-            `{{ t('th_video') }}`,
+            `{{ t('th_subtitle') }}`,
             `{{ t('th_thumbnail') }}`,
             `{{ t('th_desc') }}`,
             `{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_submit') }}{% endif %}`,
@@ -473,7 +473,7 @@
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.subtitle, 'subtitle-gen', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
@@ -658,7 +658,7 @@
             { key: 'script', label: t('대본', 'Script', 'Kịch bản', 'บท'), route: 'script-gen' },
             { key: 'image', label: t('이미지', 'Image', 'Hình ảnh', 'รูปภาพ'), route: 'image-gen' },
             { key: 'tts', label: t('TTS', 'TTS', 'TTS', 'TTS'), route: 'tts' },
-            { key: 'video', label: t('영상', 'Video', 'Video', 'วิดีโอ'), route: 'render' },
+            { key: 'subtitle', label: t('자막', 'Subtitle', 'Phụ đề', 'คำบรรยาย'), route: 'subtitle-gen' },
             { key: 'thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ', 'ภาพขนาดย่อ'), route: 'thumbnail' },
             { key: 'desc', label: t('설명', 'Description', 'Mô tả', 'คำอธิบาย'), route: 'title-desc' },
             { key: 'upload', label: t('발행대기 등록', 'Ready to Publish', 'Đăng ký chờ xuất bản', 'ลงทะเบียนรอเผยแพร่'), route: 'upload' },
