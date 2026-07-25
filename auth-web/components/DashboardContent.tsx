@@ -2899,7 +2899,7 @@ export default function DashboardContent() {
                                             <th className="px-10 py-3">카테고리</th>
                                             <th className="px-10 py-3">제안 영상 주제</th>
                                             <th className="px-10 py-3">배정된 직원 이메일</th>
-                                            <th className="px-10 py-3 text-center">배당 상태</th>
+                                            <th className="px-10 py-3 text-center whitespace-nowrap">기획-대본-이미지-TTS-자막-썸네일-설명-제출</th>
                                             <th className="px-10 py-3 text-right">{t('admin.manage')}</th>
                                         </tr>
                                     </thead>
