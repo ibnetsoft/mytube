@@ -3014,7 +3014,7 @@ export default function DashboardContent() {
                                                                 { key: 'tts', label: 'TTS' },
                                                                 { key: 'subtitle', label: '자막' },
                                                                 { key: 'template', label: '썸네일' },
-                                                                { key: 'upload', label: '업로드' },
+                                                                { key: 'desc', label: '설명' },
                                                             ];
                                                             const stepMap = item.progress_payload?.steps || {};
                                                             const hasProgress = Object.keys(stepMap).length > 0;
@@ -3023,33 +3023,30 @@ export default function DashboardContent() {
                                                             if (!hasProgress) {
                                                                 return <span className="text-[10px] font-bold text-gray-500">수신 대기</span>;
                                                             }
+                                                            const allSteps = [...stepDefs, { key: '__submit', label: '제출' }];
+                                                            const nextStep = stepDefs.find(step => !stepMap[step.key]);
+                                                            const currentStepLabel = isSubmitted
+                                                                ? '제출 완료'
+                                                                : nextStep
+                                                                    ? `${nextStep.label} 작업 중`
+                                                                    : '제출 대기';
                                                             return (
                                                                 <div className="flex flex-col items-center gap-1">
-                                                                    <div className="flex items-center gap-1">
-                                                                        {stepDefs.map(step => {
-                                                                            const done = !!stepMap[step.key];
+                                                                    <div className="flex items-end gap-1.5">
+                                                                        {allSteps.map(step => {
+                                                                            const done = step.key === '__submit' ? isSubmitted : !!stepMap[step.key];
                                                                             return (
-                                                                                <span
-                                                                                    key={`${item.id}-progress-${step.key}`}
-                                                                                    title={step.label}
-                                                                                    className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-black border shrink-0 ${
-                                                                                        done
-                                                                                            ? 'bg-green-500/20 text-green-400 border-green-500/40'
-                                                                                            : 'bg-white/5 text-gray-600 border-white/10'
-                                                                                    }`}
-                                                                                >
-                                                                                    ●
-                                                                                </span>
+                                                                                <div key={`${item.id}-progress-${step.key}`} className="flex flex-col items-center gap-0.5 w-7">
+                                                                                    <span className="text-[8px] font-bold text-gray-500 whitespace-nowrap">{step.label}</span>
+                                                                                    <span className={`text-sm font-bold leading-none ${done ? 'text-green-500' : 'text-gray-600'}`}>
+                                                                                        {done ? '●' : '○'}
+                                                                                    </span>
+                                                                                </div>
                                                                             );
                                                                         })}
-                                                                        {isSubmitted && (
-                                                                            <span className="ml-1 shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-black text-sky-300">
-                                                                                제출됨
-                                                                            </span>
-                                                                        )}
                                                                     </div>
                                                                     <div className="text-[10px] font-bold text-emerald-300">
-                                                                        현재 단계: {item.progress_payload?.current_step || '진행 중'}
+                                                                        {currentStepLabel}
                                                                     </div>
                                                                 </div>
                                                             );
