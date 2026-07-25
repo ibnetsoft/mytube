@@ -197,7 +197,7 @@
                             <span data-i18n-key="{% if app_mode == 'longform_music' %}nav_cover_image{% else %}nav_image{% endif %}">{% if app_mode == 'longform_music' %}{{ t('nav_cover_image') }}{% else %}{{ t('nav_image') }}{% endif %}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce', 'longform_music'] or is_std_nav %}hidden{% endif %}">
+                    <li class="hidden">
                         <a href="/image-crop" id="nav-image-crop"
                             class="sidebar-item {% if page == 'image-crop' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -425,18 +425,7 @@
                                     <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_script') }}</span>
                                 </a>
 
-                                <!-- Step 4: TTS -->
-                                <a href="/tts"
-                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
-                                    data-step="tts">
-                                    <div
-                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-white/5 flex items-center justify-center transition-all duration-300">
-                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
-                                    </div>
-                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_tts') }}</span>
-                                </a>
-
-                                <!-- Step 5: Image -->
+                                <!-- Step 4: Image -->
                                 <a href="/image-gen"
                                     class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
                                     data-step="image">
@@ -445,6 +434,17 @@
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
                                     <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_image') }}</span>
+                                </a>
+
+                                <!-- Step 5: TTS -->
+                                <a href="/tts"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="tts">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-white/5 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_tts') }}</span>
                                 </a>
 
                                 <!-- Step 6: Subtitle -->
@@ -457,6 +457,28 @@
                                         <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
                                     </div>
                                     <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_subtitle') }}</span>
+                                </a>
+
+                                <!-- Step 7: Thumbnail -->
+                                <a href="/thumbnail"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="thumbnail">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-white/5 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_thumbnail') }}</span>
+                                </a>
+
+                                <!-- Step 8: Description -->
+                                <a href="/title-desc"
+                                    class="step-item relative z-10 flex flex-col items-center group cursor-pointer min-w-[50px]"
+                                    data-step="desc">
+                                    <div
+                                        class="step-circle w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-white/5 flex items-center justify-center transition-all duration-300">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-gray-400 transition-colors"></div>
+                                    </div>
+                                    <span class="text-[10px] mt-1 text-gray-400 font-medium transition-colors">{{ t('step_desc') }}</span>
                                 </a>
                             </div>
                         </div>
@@ -1067,7 +1089,9 @@
                             'script': !!fullData.script || (fullData.shorts && Object.keys(fullData.shorts).length > 0),
                             'image': fullData.image_prompts && fullData.image_prompts.length > 0,
                             'tts': !!fullData.tts,
-                            'subtitle': !!settings.subtitle_path || (fullData.tts && !!settings.subtitle_style_enum),
+                            'subtitle': !!settings.subtitle_path,
+                            'thumbnail': fullData.thumbnails && fullData.thumbnails.length > 0,
+                            'desc': !!(fullData.metadata && fullData.metadata.description),
                         };
 
                         document.querySelectorAll('.step-item').forEach(el => {
@@ -1360,7 +1384,7 @@
                     setVisible(navPlan, true);
                     setVisible(navScript, true);
                     setVisible(navImage, true);
-                    setVisible(navImageCrop, true);
+                    setVisible(navImageCrop, false);
                     setVisible(navAudio, false);
                     setVisible(navThumbnail, true);
                     setVisible(navTemplate, true);
@@ -1399,7 +1423,7 @@
 
                     setVisible(navScript, true);
                     setVisible(navImage, true);
-                    setVisible(navImageCrop, true);
+                    setVisible(navImageCrop, false);
                     setVisible(navAudio, true);
                     setVisible(navTts, true);
                     setVisible(navTemplate, true);
@@ -1425,7 +1449,7 @@
                     setVisible(navScript, true);
                     setVisible(navIntro, true);
                     setVisible(navImage, true);
-                    setVisible(navImageCrop, true);
+                    setVisible(navImageCrop, false);
                     setVisible(navAudio, false);
                     setVisible(navThumbnail, true);
                     setVisible(navTemplate, true);
