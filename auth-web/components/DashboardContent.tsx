@@ -2896,27 +2896,27 @@ export default function DashboardContent() {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
                                         <tr>
-                                            <th className="px-10 py-6">카테고리</th>
-                                            <th className="px-10 py-6">제안 영상 주제</th>
-                                            <th className="px-10 py-6">배정된 직원 이메일</th>
-                                            <th className="px-10 py-6 text-center">배당 상태</th>
-                                            <th className="px-10 py-6 text-right">{t('admin.manage')}</th>
+                                            <th className="px-10 py-3">카테고리</th>
+                                            <th className="px-10 py-3">제안 영상 주제</th>
+                                            <th className="px-10 py-3">배정된 직원 이메일</th>
+                                            <th className="px-10 py-3 text-center">배당 상태</th>
+                                            <th className="px-10 py-3 text-right">{t('admin.manage')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
                                         {filteredTopics.map((item) => (
                                             <tr
                                                 key={item.id}
-                                                className={`transition-colors h-16 text-xs ${
+                                                className={`transition-colors h-10 text-xs ${
                                                     editingTopicId === String(item.id)
                                                         ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-400/30'
                                                         : 'hover:bg-white/[0.03]'
                                                 }`}
                                             >
-                                                <td className="px-10 py-6 text-gray-300 font-bold">
+                                                <td className="px-10 py-3 text-gray-300 font-bold">
                                                     {item.categories?.name || '기본'}
                                                 </td>
-                                                <td className="px-10 py-6 text-white font-bold max-w-sm">
+                                                <td className="px-10 py-3 text-white font-bold max-w-sm">
                                                     <div className="flex items-start gap-2">
                                                         <div className="min-w-0 flex-1">
                                                             {editingTopicId === String(item.id) ? (
@@ -2994,18 +2994,16 @@ export default function DashboardContent() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-10 py-6 text-gray-400">
+                                                <td className="px-10 py-3 text-gray-400">
                                                     {getTopicAssignee(item)}
                                                 </td>
-                                                <td className="px-10 py-6">
-                                                    <div className="flex flex-col items-center gap-2">
-                                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
-                                                            item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                            isWorkingTopic(item) ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                                            'bg-green-500/10 text-green-500 border-green-500/20'
-                                                        }`}>
-                                                            {item.status === 'pending' ? '대기중' : isWorkingTopic(item) ? '작업중' : '시작 완료'}
-                                                        </span>
+                                                <td className="px-10 py-2">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        {!isWorkingTopic(item) && (
+                                                            <span className="text-[10px] font-bold text-gray-600">
+                                                                {item.status === 'pending' ? '대기중' : '시작 완료'}
+                                                            </span>
+                                                        )}
                                                         {isWorkingTopic(item) && (() => {
                                                             const stepDefs = [
                                                                 { key: 'plan', label: '기획' },
@@ -3031,29 +3029,30 @@ export default function DashboardContent() {
                                                                     ? `${nextStep.label} 작업 중`
                                                                     : '제출 대기';
                                                             return (
-                                                                <div className="flex flex-col items-center gap-1">
-                                                                    <div className="flex items-end gap-1.5">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="flex items-center gap-1">
                                                                         {allSteps.map(step => {
                                                                             const done = step.key === '__submit' ? isSubmitted : !!stepMap[step.key];
                                                                             return (
-                                                                                <div key={`${item.id}-progress-${step.key}`} className="flex flex-col items-center gap-0.5 w-7">
-                                                                                    <span className="text-[8px] font-bold text-gray-500 whitespace-nowrap">{step.label}</span>
-                                                                                    <span className={`text-sm font-bold leading-none ${done ? 'text-green-500' : 'text-gray-600'}`}>
-                                                                                        {done ? '●' : '○'}
-                                                                                    </span>
-                                                                                </div>
+                                                                                <span
+                                                                                    key={`${item.id}-progress-${step.key}`}
+                                                                                    title={step.label}
+                                                                                    className={`text-xs font-bold leading-none ${done ? 'text-green-500' : 'text-gray-600'}`}
+                                                                                >
+                                                                                    {done ? '●' : '○'}
+                                                                                </span>
                                                                             );
                                                                         })}
                                                                     </div>
-                                                                    <div className="text-[10px] font-bold text-emerald-300">
+                                                                    <span className="text-[10px] font-bold text-emerald-300 whitespace-nowrap">
                                                                         {currentStepLabel}
-                                                                    </div>
+                                                                    </span>
                                                                 </div>
                                                             );
                                                         })()}
                                                     </div>
                                                 </td>
-                                                <td className="px-10 py-6 text-right">
+                                                <td className="px-10 py-3 text-right">
                                                     {canManageTopics && item.status === 'pending' ? (
                                                         <div className="flex items-center justify-end gap-3 text-[11px] font-black">
                                                             <button
