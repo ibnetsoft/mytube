@@ -4,6 +4,7 @@ TTS (Text-to-Speech) 서비스
 - Google Cloud TTS (유료, 고품질)
 - gTTS (무료, Google 번역 기반)
 """
+import asyncio
 import httpx
 import os
 from typing import Optional
@@ -219,8 +220,8 @@ class TTSService:
         text = re.sub(r'\(([^)]*)\)', replace_ko_emotions, text)
         text = self.clean_text(text)
         
-        # [NEW] 문장 단위 분할 처리 (제한 10,000자, 안전빵 8,000자)
-        max_chars = 8000
+        # [FIX] ElevenLabs 실제 제한은 5,000자 (초과 시 text_too_long 오류). 안전빵 4,500자.
+        max_chars = 4500
         if len(text) > max_chars:
             chunks = self._split_text(text, max_chars)
             print(f"DEBUG: Text too long ({len(text)} chars). Splitting into {len(chunks)} chunks for ElevenLabs.")
@@ -230,7 +231,9 @@ class TTSService:
             cumulative_time = 0.0
             
             for i, chunk in enumerate(chunks):
-                chunk_filename = f"temp_{i}_{filename}"
+                # [FIX] filename이 절대 경로일 경우를 대비해 basename만 사용 (안그러면 경로 중간에 콜론이 섞여 Errno 22 발생)
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
                 result = await self.generate_elevenlabs(chunk, voice_id, chunk_filename, return_alignment, voice_settings)
                 
                 if result and result.get("audio_path"):
@@ -729,7 +732,8 @@ class TTSService:
             
             chunk_files = []
             for i, chunk in enumerate(chunks):
-                chunk_filename = f"temp_{i}_{filename}"
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
                 chunk_path = await self.generate_google_cloud(chunk, voice_name, language_code, chunk_filename, speaking_rate)
                 if chunk_path:
                     chunk_files.append(chunk_path)
@@ -795,7 +799,8 @@ class TTSService:
             
             chunk_files = []
             for i, chunk in enumerate(chunks):
-                chunk_filename = f"temp_{i}_{filename}"
+                base_name = os.path.basename(filename)
+                chunk_filename = f"temp_{i}_{base_name}"
                 chunk_path = await self.generate_openai(chunk, voice, model, chunk_filename, speed)
                 if chunk_path:
                     chunk_files.append(chunk_path)
@@ -1126,8 +1131,8 @@ class TTSService:
                 clips.append(AudioFileClip(f))
             
             final_clip = concatenate_audioclips(clips)
-            # FFmpeg 로그 억제 (verbose=False, logger=None)
-            final_clip.write_audiofile(output_path, verbose=False, logger=None)
+            # [FIX] 최신 MoviePy는 verbose 파라미터를 받지 않음 (logger=None으로 로그 억제)
+            final_clip.write_audiofile(output_path, logger=None)
             final_clip.close()
         finally:
             for clip in clips:

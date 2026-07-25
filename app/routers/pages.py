@@ -148,6 +148,8 @@ async def page_tts(request: Request):
 
 @router.get("/render", response_class=HTMLResponse)
 async def page_render(request: Request):
+    if _is_standard_membership():
+        return RedirectResponse(url="/projects", status_code=302)
     app_mode = db.get_global_setting("app_mode", "longform")
     if app_mode == "longform_music":
         return _render(request, "pages/music_render.html", "render", "nav_render")

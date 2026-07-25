@@ -738,6 +738,10 @@
         status_generating: {{ t('status_generating') | tojson }},
         status_saving: {{ t('status_saving') | tojson }},
         btn_upload: {{ t('btn_upload') | tojson }},
+        label_required_video_zone: {{ t('label_required_video_zone') | tojson }},
+        label_required_video_missing_prefix: {{ t('label_required_video_missing_prefix') | tojson }},
+        label_video_required_cutoff: {{ t('label_video_required_cutoff') | tojson }},
+        toast_video_cutoff_saved: {{ t('toast_video_cutoff_saved') | tojson }},
         status_select_project_first: {{ t('status_select_project_first') | tojson }},
         toast_char_saved_server: {{ t('toast_char_saved_server') | tojson }},
         toast_server_save_fail: {{ t('toast_server_save_fail') | tojson }},
@@ -1844,12 +1848,23 @@
             ? (canonicalReadiness.missing_asset_scenes || [])
             : missingVisual.map(item => Number(item.scene.scene_number || item.index + 1));
 
+        // [NEW] Soft rule: intro scenes (estimated start before the cutoff) should
+        // have a real video clip. Advisory only — does not block readyToContinue.
+        const videoRequiredCutoffSec = canonicalReadiness
+            ? Number(canonicalReadiness.video_required_until_sec ?? 180)
+            : 180;
+        const requiredVideoZoneScenes = canonicalReadiness?.required_video_zone_scenes || [];
+        const missingRequiredVideoScenes = canonicalReadiness?.missing_required_video_scenes || [];
+        const requiredZoneDoneCount = requiredVideoZoneScenes.length - missingRequiredVideoScenes.length;
+
         const rows = ordered.map(({ scene, index }) => {
             const number = Number(scene.scene_number || index + 1);
             const prompt = scene.prompt_en || scene.prompt_ko || scene.scene_text || '';
+            const inRequiredZone = requiredVideoZoneScenes.includes(number);
+            const missingRequiredVideo = missingRequiredVideoScenes.includes(number);
             return `
                 <tr class="border-t border-white/5">
-                    <td class="px-3 py-2 font-bold text-white">${i18n.th_scene} ${number}</td>
+                    <td class="px-3 py-2 font-bold text-white">${i18n.th_scene} ${number} ${inRequiredZone ? `<span title="${i18n.label_required_video_zone}">🔒</span>` : ''}</td>
                     <td class="px-3 py-2 text-gray-400 max-w-[360px]">
                         <p class="truncate" title="${escapeBulkHtml(prompt)}">${escapeBulkHtml(prompt) || i18n.label_no_prompt}</p>
                     </td>
@@ -1857,7 +1872,7 @@
                         <span class="${scene.image_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.image_url ? i18n.label_image_ready : i18n.asset_image_missing}</span>
                     </td>
                     <td class="px-3 py-2">
-                        <span class="${scene.video_url ? 'text-emerald-400' : 'text-amber-400'}">${scene.video_url ? i18n.asset_video_ready : i18n.asset_video_missing}</span>
+                        <span class="${scene.video_url ? 'text-emerald-400' : (missingRequiredVideo ? 'text-orange-400 font-bold' : 'text-amber-400')}" title="${missingRequiredVideo ? i18n.label_required_video_missing_prefix : ''}">${scene.video_url ? i18n.asset_video_ready : (missingRequiredVideo ? '🔒 ' + i18n.asset_video_missing : i18n.asset_video_missing)}</span>
                     </td>
                     <td class="px-3 py-2 text-right whitespace-nowrap">
                         <button type="button" onclick="document.getElementById('prompt-card-${index}')?.scrollIntoView({behavior:'smooth', block:'center'})"
@@ -1904,10 +1919,21 @@
                         <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">${i18n.badge_scenes_label} ${ordered.length}</span>
                         <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">${i18n.badge_images_label} ${imageCount}</span>
                         <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">${i18n.badge_videos_label} ${videoCount}</span>
+                        ${requiredVideoZoneScenes.length ? `
+                        <span class="rounded ${missingRequiredVideoScenes.length ? 'bg-orange-500/15 text-orange-400' : 'bg-emerald-500/15 text-emerald-400'} px-2 py-1"
+                              title="${i18n.label_required_video_zone}">
+                            🔒 ${requiredZoneDoneCount}/${requiredVideoZoneScenes.length}
+                        </span>` : ''}
                         <span id="asset-readiness-state"
                               class="rounded ${readyToContinue ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'} px-2 py-1">
                             ${readyToContinue ? i18n.label_assets_ready : `${i18n.label_missing_visual} ${missingAssetScenes.length}`}
                         </span>
+                        <label class="flex items-center gap-1 rounded border border-white/10 bg-[#1c2027] px-2 py-1 text-gray-400">
+                            <span>${i18n.label_video_required_cutoff}</span>
+                            <input type="number" id="videoRequiredCutoffInput" value="${videoRequiredCutoffSec}" min="0" step="10"
+                                   class="w-14 rounded border border-white/10 bg-transparent px-1 py-0.5 text-center text-white">
+                            <button type="button" onclick="saveVideoRequiredCutoff()" class="text-blue-400 hover:text-blue-300">${i18n.btn_apply}</button>
+                        </label>
                     </div>
                 </div>
                 <div class="border-b border-white/5 px-4 py-3">
@@ -1921,6 +1947,9 @@
                     </div>
                     ${missingAssetScenes.length
                         ? `<p class="mt-2 text-xs text-amber-400">${i18n.label_asset_missing_prefix} ${missingAssetScenes.join(', ')}</p>`
+                        : ''}
+                    ${missingRequiredVideoScenes.length
+                        ? `<p class="mt-2 text-xs text-orange-400">🔒 ${i18n.label_required_video_missing_prefix} ${missingRequiredVideoScenes.join(', ')}</p>`
                         : ''}
                 </div>
                 <div class="overflow-x-auto">
@@ -1949,6 +1978,24 @@
                 </div>
             </div>`;
         panel.classList.remove('hidden');
+    }
+
+    // [NEW] Save the per-project "video required" cutoff (seconds from intro).
+    // Estimated scene start times use scene_text char count / 7.5 (no TTS audio
+    // exists yet at this stage), so this is advisory placement, not exact sync.
+    async function saveVideoRequiredCutoff() {
+        const input = document.getElementById('videoRequiredCutoffInput');
+        if (!input) return;
+        const projectId = getCurrentProject();
+        if (!projectId) return;
+        const seconds = Math.max(0, parseInt(input.value, 10) || 0);
+        try {
+            await API.project.updateSetting(projectId, 'video_required_until_sec', seconds);
+            Utils.showToast(i18n.toast_video_cutoff_saved, 'success');
+            await loadPromptsFromServer();
+        } catch (e) {
+            Utils.showToast('Error: ' + e.message, 'error');
+        }
     }
 
     // [NEW] Update prompt data from editor & Sync

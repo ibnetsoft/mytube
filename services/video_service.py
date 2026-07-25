@@ -11,6 +11,23 @@ import requests
 from typing import List, Optional, Union
 from config import config
 
+
+def _get_scene_transition_mode() -> str:
+    """씬 전환 효과는 웹어드민(스타일세팅 > 이미지 스타일)에서만 관리되는 값이다.
+    렌더링 시점에 Supabase global_settings에서 최신 값을 가져와 로컬 캐시에 반영한 뒤 사용한다."""
+    import database as db
+    try:
+        from services.web_admin_client import web_admin_client
+        remote = web_admin_client.fetch_global_setting_values(["scene_transition_mode"])
+        value = remote.get("scene_transition_mode")
+        if value is not None:
+            db.save_global_setting("scene_transition_mode", value)
+            return value
+    except Exception:
+        pass
+    return db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str")
+
+
 class VideoService:
     def __init__(self):
         self.output_dir = config.OUTPUT_DIR
@@ -697,8 +714,8 @@ class VideoService:
 
                 if safe_effect == 'random':
                     import random
-                    # [MODIFIED] Include vertical pans in random selection
-                    safe_effect = random.choice(['zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down'])
+                    # [MODIFIED] Include vertical pans + off-center zoom-out variants in random selection
+                    safe_effect = random.choice(['zoom_in', 'zoom_out', 'zoom_out_left', 'zoom_out_right', 'pan_left', 'pan_right', 'pan_up', 'pan_down'])
                     try:
                         with open("debug_effects_trace.txt", "a", encoding="utf-8") as df:
                             df.write(f"  -> Random Selection for Img[{i}]: {safe_effect}\n")
@@ -777,7 +794,50 @@ class VideoService:
                             # Safe Container with Explicit BG Layer
                             bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
                             clip = CompositeVideoClip([bg_base, clip.with_position('center')], size=(w,h)).with_duration(dur)
-                            
+
+                        elif effect in ('zoom_out_left', 'zoom_out_right'):
+                            # [NEW] Zoom-out variant anchored ~1/3 from one side instead of
+                            # dead-center. Requested effect: instead of growing outward evenly
+                            # from the middle, the fixed point sits off to one side so zooming
+                            # out reveals disproportionately more of the OPPOSITE side of the
+                            # frame — feels like the camera is pulling back away from an edge
+                            # rather than a plain centered zoom-out.
+                            #
+                            # The anchor fraction itself has to drift toward 0.5 (true center)
+                            # as t -> dur, not stay fixed at e.g. 0.35 for the whole clip.
+                            # A fixed anchor + scale->1.0 leaves the window permanently offset
+                            # at the end (black bar on one side, a slice of the image cropped
+                            # off forever on the other) instead of settling on the full image
+                            # like a normal zoom_out does.
+                            anchor_start = 0.35 if effect == 'zoom_out_left' else 0.65
+                            orig_w, orig_h = clip.w, clip.h
+                            scale_fn = lambda t: 1.15 - 0.15 * (t / dur)
+                            anchor_fn = lambda t, _a0=anchor_start, _d=dur: _a0 + (0.5 - _a0) * (t / _d)
+                            clip = vfx.resize(clip, scale_fn)
+
+                            if is_vertical and content_h < h:
+                                cx, cy = clip.w / 2, clip.h / 2
+                                x1, y1 = cx - w/2, cy - content_h/2
+                                x2, y2 = x1 + w, y1 + content_h
+                                clip = clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
+                                print(f"  🔒 [Zoom Locked] Scene {i+1}: Trapped in {w}x{content_h} box")
+
+                            def _zoom_out_offset_position(t, _w=w, _h=h, _ow=orig_w, _oh=orig_h, _af=anchor_fn, _sf=scale_fn):
+                                # [FIX] Clamp so the resized clip always fully covers the canvas —
+                                # an off-center anchor can otherwise demand a shift larger than the
+                                # zoom headroom allows, exposing black canvas on the far side.
+                                # Clamping only softens the anchor bias in that narrow early window;
+                                # it never lets black through.
+                                clip_w, clip_h = _ow * _sf(t), _oh * _sf(t)
+                                raw_x = _w / 2 - _af(t) * clip_w
+                                x = min(0, max(_w - clip_w, raw_x))
+                                y = (_h - clip_h) / 2  # always safe: clip_h >= _h since scale >= 1.0
+                                return (int(x), int(y))
+                            clip = clip.with_position(_zoom_out_offset_position)
+
+                            bg_base = ColorClip(size=(w,h), color=(0,0,0)).with_duration(dur)
+                            clip = CompositeVideoClip([bg_base, clip], size=(w,h)).with_duration(dur)
+
                         elif effect.startswith('pan_'):
                             # [FIX v2] Tall image detection: use actual clip height vs viewport height.
                             # Do NOT rely on filename containing 'tall' — files get renamed (e.g. scene_001.jpg)
@@ -928,8 +988,7 @@ class VideoService:
             else:
                 try:
                     import datetime
-                    import database as db
-                    transition_mode = db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str")
+                    transition_mode = _get_scene_transition_mode()
                     
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
                         _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose, mode={transition_mode}\n")

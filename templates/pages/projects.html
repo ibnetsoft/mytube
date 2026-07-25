@@ -210,6 +210,8 @@
         err_delete_failed_msg: "{{ t('err_delete_failed_msg') }}",
         err_action_failed_suffix: "{{ t('err_action_failed_suffix') }}",
         err_generic_msg: "{{ t('err_generic_msg') }}",
+        title_submit_to_drive: "{{ t('title_submit_to_drive') }}",
+        toast_submit_queued: "{{ t('toast_submit_queued') }}",
         sort_newest: "{{ t('sort_newest') }}",
         sort_oldest: "{{ t('sort_oldest') }}",
         sort_name: "{{ t('sort_name') }}"
@@ -238,10 +240,10 @@
             `{{ t('th_script') }}`,
             `{{ t('th_image') }}`,
             `{{ t('th_tts') }}`,
-            `{{ t('th_video') }}`,
+            `{{ t('th_subtitle') }}`,
             `{{ t('th_thumbnail') }}`,
             `{{ t('th_desc') }}`,
-            `{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_publish') }}{% endif %}`,
+            `{% if is_independent %}{{ t('th_upload') }}{% else %}{{ t('th_submit') }}{% endif %}`,
             ...(isIndependent ? [`{{ t('th_publish') }}`] : []),
         ];
 
@@ -277,10 +279,12 @@
                     class="px-0 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap max-w-[40px]"
                     title="${label}">${label}</th>
             `).join('')}
+            {% if not ((membership | lower) in ['std', 'standard']) %}
             <th scope="col"
                 class="px-0 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap max-w-[40px]">
                 {{ t('th_manage') }}
             </th>
+            {% endif %}
         `;
     }
 
@@ -469,11 +473,17 @@
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.video, 'render', p.id)}</td>
+                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.subtitle, 'subtitle-gen', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
                 <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
-                    ${checkLink(s.upload, 'upload', p.id)}
+                    ${isIndependent ? checkLink(s.upload, 'upload', p.id) : `
+                    <button onclick="event.stopPropagation(); submitProjectToDrive('${p.id}', this)"
+                        class="flex items-center justify-center w-6 h-6 mx-auto rounded-full text-blue-300 hover:text-blue-200 hover:bg-blue-500/10 transition"
+                        title="${i18n.title_submit_to_drive}">
+                        <span class="text-base">⏎</span>
+                    </button>
+                    `}
                 </td>
                 ${isIndependent ? `
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
@@ -541,9 +551,11 @@
                     </div>
                 </td>
                 ${isMusicMode ? musicStatusCells : defaultStatusCells}
+                {% if not ((membership | lower) in ['std', 'standard']) %}
                 <td class="px-2 py-2 whitespace-nowrap text-center text-sm font-medium">
                     ${manageCell}
                 </td>
+                {% endif %}
             </tr>
             `;
         }).join('');
@@ -589,6 +601,42 @@
         window.location.href = getStepRoute(step);
     }
 
+    async function submitProjectToDrive(projectId, btnEl) {
+        if (btnEl.disabled) return;
+        btnEl.disabled = true;
+        try {
+            const res = await fetch(`/api/projects/${projectId}/submit`, { method: 'POST' });
+            const data = await res.json();
+            if (res.ok && data.status === 'queued') {
+                Utils.showToast(i18n.toast_submit_queued, 'success');
+            } else {
+                const detail = data.detail && typeof data.detail === 'object' ? data.detail : data;
+                let msg = detail.message || i18n.err_generic_msg;
+                if (Array.isArray(detail.missing) && detail.missing.length) {
+                    const isVi = window.currentLang === 'vi';
+                    const isEn = window.currentLang === 'en';
+                    const isTh = window.currentLang === 'th';
+                    const lbl = (ko, en, vi, th) => isTh ? th : (isVi ? vi : (isEn ? en : ko));
+                    const labelMap = {
+                        scenes: lbl('영상클립/이미지', 'Video clips/Images', 'Clip video/Hình ảnh', 'คลิปวิดีโอ/ภาพ'),
+                        script: lbl('대본', 'Script', 'Kịch bản', 'บท'),
+                        voice: lbl('음성', 'Voice', 'Giọng nói', 'เสียง'),
+                        subtitles: lbl('자막', 'Subtitles', 'Phụ đề', 'คำบรรยาย'),
+                        thumbnail: lbl('썸네일', 'Thumbnail', 'Hình thu nhỏ', 'ภาพขนาดย่อ'),
+                        title: lbl('제목', 'Title', 'Tiêu đề', 'ชื่อ'),
+                        description: lbl('설명', 'Description', 'Mô tả', 'คำอธิบาย'),
+                    };
+                    msg += ` (${detail.missing.map(k => labelMap[k] || k).join(', ')})`;
+                }
+                Utils.showToast(msg, 'error');
+            }
+        } catch (e) {
+            Utils.showToast(i18n.err_generic_msg, 'error');
+        } finally {
+            btnEl.disabled = false;
+        }
+    }
+
     function getNextAction(project) {
         const s = project.progress || {};
         const isMusic = project.app_mode === 'longform_music' || currentDisplayMode === 'longform_music';
@@ -610,7 +658,7 @@
             { key: 'script', label: t('대본', 'Script', 'Kịch bản', 'บท'), route: 'script-gen' },
             { key: 'image', label: t('이미지', 'Image', 'Hình ảnh', 'รูปภาพ'), route: 'image-gen' },
             { key: 'tts', label: t('TTS', 'TTS', 'TTS', 'TTS'), route: 'tts' },
-            { key: 'video', label: t('영상', 'Video', 'Video', 'วิดีโอ'), route: 'render' },
+            { key: 'subtitle', label: t('자막', 'Subtitle', 'Phụ đề', 'คำบรรยาย'), route: 'subtitle-gen' },
             { key: 'thumbnail', label: t('썸네일', 'Thumbnail', 'Hình thu nhỏ', 'ภาพขนาดย่อ'), route: 'thumbnail' },
             { key: 'desc', label: t('설명', 'Description', 'Mô tả', 'คำอธิบาย'), route: 'title-desc' },
             { key: 'upload', label: t('발행대기 등록', 'Ready to Publish', 'Đăng ký chờ xuất bản', 'ลงทะเบียนรอเผยแพร่'), route: 'upload' },

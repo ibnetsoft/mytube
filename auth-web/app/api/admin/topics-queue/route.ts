@@ -558,16 +558,16 @@ export async function POST(req: Request) {
         ` : ''}
 
         STYLE SELECTION (REQUIRED for every topic):
-        - For each topic, also choose the BEST matching script_style and image_style for that specific topic.
+        - For each topic, also choose the BEST matching script_style for that specific topic.
         - script_style MUST be exactly one of: ${SCRIPT_STYLE_KEYS.join(', ')}.
-        - image_style MUST be exactly one of: ${IMAGE_STYLE_KEYS.join(', ')}.
-        - Choose styles that fit the topic's mood, era, and genre (e.g. horror/thriller topics -> mystery_thriller/horror_suspense + cinematic; Joseon-era history -> joseon_sageuk + oriental_ink; children's content -> nursery_rhyme + nursery_rhyme; modern news/economy -> news + realistic).
-        - If unsure, use "${DEFAULT_SCRIPT_STYLE}" for script_style and "${DEFAULT_IMAGE_STYLE}" for image_style.
-        - Use ONLY the exact keys from the lists above. Never invent new style keys.
+        - Choose a style that fits the topic's mood, era, and genre (e.g. horror/thriller topics -> mystery_thriller/horror_suspense; Joseon-era history -> joseon_sageuk; children's content -> nursery_rhyme; modern news/economy -> news).
+        - If unsure, use "${DEFAULT_SCRIPT_STYLE}".
+        - Use ONLY the exact keys from the list above. Never invent new style keys.
+        - Do NOT choose an image_style — that is set per-category by an admin, not per-topic by AI.
 
         Provide the output as JSON, with absolutely no markdown formatting.
         ${isLongformCategory ? `
-        Return a JSON list of objects with keys: topic, recommended_duration_minutes, difficulty_level, duration_reason, script_style, image_style.
+        Return a JSON list of objects with keys: topic, recommended_duration_minutes, difficulty_level, duration_reason, script_style.
         Example output format:
         [
           {
@@ -575,18 +575,16 @@ export async function POST(req: Request) {
             "recommended_duration_minutes": 20,
             "difficulty_level": "normal",
             "duration_reason": "${targetLang === 'en' ? 'The topic needs enough time for background and emotional payoff.' : targetLang === 'ja' ? '背景説明と感情の盛り上がりに十分な尺が必要なため。' : '스토리의 깊이와 배경 설명이 필요한 주제'}",
-            "script_style": "story",
-            "image_style": "cinematic"
+            "script_style": "story"
           }
         ]
         ` : `
-        Return a JSON list of objects with keys: topic, script_style, image_style.
+        Return a JSON list of objects with keys: topic, script_style.
         Example output format:
         [
           {
             "topic": "${targetLang === 'en' ? 'A Short Story You Will Never Forget' : targetLang === 'ja' ? '忘れられない短い物語' : '첫 번째 실제 동영상 주제'}",
-            "script_style": "default",
-            "image_style": "realistic"
+            "script_style": "default"
           }
         ]
         `}
@@ -611,14 +609,16 @@ export async function POST(req: Request) {
                 ? clampDuration(item?.recommended_duration_minutes, minDurationMinutes)
                 : null
 
-            // AI가 주제에 맞게 고른 스타일 (허용 목록 검증 + 기본값 fallback)
+            // AI가 주제에 맞게 고른 대본 스타일 (허용 목록 검증 + 기본값 fallback)
             const assignedScriptStyle = pickValidStyle(
                 typeof item === 'string' ? null : item?.script_style,
                 SCRIPT_STYLE_KEYS,
                 DEFAULT_SCRIPT_STYLE
             )
+            // 이미지 스타일은 더 이상 AI가 주제 단위로 추측하지 않는다 — 관리자가 카테고리에
+            // 지정한 default_image_style을 그대로 쓴다 (거의 항상 realistic만 나오던 문제 해결).
             const assignedImageStyle = pickValidStyle(
-                typeof item === 'string' ? null : item?.image_style,
+                category.default_image_style,
                 IMAGE_STYLE_KEYS,
                 DEFAULT_IMAGE_STYLE
             )
@@ -864,7 +864,9 @@ export async function DELETE(req: Request) {
     }
 }
 
-// PATCH: 대기중 주제의 대본/이미지 스타일을 AI로 재배정
+// PATCH: 대기중 주제의 대본 스타일을 AI로 재배정
+// 이미지 스타일은 더 이상 AI가 주제 단위로 추측하지 않는다 — 카테고리별 default_image_style을
+// 관리자가 직접 지정한다 (거의 항상 realistic만 나오던 문제로 폐지, [스타일세팅] 참고).
 export async function PATCH(req: Request) {
     try {
         const requester = await requireSuperAdmin(req)
@@ -873,8 +875,8 @@ export async function PATCH(req: Request) {
         const { targetType, categoryId, limit } = await req.json()
         const normalizedTarget = String(targetType || '').trim().toLowerCase()
 
-        if (!['script', 'image'].includes(normalizedTarget)) {
-            return NextResponse.json({ error: 'targetType must be script or image' }, { status: 400 })
+        if (normalizedTarget !== 'script') {
+            return NextResponse.json({ error: 'targetType must be script (image style is admin-managed per category, not AI-assigned)' }, { status: 400 })
         }
 
         const supabase = getAdmin()
@@ -897,7 +899,7 @@ export async function PATCH(req: Request) {
         const batchLimit = Math.max(1, Math.min(100, toInt(limit, 50)))
         let query = supabase
             .from('topics_queue')
-            .select('id, topic, category_id, language, assigned_script_style, assigned_image_style, categories(name, keywords, language)')
+            .select('id, topic, category_id, language, assigned_script_style, categories(name, keywords, language)')
             .eq('status', 'pending')
             .order('created_at', { ascending: false })
             .limit(batchLimit)
@@ -914,9 +916,9 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ success: true, updatedCount: 0, updates: [] })
         }
 
-        const allowedStyles = normalizedTarget === 'script' ? SCRIPT_STYLE_KEYS : IMAGE_STYLE_KEYS
-        const fallbackStyle = normalizedTarget === 'script' ? DEFAULT_SCRIPT_STYLE : DEFAULT_IMAGE_STYLE
-        const styleColumn = normalizedTarget === 'script' ? 'assigned_script_style' : 'assigned_image_style'
+        const allowedStyles = SCRIPT_STYLE_KEYS
+        const fallbackStyle = DEFAULT_SCRIPT_STYLE
+        const styleColumn = 'assigned_script_style'
         const ai = new GoogleGenAI({ apiKey: geminiApiKey })
         const prompt = `
 You are assigning the best ${normalizedTarget}_style for queued YouTube topics.

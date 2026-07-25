@@ -479,9 +479,12 @@
     // 전역 변수
     let detectedCharacters = new Set();
     let characterVoiceMap = {};
+    let characterGenderMap = {}; // AI가 추론한 화자별 {gender, age_group}
+    let manuallySetChars = new Set(); // 사용자가 직접 지정한 화자 (자동 배정이 덮어쓰지 않음)
     let availableVoices = [];
     let currentLanguage = 'ko';
     let lockedMultiVoiceMode = null;
+    let genderInferTimer = null;
 
     function applyMultiVoiceLockState() {
         const toggle = document.getElementById('multiVoiceToggle');
@@ -558,6 +561,7 @@
         if (!isSetsEqual(detectedCharacters, newCharacters)) {
             detectedCharacters = newCharacters;
             renderCharacterMapping();
+            scheduleGenderInference(text);
         }
     }
 
@@ -565,6 +569,39 @@
         if (a.size !== b.size) return false;
         for (let item of a) if (!b.has(item)) return false;
         return true;
+    }
+
+    // 대본 문맥으로 화자 성별/연령대를 AI로 추론 (타이핑 도중 매 키 입력마다 호출되지 않도록 디바운스)
+    function scheduleGenderInference(scriptText) {
+        if (genderInferTimer) clearTimeout(genderInferTimer);
+        genderInferTimer = setTimeout(() => inferCharacterGenders(scriptText), 1200);
+    }
+
+    async function inferCharacterGenders(scriptText) {
+        if (detectedCharacters.size === 0) return;
+        const namesAtRequestTime = Array.from(detectedCharacters);
+        try {
+            const result = await API.voices.inferCharacters(scriptText, currentLanguage, namesAtRequestTime);
+            if (!result || !Array.isArray(result.characters)) return;
+
+            result.characters.forEach(c => {
+                if (c && c.name) {
+                    characterGenderMap[c.name] = { gender: c.gender, age_group: c.age_group };
+                }
+            });
+
+            // 사용자가 직접 지정하지 않은 화자만 새 성별 정보로 재배정
+            let changed = false;
+            detectedCharacters.forEach(char => {
+                if (!manuallySetChars.has(char) && characterGenderMap[char]) {
+                    delete characterVoiceMap[char];
+                    changed = true;
+                }
+            });
+            if (changed) renderCharacterMapping();
+        } catch (e) {
+            console.error('[TTS] Character gender inference failed:', e);
+        }
     }
 
     function renderCharacterMapping() {
@@ -578,10 +615,20 @@
 
         const sortedChars = Array.from(detectedCharacters).sort();
         sortedChars.forEach(char => {
-            // [NEW] 인물이 처음 감지되었거나 매핑이 안되어 있다면 사용가능한 성우 목록에서 순서대로 자동 배정
+            // 인물이 처음 감지되었거나 매핑이 안되어 있다면 자동 배정.
+            // AI가 추론한 성별(characterGenderMap)이 있으면 그 성별과 일치하는 성우 중에서,
+            // 없으면(아직 추론 전이거나 매칭되는 성우가 없으면) 전체 목록에서 순서대로 배정.
             if (!characterVoiceMap[char] && availableVoices.length > 0) {
-                const voiceIndex = sortedChars.indexOf(char) % availableVoices.length;
-                characterVoiceMap[char] = availableVoices[voiceIndex].id;
+                const genderInfo = characterGenderMap[char];
+                let pool = availableVoices;
+                if (genderInfo && genderInfo.gender) {
+                    const matched = availableVoices.filter(v =>
+                        v.gender && v.gender.toLowerCase() === genderInfo.gender.toLowerCase()
+                    );
+                    if (matched.length > 0) pool = matched;
+                }
+                const voiceIndex = sortedChars.indexOf(char) % pool.length;
+                characterVoiceMap[char] = pool[voiceIndex].id;
             }
 
             const savedVoice = characterVoiceMap[char] || '';
@@ -606,8 +653,13 @@
     }
 
     window.updateCharVoice = function (char, voiceId) {
-        if (voiceId) characterVoiceMap[char] = voiceId;
-        else delete characterVoiceMap[char];
+        if (voiceId) {
+            characterVoiceMap[char] = voiceId;
+            manuallySetChars.add(char); // 사용자가 직접 고른 값은 AI 재추론이 덮어쓰지 않음
+        } else {
+            delete characterVoiceMap[char];
+            manuallySetChars.delete(char);
+        }
     };
 
     async function loadVoices() {
@@ -626,29 +678,32 @@
                 voices = browserVoices.map(v => ({ id: v.name, name: v.name }));
             } else if (provider === 'google_cloud') {
                 voices = [
-                    { id: 'ko-KR-Neural2-A', name: `${i18n.label_voice_kor} Neural2 A(${i18n.label_female})` },
-                    { id: 'ko-KR-Neural2-C', name: `${i18n.label_voice_kor} Neural2 C(${i18n.label_male})` },
-                    { id: 'ko-KR-Standard-A', name: `${i18n.label_voice_kor} Std A(${i18n.label_female})` }
+                    { id: 'ko-KR-Neural2-A', name: `${i18n.label_voice_kor} Neural2 A(${i18n.label_female})`, gender: 'female' },
+                    { id: 'ko-KR-Neural2-C', name: `${i18n.label_voice_kor} Neural2 C(${i18n.label_male})`, gender: 'male' },
+                    { id: 'ko-KR-Standard-A', name: `${i18n.label_voice_kor} Std A(${i18n.label_female})`, gender: 'female' }
                 ]; // Simplified for now, or full list
             } else if (provider === 'gemini') {
                 voices = [
-                    { id: 'Puck', name: `Puck (${i18n.label_male}/${i18n.label_mid})` },
-                    { id: 'Charon', name: `Charon (${i18n.label_male}/${i18n.label_low})` },
-                    { id: 'Kore', name: `Kore (${i18n.label_female}/${i18n.label_soft})` },
-                    { id: 'Fenrir', name: `Fenrir (${i18n.label_male}/${i18n.label_rough})` },
-                    { id: 'Aoede', name: `Aoede (${i18n.label_female}/${i18n.label_high})` }
+                    { id: 'Puck', name: `Puck (${i18n.label_male}/${i18n.label_mid})`, gender: 'male' },
+                    { id: 'Charon', name: `Charon (${i18n.label_male}/${i18n.label_low})`, gender: 'male' },
+                    { id: 'Kore', name: `Kore (${i18n.label_female}/${i18n.label_soft})`, gender: 'female' },
+                    { id: 'Fenrir', name: `Fenrir (${i18n.label_male}/${i18n.label_rough})`, gender: 'male' },
+                    { id: 'Aoede', name: `Aoede (${i18n.label_female}/${i18n.label_high})`, gender: 'female' }
                 ];
             } else if (provider === 'openai') {
                 voices = [
-                    { id: 'alloy', name: 'Alloy' }, { id: 'echo', name: 'Echo' }, { id: 'shimmer', name: 'Shimmer' }
+                    { id: 'alloy', name: 'Alloy', gender: 'neutral' },
+                    { id: 'echo', name: 'Echo', gender: 'male' },
+                    { id: 'shimmer', name: 'Shimmer', gender: 'female' }
                 ];
             } else {
-                // ElevenLabs
+                // ElevenLabs - API가 제공하는 labels.gender를 그대로 활용
                 const result = await API.tts.getVoices();
                 if (result.voices) voices = result.voices.map(v => ({
                     id: v.voice_id,
                     name: v.name,
-                    preview_url: v.preview_url
+                    preview_url: v.preview_url,
+                    gender: v.labels && v.labels.gender ? v.labels.gender : null
                 }));
             }
         } catch (e) {

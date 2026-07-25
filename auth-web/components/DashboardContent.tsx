@@ -11,6 +11,7 @@ import ReferralAdminPanel from './ReferralAdminPanel'
 import SubscriptionVerificationsPanel from './SubscriptionVerificationsPanel'
 import SupportInboxPanel from './SupportInboxPanel'
 import AnnouncementsAdminPanel from './AnnouncementsAdminPanel'
+import ErrorLogsPanel from './ErrorLogsPanel'
 
 interface UserProfile {
     id: string
@@ -185,7 +186,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements' | 'error-logs'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -200,7 +201,6 @@ export default function DashboardContent() {
     const [newCatName, setNewCatName] = useState('')
     const [newCatKeywords, setNewCatKeywords] = useState('')
     const [newCatChannel, setNewCatChannel] = useState('')
-    const [newCatEmployee, setNewCatEmployee] = useState('')
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
     const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [newCatLanguage, setNewCatLanguage] = useState('ko')
@@ -216,7 +216,7 @@ export default function DashboardContent() {
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
-    const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | 'image' | null>(null)
+    const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
 
     const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -230,7 +230,6 @@ export default function DashboardContent() {
         name: '',
         keywords: '',
         benchmark_channel_url: '',
-        assigned_employee_email: '',
         default_script_style: 'default',
         default_image_style: 'realistic',
         language: 'ko',
@@ -295,6 +294,7 @@ export default function DashboardContent() {
         qa_auto_normalize_lufs: 'true', qa_hold_on_technical_fail: 'true', qa_hold_on_semantic_fail: 'true',
         qa_target_lufs: '-14', qa_lufs_tolerance: '2', qa_blackdetect_min_duration: '1.0',
         qa_min_width: '1920', qa_min_height: '1080',
+        scene_transition_mode: 'ai_auto',
         terms_ko: '', terms_en: '', terms_vi: '', terms_th: '',
         privacy_ko: '', privacy_en: '', privacy_vi: '', privacy_th: '',
         topic_generation_model: 'gemini-2.5-flash',
@@ -1200,7 +1200,7 @@ export default function DashboardContent() {
     }, [isAdmin, adminFetch]);
 
     const fetchSysKeys = useCallback(async () => {
-        if (!canManageSystemSettings) return;
+        if (!canManageSystemSettings && !canManageStyles) return;
         try {
             const res = await adminFetch('/api/admin/settings/global');
             if (!res.ok) return;
@@ -1236,6 +1236,7 @@ export default function DashboardContent() {
                 qa_blackdetect_min_duration: data.qa_blackdetect_min_duration || '1.0',
                 qa_min_width: data.qa_min_width || '1920',
                 qa_min_height: data.qa_min_height || '1080',
+                scene_transition_mode: data.scene_transition_mode || 'ai_auto',
                 terms_ko: data.terms_ko || '',
                 terms_en: data.terms_en || '',
                 terms_vi: data.terms_vi || '',
@@ -1257,7 +1258,7 @@ export default function DashboardContent() {
         } catch (e) {
             // Silently ignore errors to prevent console spam
         }
-    }, [canManageSystemSettings, adminFetch]);
+    }, [canManageSystemSettings, canManageStyles, adminFetch]);
 
     const saveSysKeys = async () => {
         setSysKeysSaving(true); setSysKeysSaved(false);
@@ -1504,7 +1505,6 @@ export default function DashboardContent() {
                     name: newCatName,
                     keywords: newCatKeywords,
                     benchmark_channel_url: newCatChannel,
-                    assigned_employee_email: newCatEmployee || null,
                     default_script_style: newCatScriptStyle || 'default',
                     default_image_style: newCatImageStyle || 'realistic',
                     language: normalizeContentLanguage(newCatLanguage),
@@ -1519,7 +1519,6 @@ export default function DashboardContent() {
                 setNewCatName('')
                 setNewCatKeywords('')
                 setNewCatChannel('')
-                setNewCatEmployee('')
                 setNewCatScriptStyle('default')
                 setNewCatImageStyle('realistic')
                 setNewCatLanguage('ko')
@@ -1561,8 +1560,8 @@ export default function DashboardContent() {
     const handleSaveCategory = async () => {
         if (!canManageTopics) return
         if (!editCategory) return
-        if (!editCatForm.name || !editCatForm.assigned_employee_email) {
-            alert('카테고리명과 해당 직원 이메일은 필수입니다.')
+        if (!editCatForm.name) {
+            alert('카테고리명은 필수입니다.')
             return
         }
         try {
@@ -1758,38 +1757,38 @@ export default function DashboardContent() {
         }
     }
 
-    const handleAssignTopicStyles = async (targetType: 'script' | 'image') => {
+    // 이미지 스타일은 더 이상 AI 재배정 대상이 아니다 — 카테고리별 default_image_style을
+    // 관리자가 직접 지정한다 (AI가 topic 단위로 추측하면 거의 항상 realistic만 나오던 문제 폐지).
+    const handleAssignTopicStyles = async () => {
         if (!canManageTopics) return
-        const label = targetType === 'script' ? '대본 스타일' : '이미지 스타일'
         const categoryLabel = topicQueueCategoryFilter === 'all' ? '전체 카테고리' : '선택한 카테고리'
-        if (!confirm(`${categoryLabel}의 대기중 주제에 ${label}을 AI로 재배정할까요?`)) return
+        if (!confirm(`${categoryLabel}의 대기중 주제에 대본 스타일을 AI로 재배정할까요?`)) return
 
-        setTopicStyleAssigningType(targetType)
+        setTopicStyleAssigningType('script')
         try {
             const res = await adminFetch('/api/admin/topics-queue', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    targetType,
+                    targetType: 'script',
                     categoryId: topicQueueCategoryFilter,
                     limit: 100,
                 })
             })
             const data = await res.json()
             if (!res.ok || !data.success) {
-                alert(`${label} 자동배정 실패: ` + (data.error || `HTTP ${res.status}`))
+                alert('대본 스타일 자동배정 실패: ' + (data.error || `HTTP ${res.status}`))
                 return
             }
 
-            const styleField = targetType === 'script' ? 'assigned_script_style' : 'assigned_image_style'
             const updateMap = new Map((data.updates || []).map((item: any) => [String(item.id), item.style]))
             setTopics(prev => prev.map(item => {
                 const nextStyle = updateMap.get(String(item.id))
-                return nextStyle ? { ...item, [styleField]: nextStyle } : item
+                return nextStyle ? { ...item, assigned_script_style: nextStyle } : item
             }))
-            alert(`${label} 자동배정 완료: ${data.updatedCount || 0}개 주제`)
+            alert(`대본 스타일 자동배정 완료: ${data.updatedCount || 0}개 주제`)
         } catch (err: any) {
-            alert(`${label} 자동배정 오류: ` + (err?.message || String(err)))
+            alert('대본 스타일 자동배정 오류: ' + (err?.message || String(err)))
         } finally {
             setTopicStyleAssigningType(null)
         }
@@ -1861,7 +1860,7 @@ export default function DashboardContent() {
         if (isAdmin && !loading) {
             fetchUsers();
             fetchPublishingRequests();
-            if (canManageSystemSettings) fetchSysKeys();
+            if (canManageSystemSettings || canManageStyles) fetchSysKeys();
             fetchCategories();
             fetchTopics();
             if (canManageStyles) {
@@ -2317,6 +2316,7 @@ export default function DashboardContent() {
                             { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
                             { id: 'support', label: '문의 Inbox', superOnly: false },
                             { id: 'announcements', label: '공지사항', superOnly: false },
+                            { id: 'error-logs', label: '에러 로그', superOnly: false },
                         ].map(tab => {
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -2464,32 +2464,12 @@ export default function DashboardContent() {
                                         onClick={() => setShowAdvanced(!showAdvanced)}
                                         className="text-xs font-black text-gray-400 hover:text-white flex items-center gap-1.5 transition-all"
                                     >
-                                        {showAdvanced ? '🔼 고급 설정 접기' : '🔽 고급 설정 (담당 직원 및 기본 스타일 수동 지정)'}
+                                        {showAdvanced ? '🔼 고급 설정 접기' : '🔽 고급 설정 (기본 스타일 수동 지정)'}
                                     </button>
                                 </div>
 
                                 {showAdvanced && (
                                     <>
-                                        <div>
-                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">담당 직원 이메일</label>
-                                            <select
-                                                value={newCatEmployee}
-                                                onChange={e => setNewCatEmployee(e.target.value)}
-                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                            >
-                                                <option value="">-- AI 자동 배정 (선택 사항) --</option>
-                                                {users.map(user => {
-                                                    const email = user.email?.toLowerCase();
-                                                    if (!email) return null;
-                                                    const name = user.user_metadata?.full_name || '';
-                                                    return (
-                                                        <option key={user.id} value={email} className="bg-[#111] text-white">
-                                                            {email} {name ? `(${name})` : ''}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </div>
                                         <div>
                                             <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일</label>
                                             <select
@@ -2527,20 +2507,12 @@ export default function DashboardContent() {
                                     <button
                                         type="button"
                                         disabled={topicStyleAssigningType !== null}
-                                        onClick={() => handleAssignTopicStyles('script')}
+                                        onClick={() => handleAssignTopicStyles()}
                                         className="px-6 py-3 rounded-xl text-xs font-black border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
                                     >
                                         {topicStyleAssigningType === 'script' ? '대본 스타일 배정 중...' : '대본 스타일 자동배정'}
                                     </button>
                                     <button
-                                        type="button"
-                                        disabled={topicStyleAssigningType !== null}
-                                        onClick={() => handleAssignTopicStyles('image')}
-                                        className="px-6 py-3 rounded-xl text-xs font-black border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50"
-                                    >
-                                        {topicStyleAssigningType === 'image' ? '이미지 스타일 배정 중...' : '이미지 스타일 자동배정'}
-                                    </button>
-                                    <button 
                                         type="submit"
                                         className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
                                     >
@@ -2620,7 +2592,6 @@ export default function DashboardContent() {
                                                                         name: cat.name || '',
                                                                         keywords: cat.keywords || '',
                                                                         benchmark_channel_url: cat.benchmark_channel_url || '',
-                                                                        assigned_employee_email: cat.assigned_employee_email || '',
                                                                         default_script_style: cat.default_script_style || 'default',
                                                                         default_image_style: cat.default_image_style || 'realistic',
                                                                         language: normalizeContentLanguage(cat.language),
@@ -2645,7 +2616,6 @@ export default function DashboardContent() {
                                                         )}
                                                     </div>
                                                     <div className="space-y-2 text-xs text-gray-400 mb-6">
-                                                        <p>담당 직원: <strong className="text-gray-200">{cat.assigned_employee_email}</strong></p>
                                                         <p>키워드: <strong className="text-gray-200">{cat.keywords || '(없음)'}</strong></p>
                                                         <p className="truncate">벤치 채널: <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
                                                         <p>
@@ -2791,7 +2761,7 @@ export default function DashboardContent() {
 
                         {/* 3. 전체 주제 대기열 및 모니터링 */}
                         {(() => {
-                            const getTopicAssignee = (item: any) => item.categories?.assigned_employee_email || item.assigned_employee_email;
+                            const getTopicAssignee = (item: any) => item.assigned_employee_email;
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
                             const isPendingTopic = (item: any) => item.status === 'pending';
                             const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
@@ -2819,14 +2789,15 @@ export default function DashboardContent() {
                                 : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t));
                             const availableTopicQueueEmployees = Array.from(
                                 new Set(
-                                    statusFilteredTopics
-                                        .map(item => String(getTopicAssignee(item) || '').trim())
+                                    users
+                                        .filter(u => u.profile?.is_approved === true && u.email)
+                                        .map(u => String(u.email).toLowerCase().trim())
                                         .filter(Boolean)
                                 )
                             ).sort((a, b) => a.localeCompare(b, 'en'));
                             const filteredTopics = topicQueueEmployeeFilter === 'all'
                                 ? statusFilteredTopics
-                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').trim() === topicQueueEmployeeFilter);
+                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').toLowerCase().trim() === topicQueueEmployeeFilter);
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
@@ -2925,30 +2896,27 @@ export default function DashboardContent() {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
                                         <tr>
-                                            <th className="px-10 py-6">카테고리</th>
-                                            <th className="px-10 py-6">제안 영상 주제</th>
-                                            {topicQueueStatusFilter === 'working' && (
-                                                <th className="px-10 py-6">작업 진행</th>
-                                            )}
-                                            <th className="px-10 py-6">배정된 직원 이메일</th>
-                                            <th className="px-10 py-6 text-center">배당 상태</th>
-                                            <th className="px-10 py-6 text-right">{t('admin.manage')}</th>
+                                            <th className="px-10 py-3">카테고리</th>
+                                            <th className="px-10 py-3">제안 영상 주제</th>
+                                            <th className="px-10 py-3">배정된 직원 이메일</th>
+                                            <th className="px-10 py-3 text-center whitespace-nowrap">기획-대본-이미지-TTS-자막-썸네일-설명-제출</th>
+                                            <th className="px-10 py-3 text-right">{t('admin.manage')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
                                         {filteredTopics.map((item) => (
                                             <tr
                                                 key={item.id}
-                                                className={`transition-colors h-16 text-xs ${
+                                                className={`transition-colors h-10 text-xs ${
                                                     editingTopicId === String(item.id)
                                                         ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-400/30'
                                                         : 'hover:bg-white/[0.03]'
                                                 }`}
                                             >
-                                                <td className="px-10 py-6 text-gray-300 font-bold">
+                                                <td className="px-10 py-3 text-gray-300 font-bold">
                                                     {item.categories?.name || '기본'}
                                                 </td>
-                                                <td className="px-10 py-6 text-white font-bold max-w-sm">
+                                                <td className="px-10 py-3 text-white font-bold max-w-sm">
                                                     <div className="flex items-start gap-2">
                                                         <div className="min-w-0 flex-1">
                                                             {editingTopicId === String(item.id) ? (
@@ -3026,42 +2994,65 @@ export default function DashboardContent() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                {topicQueueStatusFilter === 'working' && (
-                                                    <td className="px-10 py-6">
-                                                        {Array.isArray(item.progress_payload?.completed_steps) && item.progress_payload.completed_steps.length > 0 ? (
-                                                            <div className="space-y-2">
-                                                                <div className="flex flex-wrap gap-1.5">
-                                                                    {item.progress_payload.completed_steps.map((step: string) => (
-                                                                        <span
-                                                                            key={`${item.id}-step-${step}`}
-                                                                            className="px-2 py-1 rounded-full text-[10px] font-black bg-green-500/10 text-green-400 border border-green-500/20"
-                                                                        >
-                                                                            {step}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                                <div className="text-[10px] font-bold text-emerald-300">
-                                                                    현재 단계: {item.progress_payload?.current_step || '진행 중'}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[11px] font-bold text-gray-500">수신 대기</span>
-                                                        )}
-                                                    </td>
-                                                )}
-                                                <td className="px-10 py-6 text-gray-400">
+                                                <td className="px-10 py-3 text-gray-400">
                                                     {getTopicAssignee(item)}
                                                 </td>
-                                                <td className="px-10 py-6 text-center">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-tighter ${
-                                                        item.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                                                        isWorkingTopic(item) ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                                        'bg-green-500/10 text-green-500 border-green-500/20'
-                                                    }`}>
-                                                        {item.status === 'pending' ? '대기중' : isWorkingTopic(item) ? '작업중' : '시작 완료'}
-                                                    </span>
+                                                <td className="px-10 py-2">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        {!isWorkingTopic(item) && (
+                                                            <span className="text-[10px] font-bold text-gray-600">
+                                                                {item.status === 'pending' ? '대기중' : '시작 완료'}
+                                                            </span>
+                                                        )}
+                                                        {isWorkingTopic(item) && (() => {
+                                                            const stepDefs = [
+                                                                { key: 'plan', label: '기획' },
+                                                                { key: 'script', label: '대본' },
+                                                                { key: 'image', label: '이미지' },
+                                                                { key: 'tts', label: 'TTS' },
+                                                                { key: 'subtitle', label: '자막' },
+                                                                { key: 'template', label: '썸네일' },
+                                                                { key: 'desc', label: '설명' },
+                                                            ];
+                                                            const stepMap = item.progress_payload?.steps || {};
+                                                            const hasProgress = Object.keys(stepMap).length > 0;
+                                                            const submittedStatuses = ['remote_packaging', 'remote_queued', 'rendering', 'rendered', 'completed'];
+                                                            const isSubmitted = submittedStatuses.includes(String(item.progress_payload?.project_status || ''));
+                                                            if (!hasProgress) {
+                                                                return <span className="text-[10px] font-bold text-gray-500">수신 대기</span>;
+                                                            }
+                                                            const allSteps = [...stepDefs, { key: '__submit', label: '제출' }];
+                                                            const nextStep = stepDefs.find(step => !stepMap[step.key]);
+                                                            const currentStepLabel = isSubmitted
+                                                                ? '제출 완료'
+                                                                : nextStep
+                                                                    ? `${nextStep.label} 작업 중`
+                                                                    : '제출 대기';
+                                                            return (
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="flex items-center gap-1">
+                                                                        {allSteps.map(step => {
+                                                                            const done = step.key === '__submit' ? isSubmitted : !!stepMap[step.key];
+                                                                            return (
+                                                                                <span
+                                                                                    key={`${item.id}-progress-${step.key}`}
+                                                                                    title={step.label}
+                                                                                    className={`text-xs font-bold leading-none ${done ? 'text-green-500' : 'text-gray-600'}`}
+                                                                                >
+                                                                                    {done ? '●' : '○'}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    <span className="text-[10px] font-bold text-emerald-300 whitespace-nowrap">
+                                                                        {currentStepLabel}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
                                                 </td>
-                                                <td className="px-10 py-6 text-right">
+                                                <td className="px-10 py-3 text-right">
                                                     {canManageTopics && item.status === 'pending' ? (
                                                         <div className="flex items-center justify-end gap-3 text-[11px] font-black">
                                                             <button
@@ -3089,7 +3080,7 @@ export default function DashboardContent() {
                                         ))}
                                         {filteredTopics.length === 0 && (
                                             <tr>
-                                                <td colSpan={topicQueueStatusFilter === 'working' ? 6 : 5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                <td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
                                                     {selectedCategory ? '선택한 카테고리에 등록된 주제가 없습니다.' : '대기열에 등록된 주제가 없습니다. 카테고리를 먼저 선택해 주세요.'}
                                                 </td>
                                             </tr>
@@ -4425,6 +4416,10 @@ export default function DashboardContent() {
                     <AnnouncementsAdminPanel />
                 )}
 
+                {activeTab === 'error-logs' && (
+                    <ErrorLogsPanel />
+                )}
+
                 {activeTab === 'styles' && canManageStyles && (
                     <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 1. 스타일 추가/수정 */}
@@ -4569,6 +4564,39 @@ export default function DashboardContent() {
                                     새로고침
                                 </button>
                             </div>
+                            {styleCatalogTab === 'image' && (
+                                <div className="mx-6 mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-3">
+                                    <div>
+                                        <h4 className="text-xs font-black text-blue-300 uppercase tracking-widest">씬 전환 효과 (Scene Transition)</h4>
+                                        <p className="text-[10px] text-gray-500 mt-1">렌더링 시 씬 사이 전환 효과를 중앙에서 제어합니다. 유저 설정 화면에는 더 이상 노출되지 않으며, 렌더링 PC는 이 값을 Supabase global_settings에서 가져와 적용합니다.</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-end gap-3">
+                                        <div className="flex-1 min-w-[200px]">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">전환 모드</label>
+                                            <select
+                                                value={sysKeys.scene_transition_mode}
+                                                onChange={e => setSysKeys(prev => ({ ...prev, scene_transition_mode: e.target.value }))}
+                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                            >
+                                                <option value="ai_auto">AI 자동 추천</option>
+                                                <option value="none">전환 없음 (컷)</option>
+                                                <option value="crossfade">크로스페이드</option>
+                                                <option value="slide_left">슬라이드 (좌)</option>
+                                                <option value="fade_to_black">페이드 투 블랙</option>
+                                                <option value="zoom_in">줌 인</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={saveSysKeys}
+                                            disabled={sysKeysSaving}
+                                            className="px-6 py-3 rounded-xl text-xs font-black bg-blue-600 text-white shadow-lg disabled:opacity-50 hover:bg-blue-500 transition-all"
+                                        >
+                                            {sysKeysSaving ? '저장 중...' : (sysKeysSaved ? '저장됨 ✓' : '저장')}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             <div className="p-6">
                                 {styleCatalogTab === 'voice' ? (
                                     <div className="space-y-6">
@@ -4889,26 +4917,6 @@ export default function DashboardContent() {
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50" 
                                     placeholder="카테고리명 입력" 
                                 />
-                            </div>
-                            <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">담당 직원 이메일 *</label>
-                                <select
-                                    value={editCatForm.assigned_employee_email}
-                                    onChange={e => setEditCatForm(p => ({ ...p, assigned_employee_email: e.target.value }))}
-                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
-                                >
-                                    <option value="">-- 직원을 선택하세요 --</option>
-                                    {users.map(user => {
-                                        const email = user.email?.toLowerCase();
-                                        if (!email) return null;
-                                        const name = user.user_metadata?.full_name || '';
-                                        return (
-                                            <option key={user.id} value={email} className="bg-[#111] text-white">
-                                                {email} {name ? `(${name})` : ''}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
                             </div>
                             <div>
                                 <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">주요 리서치 키워드</label>
