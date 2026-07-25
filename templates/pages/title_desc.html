@@ -307,6 +307,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(metaData)
             });
+            if (window.updateStepStatus) window.updateStepStatus('desc', !!metaData.description);
         } catch (e) { console.error('Auto save failed', e); }
     }
 
