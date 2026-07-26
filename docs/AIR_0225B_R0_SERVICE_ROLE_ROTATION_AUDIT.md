@@ -1,7 +1,8 @@
 # AIR-0225B-R0 — SUPABASE_SERVICE_ROLE_KEY Rotation Audit
 
-Date: 2026-07-12
-Status: **BLOCKED — SUPABASE OWNER ACTION REQUIRED**
+Date: 2026-07-12 (updated 2026-07-13)
+Status: **BLOCKED — SUPABASE OWNER ACTION REQUIRED** (legacy key revocation
+still pending; see §4 for the split status)
 
 This document records variable names, usage locations, and existence/absence
 states only. **No key value, partial value, or fingerprint of any key is
@@ -108,26 +109,40 @@ No Supabase Edge Functions directory exists in this repository.
 
 ## 4. Actual rotation status
 
-**UNABLE_TO_VERIFY.**
+**Split status, confirmed 2026-07-13 by the Supabase project owner directly
+viewing the dashboard (status only relayed to this session — no key value,
+partial value, or screenshot content was shared or recorded):**
 
-This session has no Supabase dashboard access, no Supabase Management API
-token, and no Supabase CLI session. A Vercel CLI session authenticated as
-the project owner (`abakorea-9330`) was found to be linked to the `mytube`
-production project, which could in principle list *env var names* — this
-was **not exercised**: the sandbox's own safety layer blocked the
-`vercel env ls production` call as a live production-environment read
-outside the scope explicitly authorized ("조사" via source code, not a live
-query against production), and this session did not attempt to route
-around that block. Confirming actual rotation would additionally require
-comparing the current key against the original exposed value, and the
-original exposed value is not recoverable (the leaking release assets were
-already deleted per §2) — so even with dashboard access, a direct
-value-equality check is not possible; only "was the key regenerated after
-[date]" is answerable from Supabase's own key-management UI (which shows
-key creation/rotation timestamps without exposing the value), and that UI
-is only visible to a Supabase project owner/admin.
+| Item | Status |
+|---|---|
+| JWT Signing Key (new asymmetric ECC P-256 system) rotation | **ROTATED_CONFIRMED** — current key is ECC(P-256), previous ECC key shown as "rotated a day ago" in Supabase Dashboard → Project Settings → API → JWT Signing Keys |
+| Legacy `service_role` API key (Settings → API Keys → Legacy anon, service_role API keys) | **NOT CONFIRMED / STILL ENABLED** — the legacy key toggle remains ON; the "Disable JWT-based API keys" action exists but has **not** been taken |
+| Production modification performed this round | **NONE** |
 
-**Recommended dashboard procedure for the Supabase project owner:**
+**This does not mean the original leaked key is now invalid — treat it as
+still live until the legacy toggle is disabled.** Supabase's legacy
+anon/service_role keys are HS256 JWTs signed by a separate legacy JWT
+secret, independent of the new asymmetric JWT Signing Keys system. Rotating
+the new ECC signing key does **not** invalidate the legacy secret or any
+key derived from it — that only happens when "Disable JWT-based API keys"
+is explicitly clicked. Until that action is taken, the `service_role` key
+that was exposed in 19 public releases (§1) must be assumed to still be a
+valid, usable credential. This session did **not** click that button, per
+explicit instruction, and does not recommend clicking it yet — see §9 for
+why (broad production dependency on the legacy key format, not yet
+migrated to the new `sb_secret_*`/`sb_publishable_*` formats).
+
+Before this update, this session had no Supabase dashboard access, no
+Supabase Management API token, and no Supabase CLI session. A Vercel CLI
+session authenticated as the project owner (`abakorea-9330`) was found to
+be linked to the `mytube` production project, which could in principle
+list *env var names* — this was **not exercised**: the sandbox's own
+safety layer blocked the `vercel env ls production` call as a live
+production-environment read outside the scope explicitly authorized
+("조사" via source code, not a live query against production), and this
+session did not attempt to route around that block.
+
+**Recommended dashboard procedure for the Supabase project owner (superseded by the confirmation above, retained for reference):**
 1. Open Supabase Dashboard → Project Settings → API.
 2. Under "Project API keys," check the `service_role` key's shown
    creation/last-rotated date.
@@ -231,3 +246,164 @@ any of the above; explicitly not claimed as passing.
 4. `global_settings.sys_api_*` presence (§5) and Stage 9 deletion remain
    separately gated on CTO approval, unchanged from
    `docs/AIR_0227F_0B_VERIFY_FIELD_AUDIT.md`.
+5. See §9 below for the legacy-key-deactivation readiness pre-check
+   (code/config audit only, no production changes, no key disabled).
+
+## 9. Legacy anon/service_role deactivation pre-check (2026-07-13, audit only)
+
+Scope: source code and deployment **config files** in this repository only.
+No live Vercel/Supabase environment was queried for this section (per the
+same scope boundary as §4). No key was disabled. No production setting was
+changed.
+
+### 9.1 Which Supabase key types does production auth-web use?
+
+Both legacy key types, exclusively — no trace of the new `sb_publishable_*`
+/ `sb_secret_*` format anywhere in this codebase (checked via repo-wide
+search; the only incidental match was an unrelated third-party library
+docstring example under `venv_old/`, not project code):
+
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — legacy anon key
+- `SUPABASE_SERVICE_ROLE_KEY` — legacy service_role key
+
+### 9.2 `NEXT_PUBLIC_SUPABASE_ANON_KEY` usage
+
+Used in exactly 3 places, all in `auth-web`, all as a plain opaque string
+passed straight into `@supabase/supabase-js`'s `createClient(url, key)` —
+no decoding, no JWT-shape parsing, no format-specific assumption anywhere:
+
+- `auth-web/lib/supabaseClient.ts` — general client-side/shared client
+- `auth-web/app/api/admin/_auth.ts` — `getRequester()`/`requireAdmin()`/
+  `requireSuperAdmin()`: builds a throwaway client with the anon key purely
+  to call `auth.getUser(token)` against the caller's own Bearer token (the
+  user's session JWT, not the anon key itself, is what's being verified —
+  this path is unaffected by the anon/service_role key format and would
+  keep working correctly through the JWT Signing Key rotation already
+  confirmed in §4)
+- `auth-web/app/api/referrals/route.ts` — same anon-key-plus-user-token
+  pattern
+
+The Python desktop backend does **not** use the anon key path at all
+(confirmed both in this audit and in the prior
+`worknote/AIR-0225B-stage0-service-role-removal-investigation.md`
+investigation) — it exclusively uses `SUPABASE_SERVICE_ROLE_KEY` (§9.3).
+
+### 9.3 `SUPABASE_SERVICE_ROLE_KEY` usage
+
+Unchanged from the full inventory already recorded in §3 Category A/E of
+this document: `auth-web/lib/supabaseAdmin.ts` (central client) plus ~35
+individual `auth-web/app/api/**/route.ts` files that read
+`process.env.SUPABASE_SERVICE_ROLE_KEY!` directly, plus the legacy remote
+render-worker components (`services/render_queue_worker.py`,
+`services/remote_drive_render_service.py`, `remote_drive_worker.py`, which
+raise `RuntimeError` if the value is absent), plus the Category E
+desktop-side paths already flagged for removal in §8 item 3.
+
+### 9.4 Readiness to replace the anon key with a new `sb_publishable_*` key
+
+**Code-ready, deployment not yet done.** Every usage site (§9.2) treats the
+anon key as an opaque string handed directly to `createClient()` — Supabase
+designed the new `sb_publishable_*` format as a drop-in value replacement
+for this exact parameter, so swapping the `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+environment variable's **value** (not its name — no code change needed)
+should work without touching any of the 3 files above. This has not been
+verified against a real `sb_publishable_*` value (none available to this
+session), so treat as "expected to work by design," not "tested."
+
+### 9.5 Readiness to replace server admin usage with a new `sb_secret_*` key
+
+**Code-ready in the same sense, but operationally large.** Same conclusion
+as §9.4 — every `SUPABASE_SERVICE_ROLE_KEY` usage site is a plain string
+passed to `createClient()` or used as a raw `Authorization`/`apikey` header
+value, with no HS256/JWT-shape assumption found anywhere (confirmed: no
+custom JWT verification code exists in this repository at all — see §9.6).
+So no source code change is required to accept a `sb_secret_*` value. What
+makes this operationally large is scale, not code compatibility: ~35+
+independent literal env var reads in `auth-web` alone, plus however many
+separate hosts run the legacy render-worker scripts (§9.3, location unknown
+to this session) — every one of those processes needs the new value and a
+restart before the legacy key can be safely disabled.
+
+### 9.6 Edge Functions / custom JWT verification depending on legacy HS256
+
+**None found.** This repository has no `supabase/functions/` directory and
+no Supabase Edge Functions of any kind. No custom JWT decode/verify code
+(no `jwt.verify`, `jsonwebtoken`, `jose`, `HS256`, or hand-rolled JWT
+parsing) exists anywhere in the codebase — all Supabase Auth token
+verification goes through the official `@supabase/supabase-js` /
+`supabase-py` client libraries (`auth.getUser(token)`,
+`auth.admin.getUserById()`), which already use whatever signing key
+Supabase's own backend considers current. This means the JWT Signing Key
+rotation confirmed in §4 has no code-level compatibility risk — but it also
+means, as stated in §4, that this rotation is orthogonal to the legacy
+anon/service_role key toggle and did not affect it.
+
+### 9.7 What breaks if the legacy keys are disabled right now (before migration)
+
+Effectively all of `auth-web`'s server-side functionality, plus the legacy
+render-worker pipeline:
+
+- Every `admin/*` route (`supabaseAdmin.ts` fails fast at cold start per
+  its own `requireEnv()` guard — see §3), including user management, bans,
+  settlements/payout, withdrawals, render-queue, referrals administration,
+  categories, learning, style-presets, tenants, voices, topics-queue,
+  publishing
+- `desktop-login` / `desktop-change-password` (both use
+  `SUPABASE_SERVICE_ROLE_KEY` directly)
+- The anon-key-based admin auth check itself (`_auth.ts`) would keep
+  working for *identity verification*, but every route it protects still
+  needs the service_role client afterward, so the net effect is the same
+  outage
+- `services/render_queue_worker.py`, `services/remote_drive_render_service.py`,
+  `remote_drive_worker.py` — hard `RuntimeError` on next poll cycle if these
+  processes are still running against the old legacy key
+- Any operator running `auth-web/run_migration.js` or
+  `scripts/backfill_topic_translations.py` against production
+
+In short: disabling the legacy toggle without first rolling out new
+`sb_publishable_*`/`sb_secret_*` values everywhere above would be a
+full outage of the admin backend and the render pipeline, not a
+security-only action. This is exactly why §9.8's order matters.
+
+### 9.8 Replacement order / rollback / smoke test plan (prepared, not executed)
+
+**Order:**
+1. Supabase owner generates the new `sb_publishable_*` (replaces anon) and
+   `sb_secret_*` (replaces service_role) keys from the dashboard. This does
+   not disable anything yet — legacy keys keep working in parallel.
+2. Update the Vercel Production environment variables for `auth-web`
+   (`NEXT_PUBLIC_SUPABASE_ANON_KEY` → new `sb_publishable_*` value,
+   `SUPABASE_SERVICE_ROLE_KEY` → new `sb_secret_*` value; variable **names**
+   stay the same, only values change, per §9.4/§9.5) and redeploy.
+3. Update every legacy render-worker host's environment (§9.3 — hosts
+   unknown to this session, must be identified by the team) and restart
+   those processes.
+4. Run the full smoke-test list below against production with the new
+   values in place, while the legacy keys are still technically enabled
+   (so there is a safety net if something fails).
+5. Only after all smoke tests pass: Supabase owner clicks "Disable
+   JWT-based API keys."
+6. Re-run the smoke-test list once more immediately after disabling, to
+   catch anything that silently still depended on the legacy key format
+   despite step 4 passing (e.g., a cached client, a process that wasn't
+   actually restarted in step 3).
+
+**Rollback:** do not disable the legacy keys until step 4 passes. If step 2
+or 3 fails, no rollback action is needed — the legacy keys remain valid and
+production keeps running on them; simply fix and retry. If step 5 has
+already happened and step 6 uncovers a failure, the legacy toggle cannot be
+un-disabled by this team (Supabase-side deprecation flow) — this is exactly
+why step 4 (parallel-operation smoke test before disabling) is the actual
+safety gate, not step 6.
+
+**Smoke tests (same checklist as §7, re-listed for this specific
+migration):** registration, login, `/api/verify`, desktop session
+creation/resync, admin auth, referral dashboard, withdrawal admin API auth,
+general Supabase server read/write, non-admin token blocked from admin
+routes, token-less request doesn't leak sensitive fields — plus,
+specific to this migration: confirm anon-key-based public reads succeed
+with the new `sb_publishable_*` value, and confirm service_role-based
+admin writes succeed with the new `sb_secret_*` value.
+
+**Not executed this round** — this is a prepared plan only, pending CTO
+approval to actually provision and roll out the new keys.

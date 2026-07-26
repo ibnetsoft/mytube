@@ -1,6 +1,6 @@
 # ChatGPT Plus 구독 인증 뱃지 시스템 — 기능 명세 (SPEC)
 
-- 상태: **Stage 1 적용 완료 (2026-07-15)** — `migrations/air_0228_chatgpt_plus_verification_stage1*.sql` 프로덕션 반영 확인됨(테이블 3개 생성+빈 상태 확인, Private Storage 버킷 확인). Stage 2(auth-web API + Gemini 분석)부터는 아직 미착수.
+- 상태: **Stage 1~4 구현 완료.** Stage 1(2026-07-15): `migrations/air_0228_chatgpt_plus_verification_stage1*.sql` 프로덕션 반영 확인됨(테이블 3개 생성+빈 상태 확인, Private Storage 버킷 확인). Stage 2~4(커밋 `b32cad77`): auth-web 사용자 API(`lib/subscriptionVerification.ts` Gemini Vision 분석/규칙 점수, `lib/uploadValidation.ts` 매직바이트 MIME 검사) + 데스크톱 앱 업로드 UI(`settings.html`/`settings_page.js`/`app/routers/settings.py` 프록시) + 웹어드민 승인/반려 화면(`app/admin/subscription-verifications`) 코드 구현 완료. 단, 검증은 `npx tsc --noEmit`/Python ast/Jinja2 파싱 등 **정적 검증까지만** — Gemini Vision 실호출, 실제 파일 업로드/Storage 라운드트립, 관리자 승인/반려 클릭까지 가는 라이브 테스트는 아직 없음. Stage 5(만료 배치)·Stage 6(QA 전체 시나리오+기능 플래그 해제)는 미착수.
 - 관련 문서: [SECURITY](./CHATGPT_PLUS_VERIFICATION_SECURITY.md), [QA](./CHATGPT_PLUS_VERIFICATION_QA.md)
 - 작성 근거: 저장소 조사 결과 (아래 각 절에 실제 파일 경로 인용)
 

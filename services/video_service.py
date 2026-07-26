@@ -3621,6 +3621,7 @@ class VideoService:
         else:
              vf_filter = f"scale={width}:{scaled_h}"
 
+        cmd = [ffmpeg_exe, "-y"]
         if is_video:
             if should_stretch:
                  cmd.extend(["-i", input_path])

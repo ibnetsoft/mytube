@@ -149,7 +149,8 @@
         desc_placeholder: "{{ t('desc_placeholder') }}",
         tag_placeholder: "{{ t('tag_placeholder') }}",
         hashtag_placeholder: "{{ t('hashtag_placeholder') }}",
-        prompt_only_json: "{{ t('prompt_only_json') }}"
+        prompt_only_json: "{{ t('prompt_only_json') }}",
+        err_prefix: "{{ t('err_prefix') }}"
     };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -373,7 +374,13 @@ ${i18n.prompt_only_json}.`;
                     showResultSection();
                     await saveMetadata();
                     Utils.showToast("{{ t('status_done') }}", 'success');
+                } else {
+                    Utils.showToast(i18n.err_prefix + "{{ t('status_error') }}", 'error', 8000);
+                    console.error('generateMeta: no JSON found in response', result.text);
                 }
+            } else {
+                Utils.showToast(i18n.err_prefix + (result.error || "{{ t('status_error') }}"), 'error', 8000);
+                console.error('generateMeta failed:', result.error);
             }
         } catch (error) {
             Utils.showToast("{{ t('status_error') }}", 'error');
