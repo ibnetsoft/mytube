@@ -132,6 +132,14 @@ class ProjectMusicStatusTest(unittest.TestCase):
             def fetchall(self):
                 return fake_rows
 
+            def fetchone(self):
+                # get_projects_with_status() cross-checks the legacy per-row
+                # "description" column against mode-scoped project_settings
+                # metadata (see database.get_project_metadata); simulate "no
+                # project_settings/legacy metadata row" so it falls back to
+                # the legacy description already present in fake_rows.
+                return None
+
         class FakeConn:
             def __init__(self):
                 self.row_factory = None
@@ -184,11 +192,20 @@ class ProjectMusicStatusTest(unittest.TestCase):
 
         class FakeCursor:
             def execute(self, query, params=()):
-                executed["query"] = query
-                executed["params"] = params
+                # Only capture the first (main list) query - get_projects_with_status()
+                # also fires a follow-up get_project_metadata() lookup per row for the
+                # mode-scoped description fallback, which must not clobber this capture.
+                if "query" not in executed:
+                    executed["query"] = query
+                    executed["params"] = params
 
             def fetchall(self):
                 return fake_rows
+
+            def fetchone(self):
+                # See _fake_projects_status: needed for the get_project_metadata()
+                # fallback lookup that get_projects_with_status() now performs.
+                return None
 
         class FakeConn:
             def __init__(self):

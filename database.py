@@ -1803,6 +1803,13 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "remote_packaging", "remote_queued", "rendering", "rendered", "completed"
         } or bool(r.get("video_path")) or bool(r.get("external_video_path"))
         has_subtitle = bool(r.get("subtitle_path"))   # 자막 페이지에서 저장을 눌러야 켜짐
+        # [FIX] m.description (legacy `metadata` table, joined above) is no longer written by
+        # the current title-desc save flow, which stores mode-scoped JSON in
+        # project_settings.metadata_{app_mode} instead (see get_project_metadata()). Relying on
+        # the legacy column alone left "desc"/"music_desc" stuck false (and blocked submit)
+        # even after the description was saved and the header progress bar showed it complete.
+        mode_scoped_metadata = get_project_metadata(r["id"], r.get("app_mode")) or {}
+        has_description = bool(r["description"]) or bool(mode_scoped_metadata.get("description"))
         progress = { # Detailed progress
             "plan": bool(r["has_structure"]),     # 대본 기획
             "script": bool(r["has_script"]),      # 대본 생성
@@ -1813,13 +1820,13 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
             "thumbnail": int(r["thumbnail_count"] or 0) > 0,# 썸네일
             "upload": bool(r["is_uploaded"]),     # 업로드
             "publish": bool(r.get("is_published", 0)), # 발행
-            "desc": bool(r["description"]),       # 설명
+            "desc": has_description,       # 설명
             "music_plan": bool(r.get("has_music_plan")),
             "music_cover": has_cover,
             "music_tracks": has_tracks,
             "music_thumbnail": has_thumbnail,
             "music_render": has_render,
-            "music_desc": bool(r["description"]),
+            "music_desc": has_description,
             "music_publish": has_publish_state,
         }
         if is_music_mode:

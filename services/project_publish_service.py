@@ -268,7 +268,13 @@ def check_project_submit_readiness(project_id: int) -> Dict[str, Any]:
     script = db.get_script(project_id)
     tts = db.get_tts(project_id)
     thumbnails = db.get_thumbnails(project_id)
-    metadata = db.get_metadata(project_id)
+    # [FIX] get_metadata() only reads the legacy `metadata` table, but the
+    # current title-desc save flow (POST /api/projects/{id}/metadata) writes
+    # into project_settings.metadata_{app_mode} instead. Using the legacy-only
+    # reader here made this check report "description missing" for every
+    # project saved through the current UI, even though the header progress
+    # bar (which already reads mode-scoped metadata) showed it as complete.
+    metadata = db.get_project_metadata(project_id, project_mode)
 
     missing_scene_numbers = []
     if project_mode == "longform":
