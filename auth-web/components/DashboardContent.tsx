@@ -1812,6 +1812,21 @@ export default function DashboardContent() {
         }
     }, [activeTab]);
 
+    // "실시간 전체 주제 대기열 큐" 탭은 지금까지 최초 진입 시 1회만 fetch되고
+    // 이후로는 수동 새로고침 전까지 갱신되지 않아 실제로는 실시간이 아니었다.
+    // 데스크톱 앱이 백그라운드에서 progress_payload를 주기적으로 sync하므로
+    // 탭이 열려 있는 동안은 폴링으로 최신 상태를 반영한다.
+    const fetchTopicsRef = useRef(fetchTopics);
+    fetchTopicsRef.current = fetchTopics;
+
+    useEffect(() => {
+        if (activeTab === 'topics') {
+            fetchTopicsRef.current();
+            const interval = setInterval(() => fetchTopicsRef.current(), 10000);
+            return () => clearInterval(interval);
+        }
+    }, [activeTab]);
+
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) router.push('/');
@@ -2795,9 +2810,18 @@ export default function DashboardContent() {
                                         .filter(Boolean)
                                 )
                             ).sort((a, b) => a.localeCompare(b, 'en'));
-                            const filteredTopics = topicQueueEmployeeFilter === 'all'
+                            // 작업중인 프로젝트일수록 progress_payload가 최근에 sync되므로, 그 시각(없으면
+                            // 배정/생성 시각)을 기준으로 최신순 정렬 - 오래전에 생성됐지만 지금 활발히
+                            // 작업 중인 프로젝트가 유저 화면 상단에 오도록 함 (created_at 순서만 쓰면 묻힘).
+                            const topicRecencyTs = (item: any) => {
+                                const raw = item?.progress_updated_at || item?.assigned_at || item?.created_at;
+                                const ts = raw ? new Date(raw).getTime() : 0;
+                                return Number.isFinite(ts) ? ts : 0;
+                            };
+                            const filteredTopics = (topicQueueEmployeeFilter === 'all'
                                 ? statusFilteredTopics
-                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').toLowerCase().trim() === topicQueueEmployeeFilter);
+                                : statusFilteredTopics.filter(item => String(getTopicAssignee(item) || '').toLowerCase().trim() === topicQueueEmployeeFilter)
+                            ).slice().sort((a, b) => topicRecencyTs(b) - topicRecencyTs(a));
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);

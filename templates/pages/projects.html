@@ -211,6 +211,7 @@
         err_action_failed_suffix: "{{ t('err_action_failed_suffix') }}",
         err_generic_msg: "{{ t('err_generic_msg') }}",
         title_submit_to_drive: "{{ t('title_submit_to_drive') }}",
+        title_submit_done: "{{ t('title_submit_done') }}",
         toast_submit_queued: "{{ t('toast_submit_queued') }}",
         sort_newest: "{{ t('sort_newest') }}",
         sort_oldest: "{{ t('sort_oldest') }}",
@@ -479,8 +480,14 @@
                 <td class="px-1 py-2 text-center whitespace-nowrap relative">
                     ${isIndependent ? checkLink(s.upload, 'upload', p.id) : `
                     <button onclick="event.stopPropagation(); submitProjectToDrive('${p.id}', this)"
-                        class="flex items-center justify-center w-6 h-6 mx-auto rounded-full text-blue-300 hover:text-blue-200 hover:bg-blue-500/10 transition"
-                        title="${i18n.title_submit_to_drive}">
+                        class="flex items-center justify-center w-6 h-6 mx-auto rounded-full transition ${
+                            s.video
+                                ? 'text-green-500 hover:text-green-600 scale-110'
+                                : p.status === 'failed'
+                                    ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                                    : 'text-blue-300 hover:text-blue-200 hover:bg-blue-500/10'
+                        }"
+                        title="${s.video ? i18n.title_submit_done : i18n.title_submit_to_drive}">
                         <span class="text-base">⏎</span>
                     </button>
                     `}

@@ -282,10 +282,18 @@ def check_project_submit_readiness(project_id: int) -> Dict[str, Any]:
             (img.get("image_url") or img.get("video_url")) for img in images
         )
 
+    # [FIX] bool(tts) only proved a tts_audio DB row exists, not that its
+    # audio_path file is still on disk - a project could pass this check
+    # with a stale/deleted path, then silently ship without audio through
+    # package_project_assets() (which only soft-skips missing audio) and
+    # fail 10+ minutes later on the remote worker with
+    # "TTS audio file was not found."
+    voice_ok = bool(tts) and bool(tts.get("audio_path")) and os.path.exists(tts.get("audio_path"))
+
     checks = {
         "scenes": scenes_ok,
         "script": bool(script),
-        "voice": bool(tts),
+        "voice": voice_ok,
         "subtitles": bool(settings.get("subtitle_path")) or bool(tts and settings.get("subtitle_style_enum")),
         "thumbnail": bool(thumbnails),
         "title": bool(settings.get("title")),
