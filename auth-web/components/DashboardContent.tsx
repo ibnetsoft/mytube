@@ -186,7 +186,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements' | 'error-logs'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'topics-queue' | 'overview' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements' | 'error-logs'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -346,6 +346,7 @@ export default function DashboardContent() {
             return {
                 adminDashboard: t('admin.title'),
                 topics: 'จัดการคิวหัวข้อ',
+                topicsQueue: 'คิวหัวข้อทั้งหมด',
                 overview: 'ภาพรวม',
                 users: 'จัดการผู้ใช้',
                 organization: 'จัดการองค์กร',
@@ -370,6 +371,7 @@ export default function DashboardContent() {
         return {
             adminDashboard: t('admin.title'),
             topics: '주제 큐 관리',
+            topicsQueue: '주제대기열',
             overview: '현황 요약',
             users: '유저 관리',
             organization: '조직 관리',
@@ -1820,7 +1822,7 @@ export default function DashboardContent() {
     fetchTopicsRef.current = fetchTopics;
 
     useEffect(() => {
-        if (activeTab === 'topics') {
+        if (activeTab === 'topics' || activeTab === 'topics-queue') {
             fetchTopicsRef.current();
             const interval = setInterval(() => fetchTopicsRef.current(), 10000);
             return () => clearInterval(interval);
@@ -2319,11 +2321,12 @@ export default function DashboardContent() {
                     <div className="flex flex-wrap gap-1 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
                             { id: 'topics', label: ui.topics, superOnly: false },
+                            { id: 'topics-queue', label: ui.topicsQueue, superOnly: false },
+                            { id: 'render-queue', label: ui.renderQueue, superOnly: true },
                             { id: 'overview', label: ui.overview, superOnly: false },
                             { id: 'users', label: ui.users, superOnly: false },
                             { id: 'withdrawals', label: ui.withdrawals, superOnly: false },
                             { id: 'api', label: ui.api, superOnly: true },
-                            { id: 'render-queue', label: ui.renderQueue, superOnly: true },
                             { id: 'learning', label: ui.learning, superOnly: true },
                             { id: 'styles', label: ui.styles, superOnly: true },
                             { id: 'tenants', label: '테넌트', superOnly: true },
@@ -2773,7 +2776,11 @@ export default function DashboardContent() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                )}
 
+                {activeTab === 'topics-queue' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
                         {/* 3. 전체 주제 대기열 및 모니터링 */}
                         {(() => {
                             const getTopicAssignee = (item: any) => item.assigned_employee_email;
