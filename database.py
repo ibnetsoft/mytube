@@ -3378,7 +3378,6 @@ def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
     structure_row = _one("SELECT * FROM script_structure WHERE project_id = ?", pid)
     script_row    = _one("SELECT * FROM scripts WHERE project_id = ?", pid)
     tts_row       = _one("SELECT * FROM tts_audio WHERE project_id = ?", pid)
-    meta_row      = _one("SELECT * FROM metadata WHERE project_id = ?", pid)
     image_rows    = _many("SELECT * FROM image_prompts WHERE project_id = ? ORDER BY scene_number", pid)
     thumb_rows    = _many("SELECT * FROM thumbnails WHERE project_id = ? ORDER BY id DESC", pid)
     shorts_rows   = _many("SELECT * FROM shorts WHERE project_id = ? ORDER BY id DESC", pid)
@@ -3393,20 +3392,9 @@ def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
         except Exception:
             pass
 
-    # metadata JSON 파싱
-    if meta_row:
-        try:
-            meta_row['titles'] = json.loads(meta_row['titles']) if meta_row.get('titles') else []
-        except Exception:
-            meta_row['titles'] = []
-        try:
-            meta_row['tags'] = json.loads(meta_row['tags']) if meta_row.get('tags') else []
-        except Exception:
-            meta_row['tags'] = []
-        try:
-            meta_row['hashtags'] = json.loads(meta_row['hashtags']) if meta_row.get('hashtags') else []
-        except Exception:
-            meta_row['hashtags'] = []
+    # 메타데이터: app_mode별로 분리 저장되므로 project_settings 기반의 mode-scoped 조회를 사용
+    # (레거시 metadata 테이블을 직접 읽으면 generateMeta()가 저장한 모드별 데이터를 못 찾음)
+    meta_row = get_project_metadata(project_id, (settings_row or {}).get('app_mode'))
 
 
     # script_structure sections JSON 파싱 + wrapper 포맷
