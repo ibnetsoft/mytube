@@ -167,6 +167,7 @@ async def script_generate(req: GeminiRequest):
         return {"status": "error", "error": "AI 토큰이 부족합니다."}
 
     try:
+        config.refresh_remote_keys_if_stale()
         selected_model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
 
         prompt = req.prompt

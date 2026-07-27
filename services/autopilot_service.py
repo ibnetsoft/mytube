@@ -776,6 +776,9 @@ Return JSON only:
             }
 
     async def _generate_script(self, project_id: int, analysis: dict, config_dict: dict):
+        # 웹어드민에서 방금 바꾼 대본 생성 모델/스타일이 앱 재시작 없이도
+        # 반영되도록 매 생성 직전에 (60초 쓰로틀로) 최신 설정을 다시 가져온다.
+        config.refresh_remote_keys_if_stale()
         style_key = config_dict.get("script_style", "default")
         topic_name = (db.get_project(project_id) or {}).get("topic") or config_dict.get("keyword") or "유튜브 콘텐츠"
         

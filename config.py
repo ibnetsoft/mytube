@@ -210,6 +210,24 @@ class Config:
             print(f"[Config] Supabase API key load failed: {e}")
             return []
 
+    _last_remote_refresh_ts = 0.0
+    _REMOTE_REFRESH_INTERVAL_SEC = 60
+
+    @classmethod
+    def refresh_remote_keys_if_stale(cls):
+        """load_remote_keys_from_supabase()는 지금까지 앱 시작 시 딱 한 번만
+        호출됐다 - 즉 웹어드민에서 '대본 생성 모델'을 Claude Sonnet으로 바꿔도
+        앱을 재시작하기 전까지는 반영되지 않고 계속 이전 모델(사실상 하드코딩된
+        것처럼 보이는)로 생성이 진행됐다. 실제 대본 생성 직전에 이 메서드를
+        호출해 매번 네트워크 조회를 하지 않으면서도(60초 쓰로틀) 설정 변경이
+        재시작 없이 곧 반영되도록 한다."""
+        import time
+        now = time.time()
+        if now - cls._last_remote_refresh_ts < cls._REMOTE_REFRESH_INTERVAL_SEC:
+            return
+        cls._last_remote_refresh_ts = now
+        cls.load_remote_keys_from_supabase()
+
     @classmethod
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""

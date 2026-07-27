@@ -30,6 +30,7 @@ DB에서 레거시 키 자체를 삭제하지는 않는다 (docs/script_style_ca
 
 import datetime
 import threading
+import time
 from typing import Optional
 
 import database as db
@@ -65,6 +66,51 @@ _BUILTIN_DEFAULT_DIRECTIVE = (
 
 _log_lock = threading.Lock()
 _last_logged_key = None  # 동일 스타일 반복 로그(섹션별 다회 호출) 억제용
+
+_sync_lock = threading.Lock()
+_last_sync_ts = 0.0
+_SYNC_INTERVAL_SEC = 60  # 웹어드민(auth-web) 편집이 앱 재시작 없이도 반영되도록 주기적 재동기화
+
+
+def _sync_from_web_admin() -> None:
+    """auth-web '스타일 세팅 > 대본 스타일' 탭이 쓰는 Supabase style_presets
+    (preset_type=script)를 로컬 SQLite script_style_presets로 끌어온다.
+
+    두 저장소가 분리돼 있던 게 근본 문제였다: 웹어드민에서 대본 스타일을
+    수정/저장해도 실제 생성기는 그 값을 전혀 읽지 않는 로컬 전용 테이블만
+    바라보고 있었다. resolve_script_style_directive() 호출마다 매번 네트워크
+    조회를 하면 대본 한 편에 섹션별로 수십 번 불릴 수 있어 느려지므로, 60초
+    쓰로틀로 캐시 성격의 동기화만 수행한다. 실패해도 스타일 해석 자체는
+    로컬에 이미 있는 값(또는 내장 기본값)으로 계속 진행된다 - 이 동기화는
+    최선 노력(best-effort)이지 필수 경로가 아니다.
+    """
+    global _last_sync_ts
+    now = time.time()
+    with _sync_lock:
+        if now - _last_sync_ts < _SYNC_INTERVAL_SEC:
+            return
+        _last_sync_ts = now
+
+    try:
+        from services.web_admin_client import web_admin_client
+        remote_presets = web_admin_client.fetch_script_style_presets()
+    except Exception as e:
+        _write_log_line(f"[ScriptStyleResolver] web admin sync fetch failed: {e}")
+        return
+
+    for item in remote_presets or []:
+        key = str((item or {}).get("key_code") or "").strip().lower()
+        if not key:
+            continue
+        try:
+            db.save_script_style_preset(
+                key,
+                (item.get("prompt_template") or "").strip(),
+                display_name_ko=item.get("display_name_ko"),
+                display_name_vi=item.get("display_name_vi"),
+            )
+        except Exception as e:
+            _write_log_line(f"[ScriptStyleResolver] web admin sync save failed for '{key}': {e}")
 
 
 def _write_log_line(line: str) -> None:
@@ -126,6 +172,7 @@ def resolve_script_style_directive(script_style: Optional[str]) -> str:
         if directive:
             prompt += f"\\n\\n{directive}"
     """
+    _sync_from_web_admin()
     requested = (script_style or "").strip().lower()
     canonical = _ALIAS_MAP.get(requested, requested)
 

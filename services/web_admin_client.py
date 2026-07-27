@@ -674,6 +674,28 @@ class WebAdminClient:
             return {}
         return self.translate_global_settings_rows(response.json())
 
+    def fetch_script_style_presets(self) -> List[Dict[str, Any]]:
+        """웹어드민(auth-web) '스타일 세팅 > 대본 스타일' 탭이 관리하는 Supabase
+        style_presets(preset_type=script) 행을 가져온다. 이걸 로컬 SQLite
+        script_style_presets로 동기화해야 실제 대본 생성기가 반영한다 -
+        services/script_style_resolver.py 참고."""
+        response = self.supabase_get(
+            "style_presets",
+            params={
+                "select": "key_code,display_name_ko,display_name_vi,prompt_template",
+                "preset_type": "eq.script",
+            },
+            timeout=8,
+        )
+        if response is None or response.status_code != 200:
+            if response is not None:
+                print(f"[WebAdmin] script style presets load failed: HTTP {response.status_code} {response.text[:200]}")
+            return []
+        try:
+            return response.json() or []
+        except Exception:
+            return []
+
     def fetch_music_plan_templates(self) -> List[Dict[str, Any]]:
         response = self.supabase_get(
             "style_presets",
