@@ -191,6 +191,7 @@ export default function DashboardContent() {
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
     const [queueLoading, setQueueLoading] = useState(false)
+    const [uploadingQueueId, setUploadingQueueId] = useState<string | null>(null)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
 
     // 카테고리 & AI 주제 자판기 상태
@@ -1305,6 +1306,33 @@ export default function DashboardContent() {
             }
         } catch (e) {
             alert('오류 발생');
+        }
+    };
+
+    const handleUploadQueueTaskToChannel = async (task: any) => {
+        const channelName = task?.metadata?.channel_name;
+        if (!channelName) {
+            alert('이 주제의 카테고리에 업로드 채널이 먼저 배정되어야 합니다.');
+            return;
+        }
+        if (!confirm(`이 영상을 "${channelName}" 채널에 비공개로 업로드하시겠습니까? 업로드 후 직접 확인하고 별도로 공개 전환할 수 있습니다.`)) return;
+        setUploadingQueueId(String(task.id));
+        try {
+            const res = await adminFetch('/api/admin/render-queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: task.id })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('업로드 요청 완료! 잠시 후 비공개로 유튜브에 올라갑니다.');
+            } else {
+                alert('업로드 요청 실패: ' + (data.error || '오류'));
+            }
+        } catch (e) {
+            alert('오류 발생');
+        } finally {
+            setUploadingQueueId(null);
         }
     };
 
@@ -4283,6 +4311,7 @@ export default function DashboardContent() {
                                                 <th className="px-4 py-4">생성일</th>
                                                 <th className="px-4 py-4">사용자</th>
                                                 <th className="px-4 py-4">프로젝트</th>
+                                                <th className="px-4 py-4">채널</th>
                                                 <th className="px-4 py-4">진행 상태</th>
                                                 <th className="px-4 py-4 text-center">진행률</th>
                                                 <th className="px-4 py-4">메시지</th>
@@ -4346,6 +4375,13 @@ export default function DashboardContent() {
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap">
+                                                        {meta.channel_name ? (
+                                                            <span className="text-white font-bold">{meta.channel_name}</span>
+                                                        ) : (
+                                                            <span className="text-gray-500 font-bold">미배정</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap">
                                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
                                                             task.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
                                                             task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse' :
@@ -4395,7 +4431,28 @@ export default function DashboardContent() {
                                                         {task.message || '-'}
                                                     </td>
                                                     <td className="px-4 py-4 text-center whitespace-nowrap">
-                                                        <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            {task.status === 'completed' && task.result_view_link && (
+                                                                <a
+                                                                    href={task.result_view_link}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg border border-blue-500/20 hover:border-blue-600 transition-all font-black text-[10px]"
+                                                                >
+                                                                    보기
+                                                                </a>
+                                                            )}
+                                                            {task.status === 'completed' && task.result_file_id && (
+                                                                <button
+                                                                    onClick={() => handleUploadQueueTaskToChannel(task)}
+                                                                    disabled={uploadingQueueId === String(task.id)}
+                                                                    className="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg border border-emerald-500/20 hover:border-emerald-600 transition-all font-black text-[10px] disabled:opacity-50"
+                                                                >
+                                                                    {uploadingQueueId === String(task.id) ? '요청 중...' : '업로드'}
+                                                                </button>
+                                                            )}
+                                                            <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                 )
