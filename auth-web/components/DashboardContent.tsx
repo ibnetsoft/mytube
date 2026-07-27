@@ -3046,38 +3046,22 @@ export default function DashboardContent() {
                                                                 { key: 'desc', label: '설명' },
                                                             ];
                                                             const stepMap = item.progress_payload?.steps || {};
-                                                            const hasProgress = Object.keys(stepMap).length > 0;
                                                             const submittedStatuses = ['remote_packaging', 'remote_queued', 'rendering', 'rendered', 'completed'];
                                                             const isSubmitted = submittedStatuses.includes(String(item.progress_payload?.project_status || ''));
-                                                            if (!hasProgress) {
-                                                                return <span className="text-[10px] font-bold text-gray-500">수신 대기</span>;
-                                                            }
                                                             const allSteps = [...stepDefs, { key: '__submit', label: '제출' }];
-                                                            const nextStep = stepDefs.find(step => !stepMap[step.key]);
-                                                            const currentStepLabel = isSubmitted
-                                                                ? '제출 완료'
-                                                                : nextStep
-                                                                    ? `${nextStep.label} 작업 중`
-                                                                    : '제출 대기';
                                                             return (
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="flex items-center gap-1">
-                                                                        {allSteps.map(step => {
-                                                                            const done = step.key === '__submit' ? isSubmitted : !!stepMap[step.key];
-                                                                            return (
-                                                                                <span
-                                                                                    key={`${item.id}-progress-${step.key}`}
-                                                                                    title={step.label}
-                                                                                    className={`text-xs font-bold leading-none ${done ? 'text-green-500' : 'text-gray-600'}`}
-                                                                                >
-                                                                                    {done ? '●' : '○'}
+                                                                <div className="flex items-center gap-0.5 text-[10px] font-bold whitespace-nowrap">
+                                                                    {allSteps.map((step, idx) => {
+                                                                        const done = step.key === '__submit' ? isSubmitted : !!stepMap[step.key];
+                                                                        return (
+                                                                            <span key={`${item.id}-progress-${step.key}`}>
+                                                                                {idx > 0 && <span className="text-gray-700">-</span>}
+                                                                                <span className={done ? 'text-green-500' : 'text-gray-500'}>
+                                                                                    {step.label}
                                                                                 </span>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                    <span className="text-[10px] font-bold text-emerald-300 whitespace-nowrap">
-                                                                        {currentStepLabel}
-                                                                    </span>
+                                                                            </span>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             );
                                                         })()}
