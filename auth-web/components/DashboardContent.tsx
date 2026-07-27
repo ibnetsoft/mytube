@@ -193,6 +193,14 @@ export default function DashboardContent() {
     const [renderQueuePage, setRenderQueuePage] = useState(1)
     const [queueLoading, setQueueLoading] = useState(false)
     const [uploadingQueueId, setUploadingQueueId] = useState<string | null>(null)
+    const [thumbnailEditTask, setThumbnailEditTask] = useState<any>(null)
+    const [thumbnailPreviewFile, setThumbnailPreviewFile] = useState<{ url: string; file: File } | null>(null)
+    const [thumbnailUploading, setThumbnailUploading] = useState(false)
+    const [thumbnailCacheBust, setThumbnailCacheBust] = useState<Record<string, number>>({})
+    const [descriptionEditTask, setDescriptionEditTask] = useState<any>(null)
+    const [descriptionLoading, setDescriptionLoading] = useState(false)
+    const [descriptionSaving, setDescriptionSaving] = useState(false)
+    const [descriptionForm, setDescriptionForm] = useState({ title: '', description: '', tags: '' })
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
 
     // 카테고리 & AI 주제 자판기 상태
@@ -1371,6 +1379,106 @@ export default function DashboardContent() {
         return msg;
     };
 
+    const openThumbnailModal = (task: any) => {
+        setThumbnailPreviewFile(null);
+        setThumbnailEditTask(task);
+    };
+
+    const closeThumbnailModal = () => {
+        if (thumbnailPreviewFile) URL.revokeObjectURL(thumbnailPreviewFile.url);
+        setThumbnailPreviewFile(null);
+        setThumbnailEditTask(null);
+    };
+
+    const handleThumbnailFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (thumbnailPreviewFile) URL.revokeObjectURL(thumbnailPreviewFile.url);
+        setThumbnailPreviewFile({ url: URL.createObjectURL(file), file });
+    };
+
+    const handleThumbnailUpload = async () => {
+        if (!thumbnailEditTask || !thumbnailPreviewFile) return;
+        setThumbnailUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', thumbnailPreviewFile.file);
+            const res = await adminFetch(`/api/admin/render-queue/thumbnail?id=${thumbnailEditTask.id}`, {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await res.json();
+            if (data.success) {
+                setThumbnailCacheBust(prev => ({ ...prev, [thumbnailEditTask.id]: Date.now() }));
+                alert('썸네일이 교체되었습니다.');
+                closeThumbnailModal();
+                fetchRenderQueue();
+            } else {
+                alert('썸네일 업로드 실패: ' + (data.error || '오류'));
+            }
+        } catch (e) {
+            alert('오류 발생');
+        } finally {
+            setThumbnailUploading(false);
+        }
+    };
+
+    const openDescriptionModal = async (task: any) => {
+        setDescriptionEditTask(task);
+        setDescriptionForm({ title: '', description: '', tags: '' });
+        setDescriptionLoading(true);
+        try {
+            const res = await adminFetch(`/api/admin/render-queue/metadata?id=${task.id}`);
+            const data = await res.json();
+            if (data.success) {
+                setDescriptionForm({
+                    title: data.title || '',
+                    description: data.description || '',
+                    tags: Array.isArray(data.tags) ? data.tags.join(', ') : '',
+                });
+            } else {
+                alert('설명 정보를 불러오지 못했습니다: ' + (data.error || '오류'));
+            }
+        } catch (e) {
+            alert('오류 발생');
+        } finally {
+            setDescriptionLoading(false);
+        }
+    };
+
+    const closeDescriptionModal = () => {
+        setDescriptionEditTask(null);
+    };
+
+    const handleDescriptionSave = async () => {
+        if (!descriptionEditTask) return;
+        setDescriptionSaving(true);
+        try {
+            const tags = descriptionForm.tags.split(',').map(t => t.trim()).filter(Boolean);
+            const res = await adminFetch(`/api/admin/render-queue/metadata?id=${descriptionEditTask.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: descriptionForm.title,
+                    description: descriptionForm.description,
+                    tags,
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('저장되었습니다. 유튜브 업로드 시 이 내용이 반영됩니다.');
+                closeDescriptionModal();
+                fetchRenderQueue();
+            } else {
+                alert('저장 실패: ' + (data.error || '오류'));
+            }
+        } catch (e) {
+            alert('오류 발생');
+        } finally {
+            setDescriptionSaving(false);
+        }
+    };
+
     const renderRenderQueueTable = () => {
         const RENDER_QUEUE_PAGE_SIZE = 20;
         const visibleQueue = renderQueueFilter === 'intro_ready'
@@ -1423,6 +1531,8 @@ export default function DashboardContent() {
                                     <th className="px-4 py-4">진행 상태</th>
                                     <th className="px-4 py-4 text-center">진행률</th>
                                     <th className="px-4 py-4">메시지</th>
+                                    <th className="px-4 py-4 text-center">썸네일</th>
+                                    <th className="px-4 py-4">설명</th>
                                     <th className="px-4 py-4 text-center">작업 관리</th>
                                 </tr>
                             </thead>
@@ -1535,6 +1645,37 @@ export default function DashboardContent() {
                                         </td>
                                         <td className="px-4 py-4 max-w-[250px] truncate text-gray-400 italic" title={localizedMessage}>
                                             {localizedMessage}
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            {meta.result_thumbnail_file_id ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openThumbnailModal(task)}
+                                                    className="inline-block rounded-lg border border-white/10 overflow-hidden hover:border-blue-500/50 transition-all"
+                                                    title="클릭해서 크게 보기 / 교체"
+                                                >
+                                                    <img
+                                                        src={`https://drive.google.com/thumbnail?id=${meta.result_thumbnail_file_id}&sz=w160${thumbnailCacheBust[task.id] ? `&_ts=${thumbnailCacheBust[task.id]}` : ''}`}
+                                                        alt="썸네일"
+                                                        className="w-20 h-12 object-cover bg-black/40"
+                                                    />
+                                                </button>
+                                            ) : (
+                                                <span className="text-gray-600 text-[10px] font-bold">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            {(meta.result_metadata_file_id || meta.result_folder_id) ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openDescriptionModal(task)}
+                                                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg border border-white/10 transition-all font-black text-[10px]"
+                                                >
+                                                    보기 / 수정
+                                                </button>
+                                            ) : (
+                                                <span className="text-gray-600 text-[10px] font-bold">-</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-4 text-center whitespace-nowrap">
                                             <div className="flex items-center justify-center gap-1.5">
@@ -5351,7 +5492,112 @@ export default function DashboardContent() {
                     </div>
                 </div>
             )}
-            
+
+            {thumbnailEditTask && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={closeThumbnailModal}>
+                    <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">썸네일</div>
+                        <div className="text-white font-black text-lg mb-6 truncate">
+                            {thumbnailEditTask.metadata?.title || thumbnailEditTask.project_name}
+                        </div>
+
+                        <div className="w-full aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
+                            {thumbnailPreviewFile ? (
+                                <img src={thumbnailPreviewFile.url} alt="새 썸네일 미리보기" className="w-full h-full object-contain" />
+                            ) : thumbnailEditTask.metadata?.result_thumbnail_file_id ? (
+                                <img
+                                    src={`https://drive.google.com/thumbnail?id=${thumbnailEditTask.metadata.result_thumbnail_file_id}&sz=w800${thumbnailCacheBust[thumbnailEditTask.id] ? `&_ts=${thumbnailCacheBust[thumbnailEditTask.id]}` : ''}`}
+                                    alt="현재 썸네일"
+                                    className="w-full h-full object-contain"
+                                />
+                            ) : (
+                                <span className="text-gray-600 text-xs font-bold">썸네일 없음</span>
+                            )}
+                        </div>
+
+                        <label className="mt-4 block">
+                            <input type="file" accept="image/*" onChange={handleThumbnailFileSelect} className="hidden" id="thumbnail-replace-input" />
+                            <span
+                                onClick={() => document.getElementById('thumbnail-replace-input')?.click()}
+                                className="block w-full text-center py-3 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-[11px] font-black rounded-xl border border-dashed border-white/20 transition-all cursor-pointer"
+                            >
+                                {thumbnailPreviewFile ? thumbnailPreviewFile.file.name : '다른 이미지로 교체할 파일 선택'}
+                            </span>
+                        </label>
+
+                        <div className="flex gap-3 mt-4">
+                            <button
+                                type="button"
+                                disabled={!thumbnailPreviewFile || thumbnailUploading}
+                                onClick={handleThumbnailUpload}
+                                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[11px] font-black rounded-xl transition-all uppercase tracking-widest"
+                            >
+                                {thumbnailUploading ? '업로드 중...' : '이 이미지로 교체'}
+                            </button>
+                            <button type="button" onClick={closeThumbnailModal} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-black rounded-xl transition-all">닫기</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {descriptionEditTask && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={closeDescriptionModal}>
+                    <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">유튜브 업로드 설명</div>
+                        <div className="text-white font-black text-lg mb-6 truncate">
+                            {descriptionEditTask.metadata?.title || descriptionEditTask.project_name}
+                        </div>
+
+                        {descriptionLoading ? (
+                            <div className="text-center text-xs text-gray-500 py-10">불러오는 중...</div>
+                        ) : (
+                            <div className="space-y-4 text-xs">
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1.5 block">제목</label>
+                                    <input
+                                        type="text"
+                                        value={descriptionForm.title}
+                                        onChange={e => setDescriptionForm(prev => ({ ...prev, title: e.target.value }))}
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-200"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1.5 block">설명</label>
+                                    <textarea
+                                        value={descriptionForm.description}
+                                        onChange={e => setDescriptionForm(prev => ({ ...prev, description: e.target.value }))}
+                                        rows={8}
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-200 resize-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1.5 block">태그 (쉼표로 구분)</label>
+                                    <input
+                                        type="text"
+                                        value={descriptionForm.tags}
+                                        onChange={e => setDescriptionForm(prev => ({ ...prev, tags: e.target.value }))}
+                                        placeholder="예: 감동사연, 실화, 사연라디오"
+                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-200"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                type="button"
+                                disabled={descriptionLoading || descriptionSaving}
+                                onClick={handleDescriptionSave}
+                                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[11px] font-black rounded-xl transition-all uppercase tracking-widest"
+                            >
+                                {descriptionSaving ? '저장 중...' : '저장'}
+                            </button>
+                            <button type="button" onClick={closeDescriptionModal} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-400 text-[11px] font-black rounded-xl transition-all">닫기</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(55,130,246,0.3); border-radius: 10px; }
