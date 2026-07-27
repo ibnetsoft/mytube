@@ -468,7 +468,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             f_prog.write(json.dumps({'progress': percent, 'message': message, 'timestamp': time.time()}))
 
     try:
-        update_progress(5, 'Loading render package...')
+        update_progress(5, '렌더링 패키지 로딩 중...')
         config_path = os.path.join(temp_dir, 'config.json')
         with open(config_path, 'r', encoding='utf-8') as f_conf:
             metadata = json.load(f_conf)
@@ -490,7 +490,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             target_resolution = (1920, 1080) if resolution == '1080p' else (1280, 720)
 
         if app_mode == 'longform_music':
-            update_progress(20, 'Preparing music playlist render...')
+            update_progress(20, '음악 플레이리스트 렌더링 준비 중...')
             try:
                 import imageio_ffmpeg
                 ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
@@ -498,7 +498,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                 ffmpeg_exe = "ffmpeg"
             track_entries = metadata.get('track_entries') or []
             if not track_entries:
-                raise Exception('No playlist tracks were found.')
+                raise Exception('플레이리스트 트랙을 찾을 수 없습니다.')
 
             concat_path = os.path.join(temp_dir, 'audio', 'concat.txt')
             with open(concat_path, 'w', encoding='utf-8') as f_concat:
@@ -516,17 +516,17 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                 timeout=1800,
             )
             if concat_result.returncode != 0:
-                raise Exception(f"Failed to combine music tracks: {concat_result.stderr}")
+                raise Exception(f"음악 트랙 병합 실패: {concat_result.stderr}")
 
             visual_filename = metadata.get('background_filename') or metadata.get('cover_filename')
             if not visual_filename:
-                raise Exception('No cover image or background video was found for playlist rendering.')
+                raise Exception('플레이리스트 렌더링용 커버 이미지 또는 배경 영상을 찾을 수 없습니다.')
             visual_path = os.path.join(temp_dir, visual_filename)
             if not os.path.exists(visual_path):
-                raise Exception('Playlist visual asset was not found in render package.')
+                raise Exception('렌더링 패키지에서 플레이리스트 비주얼 에셋을 찾을 수 없습니다.')
 
             output_file_path = os.path.join(temp_dir, 'output.mp4')
-            update_progress(55, 'Rendering playlist video...')
+            update_progress(55, '플레이리스트 영상 렌더링 중...')
             is_video_background = os.path.splitext(visual_path)[1].lower() in {'.mp4', '.mov', '.webm', '.mkv'}
             title_text = str(metadata.get('playlist_title') or metadata.get('project_name') or 'Playlist').replace("'", "")
             if is_video_background:
@@ -569,16 +569,16 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                 timeout=3600,
             )
             if render_result.returncode != 0:
-                raise Exception(f"Failed to render music playlist video: {render_result.stderr}")
+                raise Exception(f"음악 플레이리스트 영상 렌더링 실패: {render_result.stderr}")
 
-            update_progress(100, 'Completed')
+            update_progress(100, '완료')
             return
 
         audio_path = os.path.join(temp_dir, 'audio', audio_filename) if audio_filename else None
         if not audio_path or not os.path.exists(audio_path):
-            raise Exception('TTS audio file was not found.')
+            raise Exception('TTS 오디오 파일을 찾을 수 없습니다.')
 
-        update_progress(15, 'Reading audio metadata...')
+        update_progress(15, '오디오 메타데이터 읽는 중...')
         audio_duration = float(metadata.get('audio_duration') or 0.0)
         if audio_duration <= 0:
             try:
@@ -597,9 +597,9 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             else:
                 images.append('')
 
-        update_progress(30, 'Building render inputs...')
+        update_progress(30, '렌더링 입력 준비 중...')
         if not any(images):
-            raise Exception('No image resources were found for remote rendering.')
+            raise Exception('원격 렌더링에 사용할 이미지 리소스를 찾을 수 없습니다.')
 
         durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
         template_overlay_filename = metadata.get('template_overlay_filename')
@@ -609,7 +609,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
 
         from services.video_service import video_service
 
-        update_progress(50, 'Rendering with local slideshow engine...')
+        update_progress(50, '로컬 슬라이드쇼 엔진으로 렌더링 중...')
         remote_output_name = f'remote_task_{task_id}.mp4'
         rendered_path = video_service.create_slideshow(
             images=images,
@@ -629,10 +629,10 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         )
 
         output_file_path = os.path.join(temp_dir, 'output.mp4')
-        update_progress(90, 'Copying final video...')
+        update_progress(90, '최종 영상 복사 중...')
         if rendered_path != output_file_path:
             shutil.copy2(rendered_path, output_file_path)
-        update_progress(100, 'Completed')
+        update_progress(100, '완료')
     except Exception as err:
-        update_progress(-1, f'Error: {str(err)}')
+        update_progress(-1, f'오류: {str(err)}')
         raise err

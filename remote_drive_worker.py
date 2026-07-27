@@ -139,7 +139,7 @@ class RemoteDriveWorker:
         rows = self._request("PATCH", url, json={
             "status": "rendering",
             "progress": 1,
-            "message": f"Claimed by {self.worker_id}",
+            "message": f"{self.worker_id}에서 작업을 가져감",
             "worker_id": self.worker_id,
             "claimed_at": now,
             "updated_at": now,
@@ -179,35 +179,35 @@ class RemoteDriveWorker:
             root_folder_id=self.output_folder_id or None,
         )
         if not folder or not folder.get("id"):
-            raise RuntimeError(f"Failed to prepare Drive project folder for category/project: {folder_category} / {project_name}")
+            raise RuntimeError(f"Drive 프로젝트 폴더 준비 실패 (카테고리/프로젝트: {folder_category} / {project_name})")
         return folder
 
     def process_job(self, job):
         job_id = job["id"]
         asset_file_id = job.get("asset_file_id")
         if not asset_file_id:
-            raise RuntimeError("Queue job is missing asset_file_id.")
+            raise RuntimeError("큐 작업에 asset_file_id가 없습니다.")
 
         temp_dir = tempfile.mkdtemp(prefix=f"remote_drive_render_{job_id}_")
         zip_path = os.path.join(temp_dir, "asset_package.zip")
         try:
-            self.update_job(job_id, progress=5, message="Downloading asset package from Google Drive.")
+            self.update_job(job_id, progress=5, message="Google Drive에서 에셋 패키지 다운로드 중...")
             downloaded = google_drive_service.download_file(asset_file_id, zip_path, token_path=self.google_token_path or None)
             if not downloaded:
-                raise RuntimeError("Failed to download asset package from Google Drive.")
+                raise RuntimeError("Google Drive에서 에셋 패키지 다운로드에 실패했습니다.")
 
-            self.update_job(job_id, progress=12, message="Extracting asset package.")
+            self.update_job(job_id, progress=12, message="에셋 패키지 압축 해제 중...")
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
 
-            self.update_job(job_id, progress=20, message="Rendering video on remote worker.")
+            self.update_job(job_id, progress=20, message="원격 워커에서 영상 렌더링 중...")
             remote_render_executor_func(job_id, temp_dir, use_gpu=self.use_gpu)
 
             output_path = os.path.join(temp_dir, "output.mp4")
             if not os.path.exists(output_path):
-                raise RuntimeError("Render completed but output.mp4 was not found.")
+                raise RuntimeError("렌더링은 완료됐지만 output.mp4 파일을 찾을 수 없습니다.")
 
-            self.update_job(job_id, progress=92, message="Uploading rendered video to Google Drive.")
+            self.update_job(job_id, progress=92, message="렌더링된 영상을 Google Drive에 업로드 중...")
             result_filename = self._build_result_filename(job)
             result_folder = self._resolve_result_folder(job)
             drive_file = google_drive_service.upsert_file(
@@ -220,7 +220,7 @@ class RemoteDriveWorker:
                 make_public=False,
             )
             if not drive_file or not drive_file.get("id"):
-                raise RuntimeError("Failed to upload rendered video to Google Drive.")
+                raise RuntimeError("렌더링된 영상을 Google Drive에 업로드하지 못했습니다.")
 
             thumbnail_file = None
             thumbnail_filename = None
@@ -275,7 +275,7 @@ class RemoteDriveWorker:
                 job_id,
                 status="completed",
                 progress=100,
-                message="Remote Drive API render completed.",
+                message="렌더링 완료 (Google Drive 업로드 완료)",
                 result_file_id=drive_file.get("id"),
                 result_file_name=drive_file.get("name"),
                 metadata={
@@ -293,7 +293,7 @@ class RemoteDriveWorker:
                 job_id,
                 status="failed",
                 progress=-1,
-                message=f"Remote Drive API render failed: {e}",
+                message=f"렌더링 실패: {e}",
                 error_message=str(e),
             )
             raise

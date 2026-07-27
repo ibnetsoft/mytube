@@ -190,6 +190,7 @@ export default function DashboardContent() {
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
+    const [renderQueuePage, setRenderQueuePage] = useState(1)
     const [queueLoading, setQueueLoading] = useState(false)
     const [uploadingQueueId, setUploadingQueueId] = useState<string | null>(null)
     const [overviewSubTab, setOverviewSubTab] = useState<'video' | 'log'>('video')
@@ -217,7 +218,6 @@ export default function DashboardContent() {
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'completed'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
-    const [completedTopicsQueue, setCompletedTopicsQueue] = useState<any[]>([])
     const [topicQueuePage, setTopicQueuePage] = useState(1)
     const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
 
@@ -1338,6 +1338,266 @@ export default function DashboardContent() {
         }
     };
 
+    // 렌더 워커(remote_drive_worker.py / render_queue_worker.py)가 남기는 진행/실패
+    // 메시지는 영문 고정 문구 + (실패 시) 원본 파이썬 예외 메시지가 그대로 붙는다.
+    // 워커 코드도 한글로 옮겼지만, 워커가 재시작되기 전까지는 예전 영문 메시지가
+    // 계속 들어올 수 있어 화면에서도 알려진 패턴을 한글로 번역해 표시한다.
+    const translateRenderQueueMessage = (raw: string | null | undefined): string => {
+        const msg = String(raw || '').trim();
+        if (!msg) return '-';
+        const exactMap: Record<string, string> = {
+            'Google Drive API asset package uploaded. Waiting for remote worker.': 'Google Drive에 에셋 패키지 업로드 완료. 원격 워커 대기 중.',
+            'Downloading asset package from Google Drive.': 'Google Drive에서 에셋 패키지 다운로드 중...',
+            'Extracting asset package.': '에셋 패키지 압축 해제 중...',
+            'Rendering video on remote worker.': '원격 워커에서 영상 렌더링 중...',
+            'Uploading rendered video to Google Drive.': '렌더링된 영상을 Google Drive에 업로드 중...',
+            'Remote Drive API render completed.': '렌더링 완료 (Google Drive 업로드 완료)',
+            'Loading render package...': '렌더링 패키지 로딩 중...',
+            'Preparing music playlist render...': '음악 플레이리스트 렌더링 준비 중...',
+            'Rendering playlist video...': '플레이리스트 영상 렌더링 중...',
+            'Reading audio metadata...': '오디오 메타데이터 읽는 중...',
+            'Building render inputs...': '렌더링 입력 준비 중...',
+            'Rendering with local slideshow engine...': '로컬 슬라이드쇼 엔진으로 렌더링 중...',
+            'Copying final video...': '최종 영상 복사 중...',
+            'Completed': '완료',
+        };
+        if (exactMap[msg]) return exactMap[msg];
+        const claimedMatch = msg.match(/^Claimed by (.+)$/);
+        if (claimedMatch) return `${claimedMatch[1]}에서 작업을 가져감`;
+        const driveFailMatch = msg.match(/^Remote Drive API render failed:\s*([\s\S]*)$/);
+        if (driveFailMatch) return `렌더링 실패: ${driveFailMatch[1]}`;
+        const errorMatch = msg.match(/^Error:\s*([\s\S]*)$/);
+        if (errorMatch) return `오류: ${errorMatch[1]}`;
+        return msg;
+    };
+
+    const renderRenderQueueTable = () => {
+        const RENDER_QUEUE_PAGE_SIZE = 20;
+        const visibleQueue = renderQueueFilter === 'intro_ready'
+            ? renderQueue.filter((task: any) => Boolean(task?.metadata?.intro_video_ready))
+            : renderQueue;
+        const totalPages = Math.max(1, Math.ceil(visibleQueue.length / RENDER_QUEUE_PAGE_SIZE));
+        const currentPage = Math.min(renderQueuePage, totalPages);
+        const pagedQueue = visibleQueue.slice(
+            (currentPage - 1) * RENDER_QUEUE_PAGE_SIZE,
+            currentPage * RENDER_QUEUE_PAGE_SIZE
+        );
+        return (
+            <>
+                <div className="mb-4 flex items-center gap-2">
+                    <button
+                        onClick={() => setRenderQueueFilter('all')}
+                        className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                            renderQueueFilter === 'all'
+                                ? 'bg-blue-600 text-white border-blue-500'
+                                : 'bg-blue-600/10 text-blue-500 border-blue-500/20'
+                        }`}
+                    >
+                        ALL
+                    </button>
+                    <button
+                        onClick={() => setRenderQueueFilter('intro_ready')}
+                        className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                            renderQueueFilter === 'intro_ready'
+                                ? 'bg-emerald-600 text-white border-emerald-500'
+                                : 'bg-emerald-600/10 text-emerald-400 border-emerald-500/20'
+                        }`}
+                    >
+                        INTRO READY
+                    </button>
+                </div>
+                {queueLoading && visibleQueue.length === 0 ? (
+                    <div className="text-center text-xs text-gray-500 py-10">대기열 조회 중...</div>
+                ) : visibleQueue.length === 0 ? (
+                    <div className="text-center text-xs text-gray-500 py-10">현재 대기 또는 실행 중인 렌더링 작업이 없습니다.</div>
+                ) : (
+                    <>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-widest">
+                                <tr>
+                                    <th className="px-4 py-4">생성일</th>
+                                    <th className="px-4 py-4">사용자</th>
+                                    <th className="px-4 py-4">프로젝트</th>
+                                    <th className="px-4 py-4">채널</th>
+                                    <th className="px-4 py-4">진행 상태</th>
+                                    <th className="px-4 py-4 text-center">진행률</th>
+                                    <th className="px-4 py-4">메시지</th>
+                                    <th className="px-4 py-4 text-center">작업 관리</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/10 text-xs font-medium text-gray-300">
+                                {pagedQueue.map((task: any) => {
+                                    const meta = task.metadata || {}
+                                    const totalMinutes = meta.total_duration_seconds
+                                        ? Math.round(Number(meta.total_duration_seconds || 0) / 60)
+                                        : null
+                                    const localizedMessage = translateRenderQueueMessage(task.message)
+                                    return (
+                                    <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            <div>{new Date(task.created_at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                                            <div className="text-[10px] text-gray-500 mt-0.5">{new Date(task.created_at).toLocaleDateString()}</div>
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-blue-400 font-bold">{task.email}</td>
+                                        <td className="px-4 py-4 font-bold text-white max-w-[260px]" title={meta.title || task.project_name}>
+                                            <div className="truncate">
+                                                {meta.title || task.project_name} <span className="text-[10px] text-gray-500 font-mono">({task.project_id})</span>
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {meta.is_music_queue && (
+                                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-300">
+                                                        MUSIC QUEUE
+                                                    </span>
+                                                )}
+                                                {meta.app_mode === 'longform_music' && (
+                                                    <span className="px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-[9px] font-black text-teal-300">
+                                                        LONGFORM MUSIC
+                                                    </span>
+                                                )}
+                                                {meta.track_count ? (
+                                                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
+                                                        TRACKS {meta.track_count}
+                                                    </span>
+                                                ) : null}
+                                                {meta.intro_video_ready != null ? (
+                                                    <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black ${meta.intro_video_ready ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-500'}`}>
+                                                        INTRO VIDEO {meta.intro_video_ready ? 'READY' : 'PENDING'}
+                                                    </span>
+                                                ) : null}
+                                                {meta.intro_bgm_ready != null ? (
+                                                    <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black ${meta.intro_bgm_ready ? 'bg-violet-500/10 border-violet-500/20 text-violet-300' : 'bg-white/5 border-white/10 text-gray-500'}`}>
+                                                        INTRO BGM {meta.intro_bgm_ready ? 'READY' : 'PENDING'}
+                                                    </span>
+                                                ) : null}
+                                                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-400">
+                                                    INTRO OPTIONAL
+                                                </span>
+                                                {totalMinutes ? (
+                                                    <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-300">
+                                                        Total: {totalMinutes} min
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            {meta.channel_name ? (
+                                                <span className="text-white font-bold">{meta.channel_name}</span>
+                                            ) : (
+                                                <span className="text-gray-500 font-bold">미배정</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                task.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                                task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse' :
+                                                task.status === 'pending' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                                                'bg-red-500/10 text-red-500 border-red-500/20'
+                                            }`}>
+                                                {task.status === 'pending' ? '대기중' : task.status === 'rendering' ? '렌더링중' : task.status === 'completed' ? '완료' : '실패'}
+                                            </span>
+                                            {meta.admin_publish_status ? (
+                                                <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-amber-300">
+                                                    Publish Ready: {String(meta.admin_publish_status).replace(/_/g, ' ')}
+                                                </div>
+                                            ) : null}
+                                            {meta.admin_publish_ready != null ? (
+                                                <div className={`mt-1 text-[9px] font-black uppercase tracking-widest ${String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'text-emerald-300' : 'text-gray-500'}`}>
+                                                    {String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'Admin Publish Ready' : 'Admin Publish Pending'}
+                                                </div>
+                                            ) : null}
+                                            {meta.intro_mode ? (
+                                                <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                    Intro Mode: {String(meta.intro_mode).replace(/_/g, ' ')}
+                                                </div>
+                                            ) : null}
+                                            {meta.intro_bgm_usage ? (
+                                                <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                    Intro BGM: {String(meta.intro_bgm_usage).replace(/_/g, ' ')}
+                                                </div>
+                                            ) : null}
+                                            {(meta.intro_video_prompt_ready != null || meta.intro_bgm_prompt_ready != null) ? (
+                                                <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                                    Prompt Pack: {meta.intro_video_prompt_ready ? 'Video' : 'NoVideo'} / {meta.intro_bgm_prompt_ready ? 'BGM' : 'NoBGM'}
+                                                </div>
+                                            ) : null}
+                                        </td>
+                                        <td className="px-4 py-4 min-w-[150px]">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-500 ${
+                                                        task.status === 'completed' ? 'bg-green-500' :
+                                                        task.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'
+                                                    }`} style={{ width: `${task.progress || 0}%` }} />
+                                                </div>
+                                                <span className="font-bold font-mono text-[10px] w-8 text-right">{task.progress || 0}%</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 max-w-[250px] truncate text-gray-400 italic" title={localizedMessage}>
+                                            {localizedMessage}
+                                        </td>
+                                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                {task.status === 'completed' && task.result_view_link && (
+                                                    <a
+                                                        href={task.result_view_link}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg border border-blue-500/20 hover:border-blue-600 transition-all font-black text-[10px]"
+                                                    >
+                                                        보기
+                                                    </a>
+                                                )}
+                                                {task.status === 'completed' && task.result_file_id && (
+                                                    <button
+                                                        onClick={() => handleUploadQueueTaskToChannel(task)}
+                                                        disabled={uploadingQueueId === String(task.id)}
+                                                        className="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg border border-emerald-500/20 hover:border-emerald-600 transition-all font-black text-[10px] disabled:opacity-50"
+                                                    >
+                                                        {uploadingQueueId === String(task.id) ? '요청 중...' : '업로드'}
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 pt-5">
+                        <span className="text-[11px] font-bold text-gray-500">
+                            {(currentPage - 1) * RENDER_QUEUE_PAGE_SIZE + 1}-{Math.min(currentPage * RENDER_QUEUE_PAGE_SIZE, visibleQueue.length)} / {visibleQueue.length}개
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                disabled={currentPage <= 1}
+                                onClick={() => setRenderQueuePage(p => Math.max(1, p - 1))}
+                                className="px-3 py-1.5 rounded-lg text-[11px] font-black border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                이전
+                            </button>
+                            <span className="text-[11px] font-black text-gray-400">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <button
+                                type="button"
+                                disabled={currentPage >= totalPages}
+                                onClick={() => setRenderQueuePage(p => Math.min(totalPages, p + 1))}
+                                className="px-3 py-1.5 rounded-lg text-[11px] font-black border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                다음
+                            </button>
+                        </div>
+                    </div>
+                    </>
+                )}
+            </>
+        );
+    };
+
     const fetchCategories = useCallback(async (background = false) => {
         const shouldShowBlockingLoader = !hasLoadedCategoriesRef.current && !background
         try {
@@ -1360,20 +1620,6 @@ export default function DashboardContent() {
             const res = await adminFetch('/api/admin/topics-queue')
             const data = await res.json()
             if (data.topics) setTopics(data.topics)
-        } catch (e) {
-            // Silently ignore errors to prevent console spam
-        }
-    }, [adminFetch])
-
-    // "완료" 탭 전용 - 제출까지 마친 주제는 status가 'pending'/'assigned'가
-    // 아니라서 fetchTopics()의 기본 active 필터에 걸러지고, topics 상태에는
-    // 아예 담기지 않는다. 이 목록이 항상 상시 폴링되는 topics와 합쳐지면
-    // (완료 이력이 계속 쌓이는) 페이로드가 무한정 커지므로 별도 상태/폴링으로 분리한다.
-    const fetchCompletedTopicsQueue = useCallback(async () => {
-        try {
-            const res = await adminFetch('/api/admin/topics-queue?status=completed')
-            const data = await res.json()
-            if (data.topics) setCompletedTopicsQueue(data.topics)
         } catch (e) {
             // Silently ignore errors to prevent console spam
         }
@@ -1873,13 +2119,12 @@ export default function DashboardContent() {
         }
     }, [activeTab]);
 
-    const fetchCompletedTopicsQueueRef = useRef(fetchCompletedTopicsQueue);
-    fetchCompletedTopicsQueueRef.current = fetchCompletedTopicsQueue;
-
+    // "완료" 탭이 리모트 렌더큐를 그대로 재사용해서 보여주므로, 주제대기열큐
+    // 탭을 보고 있는 동안에도 렌더큐를 폴링해서 완료 탭 데이터를 최신으로 유지한다.
     useEffect(() => {
         if (activeTab === 'topics-queue') {
-            fetchCompletedTopicsQueueRef.current();
-            const interval = setInterval(() => fetchCompletedTopicsQueueRef.current(), 10000);
+            fetchRenderQueueRef.current();
+            const interval = setInterval(() => fetchRenderQueueRef.current(), 10000);
             return () => clearInterval(interval);
         }
     }, [activeTab]);
@@ -1887,6 +2132,10 @@ export default function DashboardContent() {
     useEffect(() => {
         setTopicQueuePage(1);
     }, [topicQueueStatusFilter, topicQueueCategoryFilter, topicQueueEmployeeFilter]);
+
+    useEffect(() => {
+        setRenderQueuePage(1);
+    }, [renderQueueFilter]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2845,15 +3094,11 @@ export default function DashboardContent() {
                             const getTopicAssignee = (item: any) => item.assigned_employee_email;
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
                             const isPendingTopic = (item: any) => item.status === 'pending';
-                            const isCompletedTopic = (item: any) => item.status === 'completed';
-                            const isQueueVisibleTopic = (item: any) => isWorkingTopic(item) || isPendingTopic(item) || isCompletedTopic(item);
-                            const matchesTopicQueueStatus = (item: any) =>
-                                topicQueueStatusFilter === 'working' ? isWorkingTopic(item) :
-                                topicQueueStatusFilter === 'pending' ? isPendingTopic(item) :
-                                isCompletedTopic(item);
-                            // "완료" 탭은 항상 active 폴링에서 제외된 completedTopicsQueue를 소스로 쓴다 -
-                            // topics는 pending/assigned만 담고 있어 완료 항목을 절대 포함하지 않는다.
-                            const topicQueueSource = topicQueueStatusFilter === 'completed' ? completedTopicsQueue : topics;
+                            const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
+                            const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working' ? isWorkingTopic(item) : isPendingTopic(item);
+                            // "완료" 탭은 topics_queue가 아니라 리모트 렌더큐를 그대로 보여준다 (아래 참고) -
+                            // 여기 topics는 계속 pending/assigned 두 상태만 대상으로 한다.
+                            const topicQueueSource = topics;
                             const topicActualPayout = (item: any) => {
                                 const parsed = Number(item?.actual_payout ?? 0);
                                 return Number.isFinite(parsed) ? parsed : 0;
@@ -2916,7 +3161,9 @@ export default function DashboardContent() {
                                             실시간 전체 주제 대기열 큐 (Topics Queue)
                                         </h2>
                                         <p className="mt-2 text-xs font-bold text-gray-500">
-                                            {selectedCategory ? `${selectedCategory.name} 카테고리 · ${activeStatusLabel}만 표시 중` : `전체 카테고리 · ${activeStatusLabel}만 표시 중`}
+                                            {topicQueueStatusFilter === 'completed'
+                                                ? '리모트 렌더링 큐와 동일한 내용을 표시 중'
+                                                : (selectedCategory ? `${selectedCategory.name} 카테고리 · ${activeStatusLabel}만 표시 중` : `전체 카테고리 · ${activeStatusLabel}만 표시 중`)}
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
@@ -2926,7 +3173,7 @@ export default function DashboardContent() {
                                             { key: 'completed', label: '완료' },
                                         ].map(item => {
                                             const count = item.key === 'completed'
-                                                ? completedTopicsQueue.filter(isCompletedTopic).length
+                                                ? renderQueue.length
                                                 : topics.filter(topic => isQueueVisibleTopic(topic) && (item.key === 'working' ? isWorkingTopic(topic) : isPendingTopic(topic))).length;
                                             return (
                                                 <button
@@ -2944,61 +3191,73 @@ export default function DashboardContent() {
                                             );
                                         })}
                                         <span className="shrink-0 bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
-                                            {selectedCategory ? '선택 표시건수' : '총 표시건수'}: {filteredTopics.length}개
+                                            {topicQueueStatusFilter === 'completed'
+                                                ? `총 표시건수: ${renderQueue.length}개`
+                                                : `${selectedCategory ? '선택 표시건수' : '총 표시건수'}: ${filteredTopics.length}개`}
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="mt-4 flex flex-wrap items-center gap-3">
-                                    <label className="text-[11px] font-black text-gray-500">배정 직원</label>
-                                    <select
-                                        value={topicQueueEmployeeFilter}
-                                        onChange={(e) => setTopicQueueEmployeeFilter(e.target.value)}
-                                        className="min-w-[240px] rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-bold text-white focus:outline-none focus:border-blue-500/50"
-                                    >
-                                        <option value="all" className="bg-[#111] text-white">전체 직원</option>
-                                        {availableTopicQueueEmployees.map(email => (
-                                            <option key={`topic-queue-employee-${email}`} value={email} className="bg-[#111] text-white">
-                                                {email}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <span className="text-[11px] font-bold text-gray-500">
-                                        {topicQueueEmployeeFilter === 'all' ? '전체 직원 표시 중' : `${topicQueueEmployeeFilter}만 표시 중`}
-                                    </span>
-                                </div>
+                                {topicQueueStatusFilter !== 'completed' && (
+                                    <>
+                                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                                            <label className="text-[11px] font-black text-gray-500">배정 직원</label>
+                                            <select
+                                                value={topicQueueEmployeeFilter}
+                                                onChange={(e) => setTopicQueueEmployeeFilter(e.target.value)}
+                                                className="min-w-[240px] rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-bold text-white focus:outline-none focus:border-blue-500/50"
+                                            >
+                                                <option value="all" className="bg-[#111] text-white">전체 직원</option>
+                                                {availableTopicQueueEmployees.map(email => (
+                                                    <option key={`topic-queue-employee-${email}`} value={email} className="bg-[#111] text-white">
+                                                        {email}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <span className="text-[11px] font-bold text-gray-500">
+                                                {topicQueueEmployeeFilter === 'all' ? '전체 직원 표시 중' : `${topicQueueEmployeeFilter}만 표시 중`}
+                                            </span>
+                                        </div>
 
-                                <div className="mt-6 flex flex-wrap gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setTopicQueueCategoryFilter('all')}
-                                        className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
-                                            topicQueueCategoryFilter === 'all'
-                                                ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
-                                                : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
-                                        }`}
-                                    >
-                                        전체 <span className="ml-1 text-[10px] opacity-70">{topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length}</span>
-                                    </button>
-                                    {queueCategories.map(cat => {
-                                        const activeCount = topicQueueSource.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
-                                        return (
+                                        <div className="mt-6 flex flex-wrap gap-2">
                                             <button
                                                 type="button"
-                                                key={`topic-queue-filter-${cat.id}`}
-                                                onClick={() => setTopicQueueCategoryFilter(String(cat.id))}
+                                                onClick={() => setTopicQueueCategoryFilter('all')}
                                                 className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
-                                                    topicQueueCategoryFilter === String(cat.id)
+                                                    topicQueueCategoryFilter === 'all'
                                                         ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
                                                         : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
                                                 }`}
                                             >
-                                                {cat.name} <span className="ml-1 text-[10px] opacity-70">{activeCount}</span>
+                                                전체 <span className="ml-1 text-[10px] opacity-70">{topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length}</span>
                                             </button>
-                                        );
-                                    })}
-                                </div>
+                                            {queueCategories.map(cat => {
+                                                const activeCount = topicQueueSource.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={`topic-queue-filter-${cat.id}`}
+                                                        onClick={() => setTopicQueueCategoryFilter(String(cat.id))}
+                                                        className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
+                                                            topicQueueCategoryFilter === String(cat.id)
+                                                                ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
+                                                                : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
+                                                        }`}
+                                                    >
+                                                        {cat.name} <span className="ml-1 text-[10px] opacity-70">{activeCount}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                )}
                             </div>
+                            {topicQueueStatusFilter === 'completed' ? (
+                                <div className="p-10">
+                                    {renderRenderQueueTable()}
+                                </div>
+                            ) : (
+                            <>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-black/30 border-b border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">
@@ -3111,7 +3370,7 @@ export default function DashboardContent() {
                                                                 대기중
                                                             </span>
                                                         )}
-                                                        {(isWorkingTopic(item) || isCompletedTopic(item)) && (() => {
+                                                        {isWorkingTopic(item) && (() => {
                                                             const stepDefs = [
                                                                 { key: 'plan', label: '기획' },
                                                                 { key: 'script', label: '대본' },
@@ -3206,6 +3465,8 @@ export default function DashboardContent() {
                                         </button>
                                     </div>
                                 </div>
+                            )}
+                            </>
                             )}
                         </div>
                             );
@@ -4351,192 +4612,7 @@ export default function DashboardContent() {
                             <button onClick={fetchRenderQueue} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
                         </div>
                         <div className="p-10">
-                            <div className="mb-4 flex items-center gap-2">
-                                <button
-                                    onClick={() => setRenderQueueFilter('all')}
-                                    className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        renderQueueFilter === 'all'
-                                            ? 'bg-blue-600 text-white border-blue-500'
-                                            : 'bg-blue-600/10 text-blue-500 border-blue-500/20'
-                                    }`}
-                                >
-                                    ALL
-                                </button>
-                                <button
-                                    onClick={() => setRenderQueueFilter('intro_ready')}
-                                    className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-                                        renderQueueFilter === 'intro_ready'
-                                            ? 'bg-emerald-600 text-white border-emerald-500'
-                                            : 'bg-emerald-600/10 text-emerald-400 border-emerald-500/20'
-                                    }`}
-                                >
-                                    INTRO READY
-                                </button>
-                            </div>
-                            {queueLoading && (renderQueueFilter === 'intro_ready'
-                                ? renderQueue.filter((task: any) => Boolean(task?.metadata?.intro_video_ready)).length === 0
-                                : renderQueue.length === 0) ? (
-                                <div className="text-center text-xs text-gray-500 py-10">대기열 조회 중...</div>
-                            ) : renderQueue.length === 0 ? (
-                                <div className="text-center text-xs text-gray-500 py-10">현재 대기 또는 실행 중인 렌더링 작업이 없습니다.</div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-black/30 border-b border-white/20 text-xs font-black text-gray-400 uppercase tracking-widest">
-                                            <tr>
-                                                <th className="px-4 py-4">생성일</th>
-                                                <th className="px-4 py-4">사용자</th>
-                                                <th className="px-4 py-4">프로젝트</th>
-                                                <th className="px-4 py-4">채널</th>
-                                                <th className="px-4 py-4">진행 상태</th>
-                                                <th className="px-4 py-4 text-center">진행률</th>
-                                                <th className="px-4 py-4">메시지</th>
-                                                <th className="px-4 py-4 text-center">작업 관리</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/10 text-xs font-medium text-gray-300">
-                                            {(renderQueueFilter === 'intro_ready'
-                                                ? renderQueue.filter((task: any) => Boolean(task?.metadata?.intro_video_ready))
-                                                : renderQueue
-                                            ).map((task: any) => {
-                                                const meta = task.metadata || {}
-                                                const totalMinutes = meta.total_duration_seconds
-                                                    ? Math.round(Number(meta.total_duration_seconds || 0) / 60)
-                                                    : null
-                                                return (
-                                                <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        <div>{new Date(task.created_at).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
-                                                        <div className="text-[10px] text-gray-500 mt-0.5">{new Date(task.created_at).toLocaleDateString()}</div>
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap text-blue-400 font-bold">{task.email}</td>
-                                                    <td className="px-4 py-4 font-bold text-white max-w-[260px]" title={meta.title || task.project_name}>
-                                                        <div className="truncate">
-                                                            {meta.title || task.project_name} <span className="text-[10px] text-gray-500 font-mono">({task.project_id})</span>
-                                                        </div>
-                                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                                            {meta.is_music_queue && (
-                                                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-300">
-                                                                    MUSIC QUEUE
-                                                                </span>
-                                                            )}
-                                                            {meta.app_mode === 'longform_music' && (
-                                                                <span className="px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-[9px] font-black text-teal-300">
-                                                                    LONGFORM MUSIC
-                                                                </span>
-                                                            )}
-                                                            {meta.track_count ? (
-                                                                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-300">
-                                                                    TRACKS {meta.track_count}
-                                                                </span>
-                                                            ) : null}
-                                                            {meta.intro_video_ready != null ? (
-                                                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black ${meta.intro_video_ready ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-500'}`}>
-                                                                    INTRO VIDEO {meta.intro_video_ready ? 'READY' : 'PENDING'}
-                                                                </span>
-                                                            ) : null}
-                                                            {meta.intro_bgm_ready != null ? (
-                                                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black ${meta.intro_bgm_ready ? 'bg-violet-500/10 border-violet-500/20 text-violet-300' : 'bg-white/5 border-white/10 text-gray-500'}`}>
-                                                                    INTRO BGM {meta.intro_bgm_ready ? 'READY' : 'PENDING'}
-                                                                </span>
-                                                            ) : null}
-                                                            <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-gray-400">
-                                                                INTRO OPTIONAL
-                                                            </span>
-                                                            {totalMinutes ? (
-                                                                <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-300">
-                                                                    Total: {totalMinutes} min
-                                                                </span>
-                                                            ) : null}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        {meta.channel_name ? (
-                                                            <span className="text-white font-bold">{meta.channel_name}</span>
-                                                        ) : (
-                                                            <span className="text-gray-500 font-bold">미배정</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-4 whitespace-nowrap">
-                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                                            task.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                                            task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse' :
-                                                            task.status === 'pending' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
-                                                            'bg-red-500/10 text-red-500 border-red-500/20'
-                                                        }`}>
-                                                            {task.status === 'pending' ? '대기중' : task.status === 'rendering' ? '렌더링중' : task.status === 'completed' ? '완료' : '실패'}
-                                                        </span>
-                                                        {meta.admin_publish_status ? (
-                                                            <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-amber-300">
-                                                                Publish Ready: {String(meta.admin_publish_status).replace(/_/g, ' ')}
-                                                            </div>
-                                                        ) : null}
-                                                        {meta.admin_publish_ready != null ? (
-                                                            <div className={`mt-1 text-[9px] font-black uppercase tracking-widest ${String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'text-emerald-300' : 'text-gray-500'}`}>
-                                                                {String(meta.admin_publish_ready) === '1' || meta.admin_publish_ready === true ? 'Admin Publish Ready' : 'Admin Publish Pending'}
-                                                            </div>
-                                                        ) : null}
-                                                        {meta.intro_mode ? (
-                                                            <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                                                Intro Mode: {String(meta.intro_mode).replace(/_/g, ' ')}
-                                                            </div>
-                                                        ) : null}
-                                                        {meta.intro_bgm_usage ? (
-                                                            <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                                                Intro BGM: {String(meta.intro_bgm_usage).replace(/_/g, ' ')}
-                                                            </div>
-                                                        ) : null}
-                                                        {(meta.intro_video_prompt_ready != null || meta.intro_bgm_prompt_ready != null) ? (
-                                                            <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                                                Prompt Pack: {meta.intro_video_prompt_ready ? 'Video' : 'NoVideo'} / {meta.intro_bgm_prompt_ready ? 'BGM' : 'NoBGM'}
-                                                            </div>
-                                                        ) : null}
-                                                    </td>
-                                                    <td className="px-4 py-4 min-w-[150px]">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                                <div className={`h-full rounded-full transition-all duration-500 ${
-                                                                    task.status === 'completed' ? 'bg-green-500' :
-                                                                    task.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'
-                                                                }`} style={{ width: `${task.progress || 0}%` }} />
-                                                            </div>
-                                                            <span className="font-bold font-mono text-[10px] w-8 text-right">{task.progress || 0}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 max-w-[250px] truncate text-gray-400 italic" title={task.message}>
-                                                        {task.message || '-'}
-                                                    </td>
-                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                                                        <div className="flex items-center justify-center gap-1.5">
-                                                            {task.status === 'completed' && task.result_view_link && (
-                                                                <a
-                                                                    href={task.result_view_link}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg border border-blue-500/20 hover:border-blue-600 transition-all font-black text-[10px]"
-                                                                >
-                                                                    보기
-                                                                </a>
-                                                            )}
-                                                            {task.status === 'completed' && task.result_file_id && (
-                                                                <button
-                                                                    onClick={() => handleUploadQueueTaskToChannel(task)}
-                                                                    disabled={uploadingQueueId === String(task.id)}
-                                                                    className="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg border border-emerald-500/20 hover:border-emerald-600 transition-all font-black text-[10px] disabled:opacity-50"
-                                                                >
-                                                                    {uploadingQueueId === String(task.id) ? '요청 중...' : '업로드'}
-                                                                </button>
-                                                            )}
-                                                            <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                )
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
+                            {renderRenderQueueTable()}
                         </div>
                     </div>
                 )}

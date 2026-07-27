@@ -250,7 +250,7 @@ class RemoteDriveRenderService:
             "email": auth_service.get_user_email() or project.get("employee_email") or "unknown",
             "status": "pending",
             "progress": 0,
-            "message": "Google Drive API asset package uploaded. Waiting for remote worker.",
+            "message": "Google Drive에 에셋 패키지 업로드 완료. 원격 워커 대기 중.",
             "render_mode": "drive_api",
             "asset_file_id": drive_file.get("id"),
             "asset_file_name": drive_file.get("name"),
