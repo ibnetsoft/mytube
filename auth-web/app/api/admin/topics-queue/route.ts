@@ -432,7 +432,10 @@ export async function GET(req: Request) {
         if (status === 'active') {
             query = query.in('status', ['pending', 'assigned'])
         } else if (status && status !== 'all') {
-            query = query.eq('status', status)
+            // Non-active statuses (e.g. 'completed') accumulate forever, unlike
+            // the always-small pending/assigned queue - cap it so this doesn't
+            // grow into an unbounded payload as history piles up.
+            query = query.eq('status', status).limit(1000)
         }
 
         const { data, error } = await query

@@ -215,8 +215,10 @@ export default function DashboardContent() {
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
-    const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending'>('working')
+    const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'completed'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
+    const [completedTopicsQueue, setCompletedTopicsQueue] = useState<any[]>([])
+    const [topicQueuePage, setTopicQueuePage] = useState(1)
     const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
 
     const [showAdvanced, setShowAdvanced] = useState(false)
@@ -1363,6 +1365,20 @@ export default function DashboardContent() {
         }
     }, [adminFetch])
 
+    // "완료" 탭 전용 - 제출까지 마친 주제는 status가 'pending'/'assigned'가
+    // 아니라서 fetchTopics()의 기본 active 필터에 걸러지고, topics 상태에는
+    // 아예 담기지 않는다. 이 목록이 항상 상시 폴링되는 topics와 합쳐지면
+    // (완료 이력이 계속 쌓이는) 페이로드가 무한정 커지므로 별도 상태/폴링으로 분리한다.
+    const fetchCompletedTopicsQueue = useCallback(async () => {
+        try {
+            const res = await adminFetch('/api/admin/topics-queue?status=completed')
+            const data = await res.json()
+            if (data.topics) setCompletedTopicsQueue(data.topics)
+        } catch (e) {
+            // Silently ignore errors to prevent console spam
+        }
+    }, [adminFetch])
+
     const fetchStylePresets = useCallback(async () => {
         try {
             setPresetsLoading(true)
@@ -1856,6 +1872,21 @@ export default function DashboardContent() {
             return () => clearInterval(interval);
         }
     }, [activeTab]);
+
+    const fetchCompletedTopicsQueueRef = useRef(fetchCompletedTopicsQueue);
+    fetchCompletedTopicsQueueRef.current = fetchCompletedTopicsQueue;
+
+    useEffect(() => {
+        if (activeTab === 'topics-queue') {
+            fetchCompletedTopicsQueueRef.current();
+            const interval = setInterval(() => fetchCompletedTopicsQueueRef.current(), 10000);
+            return () => clearInterval(interval);
+        }
+    }, [activeTab]);
+
+    useEffect(() => {
+        setTopicQueuePage(1);
+    }, [topicQueueStatusFilter, topicQueueCategoryFilter, topicQueueEmployeeFilter]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2814,8 +2845,15 @@ export default function DashboardContent() {
                             const getTopicAssignee = (item: any) => item.assigned_employee_email;
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
                             const isPendingTopic = (item: any) => item.status === 'pending';
-                            const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
-                            const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working' ? isWorkingTopic(item) : isPendingTopic(item);
+                            const isCompletedTopic = (item: any) => item.status === 'completed';
+                            const isQueueVisibleTopic = (item: any) => isWorkingTopic(item) || isPendingTopic(item) || isCompletedTopic(item);
+                            const matchesTopicQueueStatus = (item: any) =>
+                                topicQueueStatusFilter === 'working' ? isWorkingTopic(item) :
+                                topicQueueStatusFilter === 'pending' ? isPendingTopic(item) :
+                                isCompletedTopic(item);
+                            // "완료" 탭은 항상 active 폴링에서 제외된 completedTopicsQueue를 소스로 쓴다 -
+                            // topics는 pending/assigned만 담고 있어 완료 항목을 절대 포함하지 않는다.
+                            const topicQueueSource = topicQueueStatusFilter === 'completed' ? completedTopicsQueue : topics;
                             const topicActualPayout = (item: any) => {
                                 const parsed = Number(item?.actual_payout ?? 0);
                                 return Number.isFinite(parsed) ? parsed : 0;
@@ -2829,14 +2867,14 @@ export default function DashboardContent() {
                                 return `SCENES ${video}V ${image}I / ${total}`;
                             };
                             const queueCategories = [...categories].sort((a, b) => {
-                                const aActive = topics.filter(t => String(t.category_id) === String(a.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
-                                const bActive = topics.filter(t => String(t.category_id) === String(b.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
+                                const aActive = topicQueueSource.filter(t => String(t.category_id) === String(a.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
+                                const bActive = topicQueueSource.filter(t => String(t.category_id) === String(b.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
                                 if (bActive !== aActive) return bActive - aActive;
                                 return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
                             });
                             const statusFilteredTopics = topicQueueCategoryFilter === 'all'
-                                ? topics.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t))
-                                : topics.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t));
+                                ? topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t))
+                                : topicQueueSource.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t));
                             const availableTopicQueueEmployees = Array.from(
                                 new Set(
                                     users
@@ -2860,7 +2898,14 @@ export default function DashboardContent() {
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
-                            const activeStatusLabel = topicQueueStatusFilter === 'working' ? '작업중' : '대기중';
+                            const activeStatusLabel = topicQueueStatusFilter === 'working' ? '작업중' : topicQueueStatusFilter === 'pending' ? '대기중' : '완료';
+                            const TOPIC_QUEUE_PAGE_SIZE = 20;
+                            const topicQueueTotalPages = Math.max(1, Math.ceil(filteredTopics.length / TOPIC_QUEUE_PAGE_SIZE));
+                            const topicQueueCurrentPage = Math.min(topicQueuePage, topicQueueTotalPages);
+                            const pagedTopics = filteredTopics.slice(
+                                (topicQueueCurrentPage - 1) * TOPIC_QUEUE_PAGE_SIZE,
+                                topicQueueCurrentPage * TOPIC_QUEUE_PAGE_SIZE
+                            );
 
                             return (
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
@@ -2878,13 +2923,16 @@ export default function DashboardContent() {
                                         {[
                                             { key: 'working', label: '작업중' },
                                             { key: 'pending', label: '대기중' },
+                                            { key: 'completed', label: '완료' },
                                         ].map(item => {
-                                            const count = topics.filter(topic => isQueueVisibleTopic(topic) && (item.key === 'working' ? isWorkingTopic(topic) : isPendingTopic(topic))).length;
+                                            const count = item.key === 'completed'
+                                                ? completedTopicsQueue.filter(isCompletedTopic).length
+                                                : topics.filter(topic => isQueueVisibleTopic(topic) && (item.key === 'working' ? isWorkingTopic(topic) : isPendingTopic(topic))).length;
                                             return (
                                                 <button
                                                     key={`topic-status-filter-${item.key}`}
                                                     type="button"
-                                                    onClick={() => setTopicQueueStatusFilter(item.key as 'working' | 'pending')}
+                                                    onClick={() => setTopicQueueStatusFilter(item.key as 'working' | 'pending' | 'completed')}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
                                                         topicQueueStatusFilter === item.key
                                                             ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/20'
@@ -2930,10 +2978,10 @@ export default function DashboardContent() {
                                                 : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
                                         }`}
                                     >
-                                        전체 <span className="ml-1 text-[10px] opacity-70">{topics.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length}</span>
+                                        전체 <span className="ml-1 text-[10px] opacity-70">{topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length}</span>
                                     </button>
                                     {queueCategories.map(cat => {
-                                        const activeCount = topics.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
+                                        const activeCount = topicQueueSource.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
                                         return (
                                             <button
                                                 type="button"
@@ -2963,7 +3011,7 @@ export default function DashboardContent() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
-                                        {filteredTopics.map((item) => (
+                                        {pagedTopics.map((item) => (
                                             <tr
                                                 key={item.id}
                                                 className={`transition-colors h-10 text-xs ${
@@ -3058,12 +3106,12 @@ export default function DashboardContent() {
                                                 </td>
                                                 <td className="px-10 py-2">
                                                     <div className="flex flex-col items-center gap-1">
-                                                        {!isWorkingTopic(item) && (
+                                                        {isPendingTopic(item) && (
                                                             <span className="text-[10px] font-bold text-gray-600">
-                                                                {item.status === 'pending' ? '대기중' : '시작 완료'}
+                                                                대기중
                                                             </span>
                                                         )}
-                                                        {isWorkingTopic(item) && (() => {
+                                                        {(isWorkingTopic(item) || isCompletedTopic(item)) && (() => {
                                                             const stepDefs = [
                                                                 { key: 'plan', label: '기획' },
                                                                 { key: 'script', label: '대본' },
@@ -3131,6 +3179,34 @@ export default function DashboardContent() {
                                     </tbody>
                                 </table>
                             </div>
+                            {filteredTopics.length > 0 && (
+                                <div className="flex items-center justify-between gap-4 px-10 py-5 border-t border-white/5 bg-black/10">
+                                    <span className="text-[11px] font-bold text-gray-500">
+                                        {(topicQueueCurrentPage - 1) * TOPIC_QUEUE_PAGE_SIZE + 1}-{Math.min(topicQueueCurrentPage * TOPIC_QUEUE_PAGE_SIZE, filteredTopics.length)} / {filteredTopics.length}개
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={topicQueueCurrentPage <= 1}
+                                            onClick={() => setTopicQueuePage(p => Math.max(1, p - 1))}
+                                            className="px-3 py-1.5 rounded-lg text-[11px] font-black border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            이전
+                                        </button>
+                                        <span className="text-[11px] font-black text-gray-400">
+                                            {topicQueueCurrentPage} / {topicQueueTotalPages}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            disabled={topicQueueCurrentPage >= topicQueueTotalPages}
+                                            onClick={() => setTopicQueuePage(p => Math.min(topicQueueTotalPages, p + 1))}
+                                            className="px-3 py-1.5 rounded-lg text-[11px] font-black border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            다음
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                             );
                         })()}
