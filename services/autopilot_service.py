@@ -965,8 +965,15 @@ Create a production-ready playlist script/brief in Korean from this planning dat
 - No dialogue and no character acting.
 """
             else:
+                duration_seconds_for_fallback = config_dict.get("duration_seconds", 300)
+                duration_minutes_for_fallback = max(1, round(duration_seconds_for_fallback / 60))
+                # 이 앱이 이미 써오던 "1분 ≈ 300자" 환산 비율을 실제 목표 길이에 비례 적용.
+                target_chars_for_fallback = duration_seconds_for_fallback / 60 * 300
                 prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
-                    analysis_json=json.dumps(analysis, ensure_ascii=False)
+                    analysis_json=json.dumps(analysis, ensure_ascii=False),
+                    duration_minutes=duration_minutes_for_fallback,
+                    target_chars_min=max(200, int(target_chars_for_fallback * 0.85)),
+                    target_chars_max=int(target_chars_for_fallback * 1.15),
                 )
                 prompt += f"\n\n[Benchmarked Successful Video Formulas from DB]\n{viral_benchmarks_str}\n\n[Instructions]\n- Make sure to copy the successful hook patterns and address the viewer needs highlighted in the benchmarked cases above to maximize viral potential." 
             if style_directive:
