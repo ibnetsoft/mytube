@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { authenticateWorkerRequest, readJsonBodyWithLimit, logWorkerAuditEvent } from '@/lib/workerAuth'
+import { authenticateWorkerRequest, readJsonBodyWithLimit, logWorkerAuditEvent, isHermesWorker } from '@/lib/workerAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,13 +40,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'invalid_request', detail: 'no overlapping job_type between token and request' }, { status: 400 })
     }
 
-    const { data, error } = await supabaseAdmin.rpc('claim_worker_render_job', {
-        p_worker_id: worker.worker_id,
-        p_worker_instance_id: worker_instance_id,
-        p_allowed_job_types: allowedJobTypes,
-        p_worker_group: worker.worker_group,
-        p_lease_ttl_seconds: LEASE_TTL_SECONDS,
-    })
+    // [AIR-0230] Hermes/topic_* jobs live in remote_hermes_queue + their own
+    // claim RPC (migrations/air_0230_hermes_worker_central_protocol.sql) -
+    // see workerAuth.ts's isHermesWorker() doc comment for why this is
+    // derived from the authenticated token, not request input.
+    const hermes = isHermesWorker(worker)
+    const { data, error } = await supabaseAdmin.rpc(
+        hermes ? 'claim_worker_hermes_job' : 'claim_worker_render_job',
+        {
+            p_worker_id: worker.worker_id,
+            p_worker_instance_id: worker_instance_id,
+            p_allowed_job_types: allowedJobTypes,
+            p_worker_group: worker.worker_group,
+            p_lease_ttl_seconds: LEASE_TTL_SECONDS,
+        }
+    )
 
     if (error) {
         return NextResponse.json({ error: 'db_error', detail: error.message }, { status: 500 })
@@ -62,7 +70,12 @@ export async function POST(req: NextRequest) {
         job_type: job.job_type,
         priority: job.priority,
         tenant_id: job.tenant_id,
-        payload: {
+        // [AIR-0230] remote_hermes_queue keeps job_type-specific fields in a
+        // single generic `payload` JSONB column (see
+        // docs/AIR_WORKER_JOB_PROTOCOL.md §5a) rather than the scattered
+        // render-specific columns remote_render_queue uses, so the hermes
+        // branch just forwards that column as-is.
+        payload: hermes ? (job.payload || {}) : {
             project_id: job.project_id,
             project_name: job.project_name,
             asset_file_id: job.asset_file_id,

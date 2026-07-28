@@ -117,10 +117,18 @@ def report_progress(remote_job_id: str, lease_id: str, worker_instance_id: str, 
     })
 
 
-def complete_job(remote_job_id: str, lease_id: str, worker_instance_id: str, idempotency_key: str, output_ref: str) -> dict:
-    return _request("POST", f"/api/worker/jobs/{remote_job_id}/complete", {
-        "lease_id": lease_id, "worker_instance_id": worker_instance_id, "output_ref": output_ref,
-    }, idempotency_key=idempotency_key)
+def complete_job(remote_job_id: str, lease_id: str, worker_instance_id: str, idempotency_key: str, output_ref: str,
+                  result_payload: dict | None = None) -> dict:
+    # [AIR-0230] result_payload is optional and additive - render jobs never
+    # pass it (output_ref, a Drive file ref, is their whole "result"), but
+    # topic_benchmark_analyze's result is only a few KB of JSON, so it's
+    # sent inline instead of requiring a second fetch. The server route only
+    # forwards it to report_worker_hermes_job_outcome (the render RPC has no
+    # matching param and ignores extra body fields it doesn't read).
+    body = {"lease_id": lease_id, "worker_instance_id": worker_instance_id, "output_ref": output_ref}
+    if result_payload is not None:
+        body["result_payload"] = result_payload
+    return _request("POST", f"/api/worker/jobs/{remote_job_id}/complete", body, idempotency_key=idempotency_key)
 
 
 def fail_job(remote_job_id: str, lease_id: str, worker_instance_id: str, idempotency_key: str, error_code: str, error_message: str) -> dict:
@@ -131,7 +139,13 @@ def fail_job(remote_job_id: str, lease_id: str, worker_instance_id: str, idempot
 
 
 def renew_lease(remote_job_id: str, lease_id: str, worker_instance_id: str) -> dict:
-    return _request("POST", f"/api/worker/jobs/{remote_job_id}/renew-lease", {
+    # [AIR-0230, pre-existing bug fix unrelated to this task's own scope]
+    # This called "/renew-lease", but the actual route folder is
+    # auth-web/app/api/internal/worker/jobs/[jobId]/renew/route.ts - every
+    # renew_lease() call was 404ing. Fixed while touching this file for the
+    # topic_benchmark_analyze integration since a broken renew path would
+    # have silently broken lease renewal for Hermes jobs too.
+    return _request("POST", f"/api/worker/jobs/{remote_job_id}/renew", {
         "lease_id": lease_id, "worker_instance_id": worker_instance_id,
     })
 

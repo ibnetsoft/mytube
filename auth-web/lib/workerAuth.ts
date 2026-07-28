@@ -53,6 +53,22 @@ export interface AuthenticatedWorker {
     capabilities: Record<string, unknown>
 }
 
+// [AIR-0230] Hermes/topic_* jobs live in a separate table+RPC set
+// (migrations/air_0230_hermes_worker_central_protocol.sql) from render jobs
+// (air_0227d_worker_central_protocol.sql) - see that file's header for why
+// (remote_render_queue.project_id is NOT NULL, topic jobs have no project).
+// A worker/token is provisioned for exactly one family (its
+// allowed_job_types is either all render_* or all topic_*/hermes types -
+// see docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md §2b), so which
+// RPC/table a request should use is derived from the AUTHENTICATED
+// worker's allowed_job_types, never from the request body - same
+// don't-trust-the-caller principle as allowed_job_types narrowing itself.
+export const HERMES_JOB_TYPES = ['topic_research', 'topic_benchmark_analyze']
+
+export function isHermesWorker(worker: AuthenticatedWorker): boolean {
+    return worker.allowed_job_types.some((t) => HERMES_JOB_TYPES.includes(t))
+}
+
 type AuthResult = { ok: true; worker: AuthenticatedWorker } | { ok: false; response: NextResponse }
 
 function unauthorized(detail: string): AuthResult {
@@ -158,7 +174,7 @@ export async function reportJobOutcome(
 
     const bodyResult = await readJsonBodyWithLimit(req)
     if (!bodyResult.ok) return bodyResult.response
-    const { lease_id, worker_instance_id, output_ref, error_code, error_message } = bodyResult.body || {}
+    const { lease_id, worker_instance_id, output_ref, result_payload, error_code, error_message } = bodyResult.body || {}
     if (!lease_id || !worker_instance_id) {
         return NextResponse.json({ error: 'invalid_request', detail: 'lease_id and worker_instance_id are required' }, { status: 400 })
     }
@@ -166,20 +182,28 @@ export async function reportJobOutcome(
         return NextResponse.json({ error: 'invalid_request', detail: 'output_ref is required on complete' }, { status: 400 })
     }
 
-    const requestHash = hashIdempotentPayload({ jobId, lease_id, worker_instance_id, success, output_ref, error_code, error_message })
+    const requestHash = hashIdempotentPayload({ jobId, lease_id, worker_instance_id, success, output_ref, result_payload, error_code, error_message })
 
-    const { data, error } = await supabaseAdmin.rpc('report_worker_render_job_outcome', {
-        p_job_id: jobId,
-        p_lease_id: lease_id,
-        p_worker_instance_id: worker_instance_id,
-        p_worker_id: auth.worker.worker_id,
-        p_success: success,
-        p_idempotency_key: idempotencyKey,
-        p_request_hash: requestHash,
-        p_result_reference: typeof output_ref === 'string' ? output_ref : null,
-        p_error_code: typeof error_code === 'string' ? error_code : null,
-        p_error_message: typeof error_message === 'string' ? error_message.slice(0, 2000) : null,
-    })
+    // [AIR-0230] result_payload is render-irrelevant (undefined) on that
+    // path - report_worker_render_job_outcome has no matching param, so it
+    // must not be passed to that RPC call at all.
+    const hermes = isHermesWorker(auth.worker)
+    const { data, error } = await supabaseAdmin.rpc(
+        hermes ? 'report_worker_hermes_job_outcome' : 'report_worker_render_job_outcome',
+        {
+            p_job_id: jobId,
+            p_lease_id: lease_id,
+            p_worker_instance_id: worker_instance_id,
+            p_worker_id: auth.worker.worker_id,
+            p_success: success,
+            p_idempotency_key: idempotencyKey,
+            p_request_hash: requestHash,
+            p_result_reference: typeof output_ref === 'string' ? output_ref : null,
+            ...(hermes ? { p_result_payload: result_payload ?? null } : {}),
+            p_error_code: typeof error_code === 'string' ? error_code : null,
+            p_error_message: typeof error_message === 'string' ? error_message.slice(0, 2000) : null,
+        }
+    )
 
     if (error) return NextResponse.json({ error: 'db_error', detail: error.message }, { status: 500 })
 
