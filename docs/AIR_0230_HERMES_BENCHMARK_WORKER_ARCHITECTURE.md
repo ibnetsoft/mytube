@@ -1,22 +1,47 @@
 # AIR-0230 — Hermes Benchmark Worker: 벤치마크 영상 분석 + 사전생성 파이프라인 설계
 
-- 상태: **설계안 / CTO 승인 대기** (§2a `topic_benchmark_analyze` job_type은 구현 완료 — 아래
-  "진행 상황" 참고. §2b/§2c/§2d는 아직 미착수)
+- 상태: **설계안 / CTO 승인 대기** (§2a `topic_benchmark_analyze` job_type + 중앙 job
+  프로토콜(결정 B)은 구현 완료 — 아래 "진행 상황" 참고. §2b 웹어드민 트리거 UI, §2c
+  claim_topic 경유 데이터 전달, §2d 사전생성 버퍼는 아직 미착수. **DB 마이그레이션은
+  초안 상태로만 존재, 어떤 Supabase 인스턴스에도 적용되지 않음.**)
 - 관련 문서: [HERMES_TOPIC_INTELLIGENCE_ARCHITECTURE](./HERMES_TOPIC_INTELLIGENCE_ARCHITECTURE.md),
   [AIR_WORKER_ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [AIR_WORKER_JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md),
   [worknote/AIR-0226-stage1-current-state-analysis.md](../worknote/AIR-0226-stage1-current-state-analysis.md)
 
 ## 진행 상황
 
-- **완료**: §2a `topic_benchmark_analyze` job_type을 `worker/hermes_worker.py`에 구현 —
-  브랜치 `feat/air-0230-topic-benchmark-analyze`(베이스: 미병합 PR #86
-  `feat/air-0227e-p3-real-hermes-worker`), 커밋 `ff56f507`. 유튜브 검색 → 구독자 대비
-  조회수 랭킹 → 상위 1~3개 자막/댓글 수집 → Gemini 분석 + 성공전략 추출까지 기존 함수
-  재사용으로 구현, mocked 유닛테스트로 payload 검증/랭킹/전체 흐름 확인 완료(실 API 미검증).
-  `AIR_WORKER_JOB_PROTOCOL.md` §5a에 payload 스키마 문서화함. **아직 push 안 함 — 로컬
-  브랜치에만 존재.**
-- **미착수**: §2b(웹어드민 트리거 API), §2c(claim_topic 경유 데이터 전달), §2d(사전생성 버퍼),
-  중앙 Supabase 업로드(§2a 7번, `topic_benchmark_analysis`/`success_knowledge_central` 테이블).
+- **완료 1**: §2a `topic_benchmark_analyze` job_type을 `worker/hermes_worker.py`에 구현 —
+  유튜브 검색 → 구독자 대비 조회수 랭킹 → 상위 1~3개 자막/댓글 수집 → Gemini 분석 +
+  성공전략 추출까지 기존 함수 재사용으로 구현. `AIR_WORKER_JOB_PROTOCOL.md` §5a에 payload
+  스키마 문서화함. 커밋 `ff56f507`.
+- **완료 2 — 중앙 job 프로토콜 (결정: B, 별도 테이블)**: 렌더 작업용으로 이미 구현돼 있던
+  중앙 lease/claim 프로토콜(`migrations/air_0227d_worker_central_protocol.sql`,
+  `remote_render_queue` 재사용 방식)을 그대로 재사용하려 했으나 `remote_render_queue.project_id`가
+  `NOT NULL`이라 프로젝트 없는 topic 작업이 못 들어감 — 그래서 완전히 분리된
+  `migrations/air_0230_hermes_worker_central_protocol.sql`을 신규 작성:
+  - `remote_hermes_queue`(+`hermes_job_events`/`hermes_idempotency_keys`) 신규 테이블,
+    `claim_worker_hermes_job`/`renew_worker_hermes_job_lease`/`report_worker_hermes_job_progress`/
+    `report_worker_hermes_job_outcome` RPC 4개 — `air_0227d`와 동일한 lease/idempotency
+    패턴이지만 렌더 테이블·RPC는 전혀 건드리지 않음
+  - `workers`/`worker_tokens`는 이미 범용(`allowed_job_types TEXT[]`)이라 그대로 재사용
+  - 기존 `auth-web/app/api/internal/worker/**` 4개 라우트(claim/progress/renew/complete·fail)를
+    "인증된 워커 토큰의 allowed_job_types가 topic 계열인지"로 분기하도록 확장
+    (`workerAuth.ts::isHermesWorker()`)
+  - `worker/hermes_worker.py`에 `render_worker.py`와 동일한 로컬→중앙 이중 job 소스 패턴
+    포팅(lease 갱신 스레드, 완료/실패 중앙 보고, pending-ack 재시도) — `central_client.py`/
+    `job_store.py`가 이미 job_type-무관 범용이라 거의 그대로 재사용됨
+  - `report_worker_hermes_job_outcome`에 `p_result_payload` 컬럼 추가 → 분석 결과 JSON을
+    직접 중앙에 인라인 저장(별도 다운로드 스텝 불필요) — "결과 데이터만 웹으로 전송"을
+    실제로 완성하는 부분
+  - 부수적으로 발견한 기존 버그 수정: `central_client.renew_lease()`가 `/renew-lease`를
+    호출하는데 실제 라우트 폴더는 `/renew`라 항상 404였음(렌더용도 동일하게 깨져있었음)
+  - 검증: pglast SQL 문법 검증, 변경된 auth-web 파일 `tsc --noEmit`(기존 에러 외 신규
+    없음), mocked 유닛테스트로 원격 job은 `central_client.complete_job`이 올바른
+    result_payload와 함께 호출되고 로컬 job은 전혀 호출 안 됨을 확인.
+  - 브랜치 `feat/air-0230-topic-benchmark-analyze`(베이스: 미병합 PR #86
+    `feat/air-0227e-p3-real-hermes-worker`), 커밋 `3eb47bd5`, **push 완료.**
+- **미착수**: §2b(웹어드민이 실제로 job을 큐잉하는 트리거 UI/버튼), §2c(claim_topic 경유
+  benchmark_analysis를 데스크톱 프로젝트로 전달), §2d(사전생성 버퍼).
 
 ## 0. 배경 및 문제의식
 
