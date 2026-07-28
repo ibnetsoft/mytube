@@ -7,7 +7,7 @@ export function detectProvider(model: string): 'claude' | 'gemini' {
 
 const FALLBACK_GEMINI_MODEL = 'gemini-2.5-flash'
 
-async function callClaude(supabaseAdmin: SupabaseClient, prompt: string, model: string): Promise<string> {
+async function callClaude(supabaseAdmin: SupabaseClient, prompt: string, model: string, temperature?: number): Promise<string> {
     let claudeApiKey = process.env.CLAUDE_API_KEY
     if (!claudeApiKey) {
         const { data } = await supabaseAdmin
@@ -29,6 +29,8 @@ async function callClaude(supabaseAdmin: SupabaseClient, prompt: string, model: 
         body: JSON.stringify({
             model,
             max_tokens: 8192,
+            // Claude's API caps temperature at 1.0 (unlike Gemini's higher range).
+            ...(temperature !== undefined ? { temperature: Math.min(1, temperature) } : {}),
             messages: [{ role: 'user', content: prompt }],
         }),
     })
@@ -42,12 +44,15 @@ async function callClaude(supabaseAdmin: SupabaseClient, prompt: string, model: 
     return text
 }
 
-async function callGemini(geminiApiKey: string, prompt: string, model: string = FALLBACK_GEMINI_MODEL): Promise<string> {
+async function callGemini(geminiApiKey: string, prompt: string, model: string = FALLBACK_GEMINI_MODEL, temperature?: number): Promise<string> {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
     const response = await ai.models.generateContent({
         model,
         contents: prompt,
-        config: { responseMimeType: 'application/json' },
+        config: {
+            responseMimeType: 'application/json',
+            ...(temperature !== undefined ? { temperature } : {}),
+        },
     })
     return response.text || '[]'
 }
@@ -62,7 +67,8 @@ export async function generateJsonWithModelSetting(
     supabaseAdmin: SupabaseClient,
     prompt: string,
     modelSettingKey: string,
-    geminiApiKey: string
+    geminiApiKey: string,
+    temperature?: number
 ): Promise<string> {
     const { data: settingRow } = await supabaseAdmin
         .from('global_settings')
@@ -75,12 +81,12 @@ export async function generateJsonWithModelSetting(
     if (provider === 'claude') {
         try {
             console.log(`[AI Router] Using Claude for ${modelSettingKey} (model=${selectedModel})`)
-            return await callClaude(supabaseAdmin, prompt, selectedModel)
+            return await callClaude(supabaseAdmin, prompt, selectedModel, temperature)
         } catch (err) {
             console.warn(`[AI Router] Claude failed for ${modelSettingKey}, falling back to Gemini:`, err)
-            return await callGemini(geminiApiKey, prompt)
+            return await callGemini(geminiApiKey, prompt, FALLBACK_GEMINI_MODEL, temperature)
         }
     }
 
-    return await callGemini(geminiApiKey, prompt, selectedModel || FALLBACK_GEMINI_MODEL)
+    return await callGemini(geminiApiKey, prompt, selectedModel || FALLBACK_GEMINI_MODEL, temperature)
 }

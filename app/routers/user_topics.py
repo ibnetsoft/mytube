@@ -740,6 +740,17 @@ async def claim_topic(req: ClaimTopicRequest):
         db.update_project_setting(project_id, "image_style", normalized.get("image_style") or "realistic")
         db.update_project_setting(project_id, "style_locked", "1")
 
+        # [AIR-0230 §2c] 이 주제가 속한 카테고리에 실제 고성과 영상 분석이 있으면
+        # (topics_queue.benchmark_analysis, 웹어드민이 topic_benchmark_analyze job으로
+        # 채워둠 - migrations/air_0230_topics_queue_benchmark_analysis_column.sql, 미적용
+        # 초안) project_settings로 복사해둔다. generate_script_structure_api()가
+        # (app/routers/gemini.py) 이 값을 읽어 scene_planner.plan_scenes()의
+        # benchmark_analysis 인자로 전달한다 - PRO 전용 수동 분석(로컬 analysis 테이블)
+        # 없이도 STD가 claim한 주제에도 실제 벤치마크 데이터가 붙게 하기 위함.
+        benchmark_analysis = topic_data.get("benchmark_analysis")
+        if benchmark_analysis:
+            db.update_project_setting(project_id, "benchmark_analysis_json", json.dumps(benchmark_analysis, ensure_ascii=False))
+
         if project_mode == "longform":
             assigned_minutes = normalized.get("recommended_duration_minutes") or max(
                 15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)

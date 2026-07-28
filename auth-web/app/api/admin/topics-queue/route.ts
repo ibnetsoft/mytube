@@ -515,6 +515,43 @@ export async function POST(req: Request) {
         const targetLang = normalizeContentLanguage(category.language)
         const preferredWorkers = await loadPreferredWorkers(supabase)
 
+        // 이 카테고리에 이미 쌓여있는 주제 목록을 프롬프트에 넣어 "겹치는 주제 반복 생성"을
+        // 막는다. 이게 없으면 같은 카테고리에서 여러 번 생성 버튼을 누를 때마다 AI가
+        // 매번 가장 뻔한 각도로 비슷한 10개를 다시 뽑아내는 문제가 있었다.
+        const { data: existingTopicRows, count: existingTopicCount } = await supabase
+            .from('topics_queue')
+            .select('topic', { count: 'exact' })
+            .eq('category_id', categoryId)
+            .in('status', ['pending', 'assigned', 'completed'])
+            .order('created_at', { ascending: false })
+            .limit(80)
+        const existingTopics = Array.from(new Set(
+            (existingTopicRows || [])
+                .map((row: any) => String(row.topic || '').trim())
+                .filter(Boolean)
+        ))
+
+        // [AIR-0230] 실제 구독자 대비 고성과 영상을 분석한 결과가 있으면(§2b 수동/자동
+        // 트리거로 생성됨, remote_hermes_queue) 프롬프트에 근거로 넣고, 생성되는 각 주제에도
+        // 실어서 나중에 대본기획 단계(scene_planner.py)까지 전달되게 한다. 없으면 그냥
+        // 기존 방식(카테고리 이름/키워드/벤치마크 채널 텍스트)만 사용 - 이 조회 자체가
+        // 실패해도 주제 생성 자체를 막지 않는다.
+        let benchmarkAnalysis: any = null
+        try {
+            const { data: benchmarkRow } = await supabase
+                .from('remote_hermes_queue')
+                .select('result_payload, completed_at')
+                .eq('category_id', String(categoryId))
+                .eq('job_type', 'topic_benchmark_analyze')
+                .eq('status', 'completed')
+                .order('completed_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+            benchmarkAnalysis = benchmarkRow?.result_payload ?? null
+        } catch (e) {
+            console.warn('[Topic Generator] benchmark analysis lookup failed (continuing without it):', e)
+        }
+
         console.log(`Running AI Auto-Topic Generator for category: ${category.name}`);
         const nowInKst = new Date()
         const currentDateKst = new Intl.DateTimeFormat('en-CA', {
@@ -549,6 +586,24 @@ export async function POST(req: Request) {
         - For finance, economy, investment, stock, real-estate, news, current-affairs, and trend-sensitive categories, use the present-time context of ${currentYearKst}.
         - If a year is mentioned in a current-affairs or market topic, prefer ${currentYearKst}. Do not generate stale present-tense titles anchored to 2024 or 2025 unless the topic is explicitly retrospective or historical.
         - If the input keywords contain older years, treat them only as weak reference context and rewrite the final title so it matches ${currentYearKst}.
+
+        DIVERSITY REQUIREMENT (this category already has a repetition problem — take it seriously):
+        - The 10 topics must span at least 5 clearly different angles or sub-types (for example: a specific historical event, a personal/family life story, a mysterious or unexplained case, a ranking/listicle compilation, a cautionary or moral tale, a surprising little-known fact, a comparison, an emotional human-interest drama — pick whichever angles genuinely fit this category).
+        - Do NOT produce 10 topics that all follow the same sentence pattern, structure, or opening phrase.
+        - Do NOT produce near-duplicate topics within this same batch of 10 (same core subject with only wording changed).
+        ${existingTopics.length ? `
+        EXISTING TOPICS ALREADY IN THIS CATEGORY'S QUEUE (${existingTopicCount ?? existingTopics.length} total in this category; ${existingTopics.length} most recent shown below) — DO NOT repeat any of these, and do NOT generate a near-duplicate or a minor rewording of any of them:
+        ${existingTopics.map((t) => `- ${t}`).join('\n        ')}
+        ` : ''}
+        ${benchmarkAnalysis?.candidates?.length ? `
+        REAL HIGH-PERFORMING VIDEO EVIDENCE (actual YouTube videos in this niche, ranked by views-vs-subscribers, analyzed by AI — use this as REAL evidence of what currently works, not just a guess):
+        ${benchmarkAnalysis.candidates.map((c: any) => {
+            const a = c?.analysis || {}
+            const sa = a?.script_analysis || {}
+            return `- "${c.title}" (performance ${c.performance_ratio}x views-to-subscribers): hooks="${sa.hooks || ''}", structure="${sa.structure || ''}", viewer needs=${JSON.stringify(a.viewer_needs || [])}`
+        }).join('\n        ')}
+        Use this to inform the ANGLE/HOOK STYLE of the 10 topics you generate — but do not copy this video's title, names, or specific plot; only its technique.
+        ` : ''}
 
         ${isLongformCategory ? `
         For each LONGFORM topic, also choose a realistic target video duration in minutes.
@@ -593,11 +648,15 @@ export async function POST(req: Request) {
         `}
         `
 
+        // AIR: 다양성 확보를 위해 창의성(temperature)을 명시적으로 올려서 호출한다.
+        // 번역 등 다른 generateJsonWithModelSetting 호출부는 temperature를 넘기지 않으므로
+        // 이 변경의 영향을 받지 않는다 (기존 결정적 동작 그대로 유지).
         const text = await generateJsonWithModelSetting(
             supabase,
             prompt,
             'sys_api_topic_generation_model',
-            geminiApiKey
+            geminiApiKey,
+            1.0
         )
         const topics = JSON.parse(text)
 
@@ -653,6 +712,10 @@ export async function POST(req: Request) {
                 language: targetLang,
                 status: 'pending',
                 translation_status: 'pending',
+                // [AIR-0230] 이 카테고리의 실제 고성과 영상 분석이 있으면 주제마다 실어서
+                // claim_topic() → project_settings → scene_planner.py까지 전달되게 한다
+                // (migrations/air_0230_topics_queue_benchmark_analysis_column.sql, 미적용 초안).
+                benchmark_analysis: benchmarkAnalysis,
                 ...(isLongformCategory ? {
                     recommended_duration_minutes: assignedDuration,
                     assigned_duration_minutes: assignedDuration,
@@ -677,7 +740,7 @@ export async function POST(req: Request) {
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, benchmark_analysis, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
@@ -792,28 +855,35 @@ export async function DELETE(req: Request) {
         const id = searchParams.get('id')
         const categoryId = searchParams.get('categoryId')
         const yearsRaw = searchParams.get('years')
+        const deleteAll = searchParams.get('all') === 'true'
 
-        if (categoryId && yearsRaw) {
-            const years = yearsRaw
-                .split(',')
-                .map(value => value.trim())
-                .filter(Boolean)
-
-            if (years.length === 0) {
-                return NextResponse.json({ error: 'Missing cleanup years' }, { status: 400 })
-            }
-
+        // 카테고리 단위 일괄 삭제: years가 있으면 해당 연도만, 없고 all=true면
+        // 그 카테고리의 대기중(pending) 주제 전체를 지운다 (뻔하고 비슷한 주제가
+        // 잔뜩 쌓였을 때 하나씩 지우지 않고 한 번에 정리하기 위한 기능).
+        if (categoryId && (yearsRaw || deleteAll)) {
             const supabase = getAdmin()
-            const yearFilters = years
-                .map(year => `topic.ilike.%${year}%`)
-                .join(',')
-
-            const selectQuery = supabase
+            let selectQuery = supabase
                 .from('topics_queue')
                 .select('id, topic')
                 .eq('category_id', categoryId)
                 .eq('status', 'pending')
-                .or(yearFilters)
+
+            if (yearsRaw) {
+                const years = yearsRaw
+                    .split(',')
+                    .map(value => value.trim())
+                    .filter(Boolean)
+
+                if (years.length === 0) {
+                    return NextResponse.json({ error: 'Missing cleanup years' }, { status: 400 })
+                }
+
+                const yearFilters = years
+                    .map(year => `topic.ilike.%${year}%`)
+                    .join(',')
+
+                selectQuery = selectQuery.or(yearFilters)
+            }
 
             const { data: candidates, error: selectError } = await selectQuery
 

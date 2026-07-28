@@ -220,6 +220,9 @@ export default function DashboardContent() {
     const [newCatUploadChannelHandle, setNewCatUploadChannelHandle] = useState('')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
+    // [AIR-0230 §2b] 카테고리별 topic_benchmark_analyze job 상태 (수동 트리거 + 폴링용)
+    const [benchmarkTriggeringCatId, setBenchmarkTriggeringCatId] = useState<number | null>(null)
+    const [benchmarkJobByCat, setBenchmarkJobByCat] = useState<Record<number, any>>({})
     const [topicActionLoadingId, setTopicActionLoadingId] = useState<string | null>(null)
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
@@ -2047,6 +2050,51 @@ export default function DashboardContent() {
         }
     }
 
+    // [AIR-0230 §2b] 수동 트리거: 이 카테고리에 대해 topic_benchmark_analyze job을 큐잉.
+    // 워커(렌더링 PC의 Hermes Worker)가 실제 유튜브 검색/분석을 수행하고 결과를
+    // remote_hermes_queue에 채워넣으면, 다음 "AI 주제 자판기 생성" 실행 시 그 결과가
+    // 자동으로 프롬프트/생성된 주제에 반영된다 (auth-web/app/api/admin/topics-queue/route.ts).
+    // 워커 인프라(migrations/air_0230_*.sql, worker/hermes_worker.py)가 아직 프로덕션에
+    // 배포되지 않았으므로, 지금 눌러도 job은 'pending' 상태로 남아있는다 - 배포 전 UI
+    // 준비 차원.
+    const handleTriggerBenchmarkAnalyze = async (catId: number, force: boolean = false) => {
+        if (!canManageTopics) return
+        setBenchmarkTriggeringCatId(catId)
+        try {
+            const res = await adminFetch('/api/admin/topics-queue/benchmark-analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ categoryId: catId, force })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setBenchmarkJobByCat(prev => ({ ...prev, [catId]: data.job }))
+                alert(data.reused
+                    ? '최근에 이미 분석된 결과가 있어 그대로 재사용합니다.'
+                    : '고성과 영상 분석 작업을 큐에 등록했습니다. 워커가 처리하면 다음 주제 생성부터 반영됩니다.')
+            } else {
+                alert('분석 요청 실패: ' + data.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('분석 요청 오류')
+        } finally {
+            setBenchmarkTriggeringCatId(null)
+        }
+    }
+
+    const fetchBenchmarkJobStatus = async (catId: number) => {
+        try {
+            const res = await adminFetch(`/api/admin/topics-queue/benchmark-analyze?categoryId=${catId}`)
+            const data = await res.json()
+            if (data.job) {
+                setBenchmarkJobByCat(prev => ({ ...prev, [catId]: data.job }))
+            }
+        } catch (err) {
+            console.error('benchmark job status fetch failed', err)
+        }
+    }
+
     const startEditingTopic = (topicItem: any) => {
         if (!canManageTopics) return
         const currentTopic = String(topicItem?.topic || '').trim()
@@ -2185,6 +2233,49 @@ export default function DashboardContent() {
             alert(`${data.deletedCount || 0}개의 오래된 연도 대기주제를 삭제했습니다.`)
         } catch (err: any) {
             alert('연도 주제 정리 오류: ' + (err?.message || String(err)))
+        } finally {
+            setTopicActionLoadingId(null)
+        }
+    }
+
+    // 뻔하고 비슷비슷한 주제가 카테고리에 잔뜩 쌓였을 때, 하나씩 지우지 않고
+    // 그 카테고리의 대기중(pending) 주제 전체를 한 번에 정리하기 위한 기능.
+    const handleDeleteAllTopicsInCategory = async (categoryId: number, pendingCount: number) => {
+        if (!canManageTopics) return
+        if (pendingCount <= 0) return
+        if (!confirm(`이 카테고리의 대기중 주제 ${pendingCount}개를 전부 삭제할까요? 되돌릴 수 없습니다.`)) return
+
+        setTopicActionLoadingId(`cleanup-all-${categoryId}`)
+        try {
+            const params = new URLSearchParams({
+                categoryId: String(categoryId),
+                all: 'true',
+            })
+            const res = await adminFetch(`/api/admin/topics-queue?${params.toString()}`, {
+                method: 'DELETE'
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('전체 삭제 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+
+            const deletedIdSet = new Set((data.deletedIds || []).map((id: any) => String(id)))
+            setTopics(prev => prev.filter(item => !deletedIdSet.has(String(item.id))))
+            setGeneratedTopicsByCat(prev => {
+                if (!prev[categoryId]) return prev
+                const next = { ...prev }
+                delete next[categoryId]
+                return next
+            })
+
+            if (editingTopicId && deletedIdSet.has(editingTopicId)) {
+                cancelEditingTopic()
+            }
+
+            alert(`${data.deletedCount || 0}개의 대기중 주제를 전부 삭제했습니다.`)
+        } catch (err: any) {
+            alert('전체 삭제 오류: ' + (err?.message || String(err)))
         } finally {
             setTopicActionLoadingId(null)
         }
@@ -3119,6 +3210,37 @@ export default function DashboardContent() {
                                                 </button>
                                                 )}
 
+                                                {canManageTopics && (() => {
+                                                    const benchmarkJob = benchmarkJobByCat[cat.id]
+                                                    const benchmarkStatusLabel = benchmarkJob
+                                                        ? (benchmarkJob.status === 'completed' ? `완료 (${benchmarkJob.result_payload?.candidates?.length || 0}개 영상 분석됨)`
+                                                            : benchmarkJob.status === 'failed' ? `실패: ${benchmarkJob.error_message || ''}`
+                                                            : `대기/처리 중 (${benchmarkJob.worker_status || benchmarkJob.status})`)
+                                                        : null
+                                                    return (
+                                                        <div className="mt-2">
+                                                            <button
+                                                                disabled={benchmarkTriggeringCatId === cat.id}
+                                                                onClick={() => handleTriggerBenchmarkAnalyze(cat.id)}
+                                                                title="구독자 대비 조회수가 높은 실제 유튜브 영상을 찾아 분석 - 다음 주제 생성부터 근거로 반영됩니다 (워커 인프라 배포 전에는 대기 상태로 남습니다)"
+                                                                className="w-full py-2 bg-purple-600/10 hover:bg-purple-600/30 border border-purple-500/20 text-purple-300 hover:text-white rounded-xl text-[11px] font-black tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase"
+                                                            >
+                                                                {benchmarkTriggeringCatId === cat.id ? '분석 요청 중...' : '고성과 영상 분석 실행'}
+                                                            </button>
+                                                            <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
+                                                                <span>{benchmarkStatusLabel || '아직 분석된 벤치마크 없음'}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => fetchBenchmarkJobStatus(cat.id)}
+                                                                    className="underline hover:text-gray-300"
+                                                                >
+                                                                    상태 새로고침
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })()}
+
                                                 {previewTopicItems.length > 0 && (
                                                     <div className="mt-4 rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4">
                                                         <div className="mb-3 flex items-center justify-between gap-2">
@@ -3141,6 +3263,16 @@ export default function DashboardContent() {
                                                                         className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1 text-[10px] font-black text-red-300 hover:bg-red-500/20 disabled:opacity-50"
                                                                     >
                                                                         2024/2025 삭제
+                                                                    </button>
+                                                                )}
+                                                                {canManageTopics && pendingTopics.length > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={topicActionLoadingId === `cleanup-all-${cat.id}`}
+                                                                        onClick={() => handleDeleteAllTopicsInCategory(cat.id, pendingTopics.length)}
+                                                                        className="rounded-lg border border-red-500/40 bg-red-500/20 px-3 py-1 text-[10px] font-black text-red-200 hover:bg-red-500/30 disabled:opacity-50"
+                                                                    >
+                                                                        전체삭제 ({pendingTopics.length})
                                                                     </button>
                                                                 )}
                                                                 <span className="text-[10px] font-bold text-gray-500">{previewTopicItems.length}개</span>
