@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List
 import httpx
+import json
 
 import database as db
 from config import config
@@ -67,8 +68,36 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
         style_directive = resolve_script_style_directive(req.script_style)
 
         db_analysis = None
+        queue_benchmark_analysis = None
         if req.project_id:
             db_analysis = db.get_analysis(req.project_id)
+            if not db_analysis:
+                # [AIR-0230 §2c] db_analysis is PRO's manual "search a video ->
+                # analyze" path (templates/pages/topic.html) - STD claimed
+                # topics never populate that local `analysis` table at all, so
+                # without this fallback STD projects always get an empty
+                # benchmark_analysis here regardless of what the web-admin's
+                # topic_benchmark_analyze pipeline already found. claim_topic()
+                # (app/routers/user_topics.py) copies topics_queue.benchmark_analysis
+                # into this project_setting when present.
+                try:
+                    settings = db.get_project_settings(req.project_id) or {}
+                    raw = settings.get("benchmark_analysis_json")
+                    if raw:
+                        # worker/hermes_worker.py's result_payload shape is
+                        # {..., candidates: [{..., analysis: {...}}]} - one
+                        # entry per analyzed video (usually just 1, see
+                        # DEFAULT_BENCHMARK_CANDIDATES). Normalize to the same
+                        # single-video "analysis" shape db_analysis.analysis_result
+                        # already has, so the rest of this function (and
+                        # scene_planner.plan_scenes()'s benchmark_analysis
+                        # param) doesn't need to know which source it came from.
+                        parsed = json.loads(raw)
+                        candidates = parsed.get("candidates") or []
+                        if candidates:
+                            queue_benchmark_analysis = candidates[0].get("analysis")
+                except Exception as e:
+                    print(f"[Gemini] Failed to load queue benchmark_analysis for project {req.project_id}: {e}")
 
         duration_str = f"{req.duration}초"
 
@@ -78,7 +107,7 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
             "tone": req.tone,
             "user_notes": req.notes,
             "script_style": req.script_style,
-            "success_analysis": db_analysis.get("analysis_result") if db_analysis else None
+            "success_analysis": (db_analysis.get("analysis_result") if db_analysis else None) or queue_benchmark_analysis
         }
 
         accumulated_knowledge = db.get_recent_knowledge(limit=10, script_style=req.script_style)
@@ -88,7 +117,13 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
             topic=req.topic,
             target_duration=req.duration,
             project_id=req.project_id,
-            style_directive=style_directive
+            style_directive=style_directive,
+            # [FIX] 이 값들은 예전부터 조회만 되고 실제로는 전달되지 않던 값들이다 —
+            # scene_planner가 GeminiService.generate_script_structure()로 대체되면서
+            # 벤치마크 분석/누적 학습지식/최근주제 회피가 전부 죽은 코드가 됐었다.
+            benchmark_analysis=analysis_data.get("success_analysis"),
+            accumulated_knowledge=accumulated_knowledge,
+            recent_titles=recent_titles,
         )
 
         # [FIX] scene_planner_service.plan_scenes()의 실패 응답은 error/error_message를
