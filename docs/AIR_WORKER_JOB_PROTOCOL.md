@@ -24,6 +24,7 @@ render_image           → Render Worker Process
 render_video           → Render Worker Process
 render_audio            → Render Worker Process
 topic_research           → Hermes Worker Process
+topic_benchmark_analyze    → Hermes Worker Process (AIR-0230, §5a — 구현 완료: worker/hermes_worker.py)
 topic_generate             → Hermes Worker Process
 topic_deduplicate            → Hermes Worker Process (AIR-0226의 하네스 dedup 로직 재사용 대상)
 topic_rank                     → Hermes Worker Process
@@ -92,6 +93,34 @@ AIR Worker의 job_type 세분화(`topic_research`/`topic_generate`/`topic_dedupl
 가 별개 job_type인 것)는 이걸 **선택적으로 단계별 재시도/재개가 가능하게 쪼갤 수 있는 여지**를
 설계에 남겨두는 것 — 이번 Task에서 실제로 이렇게 쪼개서 구현하진 않지만(AIR-0226의 단일 호출
 방식이 여전히 기본), 스키마 상으로는 각 단계가 독립 job으로 표현 가능하다는 점을 명시해둔다.
+
+### 5a. `topic_benchmark_analyze` payload (AIR-0230, 구현 완료)
+
+```json
+{
+  "topic_benchmark_analyze": {
+    "keyword": "string (필수 — 카테고리의 keywords/name, job 생성 시점에 호출자가 리터럴 값으로 채움)",
+    "language": "string, 기본 'ko' (ko|en|ja)",
+    "video_type": "string, 기본 'longform' (longform|shorts)",
+    "max_candidates": "int, 기본 1, 최대 3 (분석까지 진행할 상위 고성과 영상 개수)",
+    "search_pool_size": "int, 기본 15, 최대 30 (성과도 랭킹 대상 검색 후보 수)"
+  }
+}
+```
+
+- `category_id`를 받지 않는다 — 워커는 Supabase 접근 권한이 없으므로(§ARCHITECTURE §4 경계),
+  이 job을 만드는 쪽(웹어드민, 수동/자동 트리거 둘 다 — `docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md`
+  §2b)이 카테고리의 keywords/language/video_type을 미리 조회해 리터럴 값으로 payload에 넣어야 한다.
+- 처리: 유튜브 검색(`search_pool_size`개) → 구독자 대비 조회수(`performance_ratio`)로 랭킹 →
+  상위 `max_candidates`개만 자막+댓글 수집 → Gemini 분석 + 성공전략 추출. 기존 함수 재사용
+  (`services/source_service.py::extract_text_from_youtube`, `services/gemini_service.py::analyze_comments`/
+  `extract_success_strategy`) — 새 AI 로직 없음.
+- **결과는 `topic_research`와 동일하게 로컬 `RESULTS_DIR`에만 저장된다 — 중앙 Supabase 업로드는
+  아직 없음**(§3의 "이번 Task의 경계"와 같은 제약을 그대로 따름). 중앙 업로드는 P4(중앙 job
+  연동) 작업과 함께 별도 구현 예정.
+- 비용 주의: `topic_research`(LLM 호출 1회)보다 훨씬 비싸다 — 후보당 검색+통계 조회+댓글 조회+
+  AI 호출 2회(분석+전략추출)가 추가된다. `max_candidates`/`search_pool_size` 상한을 넉넉하게
+  올리지 말 것.
 
 ## 6. 재시도/실패 처리
 
