@@ -86,10 +86,28 @@
    테이블(가칭 `topic_benchmark_analysis`, `success_knowledge_central`)에 업로드. 로컬 SQLite
    축적을 중앙화해 전체 사용자가 공유하는 학습모델로 진화 가능하게 한다.
 
-### 2b. 웹어드민 "AI 주제 자판기 생성" 연동
+### 2b. 웹어드민 "AI 주제 자판기 생성" 연동 — 트리거는 항상 웹어드민(중앙 서버)
 
-P4(중앙 job 연동) 작업과 결합해, 카테고리 생성 버튼을 누르면 `topic_benchmark_analyze` job을
-큐잉하고, 워커 처리 완료 후 결과를 `topics_queue` 삽입 시점에 반영한다. 이미 적용된 개선(중복
+**원칙**: 어떤 키워드로 검색할지(카테고리의 `keywords`/`benchmark_channel_url`)와 언제
+조사를 시작할지(job 생성) 둘 다 웹어드민이 결정한다. Hermes/AIWorker는 자율적으로 판단하지
+않고, 중앙이 큐에 넣어준 job(payload에 `category_id`/`keywords`가 이미 담김)을 폴링해서
+`claim`하고 그대로 실행만 한다(`worker/central_client.py`의 `claim_job` 폴링 계약,
+`AIR_WORKER_JOB_PROTOCOL.md` §3 원칙 그대로). 트리거 방식은 두 가지를 **둘 다** 지원한다:
+
+- **수동 모드**: 어드민이 웹어드민 화면에서 카테고리를 골라 버튼을 누름 — 기존 "AI 주제
+  자판기 생성" 버튼 옆에 "벤치마크 분석 포함 생성" 버튼을 추가하거나, 기존 버튼 자체가
+  `topic_benchmark_analyze` job도 함께 큐잉하도록 확장한다. 어드민이 즉시 결과를 보고
+  싶을 때, 혹은 특정 카테고리를 우선적으로 조사하고 싶을 때 사용.
+- **자동 모드**: 정기 스케줄(예: 카테고리당 1일 1회, cron)로 중앙 서버가 알아서
+  `topic_benchmark_analyze` job을 생성. `HERMES_TOPIC_INTELLIGENCE_ARCHITECTURE.md` §2b가
+  이미 이 옵션을 전제하고 있음 — 동일 카테고리에 유효기간(§3, 기본 7일 제안) 내 최근 조사가
+  있으면 자동 모드는 새로 부르지 않고 스킵(비용 절감), 어드민이 수동으로 "강제 새로고침"하면
+  예외적으로 다시 조사.
+- 두 모드 모두 동일한 job_type/payload 스키마를 쓰므로 워커 쪽 구현은 트리거 방식과 무관하게
+  하나로 통일된다 — 차이는 오직 "누가/언제 job row를 insert하는가"(어드민 버튼 클릭 핸들러 vs
+  cron 스케줄러)뿐.
+
+워커가 job을 처리 완료하면 결과를 `topics_queue` 삽입 시점에 반영한다. 이미 적용된 개선(중복
 회피 프롬프트, 다양성 지시, temperature)과 상호 보완적으로 작동한다 — 저것들이 "그럴듯한 지어내기"를
 개선한다면, 이건 "실제 시장 근거"를 더한다.
 
