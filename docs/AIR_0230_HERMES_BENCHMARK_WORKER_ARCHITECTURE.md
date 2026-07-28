@@ -1,9 +1,22 @@
 # AIR-0230 — Hermes Benchmark Worker: 벤치마크 영상 분석 + 사전생성 파이프라인 설계
 
-- 상태: **설계안 / CTO 승인 대기** (코드 미착수 — §5는 이미 별도로 구현/커밋된 선행 작업 기록)
+- 상태: **설계안 / CTO 승인 대기** (§2a `topic_benchmark_analyze` job_type은 구현 완료 — 아래
+  "진행 상황" 참고. §2b/§2c/§2d는 아직 미착수)
 - 관련 문서: [HERMES_TOPIC_INTELLIGENCE_ARCHITECTURE](./HERMES_TOPIC_INTELLIGENCE_ARCHITECTURE.md),
   [AIR_WORKER_ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [AIR_WORKER_JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md),
   [worknote/AIR-0226-stage1-current-state-analysis.md](../worknote/AIR-0226-stage1-current-state-analysis.md)
+
+## 진행 상황
+
+- **완료**: §2a `topic_benchmark_analyze` job_type을 `worker/hermes_worker.py`에 구현 —
+  브랜치 `feat/air-0230-topic-benchmark-analyze`(베이스: 미병합 PR #86
+  `feat/air-0227e-p3-real-hermes-worker`), 커밋 `ff56f507`. 유튜브 검색 → 구독자 대비
+  조회수 랭킹 → 상위 1~3개 자막/댓글 수집 → Gemini 분석 + 성공전략 추출까지 기존 함수
+  재사용으로 구현, mocked 유닛테스트로 payload 검증/랭킹/전체 흐름 확인 완료(실 API 미검증).
+  `AIR_WORKER_JOB_PROTOCOL.md` §5a에 payload 스키마 문서화함. **아직 push 안 함 — 로컬
+  브랜치에만 존재.**
+- **미착수**: §2b(웹어드민 트리거 API), §2c(claim_topic 경유 데이터 전달), §2d(사전생성 버퍼),
+  중앙 Supabase 업로드(§2a 7번, `topic_benchmark_analysis`/`success_knowledge_central` 테이블).
 
 ## 0. 배경 및 문제의식
 
