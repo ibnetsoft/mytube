@@ -25,6 +25,7 @@ render_video           → Render Worker Process
 render_audio            → Render Worker Process
 topic_research           → Hermes Worker Process
 topic_benchmark_analyze    → Hermes Worker Process (AIR-0230, §5a — 구현 완료: worker/hermes_worker.py)
+script_plan_generate         → Hermes Worker Process (AIR-0230, §5b — 구현 완료: worker/hermes_worker.py)
 topic_generate             → Hermes Worker Process
 topic_deduplicate            → Hermes Worker Process (AIR-0226의 하네스 dedup 로직 재사용 대상)
 topic_rank                     → Hermes Worker Process
@@ -115,12 +116,51 @@ AIR Worker의 job_type 세분화(`topic_research`/`topic_generate`/`topic_dedupl
   상위 `max_candidates`개만 자막+댓글 수집 → Gemini 분석 + 성공전략 추출. 기존 함수 재사용
   (`services/source_service.py::extract_text_from_youtube`, `services/gemini_service.py::analyze_comments`/
   `extract_success_strategy`) — 새 AI 로직 없음.
-- **결과는 `topic_research`와 동일하게 로컬 `RESULTS_DIR`에만 저장된다 — 중앙 Supabase 업로드는
-  아직 없음**(§3의 "이번 Task의 경계"와 같은 제약을 그대로 따름). 중앙 업로드는 P4(중앙 job
-  연동) 작업과 함께 별도 구현 예정.
+- **결과는 항상 로컬 `RESULTS_DIR`에 저장되고, 원격 claim으로 들어온 job이면 추가로 중앙에도
+  보고된다** — [갱신, AIR-0230 중앙 job 프로토콜 커밋] `migrations/air_0230_hermes_worker_central_protocol.sql`의
+  `report_worker_hermes_job_outcome`이 `p_result_payload`를 받아 `remote_hermes_queue.result_payload`에
+  인라인 저장하고, `central_client.complete_job(..., result_payload=...)`가 이걸 실제로 채운다.
+  이전 버전 문서(§3 "이번 Task의 경계")가 말하던 "중앙 업로드 없음"은 topic_research를 만들 당시
+  (AIR-0227E-P3) 기준이었고, 지금은 두 job_type 다 중앙 프로토콜을 탄다.
 - 비용 주의: `topic_research`(LLM 호출 1회)보다 훨씬 비싸다 — 후보당 검색+통계 조회+댓글 조회+
   AI 호출 2회(분석+전략추출)가 추가된다. `max_candidates`/`search_pool_size` 상한을 넉넉하게
   올리지 말 것.
+
+### 5b. `script_plan_generate` payload (AIR-0230, 구현 완료)
+
+```json
+{
+  "script_plan_generate": {
+    "topic_queue_id": "string (필수 — 결과를 다시 써넣을 topics_queue 행, 다른 job_type과
+      달리 이 필드가 없으면 job 자체가 무의미하므로 payload 검증에서 필수로 강제)",
+    "topic": "string (필수)",
+    "target_duration_seconds": "int, 기본 60",
+    "script_style": "string, 기본 'default'",
+    "language": "string, 기본 'ko'",
+    "benchmark_analysis": "object|null (topics_queue.benchmark_analysis를 그대로 전달 — §5a 결과의
+      candidates[0].analysis 형태와 동일한 단일 영상 분석 shape)"
+  }
+}
+```
+
+- §2d "사전생성 버퍼"(주제를 클레임하기 전에 기획을 미리 만들어두기)의 실행 단위 — 웹어드민이
+  카테고리당 주제를 생성한 직후, 그중 최신 K개에 대해 이 job_type을 큐잉한다
+  (`auth-web/app/api/admin/topics-queue/route.ts`).
+- 처리: `app/services/scene_planner.py::scene_planner_service.plan_scenes()`를 **그대로** 호출 —
+  실시간 클레임 흐름(`app/routers/gemini.py::generate_script_structure_api()`)이 쓰는 것과
+  동일한 함수라서, 미리 만든 결과와 즉석에서 만든 결과가 모양상 구분되지 않는다.
+- `resolve_script_style_directive()`가 이 워커 PC의 로컬 `script_style_presets`를 읽으므로,
+  이 PC의 프리셋이 웹어드민과 동기화돼 있다는 전제에 의존한다(다른 데스크톱 설치본과 동일한
+  기존 가정 — 이 job_type이 새로 만든 리스크 아님).
+- **완료 시 자동 반영**: `auth-web/app/api/internal/worker/jobs/[jobId]/complete/route.ts`가
+  `job_type === 'script_plan_generate'`이고 성공이면, `result_payload.structure`를
+  `topics_queue.pregenerated_structure`에, `pregenerated_structure_status`를 `'ready'`로
+  자동 반영한다(sync-back). 이후 `claim_topic()`이 이 컬럼을 `project_settings`로 복사하고,
+  `generate_script_structure_api()`가 AI를 다시 부르지 않고 이 값을 즉시 반환한다.
+- **대본 본문(narration text) 사전생성은 이번 범위 밖**: 그 로직(`templates/pages/script_gen.html`)은
+  지금 클라이언트 JS에만 있고, 섹션 간 상태(등장인물 이름 재사용)를 순차적으로 이어가는 구조라
+  Python으로 그대로 옮기면 로직이 두 벌로 갈라져 나중에 어긋날 위험이 크다 — 별도 검토 후 착수
+  권장(`docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md` §2d 참고).
 
 ## 6. 재시도/실패 처리
 

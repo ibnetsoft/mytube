@@ -88,7 +88,7 @@ RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 logger = get_logger("hermes_worker")
 
 _shutdown_requested = False
-SUPPORTED_JOB_TYPES = ["topic_research", "topic_benchmark_analyze"]
+SUPPORTED_JOB_TYPES = ["topic_research", "topic_benchmark_analyze", "script_plan_generate"]
 DEFAULT_COUNT = 10
 MAX_COUNT = 30
 
@@ -583,6 +583,92 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
     return str(result_path), result_payload
 
 
+def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, str, dict | None]:
+    """[AIR-0230 §2d] topic_queue_id is required (not optional) - unlike
+    topic_research/topic_benchmark_analyze, this job's whole purpose is to
+    write its result back onto a SPECIFIC topics_queue row (see
+    auth-web/app/api/internal/worker/jobs/[jobId]/complete/route.ts's
+    sync-back step) - a script plan with nowhere to land is pointless."""
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for script_plan_generate")
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise ValueError("payload.topic is required for script_plan_generate")
+    target_duration = payload.get("target_duration_seconds", 60)
+    try:
+        target_duration = max(15, int(target_duration))
+    except (TypeError, ValueError):
+        target_duration = 60
+    script_style = str(payload.get("script_style") or "default").strip()
+    language = str(payload.get("language") or "ko").strip()
+    benchmark_analysis = payload.get("benchmark_analysis") if isinstance(payload.get("benchmark_analysis"), dict) else None
+    return topic_queue_id, topic, target_duration, script_style, language, benchmark_analysis
+
+
+def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    """[AIR-0230 §2d] Pre-bakes a scene structure for one topics_queue row
+    ahead of any user claiming it - reuses app/services/scene_planner.py's
+    plan_scenes() verbatim (same function the live claim-and-plan flow uses,
+    app/routers/gemini.py::generate_script_structure_api()), so a pre-baked
+    structure is indistinguishable in shape from one generated live."""
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating payload)")
+
+    topic_queue_id, topic, target_duration, script_style, language, benchmark_analysis = _validate_script_plan_payload(job["payload"])
+
+    job_store.transition(job_id, job_store.RENDERING, reason="planning scene structure")
+    write_state("running", job, 30, job_id)
+    job_log.info(f"-> RENDERING (planning scenes for topic_queue_id={topic_queue_id})")
+
+    ensure_project_root_on_path()
+    from services.script_style_resolver import resolve_script_style_directive
+    from app.services.scene_planner import scene_planner_service
+    import asyncio
+
+    # Relies on this worker PC's local script_style_presets being in sync
+    # with the web-admin (same assumption every other desktop install
+    # already depends on for this function - not new to this job type).
+    style_directive = resolve_script_style_directive(script_style)
+
+    structure = asyncio.run(
+        scene_planner_service.plan_scenes(
+            topic=topic,
+            target_duration=target_duration,
+            style_directive=style_directive,
+            benchmark_analysis=benchmark_analysis,
+        )
+    )
+
+    planner_notes = structure.get("planner_notes") or {}
+    if planner_notes.get("error"):
+        raise ValueError(planner_notes.get("error_message") or "scene_planner_service.plan_scenes() failed")
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
+    write_state("running", job, 90, job_id)
+    job_log.info(f"-> UPLOADING (scene_count={structure.get('scene_count')})")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "script_plan_generate",
+        "status": "COMPLETED",
+        "topic_queue_id": topic_queue_id,
+        "structure": structure,
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="script plan complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
 def process_one_job(job: dict) -> None:
     job_id = job["job_id"]
     job_type = job.get("job_type") or "topic_research"
@@ -600,6 +686,8 @@ def process_one_job(job: dict) -> None:
     try:
         if job_type == "topic_benchmark_analyze":
             output_ref, result_payload = _process_topic_benchmark_analyze(job, job_id, job_log)
+        elif job_type == "script_plan_generate":
+            output_ref, result_payload = _process_script_plan_generate(job, job_id, job_log)
         else:
             output_ref, result_payload = _process_topic_research(job, job_id, job_log)
 
