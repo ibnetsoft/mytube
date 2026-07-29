@@ -18,7 +18,7 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
     try {
         const { data: job } = await supabaseAdmin
             .from('remote_hermes_queue')
-            .select('job_type, status, payload, result_payload')
+            .select('job_type, status, payload, result_payload, category_id')
             .eq('id', jobId)
             .maybeSingle()
 
@@ -54,7 +54,16 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
             .from('remote_hermes_queue')
             .insert({
                 job_type: 'script_generate',
-                category_id: jobPayload.category_id ?? null,
+                // [FIX] category_id is a top-level remote_hermes_queue column,
+                // never part of payload (see the script_plan_generate insert in
+                // auth-web/app/api/admin/topics-queue/route.ts) - reading
+                // jobPayload.category_id here always evaluated to undefined,
+                // so every chain-enqueued script_generate job silently got
+                // category_id: null. Harmless today (nothing currently queries
+                // script_plan_generate/script_generate rows by category_id,
+                // unlike topic_benchmark_analyze's freshness check), but wrong
+                // data - fixed to read the actual row column.
+                category_id: job.category_id ?? null,
                 payload: {
                     topic_queue_id: String(topicQueueId),
                     topic: jobPayload.topic,
