@@ -1084,7 +1084,23 @@
         }
     }
 
-    async function generateStructure(passedTopic = null) {
+    // [AIR-0230 §2d] 사전생성 폴링 - claim_topic()으로 받은 주제는 실시간 생성
+    // 폴백이 없으므로(app/routers/gemini.py::generate_script_structure_api()),
+    // "pending" 응답을 그냥 에러로 보여주고 끝내면 사용자가 몇 분마다 수동으로
+    // 버튼을 다시 눌러야 한다. 대신 백그라운드에서 자동으로 재시도한다.
+    let pregenPollTimer = null;
+    const PREGEN_POLL_INTERVAL_MS = 10000;
+    const PREGEN_POLL_MAX_ATTEMPTS = 60; // 10초 * 60 = 최대 10분
+
+    function stopPregenPolling() {
+        if (pregenPollTimer) {
+            clearTimeout(pregenPollTimer);
+            pregenPollTimer = null;
+        }
+    }
+
+    async function generateStructure(passedTopic = null, _pollAttempt = 0) {
+        stopPregenPolling();
         let topic = passedTopic || document.getElementById('topicInput').value.trim();
 
         // Update UI if passedTopic was used
@@ -1115,7 +1131,9 @@
         const notes = document.getElementById('additionalNotes').value;
 
         const btn = document.getElementById('generateBtn');
-        Utils.setLoading(btn, true, i18n.status_generating);
+        Utils.setLoading(btn, true, _pollAttempt > 0
+            ? `사전생성 대기 중... (${_pollAttempt}/${PREGEN_POLL_MAX_ATTEMPTS})`
+            : i18n.status_generating);
 
         try {
             const projectId = getCurrentProject();
@@ -1189,6 +1207,22 @@
                         if (window.updateStepStatus) window.updateStepStatus('plan', true);
                     } catch (e) { console.error('DB 저장 실패:', e); }
                 }
+            } else if (result.status === 'pending') {
+                // [AIR-0230 §2d] 사전생성 대기 중 - 에러가 아니라 정상적인 "아직
+                // 준비 안 됨" 상태이므로 에러 토스트를 띄우지 않는다. 첫 시도에서만
+                // 안내 토스트를 보여주고, 이후에는 조용히 재시도해서 계속 토스트가
+                // 뜨는 걸 방지한다.
+                if (_pollAttempt === 0) {
+                    Utils.showToast('이 주제는 사전생성 중입니다. 준비되는 대로 자동으로 반영됩니다...', 'info');
+                }
+                if (_pollAttempt < PREGEN_POLL_MAX_ATTEMPTS) {
+                    pregenPollTimer = setTimeout(() => {
+                        generateStructure(topic, _pollAttempt + 1);
+                    }, PREGEN_POLL_INTERVAL_MS);
+                    return; // setLoading(false)를 finally에서 하지 않도록 아래에서 처리
+                } else {
+                    Utils.showToast('사전생성이 예상보다 오래 걸리고 있습니다. 잠시 후 다시 시도해주세요.', 'warning');
+                }
             } else {
                 Utils.showToast(i18n.err_gen_fail + ': ' + (result.error || i18n.err_unknown), 'error');
             }
@@ -1196,7 +1230,12 @@
             console.error('생성 오류:', error);
             Utils.showToast(i18n.toast_gen_error, 'error');
         } finally {
-            Utils.setLoading(btn, false);
+            // 폴링을 예약한 경우(pregenPollTimer가 설정됨)에는 버튼 로딩 상태를
+            // 유지해야 다음 폴링 시도의 setLoading(true)와 자연스럽게 이어진다 -
+            // 여기서 false로 풀어버리면 대기 중에 버튼이 활성화된 것처럼 깜빡인다.
+            if (!pregenPollTimer) {
+                Utils.setLoading(btn, false);
+            }
         }
     }
 

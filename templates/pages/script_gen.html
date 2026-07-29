@@ -1094,7 +1094,20 @@
 
     // ========== GENERATION ==========
 
-    async function generateScript() {
+    // [AIR-0230 §2d] 대본 사전생성 폴링 - script_plan.html의 폴링 패턴과 동일.
+    let scriptPregenPollTimer = null;
+    const SCRIPT_PREGEN_POLL_INTERVAL_MS = 10000;
+    const SCRIPT_PREGEN_POLL_MAX_ATTEMPTS = 60; // 10초 * 60 = 최대 10분
+
+    function stopScriptPregenPolling() {
+        if (scriptPregenPollTimer) {
+            clearTimeout(scriptPregenPollTimer);
+            scriptPregenPollTimer = null;
+        }
+    }
+
+    async function generateScript(_pollAttempt = 0) {
+        stopScriptPregenPolling();
         const projectId = getCurrentProject();
         if (!projectId) {
             Utils.showToast(i18n.status_select_project_first, 'warning');
@@ -1104,8 +1117,8 @@
         // [AIR-0230 §2d, 사용자 결정] 사전생성 우선 - topics_queue에서 claim된
         // 프로젝트(project_settings.topic_queue_id 존재)는 실시간 대본 생성을
         // 하지 않는다. 사전생성된 대본(claim_topic()이 project_settings로 복사해둔
-        // pregenerated_script_text)이 있으면 그대로 쓰고, 없으면 대기 안내만
-        // 하고 끝낸다 - 아래의 실시간 섹션별 생성 루프(PRO 수동 프로젝트 전용,
+        // pregenerated_script_text)이 있으면 그대로 쓰고, 없으면 대기 상태로 자동
+        // 재시도한다 - 아래의 실시간 섹션별 생성 루프(PRO 수동 프로젝트 전용,
         // topic_queue_id가 없는 경우에만 여기까지 도달)는 건드리지 않는다.
         try {
             const preCheckFull = await API.project.getFull(projectId);
@@ -1118,14 +1131,29 @@
                     updateStats();
                     Utils.showToast(i18n.toast_script_generated, 'success');
                     refreshExplorer();
+                    Utils.setLoading(document.getElementById('generateBtn'), false);
+                    return;
+                }
+
+                const btn = document.getElementById('generateBtn');
+                if (_pollAttempt === 0) {
+                    Utils.showToast('이 주제의 대본은 사전생성 중입니다. 준비되는 대로 자동으로 반영됩니다...', 'info');
+                }
+                if (_pollAttempt < SCRIPT_PREGEN_POLL_MAX_ATTEMPTS) {
+                    Utils.setLoading(btn, true, `사전생성 대기 중... (${_pollAttempt + 1}/${SCRIPT_PREGEN_POLL_MAX_ATTEMPTS})`);
+                    scriptPregenPollTimer = setTimeout(() => {
+                        generateScript(_pollAttempt + 1);
+                    }, SCRIPT_PREGEN_POLL_INTERVAL_MS);
                 } else {
-                    Utils.showToast('이 주제의 대본은 아직 사전생성 중입니다. 잠시 후 다시 시도해주세요.', 'info');
+                    Utils.showToast('사전생성이 예상보다 오래 걸리고 있습니다. 잠시 후 다시 시도해주세요.', 'warning');
+                    Utils.setLoading(btn, false);
                 }
                 return;
             }
         } catch (e) {
             console.error('사전생성 대본 확인 실패:', e);
             Utils.showToast(i18n.err_gen_error + ': ' + e.message, 'error');
+            Utils.setLoading(document.getElementById('generateBtn'), false);
             return;
         }
 
