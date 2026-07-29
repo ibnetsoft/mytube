@@ -1,8 +1,16 @@
 # AIR Worker — 아키텍처 설계
 
-- 상태: **설계안 / CTO 승인 대기** (실 렌더링/Hermes 미연결)
+- 상태: **로컬 E2E 검증 완료(AIR-0227B) + Frozen EXE 패키징 PoC 검증 완료(AIR-0227E, [RUNTIME §6](./AIR_WORKER_RUNTIME.md) 참고) + 실제 Inno Setup 설치까지 검증 완료(AIR-0227E-P2-VALIDATION) / 프로덕션 미배포·CTO 승인 대기. [AIR-0227E-P3] Mock Hermes를 실제 Hermes Worker(`worker/hermes_worker.py`, 주제 조사 전용, `services/ai_router.py` 재사용, 실 Gemini API로 5회 이상 실측)로 교체 완료, 설치본에서 Render+Hermes 동시 실행/렌더 우선 정책/역할별 crash isolation까지 실측 완료(worknote/AIR-0227E-P3-HERMES-INTEGRATION.md). 실 Drive/실 중앙 서버는 여전히 미착수.**
 - 선행 문서: [`worknote/AIR-0227A-stage1-render-worker-analysis.md`](../worknote/AIR-0227A-stage1-render-worker-analysis.md)
-- 관련 문서: [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md), [SECURITY](./AIR_WORKER_SECURITY.md), [UPDATE_STRATEGY](./AIR_WORKER_UPDATE_STRATEGY.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md)
+- 관련 문서: [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md), [SECURITY](./AIR_WORKER_SECURITY.md), [UPDATE_STRATEGY](./AIR_WORKER_UPDATE_STRATEGY.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md), [RUNTIME](./AIR_WORKER_RUNTIME.md)
+
+> **AIR-0227B 업데이트**: 이 문서는 AIR-0227A(#12 스켈레톤) 설계 시점 그대로 유지하되,
+> "실 렌더링/Hermes 미연결"이라는 전제는 렌더링 쪽에 한해 더 이상 사실이 아니다 — Render
+> Worker Process는 이제 실제 `services/remote_render_service.py` 파이프라인을 호출해 진짜
+> MP4를 만든다(Hermes는 여전히 모의 구현). Local API도 더 이상 Manager 내부 스레드가
+> 아니라 완전히 독립된 OS 프로세스다. 변경 내역과 실측 근거는 [RUNTIME](./AIR_WORKER_RUNTIME.md)과
+> [LOCAL_E2E_QA](./AIR_WORKER_LOCAL_E2E_QA.md) 참고 — 이 문서(§1 다이어그램 포함)의 구조적
+> 설명 자체는 그대로 유효하다.
 
 ## 0. 왜 이게 "기능 통합"이자 "인프라 최초 구축"인가
 

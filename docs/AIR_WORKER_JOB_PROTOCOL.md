@@ -1,7 +1,15 @@
 # AIR Worker — 작업(Job) 프로토콜
 
-- 상태: **설계안 / CTO 승인 대기**
-- 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md)
+- 상태: **로컬 구현 및 실측 완료(AIR-0227B/C) / 프로덕션 미배포**
+- 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [PROCESS_MODEL](./AIR_WORKER_PROCESS_MODEL.md), [RESOURCE_POLICY](./AIR_WORKER_RESOURCE_POLICY.md), [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [JOB_RECOVERY](./AIR_WORKER_JOB_RECOVERY.md)
+
+> **AIR-0227C 업데이트**: §2의 공통 필드는 실제 구현(`worker/job_store.py`)에서
+> `lease_id`/`worker_instance_id`/`lease_expires_at`/`attempt_number`/`remote_job_id`/
+> `remote_ack_status`가 추가됐고, `status`는 이 문서의 `queued|claimed|running|paused|...`
+> 대신 AIR-0227B가 도입한 `QUEUED/CLAIMED/PREPARING/RENDERING/UPLOADING/COMPLETED/FAILED/
+> CANCELED/ABANDONED` 열거형을 실제로 쓴다(§JOB_RECOVERY.md 참고) - 이 문서의 스키마는
+> 최초 설계 의도 기록으로 남겨두고, 실제 필드 목록은 [LEASE_PROTOCOL.md](./AIR_WORKER_LEASE_PROTOCOL.md) §2가
+> 최신이다.
 
 ## 1. 공통 Job Dispatcher
 
@@ -16,6 +24,9 @@ render_image           → Render Worker Process
 render_video           → Render Worker Process
 render_audio            → Render Worker Process
 topic_research           → Hermes Worker Process
+topic_benchmark_analyze    → Hermes Worker Process (AIR-0230, §5a — 구현 완료: worker/hermes_worker.py)
+script_plan_generate         → Hermes Worker Process (AIR-0230, §5b — 구현 완료: worker/hermes_worker.py)
+script_generate                → Hermes Worker Process (AIR-0230, §5c — 구현 완료: worker/hermes_worker.py)
 topic_generate             → Hermes Worker Process
 topic_deduplicate            → Hermes Worker Process (AIR-0226의 하네스 dedup 로직 재사용 대상)
 topic_rank                     → Hermes Worker Process
@@ -84,6 +95,105 @@ AIR Worker의 job_type 세분화(`topic_research`/`topic_generate`/`topic_dedupl
 가 별개 job_type인 것)는 이걸 **선택적으로 단계별 재시도/재개가 가능하게 쪼갤 수 있는 여지**를
 설계에 남겨두는 것 — 이번 Task에서 실제로 이렇게 쪼개서 구현하진 않지만(AIR-0226의 단일 호출
 방식이 여전히 기본), 스키마 상으로는 각 단계가 독립 job으로 표현 가능하다는 점을 명시해둔다.
+
+### 5a. `topic_benchmark_analyze` payload (AIR-0230, 구현 완료)
+
+```json
+{
+  "topic_benchmark_analyze": {
+    "keyword": "string (필수 — 카테고리의 keywords/name, job 생성 시점에 호출자가 리터럴 값으로 채움)",
+    "language": "string, 기본 'ko' (ko|en|ja)",
+    "video_type": "string, 기본 'longform' (longform|shorts)",
+    "max_candidates": "int, 기본 1, 최대 3 (분석까지 진행할 상위 고성과 영상 개수)",
+    "search_pool_size": "int, 기본 15, 최대 30 (성과도 랭킹 대상 검색 후보 수)"
+  }
+}
+```
+
+- `category_id`를 받지 않는다 — 워커는 Supabase 접근 권한이 없으므로(§ARCHITECTURE §4 경계),
+  이 job을 만드는 쪽(웹어드민, 수동/자동 트리거 둘 다 — `docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md`
+  §2b)이 카테고리의 keywords/language/video_type을 미리 조회해 리터럴 값으로 payload에 넣어야 한다.
+- 처리: 유튜브 검색(`search_pool_size`개) → 구독자 대비 조회수(`performance_ratio`)로 랭킹 →
+  상위 `max_candidates`개만 자막+댓글 수집 → Gemini 분석 + 성공전략 추출. 기존 함수 재사용
+  (`services/source_service.py::extract_text_from_youtube`, `services/gemini_service.py::analyze_comments`/
+  `extract_success_strategy`) — 새 AI 로직 없음.
+- **결과는 항상 로컬 `RESULTS_DIR`에 저장되고, 원격 claim으로 들어온 job이면 추가로 중앙에도
+  보고된다** — [갱신, AIR-0230 중앙 job 프로토콜 커밋] `migrations/air_0230_hermes_worker_central_protocol.sql`의
+  `report_worker_hermes_job_outcome`이 `p_result_payload`를 받아 `remote_hermes_queue.result_payload`에
+  인라인 저장하고, `central_client.complete_job(..., result_payload=...)`가 이걸 실제로 채운다.
+  이전 버전 문서(§3 "이번 Task의 경계")가 말하던 "중앙 업로드 없음"은 topic_research를 만들 당시
+  (AIR-0227E-P3) 기준이었고, 지금은 두 job_type 다 중앙 프로토콜을 탄다.
+- 비용 주의: `topic_research`(LLM 호출 1회)보다 훨씬 비싸다 — 후보당 검색+통계 조회+댓글 조회+
+  AI 호출 2회(분석+전략추출)가 추가된다. `max_candidates`/`search_pool_size` 상한을 넉넉하게
+  올리지 말 것.
+
+### 5b. `script_plan_generate` payload (AIR-0230, 구현 완료)
+
+```json
+{
+  "script_plan_generate": {
+    "topic_queue_id": "string (필수 — 결과를 다시 써넣을 topics_queue 행, 다른 job_type과
+      달리 이 필드가 없으면 job 자체가 무의미하므로 payload 검증에서 필수로 강제)",
+    "topic": "string (필수)",
+    "target_duration_seconds": "int, 기본 60",
+    "script_style": "string, 기본 'default'",
+    "language": "string, 기본 'ko'",
+    "benchmark_analysis": "object|null (topics_queue.benchmark_analysis를 그대로 전달 — §5a 결과의
+      candidates[0].analysis 형태와 동일한 단일 영상 분석 shape)"
+  }
+}
+```
+
+- §2d "사전생성 버퍼"(주제를 클레임하기 전에 기획을 미리 만들어두기)의 실행 단위 — 웹어드민이
+  카테고리당 주제를 생성한 직후, 그중 최신 K개에 대해 이 job_type을 큐잉한다
+  (`auth-web/app/api/admin/topics-queue/route.ts`).
+- 처리: `app/services/scene_planner.py::scene_planner_service.plan_scenes()`를 **그대로** 호출 —
+  실시간 클레임 흐름(`app/routers/gemini.py::generate_script_structure_api()`)이 쓰는 것과
+  동일한 함수라서, 미리 만든 결과와 즉석에서 만든 결과가 모양상 구분되지 않는다.
+- `resolve_script_style_directive()`가 이 워커 PC의 로컬 `script_style_presets`를 읽으므로,
+  이 PC의 프리셋이 웹어드민과 동기화돼 있다는 전제에 의존한다(다른 데스크톱 설치본과 동일한
+  기존 가정 — 이 job_type이 새로 만든 리스크 아님).
+- **완료 시 자동 반영**: `auth-web/app/api/internal/worker/jobs/[jobId]/complete/route.ts`가
+  `job_type === 'script_plan_generate'`이고 성공이면, `result_payload.structure`를
+  `topics_queue.pregenerated_structure`에, `pregenerated_structure_status`를 `'ready'`로
+  자동 반영한다(sync-back). 이후 `claim_topic()`이 이 컬럼을 `project_settings`로 복사하고,
+  `generate_script_structure_api()`가 AI를 다시 부르지 않고 이 값을 즉시 반환한다.
+- **대본 본문(narration text) 사전생성**: §5c로 구현 완료(아래 참고) — 처음엔 범위 밖이었으나
+  이후 결정으로 착수함.
+
+### 5c. `script_generate` payload (AIR-0230, 구현 완료)
+
+```json
+{
+  "script_generate": {
+    "topic_queue_id": "string (필수)",
+    "topic": "string (필수)",
+    "structure": "object (필수 — script_plan_generate의 result_payload.structure를 그대로 전달, scenes[] 비어있으면 안 됨)",
+    "script_style": "string, 기본 'default'",
+    "language": "string, 기본 'ko' (ko|en|ja)",
+    "narration_mode": "string, 기본 'single' (single|multi)",
+    "target_duration_seconds": "int, 기본 60"
+  }
+}
+```
+
+- `templates/pages/script_gen.html::generateScript()`을 씬 단위로 그대로 포팅 — 길이 계산
+  (숏폼/롱폼 글자수), 나레이션 모드별 지침, 정제 정규식(대괄호/별표/특수문자 제거, 단독
+  나레이션 화자표시 제거), multi 모드의 등장인물 이름 순차 유지(섹션 i에서 등장한 이름을
+  섹션 i+1 프롬프트에 "이미 등장한 인물"로 넘김)까지 동일하게 구현.
+- **[포팅 중 발견한 라이브 버그 수정]** `script_gen.html`은 `section.title`/`section.key_points`를
+  읽지만, `scene_planner_service.plan_scenes()`(AIR-0209 이후 유일한 구조 생성 소스)의 실제
+  스키마엔 그 필드가 없다(`scene_summary`/`scene_situation`/`scene_purpose`/`scene_emotion`/
+  `tts_direction`) — `database.py::get_full_project()`까지 왕복 경로를 확인해도 필드 매핑이 어디에도
+  없어, **라이브 서비스가 AIR-0209 이후 계속 모든 섹션 프롬프트에 "제목: undefined"를 보내고
+  있었다**(씬 기획 디테일이 대본 생성에 전혀 반영 안 됨). 이 job_type은 실제 씬 필드를 사용하도록
+  구현 — `templates/pages/script_gen.html` 자체의 동일 수정은 별도 작업.
+- 언어 지침도 새로 추가함 — `script_gen.html`은 `project.language`를 조회만 하고 실제로는 안 써서
+  항상 한국어로만 생성되고 있었음.
+- 섹션마다 순차적으로 AI를 호출하므로(등장인물 상태 이어받기 때문에 병렬화 불가) 씬 개수에
+  비례해 오래 걸림 — `script_plan_generate`보다 훨씬 비쌈.
+- mocked 유닛테스트로 검증: 씬 필드가 실제로 프롬프트에 반영되는지, multi 모드에서 등장인물이
+  다음 섹션 프롬프트로 정확히 이어지는지 확인.
 
 ## 6. 재시도/실패 처리
 

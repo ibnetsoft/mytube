@@ -1,6 +1,6 @@
 # AIR Worker — 자원 우선순위 및 스케줄 정책
 
-- 상태: **설계안 / CTO 승인 대기**
+- 상태: **[AIR-0227E-P3] 실측 검증 완료 — render_worker가 작업을 받으면 `manager.py::_apply_resource_policy()`가 hermes 일시정지 플래그를 세우고, hermes는 진행 중인 작업은 끝까지 마치되(안전 체크포인트 원칙) 다음 작업은 render가 끝날 때까지 절대 시작하지 않음을 실측으로 확인(큐에 대기 중이던 두 번째 Hermes 작업이 render 완료 전까지 QUEUED 상태로 유지됨). 소스 실행/onedir 빌드/실제 설치본 3곳 모두 동일하게 확인 — worknote/AIR-0227E-P3-HERMES-INTEGRATION.md.**
 - 관련 문서: [ARCHITECTURE](./AIR_WORKER_ARCHITECTURE.md), [JOB_PROTOCOL](./AIR_WORKER_JOB_PROTOCOL.md)
 
 ## 1. 기본 우선순위 (지시사항 값 그대로 채택)
