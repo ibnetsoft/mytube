@@ -1101,6 +1101,34 @@
             return;
         }
 
+        // [AIR-0230 §2d, 사용자 결정] 사전생성 우선 - topics_queue에서 claim된
+        // 프로젝트(project_settings.topic_queue_id 존재)는 실시간 대본 생성을
+        // 하지 않는다. 사전생성된 대본(claim_topic()이 project_settings로 복사해둔
+        // pregenerated_script_text)이 있으면 그대로 쓰고, 없으면 대기 안내만
+        // 하고 끝낸다 - 아래의 실시간 섹션별 생성 루프(PRO 수동 프로젝트 전용,
+        // topic_queue_id가 없는 경우에만 여기까지 도달)는 건드리지 않는다.
+        try {
+            const preCheckFull = await API.project.getFull(projectId);
+            const preCheckSettings = preCheckFull.settings || {};
+            if (preCheckSettings.topic_queue_id) {
+                if (preCheckSettings.pregenerated_script_status === 'ready' && preCheckSettings.pregenerated_script_text) {
+                    currentScript = preCheckSettings.pregenerated_script_text;
+                    document.getElementById('scriptContent').value = currentScript;
+                    document.getElementById('resultSection').classList.remove('hidden');
+                    updateStats();
+                    Utils.showToast(i18n.toast_script_generated, 'success');
+                    refreshExplorer();
+                } else {
+                    Utils.showToast('이 주제의 대본은 아직 사전생성 중입니다. 잠시 후 다시 시도해주세요.', 'info');
+                }
+                return;
+            }
+        } catch (e) {
+            console.error('사전생성 대본 확인 실패:', e);
+            Utils.showToast(i18n.err_gen_error + ': ' + e.message, 'error');
+            return;
+        }
+
         // Try to get structure data from storage or fetch from server
         let structureData = Utils.storage.get('scriptStructure');
 
@@ -1135,6 +1163,18 @@
         const projectFull = await API.project.getFull(projectId);
         const settings = projectFull.settings || {};
         const projectLanguage = projectFull.project?.language || 'ko';
+        // [FIX][AIR-0230] projectLanguage was fetched but never actually used -
+        // every section prompt below wrote "한국어 대본을 작성하세요" regardless
+        // of the project's target language, so non-ko projects silently got
+        // Korean narration. Mirrors worker/hermes_worker.py's
+        // SCRIPT_GEN_LANGUAGE_INSTRUCTIONS (the pre-generation port of this
+        // same function).
+        const SCRIPT_GEN_LANGUAGE_INSTRUCTIONS = {
+            ko: '반드시 자연스러운 한국어로 작성하세요.',
+            en: 'You MUST write the entire output in natural, fluent English.',
+            ja: '必ず自然な日本語で作成してください。',
+        };
+        const languageInstruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS[projectLanguage] || SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.ko;
         const durationSeconds = settings.duration_seconds || 60;
         const isShorts = (window.APP_MODE === 'shorts') || (durationSeconds <= 60);
 
@@ -1192,9 +1232,25 @@
                 }
 
                 const section = sections[i];
-                const keyPoints = section.key_points || [];
-                Utils.setLoading(btn, true, `${i18n.loading_generating_prefix} (${i + 1}/${sections.length}: ${section.title})`);
-                console.log(`Generating section ${i + 1}: ${section.title} `);
+                // [FIX][AIR-0230] scene_planner_service.plan_scenes()(AIR-0209
+                // 이후 유일한 구조 생성 소스)가 실제로 생성하는 필드는
+                // scene_summary/scene_situation/scene_purpose 등이지 title/
+                // key_points가 아니다 - 이 프로젝트 어디에도 그 둘을 서로
+                // 변환하는 코드가 없어서, 씬 모드 프로젝트는 지금까지 여기서
+                // "제목: undefined"를 그대로 프롬프트에 보내고 있었다(씬 기획
+                // 디테일이 실제 대본 생성에 전혀 반영 안 됨). title/key_points는
+                // 구식 {title, key_points} 형식(동요 모드 등 하위호환)에만
+                // 존재하므로 폴백으로 남겨둔다.
+                const sectionTitle = section.title || section.scene_summary || `섹션 ${i + 1}`;
+                const legacyKeyPoints = section.key_points || [];
+                const sceneDetailLines = [section.scene_situation, section.scene_purpose].filter(Boolean);
+                const keyPointsText = legacyKeyPoints.length > 0
+                    ? legacyKeyPoints.join(', ')
+                    : (sceneDetailLines.length > 0 ? sceneDetailLines.join(', ') : '자유롭게 작성');
+                const sceneEmotion = section.scene_emotion || '';
+                const sceneTtsDirection = section.tts_direction || '';
+                Utils.setLoading(btn, true, `${i18n.loading_generating_prefix} (${i + 1}/${sections.length}: ${sectionTitle})`);
+                console.log(`Generating section ${i + 1}: ${sectionTitle} `);
 
                 let modeInstruction = "";
                 if (isMulti) {
@@ -1216,19 +1272,19 @@
 `;
                 }
 
-                const prompt = `당신은 ${isShorts ? '유튜브 쇼츠(Shorts)' : '유튜브'} 대본 작가입니다. 아래 주제에 대한 "${section.title}" 파트를 작성해주세요.
+                const prompt = `당신은 ${isShorts ? '유튜브 쇼츠(Shorts)' : '유튜브'} 대본 작가입니다. 아래 주제에 대한 "${sectionTitle}" 파트를 작성해주세요.
 
 [영상 주제]
 ${topic}
 
 [현재 섹션]
-- 제목: ${section.title}
-- 주요 내용: ${keyPoints.length > 0 ? keyPoints.join(', ') : '자유롭게 작성'}
-
+- 제목: ${sectionTitle}
+- 주요 내용: ${keyPointsText}
+${sceneEmotion ? `- 감정/분위기: ${sceneEmotion}\n` : ''}${sceneTtsDirection ? `- 성우 연기 지침: ${sceneTtsDirection}\n` : ''}
 [작성 지침]
 0. ${lengthInstruction}
 ${modeInstruction}
-3. 자연스럽고 몰입감 있는 한국어 대본을 작성하세요.
+3. 자연스럽고 몰입감 있는 대본을 작성하세요. ${languageInstruction}
 4. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
 5. 이 파트의 분량은 **약 ${minChars}자 ~ ${maxChars}자** 내외로 작성하세요. (절대적으로 지킬 것)
 6. ${isShorts ? '문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' : '문장을 자연스럽게 이어주세요.'}

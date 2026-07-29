@@ -762,6 +762,11 @@ async def claim_topic(req: ClaimTopicRequest):
                 json.dumps(topic_data.get("pregenerated_structure"), ensure_ascii=False)
             )
 
+        # [AIR-0230 §2d] 같은 방식으로 사전생성된 대본 본문도 복사한다.
+        # generate_script_api()가 이 값을 읽어 대본 생성 화면에 즉시 반영한다.
+        if topic_data.get("pregenerated_script_status") == "ready" and topic_data.get("pregenerated_script"):
+            db.update_project_setting(project_id, "pregenerated_script_text", topic_data.get("pregenerated_script"))
+
         if project_mode == "longform":
             assigned_minutes = normalized.get("recommended_duration_minutes") or max(
                 15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)

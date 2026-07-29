@@ -60,16 +60,30 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
     # project_settings에 이미 복사해뒀으면(웹어드민이 주제 생성 직후 미리 기획을
     # 만들어둔 경우), AI를 다시 부르지 않고 그 값을 즉시 반환한다. 크레딧 체크보다도
     # 먼저 해야 한다 - 어차피 AI 호출이 없으니 크레딧을 쓸 이유가 없음.
+    #
+    # [AIR-0230, 사용자 결정] STD의 claim-큐 흐름은 실시간 생성 폴백을 완전히
+    # 제거한다 - 사전생성이 준비 안 됐으면 AI를 대신 부르지 않고 대기 상태를
+    # 반환한다. project_settings.topic_queue_id 존재 여부로 "이 프로젝트가
+    # topics_queue에서 claim된 것인지"를 판단한다 - PRO의 수동 생성 프로젝트는
+    # topic_queue_id가 없고 애초에 사전생성 대상이 아니므로(웹어드민이 만든 큐를
+    # 거치지 않음) 실시간 생성이 유일한 경로로 그대로 유지된다.
     if req.project_id:
-        try:
-            settings = db.get_project_settings(req.project_id) or {}
+        settings = db.get_project_settings(req.project_id) or {}
+        if settings.get("topic_queue_id"):
             raw = settings.get("pregenerated_structure_json")
             if raw:
-                pregenerated = json.loads(raw)
-                if pregenerated and pregenerated.get("scenes"):
-                    return {"status": "ok", "structure": pregenerated, "pregenerated": True}
-        except Exception as e:
-            print(f"[Gemini] Failed to load pregenerated_structure for project {req.project_id} (falling back to live generation): {e}")
+                try:
+                    pregenerated = json.loads(raw)
+                    if pregenerated and pregenerated.get("scenes"):
+                        return {"status": "ok", "structure": pregenerated, "pregenerated": True}
+                except Exception as e:
+                    print(f"[Gemini] Failed to parse pregenerated_structure for project {req.project_id}: {e}")
+
+            return {
+                "status": "pending",
+                "error": "이 주제는 아직 기획이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.",
+                "pregeneration_status": settings.get("pregenerated_structure_status") or "none",
+            }
 
     from services.auth_service import auth_service
     if not auth_service.check_credits(500):
