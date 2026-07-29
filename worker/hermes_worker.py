@@ -88,7 +88,7 @@ RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 logger = get_logger("hermes_worker")
 
 _shutdown_requested = False
-SUPPORTED_JOB_TYPES = ["topic_research", "topic_benchmark_analyze", "script_plan_generate"]
+SUPPORTED_JOB_TYPES = ["topic_research", "topic_benchmark_analyze", "script_plan_generate", "script_generate"]
 DEFAULT_COUNT = 10
 MAX_COUNT = 30
 
@@ -669,6 +669,290 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     return str(result_path), result_payload
 
 
+# =====================================================================
+# [AIR-0230 §2d] script_generate - full narration text pre-generation.
+#
+# Ported from templates/pages/script_gen.html::generateScript() (client
+# JS), section by section, with ONE deliberate correction found while
+# porting: the live client reads section.title/section.key_points, but
+# scene_planner_service.plan_scenes() (the only structure source since
+# AIR-0209 "Scene Source of Truth") produces scene_summary/scene_situation/
+# scene_purpose/scene_emotion/tts_direction - there is no title/key_points
+# field anywhere in that schema, and no normalization step exists between
+# them (confirmed by exhaustive search of script_gen.html and the DB
+# round-trip in database.py::get_full_project). This means the LIVE app
+# has been sending "제목: undefined" / "주요 내용: 자유롭게 작성" into every
+# single section prompt since AIR-0209 - the detailed per-scene planning
+# scene_planner produces has never actually reached script generation.
+# This port uses the real scene fields instead (see _build_section_prompt).
+# The live script_gen.html itself is a separate, not-yet-done fix - see
+# docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md §2d.
+#
+# Also adds one thing script_gen.html never had at all: an explicit
+# language instruction (script_gen.html fetches project.language into an
+# unused variable and always writes Korean prompts regardless) - since
+# this path already threads topic language through from topics_queue, it
+# costs nothing to do this correctly here.
+# =====================================================================
+
+SCRIPT_GEN_LANGUAGE_INSTRUCTIONS = {
+    "ko": "반드시 자연스러운 한국어로 작성하세요.",
+    "en": "You MUST write the entire output in natural, fluent English.",
+    "ja": "必ず自然な日本語で作成してください。",
+}
+
+# Regexes ported 1:1 from script_gen.html's inline JS (see module comment above).
+_CLEANUP_BRACKET_PATTERN = re.compile(r"\[[^\]]*\]")
+# Non-raw string so \uXXXX resolves to real Hangul-range characters before
+# re.compile sees them - a raw string would hand re the literal backslash-u
+# sequence instead, which Python's re engine does not reliably expand.
+_CLEANUP_ALLOWED_PATTERN = re.compile(
+    "[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\\s,.\\?\\!\"'\\.:\\(\\)]"
+)
+_SPEAKER_STRIP_PATTERN = re.compile(r"^[가-힣\w\s]+[ \t]*:[ \t]*", re.MULTILINE)
+_SPEAKER_LINE_REGEX = re.compile(r"^\s*(?:([^\s:\[\]()]+)(?:\(.*\))?[:：]|([^\s:\[\]()]+)[)）\]])")
+_SPEAKER_NAME_STRIP_PATTERN = re.compile(r"[\*_#\[\]\{\}()]")
+
+
+def _clean_section_text(text: str, is_multi: bool) -> str:
+    text = _CLEANUP_BRACKET_PATTERN.sub("", text)
+    text = text.replace("*", "")
+    text = _CLEANUP_ALLOWED_PATTERN.sub("", text)
+    if not is_multi:
+        text = _SPEAKER_STRIP_PATTERN.sub("", text)
+    return text.strip()
+
+
+def _extract_speaker_names(text: str) -> list[str]:
+    names = []
+    seen = set()
+    for line in (text or "").split("\n"):
+        m = _SPEAKER_LINE_REGEX.match(line.strip())
+        if not m:
+            continue
+        raw = m.group(1) or m.group(2)
+        if not raw:
+            continue
+        clean = _SPEAKER_NAME_STRIP_PATTERN.sub("", raw).strip()
+        if clean and clean not in seen:
+            seen.add(clean)
+            names.append(clean)
+    return names
+
+
+def _script_gen_length_instruction(duration_seconds: int, is_shorts: bool) -> tuple[float, str]:
+    if is_shorts:
+        total_target_chars = duration_seconds * 7.5
+        length_instruction = (
+            f"[매우 중요] 이 대본은 {duration_seconds}초 숏폼(Shorts) 영상용입니다. "
+            f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 빠르게 전달하세요."
+        )
+    else:
+        total_target_chars = (duration_seconds / 60) * 450
+        length_instruction = f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다."
+    return total_target_chars, length_instruction
+
+
+def _script_gen_mode_instruction(is_multi: bool, known_characters: list[str]) -> str:
+    if is_multi:
+        known_chars_line = ""
+        if known_characters:
+            known_chars_line = (
+                "\n[이미 등장한 인물 - 이 파트에서 같은 인물이 다시 말하면 반드시 이 이름을 그대로 "
+                "재사용하세요. 새 인물은 스토리 전개상 꼭 필요할 때만 추가하세요]\n"
+                f"{', '.join(known_characters)}\n"
+            )
+        return f"""
+1. **기본은 나레이터의 서술**입니다. 인물의 행동이나 상황은 나레이터가 설명하듯 전달하세요 (예: "철수는 화를 내며 소리쳤다").
+2. 인물이 **직접 한 말을 그대로 전달할 필요가 있는 대목에서만** 그 인물 이름으로 화자를 전환하세요. (예: "철수: 당장 나가!") 그 외에는 전부 나레이터입니다.
+3. 나레이터 화자 이름은 "나레이터:"로 표시하세요.
+4. 한 문장짜리 대사 때문에 새로운 이름을 만들지 마세요 - 비중이 작은 인물의 말은 나레이터가 요약해서 전달하는 쪽을 우선하세요.
+5. 이 파트에서 실제로 등장인물이 몇 명 필요한지는 스토리 전개가 결정합니다 - 인위적으로 늘리거나 줄이지 마세요. 단, 같은 인물은 항상 같은 이름을 쓰세요.{known_chars_line}
+"""
+    return """
+1. 반드시 **독백(Monologue) 또는 나레이션(Narration) 형식**으로 작성하세요. (대화체 절대 금지)
+2. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다. 대화 형식으로 역할을 나누지 마세요.
+5. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+"""
+
+
+def _build_section_prompt(
+    topic: str, scene: dict, is_shorts: bool, is_multi: bool, known_characters: list[str],
+    length_instruction: str, min_chars: int, max_chars: int, language: str,
+) -> str:
+    # [FIX][AIR-0230] scene_planner.py's actual schema - see module comment
+    # above for why this replaces script_gen.html's title/key_points reads.
+    scene_summary = scene.get("scene_summary") or "이 장면"
+    detail_lines = [v for v in (scene.get("scene_situation"), scene.get("scene_purpose")) if v]
+    key_points_text = ", ".join(detail_lines) if detail_lines else "자유롭게 작성"
+    emotion = scene.get("scene_emotion") or ""
+    tts_direction = scene.get("tts_direction") or ""
+
+    mode_instruction = _script_gen_mode_instruction(is_multi, known_characters)
+    language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
+    extra_context = ""
+    if emotion:
+        extra_context += f"- 감정/분위기: {emotion}\n"
+    if tts_direction:
+        extra_context += f"- 성우 연기 지침: {tts_direction}\n"
+
+    return f"""당신은 {'유튜브 쇼츠(Shorts)' if is_shorts else '유튜브'} 대본 작가입니다. 아래 주제에 대한 "{scene_summary}" 파트를 작성해주세요.
+
+[영상 주제]
+{topic}
+
+[현재 섹션]
+- 제목: {scene_summary}
+- 주요 내용: {key_points_text}
+{extra_context}
+[작성 지침]
+0. {length_instruction}
+{mode_instruction}
+3. 자연스럽고 몰입감 있는 대본을 작성하세요. {language_instruction}
+4. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
+5. 이 파트의 분량은 **약 {min_chars}자 ~ {max_chars}자** 내외로 작성하세요. (절대적으로 지킬 것)
+6. {'문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' if is_shorts else '문장을 자연스럽게 이어주세요.'}
+
+**[작성 및 감정/톤 지침]**
+1. 반드시 대본의 구문 앞이나 중간중간에 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(차분하게)", "(슬프게)", "(진지하게)")
+2. 음악, 효과음 등 상황 설명용 괄호(예: (음악), (상황), (웃음))는 금지합니다. 오직 성우의 목소리 톤/감정만 괄호로 표시하세요.
+3. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+4. 이모티콘 및 꾸밈 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
+
+본문만 출력하세요:"""
+
+
+def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, str, str, str, int]:
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for script_generate")
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise ValueError("payload.topic is required for script_generate")
+
+    structure = payload.get("structure")
+    scenes = (structure or {}).get("scenes") if isinstance(structure, dict) else None
+    if not isinstance(scenes, list) or not scenes:
+        raise ValueError("payload.structure.scenes (non-empty list) is required for script_generate")
+
+    script_style = str(payload.get("script_style") or "default").strip()
+    language = str(payload.get("language") or "ko").strip()
+    if language not in SCRIPT_GEN_LANGUAGE_INSTRUCTIONS:
+        language = "ko"
+    narration_mode = str(payload.get("narration_mode") or "single").strip().lower()
+    if narration_mode not in ("single", "multi"):
+        narration_mode = "single"
+
+    duration_seconds = payload.get("target_duration_seconds", 60)
+    try:
+        duration_seconds = max(15, int(duration_seconds))
+    except (TypeError, ValueError):
+        duration_seconds = 60
+
+    return topic_queue_id, topic, scenes, script_style, language, narration_mode, duration_seconds
+
+
+def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating payload)")
+
+    topic_queue_id, topic, scenes, script_style, language, narration_mode, duration_seconds = _validate_script_generate_payload(job["payload"])
+    is_multi = narration_mode == "multi"
+    is_shorts = duration_seconds <= 60
+
+    job_store.transition(job_id, job_store.RENDERING, reason="generating narration section by section")
+    write_state("running", job, 10, job_id)
+    job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode})")
+
+    ensure_project_root_on_path()
+    from config import config
+    from services import ai_router
+    from services.script_style_resolver import resolve_script_style_directive
+    import asyncio
+
+    # Mirrors /api/script/generate's own model selection
+    # (app/routers/gemini.py::script_generate) so pre-baked and live-generated
+    # narration use the same model choice.
+    model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    style_directive = resolve_script_style_directive(script_style)
+    total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
+    chars_per_section = round(total_target_chars / len(scenes))
+    min_chars = max(20, round(chars_per_section * 0.7)) if is_shorts else max(50, round(chars_per_section * 0.8))
+    max_chars = round(chars_per_section * 1.2)
+
+    async def _run_generation() -> str:
+        final_parts = []
+        known_characters: list[str] = []
+        for idx, scene in enumerate(scenes):
+            prompt = _build_section_prompt(
+                topic, scene, is_shorts, is_multi, known_characters,
+                length_instruction, min_chars, max_chars, language,
+            )
+            if style_directive:
+                prompt = f"{prompt}\n\n{style_directive}"
+
+            try:
+                raw_text = await ai_router.generate_text(
+                    prompt, model, temperature=0.7, max_tokens=8192,
+                    task_type="hermes_script_generate",
+                )
+                section_text = _clean_section_text(raw_text.strip(), is_multi)
+                if is_multi:
+                    for name in _extract_speaker_names(section_text):
+                        if name not in known_characters:
+                            known_characters.append(name)
+            except Exception as e:
+                # Matches script_gen.html's own behavior: a failed section
+                # becomes a visible placeholder rather than aborting the
+                # whole script - a partially-generated pre-baked script is
+                # still more useful than none, and the placeholder makes the
+                # gap obvious rather than silently dropping a section.
+                job_log.warning(f"Section {idx + 1}/{len(scenes)} generation failed (continuing with placeholder): {e}")
+                section_text = f"(섹션 생성 실패: {e})"
+
+            final_parts.append(section_text)
+            progress = int(10 + 80 * (idx + 1) / len(scenes))
+            job_store.update_progress(job_id, progress, f"섹션 {idx + 1}/{len(scenes)} 완료")
+            write_state("running", job, progress, job_id)
+
+            if idx < len(scenes) - 1:
+                await asyncio.sleep(0.5)  # same inter-section pacing script_gen.html uses
+
+        return "\n\n".join(p for p in final_parts if p).strip()
+
+    final_script = asyncio.run(_run_generation())
+    if not final_script:
+        raise ValueError("Generated script was empty after all sections were processed")
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
+    write_state("running", job, 95, job_id)
+    char_count = len(final_script)
+    job_log.info(f"-> UPLOADING (char_count={char_count})")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "script_generate",
+        "status": "COMPLETED",
+        "topic_queue_id": topic_queue_id,
+        "script": final_script,
+        "char_count": char_count,
+        "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
+        "narration_mode": narration_mode,
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="script generation complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
 def process_one_job(job: dict) -> None:
     job_id = job["job_id"]
     job_type = job.get("job_type") or "topic_research"
@@ -688,6 +972,8 @@ def process_one_job(job: dict) -> None:
             output_ref, result_payload = _process_topic_benchmark_analyze(job, job_id, job_log)
         elif job_type == "script_plan_generate":
             output_ref, result_payload = _process_script_plan_generate(job, job_id, job_log)
+        elif job_type == "script_generate":
+            output_ref, result_payload = _process_script_generate(job, job_id, job_log)
         else:
             output_ref, result_payload = _process_topic_research(job, job_id, job_log)
 

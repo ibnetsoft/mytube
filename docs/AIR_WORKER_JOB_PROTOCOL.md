@@ -26,6 +26,7 @@ render_audio            → Render Worker Process
 topic_research           → Hermes Worker Process
 topic_benchmark_analyze    → Hermes Worker Process (AIR-0230, §5a — 구현 완료: worker/hermes_worker.py)
 script_plan_generate         → Hermes Worker Process (AIR-0230, §5b — 구현 완료: worker/hermes_worker.py)
+script_generate                → Hermes Worker Process (AIR-0230, §5c — 구현 완료: worker/hermes_worker.py)
 topic_generate             → Hermes Worker Process
 topic_deduplicate            → Hermes Worker Process (AIR-0226의 하네스 dedup 로직 재사용 대상)
 topic_rank                     → Hermes Worker Process
@@ -157,10 +158,42 @@ AIR Worker의 job_type 세분화(`topic_research`/`topic_generate`/`topic_dedupl
   `topics_queue.pregenerated_structure`에, `pregenerated_structure_status`를 `'ready'`로
   자동 반영한다(sync-back). 이후 `claim_topic()`이 이 컬럼을 `project_settings`로 복사하고,
   `generate_script_structure_api()`가 AI를 다시 부르지 않고 이 값을 즉시 반환한다.
-- **대본 본문(narration text) 사전생성은 이번 범위 밖**: 그 로직(`templates/pages/script_gen.html`)은
-  지금 클라이언트 JS에만 있고, 섹션 간 상태(등장인물 이름 재사용)를 순차적으로 이어가는 구조라
-  Python으로 그대로 옮기면 로직이 두 벌로 갈라져 나중에 어긋날 위험이 크다 — 별도 검토 후 착수
-  권장(`docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md` §2d 참고).
+- **대본 본문(narration text) 사전생성**: §5c로 구현 완료(아래 참고) — 처음엔 범위 밖이었으나
+  이후 결정으로 착수함.
+
+### 5c. `script_generate` payload (AIR-0230, 구현 완료)
+
+```json
+{
+  "script_generate": {
+    "topic_queue_id": "string (필수)",
+    "topic": "string (필수)",
+    "structure": "object (필수 — script_plan_generate의 result_payload.structure를 그대로 전달, scenes[] 비어있으면 안 됨)",
+    "script_style": "string, 기본 'default'",
+    "language": "string, 기본 'ko' (ko|en|ja)",
+    "narration_mode": "string, 기본 'single' (single|multi)",
+    "target_duration_seconds": "int, 기본 60"
+  }
+}
+```
+
+- `templates/pages/script_gen.html::generateScript()`을 씬 단위로 그대로 포팅 — 길이 계산
+  (숏폼/롱폼 글자수), 나레이션 모드별 지침, 정제 정규식(대괄호/별표/특수문자 제거, 단독
+  나레이션 화자표시 제거), multi 모드의 등장인물 이름 순차 유지(섹션 i에서 등장한 이름을
+  섹션 i+1 프롬프트에 "이미 등장한 인물"로 넘김)까지 동일하게 구현.
+- **[포팅 중 발견한 라이브 버그 수정]** `script_gen.html`은 `section.title`/`section.key_points`를
+  읽지만, `scene_planner_service.plan_scenes()`(AIR-0209 이후 유일한 구조 생성 소스)의 실제
+  스키마엔 그 필드가 없다(`scene_summary`/`scene_situation`/`scene_purpose`/`scene_emotion`/
+  `tts_direction`) — `database.py::get_full_project()`까지 왕복 경로를 확인해도 필드 매핑이 어디에도
+  없어, **라이브 서비스가 AIR-0209 이후 계속 모든 섹션 프롬프트에 "제목: undefined"를 보내고
+  있었다**(씬 기획 디테일이 대본 생성에 전혀 반영 안 됨). 이 job_type은 실제 씬 필드를 사용하도록
+  구현 — `templates/pages/script_gen.html` 자체의 동일 수정은 별도 작업.
+- 언어 지침도 새로 추가함 — `script_gen.html`은 `project.language`를 조회만 하고 실제로는 안 써서
+  항상 한국어로만 생성되고 있었음.
+- 섹션마다 순차적으로 AI를 호출하므로(등장인물 상태 이어받기 때문에 병렬화 불가) 씬 개수에
+  비례해 오래 걸림 — `script_plan_generate`보다 훨씬 비쌈.
+- mocked 유닛테스트로 검증: 씬 필드가 실제로 프롬프트에 반영되는지, multi 모드에서 등장인물이
+  다음 섹션 프롬프트로 정확히 이어지는지 확인.
 
 ## 6. 재시도/실패 처리
 
