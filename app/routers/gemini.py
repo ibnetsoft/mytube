@@ -56,10 +56,25 @@ class NurseryImagePromptsRequest(BaseModel):
 @router.post("/api/gemini/generate-structure")
 async def generate_script_structure_api(req: StructureGenerateRequest):
     """대본 구조 생성 (중복 방지 적용)"""
+    # [AIR-0230 §2d] 사전생성 버퍼 - claim_topic()이 pregenerated_structure_json을
+    # project_settings에 이미 복사해뒀으면(웹어드민이 주제 생성 직후 미리 기획을
+    # 만들어둔 경우), AI를 다시 부르지 않고 그 값을 즉시 반환한다. 크레딧 체크보다도
+    # 먼저 해야 한다 - 어차피 AI 호출이 없으니 크레딧을 쓸 이유가 없음.
+    if req.project_id:
+        try:
+            settings = db.get_project_settings(req.project_id) or {}
+            raw = settings.get("pregenerated_structure_json")
+            if raw:
+                pregenerated = json.loads(raw)
+                if pregenerated and pregenerated.get("scenes"):
+                    return {"status": "ok", "structure": pregenerated, "pregenerated": True}
+        except Exception as e:
+            print(f"[Gemini] Failed to load pregenerated_structure for project {req.project_id} (falling back to live generation): {e}")
+
     from services.auth_service import auth_service
     if not auth_service.check_credits(500):
         return {"status": "error", "error": "AI 토큰이 부족합니다. 어드민 페이지에서 충전 후 이용해주세요."}
-    
+
     try:
         recent_projects = db.get_recent_projects(limit=5)
         recent_titles = [p['name'] for p in recent_projects]

@@ -751,6 +751,17 @@ async def claim_topic(req: ClaimTopicRequest):
         if benchmark_analysis:
             db.update_project_setting(project_id, "benchmark_analysis_json", json.dumps(benchmark_analysis, ensure_ascii=False))
 
+        # [AIR-0230 §2d] 이 주제가 이미 기획(씬 구조)까지 사전생성돼 있으면
+        # (topics_queue.pregenerated_structure_status == 'ready', 웹어드민이 주제
+        # 생성 직후 상위 몇 개에 대해 script_plan_generate job을 큐잉해 채워둠) 그
+        # 구조를 그대로 넘겨서 generate_script_structure_api()가 AI를 다시 부르지
+        # 않고 즉시 반환하게 한다.
+        if topic_data.get("pregenerated_structure_status") == "ready" and topic_data.get("pregenerated_structure"):
+            db.update_project_setting(
+                project_id, "pregenerated_structure_json",
+                json.dumps(topic_data.get("pregenerated_structure"), ensure_ascii=False)
+            )
+
         if project_mode == "longform":
             assigned_minutes = normalized.get("recommended_duration_minutes") or max(
                 15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)

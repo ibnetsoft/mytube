@@ -35,6 +35,10 @@ const IMAGE_STYLE_KEYS = [
 const DEFAULT_SCRIPT_STYLE = 'default'
 const DEFAULT_IMAGE_STYLE = 'realistic'
 const CONTENT_LANGUAGES = ['ko', 'en', 'ja'] as const
+// [AIR-0230 §2d] 카테고리당 새로 생성된 주제 중 이 개수만 "항상 기획까지 미리 준비된
+// 상태"로 유지한다 - 전체 백로그를 미리 만들면 비용이 폭증하므로(대기열 전체 적체
+// 문제가 이번 작업의 출발점이었음) 매 생성 배치의 최신 몇 개로만 한정한다.
+const PREGEN_BUFFER_SIZE = 3
 
 type ContentLanguage = typeof CONTENT_LANGUAGES[number]
 
@@ -665,7 +669,7 @@ export async function POST(req: Request) {
         }
 
         // 4. Supabase topics_queue 에 적재
-        const inserts = topics.map(item => {
+        const inserts = topics.map((item, index) => {
             const topic = typeof item === 'string' ? item : item?.topic
             const geminiDuration = isLongformCategory
                 ? clampDuration(item?.recommended_duration_minutes, minDurationMinutes)
@@ -716,6 +720,9 @@ export async function POST(req: Request) {
                 // claim_topic() → project_settings → scene_planner.py까지 전달되게 한다
                 // (migrations/air_0230_topics_queue_benchmark_analysis_column.sql, 미적용 초안).
                 benchmark_analysis: benchmarkAnalysis,
+                // [AIR-0230 §2d] 이번 배치의 상위 PREGEN_BUFFER_SIZE개만 기획 사전생성
+                // 대상으로 표시 - 실제 job 큐잉은 insert 성공 후, DB가 id를 발급한 뒤에 한다.
+                pregenerated_structure_status: index < PREGEN_BUFFER_SIZE ? 'queued' : 'none',
                 ...(isLongformCategory ? {
                     recommended_duration_minutes: assignedDuration,
                     assigned_duration_minutes: assignedDuration,
@@ -733,14 +740,17 @@ export async function POST(req: Request) {
         }).filter(item => item.topic)
 
         // AIR-0129: select back inserted IDs to kick off background translation
-        let { data: insertedRows, error: insertError } = await supabase
+        // [AIR-0230 §2d] extra fields needed to build script_plan_generate payloads below
+        let insertedRows: any[] | null
+        let insertError: any
+        ;({ data: insertedRows, error: insertError } = await supabase
             .from('topics_queue')
             .insert(inserts)
-            .select('id')
+            .select('id, topic, assigned_duration_minutes, assigned_script_style, language, pregenerated_structure_status'))
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, benchmark_analysis, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, benchmark_analysis, pregenerated_structure_status, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
@@ -755,6 +765,36 @@ export async function POST(req: Request) {
         const insertedIds = (insertedRows || []).map((r: any) => String(r.id))
         if (insertedIds.length && geminiApiKey) {
             void translateAndSaveTopics(insertedIds, supabase, geminiApiKey)
+        }
+
+        // [AIR-0230 §2d] 사전생성 버퍼 채우기 - 위에서 'queued'로 표시해둔 상위
+        // PREGEN_BUFFER_SIZE개에 대해 실제로 script_plan_generate job을 큐잉한다.
+        // 워커 인프라(migrations/air_0230_*.sql, worker/hermes_worker.py)가 아직
+        // 프로덕션에 배포되지 않았으므로 지금은 그냥 'pending'으로 쌓이기만 하고,
+        // 배포 후 워커가 처리하면 complete/route.ts의 sync-back이
+        // topics_queue.pregenerated_structure를 채운다. 실패해도 주제 생성 자체는
+        // 이미 끝난 뒤라 사용자에게 영향 없음 (best-effort).
+        const toPregenerate = (insertedRows || []).filter((r: any) => r.pregenerated_structure_status === 'queued')
+        if (toPregenerate.length) {
+            try {
+                const pregenJobs = toPregenerate.map((r: any) => ({
+                    job_type: 'script_plan_generate',
+                    category_id: String(category.id),
+                    payload: {
+                        topic_queue_id: String(r.id),
+                        topic: r.topic,
+                        target_duration_seconds: r.assigned_duration_minutes ? r.assigned_duration_minutes * 60 : (isLongformCategory ? minDurationMinutes * 60 : 60),
+                        script_style: r.assigned_script_style || DEFAULT_SCRIPT_STYLE,
+                        language: r.language || targetLang,
+                        benchmark_analysis: benchmarkAnalysis,
+                    },
+                    status: 'pending',
+                }))
+                const { error: pregenError } = await supabase.from('remote_hermes_queue').insert(pregenJobs)
+                if (pregenError) console.warn('[Topic Generator] Failed to enqueue script_plan_generate jobs (non-fatal):', pregenError.message)
+            } catch (e) {
+                console.warn('[Topic Generator] script_plan_generate enqueue threw (non-fatal):', e)
+            }
         }
 
         return NextResponse.json({ success: true, count: inserts.length, topics })
