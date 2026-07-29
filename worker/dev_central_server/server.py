@@ -1,17 +1,21 @@
 """
 [AIR-0227C Stage 4/9 - TEST-ONLY, NOT PRODUCTION] Local stand-in for the
-central server's /api/worker/* contract.
+central server's /api/internal/worker/* contract.
 
 This is explicitly NOT auth-web and does NOT touch Supabase or any
 production system. It exists so Stage 9's "실제 원격 렌더링 E2E" can be
 proven against a real HTTP round-trip (register -> claim -> lease ->
 progress -> complete, with real network failure/idempotency/lease-expiry
 behavior) without deploying anything or running a production DB migration.
-docs/AIR_WORKER_AUTH.md documents where the real implementation belongs
-(auth-web, following the desktopSession.ts HMAC pattern) - this mock
-implements the identical wire contract (same paths, same request/response
-shapes) so central_client.py needs zero code changes to point at the real
-thing once it exists (only CENTRAL_SERVER_URL/AIRWORKER_TOKEN change).
+`auth-web/app/api/internal/worker/**` is the real, actually-implemented
+counterpart (docs/AIR_WORKER_CENTRAL_API.md) - this mock's routes were
+updated (AIR-0227D-STAGING-UNBLOCK) to use the exact same paths (previously
+this file and central_client.py both used an older /api/worker/* sketch
+that does NOT match what was actually built in auth-web - pointing
+CENTRAL_SERVER_URL at a real deployment with the old paths 404'd on every
+call). Now that both sides agree, central_client.py genuinely needs zero
+code changes to point at the real thing (only CENTRAL_SERVER_URL/
+AIRWORKER_TOKEN change) - this comment's original claim is true again.
 
 Authoritative worker capabilities are hardcoded here (WORKER_REGISTRY) to
 prove that a worker's *self-declared* allowed_job_types in a request body
@@ -91,13 +95,13 @@ def _authorize(authorization: str | None) -> dict:
     return claims
 
 
-@app.post("/api/worker/register")
+@app.post("/api/internal/worker/register")
 async def register(body: dict, authorization: str | None = Header(default=None)):
     claims = _authorize(authorization)
     return {"worker_id": claims["worker_id"], "allowed_job_types": claims["allowed_job_types"], "registered_at": time.time()}
 
 
-@app.post("/api/worker/heartbeat")
+@app.post("/api/internal/worker/heartbeat")
 async def heartbeat(body: dict, authorization: str | None = Header(default=None)):
     _authorize(authorization)
     return {"ok": True, "server_time": time.time()}
@@ -112,7 +116,7 @@ def _expire_stale_leases(conn):
     )
 
 
-@app.post("/api/worker/jobs/claim")
+@app.post("/api/internal/worker/jobs/claim")
 async def claim(body: dict, authorization: str | None = Header(default=None)):
     claims = _authorize(authorization)
     # [enforcement] intersect the request's self-declared types with the
@@ -167,7 +171,7 @@ def _check_lease(conn, job_id, lease_id, worker_instance_id):
     return row
 
 
-@app.post("/api/worker/jobs/{job_id}/progress")
+@app.post("/api/internal/worker/jobs/{job_id}/progress")
 async def progress(job_id: str, body: dict, authorization: str | None = Header(default=None)):
     _authorize(authorization)
     conn = _conn()
@@ -191,7 +195,7 @@ def _idempotent(conn, key, compute):
     return result, False
 
 
-@app.post("/api/worker/jobs/{job_id}/complete")
+@app.post("/api/internal/worker/jobs/{job_id}/complete")
 async def complete(job_id: str, body: dict, authorization: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
     _authorize(authorization)
     conn = _conn()
@@ -208,7 +212,7 @@ async def complete(job_id: str, body: dict, authorization: str | None = Header(d
         conn.close()
 
 
-@app.post("/api/worker/jobs/{job_id}/fail")
+@app.post("/api/internal/worker/jobs/{job_id}/fail")
 async def fail(job_id: str, body: dict, authorization: str | None = Header(default=None), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
     _authorize(authorization)
     conn = _conn()
@@ -225,7 +229,7 @@ async def fail(job_id: str, body: dict, authorization: str | None = Header(defau
         conn.close()
 
 
-@app.post("/api/worker/jobs/{job_id}/renew-lease")
+@app.post("/api/internal/worker/jobs/{job_id}/renew")
 async def renew_lease(job_id: str, body: dict, authorization: str | None = Header(default=None)):
     _authorize(authorization)
     conn = _conn()
@@ -243,7 +247,7 @@ async def renew_lease(job_id: str, body: dict, authorization: str | None = Heade
 
 @app.post("/_test/seed-job")
 async def seed_job(body: dict):
-    """Not part of the real /api/worker/* contract - lets the E2E test
+    """Not part of the real /api/internal/worker/* contract - lets the E2E test
     script create a queued job on the mock server without needing a
     separate 'admin creates job' surface."""
     conn = _conn()

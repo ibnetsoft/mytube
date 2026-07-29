@@ -1,6 +1,6 @@
 # AIR Worker — 원격 렌더링 E2E QA 결과 (AIR-0227C Stage 9/14)
 
-- 상태: **로컬 모의 중앙 서버 기준 실측 완료 / 실 auth-web·실 Drive 기준 미검증**
+- 상태: **로컬 모의 중앙 서버 기준 실측(아래 본문) + [AIR-0227D-STAGING-UNBLOCK 최종] 실제 프로덕션 Supabase/실제 배포된 Vercel 프리뷰(PR #85) 기준 HTTP 레벨 실측까지 완료 — register/heartbeat/claim/renew/progress/complete 전체 라운드트립, 인증 실패(401)/Idempotency-Key 누락(400) 케이스 포함(worknote/AIR-0227D-STAGING-UNBLOCK.md §6). 실 Google Drive 업로드/다운로드 E2E만 여전히 미검증(테스트 자격증명 없음). 아래 본문의 상세 시나리오(lease 만료/재할당, 네트워크 장애, idempotency)는 로컬 모의 서버 기준이며 프로토콜 동작 자체는 경로 변경과 무관하게 유효.**
 - 관련 문서: [LEASE_PROTOCOL](./AIR_WORKER_LEASE_PROTOCOL.md), [AUTH](./AIR_WORKER_AUTH.md)
 
 ## 0. 왜 "실제 원격"이 아니라 로컬 모의 서버인가
