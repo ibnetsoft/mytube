@@ -261,34 +261,6 @@ async def page_admin_voices(request: Request):
         app_mode="longform"
     )
 
-@router.get("/admin/script-analyzer", response_class=HTMLResponse)
-async def page_admin_script_analyzer(request: Request):
-    from app.routers.admin_tenant import check_superadmin
-    from fastapi import HTTPException
-    if not check_superadmin():
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return _render(
-        request,
-        "pages/script_analyzer_preview.html",
-        "admin-script-analyzer",
-        "Script Analyzer",
-        app_mode="longform"
-    )
-
-@router.get("/admin/director-ai", response_class=HTMLResponse)
-async def page_admin_director_ai(request: Request):
-    from app.routers.admin_tenant import check_superadmin
-    from fastapi import HTTPException
-    if not check_superadmin():
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return _render(
-        request,
-        "pages/director_ai_preview.html",
-        "admin-director-ai",
-        "Director AI",
-        app_mode="longform"
-    )
-
 @router.get("/admin/production-planner", response_class=HTMLResponse)
 async def page_admin_production_planner(request: Request):
     from app.routers.admin_tenant import check_superadmin
