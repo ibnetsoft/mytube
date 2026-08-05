@@ -196,30 +196,32 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
         audio_filename = os.path.basename(audio_path)
         shutil.copy2(audio_path, os.path.join(audio_dir, audio_filename))
 
+        # [FIX] Live DB is now the primary source when packaging for remote
+        # render - the timeline snapshot used to take priority and permanently
+        # locked in whatever image_url/video_url existed at the time it was
+        # written, so scenes edited/cropped afterwards were packaged as blank
+        # slots. The snapshot is now only used to fill a slot the DB can't
+        # resolve.
         images = []
-        timeline_path = p_settings.get('timeline_images_path')
-        loaded_from_timeline = False
+        for img in images_data:
+            target_url = img.get('image_url') or img.get('video_url')
+            fpath = _resolve_packaged_asset_path(target_url)
+            images.append(fpath if fpath and os.path.exists(fpath) else '')
 
+        timeline_path = p_settings.get('timeline_images_path')
         if timeline_path and os.path.exists(timeline_path):
             try:
                 with open(timeline_path, 'r', encoding='utf-8') as f:
                     urls = json.load(f)
-                for url in urls:
-                    if not url:
-                        images.append('')
-                        continue
-                    fpath = _resolve_packaged_asset_path(url)
-                    images.append(fpath if fpath and os.path.exists(fpath) else '')
-                if images:
-                    loaded_from_timeline = True
+                if len(urls) == len(images):
+                    for idx, url in enumerate(urls):
+                        if images[idx]:
+                            continue
+                        fpath = _resolve_packaged_asset_path(url)
+                        if fpath and os.path.exists(fpath):
+                            images[idx] = fpath
             except Exception:
                 pass
-
-        if not loaded_from_timeline:
-            for img in images_data:
-                target_url = img.get('image_url') or img.get('video_url')
-                fpath = _resolve_packaged_asset_path(target_url)
-                images.append(fpath if fpath and os.path.exists(fpath) else '')
 
         img_to_video = {}
         for prompt in images_data:

@@ -1224,62 +1224,53 @@ async def render_project_video(
         if not tts_data:
             raise HTTPException(400, "TTS 오디오 데이터가 없습니다.")
         
-        # Load Timeline Images from Config if available
+        # [FIX] Live DB is now the primary source at render time - the timeline
+        # snapshot (written once after Auto-Pilot Pass 4) used to take priority
+        # and permanently locked in whatever image_url/video_url existed at that
+        # moment. Any scene edited/cropped afterwards was silently rendered as a
+        # blank slot even though the DB had the fresh asset. The snapshot is now
+        # only used to fill a slot the live DB can't resolve.
         p_settings = db.get_project_settings(project_id)
         timeline_path = p_settings.get('timeline_images_path') if p_settings else None
-        
+
+        def _resolve_scene_media_path(url):
+            if not url:
+                return ""
+            if url.startswith("/static/"):
+                rel = url.replace("/static/", "", 1).replace("/", os.sep)
+                return os.path.join(config.STATIC_DIR, rel)
+            if url.startswith("/output/"):
+                rel = url.replace("/output/", "", 1).replace("/", os.sep)
+                return os.path.join(config.OUTPUT_DIR, rel)
+            return ""
+
+        print("DEBUG: Building images from live DB prompts (scene-aware, primary source)")
         images = []
-        loaded_from_timeline = False
-        
+        for img in images_data:
+            target_url = img.get("image_url") or img.get("video_url")
+            fpath = _resolve_scene_media_path(target_url)
+            images.append(fpath if fpath and os.path.exists(fpath) else "") # Placeholder for missing scene asset
+
         if timeline_path and os.path.exists(timeline_path):
-             try:
-                 with open(timeline_path, "r", encoding="utf-8") as f:
-                     timeline_urls = json.load(f)
-                 
-                 print(f"DEBUG: Loading images from timeline path: {timeline_path} ({len(timeline_urls)} images)")
-                 
-                 for url in timeline_urls:
-                     if not url:
-                         images.append("")
-                         continue
-                         
-                     fpath = None
-                     if url.startswith("/static/"):
-                        rel = url.replace("/static/", "", 1).replace("/", os.sep)
-                        fpath = os.path.join(config.STATIC_DIR, rel)
-                     elif url.startswith("/output/"):
-                        rel = url.replace("/output/", "", 1).replace("/", os.sep)
-                        fpath = os.path.join(config.OUTPUT_DIR, rel)
-                     
-                     if fpath and os.path.exists(fpath):
-                         images.append(fpath)
-                     else:
-                         images.append("") # Keep index placeholder 
-                         
-                 if images:
-                     loaded_from_timeline = True
-             except Exception as e:
-                 print(f"Failed to load timeline images: {e}")
-                 
-        # Fallback to DB if no timeline - [FIX] Scene-aware list construction
-        if not loaded_from_timeline:
-            print("DEBUG: No timeline found, building from DB prompts (scene-aware)")
-            for img in images_data:
-                target_url = img.get("image_url") or img.get("video_url")
-                
-                fpath = None
-                if target_url:
-                    if target_url.startswith("/static/"):
-                        relative_path = target_url.replace("/static/", "", 1).replace("/", os.sep)
-                        fpath = os.path.join(config.STATIC_DIR, relative_path)
-                    elif target_url.startswith("/output/"):
-                        relative_path = target_url.replace("/output/", "", 1).replace("/", os.sep)
-                        fpath = os.path.join(config.OUTPUT_DIR, relative_path)
-                
-                if fpath and os.path.exists(fpath):
-                    images.append(fpath)
+            try:
+                with open(timeline_path, "r", encoding="utf-8") as f:
+                    timeline_urls = json.load(f)
+
+                if len(timeline_urls) == len(images):
+                    filled = 0
+                    for idx, url in enumerate(timeline_urls):
+                        if images[idx]:
+                            continue
+                        fpath = _resolve_scene_media_path(url)
+                        if fpath and os.path.exists(fpath):
+                            images[idx] = fpath
+                            filled += 1
+                    if filled:
+                        print(f"DEBUG: Filled {filled} scene(s) missing from DB using timeline snapshot fallback: {timeline_path}")
                 else:
-                    images.append("") # Placeholder for missing scene asset
+                    print(f"DEBUG: Timeline snapshot scene count ({len(timeline_urls)}) != DB scene count ({len(images)}); skipping snapshot fallback")
+            except Exception as e:
+                print(f"Failed to load timeline images fallback: {e}")
         
         # [FIX] Patch loaded images with latest video_url from DB
         # This ensures we use generated videos even if timeline.json still points to static images
