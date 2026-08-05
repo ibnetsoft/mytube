@@ -1268,6 +1268,20 @@ async def upload_scene_media(
 
         if not (is_video or is_image):
              raise HTTPException(400, f"지원하지 않는 형식입니다: {ext}")
+
+        # [NEW] Enforce video-only for required intro video zone scenes
+        if is_image:
+            readiness_check = sync_project_asset_readiness(project_id, persist=False)
+            required_zone = readiness_check.get("required_video_zone_scenes") or []
+            if scene_number in required_zone:
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "status": "error",
+                        "error": f"씬 {scene_number}은(는) 초반 필수 영상구간입니다. 영상 파일(mp4, mov, avi, webm, mkv)만 업로드할 수 있습니다.",
+                        "code": "video_required_for_scene",
+                    },
+                )
         
         # 프로젝트 폴더 가져오기
         abs_dir, web_dir = get_project_output_dir(project_id)
@@ -1445,6 +1459,25 @@ async def bulk_match_scene_media(
             mapping,
         )
         plan["invalid"].extend(invalid_files)
+
+        # [NEW] Enforce video-only for required intro video zone scenes:
+        # Image matches assigned to required-zone scenes are moved to
+        # needs_review with a warning instead of being auto-committed.
+        readiness_check = sync_project_asset_readiness(project_id, persist=False)
+        required_zone = set(readiness_check.get("required_video_zone_scenes") or [])
+        if required_zone:
+            filtered_matched = []
+            for item in plan["matched"]:
+                scene_num = int(item["scene_number"])
+                if scene_num in required_zone and not item["is_video"]:
+                    item["_override_reason"] = (
+                        f"씬 {scene_num}은(는) 초반 필수 영상구간입니다. "
+                        f"영상 파일만 자동 배정됩니다. (이미지 파일: {item.get('original_name', '')})"
+                    )
+                    plan["needs_review"].append(item)
+                else:
+                    filtered_matched.append(item)
+            plan["matched"] = filtered_matched
 
         # 3. 확정 매칭만 DB 반영 (needs_review는 사용자 확인 후
         #    /api/image/assign-scene-media 로 반영된다)
@@ -1629,6 +1662,20 @@ async def replace_asset_from_library(
     탐색 창에서 선택한 기존 에셋으로 장면 미디어를 교체합니다.
     """
     try:
+        # [NEW] Enforce video-only for required intro video zone scenes
+        if not is_video:
+            readiness_check = sync_project_asset_readiness(project_id, persist=False)
+            required_zone = readiness_check.get("required_video_zone_scenes") or []
+            if scene_number in required_zone:
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "status": "error",
+                        "message": f"씬 {scene_number}은(는) 초반 필수 영상구간입니다. 영상 파일만 배정할 수 있습니다.",
+                        "code": "video_required_for_scene",
+                    },
+                )
+
         if is_video:
             db.update_image_prompt_video_url(project_id, scene_number, asset_url)
         else:

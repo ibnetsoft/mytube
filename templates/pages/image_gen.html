@@ -742,6 +742,10 @@
         label_required_video_missing_prefix: {{ t('label_required_video_missing_prefix') | tojson }},
         label_video_required_cutoff: {{ t('label_video_required_cutoff') | tojson }},
         toast_video_cutoff_saved: {{ t('toast_video_cutoff_saved') | tojson }},
+        err_video_only_scene: {{ t('err_video_only_scene') | tojson }},
+        err_video_only_scene_bulk: {{ t('err_video_only_scene_bulk') | tojson }},
+        label_video_only_badge: {{ t('label_video_only_badge') | tojson }},
+        toast_video_only_warning: {{ t('toast_video_only_warning') | tojson }},
         status_select_project_first: {{ t('status_select_project_first') | tojson }},
         toast_char_saved_server: {{ t('toast_char_saved_server') | tojson }},
         toast_server_save_fail: {{ t('toast_server_save_fail') | tojson }},
@@ -1593,7 +1597,15 @@
                 </div>
                 <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="${getImageColClass()} flex flex-col gap-2">
-                        <div class="image-container relative w-full bg-[#1c2027] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group" style="${getContainerStyle()}">
+                        ${(() => {
+                            const sceneNumber = (p.scene_number || (i + 1));
+                            const inRequiredZone = _getRequiredVideoZoneScenes().includes(sceneNumber);
+                            const acceptAttr = inRequiredZone ? 'accept="video/*"' : 'accept="image/*,video/*"';
+                            const zoneBadge = inRequiredZone ? `<div class="absolute top-2 left-2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10">🔒 ${i18n.label_video_only_badge}</div>` : '';
+                            const imageOnlyWarning = (inRequiredZone && p.image_url && !p.video_url) ? `<div class="absolute bottom-2 left-2 bg-red-500/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10">⚠️ ${i18n.label_video_only_badge}</div>` : '';
+                            return `
+                        <div class="image-container relative w-full bg-[#1c2027] rounded-lg overflow-hidden border ${inRequiredZone ? 'border-orange-500/50' : 'border-gray-200 dark:border-gray-700'} group" style="${getContainerStyle()}">
+                            ${zoneBadge}
                             ${p.video_url ? `
                                 <video src="${p.video_url}" class="absolute inset-0 w-full h-full object-cover" controls autoplay loop muted></video>
                                 <div class="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
@@ -1601,29 +1613,32 @@
                                 </div>
                             ` : p.image_url ? `
                                 <img src="${p.image_url}" class="w-full h-full object-cover" alt="Scene ${i + 1}">
+                                ${imageOnlyWarning}
                             ` : `
                                 <div class="flex flex-col items-center justify-center h-full text-gray-400">
-                                    <span class="text-2xl mb-2">🖼️</span>
-                                    <span class="text-xs">No Asset</span>
-                                    <button onclick="document.getElementById('scene-upload-${i}').click()" 
-                                             class="mt-2 text-[10px] text-blue-500 hover:text-blue-600 border border-white/5 px-2 py-1 rounded bg-[#1c2027] transition-colors">
-                                        📁 ${i18n.btn_upload}
+                                    <span class="text-2xl mb-2">${inRequiredZone ? '🎬' : '🖼️'}</span>
+                                    <span class="text-xs">${inRequiredZone ? i18n.label_video_only_badge : 'No Asset'}</span>
+                                    <button onclick="document.getElementById('scene-upload-${i}').click()"
+                                             class="mt-2 text-[10px] ${inRequiredZone ? 'text-orange-500 hover:text-orange-600 border-orange-500/20' : 'text-blue-500 hover:text-blue-600 border-white/5'} px-2 py-1 rounded bg-[#1c2027] transition-colors">
+                                        📁 ${inRequiredZone ? '🎬 ' + i18n.btn_upload : i18n.btn_upload}
                                     </button>
                                 </div>
                             `}
-                            <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
+                            <input type="file" id="scene-upload-${i}" class="hidden" ${acceptAttr} onchange="uploadSceneImage(${i}, this)">
                             ${(p.image_url || p.video_url) ? `
                                 <div class="absolute inset-0 bg-[#1c2027]/30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
-                                    <button onclick="openAssetLibrary(${i})" 
+                                    <button onclick="openAssetLibrary(${i})"
                                              class="w-3/4 bg-[#1c2027]/95 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1.5">
                                         ${i18n.btn_library}
                                     </button>
-                                    <button onclick="document.getElementById('scene-upload-${i}').click()" 
-                                             class="w-3/4 bg-indigo-600/90 text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5">
-                                        ${i18n.btn_upload_new}
+                                    <button onclick="document.getElementById('scene-upload-${i}').click()"
+                                             class="w-3/4 ${inRequiredZone ? 'bg-orange-600/90' : 'bg-indigo-600/90'} text-white text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5">
+                                        ${inRequiredZone ? '🎬 ' + i18n.btn_upload_new : i18n.btn_upload_new}
                                     </button>
                                 </div>
                             ` : ''}
+                        </div>`;
+                        })()}
                         </div>
 
                         <!-- [NEW] Dual Keyframe Controls (Expanded) -->
@@ -1817,6 +1832,12 @@
 
         container.innerHTML = listHtml;
         renderSceneAssetReview(data);
+    }
+
+    // [NEW] Helper: return scene numbers in the required video zone
+    function _getRequiredVideoZoneScenes() {
+        if (!assetReadiness || !assetReadiness.applicable) return [];
+        return assetReadiness.required_video_zone_scenes || [];
     }
 
     function renderSceneAssetReview(data) {
@@ -2122,6 +2143,22 @@
             return;
         }
 
+        // [NEW] Enforce video-only for required zone scenes
+        const sceneNumber = index + 1;
+        const requiredZone = _getRequiredVideoZoneScenes();
+        if (requiredZone.includes(sceneNumber)) {
+            const videoExts = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
+            const fileName = (file.name || '').toLowerCase();
+            const ext = fileName.substring(fileName.lastIndexOf('.'));
+            if (!videoExts.includes(ext)) {
+                const msg = i18n.err_video_only_scene.replace('{scene}', sceneNumber);
+                alert('⚠️ ' + msg);
+                Utils.showToast(i18n.toast_video_only_warning, 'warning');
+                input.value = '';
+                return;
+            }
+        }
+
         // Show loading state
         const btn = input.previousElementSibling;
         const originalText = btn ? btn.innerHTML : '';
@@ -2255,9 +2292,15 @@
             return;
         }
 
-        list.innerHTML = files.map(f => `
-            <div onclick="selectLibraryAsset(${sceneIndex}, '${f.url}', ${f.is_video})" 
-                 class="relative aspect-[16/9] bg-[#1c2027] rounded-xl overflow-hidden cursor-pointer group hover:ring-4 hover:ring-blue-500/50 transition-all shadow-md transform hover:-translate-y-1">
+        const sceneNumber = sceneIndex + 1;
+        const inReqZone = _getRequiredVideoZoneScenes().includes(sceneNumber);
+
+        list.innerHTML = files.map(f => {
+            const isImage = !f.is_video;
+            const blocked = inReqZone && isImage;
+            return `
+            <div ${blocked ? '' : `onclick="selectLibraryAsset(${sceneIndex}, '${f.url}', ${f.is_video})"`}
+                 class="relative aspect-[16/9] bg-[#1c2027] rounded-xl overflow-hidden ${blocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} group ${blocked ? '' : 'hover:ring-4 hover:ring-blue-500/50'} transition-all shadow-md ${blocked ? '' : 'transform hover:-translate-y-1'}">
                 ${f.is_video ? 
                     `<video src="${f.url}" class="w-full h-full object-cover"></video>
                      <div class="absolute inset-0 flex items-center justify-center bg-[#1c2027]/10 group-hover:bg-[#1c2027]/0 transition-colors">
@@ -2268,19 +2311,29 @@
                         <span class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">🖼️ IMAGE</span>
                      </div>`
                 }
+                ${blocked ? `<div class="absolute top-2 left-2 bg-red-500/90 text-white text-[9px] px-1.5 py-0.5 rounded font-bold z-10">🔒 ${i18n.label_video_only_badge}</div>` : ''}
+                ${!blocked ? `
                 <div class="absolute inset-0 bg-[#1c2027]/0 group-hover:bg-[#1c2027]/30 transition-colors flex items-center justify-center">
                     <span class="opacity-0 group-hover:opacity-100 bg-[#1c2027] text-blue-600 text-xs px-3 py-1.5 rounded-full shadow-lg font-bold">Select & Apply</span>
-                </div>
+                </div>` : ''}
                 <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                     <p class="text-[9px] text-white truncate font-medium">${f.name}</p>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     }
 
     async function selectLibraryAsset(index, url, isVideo) {
         const pid = (typeof getCurrentProject === 'function') ? getCurrentProject() : null;
         if (!pid) return;
+
+        // [NEW] Block image assets for required video zone scenes
+        const sceneNumber = index + 1;
+        if (_getRequiredVideoZoneScenes().includes(sceneNumber) && !isVideo) {
+            alert('⚠️ ' + i18n.err_video_only_scene.replace('{scene}', sceneNumber));
+            Utils.showToast(i18n.toast_video_only_warning, 'warning');
+            return;
+        }
 
         // Confirmation before replacing
         if (!confirm('Replace current scene media with this selection?')) return;
@@ -2592,12 +2645,18 @@
                 if (result.status === 'ok') {
                     // 성공 시 UI 업데이트: DOM 조작을 통해 이미지 컨테이너 교체
                     const imageContainer = card.querySelector('.image-container');
+                    const sceneNumber = p.scene_number || (i + 1);
+                    const inReqZone = _getRequiredVideoZoneScenes().includes(sceneNumber);
+                    const reqAccept = inReqZone ? 'accept="video/*"' : 'accept="image/*,video/*"';
+                    const reqWarning = (inReqZone ? `<div class="absolute bottom-2 left-2 bg-red-500/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10">⚠️ ${i18n.label_video_only_badge}</div>` : '');
 
                     if (imageContainer) {
                         imageContainer.innerHTML = `
                             <img src="${result.image_url}" class="absolute inset-0 w-full h-full object-cover" alt="Scene ${i + 1}">
                             <div class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">✓ Image</div>
-                            <input type="file" id="scene-upload-${i}" class="hidden" accept="image/*,video/*" onchange="uploadSceneImage(${i}, this)">
+                            ${inReqZone ? `<div class="absolute top-2 left-2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10">🔒 ${i18n.label_video_only_badge}</div>` : ''}
+                            ${reqWarning}
+                            <input type="file" id="scene-upload-${i}" class="hidden" ${reqAccept} onchange="uploadSceneImage(${i}, this)">
                             <div class="absolute inset-0 bg-[#1c2027]/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <button onclick="document.getElementById('scene-upload-${i}').click()"
                                         class="bg-[#1c2027]/90 bg-[#1c2027]/90 text-[10px] font-bold py-1.5 px-3 rounded-full shadow-lg hover:scale-105 transition-all text-gray-700 dark:text-gray-200">
