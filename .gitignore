@@ -79,5 +79,6 @@ worker/dev_central_server/*.db
 worker/dev_central_server/*.db-wal
 worker/dev_central_server/*.db-shm
 worker/dev_central_server/*.log
+worker/debug_*.txt
 
 rebuild_*_log.txt
