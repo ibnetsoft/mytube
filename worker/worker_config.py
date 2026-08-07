@@ -47,6 +47,7 @@ COMMAND_DIR = IPC_DIR / "commands"
 RESULT_DIR = IPC_DIR / "results"
 CANCEL_FLAG_DIR = STATE_DIR / "cancel_flags"
 SHUTDOWN_FLAG_DIR = STATE_DIR / "shutdown_flags"
+MANAGER_STATUS_FILE = STATE_DIR / "manager_status.json"
 # [P2-VALIDATION §1] Canonical subpath set. output/ is in active use
 # (render_worker.py's DELIVERED_DIR, renamed from state/delivered/). temp/,
 # config/, crash/, update/, quarantine/ are created for structural
@@ -73,6 +74,12 @@ LOG_FILES = {
     "hermes_worker": LOG_DIR / "hermes_worker.log",
     "local_api": LOG_DIR / "local_api.log",
     "updater": LOG_DIR / "updater.log",
+    # 시스템 트레이 관련 로거 — 모두 Manager 프로세스 내부에서 실행
+    "tray_app": LOG_DIR / "tray_app.log",
+    "tray_notification": LOG_DIR / "tray_notification.log",
+    "tray_status_collector": LOG_DIR / "tray_status_collector.log",
+    # 웹 대시보드 — Manager 프로세스 내부 daemon 스레드
+    "dashboard": LOG_DIR / "dashboard.log",
 }
 
 # docs/AIR_WORKER_PROCESS_MODEL.md §3 - bounded auto-restart.
@@ -135,3 +142,11 @@ def ensure_project_root_on_path():
 RENDER_ENCODER = "libx264"
 RENDER_ACCELERATION = "CPU"
 GPU_RENDERING_ACTIVE = False
+
+# ── 시스템 트레이 설정 ──
+TRAY_POLL_INTERVAL_SECONDS = 3.0   # 상태 폴링 주기
+TRAY_ICON_NAME = "AIR Worker"
+
+# ── 웹 대시보드 설정 ──
+DASHBOARD_HOST = "127.0.0.1"
+DASHBOARD_PORT = 3002

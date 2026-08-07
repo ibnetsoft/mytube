@@ -37,6 +37,7 @@ from worker_config import (
     CANCEL_FLAG_DIR,
     COMMAND_DIR,
     HEARTBEAT_STALE_SECONDS,
+    MANAGER_STATUS_FILE,
     MANAGER_TICK_SECONDS,
     RESTART_BACKOFF_SECONDS,
     SHUTDOWN_GRACE_SECONDS,
@@ -65,7 +66,6 @@ STATE_FILES = {
     "local_api": STATE_DIR / "local_api.json",
 }
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
-MANAGER_STATUS_FILE = STATE_DIR / "manager_status.json"
 
 
 def _child_command(role: str) -> list[str]:
@@ -521,9 +521,40 @@ def main():
     import single_instance
     single_instance.acquire_or_exit(logger)  # [AIR-0227E-P2] exits immediately if another Manager is already running - render_worker/hermes_worker/local_api never call this (see single_instance.py docstring)
 
+    # ── 웹어드민에서 설정한 API 키를 Supabase에서 로드 (메모리 + os.environ) ──
+    # hermes_worker.py가 자식 프로세스에서 config.GEMINI_API_KEY를 읽을 수 있도록
+    # 워커 시작 전에 환경변수에 세팅합니다.
+    try:
+        from config import Config
+        keys_loaded = Config.load_remote_keys_from_supabase()
+        if keys_loaded:
+            logger.info(f"웹어드민 API 키 로드 완료: {keys_loaded}")
+        else:
+            logger.info("웹어드민에서 로드된 API 키 없음 (로컬 .env 사용)")
+    except Exception as e:
+        logger.warning(f"웹어드민 API 키 로드 실패 (무시): {e}")
+
     manager = WorkerManager()
     manager.run_startup_recovery()
     manager.start_all()
+
+    # ── 시스템 트레이 기동 (Windows 전용, 실패해도 CLI 모드로 계속) ──
+    tray = None
+    if sys.platform == "win32":
+        try:
+            from tray_app import TrayApp
+            tray = TrayApp(manager)
+            tray.start()  # daemon 스레드에서 pystray.Icon.run() + 상태 폴링
+        except Exception as e:
+            logger.warning(f"시스템 트레이 초기화 실패 (무시, CLI 모드로 계속): {e}")
+
+    # ── 대시보드 서버 기동 (127.0.0.1:3002) ──
+    dashboard = None
+    try:
+        from dashboard_server import start_dashboard
+        dashboard = start_dashboard()
+    except Exception as e:
+        logger.warning(f"대시보드 서버 기동 실패 (무시): {e}")
 
     def _signal_shutdown(signum, frame):
         if not manager._shutdown_started.is_set():
@@ -552,6 +583,20 @@ def main():
     # this is what makes removing os._exit() safe.
     if manager._shutdown_thread is not None:
         manager._shutdown_thread.join()
+
+    # 대시보드 정지 (트레이 정리 전)
+    if dashboard is not None:
+        try:
+            dashboard.should_exit = True
+        except Exception:
+            pass
+
+    # 트레이 정리 (shutdown 완료 후)
+    if tray is not None:
+        try:
+            tray.stop()
+        except Exception as e:
+            logger.debug(f"트레이 정리 중 오류 (무시): {e}")
 
     logger.info("Worker Manager main() returning - process should now exit normally (no os._exit)")
 

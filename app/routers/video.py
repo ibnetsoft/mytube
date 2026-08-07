@@ -1648,21 +1648,19 @@ async def render_project_video(
                 thumbnail_path_arg = None
                 p_settings = db.get_project_settings(project_id) or {}
 
-                if app_mode == 'shorts':
-                    thumb_url = p_settings.get("thumbnail_url")
+                thumb_url = p_settings.get("thumbnail_url")
+                if thumb_url:
+                    if thumb_url.startswith("/static/"):
+                        t_rel = thumb_url.replace("/static/", "", 1).replace("/", os.sep)
+                        t_path = os.path.join(config.STATIC_DIR, t_rel)
+                    elif thumb_url.startswith("/output/"):
+                        t_rel = thumb_url.replace("/output/", "", 1).replace("/", os.sep)
+                        t_path = os.path.join(config.OUTPUT_DIR, t_rel)
+                    else:
+                        t_path = None
                     
-                    if thumb_url:
-                        if thumb_url.startswith("/static/"):
-                            t_rel = thumb_url.replace("/static/", "", 1).replace("/", os.sep)
-                            t_path = os.path.join(config.STATIC_DIR, t_rel)
-                        elif thumb_url.startswith("/output/"):
-                            t_rel = thumb_url.replace("/output/", "", 1).replace("/", os.sep)
-                            t_path = os.path.join(config.OUTPUT_DIR, t_rel)
-                        else:
-                            t_path = None
-                        
-                        if t_path and os.path.exists(t_path):
-                            thumbnail_path_arg = t_path
+                    if t_path and os.path.exists(t_path):
+                        thumbnail_path_arg = t_path
 
                 # Load fade-in and effects
                 try:
@@ -1830,7 +1828,20 @@ async def render_project_video(
                     with open(os.path.join(requests_dir, "job.json"), "w", encoding="utf-8") as f:
                         json.dump(job_spec, f, ensure_ascii=False, indent=2)
                         
-                    # 최종 완료 플래그 (워커가 job.json을 쓰던 도중 읽는 것을 방지)
+                    # 유튜브 업로드용 메타데이터 JSON 생성 및 업로드
+                    yt_metadata = {
+                        "title": p_settings.get("title", ""),
+                        "description": p_settings.get("description", ""),
+                        "hashtags": p_settings.get("hashtags", ""),
+                        "upload_privacy": p_settings.get("upload_privacy", "private"),
+                        "upload_schedule_at": p_settings.get("upload_schedule_at"),
+                        "youtube_channel_id": p_settings.get("youtube_channel_id"),
+                        "thumbnail_filename": new_thumb
+                    }
+                    with open(os.path.join(requests_dir, "metadata.json"), "w", encoding="utf-8") as f:
+                        json.dump(yt_metadata, f, ensure_ascii=False, indent=2)
+                        
+                    # 최종 완료 플래그 (워커가 job.json과 metadata.json을 쓰던 도중 읽는 것을 방지)
                     with open(os.path.join(requests_dir, "ready.txt"), "w") as f:
                         f.write("ready")
                         

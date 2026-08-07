@@ -482,6 +482,16 @@ async def startup_event():
         print(f"[Startup] API Keys — Gemini:{gemini_ok}  YouTube:{youtube_ok}  ElevenLabs:{elevenlabs_ok}")
         if not Config.GEMINI_API_KEY:
             print("[Startup] ⚠️  Gemini 키 없음 → mytube-ashy-seven.vercel.app 에서 키 저장 후 재시작 필요")
+
+        # [NEW] Start System Tray (Windows, production mode only)
+        try:
+            is_frozen = getattr(sys, "frozen", False)
+            if not config.DEBUG and sys.platform == "win32":
+                from services.tray_service import start_system_tray
+                threading.Thread(target=start_system_tray, daemon=True).start()
+        except Exception as tray_err:
+            print(f"[Startup] System tray init warning: {tray_err}")
+
     except Exception as e:
         print(f"[Startup] Setup Failed: {e}")
 
@@ -1437,6 +1447,29 @@ def start_scheduler():
 @app.on_event("shutdown")
 def shutdown_scheduler():
     scheduler.shutdown()
+    # 시스템 트레이 정리
+    try:
+        from services.tray_service import _icon
+        if _icon:
+            _icon.stop()
+    except Exception:
+        pass
+
+
+# ── 서버 종료 엔드포인트 (트레이 "종료" 메뉴에서 호출) ──
+import signal as _signal
+
+def _graceful_shutdown():
+    """uvicorn을 우아하게 종료합니다."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.call_later(0.5, lambda: os.kill(os.getpid(), _signal.SIGTERM))
+
+@app.post("/api/shutdown")
+async def api_shutdown():
+    """트레이 메뉴 또는 외부에서 서버 종료를 요청합니다."""
+    threading.Thread(target=_graceful_shutdown, daemon=True).start()
+    return {"status": "shutting_down"}
 
 @app.post("/api/autopilot/schedule")
 async def schedule_autopilot(
@@ -1882,6 +1915,15 @@ if __name__ == "__main__":
                 f"(host={config.HOST}, port={config.PORT}); the background thread may "
                 "have crashed during startup — check the lines above for a traceback."
             )
+
+        # [NEW] Start System Tray (Windows only)
+        if sys.platform == "win32":
+            try:
+                from services.tray_service import start_system_tray
+                threading.Thread(target=start_system_tray, daemon=True).start()
+                print("프로덕션 모드: 시스템 트레이 시작됨")
+            except Exception as tray_err:
+                print(f"프로덕션 모드: 시스템 트레이 시작 실패 (무시): {tray_err}")
 
         print("프로덕션 모드: 독립 데스크톱 창(webview) 실행 중...")
 

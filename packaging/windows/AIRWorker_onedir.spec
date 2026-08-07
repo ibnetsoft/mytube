@@ -103,6 +103,12 @@ hiddenimports = [
     "win32api",
     "pywintypes",
     "win32timezone",
+    # pystray — 시스템 트레이 (worker/tray_app.py)
+    "pystray",
+    "pystray._win32",
+    # win10toast — Windows 네이티브 알림 (worker/tray_notification.py)
+    "win10toast",
+    "win10toast.toasticons",
 ]
 hiddenimports += pykakasi_hiddenimports
 hiddenimports += collect_submodules("pykakasi")

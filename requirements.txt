@@ -44,6 +44,9 @@ pykakasi
 eth-account
 pywebview
 
+# System Tray & Notifications
+pystray>=0.19.4
+win10toast>=0.9
 
 pydub
 

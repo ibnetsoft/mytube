@@ -60,6 +60,16 @@ ROLES = ("manager", "render_worker", "hermes_worker", "local_api")
 
 def _dispatch(role: str, crash_now: bool):
     if role == "manager":
+        # Manager 프로세스의 콘솔 창 숨김 — pystray 시스템 트레이만 표시.
+        # 자식 프로세스들(render_worker, hermes_worker, local_api)은 콘솔 유지.
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                ctypes.windll.user32.ShowWindow(
+                    ctypes.windll.kernel32.GetConsoleWindow(), 0
+                )
+            except Exception:
+                pass
         import manager as mod
     elif role == "render_worker":
         import render_worker as mod

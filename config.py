@@ -34,10 +34,10 @@ class Config:
     CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
 
     # AI Model Settings
-    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "gemini-2.5-flash")  # 대본 생성 모델
-    TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-2.5-flash")
-    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-2.5-flash"))
-    SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-2.5-flash"))
+    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "claude-sonnet-4-6")  # 대본 생성 모델
+    TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-2.5-pro")
+    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-2.5-pro"))
+    SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-2.5-pro")
     IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-2.5-flash")
     TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-2.5-flash")
     IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
