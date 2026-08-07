@@ -65,6 +65,8 @@ class WebAdminClient:
         "sys_api_translation_model": "TRANSLATION_MODEL",
         "sys_api_image_generation_model": "IMAGE_GENERATION_MODEL",
         "sys_api_video_generation_model": "VIDEO_GENERATION_MODEL",
+        "sys_api_drive_render_queue_path": "DRIVE_RENDER_QUEUE_PATH",
+        "sys_api_use_external_render": "USE_EXTERNAL_RENDER",
         "latest_app_version": "LATEST_APP_VERSION",
         "latest_app_url": "LATEST_APP_URL",
     }
@@ -652,6 +654,10 @@ class WebAdminClient:
         if response is None or response.status_code != 200:
             return {}
         return {item.get("key"): item.get("value") for item in response.json() or []}
+
+    def save_global_setting(self, key: str, value: str) -> bool:
+        """Supabase global_settings 테이블에 key, value 값을 업서트한다."""
+        return self.upsert_by_key("global_settings", "key", key, {"key": key, "value": value})
 
     def translate_global_settings_rows(self, rows: List[Dict[str, Any]]) -> Dict[str, str]:
         """global_settings의 {key,value} 원시 행 목록을 KEY_MAP으로 변환한다.

@@ -422,8 +422,29 @@ async def api_set_setting(
     try:
         from config import Config
         Config.update_api_key(key, value)
-        logger.info(f"설정 변경 (대시보드): {key} = ••••")
-        return {"ok": True, "message": f"{key} 저장 완료"}
+        logger.info(f"설정 변경 (대시보드): {key} = {value if 'KEY' not in key else '••••'}")
+        
+        # Supabase 원격 동시 저장 시도 (Dual-write)
+        try:
+            from services.web_admin_client import web_admin_client
+            sb_key = None
+            for k, v in web_admin_client.KEY_MAP.items():
+                if v == key:
+                    sb_key = k
+                    break
+            
+            if sb_key and web_admin_client.has_supabase():
+                # bool 값일 경우 문자열로 형변환해서 전송
+                str_val = str(value).lower() if isinstance(value, bool) else str(value)
+                ok = web_admin_client.save_global_setting(sb_key, str_val)
+                if ok:
+                    logger.info(f"Supabase 원격 동기화 완료: {sb_key} = {str_val}")
+                else:
+                    logger.warning(f"Supabase 원격 동기화 실패 (응답 에러): {sb_key}")
+        except Exception as sb_err:
+            logger.warning(f"Supabase 원격 저장 실패 (로컬 저장은 유지됨): {sb_err}")
+            
+        return {"ok": True, "message": f"{key} 저장 완료 (원격 동기화 시도 완료)"}
     except Exception as e:
         logger.error(f"설정 저장 실패: {key} — {e}")
         return {"error": f"저장 실패: {e}"}
