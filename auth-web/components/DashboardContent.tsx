@@ -320,7 +320,9 @@ export default function DashboardContent() {
         image_generation_model: 'gemini-3.1-flash-image-preview',
         video_generation_model: 'veo-3.1-fast-generate-preview',
         // [AIR-0230] 모델별 단가표(JSON 문자열): { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
-        model_pricing: '{}'
+        model_pricing: '{}',
+        drive_render_queue_path: '',
+        use_external_render: 'false'
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
@@ -1269,7 +1271,9 @@ export default function DashboardContent() {
                 translation_model: data.translation_model || 'gemini-2.5-flash',
                 image_generation_model: data.image_generation_model || 'gemini-3.1-flash-image-preview',
                 video_generation_model: data.video_generation_model || 'veo-3.1-fast-generate-preview',
-                model_pricing: data.model_pricing || '{}'
+                model_pricing: data.model_pricing || '{}',
+                drive_render_queue_path: data.drive_render_queue_path || '',
+                use_external_render: data.use_external_render || 'false'
             });
         } catch (e) {
             // Silently ignore errors to prevent console spam
@@ -4573,6 +4577,34 @@ export default function DashboardContent() {
                                                     />
                                                 </div>
                                             ))}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">📂 Google Drive &amp; 외부 GPU 렌더링 설정</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">구글 드라이브 렌더 큐 절대 경로</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.drive_render_queue_path}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, drive_render_queue_path: e.target.value }))}
+                                                    placeholder="예: G:/내 드라이브/Longform_Render_Queue"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 font-mono"
+                                                />
+                                                <p className="text-[9px] text-gray-600 mt-1">유저앱들이 프로젝트 제출 시 렌더 파일을 복사해 업로드할 구글 드라이브 경로입니다.</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">외부 렌더링 사용 활성화 (true/false)</label>
+                                                <select
+                                                    value={sysKeys.use_external_render}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, use_external_render: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
+                                                >
+                                                    <option value="false" className="bg-[#111]">로컬에서 즉시 렌더링 (false)</option>
+                                                    <option value="true" className="bg-[#111]">구글드라이브 우회 렌더링 사용 (true)</option>
+                                                </select>
+                                                <p className="text-[9px] text-gray-600 mt-1">유저앱에서 로컬 FFmpeg 대신 구글 드라이브 큐를 태워 외부 GPU로 렌더링할지 선택합니다.</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

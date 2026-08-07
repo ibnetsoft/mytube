@@ -12,7 +12,8 @@ const KEYS = [
     'longform_duration_lock_enabled',
     'topic_generation_model', 'title_generation_model', 'script_planning_model',
     'script_generation_model', 'image_prompt_model', 'translation_model',
-    'image_generation_model', 'video_generation_model'
+    'image_generation_model', 'video_generation_model',
+    'drive_render_queue_path', 'use_external_render'
 ]
 
 const EXACT_KEYS = [

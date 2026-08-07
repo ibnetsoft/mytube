@@ -380,17 +380,12 @@ async def api_get_settings(
         ("TOPIC_GENERATION_MODEL", "주제 생성 모델"),
         ("SCRIPT_GENERATION_MODEL", "대본 생성 모델"),
         ("SCRIPT_PLANNING_MODEL", "대본 구조 모델"),
-        ("USE_EXTERNAL_RENDER", "외부 렌더링 사용 여부 (True/False)"),
-        ("DRIVE_RENDER_QUEUE_PATH", "구글 드라이브 렌더 큐 절대 경로"),
     ]
     result = []
     for attr, label in keys:
         val = getattr(Config, attr, "")
-        if isinstance(val, bool):
-            val = str(val)
         is_key = "KEY" in attr
-        masked_val = _mask_value(val) if is_key else val
-        result.append({"key": attr, "label": label, "value": masked_val, "set": bool(val)})
+        result.append({"key": attr, "label": label, "value": _mask_value(val), "set": bool(val)})
     return {"settings": result}
 
 
@@ -415,7 +410,6 @@ async def api_set_setting(
         "GEMINI_API_KEY", "CLAUDE_API_KEY", "YOUTUBE_API_KEY",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
         "TOPIC_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL",
-        "USE_EXTERNAL_RENDER", "DRIVE_RENDER_QUEUE_PATH",
     }
     if key not in allowed:
         return {"error": f"허용되지 않은 설정 키: {key}"}
@@ -1629,8 +1623,6 @@ const settingLabels = {
   'TOPIC_GENERATION_MODEL': '주제 생성 모델',
   'SCRIPT_GENERATION_MODEL': '대본 생성 모델',
   'SCRIPT_PLANNING_MODEL': '구조 생성 모델',
-  'USE_EXTERNAL_RENDER': '외부 GPU 렌더링 활성화 (true/false)',
-  'DRIVE_RENDER_QUEUE_PATH': '구글 드라이브 렌더 큐 절대 경로',
 };
 
 /* Icons for API keys vs model settings */
@@ -1643,8 +1635,6 @@ const settingIcons = {
   'TOPIC_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_PLANNING_MODEL': '&#x1F916;',
-  'USE_EXTERNAL_RENDER': '&#x1F4CD;',
-  'DRIVE_RENDER_QUEUE_PATH': '&#x1F4C1;',
 };
 
 /* Track original values for dirty detection */
