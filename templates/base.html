@@ -1582,7 +1582,7 @@
                 const dlRes = await fetch('/api/update/download', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: checkData.download_url})
+                    body: JSON.stringify({url: checkData.download_url, sha256: checkData.sha256})
                 });
                 
                 if (!dlRes.ok) throw new Error("Download start failed");

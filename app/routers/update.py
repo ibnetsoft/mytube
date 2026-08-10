@@ -6,6 +6,7 @@ router = APIRouter(prefix="/api/update", tags=["Update"])
 
 class DownloadRequest(BaseModel):
     url: str
+    sha256: str | None = None
 
 @router.get("/check")
 async def check_update():
@@ -13,7 +14,7 @@ async def check_update():
 
 @router.post("/download")
 async def start_download(req: DownloadRequest):
-    updater_service.start_download(req.url)
+    updater_service.start_download(req.url, req.sha256)
     return {"success": True, "message": "Download started"}
 
 @router.get("/status")
@@ -27,7 +28,7 @@ async def check_status():
 @router.post("/apply")
 async def apply_update():
     # Will not return if successful because the app restarts
-    success = updater_service.apply_update_and_restart()
+    success, error = updater_service.apply_update_and_restart()
     if not success:
-        return {"success": False, "error": "Update file not found"}
+        return {"success": False, "error": error}
     return {"success": True}
