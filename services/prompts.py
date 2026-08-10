@@ -257,12 +257,34 @@ JSON만 반환하세요."""
 4. Layer 4 (STYLE EXCLUSION): 현재 스타일과 반대되는 톤 배제 (예: 실사면 cartoon 배제)
 
 [🎬 지침 3. 씬 전환 효과 (Transition Effect)]
-이전 씬에서 현재 씬으로 넘어올 때 가장 잘 어울리는 화면 전환 효과를 다음 5가지 중 하나로 선택하세요. (1번 씬의 경우 기본값 'none' 사용)
-1. "none": 딱딱 끊어지는 컷 전환 (대부분의 일반적인 상황, 빠른 템포, 대화)
-2. "crossfade": 디졸브, 부드럽게 겹치며 전환 (시간 경과, 공간의 부드러운 이동, 감상적인 분위기)
+이전 씬에서 현재 씬으로 넘어올 때 가장 잘 어울리는 화면 전환 효과를 다음 19가지 중 하나로 선택하세요. (1번 씬도 아래 값 중 하나를 사용)
+1. "crossfade": 디졸브, 부드럽게 겹치며 전환 (시간 경과, 공간의 부드러운 이동, 감상적인 분위기)
+2. "fade_to_black": 화면이 까매졌다가 밝아짐 (완전한 국면 전환, 충격적인 반전 후 시작, 회상 끝)
 3. "slide_left": 오른쪽에서 왼쪽으로 밀어내기 (역동적인 전개, 장소의 빠른 변화, 비교 설명)
-4. "fade_to_black": 화면이 까매졌다가 밝아짐 (완전한 국면 전환, 충격적인 반전 후 시작, 회상 끝)
-5. "zoom_in": 화면이 커지며 전환 (특정 사물이나 인물에 집중, 몰입감 부여)
+4. "slide_right": 왼쪽에서 오른쪽으로 밀어내기 (되돌아감, 반대 관점, 이전 장소로 복귀)
+5. "slide_up": 아래에서 위로 올라오며 전환 (상승감, 공개, 다음 단계로 진입)
+6. "slide_down": 위에서 아래로 내려오며 전환 (압박감, 하강, 무거운 분위기)
+7. "wipe_left": 화면을 닦아내듯 왼쪽 방향으로 교체 (정보 전달, 뉴스/다큐식 정리)
+8. "wipe_right": 화면을 닦아내듯 오른쪽 방향으로 교체 (비교, 순차 설명, 밝은 전개)
+9. "push_left": 이전 씬을 밀어내며 다음 씬 등장 (빠른 진행, 액션, 장소 이동)
+10. "blur_crossfade": 흐려졌다가 부드럽게 다음 씬으로 전환 (꿈, 기억, 감정적 회상)
+11. "flash_white": 순간적인 흰색 플래시 후 전환 (충격, 발견, 공포/스릴러의 순간)
+12. "dip_to_white": 흰 화면으로 잠깐 넘어갔다가 전환 (희망, 정화, 밝은 회상)
+13. "zoom_in": 화면이 커지며 전환 (특정 사물이나 인물에 집중, 몰입감 부여)
+14. "zoom_out": 화면이 빠지며 다음 씬 등장 (전체 맥락 공개, 넓은 공간 제시)
+15. "zoom_blur": 줌과 흐림으로 속도감 있게 전환 (액션, 긴박한 추적, 급전환)
+16. "iris_in": 원형으로 열리듯 집중해서 등장 (복고, 동화, 특정 대상 강조)
+17. "iris_out": 원형으로 닫히듯 장면을 정리 (막 전환, 결말감, 고전적 연출)
+18. "glitch": 화면이 깨지는 듯한 디지털 전환 (사이버, 미스터리, 불안, 반전)
+19. "whip_pan": 카메라를 빠르게 휙 돌리는 듯한 전환 (빠른 액션, 코미디, 브이로그)
+
+장르별 자동 선택 가이드:
+- 감성/로맨스/휴먼: crossfade, blur_crossfade, dip_to_white, zoom_in
+- 미스터리/공포/스릴러: fade_to_black, flash_white, glitch, zoom_blur
+- 액션/추격/긴박한 전개: push_left, whip_pan, zoom_blur, slide_left
+- 뉴스/다큐/설명/비교: wipe_left, wipe_right, slide_left, crossfade
+- 판타지/동화/복고: iris_in, iris_out, dip_to_white, crossfade
+- 여행/브이로그/일상: slide_up, slide_right, whip_pan, crossfade
 
 [출력 형식 (JSON)]
 {{
@@ -300,7 +322,7 @@ JSON만 반환하세요."""
             "prompt_en": "Gemini가 작성한 기본 영어 프롬프트 (참고용)",
             "negative_prompt": "Gemini가 작성한 기본 네거티브 프롬프트 (참고용)",
             "flow_prompt": "[Google Veo용 5-Layer Cinematic Framework 적용 영어 단락]",
-            "transition_effect": "none | crossfade | slide_left | fade_to_black | zoom_in",
+            "transition_effect": "crossfade | fade_to_black | slide_left | slide_right | slide_up | slide_down | wipe_left | wipe_right | push_left | blur_crossfade | flash_white | dip_to_white | zoom_in | zoom_out | zoom_blur | iris_in | iris_out | glitch | whip_pan",
             "estimated_seconds": 15
         }}
     ]

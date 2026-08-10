@@ -16,16 +16,45 @@ def _get_scene_transition_mode() -> str:
     """씬 전환 효과는 웹어드민(스타일세팅 > 이미지 스타일)에서만 관리되는 값이다.
     렌더링 시점에 Supabase global_settings에서 최신 값을 가져와 로컬 캐시에 반영한 뒤 사용한다."""
     import database as db
+    def _normalize_transition_mode(mode: Optional[str]) -> str:
+        mode = (mode or "ai_auto").strip().lower()
+        if mode == "none":
+            return "ai_auto"
+        allowed = {
+            "ai_auto",
+            "crossfade",
+            "fade_to_black",
+            "slide_left",
+            "slide_right",
+            "slide_up",
+            "slide_down",
+            "wipe_left",
+            "wipe_right",
+            "push_left",
+            "blur_crossfade",
+            "flash_white",
+            "dip_to_white",
+            "zoom_in",
+            "zoom_out",
+            "zoom_blur",
+            "iris_in",
+            "iris_out",
+            "glitch",
+            "whip_pan",
+        }
+        return mode if mode in allowed else "ai_auto"
+
     try:
         from services.web_admin_client import web_admin_client
         remote = web_admin_client.fetch_global_setting_values(["scene_transition_mode"])
         value = remote.get("scene_transition_mode")
         if value is not None:
+            value = _normalize_transition_mode(value)
             db.save_global_setting("scene_transition_mode", value)
             return value
     except Exception:
         pass
-    return db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str")
+    return _normalize_transition_mode(db.get_global_setting("scene_transition_mode", "ai_auto", value_type="str"))
 
 
 class VideoService:
@@ -994,22 +1023,26 @@ class VideoService:
                     with open(config.DEBUG_LOG_PATH, "a", encoding="utf-8") as _df:
                         _df.write(f"[{datetime.datetime.now()}] Concatenating {len(valid_clips)} clips. method=compose, mode={transition_mode}\n")
                     
-                    if len(valid_clips) > 1 and transition_mode != "none":
+                    if len(valid_clips) > 1:
                         TRANSITION_DUR = 0.5
                         processed_clips = []
+                        transition_overlays = []
                         start_time = 0.0
                         target_w, target_h = resolution
                         
                         for i, c in enumerate(valid_clips):
-                            current_effect = 'none'
+                            current_effect = 'crossfade'
                             if transition_mode == "ai_auto":
                                 if transition_effects and i < len(transition_effects):
-                                    current_effect = transition_effects[i]
+                                    current_effect = transition_effects[i] or 'crossfade'
                             else:
                                 current_effect = transition_mode
+                            current_effect = str(current_effect).strip().lower()
                                 
                             if i == 0:
                                 current_effect = 'none'
+                            elif current_effect == 'none':
+                                current_effect = 'crossfade'
 
                             if current_effect == 'none':
                                 overlap_dur = 0.0
@@ -1028,13 +1061,57 @@ class VideoService:
                                         prev_c = processed_clips[-1]
                                         processed_clips[-1] = prev_c.crossfadeout(TRANSITION_DUR)
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'slide_left':
-                                    # MoviePy requires the function to have exact signature, lambda can be tricky.
-                                    # We use a simple lambda. t is relative to clip start.
-                                    c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * (1.0 - (t / td))), 'center') if t < td else ('center', 'center'))
-                                elif current_effect == 'zoom_in':
-                                    # Crossfadein over the background, since dynamic resize is complex in standard moviepy.
+                                elif current_effect in ('slide_left', 'wipe_left', 'whip_pan'):
+                                    c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
+                                elif current_effect in ('slide_right', 'wipe_right'):
+                                    c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(-tw * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
+                                elif current_effect == 'slide_up':
+                                    c = c.with_position(lambda t, th=target_h, td=TRANSITION_DUR: ('center', int(th * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
+                                elif current_effect == 'slide_down':
+                                    c = c.with_position(lambda t, th=target_h, td=TRANSITION_DUR: ('center', int(-th * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
+                                elif current_effect == 'push_left':
+                                    if i > 0 and len(processed_clips) > 0:
+                                        prev_c = processed_clips[-1]
+                                        prev_duration = prev_c.duration or 0
+                                        processed_clips[-1] = prev_c.with_position(
+                                            lambda t, tw=target_w, td=TRANSITION_DUR, pd=prev_duration:
+                                            (int(-tw * min(1.0, max(0.0, (t - (pd - td)) / td))), 'center')
+                                            if t >= pd - td else ('center', 'center')
+                                        )
+                                    c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
+                                elif current_effect in ('zoom_in', 'zoom_blur'):
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 0.92 + 0.08 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position('center')
                                     c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'zoom_out':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.08 - 0.08 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position('center')
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'iris_in':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 0.82 + 0.18 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position('center')
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'iris_out':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.18 - 0.18 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position('center')
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'glitch':
+                                    c = c.with_position(
+                                        lambda t, td=TRANSITION_DUR:
+                                        ((-18 if int(t * 40) % 2 else 18), (-8 if int(t * 55) % 2 else 8))
+                                        if t < td else ('center', 'center')
+                                    )
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'blur_crossfade':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'flash_white':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                    flash = ColorClip(size=(target_w, target_h), color=(255, 255, 255)).with_duration(TRANSITION_DUR).with_start(start_time).with_opacity(0.55)
+                                    transition_overlays.append(flash)
+                                elif current_effect == 'dip_to_white':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                    dip = ColorClip(size=(target_w, target_h), color=(255, 255, 255)).with_duration(TRANSITION_DUR).with_start(start_time - TRANSITION_DUR / 2).with_opacity(0.75)
+                                    transition_overlays.append(dip)
                                 else:
                                     c = c.crossfadein(TRANSITION_DUR) # Fallback
                             
@@ -1046,7 +1123,7 @@ class VideoService:
                                 start_time += c.duration
                                 
                         from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-                        video_slideshow = CompositeVideoClip(processed_clips, size=(target_w, target_h))
+                        video_slideshow = CompositeVideoClip(processed_clips + transition_overlays, size=(target_w, target_h))
                     else:
                         video_slideshow = concatenate_videoclips(valid_clips, method="compose")
                 except Exception as ce:
