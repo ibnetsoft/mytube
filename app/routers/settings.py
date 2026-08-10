@@ -422,7 +422,9 @@ async def save_global_settings_api(settings: GlobalSettings):
         if value is not None:
             db.save_global_setting(key, value)
 
-    # Automatically resolve DRIVE_RENDER_QUEUE_PATH
+    # Legacy File Stream queue paths are kept for compatibility only. Remote
+    # rendering now uses Google Drive API folder IDs, so do not rewrite
+    # DRIVE_RENDER_QUEUE_PATH from language-specific local mount paths.
     active_lang = settings.drive_active_lang or db.get_global_setting("drive_active_lang", "ko")
     resolved_path = ""
     if active_lang == "ko":
@@ -433,8 +435,7 @@ async def save_global_settings_api(settings: GlobalSettings):
         resolved_path = settings.drive_path_ja or db.get_global_setting("drive_path_ja", config.DRIVE_PATH_JA)
 
     if resolved_path:
-        db.save_global_setting("drive_render_queue_path", resolved_path)
-        config.update_api_key("DRIVE_RENDER_QUEUE_PATH", resolved_path)
+        pass
     
     # 모드 변경 여부 반환
     mode_changed = previous_mode != settings.app_mode if settings.app_mode else False

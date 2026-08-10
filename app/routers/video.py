@@ -1744,7 +1744,7 @@ async def render_project_video(
                                 template_path_arg = t_abs
                 
                 use_external = getattr(config, "USE_EXTERNAL_RENDER", False)
-                queue_path = getattr(config, "DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
+                queue_path = config.BASE_DIR
                 
                 # Check if the queue path's drive exists and is writeable, otherwise fallback to local render
                 if use_external:
@@ -1760,7 +1760,19 @@ async def render_project_video(
                         use_external = False
 
                 if use_external:
-                    # 외부 렌더링 사용 시 구글 드라이브 폴더로 패키징
+                    db.update_project(project_id, status="remote_packaging")
+                    from services.remote_drive_render_service import remote_drive_render_service
+                    remote_drive_render_service.enqueue_project(
+                        project_id,
+                        use_subtitles=request.use_subtitles,
+                        resolution=request.resolution,
+                    )
+                    print(f"[Drive Render] Project {project_id} queued via Google Drive API.")
+
+                elif False and use_external:
+                    # Legacy Google Drive File Stream queue path. Kept unreachable:
+                    # remote rendering is standardized on Google Drive API +
+                    # Supabase remote_render_queue.
                     import shutil
                     requests_dir = os.path.join(queue_path, "requests", f"project_{project_id}_{int(time.time())}")
                     os.makedirs(requests_dir, exist_ok=True)
@@ -2003,7 +2015,7 @@ async def get_project_status(project_id: int):
         status = project["status"]
         
         # [NEW] 클라우드 렌더링 수신 감지 로직
-        if status == "cloud_pending" and getattr(config, "USE_EXTERNAL_RENDER", False):
+        if False and status == "cloud_pending" and getattr(config, "USE_EXTERNAL_RENDER", False):
             import shutil
             queue_path = getattr(config, "DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
             completed_dir = os.path.join(queue_path, "completed", f"project_{project_id}")

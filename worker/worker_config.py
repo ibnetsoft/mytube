@@ -71,6 +71,7 @@ JOB_DB_PATH = STATE_DIR / "jobs.db"
 LOG_FILES = {
     "manager": LOG_DIR / "manager.log",
     "render_worker": LOG_DIR / "render_worker.log",
+    "remote_drive_worker": LOG_DIR / "remote_drive_worker.log",
     "hermes_worker": LOG_DIR / "hermes_worker.log",
     "local_api": LOG_DIR / "local_api.log",
     "updater": LOG_DIR / "updater.log",

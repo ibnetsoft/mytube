@@ -107,6 +107,12 @@ hiddenimports = [
     "pydub",
     "requests",
     "urllib3",
+    "remote_drive_worker",
+    "remote_drive_worker_process",
+    "googleapiclient.discovery",
+    "googleapiclient.http",
+    "google_auth_oauthlib.flow",
+    "google.oauth2.credentials",
     # pywin32 - worker/local_api_token.py's DPAPI token storage
     # (win32crypt.CryptProtectData/CryptUnprotectData). win32timezone is the
     # classic PyInstaller+pywin32 hidden-import gotcha (pywin32 imports it

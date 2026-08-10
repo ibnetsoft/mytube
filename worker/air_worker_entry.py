@@ -22,6 +22,7 @@ Usage:
   AIRWorker.exe                       -> role=manager (double-click default)
   AIRWorker.exe --role manager
   AIRWorker.exe --role render_worker
+  AIRWorker.exe --role remote_drive_worker
   AIRWorker.exe --role hermes_worker
   AIRWorker.exe --role local_api
 
@@ -55,7 +56,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass  # non-reconfigurable stream (e.g. redirected to something unusual) - best effort only
 
-ROLES = ("manager", "render_worker", "hermes_worker", "local_api")
+ROLES = ("manager", "render_worker", "remote_drive_worker", "hermes_worker", "local_api")
 
 
 def _dispatch(role: str, crash_now: bool):
@@ -73,6 +74,8 @@ def _dispatch(role: str, crash_now: bool):
         import manager as mod
     elif role == "render_worker":
         import render_worker as mod
+    elif role == "remote_drive_worker":
+        import remote_drive_worker_process as mod
     elif role == "hermes_worker":
         import hermes_worker as mod  # [AIR-0227E-P3] real Hermes Worker - hermes_worker_mock.py remains for test-only direct import, never dispatched here
     elif role == "local_api":

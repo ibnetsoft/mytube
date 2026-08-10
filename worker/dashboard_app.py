@@ -210,6 +210,26 @@ async def api_render_stop(
     return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
 
 
+@app.post("/api/processes/remote-drive/start")
+async def api_remote_drive_start(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("start_process", {"name": "remote_drive_worker"}))
+
+
+@app.post("/api/processes/remote-drive/stop")
+async def api_remote_drive_stop(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("stop_process", {"name": "remote_drive_worker"}))
+
+
 # ---------------------------------------------------------------------------
 # YouTube Explore API endpoints (proxy to YouTube Data API v3 + Gemini)
 # ---------------------------------------------------------------------------
@@ -995,6 +1015,7 @@ tr:hover { background: #161b22; }
               <select id="log-process" onchange="loadLogs()">
                 <option value="manager">Manager</option>
                 <option value="render_worker">Render Worker</option>
+                  <option value="remote_drive_worker">Drive API Render Worker</option>
                 <option value="hermes_worker">Hermes Worker</option>
                 <option value="local_api">Local API</option>
                 <option value="dashboard">Dashboard</option>
@@ -1284,8 +1305,8 @@ function renderProcessCards(status) {
   let html = '';
   for (const [name, info] of Object.entries(procs)) {
     const s = info.status || 'stopped';
-    const label = {render_worker:'Render Worker', hermes_worker:'Hermes Worker', local_api:'Local API', updater:'Updater'}[name] || name;
-    const icon = {render_worker:'\u{1F3AC}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
+    const label = {render_worker:'Render Worker', remote_drive_worker:'Drive API Render Worker', hermes_worker:'Hermes Worker', local_api:'Local API', updater:'Updater'}[name] || name;
+    const icon = {render_worker:'\u{1F3AC}', remote_drive_worker:'\u{2601}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
     const progress = info.progress || 0;
     const currentJob = info.current_job ? truncate(info.current_job, 40) : '-';
     const hasError = info.last_error && info.last_error.length > 0;
@@ -1550,7 +1571,7 @@ function canCancel(status) {
 }
 
 /* ── Process start / stop ── */
-const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render' };
+const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', remote_drive_worker: 'remote-drive' };
 
 async function startProcess(name) {
   try {
