@@ -1138,17 +1138,8 @@ tr:hover { background: #161b22; }
               </table>
             </div>
             <div class="status-card">
-              <div class="name">설정된 카테고리 (8개)</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-                <span class="badge badge-preparing">탈북사연</span>
-                <span class="badge badge-preparing">해외감동</span>
-                <span class="badge badge-preparing">노후금융</span>
-                <span class="badge badge-preparing">황혼19금</span>
-                <span class="badge badge-preparing">옛날이야기</span>
-                <span class="badge badge-preparing">한국사연</span>
-                <span class="badge badge-preparing">무협</span>
-                <span class="badge badge-preparing">경제</span>
-              </div>
+              <div class="name" id="auto-active-category-title">설정된 카테고리 (8개)</div>
+              <div id="auto-active-category-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
             </div>
           </div>
         </div>
@@ -2050,6 +2041,30 @@ function renderCategoryCheckboxes(activeCats) {
   });
 }
 
+function renderActiveCategoryBadges(activeCats) {
+  const categories = Array.isArray(activeCats) ? activeCats : ALL_CATEGORIES;
+  const title = document.getElementById('auto-active-category-title');
+  const container = document.getElementById('auto-active-category-badges');
+  if (title) title.textContent = `설정된 카테고리 (${categories.length}개)`;
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (categories.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'color:#8b949e;font-size:12px;';
+    empty.textContent = '선택된 카테고리가 없습니다.';
+    container.appendChild(empty);
+    return;
+  }
+
+  categories.forEach(cat => {
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-preparing';
+    badge.textContent = cat;
+    container.appendChild(badge);
+  });
+}
+
 function getSettingsFromUI() {
   const mode = document.getElementById('auto-setting-mode').value;
   const limit = parseInt(document.getElementById('auto-setting-limit').value) || 10;
@@ -2074,6 +2089,7 @@ async function saveAutopilotSettings() {
   try {
     const res = await api('POST', '/api/autopilot/hermes/save_settings', { settings });
     if (res && res.success) {
+      renderActiveCategoryBadges(settings.active_categories);
       showToast('오토파일럿 설정이 저장되었습니다.', 'success');
     } else {
       showToast('설정 저장 실패: ' + (res?.error || '알 수 없음'), 'error');
@@ -2109,6 +2125,12 @@ async function loadAutopilotStatus() {
     if (data.session_stats) {
       const generated = data.session_stats.generated_count || 0;
       document.getElementById('auto-info-generated').textContent = generated + ' 개';
+    }
+
+    if (data.settings) {
+      renderActiveCategoryBadges(data.settings.active_categories);
+    } else {
+      renderActiveCategoryBadges(null);
     }
     
     // UI 초기화 (최초 1회만 설정 채워넣음)
