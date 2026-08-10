@@ -208,16 +208,6 @@ export default function DashboardContent() {
     const [topics, setTopics] = useState<any[]>([])
     const [categoriesLoading, setCategoriesLoading] = useState(false)
     const hasLoadedCategoriesRef = useRef(false)
-    const [newCatName, setNewCatName] = useState('')
-    const [newCatKeywords, setNewCatKeywords] = useState('')
-    const [newCatChannel, setNewCatChannel] = useState('')
-    const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
-    const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
-    const [newCatLanguage, setNewCatLanguage] = useState('ko')
-    const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
-    const [newCatUploadChannelId, setNewCatUploadChannelId] = useState<number | null>(null)
-    const [newCatUploadChannelName, setNewCatUploadChannelName] = useState('')
-    const [newCatUploadChannelHandle, setNewCatUploadChannelHandle] = useState('')
     const [generatingCatId, setGeneratingCatId] = useState<number | null>(null)
     const [generatedTopicsByCat, setGeneratedTopicsByCat] = useState<Record<number, string[]>>({})
     // [AIR-0230 §2b] 카테고리별 topic_benchmark_analyze job 상태 (수동 트리거 + 폴링용)
@@ -230,10 +220,6 @@ export default function DashboardContent() {
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'completed'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
     const [topicQueuePage, setTopicQueuePage] = useState(1)
-    const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
-
-    const [showAdvanced, setShowAdvanced] = useState(false)
-
     // 카테고리 리스트 롱폼/쇼츠 탭 구분
     const [categoryListTab, setCategoryListTab] = useState<'longform' | 'shorts'>('longform')
     const [categoryLangTab, setCategoryLangTab] = useState<'ko' | 'ja' | 'en'>('ko')
@@ -593,19 +579,6 @@ export default function DashboardContent() {
             setLocalChannelsLoading(false)
         }
     }, [])
-
-    const applySelectedChannelToCreateForm = (channelId: number | null) => {
-        if (!channelId) {
-            setNewCatUploadChannelId(null)
-            setNewCatUploadChannelName('')
-            setNewCatUploadChannelHandle('')
-            return
-        }
-        const selected = localChannels.find(ch => ch.id === channelId)
-        setNewCatUploadChannelId(channelId)
-        setNewCatUploadChannelName(selected?.name || '')
-        setNewCatUploadChannelHandle(selected?.handle || '')
-    }
 
     const openCategoryChannelConfig = async (category: any) => {
         setChannelConfigCategory(category)
@@ -1930,54 +1903,6 @@ export default function DashboardContent() {
         }
     }
 
-    const handleCreateCategory = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!canManageTopics) return
-        if (!newCatName) {
-            alert('카테고리명은 필수입니다.')
-            return
-        }
-        try {
-            const res = await adminFetch('/api/admin/categories', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newCatName,
-                    keywords: newCatKeywords,
-                    benchmark_channel_url: newCatChannel,
-                    default_script_style: newCatScriptStyle || 'default',
-                    default_image_style: newCatImageStyle || 'realistic',
-                    language: normalizeContentLanguage(newCatLanguage),
-                    video_type: newCatVideoType,
-                    upload_channel_id: newCatUploadChannelId,
-                    upload_channel_name: newCatUploadChannelName,
-                    upload_channel_handle: newCatUploadChannelHandle,
-                })
-            })
-            const data = await res.json()
-            if (data.success) {
-                setNewCatName('')
-                setNewCatKeywords('')
-                setNewCatChannel('')
-                setNewCatScriptStyle('default')
-                setNewCatImageStyle('realistic')
-                setNewCatLanguage('ko')
-                setNewCatVideoType('longform')
-                setNewCatUploadChannelId(null)
-                setNewCatUploadChannelName('')
-                setNewCatUploadChannelHandle('')
-                fetchCategories(true)
-                fetchTopics()
-                alert('카테고리가 성공적으로 등록되었으며, 기본 샘플 주제 3개가 적재되었습니다.')
-            } else {
-                alert('카테고리 등록 실패: ' + data.error)
-            }
-        } catch (err) {
-            console.error(err)
-            alert('서버 등록 에러 발생')
-        }
-    }
-
     const handleDeleteCategory = async (id: number) => {
         if (!canManageTopics) return
         if (!confirm('정말 이 카테고리를 삭제하시겠습니까? 관련된 데이터도 함께 삭제됩니다.')) return
@@ -2282,43 +2207,6 @@ export default function DashboardContent() {
             alert('전체 삭제 오류: ' + (err?.message || String(err)))
         } finally {
             setTopicActionLoadingId(null)
-        }
-    }
-
-    // 이미지 스타일은 더 이상 AI 재배정 대상이 아니다 — 카테고리별 default_image_style을
-    // 관리자가 직접 지정한다 (AI가 topic 단위로 추측하면 거의 항상 realistic만 나오던 문제 폐지).
-    const handleAssignTopicStyles = async () => {
-        if (!canManageTopics) return
-        const categoryLabel = topicQueueCategoryFilter === 'all' ? '전체 카테고리' : '선택한 카테고리'
-        if (!confirm(`${categoryLabel}의 대기중 주제에 대본 스타일을 AI로 재배정할까요?`)) return
-
-        setTopicStyleAssigningType('script')
-        try {
-            const res = await adminFetch('/api/admin/topics-queue', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    targetType: 'script',
-                    categoryId: topicQueueCategoryFilter,
-                    limit: 100,
-                })
-            })
-            const data = await res.json()
-            if (!res.ok || !data.success) {
-                alert('대본 스타일 자동배정 실패: ' + (data.error || `HTTP ${res.status}`))
-                return
-            }
-
-            const updateMap = new Map((data.updates || []).map((item: any) => [String(item.id), item.style]))
-            setTopics(prev => prev.map(item => {
-                const nextStyle = updateMap.get(String(item.id))
-                return nextStyle ? { ...item, assigned_script_style: nextStyle } : item
-            }))
-            alert(`대본 스타일 자동배정 완료: ${data.updatedCount || 0}개 주제`)
-        } catch (err: any) {
-            alert('대본 스타일 자동배정 오류: ' + (err?.message || String(err)))
-        } finally {
-            setTopicStyleAssigningType(null)
         }
     }
 
@@ -2905,187 +2793,13 @@ export default function DashboardContent() {
 
                 {activeTab === 'topics' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
-                        {/* 1. 카테고리 추가 */}
                         {!canManageTopics && (
                             <div className="rounded-[2rem] border border-indigo-500/20 bg-indigo-500/10 px-8 py-5 text-sm font-bold text-indigo-200">
                                 👤 부관리자는 카테고리/주제 조회만 가능합니다. 생성·삭제·자동배정은 최고 관리자만 실행할 수 있습니다.
                             </div>
                         )}
-                        {canManageTopics && (
-                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
-                            <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
-                                카테고리 및 직원 매핑 추가
-                            </h2>
-                            <form onSubmit={handleCreateCategory} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">카테고리명 *</label>
-                                    <input 
-                                        type="text" 
-                                        required
-                                        placeholder="예: 옛날이야기"
-                                        value={newCatName}
-                                        onChange={e => setNewCatName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="예: 주식, 부동산, 금융, 재테크"
-                                        value={newCatKeywords}
-                                        onChange={e => setNewCatKeywords(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">벤치마킹용 유튜브 채널 URL</label>
-                                    <input 
-                                        type="url" 
-                                        placeholder="예: https://www.youtube.com/@BenchmarkChannel"
-                                        value={newCatChannel}
-                                        onChange={e => setNewCatChannel(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <label className="text-xs font-black text-gray-400 block uppercase tracking-wider">업로드 고정 채널</label>
-                                        <button
-                                            type="button"
-                                            onClick={fetchLocalUploadChannels}
-                                            className="text-[10px] font-black text-blue-400 hover:text-blue-300"
-                                        >
-                                            {localChannelsLoading ? '불러오는 중...' : '로컬 채널 불러오기'}
-                                        </button>
-                                    </div>
-                                    <select
-                                        value={newCatUploadChannelId ?? ''}
-                                        onChange={e => applySelectedChannelToCreateForm(e.target.value ? Number(e.target.value) : null)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                    >
-                                        <option value="" className="bg-[#111] text-white">-- 고정 채널 없음 --</option>
-                                        {localChannels.map(channel => (
-                                            <option key={`new-cat-channel-${channel.id}`} value={channel.id} className="bg-[#111] text-white">
-                                                {channel.name} {channel.credentials_path ? '[연동완료]' : '[미연동]'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <p className="mt-2 text-[11px] text-gray-500">
-                                        {newCatUploadChannelName
-                                            ? `${newCatUploadChannelName} (${newCatUploadChannelHandle || 'handle ??'})`
-                                            : '선택한 주제는 해당 채널로 업로드됩니다.'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">콘텐츠 언어 *</label>
-                                    <select
-                                        required
-                                        value={newCatLanguage}
-                                        onChange={e => setNewCatLanguage(normalizeContentLanguage(e.target.value))}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                    >
-                                        {CONTENT_LANGUAGE_OPTIONS.map(option => (
-                                            <option key={`new-cat-language-${option.value}`} value={option.value} className="bg-[#111] text-white">
-                                                {option.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">영상 형식 (필수) *</label>
-                                    <div className="flex gap-4 mt-2 bg-black/40 border border-white/10 rounded-xl px-4 py-3">
-                                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                                            <input 
-                                                type="radio" 
-                                                name="video_type" 
-                                                value="longform" 
-                                                checked={newCatVideoType === 'longform'} 
-                                                onChange={() => setNewCatVideoType('longform')}
-                                                className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
-                                            />
-                                            <span>롱폼 (Longform)</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                                            <input 
-                                                type="radio" 
-                                                name="video_type" 
-                                                value="shorts" 
-                                                checked={newCatVideoType === 'shorts'} 
-                                                onChange={() => setNewCatVideoType('shorts')}
-                                                className="w-4 h-4 rounded-full text-blue-500 bg-black border-white/10"
-                                            />
-                                            <span>쇼츠 (Shorts)</span>
-                                        </label>
-                                    </div>
-                                </div>
 
-                                <div className="md:col-span-3 flex justify-start pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAdvanced(!showAdvanced)}
-                                        className="text-xs font-black text-gray-400 hover:text-white flex items-center gap-1.5 transition-all"
-                                    >
-                                        {showAdvanced ? '🔼 고급 설정 접기' : '🔽 고급 설정 (기본 스타일 수동 지정)'}
-                                    </button>
-                                </div>
-
-                                {showAdvanced && (
-                                    <>
-                                        <div>
-                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 대본 스타일</label>
-                                            <select
-                                                value={newCatScriptStyle}
-                                                onChange={e => setNewCatScriptStyle(e.target.value)}
-                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                            >
-                                                <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
-                                                <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연 동화)</option>
-                                                <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
-                                                <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
-                                                <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
-                                                <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 이미지 스타일</label>
-                                            <select
-                                                value={newCatImageStyle}
-                                                onChange={e => setNewCatImageStyle(e.target.value)}
-                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                            >
-                                                <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
-                                                <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
-                                                <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
-                                                <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
-                                                <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
-                                                <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
-                                                <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
-                                            </select>
-                                        </div>
-                                    </>
-                                )}
-                                <div className="md:col-span-3 mt-4 flex justify-end items-center gap-3">
-                                    <button
-                                        type="button"
-                                        disabled={topicStyleAssigningType !== null}
-                                        onClick={() => handleAssignTopicStyles()}
-                                        className="px-6 py-3 rounded-xl text-xs font-black border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50"
-                                    >
-                                        {topicStyleAssigningType === 'script' ? '대본 스타일 배정 중...' : '대본 스타일 자동배정'}
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg active:scale-95"
-                                    >
-                                        카테고리 등록 및 초기 주제 생성
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                        )}
-
-                        {/* 2. 등록된 카테고리 및 매핑 리스트 */}
+                        {/* 등록된 카테고리 및 매핑 리스트 */}
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl p-8">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
