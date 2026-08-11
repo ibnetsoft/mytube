@@ -183,6 +183,9 @@ export default function DashboardContent() {
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState<UserProfile[]>([])
+    const [usersPage, setUsersPage] = useState(1)
+    const [usersHasMore, setUsersHasMore] = useState(false)
+    const [usersLoading, setUsersLoading] = useState(false)
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
@@ -1204,14 +1207,21 @@ export default function DashboardContent() {
         } finally { setLogsLoading(false); }
     }
 
-    const fetchUsers = useCallback(async () => {
+    const fetchUsers = useCallback(async (page = 1, append = false) => {
         if (!isAdmin) return;
+        setUsersLoading(true);
         try {
-            const res = await adminFetch(`/api/admin/users?t=${Date.now()}`);
+            const res = await adminFetch(`/api/admin/users?page=${page}&perPage=100&t=${Date.now()}`);
             const data = await res.json();
-            if (data.users) setUsers(data.users);
+            if (data.users) {
+                setUsers(prev => append ? [...prev, ...data.users] : data.users);
+                setUsersPage(page);
+                setUsersHasMore(Boolean(data.hasMore));
+            }
         } catch (e) {
             // Silently ignore errors to prevent console spam
+        } finally {
+            setUsersLoading(false);
         }
     }, [isAdmin, adminFetch]);
 
@@ -2403,6 +2413,10 @@ export default function DashboardContent() {
 
     const userIdRef = useRef<string | null>(null);
     const authTokenRef = useRef<string>('');
+    const hasLoadedUsersRef = useRef(false);
+    const hasLoadedPublishingRef = useRef(false);
+    const hasLoadedSysKeysRef = useRef(false);
+    const hasLoadedStyleAssetsRef = useRef(false);
 
     useEffect(() => {
         userIdRef.current = user?.id || null;
@@ -2415,17 +2429,35 @@ export default function DashboardContent() {
     // 초기 데이터 로딩을 위한 Effect
     useEffect(() => {
         if (isAdmin && !loading) {
-            fetchUsers();
-            fetchPublishingRequests();
-            if (canManageSystemSettings || canManageStyles) fetchSysKeys();
             fetchCategories();
             fetchTopics();
-            if (canManageStyles) {
-                fetchStylePresets();
-                fetchCustomVoices();
-            }
         }
-    }, [isAdmin, loading, fetchUsers, fetchPublishingRequests, fetchSysKeys, fetchCategories, fetchTopics, fetchStylePresets, fetchCustomVoices, canManageSystemSettings, canManageStyles]);
+    }, [isAdmin, loading, fetchCategories, fetchTopics]);
+
+    useEffect(() => {
+        if (!isAdmin || loading) return;
+
+        if ((activeTab === 'overview' || activeTab === 'users') && !hasLoadedUsersRef.current) {
+            hasLoadedUsersRef.current = true;
+            fetchUsers();
+        }
+
+        if (activeTab === 'overview' && !hasLoadedPublishingRef.current) {
+            hasLoadedPublishingRef.current = true;
+            fetchPublishingRequests();
+        }
+
+        if (activeTab === 'api' && (canManageSystemSettings || canManageStyles) && !hasLoadedSysKeysRef.current) {
+            hasLoadedSysKeysRef.current = true;
+            fetchSysKeys();
+        }
+
+        if (activeTab === 'styles' && canManageStyles && !hasLoadedStyleAssetsRef.current) {
+            hasLoadedStyleAssetsRef.current = true;
+            fetchStylePresets();
+            fetchCustomVoices();
+        }
+    }, [activeTab, isAdmin, loading, fetchUsers, fetchPublishingRequests, fetchSysKeys, fetchStylePresets, fetchCustomVoices, canManageSystemSettings, canManageStyles]);
 
     // 기간 변경 시에만 별도 호출
     useEffect(() => {
@@ -2907,7 +2939,7 @@ export default function DashboardContent() {
                                 👤 부관리자는 카테고리/주제 조회만 가능합니다. 생성·삭제·자동배정은 최고 관리자만 실행할 수 있습니다.
                             </div>
                         )}
-                        {canManageTopics && (
+                        {false && canManageTopics && (
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
                             <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
                                 카테고리 및 직원 매핑 추가
@@ -3182,7 +3214,7 @@ export default function DashboardContent() {
                                                     </div>
                                                 </div>
 
-                                                {canManageTopics && (
+                                                {false && canManageTopics && (
                                                 <button
                                                     disabled={generatingCatId === cat.id}
                                                     onClick={() => handleTriggerAiTopics(cat.id)}
@@ -3192,7 +3224,7 @@ export default function DashboardContent() {
                                                 </button>
                                                 )}
 
-                                                {canManageTopics && (() => {
+                                                {false && canManageTopics && (() => {
                                                     const benchmarkJob = benchmarkJobByCat[cat.id]
                                                     const benchmarkStatusLabel = benchmarkJob
                                                         ? (benchmarkJob.status === 'completed' ? `완료 (${benchmarkJob.result_payload?.candidates?.length || 0}개 영상 분석됨)`
@@ -4071,7 +4103,7 @@ export default function DashboardContent() {
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
                             <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">회원 관리 리스트</h3>
-                            <button onClick={fetchUsers} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-sm font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
+                            <button onClick={() => fetchUsers()} disabled={usersLoading} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-sm font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest disabled:opacity-50">새로고침</button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left table-auto">
@@ -4228,6 +4260,20 @@ export default function DashboardContent() {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                        <div className="px-10 py-5 border-t border-white/5 bg-black/10 flex items-center justify-between">
+                            <div className="text-xs font-bold text-gray-500">
+                                Loaded {users.length.toLocaleString()} users
+                            </div>
+                            {usersHasMore && (
+                                <button
+                                    onClick={() => fetchUsers(usersPage + 1, true)}
+                                    disabled={usersLoading}
+                                    className="px-5 py-2 bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-black rounded-xl border border-white/10 transition-all uppercase tracking-widest disabled:opacity-50"
+                                >
+                                    {usersLoading ? 'Loading...' : 'Load more'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
