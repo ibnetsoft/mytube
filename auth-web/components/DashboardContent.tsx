@@ -212,7 +212,6 @@ export default function DashboardContent() {
     const [newCatKeywords, setNewCatKeywords] = useState('')
     const [newCatChannel, setNewCatChannel] = useState('')
     const [newCatScriptStyle, setNewCatScriptStyle] = useState('default')
-    const [newCatImageStyle, setNewCatImageStyle] = useState('realistic')
     const [newCatLanguage, setNewCatLanguage] = useState('ko')
     const [newCatVideoType, setNewCatVideoType] = useState('longform') // 'longform' | 'shorts'
     const [newCatUploadChannelId, setNewCatUploadChannelId] = useState<number | null>(null)
@@ -245,7 +244,6 @@ export default function DashboardContent() {
         keywords: '',
         benchmark_channel_url: '',
         default_script_style: 'default',
-        default_image_style: 'realistic',
         language: 'ko',
         video_type: 'longform',
         upload_channel_id: null as number | null,
@@ -334,7 +332,7 @@ export default function DashboardContent() {
     const [stylePresets, setStylePresets] = useState<any[]>([])
     const [presetsLoading, setPresetsLoading] = useState(false)
     const [presetId, setPresetId] = useState<string | null>(null)
-    const [presetType, setPresetType] = useState<'image' | 'script' | 'thumbnail'>('image')
+    const [presetType, setPresetType] = useState<'script' | 'thumbnail'>('script')
     const [presetKeyCode, setPresetKeyCode] = useState('')
     const [presetNameKo, setPresetNameKo] = useState('')
     const [presetNameVi, setPresetNameVi] = useState('')
@@ -342,7 +340,7 @@ export default function DashboardContent() {
     const [presetGeminiInstruction, setPresetGeminiInstruction] = useState('')
     const [presetImageUrl, setPresetImageUrl] = useState('')
     const [isSavingPreset, setIsSavingPreset] = useState(false)
-    const [styleCatalogTab, setStyleCatalogTab] = useState<'image' | 'script' | 'thumbnail' | 'voice'>('image')
+    const [styleCatalogTab, setStyleCatalogTab] = useState<'script' | 'thumbnail' | 'voice'>('script')
     const [customVoices, setCustomVoices] = useState<any[]>([])
     const [voiceBulkInput, setVoiceBulkInput] = useState('')
     const [voicesLoading, setVoicesLoading] = useState(false)
@@ -1898,8 +1896,9 @@ export default function DashboardContent() {
     const presetFormRef = useRef<HTMLDivElement>(null)
 
     const handleEditPreset = (preset: any) => {
+        if (preset.preset_type === 'image') return
         setPresetId(preset.id)
-        setPresetType(preset.preset_type)
+        setPresetType(preset.preset_type as 'script' | 'thumbnail')
         setPresetKeyCode(preset.key_code)
         setPresetNameKo(preset.display_name_ko)
         setPresetNameVi(preset.display_name_vi || '')
@@ -1946,7 +1945,6 @@ export default function DashboardContent() {
                     keywords: newCatKeywords,
                     benchmark_channel_url: newCatChannel,
                     default_script_style: newCatScriptStyle || 'default',
-                    default_image_style: newCatImageStyle || 'realistic',
                     language: normalizeContentLanguage(newCatLanguage),
                     video_type: newCatVideoType,
                     upload_channel_id: newCatUploadChannelId,
@@ -1960,7 +1958,6 @@ export default function DashboardContent() {
                 setNewCatKeywords('')
                 setNewCatChannel('')
                 setNewCatScriptStyle('default')
-                setNewCatImageStyle('realistic')
                 setNewCatLanguage('ko')
                 setNewCatVideoType('longform')
                 setNewCatUploadChannelId(null)
@@ -2285,8 +2282,7 @@ export default function DashboardContent() {
         }
     }
 
-    // 이미지 스타일은 더 이상 AI 재배정 대상이 아니다 — 카테고리별 default_image_style을
-    // 관리자가 직접 지정한다 (AI가 topic 단위로 추측하면 거의 항상 realistic만 나오던 문제 폐지).
+    // Image style selection and category image-style mapping are Worker-owned.
     const handleAssignTopicStyles = async () => {
         if (!canManageTopics) return
         const categoryLabel = topicQueueCategoryFilter === 'all' ? '전체 카테고리' : '선택한 카테고리'
@@ -3047,22 +3043,6 @@ export default function DashboardContent() {
                                                 <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
                                             </select>
                                         </div>
-                                        <div>
-                                            <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">기본 이미지 스타일</label>
-                                            <select
-                                                value={newCatImageStyle}
-                                                onChange={e => setNewCatImageStyle(e.target.value)}
-                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                            >
-                                                <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
-                                                <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
-                                                <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
-                                                <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
-                                                <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
-                                                <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
-                                                <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
-                                            </select>
-                                        </div>
                                     </>
                                 )}
                                 <div className="md:col-span-3 mt-4 flex justify-end items-center gap-3">
@@ -3155,7 +3135,6 @@ export default function DashboardContent() {
                                                                         keywords: cat.keywords || '',
                                                                         benchmark_channel_url: cat.benchmark_channel_url || '',
                                                                         default_script_style: cat.default_script_style || 'default',
-                                                                        default_image_style: cat.default_image_style || 'realistic',
                                                                         language: normalizeContentLanguage(cat.language),
                                                                         video_type: cat.video_type || 'longform',
                                                                         upload_channel_id: cat.upload_channel_id || null,
@@ -3192,7 +3171,6 @@ export default function DashboardContent() {
                                                         </button>
                                                     </p>
                                                         <p>대본 스타일: <strong className="text-gray-200">{cat.default_script_style || '기본'}</strong></p>
-                                                        <p>이미지 스타일: <strong className="text-gray-200">{cat.default_image_style || '실사'}</strong></p>
                                                         <p>콘텐츠 언어: <strong className="text-gray-200">{contentLanguageLabel(cat.language)}</strong></p>
                                                         <p>영상 포맷: <strong className="text-gray-200">{cat.video_type === 'shorts' ? '쇼츠 (Shorts)' : '롱폼 (Longform)'}</strong></p>
                                                     </div>
@@ -3613,11 +3591,6 @@ export default function DashboardContent() {
                                                                             {item.assigned_script_style && (
                                                                                 <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-300">
                                                                                     SCRIPT {item.assigned_script_style}
-                                                                                </span>
-                                                                            )}
-                                                                            {item.assigned_image_style && (
-                                                                                <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-1 text-[10px] font-black text-purple-300">
-                                                                                    IMAGE {item.assigned_image_style}
                                                                                 </span>
                                                                             )}
                                                                             {topicSceneSummary(item) && (
@@ -4965,7 +4938,6 @@ export default function DashboardContent() {
                                         onChange={e => setPresetType(e.target.value as any)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
                                     >
-                                        <option value="image">이미지 스타일 (Image Style)</option>
                                         <option value="script">대본 스타일 (Script Style)</option>
                                         <option value="thumbnail">썸네일 스타일 (Thumbnail Style)</option>
                                     </select>
@@ -5067,7 +5039,6 @@ export default function DashboardContent() {
                             <div className="p-6 border-b border-white/5 bg-white/5 flex flex-wrap justify-between items-center gap-3">
                                 <div className="flex flex-wrap items-center gap-2">
                                     {([
-                                        { key: 'image', label: '이미지 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'image').length },
                                         { key: 'script', label: '대본 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'script').length },
                                         { key: 'thumbnail', label: '썸네일 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'thumbnail').length },
                                         { key: 'voice', label: '음성', count: customVoices.length },
@@ -5093,39 +5064,6 @@ export default function DashboardContent() {
                                     새로고침
                                 </button>
                             </div>
-                            {styleCatalogTab === 'image' && (
-                                <div className="mx-6 mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5 space-y-3">
-                                    <div>
-                                        <h4 className="text-xs font-black text-blue-300 uppercase tracking-widest">씬 전환 효과 (Scene Transition)</h4>
-                                        <p className="text-[10px] text-gray-500 mt-1">렌더링 시 씬 사이 전환 효과를 중앙에서 제어합니다. 유저 설정 화면에는 더 이상 노출되지 않으며, 렌더링 PC는 이 값을 Supabase global_settings에서 가져와 적용합니다.</p>
-                                    </div>
-                                    <div className="flex flex-wrap items-end gap-3">
-                                        <div className="flex-1 min-w-[200px]">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">전환 모드</label>
-                                            <select
-                                                value={sysKeys.scene_transition_mode}
-                                                onChange={e => setSysKeys(prev => ({ ...prev, scene_transition_mode: e.target.value }))}
-                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
-                                            >
-                                                <option value="ai_auto">AI 자동 추천</option>
-                                                <option value="none">전환 없음 (컷)</option>
-                                                <option value="crossfade">크로스페이드</option>
-                                                <option value="slide_left">슬라이드 (좌)</option>
-                                                <option value="fade_to_black">페이드 투 블랙</option>
-                                                <option value="zoom_in">줌 인</option>
-                                            </select>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={saveSysKeys}
-                                            disabled={sysKeysSaving}
-                                            className="px-6 py-3 rounded-xl text-xs font-black bg-blue-600 text-white shadow-lg disabled:opacity-50 hover:bg-blue-500 transition-all"
-                                        >
-                                            {sysKeysSaving ? '저장 중...' : (sysKeysSaved ? '저장됨 ✓' : '저장')}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
                             <div className="p-6">
                                 {styleCatalogTab === 'voice' ? (
                                     <div className="space-y-6">
@@ -5496,22 +5434,6 @@ export default function DashboardContent() {
                                     <option value="nursery_rhyme" className="bg-[#111] text-white">어린이 동요 (귀여운 구연)</option>
                                 </select>
                             </div>
-                            <div>
-                                <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-1">기본 이미지 스타일</label>
-                                <select
-                                    value={editCatForm.default_image_style}
-                                    onChange={e => setEditCatForm(p => ({ ...p, default_image_style: e.target.value }))}
-                                    className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
-                                >
-                                    <option value="realistic" className="bg-[#111] text-white">실사 (Photorealistic)</option>
-                                    <option value="ghibli" className="bg-[#111] text-white">지브리 감성 일러스트 (Ghibli)</option>
-                                    <option value="anime" className="bg-[#111] text-white">애니메이션풍 (Anime)</option>
-                                    <option value="cinematic" className="bg-[#111] text-white">영화 스타일 (Cinematic)</option>
-                                    <option value="cartoon" className="bg-[#111] text-white">2D 카톤 스타일 (Cartoon)</option>
-                                    <option value="nursery_rhyme" className="bg-[#111] text-white">3D 동화/애니 (Nursery/Pixar)</option>
-                                    <option value="ink_wash" className="bg-[#111] text-white">동양 수목화 스타일 (Ink Wash)</option>
-                                </select>
-                             </div>
                              <div>
                                  <label className="text-[10px] text-gray-500 font-black uppercase tracking-widest block mb-2">영상 형식 (필수) *</label>
                                  <div className="flex gap-6 items-center">

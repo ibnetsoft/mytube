@@ -814,7 +814,7 @@ Return JSON only:
     return str(result_path), result_payload
 
 
-def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, str, dict | None, str, dict]:
+def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, str, str, dict | None, str, dict]:
     """[AIR-0230 §2d] topic_queue_id is required (not optional) - unlike
     topic_research/topic_benchmark_analyze, this job's whole purpose is to
     write its result back onto a SPECIFIC topics_queue row (see
@@ -832,17 +832,140 @@ def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, st
     except (TypeError, ValueError):
         target_duration = 60
     script_style = str(payload.get("script_style") or "default").strip()
+    image_style = str(payload.get("image_style") or "").strip()
     language = str(payload.get("language") or "ko").strip()
     benchmark_analysis = payload.get("benchmark_analysis") if isinstance(payload.get("benchmark_analysis"), dict) else None
     title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
-    return topic_queue_id, topic, target_duration, script_style, language, benchmark_analysis, upload_title, title_generation
+    return topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation
+
+
+def _resolve_image_style_directive(image_style: str, image_style_selection: dict | None = None) -> tuple[str, str]:
+    """Resolve an image style key into the concrete prompt directive used by
+    desktop image generation. Worker pre-generation must honor the same admin
+    style choice because STD users now see these prompts immediately."""
+    style_key = str(image_style or "realistic").strip().lower() or "realistic"
+    style_prompt = ""
+    try:
+        ensure_project_root_on_path()
+        import database as db
+        from app.utils import STYLE_PROMPTS
+
+        presets = db.get_style_presets()
+        style_data = presets.get(style_key, {}) if isinstance(presets, dict) else {}
+        style_prompt = (
+            str(style_data.get("prompt_value") or "").strip()
+            or str(STYLE_PROMPTS.get(style_key, "")).strip()
+        )
+    except Exception as e:
+        logger.warning(f"Image style resolution failed for {style_key}: {e}")
+
+    if not style_prompt:
+        style_prompt = style_key
+
+    reason = ""
+    if isinstance(image_style_selection, dict):
+        reason = str(image_style_selection.get("reason") or "").strip()
+    if reason:
+        style_prompt = f"{style_prompt}\nSelection rationale: {reason}"
+    return style_key, style_prompt
+
+
+def _select_worker_image_style_for_plan(
+    job: dict,
+    payload: dict,
+    topic: str,
+    upload_title: str,
+) -> tuple[str, dict | None]:
+    explicit_style = str(payload.get("image_style") or "").strip()
+    explicit_selection = payload.get("image_style_selection") if isinstance(payload.get("image_style_selection"), dict) else None
+    if explicit_style:
+        return explicit_style, explicit_selection
+
+    category_id = str(job.get("category_id") or payload.get("category_id") or "").strip()
+    category_name = str(payload.get("category") or payload.get("category_name") or "").strip()
+    category_default = "realistic"
+
+    if category_id or category_name:
+        try:
+            ensure_project_root_on_path()
+            from services.web_admin_client import web_admin_client
+
+            for category in web_admin_client.fetch_categories("id,name,default_image_style"):
+                row_id = str(category.get("id") or "")
+                row_name = str(category.get("name") or "").strip()
+                if (category_id and row_id == category_id) or (category_name and row_name == category_name):
+                    category_name = category_name or row_name
+                    category_default = str(category.get("default_image_style") or category_default).strip() or category_default
+                    break
+        except Exception as e:
+            logger.warning(f"Worker image style category lookup failed: {e}")
+
+    try:
+        ensure_project_root_on_path()
+        from hermes_autopilot import HermesAutopilotManager
+
+        manager = HermesAutopilotManager()
+        manual_override = None
+        if category_name:
+            manual_override = (manager.settings.get("category_image_style_overrides") or {}).get(category_name)
+        selection = asyncio.run(
+            manager._select_image_style(
+                category_name or "uncategorized",
+                topic,
+                upload_title,
+                category_default,
+                manual_override,
+            )
+        )
+        selected_style = str(selection.get("assigned_image_style") or category_default or "realistic").strip() or "realistic"
+        return selected_style, selection
+    except Exception as e:
+        logger.warning(f"Worker image style selection failed; using fallback {category_default}: {e}")
+        return category_default, {
+            "assigned_image_style": category_default,
+            "automatic_style": category_default,
+            "selection_source": "worker_fallback",
+            "reason": "Worker image style selection failed, so the category fallback style was used.",
+        }
+
+
+def _mostly_english(value: str) -> bool:
+    letters = re.findall(r"[A-Za-z]", value or "")
+    hangul = re.findall(r"[\uac00-\ud7a3]", value or "")
+    return len(letters) >= 40 and len(letters) >= len(hangul) * 2
+
+
+def _validate_media_prompt_quality(media: dict, scene_label: str) -> None:
+    image_prompt = str(media.get("image_prompt") or "").strip()
+    video_prompt = str(media.get("video_prompt") or "").strip()
+    if len(image_prompt) < 180:
+        raise ValueError(f"image_prompt too short for scene {scene_label}")
+    if len(video_prompt) < 220:
+        raise ValueError(f"video_prompt too short for scene {scene_label}")
+    if not _mostly_english(image_prompt):
+        raise ValueError(f"image_prompt is not English enough for scene {scene_label}")
+    if not _mostly_english(video_prompt):
+        raise ValueError(f"video_prompt is not English enough for scene {scene_label}")
+    generic_terms = ("cinematic scene", "beautiful scene", "high quality image", "camera moves")
+    if any(term in image_prompt.lower() for term in generic_terms):
+        raise ValueError(f"image_prompt contains generic filler for scene {scene_label}")
+    if not re.search(r"\b(push-in|push in|dolly|zoom|pan|tilt|tracking|handheld|crane|pull-back|pull back|rack focus|locked-off|locked off|drift)\b", video_prompt, re.I):
+        raise ValueError(f"video_prompt lacks a concrete camera movement for scene {scene_label}")
+    positive_audio_patterns = (
+        r"\b(with|include|add|generate|create|use)\s+(dialogue|narration|voice-over|voiceover|subtitles|captions|sound effects|music|audio)\b",
+        r"\b(dialogue|narration|voice-over|voiceover|subtitles|captions|sound effects|music|audio)\s+(plays|starts|rises|swells|is heard|can be heard)\b",
+    )
+    if any(re.search(pattern, video_prompt, re.I) for pattern in positive_audio_patterns):
+        raise ValueError(f"video_prompt contains positive audio/text instructions for scene {scene_label}")
 
 
 def _generate_scene_media_prompts(
     structure: dict,
     topic: str,
     upload_title: str,
+    image_style: str,
+    image_style_selection: dict | None,
     language: str,
     job_log,
 ) -> dict:
@@ -856,6 +979,7 @@ def _generate_scene_media_prompts(
 
     Config.refresh_remote_keys_if_stale()
     model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
+    image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
     prompt = f"""
 You are the visual director for a YouTube video production pipeline.
 Create production-ready image and AI-video prompts for every scene below.
@@ -863,17 +987,23 @@ Create production-ready image and AI-video prompts for every scene below.
 TOPIC: {topic}
 UPLOAD TITLE: {upload_title}
 LANGUAGE OF NARRATION: {language}
+ADMIN-SELECTED IMAGE STYLE KEY: {image_style_key}
+ADMIN-SELECTED IMAGE STYLE DIRECTIVE:
+{image_style_directive}
 SCENE PLAN:
 {json.dumps(scenes, ensure_ascii=False, indent=2)}
 
 Rules:
 1. Return exactly one result for every input scene, preserving scene_id and scene_order.
 2. Do not change scene boundaries, duration, story facts, or character identity.
-3. image_prompt must describe a single coherent keyframe for an image generator: subject, action, setting, era, composition, emotion, lighting, and visual continuity.
-4. video_prompt must describe visual motion only: one camera movement, subject motion, environmental motion, pacing, and lighting. Do not request dialogue, narration, subtitles, sound effects, or music.
-5. Make each prompt specific to its scene. Do not use generic phrases such as "cinematic scene" without concrete visual details.
-6. Keep recurring characters, clothing, props, and locations consistent across scenes when the plan implies continuity.
-7. Write image_prompt and video_prompt in English for generator compatibility. Write rationale in Korean if included.
+3. image_prompt must describe a single coherent keyframe for an image generator: subject, action, setting, era, composition, emotion, lighting, and visual continuity. It MUST integrate the admin-selected image style naturally, not as a loose keyword list.
+4. image_prompt quality guardrails: include "no text, no words, no letters, no labels, no watermarks, no captions"; for human characters include correct anatomy, exactly two arms, exactly two hands, anatomically correct hands, no extra limbs.
+5. video_prompt must describe visual motion only using a 5-layer cinematic flow: opening frame, EXACTLY ONE named camera movement, subject motion, ambient/background motion, and cinematic lighting finish.
+6. video_prompt must not request dialogue, narration, subtitles, captions, sound effects, music, or audio.
+7. Make each prompt specific to its scene. Do not use generic phrases such as "cinematic scene" without concrete visual details.
+8. Keep recurring characters, clothing, props, and locations consistent across scenes when the plan implies continuity.
+9. Write image_prompt and video_prompt in English for generator compatibility. Write rationale in Korean if included.
+10. Minimum length: image_prompt 180+ characters, video_prompt 220+ characters.
 
 Return ONLY valid JSON in this shape:
 {{
@@ -883,7 +1013,7 @@ Return ONLY valid JSON in this shape:
       "scene_id": "scene001",
       "scene_order": 1,
       "image_prompt": "detailed English image generation prompt",
-      "video_prompt": "detailed English visual motion prompt",
+      "video_prompt": "detailed English visual motion prompt following the 5-layer cinematic flow",
       "lighting_hint": "specific lighting",
       "visual_style": "specific visual style",
       "shot_hints": [
@@ -926,16 +1056,20 @@ Return ONLY valid JSON in this shape:
                 raise ValueError(f"image_prompt missing for scene {key[0] or key[1]}")
             if not str(media.get("video_prompt") or "").strip():
                 raise ValueError(f"video_prompt missing for scene {key[0] or key[1]}")
+            _validate_media_prompt_quality(media, key[0] or key[1])
 
             merged = dict(scene)
             for field in ("image_prompt", "video_prompt", "lighting_hint", "visual_style", "shot_hints"):
                 if media.get(field) is not None:
                     merged[field] = media[field]
+            merged["image_style"] = image_style_key
             merged["media_prompt_status"] = "ready"
             enriched_scenes.append(merged)
 
         result = dict(structure)
         result["scenes"] = enriched_scenes
+        result["image_style"] = image_style_key
+        result["image_style_directive"] = image_style_directive
         result["media_prompt_director"] = generated.get("director_notes") or {}
         result["media_prompt_status"] = "ready"
         return result
@@ -954,7 +1088,8 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     write_state("preparing", job, 0, job_id)
     job_log.info("-> PREPARING (validating payload)")
 
-    topic_queue_id, topic, target_duration, script_style, language, benchmark_analysis, upload_title, title_generation = _validate_script_plan_payload(job["payload"])
+    topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation = _validate_script_plan_payload(job["payload"])
+    image_style, image_style_selection = _select_worker_image_style_for_plan(job, job["payload"], topic, upload_title)
 
     job_store.transition(job_id, job_store.RENDERING, reason="planning scene structure")
     write_state("running", job, 30, job_id)
@@ -991,10 +1126,16 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     job_store.update_progress(job_id, 65, "generating scene image and video prompts")
     write_state("running", job, 65, job_id)
     job_log.info(f"-> GENERATING MEDIA PROMPTS (scene_count={structure.get('scene_count')})")
+    job_log.info(
+        f"-> IMAGE STYLE SELECTED BY WORKER (style={image_style}, "
+        f"source={(image_style_selection or {}).get('selection_source')})"
+    )
     structure = _generate_scene_media_prompts(
         structure=structure,
         topic=topic,
         upload_title=upload_title,
+        image_style=image_style,
+        image_style_selection=image_style_selection,
         language=language,
         job_log=job_log,
     )

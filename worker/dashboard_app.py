@@ -15,7 +15,7 @@ from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
 from worker_config import MANAGER_STATUS_FILE, OUTPUT_DIR, WORKER_ID
-from hermes_autopilot import HermesAutopilotManager
+from hermes_autopilot import CATEGORIES, HermesAutopilotManager
 
 logger = get_logger("dashboard")
 app = FastAPI(title="AIR Worker Dashboard")
@@ -72,6 +72,54 @@ def _read_job_result(job_id: str) -> dict | None:
         except Exception:
             return None
     return None
+
+
+STYLE_PRESET_TYPES = {"image", "script"}
+
+
+def _normalize_style_preset(body: dict) -> dict:
+    preset_type = str(body.get("preset_type") or "").strip().lower()
+    key_code = str(body.get("key_code") or "").strip().lower()
+    display_name_ko = str(body.get("display_name_ko") or "").strip()
+    prompt_template = str(body.get("prompt_template") or "").strip()
+    if preset_type not in STYLE_PRESET_TYPES:
+        raise HTTPException(400, "스타일 타입은 image 또는 script만 가능합니다.")
+    if not key_code or not key_code.replace("_", "").isalnum():
+        raise HTTPException(400, "스타일 코드는 영문, 숫자, 밑줄만 사용할 수 있습니다.")
+    if not display_name_ko or not prompt_template:
+        raise HTTPException(400, "한글 표시명과 프롬프트 템플릿은 필수입니다.")
+    return {
+        "preset_type": preset_type,
+        "key_code": key_code,
+        "display_name_ko": display_name_ko,
+        "display_name_vi": str(body.get("display_name_vi") or "").strip(),
+        "prompt_template": prompt_template,
+        "gemini_instruction": str(body.get("gemini_instruction") or "").strip(),
+        "image_url": str(body.get("image_url") or "").strip(),
+    }
+
+
+def _sync_style_preset_to_local(preset: dict) -> None:
+    """Keep the Worker generation cache aligned immediately after an edit."""
+    from worker_config import ensure_project_root_on_path
+    ensure_project_root_on_path()
+    import database as db
+
+    if preset["preset_type"] == "script":
+        db.save_script_style_preset(
+            preset["key_code"], preset["prompt_template"],
+            display_name_ko=preset.get("display_name_ko"),
+            display_name_vi=preset.get("display_name_vi"),
+        )
+    else:
+        db.save_style_preset(
+            preset["key_code"], preset["prompt_template"],
+            image_url=preset.get("image_url") or None,
+            gemini_instruction=preset.get("gemini_instruction") or None,
+            mode="image",
+            display_name_ko=preset.get("display_name_ko"),
+            display_name_vi=preset.get("display_name_vi"),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +216,130 @@ async def api_logs(
         return {"error": f"로그를 찾을 수 없습니다: '{process}'", "available": list(LOG_FILES.keys())}
     lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
     return {"process": process, "lines": lines[-tail_lines:]}
+
+
+@app.get("/api/style-presets")
+async def api_style_presets(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Read shared image/script presets from the source of truth."""
+    require_auth(authorization, cookie)
+    from worker_config import ensure_project_root_on_path
+    ensure_project_root_on_path()
+    from services.web_admin_client import web_admin_client
+
+    presets = web_admin_client.fetch_style_presets(["image", "script"])
+    return {"presets": presets, "shared_store_available": web_admin_client.has_supabase()}
+
+
+@app.post("/api/style-presets")
+async def api_save_style_preset(
+    body: dict,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Save a shared preset, then immediately update the Worker cache."""
+    require_auth(authorization, cookie)
+    preset = _normalize_style_preset(body)
+    from worker_config import ensure_project_root_on_path
+    ensure_project_root_on_path()
+    from services.web_admin_client import web_admin_client
+
+    result = web_admin_client.upsert_style_preset(preset)
+    if not result.get("success"):
+        raise HTTPException(502, result.get("error") or "중앙 스타일 저장소에 저장하지 못했습니다.")
+    saved = result.get("preset") or preset
+    # The remote API returns the same fields, but normalize to defend against
+    # a partial representation response before writing the local cache.
+    saved = {**preset, **{k: v for k, v in saved.items() if v is not None}}
+    _sync_style_preset_to_local(saved)
+    return {"success": True, "preset": saved}
+
+
+@app.delete("/api/style-presets/{preset_type}/{key_code}")
+async def api_delete_style_preset(
+    preset_type: str,
+    key_code: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    preset_type = preset_type.strip().lower()
+    key_code = key_code.strip().lower()
+    if preset_type not in STYLE_PRESET_TYPES or not key_code.replace("_", "").isalnum():
+        raise HTTPException(400, "잘못된 스타일 정보입니다.")
+    from worker_config import ensure_project_root_on_path
+    ensure_project_root_on_path()
+    from services.web_admin_client import web_admin_client
+    import database as db
+
+    result = web_admin_client.delete_style_preset(key_code)
+    if not result.get("success"):
+        raise HTTPException(502, result.get("error") or "중앙 스타일 저장소에서 삭제하지 못했습니다.")
+    if preset_type == "script":
+        db.delete_script_style_preset(key_code)
+    else:
+        db.delete_style_preset(key_code)
+    return {"success": True}
+
+
+@app.get("/api/category-image-style-mappings")
+async def api_category_image_style_mappings(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Return the eight Hermes categories, image catalog, and Worker overrides."""
+    require_auth(authorization, cookie)
+    from worker_config import ensure_project_root_on_path
+    ensure_project_root_on_path()
+    from services.web_admin_client import web_admin_client
+
+    category_rows = web_admin_client.fetch_categories("id,name,default_image_style")
+    by_name = {str(row.get("name") or ""): row for row in category_rows}
+    styles = web_admin_client.fetch_style_presets(["image"])
+    overrides = (autopilot_manager.get_status().get("settings") or {}).get("category_image_style_overrides") or {}
+    categories = [
+        {
+            "id": (by_name.get(name) or {}).get("id"),
+            "name": name,
+            "automatic_default": (by_name.get(name) or {}).get("default_image_style") or "realistic",
+            "manual_override": overrides.get(name),
+        }
+        for name in CATEGORIES
+    ]
+    return {
+        "categories": categories,
+        "styles": styles,
+        "shared_store_available": web_admin_client.has_supabase(),
+    }
+
+
+@app.put("/api/category-image-style-mappings/{category}")
+async def api_save_category_image_style_mapping(
+    category: str,
+    body: dict,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Save a Worker manual override; it takes precedence over AI selection."""
+    require_auth(authorization, cookie)
+    if category not in CATEGORIES:
+        raise HTTPException(404, "지원하지 않는 Hermes 카테고리입니다.")
+    from worker_config import ensure_project_root_on_path
+    ensure_project_root_on_path()
+    from services.web_admin_client import web_admin_client
+
+    style_key = str(body.get("image_style") or "").strip().lower()
+    styles = web_admin_client.fetch_style_presets(["image"])
+    allowed_keys = {str(style.get("key_code") or "").strip().lower() for style in styles}
+    if style_key and style_key not in allowed_keys:
+        raise HTTPException(400, "등록되지 않은 이미지 스타일입니다.")
+
+    result = await autopilot_manager.save_category_image_style_override(category, style_key or None)
+    if not result.get("success"):
+        raise HTTPException(400, result.get("error") or "이미지 스타일 매칭을 저장하지 못했습니다.")
+    return {"success": True, "manual_override": result.get("override")}
 
 
 @app.post("/api/processes/hermes/start")
@@ -507,7 +679,18 @@ async def api_autopilot_stop(
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
     require_auth(authorization, cookie)
-    return await autopilot_manager.stop()
+    autopilot_result = await autopilot_manager.stop()
+    from ipc import submit_command, wait_for_result
+    worker_result = wait_for_result(submit_command("stop_process", {"name": "hermes_worker"}))
+    cancelled_jobs = job_store.cancel_nonterminal_jobs_by_source(
+        "autopilot",
+        reason="autopilot stopped by administrator",
+    )
+    return {
+        "success": bool(worker_result.get("success")),
+        "autopilot_was_running": bool(autopilot_result.get("success")),
+        "cancelled_job_count": len(cancelled_jobs),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -787,6 +970,12 @@ tr:hover { background: #161b22; }
       <div class="nav-item" data-tab="hermes-gen" onclick="switchTab('hermes-gen')">
         <span class="icon">&#x1F4DD;</span> Hermes 주제 생성
       </div>
+      <div class="nav-item" data-tab="styles" onclick="switchTab('styles')">
+        <span class="icon">&#x1F3A8;</span> 스타일 관리
+      </div>
+      <div class="nav-item" data-tab="category-image-styles" onclick="switchTab('category-image-styles')">
+        <span class="icon">&#x1F5BC;</span> 카테고리 이미지 스타일
+      </div>
       <div class="nav-item" data-tab="history" onclick="switchTab('history')">
         <span class="icon">&#x1F4CB;</span> 작업 히스토리
       </div>
@@ -843,7 +1032,8 @@ tr:hover { background: #161b22; }
       <!-- ═══ Tab: Topic Search ═══ -->
       <div class="tab-content" id="tab-topic-search">
         <div class="card">
-          <div class="card-title">&#x1F50D; 주제 찾기 (topic_research)</div>
+          <div class="card-title">&#x1F50D; 주제 찾기</div>
+          <p class="info" style="margin:-4px 0 16px">관심 키워드와 시청자 반응을 살펴볼 콘텐츠 주제를 찾습니다.</p>
           <div class="form-row">
             <div class="form-group">
               <label>키워드 *</label>
@@ -853,7 +1043,7 @@ tr:hover { background: #161b22; }
               <label>언어</label>
               <select id="tr-language">
                 <option value="ko">한국어</option>
-                <option value="en">English</option>
+                <option value="en">영어</option>
                 <option value="ja">日本語</option>
               </select>
             </div>
@@ -861,7 +1051,7 @@ tr:hover { background: #161b22; }
           <div class="form-row">
             <div class="form-group">
               <label>국가/시장</label>
-              <input type="text" id="tr-country" placeholder="예: KR, US (빈칸=global)" value="">
+              <input type="text" id="tr-country" placeholder="예: KR, US (비워두면 전체 시장)" value="">
             </div>
             <div class="form-group">
               <label>주제 개수</label>
@@ -872,7 +1062,8 @@ tr:hover { background: #161b22; }
         </div>
 
         <div class="card" style="margin-top:16px">
-          <div class="card-title">&#x1F4C8; 벤치마크 분석 (topic_benchmark_analyze)</div>
+          <div class="card-title">&#x1F4C8; 고성과 영상 분석</div>
+          <p class="info" style="margin:-4px 0 16px">YouTube에서 잘 된 영상의 제목, 구성, 반응을 분석해 기획에 활용합니다.</p>
           <div class="form-row">
             <div class="form-group">
               <label>키워드 *</label>
@@ -891,7 +1082,7 @@ tr:hover { background: #161b22; }
               <label>언어</label>
               <select id="ba-language">
                 <option value="ko">한국어</option>
-                <option value="en">English</option>
+                <option value="en">영어</option>
                 <option value="ja">日本語</option>
               </select>
             </div>
@@ -907,7 +1098,8 @@ tr:hover { background: #161b22; }
       <!-- ═══ Tab: Hermes Generation ═══ -->
       <div class="tab-content" id="tab-hermes-gen">
         <div class="card">
-          <div class="card-title">&#x1F4DD; 대본 구조 생성 (script_plan_generate)</div>
+          <div class="card-title">&#x1F4DD; 대본 기획 생성</div>
+          <p class="info" style="margin:-4px 0 16px">제목에서 출발해 첫 훅, 장면별 전개, 결말까지의 설계를 만듭니다.</p>
           <div class="form-group">
             <label>주제 *</label>
             <input type="text" id="sp-topic" placeholder="예: 인공지능의 미래">
@@ -918,19 +1110,15 @@ tr:hover { background: #161b22; }
               <input type="number" id="sp-duration" min="15" value="600">
             </div>
             <div class="form-group">
-              <label>스크립트 스타일</label>
-              <select id="sp-style">
-                <option value="default">기본</option>
-                <option value="formal">격식</option>
-                <option value="casual">캐주얼</option>
-              </select>
+              <label>대본 스타일</label>
+              <select id="sp-style"><option value="default">기본</option></select>
             </div>
           </div>
           <div class="form-group">
             <label>언어</label>
             <select id="sp-language">
               <option value="ko">한국어</option>
-              <option value="en">English</option>
+              <option value="en">영어</option>
               <option value="ja">日本語</option>
             </select>
           </div>
@@ -938,7 +1126,8 @@ tr:hover { background: #161b22; }
         </div>
 
         <div class="card" style="margin-top:16px">
-          <div class="card-title">&#x1F4AC; 대본 생성 (script_generate)</div>
+          <div class="card-title">&#x1F4AC; 대본 생성</div>
+          <p class="info" style="margin:-4px 0 16px">기획을 바탕으로 대본을 작성한 뒤, 흐름과 몰입도를 검수합니다.</p>
           <div class="form-group">
             <label>주제 *</label>
             <input type="text" id="sg-topic" placeholder="예: 인공지능의 미래">
@@ -952,12 +1141,17 @@ tr:hover { background: #161b22; }
               <label>나레이션 모드</label>
               <select id="sg-narration-mode">
                 <option value="single">1인 (단일)</option>
+                <option value="dramatic_single" selected>극적 1인 (중간)</option>
                 <option value="multi">다인 (멀티)</option>
               </select>
             </div>
           </div>
           <div class="form-group">
-            <label>구조 (scenes JSON) — 생략 시 주제 기반 자동 생성</label>
+            <label>대본 스타일</label>
+            <select id="sg-style"><option value="default">기본</option></select>
+          </div>
+          <div class="form-group">
+            <label>장면 구성 (비워두면 주제로 자동 기획)</label>
             <textarea id="sg-structure" rows="4" placeholder='{"scenes": [{"scene_summary": "...", "scene_situation": "..."}]}'></textarea>
           </div>
           <button class="btn btn-primary" onclick="submitScriptGenerate()">대본 생성</button>
@@ -973,25 +1167,26 @@ tr:hover { background: #161b22; }
               <label>상태</label>
               <select id="hist-filter-status" onchange="loadHistory()">
                 <option value="">전체</option>
-                <option value="QUEUED">QUEUED</option>
-                <option value="CLAIMED">CLAIMED</option>
-                <option value="PREPARING">PREPARING</option>
-                <option value="RENDERING">RENDERING</option>
-                <option value="UPLOADING">UPLOADING</option>
-                <option value="COMPLETED">COMPLETED</option>
-                <option value="FAILED">FAILED</option>
-                <option value="CANCELED">CANCELED</option>
+                <option value="QUEUED">대기 중</option>
+                <option value="CLAIMED">작업 준비</option>
+                <option value="PREPARING">준비 중</option>
+                <option value="RENDERING">처리 중</option>
+                <option value="UPLOADING">결과 저장 중</option>
+                <option value="COMPLETED">완료</option>
+                <option value="FAILED">실패</option>
+                <option value="CANCELED">취소됨</option>
               </select>
             </div>
             <div class="form-group">
               <label>작업 유형</label>
               <select id="hist-filter-type" onchange="loadHistory()">
                 <option value="">전체</option>
-                <option value="render_video">render_video</option>
-                <option value="topic_research">topic_research</option>
-                <option value="topic_benchmark_analyze">topic_benchmark_analyze</option>
-                <option value="script_plan_generate">script_plan_generate</option>
-                <option value="script_generate">script_generate</option>
+                <option value="render_video">영상 렌더링</option>
+                <option value="topic_research">주제 탐색</option>
+                <option value="topic_benchmark_analyze">고성과 영상 분석</option>
+                <option value="web_research">Gemini 웹 자료 조사</option>
+                <option value="script_plan_generate">대본 기획 생성</option>
+                <option value="script_generate">대본 생성</option>
               </select>
             </div>
           </div>
@@ -1013,12 +1208,12 @@ tr:hover { background: #161b22; }
             <div class="form-group">
               <label>프로세스</label>
               <select id="log-process" onchange="loadLogs()">
-                <option value="manager">Manager</option>
-                <option value="render_worker">Render Worker</option>
-                  <option value="remote_drive_worker">Drive API Render Worker</option>
-                <option value="hermes_worker">Hermes Worker</option>
-                <option value="local_api">Local API</option>
-                <option value="dashboard">Dashboard</option>
+                <option value="manager">작업 관리자</option>
+                <option value="render_worker">영상 작업 Worker</option>
+                <option value="remote_drive_worker">Drive API Render Worker</option>
+                <option value="hermes_worker">AI 기획·대본 Worker</option>
+                <option value="local_api">앱 연결 API</option>
+                <option value="dashboard">대시보드</option>
               </select>
             </div>
             <button class="btn" onclick="loadLogs()">로그 불러오기</button>
@@ -1044,6 +1239,82 @@ tr:hover { background: #161b22; }
             <button class="btn" onclick="loadSettings()">다시 불러오기</button>
             <span id="settings-status" style="font-size:13px;color:#8b949e"></span>
           </div>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: Style Presets ═══ -->
+      <div class="tab-content" id="tab-styles">
+        <div class="card">
+          <div class="card-title">&#x1F3A8; 이미지·대본 스타일 프리셋</div>
+          <p class="info" style="margin:-4px 0 16px">여기서 저장한 스타일은 중앙 저장소와 AI Worker에 즉시 함께 반영됩니다. 대본 스타일은 다음 대본 기획과 생성 프롬프트에 그대로 적용됩니다.</p>
+          <input type="hidden" id="style-edit-key">
+          <div class="form-row">
+            <div class="form-group">
+              <label>스타일 타입 *</label>
+              <select id="style-preset-type" onchange="updateStyleFormHelp()">
+                <option value="image">이미지 스타일</option>
+                <option value="script">대본 스타일</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>스타일 코드 *</label>
+              <input id="style-key-code" type="text" placeholder="예: realistic 또는 historical_drama">
+            </div>
+            <div class="form-group">
+              <label>한글 표시명 *</label>
+              <input id="style-name-ko" type="text" placeholder="예: 실사 영화풍">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>베트남어 표시명</label>
+              <input id="style-name-vi" type="text" placeholder="선택 사항">
+            </div>
+            <div class="form-group">
+              <label>프리뷰 이미지 URL</label>
+              <input id="style-image-url" type="text" placeholder="https://... (선택 사항)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label id="style-prompt-label">프롬프트 템플릿 *</label>
+            <textarea id="style-prompt-template" rows="5" placeholder="스타일에 적용할 핵심 지시사항을 작성하세요."></textarea>
+            <p class="info" id="style-prompt-help" style="margin-top:6px"></p>
+          </div>
+          <div class="form-group" id="style-image-instruction-group">
+            <label>AI 추가 지시사항</label>
+            <textarea id="style-gemini-instruction" rows="3" placeholder="예: 화면 안에 텍스트나 말풍선을 넣지 마세요."></textarea>
+            <p class="info" style="margin-top:6px">이미지 프롬프트 생성 시 함께 적용되는 추가 제약입니다.</p>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn" id="style-cancel-btn" onclick="resetStyleForm()" style="display:none">수정 취소</button>
+            <button class="btn btn-primary" id="style-save-btn" onclick="saveStylePreset()">스타일 저장</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">
+            <div class="card-title" style="margin:0">등록된 스타일</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm" data-style-filter="image" onclick="setStyleFilter('image')">이미지 스타일</button>
+              <button class="btn btn-sm" data-style-filter="script" onclick="setStyleFilter('script')">대본 스타일</button>
+              <button class="btn btn-sm" onclick="loadStylePresets()">새로고침</button>
+            </div>
+          </div>
+          <div id="style-store-notice" class="info" style="margin-bottom:12px"></div>
+          <div id="style-presets-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: Category Image Style Mapping ═══ -->
+      <div class="tab-content" id="tab-category-image-styles">
+        <div class="card">
+          <div class="card-title">카테고리별 이미지 스타일 매칭</div>
+          <p class="info" style="margin:-4px 0 16px">수동으로 선택한 스타일은 해당 카테고리의 자동 이미지 스타일 선택보다 우선합니다. 자동 선택으로 돌리면 제목과 주제에 맞춰 Worker가 선택합니다.</p>
+          <table>
+            <thead><tr><th>카테고리</th><th>자동 선택 기본값</th><th>수동 우선 스타일</th><th>저장</th></tr></thead>
+            <tbody id="category-image-styles-body"></tbody>
+          </table>
+          <div class="empty" id="category-image-styles-empty" style="display:none">이미지 스타일 정보를 불러오지 못했습니다.</div>
         </div>
       </div>
 
@@ -1142,6 +1413,10 @@ tr:hover { background: #161b22; }
             생성된 대본 결과는 로컬 및 중앙 Supabase 서버(topics_queue)에 즉시 저장됩니다.
           </p>
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8b949e;white-space:nowrap;">
+              생성 수
+              <input type="number" id="auto-start-limit" value="1" min="1" max="100" style="width:72px;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+            </label>
             <button class="btn btn-primary" id="auto-btn-start" onclick="startAutopilot()">▶ 자동 생성 시작</button>
             <button class="btn btn-danger" id="auto-btn-stop" onclick="stopAutopilot()" disabled>■ 자동 생성 중지</button>
             <span id="auto-status-text" class="badge badge-stopped">중지됨</span>
@@ -1155,21 +1430,13 @@ tr:hover { background: #161b22; }
                 <tr><th>현재 단계</th><td id="auto-info-step">-</td></tr>
                 <tr><th>진행 카테고리</th><td id="auto-info-category">-</td></tr>
                 <tr><th>최근 생성 주제</th><td id="auto-info-topic">-</td></tr>
+                <tr><th>선정 이미지 스타일</th><td id="auto-info-image-style">-</td></tr>
                 <tr><th>세션 생성량</th><td id="auto-info-generated">0 개</td></tr>
               </table>
             </div>
             <div class="status-card">
-              <div class="name">설정된 카테고리 (8개)</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
-                <span class="badge badge-preparing">탈북사연</span>
-                <span class="badge badge-preparing">해외감동</span>
-                <span class="badge badge-preparing">노후금융</span>
-                <span class="badge badge-preparing">황혼19금</span>
-                <span class="badge badge-preparing">옛날이야기</span>
-                <span class="badge badge-preparing">한국사연</span>
-                <span class="badge badge-preparing">무협</span>
-                <span class="badge badge-preparing">경제</span>
-              </div>
+              <div class="name" id="auto-active-category-title">설정된 카테고리 (8개)</div>
+              <div id="auto-active-category-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
             </div>
           </div>
         </div>
@@ -1261,6 +1528,8 @@ const tabTitles = {
   'yt-explore': 'YouTube 탐색',
   'hermes-autopilot': 'Hermes 자동 생성',
   'hermes-gen': 'Hermes 주제 생성',
+  'styles': '스타일 관리',
+  'category-image-styles': '카테고리 이미지 스타일',
   'history': '작업 히스토리',
   'logs': '로그',
   'settings': '설정',
@@ -1276,6 +1545,8 @@ function switchTab(tabId) {
   if (tabId === 'logs') loadLogs();
   if (tabId === 'rendering') loadRenderTab();
   if (tabId === 'settings') loadSettings();
+  if (tabId === 'styles') loadStylePresets();
+  if (tabId === 'category-image-styles') loadCategoryImageStyles();
   if (tabId === 'yt-explore') initYtExplore();
   if (tabId === 'hermes-autopilot') loadAutopilotStatus();
 }
@@ -1293,32 +1564,91 @@ function fmtShort(ts) {
 }
 
 /* ── Status badge ── */
+const STATUS_LABELS = {
+  QUEUED: '대기 중', CLAIMED: '작업 준비', PREPARING: '준비 중',
+  RENDERING: '처리 중', UPLOADING: '결과 저장 중', COMPLETED: '완료',
+  FAILED: '실패', CANCELED: '취소됨', ABANDONED: '중단됨',
+  running: '실행 중', idle: '대기 중', stopped: '중지됨',
+  starting: '시작 중', disabled: '사용 안 함',
+};
+const JOB_TYPE_LABELS = {
+  render_video: '영상 렌더링',
+  topic_research: '주제 탐색',
+  topic_benchmark_analyze: '고성과 영상 분석',
+  web_research: 'Gemini 웹 자료 조사',
+  script_plan_generate: '대본 기획 생성',
+  script_generate: '대본 생성',
+};
+const JOB_TYPE_DESCRIPTIONS = {
+  render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
+  topic_research: '키워드와 시청자 반응을 바탕으로 콘텐츠 주제를 찾고 있습니다.',
+  topic_benchmark_analyze: 'YouTube 고성과 영상의 제목, 구성, 반응을 분석하고 있습니다.',
+  web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
+  script_plan_generate: '제목을 바탕으로 훅, 전개, 결말을 포함한 대본 기획을 만들고 있습니다.',
+  script_generate: '기획을 바탕으로 시청 흐름을 고려한 대본을 작성하고 검수하고 있습니다.',
+};
+function humanStatus(s) {
+  return STATUS_LABELS[s] || STATUS_LABELS[String(s || '').toLowerCase()] || s || '-';
+}
+function humanJobType(type) {
+  return JOB_TYPE_LABELS[type] || type || '-';
+}
+function jobDescription(job) {
+  return JOB_TYPE_DESCRIPTIONS[job?.job_type] || '작업 정보를 처리하고 있습니다.';
+}
+function displayProgress(job) {
+  if (String(job?.status || '').toUpperCase() === 'COMPLETED') return 100;
+  const value = Number(job?.progress || 0);
+  return Math.max(0, Math.min(100, value));
+}
 function statusBadge(s) {
   if (!s) return '<span class="badge badge-idle">-</span>';
-  return `<span class="badge badge-${s.toLowerCase()}">${s}</span>`;
+  return `<span class="badge badge-${String(s).toLowerCase()}">${humanStatus(s)}</span>`;
 }
 
 /* ── Process cards ── */
-function renderProcessCards(status) {
+function renderProcessCards(status, jobs = []) {
   const el = document.getElementById('process-cards');
   const procs = status.processes || {};
   let html = '';
   for (const [name, info] of Object.entries(procs)) {
     const s = info.status || 'stopped';
-    const label = {render_worker:'Render Worker', remote_drive_worker:'Drive API Render Worker', hermes_worker:'Hermes Worker', local_api:'Local API', updater:'Updater'}[name] || name;
-    const icon = {render_worker:'\u{1F3AC}', remote_drive_worker:'\u{2601}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
-    const progress = info.progress || 0;
-    const currentJob = info.current_job ? truncate(info.current_job, 40) : '-';
+    const label = {render_worker:'영상 작업 Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
+    const icon = {render_worker:'\u{1F3AC}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
+    const progress = Math.max(0, Math.min(100, Number(info.progress || 0)));
+    const currentJobId = typeof info.current_job === 'string'
+      ? info.current_job
+      : (info.current_job?.job_id || info.current_job?.id || '');
+    const activeJob = jobs.find(job => job.job_id === currentJobId);
+    const currentJob = activeJob
+      ? `${humanJobType(activeJob.job_type)} - ${jobDescription(activeJob)}`
+      : (currentJobId ? `작업 처리 중 (${truncate(currentJobId, 8)})` : '진행 중인 작업 없음');
+    const workerDescription = {
+      render_worker: '영상 조립, 렌더링, 결과 파일 저장을 담당합니다.',
+      hermes_worker: '주제 탐색, 고성과 분석, 대본 기획과 대본 생성을 담당합니다.',
+      local_api: 'AIR Studio 앱과 Worker 사이의 요청을 연결합니다.',
+      updater: 'Worker 업데이트를 확인하고 적용합니다.',
+    }[name] || '';
     const hasError = info.last_error && info.last_error.length > 0;
     const isRecentError = hasError && (!info.last_success_at || info.last_success_at < (Date.now()/1000 - 300));
     const autoStart = (name === 'render_worker' || name === 'local_api');
+    const displayLabel = name === 'remote_drive_worker' ? 'Drive API Render Worker' : label;
+    const displayIcon = name === 'remote_drive_worker' ? '\u{2601}' : icon;
 
     html += `<div class="status-card">
-      <div class="name">${icon} ${label} ${statusBadge(s)}</div>
-      <div class="info">PID: ${info.pid || '-'} | ${currentJob}</div>
+      <div class="name">${displayIcon} ${displayLabel} ${statusBadge(s)}</div>
+      <div class="info">${currentJob}</div>
+      ${workerDescription ? `<div class="info" style="margin-top:4px">${workerDescription}</div>` : ''}
+      <div class="info" style="margin-top:4px">프로세스 번호: ${info.pid || '-'}</div>
       ${progress > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>` : ''}
       ${hasError ? `<div class="info" style="color:${isRecentError ? '#f85149' : '#8b949e'};margin-top:4px">${isRecentError ? '\u{26A0} 오류: ' : '\u{2139} 이전 오류 (복구됨): '}${escapeHtml(info.last_error)}</div>` : ''}
-      ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : `
+      ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : name === 'hermes_worker' ? `
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="생성할 영상 수" title="생성할 영상 수" style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
+        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
+        <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
+      </div>
+      <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">영상 수: 1개 = 벤치마크·기획·대본의 내부 3단계를 완료한 영상 1개입니다.</div>` : `
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-sm btn-start" onclick="startProcess('${name}')" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
         <button class="btn btn-sm btn-stop" onclick="stopProcess('${name}')" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
@@ -1339,9 +1669,9 @@ function renderRecentJobs(jobs) {
   empty.style.display = 'none';
   el.innerHTML = jobs.slice(0, 10).map(j => `<tr>
     <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-    <td>${j.job_type || '-'}</td>
+    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${jobDescription(j)}</span></td>
     <td>${statusBadge(j.status)}</td>
-    <td>${j.progress || 0}%</td>
+    <td>${displayProgress(j)}%</td>
     <td>${fmtTime(j.created_at)}</td>
   </tr>`).join('');
 }
@@ -1358,7 +1688,7 @@ function loadRenderTab() {
     el.innerHTML = jobs.map(j => `<tr>
       <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
       <td>${statusBadge(j.status)}</td>
-      <td>${j.progress || 0}%</td>
+      <td>${displayProgress(j)}%</td>
       <td>${escapeHtml(j.progress_message || j.error_message || '-')}</td>
       <td>${fmtShort(j.started_at)}</td>
       <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">취소</button>` : ''}</td>
@@ -1370,8 +1700,8 @@ function loadRenderTab() {
     if (active) {
       acEl.innerHTML = `<div class="status-card">
         <div class="name">${statusBadge(active.status)} ${active.job_id.substring(0,8)}</div>
-        <div class="info">${escapeHtml(active.progress_message || '')}</div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${active.progress||0}%"></div></div>
+        <div class="info">${escapeHtml(active.progress_message || jobDescription(active))}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${displayProgress(active)}%"></div></div>
         <div style="margin-top:8px">${canCancel(active.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${active.job_id}')">렌더 취소</button>` : ''}</div>
       </div>`;
     } else {
@@ -1396,9 +1726,9 @@ function loadHistory() {
     empty.style.display = 'none';
     el.innerHTML = jobs.map(j => `<tr>
       <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-      <td>${j.job_type || '-'}</td>
+      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${jobDescription(j)}</span></td>
       <td>${statusBadge(j.status)}</td>
-      <td>${j.progress || 0}%</td>
+      <td>${displayProgress(j)}%</td>
       <td>${fmtTime(j.created_at)}</td>
       <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">취소</button>` : `<button class="btn btn-sm" onclick="showJobDetail('${j.job_id}')">상세</button>`}</td>
     </tr>`).join('');
@@ -1418,6 +1748,214 @@ function loadLogs() {
   });
 }
 
+/* ── Shared style presets ── */
+let stylePresets = [];
+let styleFilter = 'image';
+
+function updateStyleFormHelp() {
+  const type = document.getElementById('style-preset-type').value;
+  const isScript = type === 'script';
+  document.getElementById('style-prompt-label').textContent = isScript ? '대본 작성 지시사항 *' : '이미지 프롬프트 템플릿 *';
+  document.getElementById('style-prompt-template').placeholder = isScript
+    ? '예: 1인칭 회고체로 시작하고, 대화는 짧게 사용하며, 장면마다 감정의 변화가 드러나게 작성하세요.'
+    : '예: [SUBJECT], cinematic lighting, realistic textures, no text in image';
+  document.getElementById('style-prompt-help').textContent = isScript
+    ? '이 내용은 AI Worker의 대본 기획과 장면별 대본 생성 프롬프트에 그대로 들어갑니다.'
+    : '이미지 프롬프트를 만들 때 스타일 접두어로 사용됩니다. 이미지·영상 프롬프트 생성 이관 단계에서 Worker가 직접 사용합니다.';
+  document.getElementById('style-image-instruction-group').style.display = isScript ? 'none' : 'block';
+}
+
+function resetStyleForm() {
+  document.getElementById('style-edit-key').value = '';
+  document.getElementById('style-preset-type').value = 'image';
+  document.getElementById('style-preset-type').disabled = false;
+  document.getElementById('style-key-code').value = '';
+  document.getElementById('style-key-code').readOnly = false;
+  document.getElementById('style-name-ko').value = '';
+  document.getElementById('style-name-vi').value = '';
+  document.getElementById('style-image-url').value = '';
+  document.getElementById('style-prompt-template').value = '';
+  document.getElementById('style-gemini-instruction').value = '';
+  document.getElementById('style-save-btn').textContent = '스타일 저장';
+  document.getElementById('style-cancel-btn').style.display = 'none';
+  updateStyleFormHelp();
+}
+
+function setStyleFilter(filter) {
+  styleFilter = filter;
+  document.querySelectorAll('[data-style-filter]').forEach(el => {
+    el.classList.toggle('btn-primary', el.dataset.styleFilter === filter);
+  });
+  renderStylePresets();
+}
+
+function syncScriptStyleSelects() {
+  const scriptStyles = stylePresets.filter(p => p.preset_type === 'script');
+  for (const id of ['sp-style', 'sg-style']) {
+    const select = document.getElementById(id);
+    if (!select) continue;
+    const selected = select.value || 'default';
+    const options = [{key_code:'default', display_name_ko:'기본'}]
+      .concat(scriptStyles.filter(p => p.key_code !== 'default'));
+    select.innerHTML = options.map(p => `<option value="${escapeHtml(p.key_code)}">${escapeHtml(p.display_name_ko)} (${escapeHtml(p.key_code)})</option>`).join('');
+    select.value = options.some(p => p.key_code === selected) ? selected : 'default';
+  }
+}
+
+async function loadStylePresets() {
+  const list = document.getElementById('style-presets-list');
+  if (list) list.innerHTML = '<div class="info">스타일 목록을 불러오는 중...</div>';
+  const data = await api('GET', '/api/style-presets');
+  if (!data || data.error) {
+    if (list) list.innerHTML = `<div class="info" style="color:#f85149">스타일 목록을 불러오지 못했습니다: ${escapeHtml(data?.error || '')}</div>`;
+    return;
+  }
+  stylePresets = Array.isArray(data.presets) ? data.presets : [];
+  document.getElementById('style-store-notice').textContent = data.shared_store_available
+    ? '중앙 스타일 저장소와 연결됨. 저장 즉시 Worker의 생성 지침에도 반영됩니다.'
+    : '중앙 스타일 저장소 연결이 없습니다. Worker 설정을 확인하세요.';
+  syncScriptStyleSelects();
+  renderStylePresets();
+}
+
+function renderStylePresets() {
+  const list = document.getElementById('style-presets-list');
+  if (!list) return;
+  const presets = stylePresets.filter(p => p.preset_type === styleFilter);
+  if (!presets.length) {
+    list.innerHTML = '<div class="empty" style="padding:20px">등록된 스타일이 없습니다.</div>';
+    return;
+  }
+  list.innerHTML = presets.map(p => `<div class="status-card" style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div><strong>${escapeHtml(p.display_name_ko || p.key_code)}</strong>${p.display_name_vi ? `<div class="info">${escapeHtml(p.display_name_vi)}</div>` : ''}<div class="info">코드: ${escapeHtml(p.key_code)}</div></div>
+      <div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="editStylePreset('${escapeHtml(p.key_code)}')">수정</button><button class="btn btn-danger btn-sm" onclick="deleteStylePreset('${escapeHtml(p.preset_type)}','${escapeHtml(p.key_code)}')">삭제</button></div>
+    </div>
+    ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #30363d">` : ''}
+    <div class="result-viewer" style="max-height:110px">${escapeHtml(p.prompt_template || '')}</div>
+    ${p.gemini_instruction ? `<div class="info">추가 지시: ${escapeHtml(p.gemini_instruction)}</div>` : ''}
+  </div>`).join('');
+}
+
+let categoryImageStyleCatalog = [];
+
+async function loadCategoryImageStyles() {
+  const body = document.getElementById('category-image-styles-body');
+  const empty = document.getElementById('category-image-styles-empty');
+  if (!body || !empty) return;
+  body.innerHTML = '<tr><td colspan="4" class="info">카테고리와 이미지 스타일을 불러오는 중...</td></tr>';
+  empty.style.display = 'none';
+  const data = await api('GET', '/api/category-image-style-mappings');
+  if (!data || data.error || !Array.isArray(data.categories) || !Array.isArray(data.styles)) {
+    body.innerHTML = '';
+    empty.textContent = `이미지 스타일 정보를 불러오지 못했습니다. ${data?.error || ''}`;
+    empty.style.display = 'block';
+    return;
+  }
+  categoryImageStyleCatalog = data.styles;
+  if (!categoryImageStyleCatalog.length) {
+    body.innerHTML = '';
+    empty.textContent = '등록된 이미지 스타일이 없습니다. 먼저 스타일 관리에서 이미지 스타일을 등록하세요.';
+    empty.style.display = 'block';
+    return;
+  }
+  body.innerHTML = data.categories.map((item, index) => {
+    const selectId = `category-image-style-${index}`;
+    const automatic = escapeHtml(item.automatic_default || 'realistic');
+    const options = [
+      `<option value="">자동 선택 (${automatic})</option>`,
+      ...categoryImageStyleCatalog.map(style => {
+        const key = String(style.key_code || '');
+        const label = `${style.display_name_ko || key} (${key})`;
+        return `<option value="${escapeHtml(key)}" ${item.manual_override === key ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+      }),
+    ].join('');
+    return `<tr>
+      <td><strong>${escapeHtml(item.name)}</strong></td>
+      <td><code>${automatic}</code></td>
+      <td><select id="${selectId}">${options}</select></td>
+      <td><button class="btn btn-sm btn-primary" onclick="saveCategoryImageStyle('${escapeHtml(item.name)}', '${selectId}')">저장</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function saveCategoryImageStyle(category, selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  select.disabled = true;
+  try {
+    const result = await api('PUT', `/api/category-image-style-mappings/${encodeURIComponent(category)}`, {
+      image_style: select.value,
+    });
+    if (!result?.success) {
+      showToast('카테고리 이미지 스타일 저장 실패: ' + (result?.error || '응답 없음'), 'error');
+      return;
+    }
+    showToast(select.value ? `${category}: ${select.value} 수동 우선 적용` : `${category}: 자동 선택으로 전환`);
+    await loadCategoryImageStyles();
+  } catch (e) {
+    showToast('카테고리 이미지 스타일 저장 통신 실패', 'error');
+  } finally {
+    select.disabled = false;
+  }
+}
+
+function editStylePreset(key) {
+  const preset = stylePresets.find(p => p.key_code === key);
+  if (!preset) return;
+  document.getElementById('style-edit-key').value = preset.key_code;
+  document.getElementById('style-preset-type').value = preset.preset_type;
+  document.getElementById('style-preset-type').disabled = true;
+  document.getElementById('style-key-code').value = preset.key_code;
+  document.getElementById('style-key-code').readOnly = true;
+  document.getElementById('style-name-ko').value = preset.display_name_ko || '';
+  document.getElementById('style-name-vi').value = preset.display_name_vi || '';
+  document.getElementById('style-image-url').value = preset.image_url || '';
+  document.getElementById('style-prompt-template').value = preset.prompt_template || '';
+  document.getElementById('style-gemini-instruction').value = preset.gemini_instruction || '';
+  document.getElementById('style-save-btn').textContent = '스타일 수정 저장';
+  document.getElementById('style-cancel-btn').style.display = 'inline-flex';
+  updateStyleFormHelp();
+  document.getElementById('style-key-code').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+async function saveStylePreset() {
+  const body = {
+    preset_type: document.getElementById('style-preset-type').value,
+    key_code: document.getElementById('style-key-code').value.trim(),
+    display_name_ko: document.getElementById('style-name-ko').value.trim(),
+    display_name_vi: document.getElementById('style-name-vi').value.trim(),
+    image_url: document.getElementById('style-image-url').value.trim(),
+    prompt_template: document.getElementById('style-prompt-template').value.trim(),
+    gemini_instruction: document.getElementById('style-gemini-instruction').value.trim(),
+  };
+  if (!body.key_code || !body.display_name_ko || !body.prompt_template) {
+    showToast('스타일 코드, 한글 표시명, 지시사항을 입력하세요.', 'error'); return;
+  }
+  const button = document.getElementById('style-save-btn');
+  button.disabled = true;
+  try {
+    const data = await api('POST', '/api/style-presets', body);
+    if (!data || data.detail || data.error) throw new Error(data?.detail || data?.error || '저장 실패');
+    showToast('스타일을 저장했고 Worker 생성 지침에 반영했습니다.');
+    resetStyleForm();
+    await loadStylePresets();
+  } catch (e) {
+    showToast(`스타일 저장 실패: ${e.message || e}`, 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function deleteStylePreset(type, key) {
+  if (!confirm(`'${key}' 스타일을 삭제하시겠습니까? 이미 이 스타일을 선택한 카테고리는 기본 스타일로 처리됩니다.`)) return;
+  const data = await api('DELETE', `/api/style-presets/${encodeURIComponent(type)}/${encodeURIComponent(key)}`);
+  if (!data || data.detail || data.error) { showToast(`스타일 삭제 실패: ${data?.detail || data?.error || ''}`, 'error'); return; }
+  showToast('스타일을 삭제했습니다.');
+  resetStyleForm();
+  await loadStylePresets();
+}
+
 /* ── Job detail modal ── */
 async function showJobDetail(jobId) {
   const data = await api('GET', `/api/jobs/${jobId}`);
@@ -1427,10 +1965,10 @@ async function showJobDetail(jobId) {
 
   let html = `<table style="width:100%">
     <tr><th>ID</th><td>${data.job_id}</td></tr>
-    <tr><th>유형</th><td>${data.job_type}</td></tr>
+    <tr><th>작업</th><td><strong>${humanJobType(data.job_type)}</strong><br><span class="info">${jobDescription(data)}</span></td></tr>
     <tr><th>상태</th><td>${statusBadge(data.status)}</td></tr>
-    <tr><th>진행률</th><td>${data.progress||0}% — ${escapeHtml(data.progress_message || '')}</td></tr>
-    <tr><th>소스</th><td>${data.source}</td></tr>
+    <tr><th>진행률</th><td>${displayProgress(data)}% — ${escapeHtml(data.progress_message || (data.status === 'COMPLETED' ? '작업 완료' : ''))}</td></tr>
+    <tr><th>요청 위치</th><td>${escapeHtml(data.source || '-')}</td></tr>
     <tr><th>생성</th><td>${fmtTime(data.created_at)}</td></tr>
     <tr><th>시작</th><td>${fmtTime(data.started_at)}</td></tr>
     <tr><th>완료</th><td>${fmtTime(data.completed_at)}</td></tr>
@@ -1440,7 +1978,7 @@ async function showJobDetail(jobId) {
 
   // Payload
   if (data.payload && Object.keys(data.payload).length) {
-    html += `<div class="card" style="margin-top:16px"><div class="card-title">Payload</div><div class="result-viewer">${escapeHtml(JSON.stringify(data.payload, null, 2))}</div></div>`;
+    html += `<div class="card" style="margin-top:16px"><div class="card-title">작업 입력값</div><div class="result-viewer">${escapeHtml(JSON.stringify(data.payload, null, 2))}</div></div>`;
   }
 
   // Transitions timeline
@@ -1541,7 +2079,7 @@ async function submitScriptGenerate() {
     topic,
     structure: structure || null,
     target_duration_seconds: parseInt(document.getElementById('sg-duration').value) || 600,
-    script_style: 'default',
+    script_style: document.getElementById('sg-style').value,
     language: 'ko',
     narration_mode: document.getElementById('sg-narration-mode').value,
   };
@@ -1577,17 +2115,66 @@ async function startProcess(name) {
   try {
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/start`);
-    showToast(`${name} 시작 요청됨`, 'info');
+    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
     showToast(`시작 실패: ${e}`, 'error');
   }
 }
+
+async function startHermesForLimit() {
+  const input = document.getElementById('hermes-start-limit');
+  const targetLimit = Number.parseInt(input?.value, 10);
+  if (!Number.isInteger(targetLimit) || targetLimit < 1 || targetLimit > 100) {
+    showToast('생성 수는 1~100 사이로 입력하세요.', 'error');
+    input?.focus();
+    return;
+  }
+
+  try {
+    const worker = await api('POST', '/api/processes/hermes/start');
+    if (!worker?.success) {
+      showToast('AI 기획·대본 Worker 시작 실패: ' + (worker?.error || '응답 없음'), 'error');
+      return;
+    }
+
+    const autoStartInput = document.getElementById('auto-start-limit');
+    if (autoStartInput) autoStartInput.value = String(targetLimit);
+    const autopilot = await api('POST', '/api/autopilot/hermes/start', {
+      settings: { mode: 'target_limit', target_limit: targetLimit },
+    });
+    if (!autopilot?.success) {
+      showToast('자동 생성 시작 실패: ' + (autopilot?.error || '응답 없음'), 'error');
+      return;
+    }
+
+    showToast(`AI Worker가 ${targetLimit}개 생성한 뒤 자동 생성을 멈춥니다.`, 'success');
+    setTimeout(refreshAll, 1000);
+  } catch (e) {
+    showToast('AI Worker 시작 통신 실패', 'error');
+  }
+}
+
+async function stopHermesGeneration() {
+  try {
+    const result = await api('POST', '/api/autopilot/hermes/stop');
+    if (result?.success) {
+      const cancelled = Number(result.cancelled_job_count || 0);
+      showToast(`AI 기획·대본 Worker를 중지했습니다. 남은 자동 작업 ${cancelled}개도 취소했습니다.`, 'info');
+    } else {
+      showToast('AI 기획·대본 Worker 중지 실패: ' + (result?.error || '응답 없음'), 'error');
+    }
+    setTimeout(refreshAll, 1000);
+  } catch (e) {
+    showToast('AI Worker 중지 통신 실패', 'error');
+  }
+}
+
 async function stopProcess(name) {
   try {
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/stop`);
-    showToast(`${name} 중지 요청됨`, 'info');
+    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
     showToast(`중지 실패: ${e}`, 'error');
@@ -1602,12 +2189,12 @@ function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;
 async function refreshAll() {
   countdown = 3;
   try {
+    const jobs = await api('GET', '/api/jobs?limit=10');
     const status = await api('GET', '/api/status');
     if (!status) return;
-    renderProcessCards(status);
-
-    const jobs = await api('GET', '/api/jobs?limit=10');
-    if (jobs) renderRecentJobs(jobs.jobs || []);
+    const recentJobs = jobs?.jobs || [];
+    renderProcessCards(status, recentJobs);
+    renderRecentJobs(recentJobs);
 
     // Refresh active tab-specific data
     const activeTab = document.querySelector('.nav-item.active')?.dataset.tab;
@@ -1879,15 +2466,16 @@ async function searchYtVideos() {
   card.style.display = 'block';
   document.getElementById('yt-results-body').innerHTML = '';
   document.getElementById('yt-result-count').textContent = '0';
+  let searchError = null;
   try {
     const searchResult = await api('POST', '/api/yt/search', body);
     if (!searchResult || searchResult.error) {
-      loading.innerHTML = '<span style="color:#f85149">⚠ ' + (searchResult?.error || '검색 요청 실패') + '</span>';
+      searchError = searchResult?.error || '검색 요청 실패';
       return;
     }
     const items = searchResult.items || [];
     if (items.length === 0) {
-      loading.innerHTML = '<span>검색 결과가 없습니다.</span>';
+      searchError = 'EMPTY';
       return;
     }
     const videoIds = items.map(i => i.id.videoId).filter(Boolean).join(',');
@@ -1938,8 +2526,13 @@ async function searchYtVideos() {
     renderSuggestedTags(videos);
   } catch(e) {
     console.error('searchYtVideos error:', e);
+    searchError = e.message || '네트워크 오류';
   } finally {
     loading.style.display = 'none';
+    if (searchError) {
+      document.getElementById('yt-results-body').innerHTML =
+        '<tr><td colspan="11" style="text-align:center;padding:40px;color:#f85149">⚠ ' + searchError + '</td></tr>';
+    }
   }
 }
 
@@ -2071,6 +2664,30 @@ function renderCategoryCheckboxes(activeCats) {
   });
 }
 
+function renderActiveCategoryBadges(activeCats) {
+  const categories = Array.isArray(activeCats) ? activeCats : ALL_CATEGORIES;
+  const title = document.getElementById('auto-active-category-title');
+  const container = document.getElementById('auto-active-category-badges');
+  if (title) title.textContent = `설정된 카테고리 (${categories.length}개)`;
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (categories.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'color:#8b949e;font-size:12px;';
+    empty.textContent = '선택된 카테고리가 없습니다.';
+    container.appendChild(empty);
+    return;
+  }
+
+  categories.forEach(cat => {
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-preparing';
+    badge.textContent = cat;
+    container.appendChild(badge);
+  });
+}
+
 function getSettingsFromUI() {
   const mode = document.getElementById('auto-setting-mode').value;
   const limit = parseInt(document.getElementById('auto-setting-limit').value) || 10;
@@ -2095,6 +2712,9 @@ async function saveAutopilotSettings() {
   try {
     const res = await api('POST', '/api/autopilot/hermes/save_settings', { settings });
     if (res && res.success) {
+      const savedSettings = res.settings || settings;
+      renderActiveCategoryBadges(savedSettings.active_categories);
+      renderCategoryCheckboxes(savedSettings.active_categories);
       showToast('오토파일럿 설정이 저장되었습니다.', 'success');
     } else {
       showToast('설정 저장 실패: ' + (res?.error || '알 수 없음'), 'error');
@@ -2122,14 +2742,21 @@ async function loadAutopilotStatus() {
       statusBadgeEl.textContent = '중지됨';
     }
     
-    document.getElementById('auto-info-running').innerHTML = isRunning ? '<span style="color:#3fb950;font-weight:bold;">RUNNING</span>' : 'STOPPED';
+    document.getElementById('auto-info-running').innerHTML = isRunning ? '<span style="color:#3fb950;font-weight:bold;">실행 중</span>' : '중지됨';
     document.getElementById('auto-info-step').textContent = data.current_step || '-';
     document.getElementById('auto-info-category').textContent = data.current_category || '-';
     document.getElementById('auto-info-topic').textContent = data.current_topic || '-';
+    document.getElementById('auto-info-image-style').textContent = data.current_image_style || '-';
     
     if (data.session_stats) {
       const generated = data.session_stats.generated_count || 0;
       document.getElementById('auto-info-generated').textContent = generated + ' 개';
+    }
+
+    if (data.settings) {
+      renderActiveCategoryBadges(data.settings.active_categories);
+    } else {
+      renderActiveCategoryBadges(null);
     }
     
     // UI 초기화 (최초 1회만 설정 채워넣음)
@@ -2161,10 +2788,20 @@ async function loadAutopilotStatus() {
 
 async function startAutopilot() {
   const settings = getSettingsFromUI();
+  const startLimit = Number.parseInt(document.getElementById('auto-start-limit').value, 10);
+  if (!Number.isInteger(startLimit) || startLimit < 1 || startLimit > 100) {
+    showToast('생성 수는 1~100 사이로 입력하세요.', 'error');
+    return;
+  }
+  settings.mode = 'target_limit';
+  settings.target_limit = startLimit;
+  document.getElementById('auto-setting-mode').value = 'target_limit';
+  document.getElementById('auto-setting-limit').value = startLimit;
+  toggleLimitInput();
   try {
     const res = await api('POST', '/api/autopilot/hermes/start', { settings });
     if (res && res.success) {
-      showToast('Hermes 자동 생성기가 시작되었습니다.', 'success');
+      showToast(`Hermes가 ${startLimit}개 생성 후 자동 정지합니다.`, 'success');
       loadAutopilotStatus();
     } else {
       showToast('자동 생성기 시작 실패: ' + (res?.error || '알 수 없음'), 'error');

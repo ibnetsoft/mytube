@@ -10,6 +10,8 @@ const getAdmin = () => createClient(
     { auth: { persistSession: false } }
 )
 
+const WEB_ADMIN_STYLE_TYPES = new Set(['script', 'thumbnail'])
+
 // GET: 스타일 프리셋 목록 조회
 export async function GET(req: Request) {
     try {
@@ -23,7 +25,12 @@ export async function GET(req: Request) {
         let query = supabase.from('style_presets').select('*').order('created_at', { ascending: false })
         
         if (type) {
+            if (!WEB_ADMIN_STYLE_TYPES.has(type)) {
+                return NextResponse.json({ presets: [] })
+            }
             query = query.eq('preset_type', type)
+        } else {
+            query = query.in('preset_type', Array.from(WEB_ADMIN_STYLE_TYPES))
         }
 
         const { data, error } = await query
@@ -48,6 +55,9 @@ export async function POST(req: Request) {
 
         if (!preset_type || !key_code || !display_name_ko || !prompt_template) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        if (!WEB_ADMIN_STYLE_TYPES.has(preset_type)) {
+            return NextResponse.json({ error: 'Image style presets are Worker-managed' }, { status: 400 })
         }
 
         const supabase = getAdmin()
@@ -96,6 +106,19 @@ export async function DELETE(req: Request) {
         }
 
         const supabase = getAdmin()
+        let lookup = supabase.from('style_presets').select('id,preset_type')
+        if (id) {
+            lookup = lookup.eq('id', id)
+        } else if (keyCode) {
+            lookup = lookup.eq('key_code', keyCode)
+        }
+        const { data: existingRows, error: lookupError } = await lookup.limit(1)
+        if (lookupError) throw lookupError
+        const existing = existingRows?.[0]
+        if (existing?.preset_type === 'image') {
+            return NextResponse.json({ error: 'Image style presets are Worker-managed' }, { status: 400 })
+        }
+
         let query = supabase.from('style_presets').delete()
 
         if (id) {

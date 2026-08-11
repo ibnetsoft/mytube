@@ -27,13 +27,7 @@ const SCRIPT_STYLE_KEYS = [
     'nursery_rhyme'
 ]
 
-const IMAGE_STYLE_KEYS = [
-    'realistic', 'anime', 'cinematic', 'cartoon', 'oil_painting', 'watercolor', 'sketch',
-    'pixel_art', '3d', 'k_webtoon', 'ghibli', 'k_manhwa', 'minimal', 'nursery_rhyme'
-]
-
 const DEFAULT_SCRIPT_STYLE = 'default'
-const DEFAULT_IMAGE_STYLE = 'realistic'
 const CONTENT_LANGUAGES = ['ko', 'en', 'ja'] as const
 // [AIR-0230 §2d] 카테고리당 새로 생성된 주제 중 이 개수만 "항상 기획까지 미리 준비된
 // 상태"로 유지한다 - 전체 백로그를 미리 만들면 비용이 폭증하므로(대기열 전체 적체
@@ -681,13 +675,7 @@ export async function POST(req: Request) {
                 SCRIPT_STYLE_KEYS,
                 DEFAULT_SCRIPT_STYLE
             )
-            // 이미지 스타일은 더 이상 AI가 주제 단위로 추측하지 않는다 — 관리자가 카테고리에
-            // 지정한 default_image_style을 그대로 쓴다 (거의 항상 realistic만 나오던 문제 해결).
-            const assignedImageStyle = pickValidStyle(
-                category.default_image_style,
-                IMAGE_STYLE_KEYS,
-                DEFAULT_IMAGE_STYLE
-            )
+            // Image style is intentionally left to the Worker.
 
             // 배정 대상 워커를 먼저 결정한 뒤, 그 워커의 선호 영상 길이에 맞게 duration을 보정한다.
             const worker = pickPreferredWorker(
@@ -712,7 +700,6 @@ export async function POST(req: Request) {
                 topic: String(topic || '').trim(),
                 assigned_employee_email: assignedEmployeeEmail,
                 assigned_script_style: assignedScriptStyle,
-                assigned_image_style: assignedImageStyle,
                 language: targetLang,
                 status: 'pending',
                 translation_status: 'pending',
@@ -750,7 +737,7 @@ export async function POST(req: Request) {
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, benchmark_analysis, pregenerated_structure_status, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, language, translation_status, benchmark_analysis, pregenerated_structure_status, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
@@ -978,8 +965,7 @@ export async function DELETE(req: Request) {
 }
 
 // PATCH: 대기중 주제의 대본 스타일을 AI로 재배정
-// 이미지 스타일은 더 이상 AI가 주제 단위로 추측하지 않는다 — 카테고리별 default_image_style을
-// 관리자가 직접 지정한다 (거의 항상 realistic만 나오던 문제로 폐지, [스타일세팅] 참고).
+// Image style selection and category image-style mapping are Worker-owned.
 export async function PATCH(req: Request) {
     try {
         const requester = await requireSuperAdmin(req)
@@ -989,7 +975,7 @@ export async function PATCH(req: Request) {
         const normalizedTarget = String(targetType || '').trim().toLowerCase()
 
         if (normalizedTarget !== 'script') {
-            return NextResponse.json({ error: 'targetType must be script (image style is admin-managed per category, not AI-assigned)' }, { status: 400 })
+            return NextResponse.json({ error: 'targetType must be script (image style is Worker-managed)' }, { status: 400 })
         }
 
         const supabase = getAdmin()

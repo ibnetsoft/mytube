@@ -62,7 +62,6 @@ export async function POST(req: Request) {
             benchmark_channel_url,
             assigned_employee_email,
             default_script_style,
-            default_image_style,
             video_type,
             upload_channel_id,
             upload_channel_name,
@@ -83,7 +82,6 @@ export async function POST(req: Request) {
             benchmark_channel_url: benchmark_channel_url || '',
             assigned_employee_email: assigned_employee_email || null,
             default_script_style: default_script_style || 'default',
-            default_image_style: default_image_style || 'realistic',
             video_type: video_type || 'longform',
             upload_channel_id: upload_channel_id || null,
             upload_channel_name: upload_channel_name || '',
@@ -137,14 +135,13 @@ export async function POST(req: Request) {
             topic,
             assigned_employee_email: assigned_employee_email || null,
             assigned_script_style: default_script_style || 'default',
-            assigned_image_style: default_image_style || 'realistic',
             language: categoryLanguage,
             status: 'pending'
         }))
 
         let { error: queueInsertError } = await supabase.from('topics_queue').insert(queueInserts)
         if (isMissingColumnError(queueInsertError)) {
-            const fallbackInserts = queueInserts.map(({ assigned_script_style, assigned_image_style, language: _language, ...rest }) => rest)
+            const fallbackInserts = queueInserts.map(({ assigned_script_style, language: _language, ...rest }) => rest)
             const retry = await supabase.from('topics_queue').insert(fallbackInserts)
             queueInsertError = retry.error
         }
@@ -196,7 +193,6 @@ export async function PUT(req: Request) {
             benchmark_channel_url,
             assigned_employee_email,
             default_script_style,
-            default_image_style,
             video_type,
             upload_channel_id,
             upload_channel_name,
@@ -217,7 +213,6 @@ export async function PUT(req: Request) {
         if (benchmark_channel_url !== undefined) updateData.benchmark_channel_url = benchmark_channel_url
         if (assigned_employee_email !== undefined) updateData.assigned_employee_email = assigned_employee_email || null
         if (default_script_style !== undefined) updateData.default_script_style = default_script_style
-        if (default_image_style !== undefined) updateData.default_image_style = default_image_style
         if (video_type !== undefined) updateData.video_type = video_type
         if (upload_channel_id !== undefined) updateData.upload_channel_id = upload_channel_id || null
         if (upload_channel_name !== undefined) updateData.upload_channel_name = upload_channel_name || ''
