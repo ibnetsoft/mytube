@@ -264,7 +264,7 @@ app.add_middleware(
 )
 
 # [EXE] Ensure necessary directories exist
-os.makedirs("uploads", exist_ok=True)
+os.makedirs(config.UPLOADS_DIR, exist_ok=True)
 
 
 # [EXE] Ensure DB is initialized BEFORE accessing globals
@@ -285,7 +285,7 @@ templates.env.globals['app_version'] = config.APP_VERSION
 # Static Files
 app.mount("/static", StaticFiles(directory=config.STATIC_DIR), name="static")
 # app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=config.UPLOADS_DIR), name="uploads")
 app.mount("/assets", StaticFiles(directory=config.ASSETS_DIR), name="assets")
 
 # i18n
@@ -445,8 +445,6 @@ os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 # app.mount("/output", StaticFiles(directory=config.OUTPUT_DIR), name="output")
 
 # uploads 폴더 (인트로 등 업로드용)
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.on_event("startup")
 async def startup_event():
@@ -1300,7 +1298,7 @@ async def upload_intro_video(
         raise HTTPException(400, "파일 크기는 100MB를 초과할 수 없습니다.")
     
     # 저장 경로 생성
-    intro_dir = Path("uploads") / "intros" / str(project_id)
+    intro_dir = Path(config.UPLOADS_DIR) / "intros" / str(project_id)
     intro_dir.mkdir(parents=True, exist_ok=True)
     
     # 파일 저장

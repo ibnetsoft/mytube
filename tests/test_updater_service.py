@@ -131,6 +131,7 @@ class UpdaterServiceTests(unittest.TestCase):
         self.assertIn("$env:HOST = '127.0.0.1'", captured["content"])
         self.assertIn("$env:PORT = '18002'", captured["content"])
         self.assertIn("$env:LOCALAPPDATA = 'C:/temp/local'", captured["content"])
+        self.assertIn("Start-Process -FilePath $exe -WorkingDirectory $app", captured["content"])
 
 
 if __name__ == "__main__":

@@ -164,6 +164,7 @@ class Config:
     OUTPUT_DIR = os.path.join(LOCAL_APP_DATA_DIR, "output")
     LOG_DIR = os.path.join(LOCAL_APP_DATA_DIR, "logs")
     ASSETS_DIR = os.path.join(LOCAL_APP_DATA_DIR, "assets") # [NEW] Added for templates/presets
+    UPLOADS_DIR = os.path.join(LOCAL_APP_DATA_DIR, "uploads")
     MEDIA_DIR = OUTPUT_DIR # Alias for now
     
     # 하드코딩된 상수 관리
@@ -183,7 +184,15 @@ class Config:
     @classmethod
     def setup_directories(cls):
         """필요한 디렉토리 생성"""
-        for d in [cls.LOCAL_APP_DATA_DIR, cls.DATA_DIR, cls.DB_DIR, cls.OUTPUT_DIR, cls.LOG_DIR, cls.ASSETS_DIR]:
+        for d in [
+            cls.LOCAL_APP_DATA_DIR,
+            cls.DATA_DIR,
+            cls.DB_DIR,
+            cls.OUTPUT_DIR,
+            cls.LOG_DIR,
+            cls.ASSETS_DIR,
+            cls.UPLOADS_DIR,
+        ]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
 

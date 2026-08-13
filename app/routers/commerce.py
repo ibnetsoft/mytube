@@ -10,13 +10,14 @@ import uuid
 from pathlib import Path
 
 from app.models.commerce import ProductAnalysisRequest, CommerceVideoRequest
+from config import config
 from services.commerce_service import commerce_service
 
 
 router = APIRouter(prefix="/api/commerce", tags=["Commerce"])
 
 # 업로드 디렉토리 설정
-UPLOAD_DIR = Path("uploads/commerce")
+UPLOAD_DIR = Path(config.UPLOADS_DIR) / "commerce"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

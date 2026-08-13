@@ -274,12 +274,12 @@ try {{
     Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
     Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update copied successfully."
     {restart_environment_lines}
-    Start-Process -FilePath $exe
+    Start-Process -FilePath $exe -WorkingDirectory $app
 }} catch {{
     Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update failed: $($_ | Out-String)"
     if (Test-Path $exe) {{
         {restart_environment_lines}
-        Start-Process -FilePath $exe
+        Start-Process -FilePath $exe -WorkingDirectory $app
     }}
 }} finally {{
     Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
