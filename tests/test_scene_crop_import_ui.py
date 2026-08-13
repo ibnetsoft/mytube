@@ -24,6 +24,15 @@ def test_crop_page_imports_only_available_scene_slots():
     assert "Import all cropped panels into empty Scene slots" in source
 
 
+def test_image_page_keeps_the_two_by_two_crop_controls_and_saved_grid_display():
+    source = IMAGE_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'onclick="wfcSetGridSize(2,2)"' in source
+    assert "wfcSetGridSize(2, 2);" in source
+    assert "image_grid_prompts" in source
+    assert "getImageGridPromptsForDisplay" in source
+
+
 def test_scene_review_links_to_project_aware_crop_page():
     source = IMAGE_TEMPLATE.read_text(encoding="utf-8")
 

@@ -17,6 +17,7 @@ from typing import List, Optional
 import database as db
 from config import config
 from services.auth_service import auth_service
+from services.image_grid_prompts import build_image_grid_prompts, normalize_image_grid_prompts
 
 router = APIRouter(tags=["User Topics"])
 _TOPIC_TRANSLATION_CACHE: dict[tuple[str, str, str], str] = {}
@@ -165,28 +166,46 @@ def _image_prompts_from_pregenerated_structure(structure: dict) -> list[dict]:
     return prompts
 
 
+def _image_grid_prompts_from_pregenerated_structure(structure: dict) -> list[dict]:
+    if not isinstance(structure, dict):
+        return []
+    saved_grids = normalize_image_grid_prompts(structure.get("image_grid_prompts"))
+    if saved_grids:
+        return saved_grids
+    scenes = structure.get("scenes")
+    return build_image_grid_prompts(scenes if isinstance(scenes, list) else [])
+
+
 def _copy_prepared_topic_assets_to_project(project_id: int, topic_data: dict, normalized: dict | None = None) -> None:
     copied_ready_media = False
     structure = topic_data.get("pregenerated_structure")
     if isinstance(structure, dict):
+        prepared_structure = dict(structure)
+        image_grid_prompts = _image_grid_prompts_from_pregenerated_structure(prepared_structure)
+        prepared_structure["image_grid_prompts"] = image_grid_prompts
         db.update_project_setting(
             project_id,
             "pregenerated_structure_json",
-            json.dumps(structure, ensure_ascii=False),
+            json.dumps(prepared_structure, ensure_ascii=False),
+        )
+        db.update_project_setting(
+            project_id,
+            "image_grid_prompts_json",
+            json.dumps(image_grid_prompts, ensure_ascii=False),
         )
         assigned_minutes = topic_data.get("assigned_duration_minutes") or topic_data.get("recommended_duration_minutes")
-        duration_seconds = structure.get("target_duration_seconds") or (
+        duration_seconds = prepared_structure.get("target_duration_seconds") or (
             int(assigned_minutes) * 60 if str(assigned_minutes or "").isdigit() else None
         )
         db.save_script_structure(project_id, {
-            "hook": structure.get("opening_hook") or structure.get("global_mood") or "",
-            "sections": structure.get("scenes") or [],
-            "cta": structure.get("payoff") or "",
+            "hook": prepared_structure.get("opening_hook") or prepared_structure.get("global_mood") or "",
+            "sections": prepared_structure.get("scenes") or [],
+            "cta": prepared_structure.get("payoff") or "",
             "style": (normalized or {}).get("script_style") or topic_data.get("assigned_script_style") or "default",
             "duration": duration_seconds,
         })
-        image_prompts = _image_prompts_from_pregenerated_structure(structure)
-        if image_prompts and _structure_has_ready_media_prompts(structure):
+        image_prompts = _image_prompts_from_pregenerated_structure(prepared_structure)
+        if image_prompts and _structure_has_ready_media_prompts(prepared_structure):
             db.save_image_prompts(project_id, image_prompts)
             copied_ready_media = True
 

@@ -5,6 +5,7 @@
 import os
 import uuid
 import datetime
+import json
 import aiofiles
 from fastapi import APIRouter, Body, File, Form, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
@@ -34,8 +35,32 @@ from services.scene_asset_matcher import (
     find_missing_scenes,
 )
 from services.longform_asset_readiness import sync_project_asset_readiness
+from services.image_grid_prompts import build_image_grid_prompts, normalize_image_grid_prompts
 
 router = APIRouter(tags=["Image"])
+
+
+def _persist_image_grid_prompts(project_id: int, prompts: list[dict]) -> list[dict]:
+    image_grid_prompts = build_image_grid_prompts(prompts)
+    db.update_project_setting(
+        project_id,
+        "image_grid_prompts_json",
+        json.dumps(image_grid_prompts, ensure_ascii=False),
+    )
+    return image_grid_prompts
+
+
+def _load_image_grid_prompts(project_id: int, prompts: list[dict]) -> list[dict]:
+    settings = db.get_project_settings(project_id) or {}
+    raw_value = settings.get("image_grid_prompts_json")
+    if isinstance(raw_value, str) and raw_value.strip():
+        try:
+            saved_grids = normalize_image_grid_prompts(json.loads(raw_value))
+        except (TypeError, ValueError):
+            saved_grids = []
+        if saved_grids:
+            return saved_grids
+    return build_image_grid_prompts(prompts)
 
 
 class ImageGenerateRequest(BaseModel):
@@ -1827,15 +1852,22 @@ async def auto_generate_images(project_id: int):
     await asyncio.gather(*tasks)
 
     db.save_image_prompts(project_id, prompts)
-    return {"status": "ok", "prompts": prompts}
+    image_grid_prompts = _persist_image_grid_prompts(project_id, prompts)
+    return {
+        "status": "ok",
+        "prompts": prompts,
+        "image_grid_prompts": image_grid_prompts,
+    }
 
 
 @router.post("/api/projects/{project_id}/image-prompts")
 async def save_image_prompts(project_id: int, req: ImagePromptsSave):
     """이미지 프롬프트 저장"""
     db.save_image_prompts(project_id, req.prompts)
+    image_grid_prompts = _persist_image_grid_prompts(project_id, req.prompts)
     return {
         "status": "ok",
+        "image_grid_prompts": image_grid_prompts,
         "asset_readiness": sync_project_asset_readiness(project_id),
     }
 
@@ -1843,9 +1875,11 @@ async def save_image_prompts(project_id: int, req: ImagePromptsSave):
 @router.get("/api/projects/{project_id}/image-prompts")
 async def get_image_prompts(project_id: int):
     """이미지 프롬프트 조회"""
+    prompts = db.get_image_prompts(project_id)
     return {
         "status": "ok",
-        "prompts": db.get_image_prompts(project_id),
+        "prompts": prompts,
+        "image_grid_prompts": _load_image_grid_prompts(project_id, prompts),
         "asset_readiness": sync_project_asset_readiness(project_id),
     }
 

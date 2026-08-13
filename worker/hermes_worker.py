@@ -1380,6 +1380,7 @@ def _generate_scene_media_prompts(
 
     from config import Config, config
     from services import ai_router
+    from services.image_grid_prompts import build_image_grid_prompts
 
     Config.refresh_remote_keys_if_stale()
     model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
@@ -1479,12 +1480,16 @@ Return ONLY valid JSON in this shape:
             merged["media_prompt_status"] = "ready"
             enriched_scenes.append(merged)
 
+        image_grid_prompts = build_image_grid_prompts(enriched_scenes)
         result = dict(structure)
         result["scenes"] = enriched_scenes
         result["image_style"] = image_style_key
         result["image_style_directive"] = image_style_directive
+        result["image_grid_prompts"] = image_grid_prompts
+        result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
         result["media_prompt_director"] = generated.get("director_notes") or {}
         result["media_prompt_status"] = "ready"
+        job_log.info(f"Prepared {len(image_grid_prompts)} strict 2x2 image grid prompt(s)")
         return result
     except Exception as e:
         # Prompt generation must not strand a valid plan at 65%. Keep the
@@ -1545,12 +1550,16 @@ Return ONLY valid JSON in this shape:
             merged["image_style"] = image_style_key
             merged["media_prompt_status"] = "fallback_ready"
             fallback_scenes.append(merged)
+        image_grid_prompts = build_image_grid_prompts(fallback_scenes)
         result = dict(structure)
         result["scenes"] = fallback_scenes
         result["image_style"] = image_style_key
         result["image_style_directive"] = image_style_directive
+        result["image_grid_prompts"] = image_grid_prompts
+        result["image_grid_prompt_status"] = "fallback_ready" if image_grid_prompts else "not_applicable"
         result["media_prompt_director"] = {"fallback": True, "reason": str(e)}
         result["media_prompt_status"] = "fallback_ready"
+        job_log.info(f"Prepared {len(image_grid_prompts)} fallback strict 2x2 image grid prompt(s)")
         return result
 
 

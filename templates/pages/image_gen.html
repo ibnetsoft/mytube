@@ -501,7 +501,23 @@
 {% block scripts %}
 <script>
     let prompts = [];
+    let imageGridPrompts = [];
     let assetReadiness = null;
+
+    function setImageGridPrompts(value) {
+        let parsed = value;
+        if (typeof parsed === 'string') {
+            try {
+                parsed = JSON.parse(parsed);
+            } catch (e) {
+                parsed = [];
+            }
+        }
+        imageGridPrompts = Array.isArray(parsed)
+            ? parsed.filter(grid => grid && String(grid.prompt || grid.grid_prompt || '').trim()
+                && Array.isArray(grid.scene_numbers) && grid.scene_numbers.length === 4)
+            : [];
+    }
     window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
     window.userMembership = "{{ membership }}"; // 'std' | 'pro'
 
@@ -1372,6 +1388,7 @@
 
             if (result.prompts) {
                 prompts = result.prompts;
+                setImageGridPrompts(result.image_grid_prompts);
                 drawPromptsUI(prompts);
                 document.getElementById('resultSection').classList.remove('hidden');
 
@@ -1388,7 +1405,9 @@
                 // [FIX] Save to DB to ensure persistence of all fields (script_start/end, etc.)
                 const pid = getCurrentProject();
                 if (pid) {
-                    API.project.saveImagePrompts(pid, prompts).then(() => {
+                    API.project.saveImagePrompts(pid, prompts).then(saveResult => {
+                        setImageGridPrompts(saveResult && saveResult.image_grid_prompts);
+                        drawPromptsUI(prompts);
                         console.log("Prompts saved to DB successfully");
                     }).catch(err => {
                         console.error("Failed to save prompts to DB:", err);
@@ -1439,7 +1458,8 @@
                 Utils.storage.set('imagePrompts', prompts);
                 
                 // [FIX] Save to DB to ensure persistence
-                await API.project.saveImagePrompts(projectId, prompts);
+                const saveResult = await API.project.saveImagePrompts(projectId, prompts);
+                setImageGridPrompts(saveResult && saveResult.image_grid_prompts);
                 
                 // UI 업데이트
                 drawPromptsUI(prompts);
@@ -1479,12 +1499,10 @@
         // 아포스트로피가 하나라도 들어가면 그 버튼의 onclick이 깨져 "안 눌리는" 버튼이
         // 생겼다 (어떤 청크가 깨지는지는 그 청크 텍스트에 '가 있느냐에 따라 달라짐).
         // 이제는 문자열을 속성에 넣지 않고 배열에 저장한 뒤 인덱스로만 호출한다.
-        const generatedGridScenes = data.filter(scene => String(
-            scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || ''
-        ).trim());
+        const displayGridPrompts = getImageGridPromptsForDisplay(data);
         window.gridPromptChunks = [];
         const step2GridButtonsEl = document.getElementById('wf_step2_grid_copy_buttons');
-        if (generatedGridScenes.length > 0) {
+        if (displayGridPrompts.length > 0) {
             let copyText = "복사";
             let gridText = "씬 격자";
             let copyToastText = "격자 프롬프트 복사 완료!";
@@ -1497,31 +1515,25 @@
                 gridText = "ฉากกริด";
                 copyToastText = "คัดลอกพรอมต์กริดสำเร็จ!";
             }
-            const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
             let gridButtonsHtml = '';
-            for (let i = 0; i < generatedGridScenes.length; i += 4) {
-                const chunk = generatedGridScenes.slice(i, i + 4);
-                let gridPrompt = `Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Each of the 4 panels must have a widescreen ${ratio} aspect ratio. There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. The panels must touch seamlessly. Each panel must represent one scene:\n`;
-                chunk.forEach((scene, idx) => {
-                    const rawSceneText = scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || '';
-                    const sceneText = extractPureImagePrompt(rawSceneText);
-                    gridPrompt += `- Panel ${idx+1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][idx]}): ${sceneText}\n`;
-                });
-                gridPrompt += `\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid with absolutely NO black borders, NO outlines, NO white borders, and NO dividing lines/crosses. Every panel must seamlessly connect to the edge with a ${ratio} aspect ratio. No more, no less. Maintain consistent characters across all panels.`;
-
+            displayGridPrompts.forEach((gridPromptData, index) => {
                 const chunkIndex = window.gridPromptChunks.length;
-                window.gridPromptChunks.push({ text: gridPrompt, toast: copyToastText });
+                const sceneNumbers = Array.isArray(gridPromptData.scene_numbers) ? gridPromptData.scene_numbers : [];
+                const sceneLabel = sceneNumbers.length
+                    ? `${sceneNumbers[0]}~${sceneNumbers[sceneNumbers.length - 1]}`
+                    : String(gridPromptData.grid_number || index + 1);
+                window.gridPromptChunks.push({ text: gridPromptData.prompt, toast: copyToastText });
 
                 gridButtonsHtml += `
                     <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-2 rounded-lg border border-white/5">
-                        <span class="text-xs text-gray-300 font-bold">${gridText} ${i+1}~${i + chunk.length}</span>
+                        <span class="text-xs text-gray-300 font-bold">${gridText} ${sceneLabel}</span>
                         <button type="button" onclick="copyGridPromptChunk(${chunkIndex})"
                                 class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded transition-colors">
                             ${copyText}
                         </button>
                     </div>
                 `;
-            }
+            });
             if (step2GridButtonsEl) step2GridButtonsEl.innerHTML = gridButtonsHtml;
         } else if (step2GridButtonsEl) {
             step2GridButtonsEl.innerHTML = '';
@@ -2040,6 +2052,9 @@
         } else {
             p[field] = value;
         }
+        if (field === 'prompt_en') {
+            imageGridPrompts = [];
+        }
 
         // Save to storage
         Utils.storage.set('imagePrompts', prompts);
@@ -2049,7 +2064,11 @@
         promptSaveTimeout = setTimeout(() => {
             const projectId = getCurrentProject();
             if (projectId) {
-                API.project.saveImagePrompts(projectId, prompts).then(() => {
+                API.project.saveImagePrompts(projectId, prompts).then(saveResult => {
+                    setImageGridPrompts(saveResult && saveResult.image_grid_prompts);
+                    if (field === 'prompt_en') {
+                        drawPromptsUI(prompts);
+                    }
                     console.log("Scene prompts synced to server.");
                 });
             }
@@ -2490,8 +2509,48 @@
                 break;
             }
         }
-        
+
         return text;
+    }
+
+    function buildFallbackImageGridPrompts(sceneData) {
+        const scenes = (sceneData || []).filter(scene => String(
+            scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || ''
+        ).trim());
+        const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
+        const grids = [];
+
+        for (let index = 0; index + 3 < scenes.length; index += 4) {
+            const chunk = scenes.slice(index, index + 4);
+            let prompt = `Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Each of the 4 panels must have a widescreen ${ratio} aspect ratio. There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. The panels must touch seamlessly. Each panel must represent one scene:\n`;
+            chunk.forEach((scene, panelIndex) => {
+                const rawSceneText = scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || '';
+                prompt += `- Panel ${panelIndex + 1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][panelIndex]}): ${extractPureImagePrompt(rawSceneText)}\n`;
+            });
+            prompt += `\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid with absolutely NO black borders, NO outlines, NO white borders, and NO dividing lines/crosses. Every panel must seamlessly connect to the edge with a ${ratio} aspect ratio. No more, no less. Maintain consistent characters across all panels.`;
+            grids.push({
+                grid_number: grids.length + 1,
+                scene_numbers: chunk.map((scene, panelIndex) => scene.scene_number || index + panelIndex + 1),
+                panel_count: 4,
+                prompt,
+            });
+        }
+        return grids;
+    }
+
+    function getImageGridPromptsForDisplay(sceneData) {
+        const savedGrids = Array.isArray(imageGridPrompts)
+            ? imageGridPrompts.filter(grid => grid && String(grid.prompt || grid.grid_prompt || '').trim()
+                && Array.isArray(grid.scene_numbers) && grid.scene_numbers.length === 4)
+            : [];
+        if (savedGrids.length) {
+            return savedGrids.map((grid, index) => ({
+                ...grid,
+                grid_number: grid.grid_number || index + 1,
+                prompt: String(grid.prompt || grid.grid_prompt || '').trim(),
+            }));
+        }
+        return buildFallbackImageGridPrompts(sceneData);
     }
 
     function showGridPromptsModal() {
@@ -2501,25 +2560,28 @@
         }
 
         let modalContent = '';
-        
-        for (let i = 0; i < prompts.length; i += 4) {
-            const chunk = prompts.slice(i, i + 4);
+        const imageGridPromptSets = getImageGridPromptsForDisplay(prompts);
+        if (!imageGridPromptSets.length) {
+            Utils.showToast(i18n.err_no_script, 'warning');
+            return;
+        }
+
+        for (const gridPromptData of imageGridPromptSets) {
+            const sceneNumbers = Array.isArray(gridPromptData.scene_numbers) ? gridPromptData.scene_numbers : [];
+            const chunk = sceneNumbers.map(sceneNumber => prompts.find(scene => String(scene.scene_number) === String(sceneNumber))).filter(Boolean);
+            const gridSceneRange = sceneNumbers.length
+                ? `${sceneNumbers[0]} ~ ${sceneNumbers[sceneNumbers.length - 1]}`
+                : String(gridPromptData.grid_number || '');
             
             // 1. 격자용 이미지 프롬프트 (For ChatGPT)
-            let gridPrompt = "Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Do NOT add any extra panels, text, or borders. Each panel must represent one scene:\\n";
-            chunk.forEach((scene, idx) => {
-                const rawSceneText = scene.prompt_en || scene.prompt_ko || '';
-                const sceneText = extractPureImagePrompt(rawSceneText);
-                gridPrompt += `- Panel ${idx+1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][idx]}): ${sceneText}\\n`;
-            });
-            gridPrompt += "\\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid. No more, no less. Maintain consistent characters across all panels.";
+            const gridPrompt = gridPromptData.prompt;
             
             // 2. Google Flow 영상 프롬프트 (Pair 연결 - Option B)
             let pairsHtml = "";
             for (let j = 0; j < chunk.length; j++) {
-                const s1 = prompts[i + j];
-                const s2 = prompts[i + j + 1]; // 다음 씬 (현재 청크를 넘어갈 수 있음)
-                const sceneNum1 = i + j + 1;
+                const s1 = chunk[j];
+                const s2 = chunk[j + 1]; // 다음 씬 (현재 청크를 넘어갈 수 있음)
+                const sceneNum1 = sceneNumbers[j] || j + 1;
                 
                 let s1Text = extractPureImagePrompt(s1.prompt_en || s1.prompt_ko || '');
                 let s1Motion = s1.flow_prompt || s1.motion_desc || 'none';
@@ -2528,7 +2590,7 @@
                 let pairTitle = "";
                 
                 if (s2) {
-                    const sceneNum2 = i + j + 2;
+                    const sceneNum2 = sceneNumbers[j + 1] || j + 2;
                     pairTitle = `🎬 씬 ${sceneNum1} - 씬 ${sceneNum2} 연결 프롬프트`;
                     let s2Text = extractPureImagePrompt(s2.prompt_en || s2.prompt_ko || '');
                     let s2Motion = s2.flow_prompt || s2.motion_desc || 'none';
@@ -2554,7 +2616,7 @@
             modalContent += `
                 <div class="mb-8 bg-[#1c2027] rounded-xl border border-gray-700 shadow-md overflow-hidden">
                     <div class="bg-gray-800 p-3 border-b border-gray-700 flex justify-between items-center">
-                        <h4 class="text-md font-bold text-blue-400 flex items-center gap-2"><span>🎬</span> 씬 ${i+1} ~ ${i + chunk.length}</h4>
+                        <h4 class="text-md font-bold text-blue-400 flex items-center gap-2"><span>🎬</span> 씬 ${gridSceneRange}</h4>
                     </div>
                     
                     <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3414,6 +3476,7 @@
 
     function clearImagePromptWorkspace() {
         prompts = [];
+        imageGridPrompts = [];
         const promptsContainer = document.getElementById('promptsList');
         if (promptsContainer) promptsContainer.innerHTML = '';
         const resultSection = document.getElementById('resultSection');
@@ -3456,6 +3519,7 @@
             if (promptsContainer) promptsContainer.innerHTML = '';
             document.getElementById('resultSection').classList.add('hidden');
             prompts = [];
+            imageGridPrompts = [];
             console.log(`[projectStateRestored] Project switched: ${_currentShownProjectId} → ${incomingProjectId}`);
         }
 
@@ -3466,6 +3530,7 @@
 
         // [RESTORE] Global Settings
         if (data && data.settings) {
+            setImageGridPrompts(data.settings.image_grid_prompts_json);
             if (data.settings.character_ref_text && gp) {
                 gp.value = data.settings.character_ref_text;
             }
@@ -3686,9 +3751,10 @@
                 const fullData = await API.project.getFull(projectId);
                 assetReadiness = fullData.asset_readiness || null;
 
-                // [NEW] Load Persistent Settings
-                if (fullData.settings) {
-                    window._preparedProjectFromTopic = !!fullData.settings.topic_queue_id;
+               // [NEW] Load Persistent Settings
+               if (fullData.settings) {
+                    setImageGridPrompts(fullData.settings.image_grid_prompts_json);
+                   window._preparedProjectFromTopic = !!fullData.settings.topic_queue_id;
                     if (fullData.settings.character_ref_text) {
                         const gp = document.getElementById('globalPrompt');
                         if (gp) gp.value = fullData.settings.character_ref_text;
@@ -4192,6 +4258,7 @@
         try {
             const response = await fetch(`/api/projects/${projectId}/image-prompts`);
             const result = await response.json();
+            setImageGridPrompts(result.image_grid_prompts);
 
             // [FIX] 빈 배열이면 기존 데이터를 덮어쓰지 않음
             if (result.status === 'ok' && result.prompts && result.prompts.length > 0) {
@@ -4239,6 +4306,7 @@
             }
 
             prompts = [];
+            imageGridPrompts = [];
             for (let i = 0; i < count; i++) {
                 let sceneTitle = "";
                 let sceneText = "";
