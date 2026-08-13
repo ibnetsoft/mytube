@@ -63,7 +63,13 @@ export interface AuthenticatedWorker {
 // RPC/table a request should use is derived from the AUTHENTICATED
 // worker's allowed_job_types, never from the request body - same
 // don't-trust-the-caller principle as allowed_job_types narrowing itself.
-export const HERMES_JOB_TYPES = ['topic_research', 'topic_benchmark_analyze']
+export const HERMES_JOB_TYPES = [
+    'topic_research',
+    'topic_benchmark_analyze',
+    'web_research',
+    'script_plan_generate',
+    'script_generate',
+]
 
 export function isHermesWorker(worker: AuthenticatedWorker): boolean {
     return worker.allowed_job_types.some((t) => HERMES_JOB_TYPES.includes(t))
