@@ -1,17 +1,25 @@
 'use client'
 
 import Image from 'next/image'
+import dynamic from 'next/dynamic'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
-import LearningStatsPanel from './LearningStatsPanel'
-import TenantManagement from './TenantManagement'
-import ReferralAdminPanel from './ReferralAdminPanel'
-import SubscriptionVerificationsPanel from './SubscriptionVerificationsPanel'
-import SupportInboxPanel from './SupportInboxPanel'
-import AnnouncementsAdminPanel from './AnnouncementsAdminPanel'
-import ErrorLogsPanel from './ErrorLogsPanel'
+
+const LazyPanelFallback = () => (
+    <div className="rounded-[2.5rem] border border-white/10 bg-[#0f172a]/40 p-10 text-center text-xs font-black uppercase tracking-[0.2em] text-gray-500">
+        Loading...
+    </div>
+)
+
+const LearningStatsPanel = dynamic(() => import('./LearningStatsPanel'), { loading: LazyPanelFallback })
+const TenantManagement = dynamic(() => import('./TenantManagement'), { loading: LazyPanelFallback })
+const ReferralAdminPanel = dynamic(() => import('./ReferralAdminPanel'), { loading: LazyPanelFallback })
+const SubscriptionVerificationsPanel = dynamic(() => import('./SubscriptionVerificationsPanel'), { loading: LazyPanelFallback })
+const SupportInboxPanel = dynamic(() => import('./SupportInboxPanel'), { loading: LazyPanelFallback })
+const AnnouncementsAdminPanel = dynamic(() => import('./AnnouncementsAdminPanel'), { loading: LazyPanelFallback })
+const ErrorLogsPanel = dynamic(() => import('./ErrorLogsPanel'), { loading: LazyPanelFallback })
 
 interface UserProfile {
     id: string
@@ -1773,7 +1781,12 @@ export default function DashboardContent() {
 
     const fetchTopics = useCallback(async () => {
         try {
-            const res = await adminFetch('/api/admin/topics-queue')
+            const params = new URLSearchParams({
+                status: 'active',
+                page: '1',
+                perPage: '300',
+            })
+            const res = await adminFetch(`/api/admin/topics-queue?${params.toString()}`)
             const data = await res.json()
             if (data.topics) setTopics(data.topics)
         } catch (e) {
@@ -2430,9 +2443,8 @@ export default function DashboardContent() {
     useEffect(() => {
         if (isAdmin && !loading) {
             fetchCategories();
-            fetchTopics();
         }
-    }, [isAdmin, loading, fetchCategories, fetchTopics]);
+    }, [isAdmin, loading, fetchCategories]);
 
     useEffect(() => {
         if (!isAdmin || loading) return;

@@ -33,6 +33,36 @@ const CONTENT_LANGUAGES = ['ko', 'en', 'ja'] as const
 // 상태"로 유지한다 - 전체 백로그를 미리 만들면 비용이 폭증하므로(대기열 전체 적체
 // 문제가 이번 작업의 출발점이었음) 매 생성 배치의 최신 몇 개로만 한정한다.
 const PREGEN_BUFFER_SIZE = 3
+const TOPICS_QUEUE_LIST_SELECT = `
+    id,
+    category_id,
+    topic,
+    assigned_employee_email,
+    status,
+    created_at,
+    updated_at,
+    is_auto_generated,
+    assigned_script_style,
+    language,
+    progress_payload,
+    asset_mix_summary,
+    total_scenes,
+    video_scenes,
+    image_scenes,
+    actual_payout,
+    video_clip_ratio,
+    assigned_duration_minutes,
+    recommended_duration_minutes,
+    duration_locked,
+    estimated_payout,
+    payout_policy,
+    duration_reason,
+    difficulty_level,
+    pregenerated_structure_status,
+    generated_title,
+    translation_status,
+    categories(id,name,language,upload_channel_id,upload_channel_name,upload_channel_handle)
+`
 
 type ContentLanguage = typeof CONTENT_LANGUAGES[number]
 
@@ -420,33 +450,56 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const email = searchParams.get('email')
         const status = searchParams.get('status') || 'active'
+        const categoryId = searchParams.get('categoryId')
+        const page = Math.max(1, toInt(searchParams.get('page'), 1))
+        const perPage = Math.max(1, Math.min(500, toInt(searchParams.get('perPage'), 300)))
+        const rangeFrom = (page - 1) * perPage
+        const rangeTo = rangeFrom + perPage - 1
 
         const supabase = getAdmin()
-        let query = supabase
-            .from('topics_queue')
-            .select('*, categories(*)')
-            .order('created_at', { ascending: false })
 
-        if (status === 'active') {
-            query = query.in('status', ['pending', 'assigned'])
-        } else if (status && status !== 'all') {
-            // Non-active statuses (e.g. 'completed') accumulate forever, unlike
-            // the always-small pending/assigned queue - cap it so this doesn't
-            // grow into an unbounded payload as history piles up.
-            query = query.eq('status', status).limit(1000)
+        const buildQuery = (select: string) => {
+            let query = supabase
+                .from('topics_queue')
+                .select(select, { count: 'exact' })
+                .order('created_at', { ascending: false })
+
+            if (status === 'active') {
+                query = query.in('status', ['pending', 'assigned'])
+            } else if (status && status !== 'all') {
+                query = query.eq('status', status)
+            }
+
+            if (email) {
+                query = query.eq('assigned_employee_email', email)
+            }
+
+            if (categoryId && categoryId !== 'all') {
+                query = query.eq('category_id', categoryId)
+            }
+
+            return query.range(rangeFrom, rangeTo)
         }
 
-        const { data, error } = await query
+        let { data, error, count } = await buildQuery(TOPICS_QUEUE_LIST_SELECT)
+        if (isMissingColumnError(error)) {
+            const retry = await buildQuery('*, categories(*)')
+            data = retry.data
+            error = retry.error
+            count = retry.count
+        }
 
         if (error) throw error
 
-        let topics = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
+        const topics = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
 
-        if (email) {
-            topics = topics.filter((topic: any) => topic.assigned_employee_email === email)
-        }
-
-        return NextResponse.json({ topics })
+        return NextResponse.json({
+            topics,
+            page,
+            perPage,
+            total: count ?? topics.length,
+            hasMore: count != null ? rangeTo + 1 < count : topics.length === perPage,
+        })
     } catch (e: any) {
         console.error('Failed to get topics queue:', e)
         return NextResponse.json({ error: e.message }, { status: 500 })
