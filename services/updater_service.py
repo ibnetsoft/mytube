@@ -54,16 +54,41 @@ class UpdaterService:
         return Path(sys.executable).resolve().parent
 
     @staticmethod
-    def _wait_for_helper_ready(helper_process, ready_path: Path, timeout_seconds: float = 8.0) -> bool:
-        """Do not terminate the app until the detached update helper is alive."""
+    def _wait_for_helper_ready(ready_path: Path, timeout_seconds: float = 8.0) -> bool:
+        """Do not terminate the app until the scheduled update helper is alive."""
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             if ready_path.exists():
-                return helper_process.poll() is None
-            if helper_process.poll() is not None:
-                return False
+                return True
             time.sleep(0.05)
-        return ready_path.exists() and helper_process.poll() is None
+        return ready_path.exists()
+
+    @staticmethod
+    def _schtasks_path() -> str:
+        path = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "schtasks.exe"
+        return str(path) if path.exists() else "schtasks.exe"
+
+    @classmethod
+    def _run_schtasks(cls, arguments: list[str]) -> tuple[bool, str]:
+        try:
+            completed = subprocess.run(
+                [cls._schtasks_path(), *arguments],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except OSError as exc:
+            return False, str(exc)
+        return completed.returncode == 0, (completed.stdout or "").strip()
+
+    @classmethod
+    def _delete_scheduled_task(cls, task_name: str) -> None:
+        cls._run_schtasks(["/Delete", "/TN", task_name, "/F"])
 
     def check_for_update(self):
         """Read the latest public GitHub release when in-place updates work."""
@@ -208,6 +233,7 @@ class UpdaterService:
         log_path = self._update_dir / "apply_update.log"
         ready_path = self._update_dir / "apply_update.ready"
         pid = os.getpid()
+        task_name = f"AIRStudioUpdate-{pid}-{int(time.time() * 1000)}"
         app_dir = self._app_dir
         zip_path = self.download_path
         exe_path = app_dir / APP_EXE_NAME
@@ -224,6 +250,7 @@ $app = '{str(app_dir).replace("'", "''")}'
 $exe = '{str(exe_path).replace("'", "''")}'
 $log = '{str(log_path).replace("'", "''")}'
 $ready = '{str(ready_path).replace("'", "''")}'
+$task = '{task_name}'
 try {{
     Set-Content -LiteralPath $ready -Value "helper-started:$PID" -Encoding ascii
     Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update helper started (PID $PID)."
@@ -241,11 +268,14 @@ try {{
 }} catch {{
     Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update failed: $($_ | Out-String)"
     if (Test-Path $exe) {{ Start-Process -FilePath $exe }}
+}} finally {{
+    Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+    & schtasks.exe /Delete /TN $task /F 2>$null | Out-Null
 }}
-Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 """
         try:
-            script_path.write_text(script, encoding="utf-8")
+            # Windows PowerShell 5.1 reliably reads UTF-8 scripts only with a BOM.
+            script_path.write_text(script, encoding="utf-8-sig")
             powershell_path = (
                 Path(os.environ.get("SystemRoot", r"C:\Windows"))
                 / "System32"
@@ -254,24 +284,37 @@ Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
                 / "powershell.exe"
             )
             powershell_exe = str(powershell_path) if powershell_path.exists() else "powershell.exe"
-            helper_flags = (
-                subprocess.CREATE_NO_WINDOW
-                | subprocess.DETACHED_PROCESS
-                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-                | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+            task_action = f'"{powershell_exe}" -NoProfile -ExecutionPolicy Bypass -File "{script_path}"'
+            schedule_time = time.strftime("%H:%M", time.localtime(time.time() + 60))
+            created, create_error = self._run_schtasks(
+                [
+                    "/Create",
+                    "/TN",
+                    task_name,
+                    "/TR",
+                    task_action,
+                    "/SC",
+                    "ONCE",
+                    "/ST",
+                    schedule_time,
+                    "/RL",
+                    "LIMITED",
+                    "/F",
+                ]
             )
-            helper_process = subprocess.Popen(
-                [powershell_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
-                creationflags=helper_flags,
-                close_fds=True,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            if not created:
+                return False, f"Unable to schedule the updater: {create_error or 'schtasks failed.'}"
+
+            started, start_error = self._run_schtasks(["/Run", "/TN", task_name])
+            if not started:
+                self._delete_scheduled_task(task_name)
+                return False, f"Unable to start the updater: {start_error or 'schtasks failed.'}"
         except OSError as exc:
+            self._delete_scheduled_task(task_name)
             return False, f"Unable to start the updater: {exc}"
 
-        if not self._wait_for_helper_ready(helper_process, ready_path):
+        if not self._wait_for_helper_ready(ready_path):
+            self._delete_scheduled_task(task_name)
             return False, "The update helper did not start. AIR Studio is still running."
 
         self.is_applying = True

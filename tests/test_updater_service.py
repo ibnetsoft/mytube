@@ -48,30 +48,16 @@ class UpdaterServiceTests(unittest.TestCase):
 
     def test_update_helper_must_be_ready_before_the_app_can_exit(self):
         service = updater_module.UpdaterService()
-        helper = Mock()
-        helper.poll.return_value = None
 
         with TemporaryDirectory() as temp_dir:
             ready_path = Path(temp_dir) / "apply_update.ready"
-            self.assertFalse(service._wait_for_helper_ready(helper, ready_path, timeout_seconds=0))
+            self.assertFalse(service._wait_for_helper_ready(ready_path, timeout_seconds=0))
 
             ready_path.write_text("helper-started:1", encoding="ascii")
-            self.assertTrue(service._wait_for_helper_ready(helper, ready_path, timeout_seconds=0))
-
-    def test_update_helper_rejects_a_process_that_exited_after_signaling_ready(self):
-        service = updater_module.UpdaterService()
-        helper = Mock()
-        helper.poll.return_value = 1
-
-        with TemporaryDirectory() as temp_dir:
-            ready_path = Path(temp_dir) / "apply_update.ready"
-            ready_path.write_text("helper-started:1", encoding="ascii")
-            self.assertFalse(service._wait_for_helper_ready(helper, ready_path, timeout_seconds=0))
+            self.assertTrue(service._wait_for_helper_ready(ready_path, timeout_seconds=0))
 
     def test_apply_keeps_the_app_running_when_the_update_helper_does_not_start(self):
         service = updater_module.UpdaterService()
-        helper = Mock()
-        helper.poll.return_value = 1
 
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -88,13 +74,15 @@ class UpdaterServiceTests(unittest.TestCase):
                 updater_module.config, "LOCAL_APP_DATA_DIR", str(root)
             ), patch.object(
                 type(service), "_app_dir", new_callable=PropertyMock, return_value=app_dir
-            ), patch.object(updater_module.subprocess, "Popen", return_value=helper) as popen:
+            ), patch.object(
+                type(service), "_run_schtasks", return_value=(False, "Task Scheduler is unavailable")
+            ) as run_schtasks:
                 success, error = service.apply_update_and_restart()
 
         self.assertFalse(success)
-        self.assertIn("still running", error)
+        self.assertIn("Unable to schedule", error)
         self.assertFalse(service.is_applying)
-        popen.assert_called_once()
+        run_schtasks.assert_called_once()
 
 
 if __name__ == "__main__":
