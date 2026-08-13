@@ -53,6 +53,18 @@ class UpdaterService:
             return Path(config.BASE_DIR).resolve()
         return Path(sys.executable).resolve().parent
 
+    @staticmethod
+    def _wait_for_helper_ready(helper_process, ready_path: Path, timeout_seconds: float = 8.0) -> bool:
+        """Do not terminate the app until the detached update helper is alive."""
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if ready_path.exists():
+                return helper_process.poll() is None
+            if helper_process.poll() is not None:
+                return False
+            time.sleep(0.05)
+        return ready_path.exists() and helper_process.poll() is None
+
     def check_for_update(self):
         """Read the latest public GitHub release when in-place updates work."""
         current_version = self.current_version
@@ -194,10 +206,16 @@ class UpdaterService:
         script_path = self._update_dir / "apply_update.ps1"
         extract_dir = self._update_dir / "extracted"
         log_path = self._update_dir / "apply_update.log"
+        ready_path = self._update_dir / "apply_update.ready"
         pid = os.getpid()
         app_dir = self._app_dir
         zip_path = self.download_path
         exe_path = app_dir / APP_EXE_NAME
+        try:
+            ready_path.unlink(missing_ok=True)
+        except OSError as exc:
+            return False, f"Unable to prepare the update helper: {exc}"
+
         script = f"""$ErrorActionPreference = 'Stop'
 $pidToWait = {pid}
 $zip = '{str(zip_path).replace("'", "''")}'
@@ -205,7 +223,10 @@ $extract = '{str(extract_dir).replace("'", "''")}'
 $app = '{str(app_dir).replace("'", "''")}'
 $exe = '{str(exe_path).replace("'", "''")}'
 $log = '{str(log_path).replace("'", "''")}'
+$ready = '{str(ready_path).replace("'", "''")}'
 try {{
+    Set-Content -LiteralPath $ready -Value "helper-started:$PID" -Encoding ascii
+    Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update helper started (PID $PID)."
     while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 500 }}
     if (Test-Path $extract) {{ Remove-Item $extract -Recurse -Force }}
     New-Item -ItemType Directory -Force -Path $extract | Out-Null
@@ -225,13 +246,33 @@ Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 """
         try:
             script_path.write_text(script, encoding="utf-8")
-            subprocess.Popen(
-                ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
-                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+            powershell_path = (
+                Path(os.environ.get("SystemRoot", r"C:\Windows"))
+                / "System32"
+                / "WindowsPowerShell"
+                / "v1.0"
+                / "powershell.exe"
+            )
+            powershell_exe = str(powershell_path) if powershell_path.exists() else "powershell.exe"
+            helper_flags = (
+                subprocess.CREATE_NO_WINDOW
+                | subprocess.DETACHED_PROCESS
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+            )
+            helper_process = subprocess.Popen(
+                [powershell_exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+                creationflags=helper_flags,
                 close_fds=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
         except OSError as exc:
             return False, f"Unable to start the updater: {exc}"
+
+        if not self._wait_for_helper_ready(helper_process, ready_path):
+            return False, "The update helper did not start. AIR Studio is still running."
 
         self.is_applying = True
         threading.Thread(target=self._exit_after_response, daemon=True).start()
@@ -240,7 +281,7 @@ Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
     @staticmethod
     def _exit_after_response():
         """Stop only after FastAPI has had time to send the success response."""
-        time.sleep(1.0)
+        time.sleep(2.0)
         os._exit(0)
 
 

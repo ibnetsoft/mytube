@@ -1721,35 +1721,44 @@
 
                 // Poll status
                 const interval = setInterval(async () => {
-                    const statusRes = await fetch('/api/update/status');
-                    const statusData = await statusRes.json();
-                    
-                    if (statusData.error) {
-                        clearInterval(interval);
-                        alert(L.errorPrefix + statusData.error);
-                        resetButton();
-                        return;
-                    }
+                    try {
+                        const statusRes = await fetch('/api/update/status');
+                        if (!statusRes.ok) throw new Error("Update status check failed");
+                        const statusData = await statusRes.json();
 
-                    progressText.innerText = statusData.progress + '%';
-                    progressBar.style.width = statusData.progress + '%';
-
-                    if (!statusData.is_downloading && statusData.progress === 100) {
-                        clearInterval(interval);
-                        progressText.innerText = L.installing;
-                        btn.innerHTML = `<span class="animate-spin text-xl">🔄</span> ${L.restarting}`;
-                        
-                        // Apply and restart only after the server confirms it can
-                        // replace the installed app. A dev server must not reload
-                        // back into the same update prompt.
-                        const applyRes = await fetch('/api/update/apply', { method: 'POST' });
-                        const applyData = await applyRes.json().catch(() => ({}));
-                        if (!applyRes.ok || !applyData.success) {
-                            alert(L.errorPrefix + (applyData.error || "Update apply failed"));
+                        if (statusData.error) {
+                            clearInterval(interval);
+                            alert(L.errorPrefix + statusData.error);
                             resetButton();
                             return;
                         }
-                        setTimeout(() => { window.location.reload(); }, 4000);
+
+                        progressText.innerText = statusData.progress + '%';
+                        progressBar.style.width = statusData.progress + '%';
+
+                        if (!statusData.is_downloading && statusData.progress === 100) {
+                            clearInterval(interval);
+                            progressText.innerText = L.installing;
+                            btn.innerHTML = `<span class="animate-spin text-xl">🔄</span> ${L.restarting}`;
+
+                            const applyRes = await fetch('/api/update/apply', { method: 'POST' });
+                            const applyData = await applyRes.json().catch(() => ({}));
+                            if (!applyRes.ok || !applyData.success) {
+                                alert(L.errorPrefix + (applyData.error || "Update apply failed"));
+                                resetButton();
+                                return;
+                            }
+
+                            const title = document.getElementById('updateModalTitle');
+                            const body = document.getElementById('updateModalBody');
+                            if (title) title.textContent = L.restarting;
+                            if (body) body.textContent = L.restarting;
+                        }
+                    } catch (error) {
+                        clearInterval(interval);
+                        console.error(error);
+                        alert(L.errorPrefix + (error.message || L.startFailed));
+                        resetButton();
                     }
                 }, 1000);
 
