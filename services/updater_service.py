@@ -237,6 +237,15 @@ class UpdaterService:
         app_dir = self._app_dir
         zip_path = self.download_path
         exe_path = app_dir / APP_EXE_NAME
+        restart_environment = {
+            name: value
+            for name in ("HOST", "PORT", "LOCALAPPDATA")
+            if (value := os.environ.get(name))
+        }
+        restart_environment_lines = "\n".join(
+            f"$env:{name} = '{value.replace("'", "''")}'"
+            for name, value in restart_environment.items()
+        )
         try:
             ready_path.unlink(missing_ok=True)
         except OSError as exc:
@@ -264,10 +273,14 @@ try {{
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
     Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update copied successfully."
+    {restart_environment_lines}
     Start-Process -FilePath $exe
 }} catch {{
     Add-Content -LiteralPath $log -Value "$(Get-Date -Format o) Update failed: $($_ | Out-String)"
-    if (Test-Path $exe) {{ Start-Process -FilePath $exe }}
+    if (Test-Path $exe) {{
+        {restart_environment_lines}
+        Start-Process -FilePath $exe
+    }}
 }} finally {{
     Remove-Item $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
     & schtasks.exe /Delete /TN $task /F 2>$null | Out-Null
