@@ -60,6 +60,14 @@ class CentralServerUnavailable(Exception):
     the request itself was rejected."""
 
 
+class CentralRouteNotFound(CentralServerUnavailable):
+    """404 from a deployed central server.
+
+    This usually means the worker is pointed at an older/stale web
+    deployment, not that local work should stop.
+    """
+
+
 class LeaseConflict(Exception):
     """[AIR-0227C Stage 7, found via live long-outage QA] 409 - the lease
     this request refers to is no longer the active one (already completed/
@@ -90,6 +98,8 @@ def _request(method: str, path: str, json_body: dict | None = None, idempotency_
 
         if resp.status_code in (401, 403):
             raise AuthError(f"{method} {path} -> {resp.status_code}: {resp.text[:200]}")
+        if resp.status_code == 404:
+            raise CentralRouteNotFound(f"{method} {path} -> 404: {resp.text[:200]}")
         if resp.status_code == 409:
             raise LeaseConflict(f"{method} {path} -> 409: {resp.text[:200]}")
         if resp.status_code >= 500:
@@ -124,9 +134,11 @@ def claim_job(worker_id: str, worker_instance_id: str, allowed_job_types: list[s
     return result if result and result.get("job_id") else None
 
 
-def report_progress(remote_job_id: str, lease_id: str, worker_instance_id: str, progress: int, message: str) -> dict:
+def report_progress(remote_job_id: str, lease_id: str, worker_instance_id: str, progress: int, message: str,
+                    worker_status: str = "RENDERING") -> dict:
     return _request("POST", f"/api/internal/worker/jobs/{remote_job_id}/progress", {
         "lease_id": lease_id, "worker_instance_id": worker_instance_id,
+        "worker_status": worker_status,
         "progress": progress, "message": message,
     })
 

@@ -758,6 +758,17 @@ def _try_remote_claim() -> dict | None:
     return job_store.get_job(local_job_id)
 
 
+def _send_remote_heartbeat() -> None:
+    try:
+        central_client.heartbeat(WORKER_ID, WORKER_INSTANCE_ID)
+    except central_client.AuthError as e:
+        logger.error(f"Central server rejected heartbeat token (local queue will continue): {e}")
+    except central_client.CentralServerUnavailable as e:
+        logger.warning(f"Central heartbeat unavailable (local queue will continue): {e}")
+    except Exception as e:
+        logger.warning(f"Unexpected central heartbeat error (local queue will continue): {e}")
+
+
 def _process_topic_research(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     """Returns (output_ref, result_payload) - both are forwarded to
     _report_remote_outcome() by process_one_job() when this job came from a
@@ -2645,7 +2656,7 @@ def run_forever():
                 _flush_pending_remote_acks()
 
                 if REMOTE_ENABLED and time.time() >= next_remote_heartbeat_at:
-                    central_client.heartbeat(WORKER_ID, WORKER_INSTANCE_ID)
+                    _send_remote_heartbeat()
                     next_remote_heartbeat_at = time.time() + REMOTE_HEARTBEAT_INTERVAL_SECONDS
 
                 # Production Hermes must service the central queue first.
