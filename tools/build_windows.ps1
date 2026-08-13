@@ -166,12 +166,19 @@ try {
 
     # Keep the installed app's displayed version aligned with the release
     # artifact. config.py reads this file before falling back to version.py.
+    # Write release metadata without a BOM. python-dotenv otherwise sees the
+    # first .env key as a different name on Windows PowerShell builds.
+    $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     $VersionRecord = [ordered]@{
         version = $Version
         build = $Build
         channel = $Channel
     }
-    $VersionRecord | ConvertTo-Json -Compress | Set-Content -Path (Join-Path $StagingApp "version.json") -Encoding UTF8 -NoNewline
+    [System.IO.File]::WriteAllText(
+        (Join-Path $StagingApp "version.json"),
+        ($VersionRecord | ConvertTo-Json -Compress),
+        $Utf8NoBom
+    )
 
     # ---- .env (public configuration only) ----
     # Public desktop packages must never contain credentials. The Supabase URL is
@@ -197,7 +204,11 @@ try {
 
     if ($EnvLines.Count -gt 0) {
         Write-Host "Writing packaged public .env with $($EnvLines.Count) line(s)..."
-        $EnvLines -join "`n" | Set-Content -Path (Join-Path $StagingApp ".env") -Encoding UTF8 -NoNewline
+        [System.IO.File]::WriteAllText(
+            (Join-Path $StagingApp ".env"),
+            ($EnvLines -join "`n"),
+            $Utf8NoBom
+        )
     }
 
     # ---- Portable ZIP ----
