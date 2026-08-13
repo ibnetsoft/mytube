@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
@@ -40,6 +40,32 @@ function badRequest(detail: string) {
     return NextResponse.json({ status: 'error', detail }, { status: 400 })
 }
 
+function hasReadySceneMediaPrompts(topic: any): boolean {
+    const structure = topic?.pregenerated_structure
+    const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
+    if (topic?.pregenerated_structure_status !== 'ready' || !structure || scenes.length === 0) return false
+    if (!['ready', 'fallback_ready'].includes(String(structure.media_prompt_status || ''))) return false
+    return scenes.every((scene: any) =>
+        ['ready', 'fallback_ready'].includes(String(scene?.media_prompt_status || ''))
+        && String(scene?.image_prompt || scene?.prompt_en || scene?.visual_prompt || scene?.visual_description || '').trim().length > 0
+        && String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim().length > 0
+    )
+}
+
+function isPreparedUserTopic(topic: any): boolean {
+    const scriptReady = topic?.pregenerated_script_status === 'ready'
+        && String(topic?.pregenerated_script || '').trim().length > 0
+    const structureReady = topic?.pregenerated_structure_status === 'ready'
+        && topic?.pregenerated_structure
+    return topic?.status === 'pending'
+        && String(topic?.generated_title || '').trim().length > 0
+        && topic?.category_id !== null
+        && topic?.category_id !== undefined
+        && scriptReady
+        && structureReady
+        && hasReadySceneMediaPrompts(topic)
+}
+
 export async function POST(req: Request) {
     let body: any
     try {
@@ -52,7 +78,7 @@ export async function POST(req: Request) {
     if (!email || !session_token) {
         return unauthorized('missing_email_or_session_token')
     }
-    if (!verifyDesktopSessionToken(String(email), String(session_token))) {
+    if (!(await verifyApprovedDesktopSession(String(email), String(session_token)))) {
         return unauthorized('invalid_or_expired_session')
     }
     // From here on, `email` is the server-verified identity - every action
@@ -78,10 +104,11 @@ export async function POST(req: Request) {
                     .from('topics_queue')
                     .select('*, categories!inner(*)')
                     .eq('status', 'pending')
+                    .not('generated_title', 'is', null)
                     .order('created_at', { ascending: false })
                     .limit(limit)
                 if (error) throw error
-                return NextResponse.json({ status: 'ok', rows: data || [] })
+                return NextResponse.json({ status: 'ok', rows: (data || []).filter(isPreparedUserTopic) })
             }
 
             case 'get_cached_recommendations': {
@@ -96,11 +123,69 @@ export async function POST(req: Request) {
                     .order('created_at', { ascending: false })
                     .limit(limit)
                 if (error) throw error
-                return NextResponse.json({ status: 'ok', rows: data || [] })
+
+                const rows = data || []
+                const topicIds = Array.from(new Set(
+                    rows
+                        .map((row: any) => row.topic_queue_id)
+                        .filter((id: any) => id !== null && id !== undefined)
+                        .map((id: any) => Number(id))
+                        .filter((id: number) => Number.isFinite(id))
+                ))
+
+                if (topicIds.length === 0) {
+                    if (rows.length > 0) {
+                        await supabaseAdmin
+                            .from('user_topic_recommendations')
+                            .delete()
+                            .eq('employee_email', verifiedEmail)
+                            .eq('is_claimed', false)
+                            .in('id', rows.map((row: any) => row.id))
+                    }
+                    return NextResponse.json({ status: 'ok', rows: [] })
+                }
+
+                const { data: liveTopics, error: liveError } = await supabaseAdmin
+                    .from('topics_queue')
+                    // Cache rows are only ranking snapshots. Always return the current
+                    // queue row so an admin edit or delete is reflected immediately.
+                    .select('*, categories!inner(*)')
+                    .in('id', topicIds)
+                    .eq('status', 'pending')
+                    .not('generated_title', 'is', null)
+                if (liveError) throw liveError
+
+                const liveTopicById = new Map(
+                    (liveTopics || []).filter(isPreparedUserTopic).map((topic: any) => [String(topic.id), topic])
+                )
+                const pendingTopicIds = new Set(liveTopicById.keys())
+                const liveRows = rows
+                    .map((row: any) => liveTopicById.get(String(row.topic_queue_id)))
+                    .filter(Boolean)
+                const staleIds = rows
+                    .filter((row: any) => !pendingTopicIds.has(String(row.topic_queue_id)))
+                    .map((row: any) => row.id)
+
+                if (staleIds.length > 0) {
+                    await supabaseAdmin
+                        .from('user_topic_recommendations')
+                        .delete()
+                        .eq('employee_email', verifiedEmail)
+                        .eq('is_claimed', false)
+                        .in('id', staleIds)
+                }
+
+                return NextResponse.json({ status: 'ok', rows: liveRows })
             }
 
             case 'save_recommendations': {
                 const rows = Array.isArray(p.rows) ? p.rows : []
+                await supabaseAdmin
+                    .from('user_topic_recommendations')
+                    .delete()
+                    .eq('employee_email', verifiedEmail)
+                    .eq('is_claimed', false)
+
                 if (rows.length === 0) return NextResponse.json({ status: 'ok', inserted: 0 })
                 // Force employee_email server-side on every row - a caller can
                 // never insert a recommendation cache entry under someone
@@ -212,7 +297,9 @@ export async function POST(req: Request) {
                 if (topicData.status && topicData.status !== 'pending') {
                     return NextResponse.json({ status: 'error', detail: 'topic_already_claimed' }, { status: 409 })
                 }
-
+                if (!isPreparedUserTopic(topicData)) {
+                    return NextResponse.json({ status: 'error', detail: 'topic_not_ready' }, { status: 409 })
+                }
                 const { error: patchErr, data: patchedRows } = await supabaseAdmin
                     .from('topics_queue')
                     .update({
@@ -235,6 +322,26 @@ export async function POST(req: Request) {
                     .eq('topic_queue_id', resolvedTopicId)
                     .eq('employee_email', verifiedEmail)
 
+                return NextResponse.json({ status: 'ok', topic: topicData })
+            }
+
+            case 'get_claimed_topic_pregeneration': {
+                const topicId = Number(p.topic_id)
+                if (!Number.isFinite(topicId)) return badRequest('invalid_topic_id')
+
+                // A desktop client may refresh only a topic assigned to the
+                // authenticated employee. This prevents one user from reading
+                // another user's prepared script through the bridge.
+                const { data: topicData, error } = await supabaseAdmin
+                    .from('topics_queue')
+                    .select('id, generated_title, progress_payload, benchmark_analysis, pregenerated_structure, pregenerated_structure_status, pregenerated_script, pregenerated_script_status')
+                    .eq('id', topicId)
+                    .eq('assigned_employee_email', verifiedEmail)
+                    .maybeSingle()
+                if (error) throw error
+                if (!topicData) {
+                    return NextResponse.json({ status: 'error', detail: 'topic_not_found' }, { status: 404 })
+                }
                 return NextResponse.json({ status: 'ok', topic: topicData })
             }
 

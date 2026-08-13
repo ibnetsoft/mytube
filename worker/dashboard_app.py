@@ -14,7 +14,7 @@ from fastapi import FastAPI, Header, HTTPException, Response
 from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
-from worker_config import MANAGER_STATUS_FILE, OUTPUT_DIR, WORKER_ID
+from worker_config import MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID
 from hermes_autopilot import CATEGORIES, HermesAutopilotManager
 
 logger = get_logger("dashboard")
@@ -72,6 +72,272 @@ def _read_job_result(job_id: str) -> dict | None:
         except Exception:
             return None
     return None
+
+
+AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
+AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
+HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
+GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research"}
+
+
+def _safe_result_id(result_id: str) -> str:
+    return "".join(ch for ch in str(result_id or "") if ch.isalnum() or ch in ("-", "_", "."))
+
+
+def _read_generated_result(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _autopilot_generation_diagnostics() -> dict:
+    state: dict = {}
+    if AUTOPILOT_STATE_FILE.exists():
+        try:
+            loaded = json.loads(AUTOPILOT_STATE_FILE.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                state = loaded
+        except (json.JSONDecodeError, OSError):
+            state = {}
+
+    logs = state.get("logs") if isinstance(state.get("logs"), list) else []
+    hermes_results_dir = OUTPUT_DIR / "hermes_results"
+    partial_count = 0
+    latest_partial_at = None
+    if hermes_results_dir.exists():
+        partial_paths = list(hermes_results_dir.glob("*.json"))
+        partial_count = len(partial_paths)
+        if partial_paths:
+            latest_partial_at = max(path.stat().st_mtime for path in partial_paths)
+
+    stats = state.get("session_stats") if isinstance(state.get("session_stats"), dict) else {}
+    return {
+        "is_running": bool(state.get("is_running")),
+        "current_step": state.get("current_step") or "",
+        "generated_count": stats.get("generated_count", 0),
+        "recent_logs": logs[-8:],
+        "partial_result_count": partial_count,
+        "latest_partial_at": latest_partial_at,
+        "state_updated_at": state.get("updated_at"),
+    }
+
+
+def _result_title(data: dict) -> str:
+    structure = data.get("structure") if isinstance(data.get("structure"), dict) else {}
+    title_generation = data.get("title_generation") if isinstance(data.get("title_generation"), dict) else {}
+    benchmark_analysis = data.get("benchmark_analysis") if isinstance(data.get("benchmark_analysis"), dict) else {}
+    benchmark_title_generation = (
+        benchmark_analysis.get("title_generation")
+        if isinstance(benchmark_analysis.get("title_generation"), dict)
+        else {}
+    )
+    return (
+        data.get("generated_title")
+        or data.get("upload_title")
+        or structure.get("upload_title")
+        or title_generation.get("generated_title")
+        or title_generation.get("final_title")
+        or benchmark_title_generation.get("generated_title")
+        or benchmark_title_generation.get("final_title")
+        or ""
+    )
+
+
+def _scene_has_image_prompt(scene: dict) -> bool:
+    return bool(
+        str(
+            scene.get("image_prompt")
+            or scene.get("prompt_en")
+            or scene.get("visual_prompt")
+            or scene.get("visual_description")
+            or ""
+        ).strip()
+    )
+
+
+def _scene_has_video_prompt(scene: dict) -> bool:
+    return bool(
+        str(
+            scene.get("video_prompt")
+            or scene.get("motion_desc")
+            or scene.get("flow_prompt")
+            or scene.get("camera_motion")
+            or ""
+        ).strip()
+    )
+
+
+def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
+    raw_status = str(structure.get("media_prompt_status") or "").strip()
+    if raw_status in {"ready", "fallback_ready"}:
+        return raw_status
+    valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
+    if valid_scenes and all(_scene_has_image_prompt(scene) and _scene_has_video_prompt(scene) for scene in valid_scenes):
+        return "ready"
+    return raw_status or "missing"
+
+
+def _generated_result_summary(path: Path) -> dict | None:
+    data = _read_generated_result(path)
+    if not isinstance(data, dict):
+        return None
+    structure = data.get("structure") if isinstance(data.get("structure"), dict) else {}
+    scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    script = str(data.get("script") or "")
+    stat = path.stat()
+    return {
+        "id": path.stem,
+        "filename": path.name,
+        "topic_queue_id": data.get("topic_queue_id") or path.stem,
+        "category": data.get("category") or "",
+        "title": _result_title(data),
+        "scene_count": len(scenes),
+        "script_chars": len(script),
+        "has_script": bool(script.strip()),
+        "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
+        "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
+        "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
+        "media_prompt_status": _structure_media_prompt_status(structure, scenes),
+        "updated_at": stat.st_mtime,
+        "completed_at": data.get("completed_at") or stat.st_mtime,
+    }
+
+
+def _topic_key(value) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _generated_result_ts(data: dict, fallback: float | None = None) -> float | None:
+    for key in ("completed_at", "updated_at", "created_at", "started_at"):
+        value = data.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return fallback
+
+
+def _merge_topic_generated_result(target: dict, data: dict, *, source: str, source_id: str, path: Path | None = None, fallback_ts: float | None = None):
+    job_type = data.get("job_type") or source
+    status = data.get("status") or ""
+    ts = _generated_result_ts(data, fallback_ts)
+    target.setdefault("_sources", []).append({
+        "source": source,
+        "source_id": source_id,
+        "job_type": job_type,
+        "status": status,
+        "path": str(path) if path else "",
+        "updated_at": ts,
+    })
+    if ts and (not target.get("completed_at") or ts > target.get("completed_at", 0)):
+        target["completed_at"] = ts
+        target["updated_at"] = ts
+    if data.get("topic_queue_id") is not None:
+        target["topic_queue_id"] = data.get("topic_queue_id")
+    for key in (
+        "category",
+        "topic",
+        "upload_title",
+        "generated_title",
+        "title_generation",
+        "benchmark_analysis",
+        "research_bundle",
+        "narrative_blueprint",
+        "script_quality_report",
+        "publish_metadata",
+    ):
+        value = data.get(key)
+        if value not in (None, "", [], {}):
+            target[key] = value
+    if isinstance(data.get("structure"), dict):
+        target["structure"] = data["structure"]
+    if isinstance(data.get("script"), str) and data["script"].strip():
+        target["script"] = data["script"]
+    if data.get("char_count"):
+        target["char_count"] = data.get("char_count")
+    if data.get("error") or data.get("error_message"):
+        target.setdefault("errors", []).append(data.get("error") or data.get("error_message"))
+    target["status"] = status or target.get("status") or "PARTIAL"
+
+
+def _topic_generated_result_summary(result_id: str, data: dict) -> dict:
+    structure = data.get("structure") if isinstance(data.get("structure"), dict) else {}
+    scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    script = str(data.get("script") or "")
+    sources = data.get("_sources") if isinstance(data.get("_sources"), list) else []
+    job_types = {str(source.get("job_type") or "") for source in sources}
+    status = data.get("status") or ""
+    return {
+        "id": result_id,
+        "filename": result_id,
+        "topic_queue_id": data.get("topic_queue_id") or result_id,
+        "category": data.get("category") or data.get("topic") or "",
+        "title": _result_title(data),
+        "scene_count": len(scenes),
+        "script_chars": len(script),
+        "has_script": bool(script.strip()),
+        "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
+        "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
+        "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
+        "media_prompt_status": _structure_media_prompt_status(structure, scenes),
+        "status": status,
+        "stage": "script" if script.strip() else ("plan" if "script_plan_generate" in job_types and scenes else "title"),
+        "updated_at": data.get("updated_at") or data.get("completed_at"),
+        "completed_at": data.get("completed_at") or data.get("updated_at"),
+    }
+
+
+def _collect_topic_generated_results(limit: int = 500) -> dict[str, dict]:
+    results: dict[str, dict] = {}
+
+    if HERMES_RESULTS_DIR.exists():
+        paths = sorted(HERMES_RESULTS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in paths[:limit]:
+            data = _read_generated_result(path)
+            if not isinstance(data, dict) or data.get("job_type") not in GENERATED_RESULT_JOB_TYPES:
+                continue
+            topic_id = _topic_key(data.get("topic_queue_id"))
+            if not topic_id:
+                continue
+            result_id = f"topic_{topic_id}"
+            target = results.setdefault(result_id, {"id": result_id, "topic_queue_id": data.get("topic_queue_id")})
+            _merge_topic_generated_result(
+                target,
+                data,
+                source="hermes_results",
+                source_id=path.stem,
+                path=path,
+                fallback_ts=path.stat().st_mtime,
+            )
+
+    for job in job_store.list_jobs(limit=limit):
+        if job.get("source") != "autopilot" or job.get("job_type") not in GENERATED_RESULT_JOB_TYPES:
+            continue
+        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+        topic_id = _topic_key(payload.get("topic_queue_id"))
+        if not topic_id:
+            continue
+        result_id = f"topic_{topic_id}"
+        target = results.setdefault(result_id, {"id": result_id, "topic_queue_id": payload.get("topic_queue_id")})
+        data = {
+            **payload,
+            "job_id": job.get("job_id"),
+            "job_type": job.get("job_type"),
+            "status": job.get("status"),
+            "error_message": job.get("error_message"),
+            "created_at": job.get("created_at"),
+            "updated_at": job.get("updated_at") or job.get("completed_at") or job.get("created_at"),
+        }
+        _merge_topic_generated_result(
+            target,
+            data,
+            source="job_store",
+            source_id=job.get("job_id") or "",
+            fallback_ts=job.get("updated_at") or job.get("completed_at") or job.get("created_at"),
+        )
+
+    return results
 
 
 STYLE_PRESET_TYPES = {"image", "script"}
@@ -138,6 +404,13 @@ async def api_status(
 ):
     require_auth(authorization, cookie)
     snap = _read_manager_status()
+    autopilot_status = autopilot_manager.get_status()
+    if autopilot_status.get("is_running"):
+        hermes_process = snap.setdefault("processes", {}).setdefault("hermes_worker", {})
+        # Autopilot is the user-facing lifecycle for Hermes. Surface it in
+        # the process card even while the child process state file catches up.
+        hermes_process["status"] = "running"
+        hermes_process["current_job"] = autopilot_status.get("current_step") or "hermes_autopilot"
     snap["render_status"] = render_status_display()
     return snap
 
@@ -566,12 +839,16 @@ async def api_get_settings(
     keys = [
         ("GEMINI_API_KEY", "Gemini API 키"),
         ("CLAUDE_API_KEY", "Claude API 키"),
+        ("GLM_API_KEY", "GLM API 키"),
+        ("GLM_BASE_URL", "GLM Base URL"),
         ("YOUTUBE_API_KEY", "YouTube Data API 키"),
         ("ELEVENLABS_API_KEY", "ElevenLabs API 키"),
         ("SUNO_API_KEY", "Suno API 키"),
-        ("TOPIC_GENERATION_MODEL", "주제 생성 모델"),
+        ("TOPIC_GENERATION_MODEL", "제목 생성 모델"),
+        ("TITLE_GENERATION_MODEL", "제목 후보 모델"),
         ("SCRIPT_GENERATION_MODEL", "대본 생성 모델"),
         ("SCRIPT_PLANNING_MODEL", "대본 구조 모델"),
+        ("IMAGE_PROMPT_MODEL", "이미지/영상 프롬프트 모델"),
     ]
     result = []
     for attr, label in keys:
@@ -599,9 +876,9 @@ async def api_set_setting(
         return {"ok": True, "message": "변경 없음 (마스킹된 값)"}
         
     allowed = {
-        "GEMINI_API_KEY", "CLAUDE_API_KEY", "YOUTUBE_API_KEY",
+        "GEMINI_API_KEY", "CLAUDE_API_KEY", "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
-        "TOPIC_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL",
+        "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
     }
     if key not in allowed:
         return {"error": f"허용되지 않은 설정 키: {key}"}
@@ -657,7 +934,17 @@ async def api_autopilot_start(
 ):
     require_auth(authorization, cookie)
     custom_settings = body.get("settings") if body else None
-    return await autopilot_manager.start(custom_settings)
+    from ipc import submit_command, wait_for_result
+
+    worker_result = wait_for_result(submit_command("start_process", {"name": "hermes_worker"}))
+    if not worker_result.get("success"):
+        return {
+            "success": False,
+            "error": worker_result.get("error") or "Hermes Worker start failed",
+        }
+
+    autopilot_result = await autopilot_manager.start(custom_settings)
+    return {**autopilot_result, "worker_started": True}
 
 
 @app.post("/api/autopilot/hermes/save_settings")
@@ -696,6 +983,69 @@ async def api_autopilot_stop(
 # ---------------------------------------------------------------------------
 # Login page (serves HTML — no auth required)
 # ---------------------------------------------------------------------------
+
+@app.get("/api/generated-results")
+async def api_generated_results(
+    limit: int = 100,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    AUTOPILOT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    rows = []
+    seen_ids = set()
+    seen_topic_ids = set()
+    for path in sorted(AUTOPILOT_RESULTS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        summary = _generated_result_summary(path)
+        if summary:
+            seen_ids.add(summary["id"])
+            if summary.get("topic_queue_id") is not None:
+                seen_topic_ids.add(_topic_key(summary.get("topic_queue_id")))
+            rows.append(summary)
+    for result_id, data in _collect_topic_generated_results(limit=max(100, min(limit * 10, 1000))).items():
+        if result_id in seen_ids:
+            continue
+        topic_id = _topic_key(data.get("topic_queue_id"))
+        if topic_id and topic_id in seen_topic_ids:
+            continue
+        summary = _topic_generated_result_summary(result_id, data)
+        if summary.get("has_script") or summary.get("scene_count"):
+            rows.append(summary)
+    rows.sort(key=lambda row: row.get("completed_at") or row.get("updated_at") or 0, reverse=True)
+    rows = rows[:max(1, min(limit, 500))]
+    return {
+        "results": rows,
+        "dir": f"{AUTOPILOT_RESULTS_DIR} + {HERMES_RESULTS_DIR}",
+        "diagnostics": _autopilot_generation_diagnostics(),
+    }
+
+
+@app.get("/api/generated-results/{result_id}")
+async def api_generated_result_detail(
+    result_id: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    safe_id = _safe_result_id(result_id)
+    if not safe_id:
+        raise HTTPException(400, "Invalid result id")
+    if safe_id.startswith("topic_"):
+        topic_results = _collect_topic_generated_results(limit=1000)
+        data = topic_results.get(safe_id)
+        if not isinstance(data, dict):
+            raise HTTPException(404, "Generated result not found")
+        data["_file"] = {"id": safe_id, "path": "job_store/hermes_results", "updated_at": data.get("updated_at") or data.get("completed_at")}
+        return data
+    path = AUTOPILOT_RESULTS_DIR / f"{safe_id}.json"
+    if not path.exists():
+        raise HTTPException(404, "Generated result not found")
+    data = _read_generated_result(path)
+    if not isinstance(data, dict):
+        raise HTTPException(500, "Generated result JSON is invalid")
+    data["_file"] = {"id": safe_id, "path": str(path), "updated_at": path.stat().st_mtime}
+    return data
+
 
 @app.get("/login")
 async def login_page():
@@ -941,6 +1291,16 @@ tr:hover { background: #161b22; }
 
 /* ── Result viewer ── */
 .result-viewer { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+.generated-result-layout { display: grid; grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr); gap: 16px; }
+.generated-result-detail { display: flex; flex-direction: column; gap: 14px; }
+.generated-section { border: 1px solid #21262d; border-radius: 8px; padding: 14px; background: rgba(13,17,23,0.45); }
+.generated-section h4 { margin: 0 0 10px; font-size: 14px; color: #e6edf3; }
+.generated-meta { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; font-size: 13px; }
+.generated-meta .label { color: #8b949e; }
+.scene-card { border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-top: 10px; background: #0d1117; }
+.scene-card .scene-title { font-weight: 700; color: #58a6ff; margin-bottom: 8px; }
+.prompt-box { margin-top: 8px; padding: 10px; border-radius: 6px; border: 1px solid #21262d; background: #010409; white-space: pre-wrap; line-height: 1.55; font-size: 12px; max-height: 220px; overflow-y: auto; }
+@media (max-width: 1100px) { .generated-result-layout { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -967,8 +1327,11 @@ tr:hover { background: #161b22; }
       <div class="nav-item" data-tab="hermes-autopilot" onclick="switchTab('hermes-autopilot')">
         <span class="icon">&#x1F916;</span> Hermes 자동 생성
       </div>
+      <div class="nav-item" data-tab="generated-results" onclick="switchTab('generated-results')">
+        <span class="icon">&#x1F4D1;</span> 생성 결과 확인
+      </div>
       <div class="nav-item" data-tab="hermes-gen" onclick="switchTab('hermes-gen')">
-        <span class="icon">&#x1F4DD;</span> Hermes 주제 생성
+        <span class="icon">&#x1F4DD;</span> Hermes 제목 생성
       </div>
       <div class="nav-item" data-tab="styles" onclick="switchTab('styles')">
         <span class="icon">&#x1F3A8;</span> 스타일 관리
@@ -1159,6 +1522,30 @@ tr:hover { background: #161b22; }
       </div>
 
       <!-- ═══ Tab: History ═══ -->
+      <div class="tab-content" id="tab-generated-results">
+        <div class="generated-result-layout">
+          <div class="card">
+            <div class="card-title">&#x1F4D1; 생성 결과 목록</div>
+            <p class="info" style="margin:-4px 0 16px">Hermes 자동 생성이 저장한 제목, 기획, 대본, 이미지 프롬프트, 영상 프롬프트를 확인합니다.</p>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="btn btn-sm" onclick="loadGeneratedResults()">&#x1F504; 새로고침</button>
+              <span class="info" id="generated-results-dir"></span>
+            </div>
+            <table>
+              <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+              <tbody id="generated-results-body"></tbody>
+            </table>
+            <div class="empty" id="generated-results-empty" style="display:none"><div class="icon">&#x1F4ED;</div>저장된 생성 결과가 없습니다</div>
+          </div>
+          <div class="card">
+            <div class="card-title">&#x1F50E; 상세 확인</div>
+            <div id="generated-result-detail" class="generated-result-detail">
+              <div class="empty" style="padding:24px"><div class="icon">&#x1F4CC;</div>왼쪽 목록에서 결과를 선택하세요</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-content" id="tab-history">
         <div class="card">
           <div class="card-title">필터</div>
@@ -1522,12 +1909,13 @@ function showToast(msg, type='success') {
 
 /* ── Tab switching ── */
 const tabTitles = {
+  'generated-results': '생성 결과 확인',
   'overview': '대시보드',
   'rendering': '렌더링 상황',
   'topic-search': '주제 찾기',
   'yt-explore': 'YouTube 탐색',
   'hermes-autopilot': 'Hermes 자동 생성',
-  'hermes-gen': 'Hermes 주제 생성',
+  'hermes-gen': 'Hermes 제목 생성',
   'styles': '스타일 관리',
   'category-image-styles': '카테고리 이미지 스타일',
   'history': '작업 히스토리',
@@ -1549,6 +1937,7 @@ function switchTab(tabId) {
   if (tabId === 'category-image-styles') loadCategoryImageStyles();
   if (tabId === 'yt-explore') initYtExplore();
   if (tabId === 'hermes-autopilot') loadAutopilotStatus();
+  if (tabId === 'generated-results') loadGeneratedResults();
 }
 
 /* ── Time formatting ── */
@@ -1593,7 +1982,40 @@ function humanStatus(s) {
 function humanJobType(type) {
   return JOB_TYPE_LABELS[type] || type || '-';
 }
+function jobCategory(job) {
+  const payload = job?.payload || {};
+  return String(
+    payload.category ||
+    payload.category_name ||
+    (job?.job_type === 'topic_benchmark_analyze' ? payload.keyword : '') ||
+    payload.topic ||
+    ''
+  ).trim();
+}
+function jobTitle(job) {
+  const payload = job?.payload || {};
+  return String(payload.upload_title || payload.generated_title || '').trim();
+}
 function jobDescription(job) {
+  const type = job?.job_type;
+  const category = jobCategory(job);
+  const title = jobTitle(job);
+  const context = [
+    category ? `카테고리: ${category}` : '',
+    title ? `제목: ${title}` : '',
+  ].filter(Boolean).join(' · ');
+  const descriptions = {
+    render_video: '최종 영상 렌더링 및 결과 파일 저장',
+    topic_research: '키워드·카테고리 관련 주제 자료 조사',
+    topic_benchmark_analyze: '고성과 영상의 제목·구성·반응 분석',
+    web_research: '제목과 카테고리에 필요한 웹 자료 조사',
+    script_plan_generate: '씬 구조·오프닝·결말 및 이미지·영상 프롬프트 기획',
+    script_generate: '제목 약속에 맞춘 대본 작성 및 품질 검수',
+  };
+  const task = descriptions[type] || JOB_TYPE_DESCRIPTIONS[type] || '작업 정보를 처리하는 중';
+  return context ? `${context} · ${task}` : task;
+}
+function legacyJobDescription(job) {
   return JOB_TYPE_DESCRIPTIONS[job?.job_type] || '작업 정보를 처리하고 있습니다.';
 }
 function displayProgress(job) {
@@ -1621,8 +2043,16 @@ function renderProcessCards(status, jobs = []) {
       : (info.current_job?.job_id || info.current_job?.id || '');
     const activeJob = jobs.find(job => job.job_id === currentJobId);
     const currentJob = activeJob
-      ? `${humanJobType(activeJob.job_type)} - ${jobDescription(activeJob)}`
+      ? `${humanJobType(activeJob.job_type)} - ${escapeHtml(jobDescription(activeJob))}`
       : (currentJobId ? `작업 처리 중 (${truncate(currentJobId, 8)})` : '진행 중인 작업 없음');
+    const jobInfo = info.current_job && typeof info.current_job === 'object' ? info.current_job : null;
+    const currentJobDetails = jobInfo && (jobInfo.project_name || jobInfo.asset_file_name || jobInfo.progress_message)
+      ? `<div class="info" style="margin-top:6px;padding:8px 10px;border:1px solid rgba(88,166,255,.22);border-radius:6px;background:rgba(13,17,23,.55)">
+          ${jobInfo.project_name ? `<div><span style="color:#8b949e">프로젝트:</span> ${escapeHtml(jobInfo.project_name)}</div>` : ''}
+          ${jobInfo.asset_file_name ? `<div><span style="color:#8b949e">파일:</span> ${escapeHtml(jobInfo.asset_file_name)}</div>` : ''}
+          ${jobInfo.progress_message ? `<div><span style="color:#8b949e">진행:</span> ${escapeHtml(jobInfo.progress_message)}</div>` : ''}
+        </div>`
+      : '';
     const workerDescription = {
       render_worker: '영상 조립, 렌더링, 결과 파일 저장을 담당합니다.',
       hermes_worker: '주제 탐색, 고성과 분석, 대본 기획과 대본 생성을 담당합니다.',
@@ -1648,11 +2078,12 @@ function renderProcessCards(status, jobs = []) {
         <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
         <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
       </div>
-      <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">영상 수: 1개 = 벤치마크·기획·대본의 내부 3단계를 완료한 영상 1개입니다.</div>` : `
+      <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">영상 수: 1개 = 벤치마크 분석·제목 생성·웹 자료 조사·씬 기획 및 이미지·영상 프롬프트 생성·대본 작성·설명 생성을 포함한 내부 6단계를 완료한 영상 1개입니다.</div>` : `
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-sm btn-start" onclick="startProcess('${name}')" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
         <button class="btn btn-sm btn-stop" onclick="stopProcess('${name}')" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
       </div>`}
+      ${currentJobDetails}
     </div>`;
   }
   if (status.manager_alive === false) {
@@ -1662,6 +2093,38 @@ function renderProcessCards(status, jobs = []) {
 }
 
 /* ── Recent jobs ── */
+function isHermesGenerationJob(job) {
+  return job?.source === 'autopilot' || [
+    'topic_benchmark_analyze',
+    'topic_research',
+    'web_research',
+    'script_plan_generate',
+    'script_generate',
+  ].includes(job?.job_type);
+}
+
+async function restartHermesFromCancelled(jobId) {
+  try {
+    const current = await api('GET', '/api/autopilot/hermes/status');
+    const currentSettings = current?.settings || {};
+    const settings = {
+      ...currentSettings,
+      mode: currentSettings.mode || 'target_limit',
+      target_limit: Number(currentSettings.target_limit || 1),
+      resume: true,
+    };
+    const result = await api('POST', '/api/autopilot/hermes/start', { settings });
+    if (!result || result.success === false) {
+      showToast(`재시작 실패: ${result?.error || '응답 없음'}`, 'error');
+      return;
+    }
+    showToast(`중단된 작업 ${String(jobId).substring(0, 8)}부터 이어서 시작했습니다.`, 'success');
+    setTimeout(refreshAll, 800);
+  } catch (e) {
+    showToast(`재시작 실패: ${e}`, 'error');
+  }
+}
+
 function renderRecentJobs(jobs) {
   const el = document.getElementById('recent-jobs-body');
   const empty = document.getElementById('recent-empty');
@@ -1669,8 +2132,10 @@ function renderRecentJobs(jobs) {
   empty.style.display = 'none';
   el.innerHTML = jobs.slice(0, 10).map(j => `<tr>
     <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${jobDescription(j)}</span></td>
-    <td>${statusBadge(j.status)}</td>
+    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
+    <td>${statusBadge(j.status)}${j.status === 'CANCELED' && isHermesGenerationJob(j)
+      ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">재시작</button>`
+      : ''}</td>
     <td>${displayProgress(j)}%</td>
     <td>${fmtTime(j.created_at)}</td>
   </tr>`).join('');
@@ -1711,6 +2176,207 @@ function loadRenderTab() {
 }
 
 /* ── History tab ── */
+/* Generated results tab */
+let generatedResultsLoaded = false;
+
+function getGeneratedTitle(data) {
+  const structure = data?.structure || {};
+  const titleGeneration = getGeneratedTitleGeneration(data);
+  return data?.generated_title || data?.upload_title || structure.upload_title || titleGeneration.generated_title || titleGeneration.final_title || '-';
+}
+
+function getGeneratedTitleGeneration(data) {
+  if (data?.title_generation && Object.keys(data.title_generation).length) return data.title_generation;
+  const benchmarkTitleGeneration = data?.benchmark_analysis?.title_generation;
+  if (benchmarkTitleGeneration && Object.keys(benchmarkTitleGeneration).length) return benchmarkTitleGeneration;
+  return {};
+}
+
+function getGeneratedPublishMetadata(data) {
+  if (data?.publish_metadata && Object.keys(data.publish_metadata).length) return data.publish_metadata;
+  const progressMetadata = data?.progress_payload?.publish_metadata;
+  if (progressMetadata && Object.keys(progressMetadata).length) return progressMetadata;
+  return {};
+}
+
+function getGeneratedScenes(data) {
+  const scenes = data?.structure?.scenes;
+  return Array.isArray(scenes) ? scenes : [];
+}
+
+function sceneImagePrompt(scene) {
+  return String(scene?.image_prompt || scene?.prompt_en || scene?.visual_prompt || scene?.visual_description || '').trim();
+}
+
+function sceneVideoPrompt(scene) {
+  return String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim();
+}
+
+function hasGeneratedMediaPrompts(structure, scenes) {
+  const status = String(structure?.media_prompt_status || '').trim();
+  if (status === 'ready' || status === 'fallback_ready') return true;
+  return Array.isArray(scenes)
+    && scenes.length > 0
+    && scenes.every(scene => sceneImagePrompt(scene) && sceneVideoPrompt(scene));
+}
+
+function renderGeneratedEmptyState(diagnostics) {
+  const lines = [];
+  if (diagnostics) {
+    lines.push(`Current step: ${diagnostics.current_step || '-'}`);
+    lines.push(`Completed final results: ${diagnostics.generated_count || 0}`);
+    lines.push(`Benchmark/partial result files: ${diagnostics.partial_result_count || 0}`);
+    if (diagnostics.latest_partial_at) lines.push(`Latest partial file: ${fmtTime(diagnostics.latest_partial_at)}`);
+    const recentLogs = Array.isArray(diagnostics.recent_logs) ? diagnostics.recent_logs.slice(-4) : [];
+    if (recentLogs.length) {
+      lines.push('Recent logs:');
+      recentLogs.forEach(log => lines.push(`- ${String(log).replace(/^\\[[^\\]]+\\]\\s*/, '')}`));
+    }
+  }
+  const detail = lines.length
+    ? `<div class="prompt-box" style="margin-top:12px;text-align:left;white-space:pre-wrap">${escapeHtml(lines.join('\n'))}</div>`
+    : '';
+  return `<div class="icon">&#x1F4ED;</div>저장 완료된 자동 생성 결과가 없습니다${detail}`;
+}
+
+async function loadGeneratedResults() {
+  const body = document.getElementById('generated-results-body');
+  const empty = document.getElementById('generated-results-empty');
+  const dir = document.getElementById('generated-results-dir');
+  if (!body || !empty) return;
+  body.innerHTML = '<tr><td colspan="5" class="info">생성 결과를 불러오는 중...</td></tr>';
+  empty.style.display = 'none';
+  const data = await api('GET', '/api/generated-results?limit=100');
+  if (!data) return;
+  if (dir) dir.textContent = data.dir || '';
+  const rows = data.results || [];
+  if (!rows.length) {
+    body.innerHTML = '';
+    empty.innerHTML = renderGeneratedEmptyState(data.diagnostics);
+    empty.style.display = 'block';
+    return;
+  }
+  body.innerHTML = rows.map(row => {
+    const ready = row.has_image_prompts && row.has_video_prompts;
+    const promptState = ready
+      ? '프롬프트 준비됨'
+      : (row.has_legacy_visual_direction ? '구버전: 시각 연출만 있음' : '프롬프트 없음');
+    const scriptState = row.has_script ? `${row.script_chars || 0}자` : '대본 없음';
+    const stageLabel = row.stage === 'script' ? '대본 생성' : (row.stage === 'plan' ? '기획 생성' : '제목 생성');
+    const statusText = row.status && row.status !== 'COMPLETED' ? ` · ${row.status}` : '';
+    return `<tr>
+      <td><a href="#" onclick="showGeneratedResult('${escapeHtml(row.id)}');return false">${escapeHtml(row.topic_queue_id || row.id)}</a></td>
+      <td>${escapeHtml(row.category || '-')}</td>
+      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong></td>
+      <td>${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0}장면, ${scriptState}, ${promptState}</span></td>
+      <td>${fmtTime(row.completed_at || row.updated_at)}</td>
+    </tr>`;
+  }).join('');
+  generatedResultsLoaded = true;
+  if (rows[0]) showGeneratedResult(rows[0].id);
+}
+
+async function showGeneratedResult(resultId) {
+  const container = document.getElementById('generated-result-detail');
+  if (!container) return;
+  container.innerHTML = '<div class="info">상세 결과를 불러오는 중...</div>';
+  const data = await api('GET', `/api/generated-results/${encodeURIComponent(resultId)}`);
+  if (!data) return;
+  const structure = data.structure || {};
+  const scenes = getGeneratedScenes(data);
+  const script = data.script || '';
+  const titleGeneration = getGeneratedTitleGeneration(data);
+  const publishMetadata = getGeneratedPublishMetadata(data);
+  const sources = Array.isArray(data._sources) ? data._sources : [];
+  const errors = Array.isArray(data.errors) ? data.errors : [];
+  const metaHtml = `
+    <div class="generated-meta">
+      <div class="label">파일 ID</div><div>${escapeHtml(data._file?.id || resultId)}</div>
+      <div class="label">Queue ID</div><div>${escapeHtml(data.topic_queue_id || '-')}</div>
+      <div class="label">카테고리</div><div>${escapeHtml(data.category || data.topic || '-')}</div>
+      <div class="label">상태</div><div>${escapeHtml(data.status || '-')}</div>
+      <div class="label">생성일</div><div>${fmtTime(data.completed_at || data._file?.updated_at)}</div>
+      <div class="label">제목</div><div><strong>${escapeHtml(getGeneratedTitle(data))}</strong></div>
+    </div>`;
+  const planBits = [
+    ['카테고리', data.category || structure.topic || '-'],
+    ['제목 약속', structure.title_promise],
+    ['오프닝 훅', structure.opening_hook],
+    ['결말/페이오프', structure.payoff],
+    ['전체 무드', structure.global_mood],
+  ].filter(([, value]) => value).map(([label, value]) => `<div class="label">${escapeHtml(label)}</div><div>${escapeHtml(value)}</div>`).join('');
+  const titleJson = Object.keys(titleGeneration).length
+    ? `<div class="prompt-box">${escapeHtml(JSON.stringify(titleGeneration, null, 2))}</div>`
+    : '<div class="info">제목 생성 상세 데이터가 없습니다.</div>';
+  const publishTitle = Array.isArray(publishMetadata.titles) && publishMetadata.titles.length
+    ? publishMetadata.titles[0]
+    : getGeneratedTitle(data);
+  const publishDescription = String(publishMetadata.description || '').trim();
+  const publishTags = Array.isArray(publishMetadata.tags) ? publishMetadata.tags : [];
+  const publishHashtags = Array.isArray(publishMetadata.hashtags) ? publishMetadata.hashtags : [];
+  const metadataHtml = Object.keys(publishMetadata).length
+    ? `<div class="generated-meta">
+        <div class="label">Title</div><div>${escapeHtml(publishTitle || '-')}</div>
+        <div class="label">Description</div><div><div class="prompt-box">${escapeHtml(publishDescription || '-')}</div></div>
+        <div class="label">Tags</div><div>${escapeHtml(publishTags.join(', ') || '-')}</div>
+        <div class="label">Hashtags</div><div>${escapeHtml(publishHashtags.join(' ') || '-')}</div>
+      </div>`
+    : '<div class="info">YouTube metadata is not available.</div>';
+  const mediaReady = hasGeneratedMediaPrompts(structure, scenes);
+  const mediaStatusLabel = String(structure.media_prompt_status || (mediaReady ? 'ready' : 'missing'));
+  const mediaStatus = mediaReady
+    ? `<span class="badge badge-completed">${escapeHtml(mediaStatusLabel)}</span>`
+    : '<span class="badge badge-failed">missing</span> <span class="info">이 결과에는 image_prompt/video_prompt가 저장되어 있지 않습니다. 구버전 자동생성 결과일 가능성이 큽니다.</span>';
+  const sceneHtml = scenes.length ? scenes.map((scene, idx) => `
+    <div class="scene-card">
+      <div class="scene-title">Scene ${idx + 1}</div>
+      <div class="info">${escapeHtml(scene.scene_summary || scene.summary || '-')}</div>
+      ${scene.scene_situation ? `<div class="prompt-box">${escapeHtml(scene.scene_situation)}</div>` : ''}
+      ${(!sceneImagePrompt(scene) && !sceneVideoPrompt(scene) && scene.visual_direction) ? `
+      <div style="margin-top:10px;font-weight:600">구버전 시각 연출 방향</div>
+      <div class="prompt-box">${escapeHtml(scene.visual_direction)}</div>` : ''}
+      <div style="margin-top:10px;font-weight:600">이미지 프롬프트</div>
+      <div class="prompt-box">${escapeHtml(scene.image_prompt || '저장된 이미지 프롬프트가 없습니다.')}</div>
+      <div style="margin-top:10px;font-weight:600">영상 프롬프트</div>
+      <div class="prompt-box">${escapeHtml(scene.video_prompt || '저장된 영상 프롬프트가 없습니다.')}</div>
+    </div>
+  `).join('') : '<div class="info">장면 데이터가 없습니다.</div>';
+  const errorsHtml = errors.length
+    ? `<div class="generated-section"><h4>오류 / 중단 사유</h4><div class="prompt-box">${escapeHtml(errors.join('\n\n'))}</div></div>`
+    : '';
+  const sourceHtml = sources.length
+    ? `<div class="generated-section"><h4>저장 소스</h4><div class="prompt-box">${escapeHtml(JSON.stringify(sources, null, 2))}</div></div>`
+    : '';
+  container.innerHTML = `
+    <div class="generated-section">
+      <h4>기본 정보</h4>
+      ${metaHtml}
+    </div>
+    <div class="generated-section">
+      <h4>제목 생성</h4>
+      ${titleJson}
+    </div>
+    <div class="generated-section">
+      <h4>YouTube Metadata</h4>
+      ${metadataHtml}
+    </div>
+    <div class="generated-section">
+      <h4>대본 기획</h4>
+      ${planBits ? `<div class="generated-meta">${planBits}</div>` : '<div class="info">기획 데이터가 없습니다.</div>'}
+    </div>
+    <div class="generated-section">
+      <h4>대본</h4>
+      <div class="result-viewer" style="max-height:420px">${escapeHtml(script || '대본 데이터가 없습니다.')}</div>
+    </div>
+    <div class="generated-section">
+      <h4>이미지 / 영상 프롬프트</h4>
+      <div style="margin-bottom:10px">${mediaStatus}</div>
+      ${sceneHtml}
+    </div>
+    ${errorsHtml}
+    ${sourceHtml}`;
+}
+
 function loadHistory() {
   const status = document.getElementById('hist-filter-status').value;
   const type = document.getElementById('hist-filter-type').value;
@@ -1726,7 +2392,7 @@ function loadHistory() {
     empty.style.display = 'none';
     el.innerHTML = jobs.map(j => `<tr>
       <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${jobDescription(j)}</span></td>
+      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
       <td>${statusBadge(j.status)}</td>
       <td>${displayProgress(j)}%</td>
       <td>${fmtTime(j.created_at)}</td>
@@ -1965,7 +2631,7 @@ async function showJobDetail(jobId) {
 
   let html = `<table style="width:100%">
     <tr><th>ID</th><td>${data.job_id}</td></tr>
-    <tr><th>작업</th><td><strong>${humanJobType(data.job_type)}</strong><br><span class="info">${jobDescription(data)}</span></td></tr>
+    <tr><th>작업</th><td><strong>${humanJobType(data.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(data))}</span></td></tr>
     <tr><th>상태</th><td>${statusBadge(data.status)}</td></tr>
     <tr><th>진행률</th><td>${displayProgress(data)}% — ${escapeHtml(data.progress_message || (data.status === 'COMPLETED' ? '작업 완료' : ''))}</td></tr>
     <tr><th>요청 위치</th><td>${escapeHtml(data.source || '-')}</td></tr>
@@ -2225,24 +2891,32 @@ async function doLogout() {
 const settingLabels = {
   'GEMINI_API_KEY': 'Gemini API Key',
   'CLAUDE_API_KEY': 'Claude API Key',
+  'GLM_API_KEY': 'GLM API Key',
+  'GLM_BASE_URL': 'GLM Base URL',
   'YOUTUBE_API_KEY': 'YouTube API Key',
   'ELEVENLABS_API_KEY': 'ElevenLabs API Key',
   'SUNO_API_KEY': 'Suno API Key',
-  'TOPIC_GENERATION_MODEL': '주제 생성 모델',
+  'TOPIC_GENERATION_MODEL': '제목 생성 모델',
+  'TITLE_GENERATION_MODEL': '제목 후보 모델',
   'SCRIPT_GENERATION_MODEL': '대본 생성 모델',
   'SCRIPT_PLANNING_MODEL': '구조 생성 모델',
+  'IMAGE_PROMPT_MODEL': '이미지/영상 프롬프트 모델',
 };
 
 /* Icons for API keys vs model settings */
 const settingIcons = {
   'GEMINI_API_KEY': '&#x1F4E7;',
   'CLAUDE_API_KEY': '&#x1F4E7;',
+  'GLM_API_KEY': '&#x1F4E7;',
+  'GLM_BASE_URL': '&#x1F310;',
   'YOUTUBE_API_KEY': '&#x1F3AC;',
   'ELEVENLABS_API_KEY': '&#x1F3A4;',
   'SUNO_API_KEY': '&#x1F3B5;',
   'TOPIC_GENERATION_MODEL': '&#x1F916;',
+  'TITLE_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_PLANNING_MODEL': '&#x1F916;',
+  'IMAGE_PROMPT_MODEL': '&#x1F3A8;',
 };
 
 /* Track original values for dirty detection */

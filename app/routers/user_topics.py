@@ -44,6 +44,194 @@ class BridgeError(Exception):
     callers handle explicitly via the returned dict."""
 
 
+def _first_text(*values) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _scene_image_prompt(scene: dict) -> str:
+    return _first_text(
+        scene.get("image_prompt"),
+        scene.get("prompt_en"),
+        scene.get("visual_prompt"),
+        scene.get("visual_description"),
+    )
+
+
+def _scene_video_prompt(scene: dict) -> str:
+    return _first_text(
+        scene.get("video_prompt"),
+        scene.get("motion_desc"),
+        scene.get("flow_prompt"),
+        scene.get("camera_motion"),
+    )
+
+
+def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
+    if not isinstance(structure, dict):
+        return False
+    scenes = structure.get("scenes")
+    if not isinstance(scenes, list) or not scenes:
+        return False
+    if structure.get("media_prompt_status") not in ("ready", "fallback_ready"):
+        return False
+    return all(
+        scene.get("media_prompt_status") in ("ready", "fallback_ready")
+        and _scene_image_prompt(scene)
+        and _scene_video_prompt(scene)
+        for scene in scenes
+        if isinstance(scene, dict)
+    ) and all(isinstance(scene, dict) for scene in scenes)
+
+
+def _is_fully_prepared_topic(topic: dict) -> bool:
+    return (
+        topic.get("pregenerated_structure_status") == "ready"
+        and topic.get("pregenerated_structure")
+        and topic.get("pregenerated_script_status") == "ready"
+        and str(topic.get("pregenerated_script") or "").strip()
+        and _structure_has_ready_media_prompts(topic.get("pregenerated_structure"))
+    )
+
+
+def _is_recommendable_topic(topic: dict) -> bool:
+    """Only expose topics whose full prepared asset bundle is ready to review."""
+    return (
+        topic.get("status") == "pending"
+        and bool(str(topic.get("generated_title") or "").strip())
+        and bool(topic.get("category_id") or topic.get("categories"))
+        and topic.get("pregenerated_structure_status") == "ready"
+        and bool(topic.get("pregenerated_structure"))
+        and topic.get("pregenerated_script_status") == "ready"
+        and bool(str(topic.get("pregenerated_script") or "").strip())
+        and _structure_has_ready_media_prompts(topic.get("pregenerated_structure"))
+    )
+
+
+def _image_prompts_from_pregenerated_structure(structure: dict) -> list[dict]:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    prompts: list[dict] = []
+    for index, scene in enumerate(scenes or [], start=1):
+        if not isinstance(scene, dict):
+            continue
+        scene_number = scene.get("scene_order") or index
+        scene_title = scene.get("scene_title") or scene.get("title") or f"Scene {scene_number}"
+        scene_text = _first_text(
+            scene.get("scene_situation"),
+            scene.get("scene_summary"),
+            scene.get("narration"),
+            scene.get("visual_description"),
+            scene.get("description"),
+            scene_title,
+        )
+        image_prompt = _scene_image_prompt(scene)
+        video_prompt = _scene_video_prompt(scene)
+        prompts.append({
+            "scene_number": scene_number,
+            "scene_title": scene_title,
+            "scene_text": scene_text,
+            "prompt_ko": scene_text,
+            "prompt_en": image_prompt,
+            "motion_desc": video_prompt,
+            "flow_prompt": video_prompt,
+            "visual_style": scene.get("visual_style") or "",
+            "lighting_hint": scene.get("lighting_hint") or "",
+            "shot_hints": scene.get("shot_hints") or [],
+        })
+    return prompts
+
+
+def _copy_prepared_topic_assets_to_project(project_id: int, topic_data: dict, normalized: dict | None = None) -> None:
+    copied_ready_media = False
+    structure = topic_data.get("pregenerated_structure")
+    if isinstance(structure, dict):
+        db.update_project_setting(
+            project_id,
+            "pregenerated_structure_json",
+            json.dumps(structure, ensure_ascii=False),
+        )
+        assigned_minutes = topic_data.get("assigned_duration_minutes") or topic_data.get("recommended_duration_minutes")
+        duration_seconds = structure.get("target_duration_seconds") or (
+            int(assigned_minutes) * 60 if str(assigned_minutes or "").isdigit() else None
+        )
+        db.save_script_structure(project_id, {
+            "hook": structure.get("opening_hook") or structure.get("global_mood") or "",
+            "sections": structure.get("scenes") or [],
+            "cta": structure.get("payoff") or "",
+            "style": (normalized or {}).get("script_style") or topic_data.get("assigned_script_style") or "default",
+            "duration": duration_seconds,
+        })
+        image_prompts = _image_prompts_from_pregenerated_structure(structure)
+        if image_prompts and _structure_has_ready_media_prompts(structure):
+            db.save_image_prompts(project_id, image_prompts)
+            copied_ready_media = True
+
+    script = str(topic_data.get("pregenerated_script") or "").strip()
+    if script:
+        db.update_project_setting(project_id, "pregenerated_script_text", script)
+        db.save_script(project_id, script, len(script), max(1, round(len(script) / 415 * 60)))
+
+    if _is_fully_prepared_topic(topic_data) and copied_ready_media:
+        db.update_project(project_id, status="image_prompted")
+
+
+def _copy_publish_metadata_to_project(project_id: int, topic_data: dict, generated_title: str = "") -> bool:
+    metadata = topic_data.get("publish_metadata")
+    if not metadata:
+        progress_payload = topic_data.get("progress_payload")
+        if isinstance(progress_payload, str):
+            try:
+                progress_payload = json.loads(progress_payload)
+            except Exception:
+                progress_payload = {}
+        if isinstance(progress_payload, dict):
+            metadata = progress_payload.get("publish_metadata")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    titles = metadata.get("titles")
+    if not isinstance(titles, list):
+        titles = []
+    titles = [str(title).strip() for title in titles if str(title or "").strip()]
+    if generated_title and generated_title not in titles:
+        titles.insert(0, generated_title)
+    if not titles:
+        return False
+
+    tags = metadata.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    hashtags = metadata.get("hashtags")
+    if not isinstance(hashtags, list):
+        hashtags = []
+
+    payload = {
+        "titles": titles[:5],
+        "description": str(metadata.get("description") or "").strip(),
+        "tags": [str(tag).strip().lstrip("#") for tag in tags if str(tag or "").strip()][:15],
+        "hashtags": [
+            value if value.startswith("#") else f"#{value.lstrip('#')}"
+            for value in (str(item or "").strip() for item in hashtags)
+            if value
+        ][:10],
+    }
+    db.update_project_setting(project_id, "metadata_longform", json.dumps(payload, ensure_ascii=False))
+    db.save_metadata(project_id, payload["titles"], payload["description"], payload["tags"], payload["hashtags"])
+    if payload["description"]:
+        db.update_project_setting(project_id, "description", payload["description"])
+    if payload["hashtags"]:
+        db.update_project_setting(project_id, "hashtags", ", ".join(payload["hashtags"]))
+    return True
+
+
 def _call_bridge(action: str, params: dict | None = None) -> dict:
     """[AIR-0227E-P4] Every Supabase read/write this router needs now goes
     through auth-web's POST /api/desktop-topics-bridge instead of a direct
@@ -479,7 +667,7 @@ def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
 
     return {
         "id": canonical_topic_id,
-        "topic": topic.get("topic"),
+        "topic": str(topic.get("generated_title") or topic.get("topic") or "").strip(),
         "category_name": category_name,
         "category_id": topic.get("category_id"),
         "language": language,
@@ -546,8 +734,9 @@ async def get_recommended_topics(
         try:
             cached = _call_bridge("get_cached_recommendations", {"limit": limit})
             rows = cached.get("rows") or []
-            if rows:
-                topics = [_normalize_topic_payload(topic, policy) for topic in _apply_multipliers_to_topics(rows)]
+            if rows and len(rows) >= limit:
+                prepared_rows = [topic for topic in rows if _is_recommendable_topic(topic)]
+                topics = [_normalize_topic_payload(topic, policy) for topic in _apply_multipliers_to_topics(prepared_rows)]
                 if topics and all(_has_complete_topic_metadata(topic) for topic in topics):
                     return {"status": "ok", "topics": topics, "cached": True}
         except Exception as e:
@@ -580,7 +769,9 @@ async def get_recommended_topics(
 
     # ????용츧????????????????ル봿????μ떝?롳쭗??????용츧??????곗뒭????
     try:
-        available_result = _call_bridge("get_pending_topics", {"limit": 100})
+        # Score a broader live pool before taking the user's page-sized result.
+        # Limiting the pool too early can hide an interest category behind newer rows.
+        available_result = _call_bridge("get_pending_topics", {"limit": 200})
         available_topics = available_result.get("rows") or []
     except HTTPException:
         raise
@@ -590,6 +781,8 @@ async def get_recommended_topics(
     # ????용츧???????袁ｋ쨨?耀붾굛????????????壤굿?????
     scored_topics = []
     for topic in available_topics:
+        if not _is_recommendable_topic(topic):
+            continue
         score = _calculate_topic_score(
             topic,
             user_prefs,
@@ -620,7 +813,7 @@ async def get_recommended_topics(
                 "user_id": None,
                 "employee_email": email,
                 "topic_queue_id": t.get("id"),
-                "topic": t.get("topic"),
+                "topic": t.get("generated_title") or t.get("topic"),
                 "language": _normalize_content_language(t.get("language")),
                 "recommended_duration_minutes": _normalize_topic_payload(t, policy).get("recommended_duration_minutes"),
                 "estimated_payout": _normalize_topic_payload(t, policy).get("estimated_payout"),
@@ -711,6 +904,8 @@ async def claim_topic(req: ClaimTopicRequest):
             detail = bridge_result.get("detail") or "topic_not_found"
             if detail == "topic_already_claimed":
                 raise HTTPException(status_code=409, detail="Topic already claimed")
+            if detail == "topic_not_ready":
+                raise HTTPException(status_code=409, detail="Topic preparation is not complete")
             raise HTTPException(status_code=404, detail="Topic not found")
 
         topic_data = bridge_result["topic"]
@@ -739,6 +934,18 @@ async def claim_topic(req: ClaimTopicRequest):
         db.update_project_setting(project_id, "script_style", normalized.get("script_style") or "default")
         db.update_project_setting(project_id, "image_style", normalized.get("image_style") or "realistic")
         db.update_project_setting(project_id, "style_locked", "1")
+        # Keep the initial Worker state as well as ready payloads. The local
+        # app refreshes these values from topics_queue while the user works.
+        db.update_project_setting(
+            project_id,
+            "pregenerated_structure_status",
+            topic_data.get("pregenerated_structure_status") or "queued",
+        )
+        db.update_project_setting(
+            project_id,
+            "pregenerated_script_status",
+            topic_data.get("pregenerated_script_status") or "queued",
+        )
 
         # [AIR-0230 §2c] 이 주제가 속한 카테고리에 실제 고성과 영상 분석이 있으면
         # (topics_queue.benchmark_analysis, 웹어드민이 topic_benchmark_analyze job으로
@@ -751,21 +958,29 @@ async def claim_topic(req: ClaimTopicRequest):
         if benchmark_analysis:
             db.update_project_setting(project_id, "benchmark_analysis_json", json.dumps(benchmark_analysis, ensure_ascii=False))
 
-        # [AIR-0230 §2d] 이 주제가 이미 기획(씬 구조)까지 사전생성돼 있으면
-        # (topics_queue.pregenerated_structure_status == 'ready', 웹어드민이 주제
-        # 생성 직후 상위 몇 개에 대해 script_plan_generate job을 큐잉해 채워둠) 그
-        # 구조를 그대로 넘겨서 generate_script_structure_api()가 AI를 다시 부르지
-        # 않고 즉시 반환하게 한다.
-        if topic_data.get("pregenerated_structure_status") == "ready" and topic_data.get("pregenerated_structure"):
-            db.update_project_setting(
-                project_id, "pregenerated_structure_json",
-                json.dumps(topic_data.get("pregenerated_structure"), ensure_ascii=False)
-            )
+        generated_title = (topic_data.get("generated_title") or "").strip()
+        if not generated_title and isinstance(benchmark_analysis, dict):
+            generated_title = (
+                (benchmark_analysis.get("title_generation") or {}).get("generated_title")
+                or ""
+            ).strip()
+        if generated_title:
+            db.update_project_setting(project_id, "generated_title", generated_title)
+        if not _copy_publish_metadata_to_project(project_id, topic_data, generated_title):
+            if generated_title:
+                db.save_metadata(project_id, [generated_title], "", [], [])
+        if isinstance(benchmark_analysis, dict):
+            title_generation = benchmark_analysis.get("title_generation") or {}
+            if title_generation:
+                db.update_project_setting(
+                    project_id,
+                    "title_generation_json",
+                    json.dumps(title_generation, ensure_ascii=False),
+                )
 
-        # [AIR-0230 §2d] 같은 방식으로 사전생성된 대본 본문도 복사한다.
-        # generate_script_api()가 이 값을 읽어 대본 생성 화면에 즉시 반영한다.
-        if topic_data.get("pregenerated_script_status") == "ready" and topic_data.get("pregenerated_script"):
-            db.update_project_setting(project_id, "pregenerated_script_text", topic_data.get("pregenerated_script"))
+        # Fully prepared queue rows are copied into the local project at claim
+        # time so plan/script/image-prompt pages open as review/edit surfaces.
+        _copy_prepared_topic_assets_to_project(project_id, topic_data, normalized)
 
         if project_mode == "longform":
             assigned_minutes = normalized.get("recommended_duration_minutes") or max(
@@ -788,10 +1003,14 @@ async def claim_topic(req: ClaimTopicRequest):
         # [AIR-0227E-P4] user_topic_recommendations.is_claimed is already set
         # by the bridge's claim_topic action itself - no separate PATCH needed here.
 
+        is_fully_prepared = _is_fully_prepared_topic(topic_data)
+
         return {
             "status": "ok",
             "project_id": project_id,
             "project_mode": project_mode,
+            "next_step": "image-gen" if is_fully_prepared else "script-plan",
+            "ready_for_image_generation": is_fully_prepared,
             "topic": {
                 "id": topic_data.get("id"),
                 "topic": normalized.get("topic"),
@@ -833,8 +1052,13 @@ def _calculate_topic_score(topic: dict, user_prefs: dict, filters: dict, user_em
 
     # ??꿔꺂??????轅붽틓???????
     if not filters.get('ignore_language'):
-        preferred_langs = user_prefs.get("preferred_languages", ["ko"])
-        if topic.get("language") in preferred_langs:
+        category = topic.get("categories") or {}
+        topic_lang = _normalize_content_language(topic.get("language") or category.get("language"))
+        preferred_langs = {
+            _normalize_content_language(lang)
+            for lang in user_prefs.get("preferred_languages", ["ko"])
+        }
+        if topic_lang in preferred_langs:
             score += 30
 
     # ?????몃뱥癲????沅걔?癲???轅붽틓???????
@@ -852,8 +1076,9 @@ def _calculate_topic_score(topic: dict, user_prefs: dict, filters: dict, user_em
 
     # ???ㅳ늾???雅?퍔瑗?????숈????轅붽틓???????
     if not filters.get('ignore_category'):
-        pref_categories = user_prefs.get("preferred_category_ids", [])
-        if pref_categories and topic.get("category_id") in pref_categories:
+        pref_categories = {str(category_id) for category_id in user_prefs.get("preferred_category_ids", [])}
+        topic_category_id = str(topic.get("category_id") or "")
+        if pref_categories and topic_category_id in pref_categories:
             score += 20
 
     # ?轅붽틓????彛??????용츧????????????

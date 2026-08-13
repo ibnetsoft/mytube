@@ -33,6 +33,7 @@ if not logger.handlers:
 
 STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 CATEGORIES = [
     "탈북사연",
@@ -74,6 +75,7 @@ class HermesAutopilotManager:
         self.current_step = "idle"
         self.current_category = ""
         self.current_topic = ""
+        self.current_topic_queue_id = ""
         self.current_image_style = ""
         self.logs = []
         self.loop_task = None
@@ -102,6 +104,7 @@ class HermesAutopilotManager:
                 self.current_step = data.get("current_step", "idle")
                 self.current_category = data.get("current_category", "")
                 self.current_topic = data.get("current_topic", "")
+                self.current_topic_queue_id = str(data.get("current_topic_queue_id") or "")
                 self.current_image_style = data.get("current_image_style", "")
                 self.logs = data.get("logs", [])
                 
@@ -135,6 +138,7 @@ class HermesAutopilotManager:
                 "current_step": self.current_step,
                 "current_category": self.current_category,
                 "current_topic": self.current_topic,
+                "current_topic_queue_id": self.current_topic_queue_id,
                 "current_image_style": self.current_image_style,
                 "logs": self.logs[-200:],  # keep last 200 logs
                 "settings": self.settings,
@@ -152,6 +156,15 @@ class HermesAutopilotManager:
         normalized = []
         for item in value:
             category = str(item or "").strip()
+            if category not in valid:
+                for encoding in ("latin1", "cp1252"):
+                    try:
+                        repaired = category.encode(encoding).decode("utf-8").strip()
+                    except UnicodeError:
+                        continue
+                    if repaired in valid:
+                        category = repaired
+                        break
             if category in valid and category not in normalized:
                 normalized.append(category)
         return normalized
@@ -208,6 +221,46 @@ class HermesAutopilotManager:
         logger.info(message)
         self._save_state()
 
+    async def _mark_current_topic_failed(self, error: Exception):
+        """Make a failed pre-generation visible to the user-facing topic/project."""
+        topic_id = str(self.current_topic_queue_id or "").strip()
+        if not topic_id:
+            return
+        supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+        if not supabase_url or not supabase_key:
+            return
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        }
+        message = str(error)[:2000]
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_id}",
+                    headers=headers,
+                    json={
+                        "pregenerated_structure_status": "failed",
+                        "pregenerated_script_status": "failed",
+                        "pregeneration_error": message,
+                    },
+                )
+                if response.status_code not in (200, 204):
+                    # Older schemas may not have pregeneration_error yet.
+                    await client.patch(
+                        f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_id}",
+                        headers=headers,
+                        json={
+                            "pregenerated_structure_status": "failed",
+                            "pregenerated_script_status": "failed",
+                        },
+                    )
+        except Exception as exc:
+            logger.warning("Failed to publish pre-generation failure for %s: %s", topic_id, exc)
+
     def get_status(self) -> dict:
         self._apply_settings()
         return {
@@ -223,6 +276,8 @@ class HermesAutopilotManager:
 
     async def start(self, custom_settings: dict = None):
         async with self._lock:
+            resume = bool((custom_settings or {}).get("resume"))
+            self._resume_requested = resume
             if self.is_running:
                 return {"success": False, "error": "이미 실행 중입니다."}
             
@@ -233,7 +288,8 @@ class HermesAutopilotManager:
             if not self.settings.get("active_categories"):
                 return {"success": False, "error": "At least one active category is required."}
             
-            self.session_stats["generated_count"] = 0
+            if not resume:
+                self.session_stats["generated_count"] = 0
             self.is_running = True
             self.current_step = "initializing"
             self.add_log("Hermes 자동 생성기(Autopilot) 시작 요청됨.")
@@ -278,9 +334,6 @@ class HermesAutopilotManager:
             if self.loop_task:
                 self.loop_task.cancel()
             self.current_step = "stopped"
-            self.current_category = ""
-            self.current_topic = ""
-            self.current_image_style = ""
             self._save_state()
             return {"success": True}
 
@@ -291,9 +344,32 @@ class HermesAutopilotManager:
         except Exception:
             pass
         match = re.search(r"\{[\s\S]*\}", cleaned)
-        if not match:
-            raise ValueError("AI response did not contain a JSON object")
-        return json.loads(match.group(0))
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except Exception:
+                pass
+
+        # Gemini occasionally returns a valid-looking object with one broken
+        # comma or quote. Recover title fields so one malformed response does
+        # not restart the whole category loop or duplicate benchmark jobs.
+        recovered_titles = []
+        for title_match in re.finditer(r"[\"']title[\"']\s*:\s*([\"'])(.*?)(?<!\\)\1", cleaned, re.S):
+            value = title_match.group(2).strip()
+            if value and value not in recovered_titles:
+                recovered_titles.append(value)
+        if recovered_titles:
+            return {
+                "title_candidates": [
+                    {"title": title, "angle": "recovered_from_malformed_ai_json"}
+                    for title in recovered_titles[:10]
+                ],
+                "_parse_recovered": True,
+            }
+
+        # Callers already have category-safe fallbacks. Returning an empty
+        # object lets them use those fallbacks instead of retrying forever.
+        return {"_parse_recovered": False, "_parse_error": "AI response was not valid JSON"}
 
     def _clean_title_text(self, value: str) -> str:
         text = re.sub(r"\s+", " ", str(value or "")).strip()
@@ -307,9 +383,41 @@ class HermesAutopilotManager:
             return 0.0
         return SequenceMatcher(None, a, b).ratio()
 
+    def _category_label_terms(self, category: str) -> list[str]:
+        terms = {
+            "탈북사연": ["탈북사연", "탈북 사연"],
+            "해외감동": ["해외감동", "해외 감동"],
+            "노후금융": ["노후금융", "노후 금융"],
+            "황혼19금": ["황혼19금", "황혼 19금", "19금", "19 금"],
+            "옛날이야기": ["옛날이야기", "옛날 이야기", "전래이야기", "전래 이야기", "전래동화", "전래 동화"],
+            "한국사연": ["한국사연", "한국 사연"],
+            "무협": ["무협"],
+            "경제": ["경제"],
+        }
+        return terms.get(category, [category] if category else [])
+
+    def _contains_category_label(self, text: str, category: str) -> bool:
+        raw = str(text or "")
+        normalized = re.sub(r"[\s\W_]+", "", raw.lower())
+        for term in self._category_label_terms(category):
+            if not term:
+                continue
+            if term in raw:
+                return True
+            if re.sub(r"[\s\W_]+", "", term.lower()) in normalized:
+                return True
+        return False
+
     def _is_usable_title_candidate(self, title: str, category: str) -> bool:
         normalized_title = re.sub(r"[\s\W_]+", "", (title or "").lower())
         normalized_category = re.sub(r"[\s\W_]+", "", (category or "").lower())
+        hard_meta_terms = [
+            "스토리텔링", "성공 공식", "공식", "벤치마킹", "패턴", "알고리즘", "콘텐츠",
+            "조회수", "분석", "전략", "비법", "비밀", "비결", "노하우", "해부",
+            "대공개", "법칙", "불문율", "황금률", "치트키", "마스터의 길",
+            "어떻게 쓰는", "쓰는 법", "만드는 법", "흥행", "몰입감",
+            "storytelling", "formula", "secret", "strategy", "pattern", "analysis",
+        ]
         forbidden_terms = [
             "성공 공식", "스토리텔링", "벤치마킹", "패턴", "알고리즘",
             "콘텐츠", "조회수", "분석", "전략", "공식", "비결", "연출",
@@ -328,9 +436,34 @@ class HermesAutopilotManager:
             normalized_title
             and normalized_title != normalized_category
             and 12 <= len(title) <= 90
+            and not self._contains_category_label(title, category)
+            and not any(term.lower() in (title or "").lower() for term in hard_meta_terms)
             and not any(term in title for term in forbidden_terms)
             and not any(term in title for term in category_forbidden_terms.get(category, []))
         )
+
+    def _is_usable_production_topic(self, topic: str, category: str) -> bool:
+        text = (topic or "").strip()
+        lowered = text.lower()
+        if len(text) < 8:
+            return False
+        meta_terms = [
+            "스토리텔링", "성공 공식", "공식", "벤치마킹", "패턴", "알고리즘", "콘텐츠",
+            "조회수", "분석", "전략", "비법", "비밀", "비결", "노하우", "해부",
+            "대공개", "법칙", "불문율", "황금률", "치트키", "마스터의 길",
+            "어떻게 쓰는", "쓰는 법", "만드는 법", "흥행", "몰입감",
+            "storytelling", "formula", "secret", "strategy", "pattern", "analysis",
+        ]
+        if any(term.lower() in lowered for term in meta_terms):
+            return False
+        if self._contains_category_label(text, category):
+            return False
+        if category == "무협" and not any(
+            token in text
+            for token in ["무사", "검", "강호", "문파", "사부", "제자", "고수", "복수", "비급", "천하", "객잔", "협객"]
+        ):
+            return False
+        return True
 
     def _category_fallback_title(self, category: str) -> str:
         fallbacks = {
@@ -376,6 +509,10 @@ class HermesAutopilotManager:
             score -= 80
             reasons.append("meta_or_report_like_term")
 
+        if self._contains_category_label(title, category):
+            score -= 90
+            reasons.append("literal_category_label")
+
         if category == "무협" and not any(term in title for term in ["무사", "검", "강호", "사부", "문파", "제자", "혈교", "마교", "비급", "복수", "천하", "고수"]):
             score -= 25
             reasons.append("not_martial_story_premise")
@@ -392,10 +529,6 @@ class HermesAutopilotManager:
         if any(token in title for token in ["왜", "뒤", "순간", "이유", "벌어진 일", "결국", "알게 된"]):
             score += 6
             reasons.append("curiosity_gap")
-
-        if category and category in title:
-            score += 3
-            reasons.append("category_relevance")
 
         max_similarity = max([self._title_similarity(title, t) for t in benchmark_titles] or [0.0])
         if max_similarity >= 0.72:
@@ -433,7 +566,6 @@ class HermesAutopilotManager:
         benchmark_titles: list[str],
         learning_profile: dict | None = None,
     ) -> dict:
-        production_topic = self._clean_title_text(raw_plan.get("production_topic") or raw_plan.get("topic") or category)
         raw_candidates = raw_plan.get("title_candidates") or raw_plan.get("titles") or []
         if not isinstance(raw_candidates, list):
             raw_candidates = []
@@ -464,7 +596,7 @@ class HermesAutopilotManager:
 
         selected = scored[0]
         return {
-            "production_topic": production_topic or selected["title"],
+            "category": category,
             "generated_title": selected["title"],
             "selected_score": selected["score"],
             "title_candidates": scored[:10],
@@ -496,13 +628,18 @@ You are a strict Korean YouTube title editor.
 Evaluate these candidate titles for:
 1. natural Korean YouTube phrasing
 2. click desire
-3. fit with the production topic and category
+3. fit with the category and the concrete title promise
 4. low plagiarism risk against benchmark titles
 5. low overpromise/clickbait risk
 
+Hard rejection:
+- Reject any candidate about storytelling, formulas, secrets, rules, principles, content strategy, analysis, or how to create/write the genre.
+- For story categories, the best title must be the actual story premise itself, not a lecture about why the genre works.
+- For martial-arts fiction, reject titles about 무협 스토리텔링, 불문율, 공식, 비법, 법칙, 성공, or 마스터의 길.
+- Reject any title that literally contains the internal category label. Examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "노후금융", "무협", "경제".
+
 CATEGORY: {category}
 CATEGORY STYLE: {self._category_title_style(category)}
-PRODUCTION TOPIC: {plan.get("production_topic")}
 BENCHMARK TITLES: {json.dumps(benchmark_titles, ensure_ascii=False)}
 LEARNING MEMORY: {json.dumps(plan.get("learning_profile") or {}, ensure_ascii=False)}
 CANDIDATES: {json.dumps(candidates, ensure_ascii=False)}
@@ -571,7 +708,6 @@ You are a strict Korean YouTube metadata QA editor.
 Check whether the selected upload title honestly matches the generated script.
 
 CATEGORY: {category}
-PRODUCTION TOPIC: {title_plan.get("production_topic")}
 SELECTED TITLE: {current_title}
 OTHER CANDIDATES: {json.dumps(candidates, ensure_ascii=False)}
 SCRIPT PREVIEW:
@@ -581,6 +717,9 @@ Rules:
 - If the title promises a fact, twist, money amount, relationship, event, or reveal that the script does not support, status must be "revise".
 - Prefer an existing candidate when it fits the script better.
 - If you suggest a new title, keep it natural Korean and 28-58 characters.
+- Never revise into a title about storytelling, formulas, secrets, rules, principles, content strategy, analysis, or how to create/write the genre.
+- For martial-arts fiction, the title must sound like the title of a martial-arts story incident, not a documentary about 무협 writing or 무협 storytelling.
+- Never revise into a title that literally contains the internal category label, such as 옛날이야기, 황혼19금, 탈북사연, 해외감동, 한국사연, 노후금융, 무협, or 경제.
 
 Return ONLY JSON:
 {{
@@ -693,7 +832,7 @@ Return ONLY JSON:
             ],
         }
 
-    async def _generate_topic_title_plan(
+    async def _generate_title_plan(
         self,
         category: str,
         candidates: list[dict],
@@ -716,7 +855,7 @@ Return ONLY JSON:
         prompt = f"""
 You are a senior Korean YouTube title strategist.
 
-Create a production topic and multiple upload-title candidates for an AI-generated longform Korean video.
+Create multiple fresh upload-title candidates for an AI-generated longform Korean video.
 
 CATEGORY:
 {category}
@@ -731,15 +870,20 @@ LEARNING MEMORY FROM PREVIOUS GENERATED OUTPUTS:
 {json.dumps(learning_profile, ensure_ascii=False)}
 
 Rules:
-- Separate the production topic from the upload title.
-- production_topic must be plain and useful for script generation, not a clickbait title.
+- CATEGORY is the internal genre/category label, not a generated story topic.
+- Do not generate, return, or invent a separate production_topic, topic, premise, theme, lesson, secret, rule, formula, or storytelling method.
 - Generate 10 Korean upload title candidates.
 - Titles must sound like real Korean YouTube titles, not reports or analysis memos.
+- The category is an internal label only. Never put the literal category label in the upload title.
+- Bad examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "노후금융", "무협", "경제".
+- Good titles describe the incident itself: a person, place, conflict, secret, decision, consequence, amount, or reveal.
 - Do not copy benchmark titles, names, exact incidents, or phrasing.
 - Avoid these words and phrases in titles: 성공 공식, 스토리텔링, 벤치마킹, 패턴, 황금 패턴, 비밀, 비결, 반전 사연, 반전 스토리, 알고리즘, 콘텐츠, 조회수, 분석, 전략, 공식, 연출, 노하우, 해부, 대공개, 법칙, 불문율.
 - Never write creator-education, writing-advice, critique, or "how to make good stories" titles. The title must be the title of the fictional/story video itself.
+- Never use benchmark analysis as subject matter. Use it only for pacing/hook structure. If the benchmark says "storytelling pattern", do NOT create a video about storytelling patterns.
 - For the 옛날이야기 category, never write the words 옛날이야기, 전래동화, MZ, 넷플릭스, 재해석, or K-콘텐츠 in a title. Title the incident itself, such as a character's choice, a village conflict, a hidden object, or a consequence.
 - For martial-arts fiction, titles must describe an in-world premise: a martial artist, sect, master, secret manual, betrayal, revenge, awakening, or Jianghu incident.
+- For martial-arts fiction, NEVER create titles about martial-arts storytelling, martial-arts success rules, martial-arts formulas, martial-arts secrets, or "the way to write martial arts". Create the actual martial-arts story.
 - Prefer concrete situations, human stakes, curiosity, and a natural documentary/story tone.
 - Keep titles roughly 28-58 Korean characters.
 - Use successful learning-memory titles only as structural inspiration; do not copy their wording.
@@ -747,7 +891,6 @@ Rules:
 
 Return ONLY valid JSON in this schema:
 {{
-  "production_topic": "담백한 제작 주제",
   "title_candidates": [
     {{"title": "업로드 제목 후보", "angle": "why it may work"}}
   ]
@@ -763,6 +906,8 @@ Return ONLY valid JSON in this schema:
             task_type="hermes_autopilot_title_gen",
         )
         raw_plan = self._extract_json_object(raw_text)
+        raw_plan.pop("production_topic", None)
+        raw_plan.pop("topic", None)
         plan = self._select_title_plan(raw_plan, category, benchmark_titles, learning_profile)
         plan["category_style"] = category_style
         return await self._ai_evaluate_title_plan(category, plan, benchmark_titles)
@@ -796,7 +941,6 @@ Return ONLY valid JSON in this schema:
     async def _select_image_style(
         self,
         category: str,
-        production_topic: str,
         upload_title: str,
         category_default: str,
         manual_override: str | None = None,
@@ -845,7 +989,6 @@ Use the category default as a strong prior, but override it only when the title'
 
 CATEGORY: {category}
 CATEGORY DEFAULT STYLE: {fallback}
-PRODUCTION TOPIC: {production_topic}
 UPLOAD TITLE: {upload_title}
 
 AVAILABLE STYLE CATALOG:
@@ -885,12 +1028,132 @@ Return ONLY JSON:
                 "category_default": fallback,
             }
 
+    async def _discover_benchmark_keywords(self, category: str) -> list[str]:
+        """Turn an internal category into concrete YouTube search phrases."""
+        seed_map = {
+            "경제": ["금값", "국제유가", "엔비디아 주가", "일본 금리", "미국 물가", "환율 전망", "부동산 시장"],
+            "노후금융": ["국민연금", "퇴직연금", "노후 준비", "은퇴 자금", "건강보험료", "고령층 재테크"],
+            "해외감동": ["해외 감동 실화", "외국인 한국 경험", "세계 감동 뉴스", "국제 미담"],
+            "탈북사연": ["북한 탈북 실화", "탈북민 증언", "북한 생활 실상", "북한 가족 이야기"],
+            "옛날이야기": ["조선시대 실화", "옛날 한국 풍습", "역사 미스터리", "한국 민간 전설"],
+            "한국사연": ["한국 가족 사연", "실화 반전 이야기", "한국인 인생 사연", "시청자 사연"],
+            "황혼19금": ["황혼 이혼", "중년 부부 갈등", "노년의 사랑", "50대 인생 사연"],
+            "무협": ["무협 소설 명장면", "강호 복수극", "무림 고수 전설", "무협 몰락한 문파"],
+        }
+        seeds = seed_map.get(category, [category])
+        prompt = f"""
+You are a Korean YouTube trend researcher.
+The internal genre label is: {category}
+Generate 8 concrete Korean YouTube search phrases that people would actually search for now.
+Do not return the genre label itself or generic phrases such as the genre followed by 이야기.
+Prefer named issues, events, people, places, numbers, conflicts, or questions.
+For economic content, use concrete subjects such as gold, oil, stocks, interest rates, inflation,
+exchange rates, housing, companies, and policy rather than the word 경제 alone.
+Return ONLY a JSON array of strings.
+"""
+        discovered: list[str] = []
+        try:
+            from config import config as app_config
+            raw = await ai_router.generate_text(
+                prompt,
+                model=app_config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash",
+                temperature=0.55,
+                max_tokens=800,
+                task_type="hermes_benchmark_keyword_discovery",
+                use_search=True,
+                # Gemini does not support responseMimeType together with
+                # Google Search grounding. Parse the JSON array defensively
+                # from the normal text response instead.
+                json_mode=False,
+            )
+            match = re.search(r"\[[\s\S]*\]", raw or "")
+            parsed = json.loads(match.group(0)) if match else []
+            if isinstance(parsed, list):
+                discovered = [str(item).strip() for item in parsed if str(item).strip()]
+        except Exception as exc:
+            self.add_log(f"Benchmark keyword discovery fallback for '{category}': {exc}")
+
+        keywords: list[str] = []
+        for item in [*discovered, *seeds]:
+            normalized = re.sub(r"\s+", " ", item).strip()
+            if not normalized or normalized == category or normalized in keywords:
+                continue
+            keywords.append(normalized)
+        return keywords[:10]
+
+    def _load_cached_benchmark_result(self, category: str) -> dict | None:
+        """Use the newest real benchmark when YouTube quota is temporarily unavailable.
+
+        This is intentionally a continuity fallback, not a synthetic benchmark:
+        every returned candidate must still have a real YouTube video id and
+        API-backed performance metadata from a prior successful run.
+        """
+        result_dir = Path(OUTPUT_DIR) / "hermes_results"
+        files = sorted(result_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+        for path in files:
+            try:
+                raw = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if f'"job_type": "topic_benchmark_analyze"' not in raw:
+                continue
+            if f'"keyword": "{category}"' not in raw or '"status": "COMPLETED"' not in raw:
+                continue
+
+            candidates = []
+            # Older benchmark files may contain malformed nested AI text. The
+            # compact fields below are enough for title planning and are
+            # extracted from each candidate block without trusting that text.
+            blocks = re.findall(
+                r'"search_rank"\s*:\s*\d+[\s\S]*?(?="search_rank"\s*:|\]\s*,\s*"audit_path")',
+                raw,
+            )
+            for block in blocks[:3]:
+                def field(pattern, default=""):
+                    match = re.search(pattern, block)
+                    return match.group(1) if match else default
+
+                video_id = field(r'"video_id"\s*:\s*"([^"]+)"')
+                title = field(r'"title"\s*:\s*"((?:\\.|[^"\\])*)"')
+                if not video_id or video_id.startswith("dummy_") or not title:
+                    continue
+                try:
+                    title = json.loads(f'"{title}"')
+                except Exception:
+                    pass
+                candidates.append({
+                    "title": title,
+                    "video_id": video_id,
+                    "view_count": int(field(r'"view_count"\s*:\s*(\d+)', "0")),
+                    "subscriber_count": int(field(r'"subscriber_count"\s*:\s*(\d+)', "0")),
+                    "performance_ratio": float(field(r'"performance_ratio"\s*:\s*([\d.]+)', "0")),
+                    "performance_data_source": "youtube_api_cached",
+                    "analysis": {},
+                    "success_strategies": [],
+                })
+            if candidates:
+                return {
+                    "candidates": candidates,
+                    "audit_summary": {"cached_from": str(path), "cache_reason": "youtube_api_unavailable"},
+                    "cached": True,
+                }
+        return None
+
     async def _run_loop(self):
         try:
             self.add_log("오토파일럿 백그라운드 태스크가 성공적으로 기동되었습니다.")
             idx = 0
+            resume_category = getattr(self, "_resume_requested", False) and self.current_category
+            self._resume_requested = False
             
             while self.is_running:
+                if (
+                    self.settings.get("mode") == "target_limit"
+                    and self.session_stats.get("generated_count", 0) >= self.settings.get("target_limit", 1)
+                ):
+                    self.add_log("Target limit already reached. Autopilot stopped.")
+                    break
+
                 active_cats = self._normalize_active_categories(
                     self.settings.get("active_categories", CATEGORIES)
                 )
@@ -899,6 +1162,9 @@ Return ONLY JSON:
                     self.add_log("No active categories configured. Autopilot stopped.")
                     break
 
+                if resume_category in active_cats and idx == 0:
+                    idx = active_cats.index(resume_category)
+                    resume_category = None
                 category = active_cats[idx % len(active_cats)]
                 idx += 1
                 
@@ -921,6 +1187,27 @@ Return ONLY JSON:
                 except Exception as e:
                     self.add_log(f"❌ 카테고리 '{category}' 처리 중 에러 발생: {e}")
                     logger.error(traceback.format_exc())
+                    await self._mark_current_topic_failed(e)
+                    if self.settings.get("mode") == "target_limit":
+                        self.current_step = "generation_failed"
+                        self.add_log(
+                            "Target-limit generation failed before the full result was completed. "
+                            "Autopilot stopped without selecting another title."
+                        )
+                        self.is_running = False
+                        break
+                    error_text = str(e).lower()
+                    if any(marker in error_text for marker in (
+                        "youtube search unavailable",
+                        "youtube statistics unavailable",
+                        "실제 youtube",
+                        "youtube reference",
+                        "benchmark cannot continue",
+                    )):
+                        self.current_step = "waiting_for_youtube_data"
+                        self.add_log("YouTube benchmark data is unavailable. Autopilot stopped; retry after the API is available.")
+                        self.is_running = False
+                        break
                     await asyncio.sleep(5.0)  # 에러 발생 시 잠시 대기
                 
                 # 다음 카테고리 시작 전 짧은 간격
@@ -1009,6 +1296,8 @@ Return ONLY JSON:
         self.current_step = "유튜브 탐색 및 고성과 분석"
         self.add_log(f"유튜브에서 '{category}' 관련 인기 영상 탐색 시작...")
         
+        benchmark_keywords = await self._discover_benchmark_keywords(category)
+        self.add_log(f"Benchmark search keywords for '{category}': {', '.join(benchmark_keywords)}")
         benchmark_job_id = job_store.submit_job(
             job_type="topic_benchmark_analyze",
             payload={
@@ -1017,6 +1306,7 @@ Return ONLY JSON:
                 "video_type": "longform",
                 "max_candidates": 3,
                 "search_pool_size": 20,
+                "search_keywords": benchmark_keywords,
                 "topic_queue_id": topic_queue_id
             },
             priority=100,
@@ -1025,10 +1315,19 @@ Return ONLY JSON:
         self.add_log(f"-> topic_benchmark_analyze 작업 제출 완료 (Job ID: {benchmark_job_id})")
         
         # 작업 완료 대기
-        await self._wait_for_job(benchmark_job_id)
-        
-        # 결과 읽기
-        result_data = self._read_result_file(benchmark_job_id)
+        try:
+            await self._wait_for_job(benchmark_job_id)
+            # 결과 읽기
+            result_data = self._read_result_file(benchmark_job_id)
+        except Exception as benchmark_error:
+            cached = self._load_cached_benchmark_result(category)
+            if not cached:
+                raise
+            result_data = cached
+            self.add_log(
+                f"YouTube API 일시 오류로 최근 실제 벤치마크를 재사용합니다: "
+                f"{cached['audit_summary'].get('cached_from')} ({benchmark_error})"
+            )
         if not result_data or "candidates" not in result_data or not result_data["candidates"]:
             raise RuntimeError("유튜브 벤치마크 탐색 결과 분석 데이터가 유효하지 않습니다.")
             
@@ -1043,7 +1342,7 @@ Return ONLY JSON:
             if not _is_real_youtube_candidate(candidate):
                 self.add_log(f"⚠️ 참조 영상 #{index}: 실제 YouTube 영상을 찾지 못해 대체값이 반환되었습니다. 이 결과로 생성하지 않습니다.")
                 raise RuntimeError("실제 YouTube 참조 영상을 확보하지 못했습니다.")
-            if candidate.get("performance_data_source") != "youtube_api":
+            if candidate.get("performance_data_source") not in ("youtube_api", "youtube_api_cached"):
                 self.add_log(f"⚠️ 참조 영상 #{index}: YouTube 조회수 통계를 확인하지 못했습니다. 임의 성과 수치로는 생성하지 않습니다.")
                 raise RuntimeError("실제 YouTube 성과 통계를 확보하지 못했습니다.")
             video_id = candidate.get("video_id")
@@ -1056,8 +1355,8 @@ Return ONLY JSON:
             self.add_log(f"   URL: https://www.youtube.com/watch?v={video_id}")
         self.add_log(f"✅ 대표 참조 영상: '{video_title}' (구독자 대비 조회수 {performance_ratio}배)")
 
-        # 3. AI 기반 새로운 영상 제목(주제) 도출
-        self.current_step = "신규 오리지널 영상 주제 도출"
+        # 3. AI 기반 새로운 영상 제목 생성
+        self.current_step = "신규 오리지널 영상 제목 생성"
         self.add_log("학습된 벤치마크 분석 내용을 토대로 신규 유튜브 제목 기획 중...")
         
         
@@ -1069,25 +1368,53 @@ Return ONLY JSON:
         )
         if learning_profile.get("sample_count"):
             self.add_log(f"Learning memory loaded: {learning_profile['sample_count']} prior feedback row(s)")
-        title_plan = await self._generate_topic_title_plan(category, candidates, learning_profile)
-        new_topic = title_plan["production_topic"]
+        title_plan = await self._generate_title_plan(category, candidates, learning_profile)
         generated_title = title_plan["generated_title"]
         if not self._is_usable_title_candidate(generated_title, category):
             raise RuntimeError(f"Title QA rejected generated upload title: {generated_title!r}")
-        if not self._is_usable_title_candidate(new_topic, category):
-            new_topic = generated_title
         self.current_step = "Gemini 웹 자료 조사"
-        self.add_log(f"🔎 Gemini 웹 검색으로 '{generated_title}' 대본 자료를 조사합니다.")
-        research_job_id = job_store.submit_job(
-            job_type="web_research",
-            payload={"category": category, "topic": new_topic, "upload_title": generated_title},
-            priority=100,
-            source="autopilot",
-        )
-        await self._wait_for_job(research_job_id)
-        research_result = self._read_result_file(research_job_id) or {}
-        research_bundle = research_result.get("research_bundle") or {}
-        research_sources = research_bundle.get("sources") or []
+        if result_data.get("cached"):
+            research_sources = [
+                {
+                    "title": str(candidate.get("title") or "YouTube benchmark video"),
+                    "url": f"https://www.youtube.com/watch?v={candidate.get('video_id')}",
+                }
+                for candidate in candidates[:3]
+                if candidate.get("video_id")
+            ]
+            research_bundle = {
+                "research_brief": "최근 실제 YouTube 벤치마크의 제목과 공개 성과를 바탕으로 기획을 이어갑니다.",
+                "verified_facts": [],
+                "story_material": "벤치마크 영상의 구조와 시청 반응을 참고하되 사실 주장은 별도로 검증합니다.",
+                "risk_notes": ["실시간 웹 조사 대신 최근 저장된 YouTube 벤치마크를 사용함"],
+                "sources": research_sources,
+                "research_mode": "cached_benchmark_sources",
+            }
+            self.add_log(f"최근 실제 벤치마크 출처 {len(research_sources)}개로 웹 조사 단계를 대체합니다.")
+        else:
+            self.add_log(f"🔎 Gemini 웹 검색으로 '{generated_title}' 대본 자료를 조사합니다.")
+            research_job_id = job_store.submit_job(
+                job_type="web_research",
+                payload={
+                    "category": category,
+                    "topic": category,
+                    "upload_title": generated_title,
+                    "benchmark_sources": [
+                        {
+                            "title": str(candidate.get("title") or "YouTube benchmark video"),
+                            "url": f"https://www.youtube.com/watch?v={candidate.get('video_id')}",
+                        }
+                        for candidate in candidates[:3]
+                        if candidate.get("video_id")
+                    ],
+                },
+                priority=100,
+                source="autopilot",
+            )
+            await self._wait_for_job(research_job_id)
+            research_result = self._read_result_file(research_job_id) or {}
+            research_bundle = research_result.get("research_bundle") or {}
+            research_sources = research_bundle.get("sources") or []
         if not research_sources:
             raise RuntimeError("Gemini 웹 조사 결과에 검증 가능한 출처가 없습니다.")
         self.add_log(f"📚 Gemini 웹 자료 조사 완료: 출처 {len(research_sources)}개")
@@ -1095,7 +1422,7 @@ Return ONLY JSON:
             self.add_log(f"   자료: {source.get('title') or '(제목 없음)'} | {source.get('url')}")
         manual_image_style = (self.settings.get("category_image_style_overrides") or {}).get(category)
         image_style_plan = await self._select_image_style(
-            category, new_topic, generated_title, category_image_style, manual_image_style
+            category, generated_title, category_image_style, manual_image_style
         )
         assigned_image_style = image_style_plan["assigned_image_style"]
         self.current_image_style = assigned_image_style
@@ -1113,12 +1440,11 @@ Return ONLY JSON:
             "title_generation": title_plan,
             "image_style_selection": image_style_plan,
         }
-        self.current_topic = new_topic
-        self.add_log(f"✨ AI 기획 신규 오리지널 주제: '{new_topic}'")
+        self.current_topic = generated_title
+        self.add_log(f"AI title selected for category '{category}': '{generated_title}'")
         self.add_log(f"AI title selected: '{generated_title}' (score={title_plan['selected_score']})")
 
-        # Persist only a QA-approved real upload title.  `production_topic`
-        # remains in title_generation for script planning, never as the UI title.
+        # Persist the category separately from the QA-approved upload title.
         if supabase_url and supabase_key:
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
@@ -1143,10 +1469,11 @@ Return ONLY JSON:
                         headers={**headers, "Prefer": "return=representation"},
                         json=row_data,
                     )
-                    if r.status_code not in (200, 204):
+                    if r.status_code not in (200, 201, 204):
                         raise RuntimeError(f"Supabase approved topic insert failed: {r.status_code} {r.text[:200]}")
                     response_rows = r.json()
                     topic_queue_id = response_rows[0].get("id") if isinstance(response_rows, list) else response_rows.get("id")
+                    self.current_topic_queue_id = str(topic_queue_id or "")
                     if not topic_queue_id:
                         raise RuntimeError("Supabase approved topic insert did not return an ID")
                     self.add_log(f"Supabase: 검증된 업로드 제목 '{generated_title}' 등록 완료")
@@ -1156,14 +1483,14 @@ Return ONLY JSON:
 
         # 4. 구조 및 씬 기획 생성
         self.current_step = "대본 구조 및 씬 기획"
-        self.add_log(f"주제 '{new_topic}'에 대한 씬 구조(Scene Plan) 생성 시작...")
+        self.add_log(f"카테고리 '{category}', 제목 '{generated_title}'의 씬 구조(Scene Plan) 생성 시작...")
         
         plan_job_id = job_store.submit_job(
             job_type="script_plan_generate",
             payload={
                 "topic_queue_id": topic_queue_id,
-                "topic": new_topic,
-                "target_duration_seconds": 600,
+                "topic": generated_title,
+                "target_duration_seconds": 900,
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
@@ -1214,9 +1541,9 @@ Return ONLY JSON:
             job_type="script_generate",
             payload={
                 "topic_queue_id": topic_queue_id,
-                "topic": new_topic,
+                "topic": generated_title,
                 "structure": structure,
-                "target_duration_seconds": 600,
+                "target_duration_seconds": 900,
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
@@ -1239,12 +1566,14 @@ Return ONLY JSON:
         final_script = script_data["script"]
         narrative_blueprint = script_data.get("narrative_blueprint")
         script_quality_report = script_data.get("script_quality_report")
+        publish_metadata = script_data.get("publish_metadata")
         char_count = len(final_script)
         self.add_log(f"✍️ 최종 대본 집필 완료 (총 글자수: {char_count}자)")
 
         title_plan = await self._validate_title_against_script(category, title_plan, final_script)
         generated_title = title_plan["generated_title"]
         benchmark_payload["title_generation"] = title_plan
+        self.current_topic = generated_title
         self.add_log(f"Script-fit title: '{generated_title}'")
 
         # Supabase에 최종 대본 동기화 및 큐 완료 처리
@@ -1258,11 +1587,16 @@ Return ONLY JSON:
                             "topic": generated_title,
                             "pregenerated_script": final_script,
                             "pregenerated_script_status": "ready",
+                            "pregenerated_structure": structure,
+                            "pregenerated_structure_status": "ready",
+                            "total_scenes": structure.get("scene_count") or len(structure.get("scenes") or []),
                             "generated_title": generated_title,
                             "title_candidates": title_plan["title_candidates"],
                             "benchmark_analysis": benchmark_payload,
                             "narrative_blueprint": narrative_blueprint,
                             "script_quality_report": script_quality_report,
+                            "publish_metadata": publish_metadata,
+                            "progress_payload": {"publish_metadata": publish_metadata},
                             "status": "pending"
                         }
                     )
@@ -1274,9 +1608,13 @@ Return ONLY JSON:
                                 "topic": generated_title,
                                 "pregenerated_script": final_script,
                                 "pregenerated_script_status": "ready",
+                                "pregenerated_structure": structure,
+                                "pregenerated_structure_status": "ready",
+                                "total_scenes": structure.get("scene_count") or len(structure.get("scenes") or []),
                                 "generated_title": generated_title,
                                 "title_candidates": title_plan["title_candidates"],
                                 "benchmark_analysis": benchmark_payload,
+                                "progress_payload": {"publish_metadata": publish_metadata},
                                 "status": "pending"
                             }
                         )
@@ -1301,11 +1639,13 @@ Return ONLY JSON:
             "benchmark_job_id": benchmark_job_id,
             "benchmark_audit_path": audit_path,
             "benchmark_audit_summary": audit_summary,
-            "generated_topic": new_topic,
+            "category": category,
             "generated_title": generated_title,
+            "title_generation": title_plan,
             "title_candidates": title_plan["title_candidates"],
             "narrative_blueprint": narrative_blueprint,
             "script_quality_report": script_quality_report,
+            "publish_metadata": publish_metadata,
             "structure": structure,
             "script": final_script,
             "char_count": char_count,
@@ -1316,13 +1656,16 @@ Return ONLY JSON:
             json.dumps(summary_payload, ensure_ascii=False, indent=2),
             encoding="utf-8"
         )
+        self.session_stats["generated_count"] += 1
+        self._save_state()
+        self.add_log(
+            f"Completed full generation count: "
+            f"{self.session_stats['generated_count']}/{self.settings.get('target_limit', 10)}"
+        )
         self.add_log(f"💾 로컬 백업 완료: {local_result_path}")
         self.add_log(f"🎉 '{category}' 카테고리의 1회차 자동 생성 완료!")
 
         # 세션 통계 및 목표 도달 점검
-        self.session_stats["generated_count"] += 1
-        self._save_state()
-        
         mode = self.settings.get("mode", "infinite")
         limit = self.settings.get("target_limit", 10)
         generated = self.session_stats["generated_count"]

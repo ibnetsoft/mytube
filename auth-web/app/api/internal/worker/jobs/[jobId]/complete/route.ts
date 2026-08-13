@@ -71,9 +71,9 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     script_style: jobPayload.script_style,
                     language: jobPayload.language,
                     target_duration_seconds: jobPayload.target_duration_seconds,
-                    // narration_mode has no per-topic source yet - defaults
-                    // to 'single' in worker/hermes_worker.py's payload
-                    // validation, matching the safer/more common default.
+                    upload_title: job.result_payload?.upload_title || jobPayload.upload_title,
+                    title_generation: job.result_payload?.title_generation || jobPayload.title_generation,
+                    narration_mode: jobPayload.narration_mode || 'dramatic_single',
                 },
                 status: 'pending',
             })
@@ -92,7 +92,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
     try {
         const { data: job } = await supabaseAdmin
             .from('remote_hermes_queue')
-            .select('job_type, status, payload, result_payload')
+            .select('job_type, status, payload, result_payload, category_id')
             .eq('id', jobId)
             .maybeSingle()
 
@@ -102,17 +102,193 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
         const script = job.result_payload?.script
         if (!topicQueueId || !script) return
 
-        const { error } = await supabaseAdmin
+        const resultPayload = job.result_payload || {}
+        let { error } = await supabaseAdmin
             .from('topics_queue')
             .update({
                 pregenerated_script: script,
                 pregenerated_script_status: 'ready',
+                publish_metadata: resultPayload.publish_metadata || null,
+                progress_payload: { publish_metadata: resultPayload.publish_metadata || null },
+                narrative_blueprint: resultPayload.narrative_blueprint || null,
+                script_quality_report: resultPayload.script_quality_report || null,
             })
             .eq('id', topicQueueId)
 
+        if (error) {
+            const fallback = await supabaseAdmin
+                .from('topics_queue')
+                .update({
+                    pregenerated_script: script,
+                    pregenerated_script_status: 'ready',
+                    progress_payload: { publish_metadata: resultPayload.publish_metadata || null },
+                })
+                .eq('id', topicQueueId)
+            error = fallback.error
+        }
         if (error) console.warn('[complete/route] pregenerated_script sync-back update failed (non-fatal):', error.message)
+        await recordContentGenerationFeedback(jobId, job, topicQueueId, script)
     } catch (e) {
         console.warn('[complete/route] pregenerated_script sync-back failed (non-fatal):', e)
+    }
+}
+
+function clampScore(value: number): number {
+    if (!Number.isFinite(value)) return 0
+    return Math.max(0, Math.min(100, Math.round(value * 100) / 100))
+}
+
+function scoreGeneratedTitle(title: string, titleGeneration: any): { score: number; reasons: string[] } {
+    let score = 70
+    const reasons: string[] = []
+    const cleanTitle = String(title || '').trim()
+    const forbiddenTerms = [
+        '성공 공식', '스토리텔링', '벤치마킹', '패턴', '알고리즘',
+        '콘텐츠', '조회수', '분석', '전략', '공식', '노하우', '비법', '비밀', '비결', '해부',
+        '황금률', '치트키', '필독', '마스터', '명작', '망작', '시청자', '대공개', '법칙',
+        '불문율', '반전 사연', '반전 스토리',
+    ]
+
+    if (!cleanTitle) {
+        return { score: 0, reasons: ['missing_title'] }
+    }
+
+    if (cleanTitle.length >= 28 && cleanTitle.length <= 58) {
+        score += 10
+        reasons.push('good_length')
+    } else {
+        score -= Math.min(25, Math.abs(43 - cleanTitle.length))
+        reasons.push('length_penalty')
+    }
+
+    const matchedForbidden = forbiddenTerms.filter(term => cleanTitle.includes(term))
+    if (matchedForbidden.length) {
+        score -= 35 + matchedForbidden.length * 5
+        reasons.push('meta_or_report_like_terms')
+    }
+
+    const selectedScore = Number(titleGeneration?.selected_score)
+    if (Number.isFinite(selectedScore)) {
+        score = score * 0.65 + selectedScore * 0.35
+        reasons.push('generator_score_blended')
+    }
+
+    const fitStatus = titleGeneration?.script_fit?.status
+    if (fitStatus === 'pass') {
+        score += 8
+        reasons.push('script_fit_pass')
+    } else if (fitStatus === 'revise') {
+        score -= 10
+        reasons.push('script_fit_revised')
+    }
+
+    return { score: clampScore(score), reasons }
+}
+
+function scoreGeneratedScript(script: string, resultPayload: any): { score: number; reasons: string[] } {
+    let score = 70
+    const reasons: string[] = []
+    const text = String(script || '').trim()
+    const charCount = Number(resultPayload?.char_count || text.length)
+    const qaScore = Number(resultPayload?.script_quality_report?.score)
+
+    if (!text) return { score: 0, reasons: ['missing_script'] }
+
+    if (charCount >= 3500) {
+        score += 10
+        reasons.push('longform_length_ok')
+    } else {
+        score -= 20
+        reasons.push('short_script_penalty')
+    }
+
+    if (text.includes('스토리텔링') || text.includes('콘텐츠') || text.includes('분석')) {
+        score -= 12
+        reasons.push('meta_language_in_script')
+    }
+
+    if (resultPayload?.upload_title) {
+        score += 5
+        reasons.push('has_upload_title_contract')
+    }
+
+    if (Number.isFinite(qaScore)) {
+        score = score * 0.35 + qaScore * 0.65
+        reasons.push('worker_story_qa_blended')
+    }
+
+    return { score: clampScore(score), reasons }
+}
+
+function qualityFromScores(titleScore: number, scriptScore: number): string {
+    const blended = titleScore * 0.45 + scriptScore * 0.55
+    if (blended >= 85) return 'excellent'
+    if (blended >= 72) return 'good'
+    if (blended >= 55) return 'neutral'
+    return 'poor'
+}
+
+async function recordContentGenerationFeedback(jobId: string, job: any, topicQueueId: any, script: string): Promise<void> {
+    try {
+        const resultPayload = job.result_payload || {}
+        const titleGeneration = resultPayload.title_generation || {}
+        const uploadTitle = String(resultPayload.upload_title || titleGeneration.generated_title || '').trim()
+        const titleScore = scoreGeneratedTitle(uploadTitle, titleGeneration)
+        const scriptScore = scoreGeneratedScript(script, resultPayload)
+
+        const { data: topicRow } = await supabaseAdmin
+            .from('topics_queue')
+            .select('id, topic, category_id, generated_title, title_candidates, benchmark_analysis, categories(name)')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+
+        const categoryName = Array.isArray(topicRow?.categories)
+            ? topicRow.categories[0]?.name
+            : topicRow?.categories?.name
+
+        const row = {
+            topic_queue_id: String(topicQueueId),
+            category_id: String(topicRow?.category_id || job.category_id || ''),
+            category_name: categoryName || null,
+            source_job_id: jobId,
+            feedback_source: 'auto',
+            outcome_quality: qualityFromScores(titleScore.score, scriptScore.score),
+            generated_title: uploadTitle || topicRow?.generated_title || null,
+            production_topic: resultPayload.topic || topicRow?.topic || null,
+            title_score: titleScore.score,
+            script_score: scriptScore.score,
+            metrics: {
+                char_count: resultPayload.char_count || String(script || '').length,
+                read_time_seconds: resultPayload.read_time_seconds,
+                narration_mode: resultPayload.narration_mode,
+                revision_count: resultPayload.revision_count || 0,
+                title_score_reasons: titleScore.reasons,
+                script_score_reasons: scriptScore.reasons,
+            },
+            title_generation: titleGeneration || {},
+            benchmark_summary: {
+                benchmark_analysis: topicRow?.benchmark_analysis || null,
+                audit_summary: topicRow?.benchmark_analysis?.audit_summary || null,
+            },
+            evaluation: {
+                type: 'auto_heuristic_v1',
+                title_score: titleScore,
+                script_score: scriptScore,
+                worker_script_quality_report: resultPayload.script_quality_report || null,
+                narrative_blueprint: resultPayload.narrative_blueprint || null,
+            },
+            updated_at: new Date().toISOString(),
+        }
+
+        const { error } = await supabaseAdmin
+            .from('content_generation_feedback')
+            .upsert(row, { onConflict: 'topic_queue_id,feedback_source' })
+
+        if (error) {
+            console.warn('[complete/route] content_generation_feedback insert failed (non-fatal):', error.message)
+        }
+    } catch (e) {
+        console.warn('[complete/route] content_generation_feedback sync failed (non-fatal):', e)
     }
 }
 
