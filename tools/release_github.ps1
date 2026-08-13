@@ -182,9 +182,15 @@ $CreateArgs = @(
 if ($Draft)      { $CreateArgs += "--draft" }
 if ($Prerelease) { $CreateArgs += "--prerelease" }
 
-# Check if release already exists
+# Check if release already exists. `gh release view` exits 1 when the tag is
+# absent, which is the normal create-release path and must not be promoted to a
+# terminating PowerShell native-command error.
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $existingRelease = & gh release view $Tag --repo $GitHubRepo 2>$null
-if ($LASTEXITCODE -eq 0) {
+$releaseExists = $LASTEXITCODE -eq 0
+$ErrorActionPreference = $previousErrorActionPreference
+if ($releaseExists) {
     Write-Warning "Release $Tag already exists on $GitHubRepo."
     Write-Host "Uploading artifacts to existing release (use --clobber to overwrite)..."
     foreach ($file in $UploadFiles) {
