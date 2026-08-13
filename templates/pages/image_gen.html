@@ -3,7 +3,7 @@
 {% block content %}
 
 
-<div class="card mb-6">
+<div class="card mb-6 {% if membership in ['std', 'standard'] %}hidden{% endif %}" id="imageGenerationSettingsCard">
     <div class="flex flex-wrap items-center gap-6 mb-6">
         <h3 class="font-bold text-gray-800 dark:text-white shrink-0 flex items-center gap-2">
             <span>{{ t('title_image_gen_settings') }}</span>
@@ -1324,7 +1324,7 @@
         const projectId = getCurrentProject();
         if (!projectId) {
             Utils.showToast(i18n.err_no_script, 'warning');
-            return;
+            return false;
         }
 
         // [AIR-0209 후속 수정] 이미지 프롬프트 생성은 대본 원문(script)이 아니라
@@ -1343,7 +1343,7 @@
 
         if (!scenes.length) {
             Utils.showToast(i18n.err_no_script, 'warning');
-            return;
+            return false;
         }
 
         const styleVal = document.getElementById('imageStyle').value;
@@ -1367,7 +1367,7 @@
 
             if (result.status === 'error' || result.error || result.detail) {
                 Utils.showToast(result.error || result.detail || i18n.err_gen_fail, 'error');
-                return;
+                return false;
             }
 
             if (result.prompts) {
@@ -1394,9 +1394,12 @@
                         console.error("Failed to save prompts to DB:", err);
                     });
                 }
+                return true;
             }
+            return false;
         } catch (error) {
             Utils.showToast(i18n.err_gen_fail, 'error');
+            return false;
         } finally {
             Utils.setLoading(btn, false);
         }
@@ -3608,6 +3611,47 @@
     }
 
     // 초기 로드 시 DB 및 로컬 스토리지 확인
+    function hasCompleteImageAndVideoPrompts(list) {
+        return Array.isArray(list) && list.length > 0 && list.every((p) => {
+            const imagePrompt = String(p?.prompt_en || p?.prompt_content || p?.prompt || '').trim();
+            const videoPrompt = String(p?.motion_desc || p?.flow_prompt || p?.video_prompt || '').trim();
+            return imagePrompt && videoPrompt;
+        });
+    }
+
+    async function autoGeneratePreparedPromptsIfNeeded(projectId) {
+        if (!projectId) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const isPreparedFlow = urlParams.get('prepared') === 'true'
+            || urlParams.get('auto') === 'true'
+            || window._preparedProjectFromTopic === true;
+        if (!isPreparedFlow || hasCompleteImageAndVideoPrompts(prompts)) return;
+
+        const flagKey = `preparedPromptAutoGen:${projectId}`;
+        if (sessionStorage.getItem(flagKey) === 'done') return;
+        sessionStorage.setItem(flagKey, 'done');
+
+        Utils.showToast('준비된 대본을 기준으로 이미지/영상 프롬프트를 자동 생성합니다.', 'info');
+        const ok = await generatePrompts();
+        if (!ok) {
+            sessionStorage.removeItem(flagKey);
+        }
+    }
+
+    async function refreshPreparedProjectIfNeeded(projectId) {
+        if (!projectId) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('prepared') !== 'true' && urlParams.get('auto') !== 'true') return;
+        try {
+            await fetch(`/api/projects/${encodeURIComponent(projectId)}/refresh-pregeneration`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+        } catch (e) {
+            console.warn('Prepared project refresh failed:', e);
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         // 썸네일 체크박스: 기본값 unchecked, localStorage로 마지막 값 유지
         const _thumbCheck = document.getElementById('useThumbnailCheck');
@@ -3634,6 +3678,7 @@
         const projectId = getCurrentProject();
         const autoBtn = document.getElementById('autoGenBtn');
         let loadedFromDB = false;
+        await refreshPreparedProjectIfNeeded(projectId);
 
         // 1. DB에서 프롬프트 불러오기 (권장)
         if (projectId) {
@@ -3643,6 +3688,7 @@
 
                 // [NEW] Load Persistent Settings
                 if (fullData.settings) {
+                    window._preparedProjectFromTopic = !!fullData.settings.topic_queue_id;
                     if (fullData.settings.character_ref_text) {
                         const gp = document.getElementById('globalPrompt');
                         if (gp) gp.value = fullData.settings.character_ref_text;
@@ -3700,7 +3746,20 @@
                     // 현재 프로젝트 ID 기록 (projectStateRestored가 불필요하게 초기화하지 않도록)
                     _currentShownProjectId = projectId;
                     console.log('[DOMContentLoaded] Loaded prompts from DB:', prompts.length);
-                    Utils.showToast(i18n.msg_prompts_restored.replace('{n}', prompts.length), 'success');
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const preparedFromTopic = urlParams.get('prepared') === 'true';
+                    Utils.showToast(
+                        preparedFromTopic
+                            ? `주제 선택이 완료되었습니다. 준비된 이미지/영상 프롬프트 ${prompts.length}개를 바로 불러왔습니다.`
+                            : i18n.msg_prompts_restored.replace('{n}', prompts.length),
+                        'success'
+                    );
+                    if (window.updateStepStatus) {
+                        window.updateStepStatus('topic', true);
+                        window.updateStepStatus('plan', true);
+                        window.updateStepStatus('script', true);
+                        window.updateStepStatus('image', true);
+                    }
                 } else {
                     console.log("No image prompts in DB, will try loadPromptsFromServer");
                     // DB에 없으면 직접 엔드포인트와 placeholder 초기화까지 완료될 때까지 기다린다.
@@ -3717,6 +3776,8 @@
         if (!loadedFromDB && projectId && (!prompts || prompts.length === 0)) {
             await initializeEmptyScenePlaceholders();
         }
+
+        await autoGeneratePreparedPromptsIfNeeded(projectId);
     });
 
     // ==========================================
