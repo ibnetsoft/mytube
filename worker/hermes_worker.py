@@ -204,6 +204,10 @@ def _metadata_language_name(language: str) -> str:
     }.get(str(language or "").lower(), "Korean")
 
 
+def _u(text: str) -> str:
+    return text.encode("ascii").decode("unicode_escape")
+
+
 def _fallback_publish_metadata(topic: str, upload_title: str, script: str, language: str) -> dict:
     title = (upload_title or topic or "Untitled").strip()
     script_excerpt = re.sub(r"\s+", " ", (script or "")).strip()
@@ -214,11 +218,23 @@ def _fallback_publish_metadata(topic: str, upload_title: str, script: str, langu
             part for part in [
                 title,
                 script_excerpt,
-                "끝까지 시청해주셔서 감사합니다.",
+                _u(r"\ub05d\uae4c\uc9c0 \uc2dc\uccad\ud574 \uc8fc\uc154\uc11c \uac10\uc0ac\ud569\ub2c8\ub2e4."),
             ] if part
         )
-        tags = [tag for tag in [topic, "감동", "이야기", "인생", "사연"] if tag]
-        hashtags = ["#감동", "#이야기", "#사연"]
+        tags = [
+            tag for tag in [
+                topic,
+                _u(r"\ud669\ud63c\uc758 \uc0ac\ub791"),
+                _u(r"\ub178\ub144 \uc774\uc57c\uae30"),
+                _u(r"\uac00\uc871 \ub4dc\ub77c\ub9c8"),
+                _u(r"\uac10\ub3d9 \uc0ac\uc5f0"),
+            ] if tag
+        ]
+        hashtags = [
+            _u(r"#\ud669\ud63c\uc758\uc0ac\ub791"),
+            _u(r"#\uac00\uc871\ub4dc\ub77c\ub9c8"),
+            _u(r"#\uac10\ub3d9\uc0ac\uc5f0"),
+        ]
     else:
         description = "\n\n".join(part for part in [title, script_excerpt] if part)
         tags = [tag for tag in [topic, "story", "life", "inspiration"] if tag]
@@ -230,6 +246,44 @@ def _fallback_publish_metadata(topic: str, upload_title: str, script: str, langu
         "hashtags": hashtags[:10],
         "source": "worker_fallback",
     }
+
+
+def _looks_corrupt_metadata_text(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if chr(0xFFFD) in text or re.search(r"\?{3,}", text):
+        return True
+    mojibake_markers = {0x5A9B, 0xF9DE, 0x0080, 0xAFC8, 0xBBC0, 0xB300, 0xC4F0}
+    return any(ord(ch) in mojibake_markers for ch in text)
+
+
+def _clean_metadata_description(description: str, fallback: str) -> str:
+    paragraphs = []
+    for paragraph in re.split(r"\n{2,}", str(description or "").strip()):
+        normalized = paragraph.strip()
+        if normalized and not _looks_corrupt_metadata_text(normalized):
+            paragraphs.append(normalized)
+    cleaned = "\n\n".join(paragraphs).strip()
+    return cleaned or fallback
+
+
+def _clean_metadata_list(values: list, fallback: list[str], *, hashtag: bool = False) -> list[str]:
+    cleaned = []
+    seen = set()
+    for item in values:
+        value = str(item or "").strip()
+        if not value or _looks_corrupt_metadata_text(value):
+            continue
+        value = value if hashtag and value.startswith("#") else value.lstrip("#")
+        if hashtag and not value.startswith("#"):
+            value = f"#{value}"
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(value)
+    return cleaned or fallback
 
 
 def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, script: str, language: str) -> dict:
@@ -250,27 +304,17 @@ def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, scrip
     tags = data.get("tags")
     if not isinstance(tags, list):
         tags = []
-    tags = [str(tag).strip().lstrip("#") for tag in tags if str(tag or "").strip()]
-
     hashtags = data.get("hashtags")
     if not isinstance(hashtags, list):
         hashtags = []
-    normalized_hashtags = []
-    for item in hashtags:
-        value = str(item or "").strip()
-        if not value:
-            continue
-        normalized_hashtags.append(value if value.startswith("#") else f"#{value.lstrip('#')}")
 
-    description = str(data.get("description") or "").strip()
-    if not description:
-        description = fallback["description"]
+    description = _clean_metadata_description(str(data.get("description") or ""), fallback["description"])
 
     return {
         "titles": titles[:5],
         "description": description,
-        "tags": (tags or fallback["tags"])[:15],
-        "hashtags": (normalized_hashtags or fallback["hashtags"])[:10],
+        "tags": _clean_metadata_list(tags, fallback["tags"])[:15],
+        "hashtags": _clean_metadata_list(hashtags, fallback["hashtags"], hashtag=True)[:10],
         "source": data.get("source") or "air_worker",
     }
 
