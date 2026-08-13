@@ -40,6 +40,15 @@ class AuthService:
         self._stop_event = threading.Event()
         self._verify_lock = threading.Lock()
 
+    def _dashboard_headers(self, content_type: bool = False) -> dict:
+        headers = {}
+        bypass_secret = os.getenv("VERCEL_AUTOMATION_BYPASS_SECRET", "").strip()
+        if bypass_secret:
+            headers["x-vercel-protection-bypass"] = bypass_secret
+        if content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
+
     def _load_persisted_balance(self) -> int:
         """재시작 시 마지막 잔액 복원 — .token_balance 파일 우선, 없으면 로컬 DB에서 조회"""
         try:
@@ -147,7 +156,7 @@ class AuthService:
             # one - the server verifies it when sent but does not yet
             # require it (lenient period, see auth-web/app/api/verify/
             # route.ts's header comment). Never log the token itself.
-            headers = {}
+            headers = self._dashboard_headers(content_type=True)
             if self._session_token:
                 headers["Authorization"] = f"Bearer {self._session_token}"
             response = requests.post(
@@ -300,7 +309,7 @@ class AuthService:
         service_role이 없으면 has_supabase() 가드로 조용히 실패할 뿐
         크래시하지 않는다."""
         if self._user_email == email and self._verified:
-            return  # 이미 동일한 이메일로 검증 완료됨
+            return True
 
         self._user_email = email
         self._verified = True
@@ -312,16 +321,25 @@ class AuthService:
         if session_token:
             self._session_token = session_token
 
-        if presynced is None and session_token:
+        # Restored sessions must pass the server-side approval check. Never
+        # recover through a direct profile lookup when the check fails.
+        if presynced is None:
+            if not session_token:
+                self.logout_user()
+                return False
             try:
                 from services.web_admin_client import web_admin_client
                 resync_result = web_admin_client.desktop_resync(email, session_token)
                 if resync_result.get("success"):
                     presynced = resync_result
                 else:
-                    print(f"[Auth] Session resync failed ({resync_result.get('error')}), falling back to direct fetch")
+                    print(f"[Auth] Session resync failed ({resync_result.get('error')}), signing out")
+                    self.logout_user()
+                    return False
             except Exception as e:
                 print(f"[Auth] Session resync error: {e}")
+                self.logout_user()
+                return False
 
         # NOTE: presynced 경로에서 return으로 빠지면 안 된다 - 아래의 디렉토리
         # 격리(사용자별 output/log/asset 폴더 전환)와 Jinja 전역 갱신(사이드바
@@ -407,6 +425,8 @@ class AuthService:
         except Exception as e:
             print(f"[Auth] Directory isolation failed for {email}: {e}")
 
+        return self._verified
+
     def logout_user(self):
         """로그아웃 처리 - 사용자 정보 초기화"""
         self._user_email = ""
@@ -416,6 +436,8 @@ class AuthService:
         self._membership = "std"
         self._token_balance = 0
         self._verified = False
+        self._session_token = None
+        self._is_restricted = False
         
         # 템플릿 환경 변수 초기화
         try:
@@ -447,6 +469,7 @@ class AuthService:
                     "nationality": nationality,
                     "contact": contact
                 },
+                headers=self._dashboard_headers(content_type=True),
                 timeout=10,
                 proxies={"http": None, "https": None}
             )
@@ -574,6 +597,37 @@ class AuthService:
                 self.logger.error(f"Error generating wallet: {e}")
                 wallet_data = {"address": ""}
                 
+        total_payout_krw = 0
+        total_withdrawn_usdt = 0
+        try:
+            if self._user_email:
+                history = db.get_worker_project_history(self._user_email)
+                for h in history:
+                    total_payout_krw += (h.get("payout_amount") or 0)
+
+                withdrawals = db.get_worker_withdrawals(self._user_email)
+                for w in withdrawals:
+                    total_withdrawn_usdt += (w.get("amount") or 0)
+        except Exception as e:
+            self.logger.error(f"Error calculating balance: {e}")
+
+        total_generated_usdt = round(total_payout_krw / 1400.0, 2)
+        current_balance = round(total_generated_usdt - total_withdrawn_usdt, 2)
+        if current_balance < 0:
+            current_balance = 0
+
+        wallet_data["balance"] = current_balance
+        wallet_data.setdefault("saved_external_wallet", "")
+
+        if self._user_email:
+            try:
+                import threading
+                from services.web_admin_client import web_admin_client
+                address = wallet_data.get("address", "")
+                threading.Thread(target=web_admin_client.sync_wallet_info, args=(self._user_email, current_balance, address), daemon=True).start()
+            except Exception as e:
+                self.logger.error(f"Error syncing balance to Supabase: {e}")
+
         return wallet_data
 
     def enforce_app_mode(self):
@@ -588,48 +642,11 @@ class AuthService:
             allowed_mode = "shorts"
         elif self._membership == "commerce":
             allowed_mode = "commerce"
-        
+
         if allowed_mode:
             current_mode = db.get_global_setting("app_mode", "longform")
             if current_mode != allowed_mode:
                 db.update_global_setting("app_mode", allowed_mode)
                 print(f"[Auth] Enforced app_mode to '{allowed_mode}' for membership '{self._membership}'")
-
-        # 3. Calculate actual balance
-        total_payout_krw = 0
-        total_withdrawn_usdt = 0
-        
-        try:
-            if self._user_email:
-                history = db.get_worker_project_history(self._user_email)
-                for h in history:
-                    total_payout_krw += (h.get("payout_amount") or 0)
-                    
-                withdrawals = db.get_worker_withdrawals(self._user_email)
-                for w in withdrawals:
-                    total_withdrawn_usdt += (w.get("amount") or 0)
-        except Exception as e:
-            self.logger.error(f"Error calculating balance: {e}")
-            
-        total_generated_usdt = round(total_payout_krw / 1400.0, 2)
-        current_balance = round(total_generated_usdt - total_withdrawn_usdt, 2)
-        if current_balance < 0:
-            current_balance = 0
-            
-        # [MIGRATION] Sync actual balance to Supabase in the background
-        if self._user_email:
-            try:
-                import threading
-                from services.web_admin_client import web_admin_client
-                address = wallet_data.get("address", "")
-                threading.Thread(target=web_admin_client.sync_wallet_info, args=(self._user_email, current_balance, address), daemon=True).start()
-            except Exception as e:
-                self.logger.error(f"Error syncing balance to Supabase: {e}")
-                
-        return {
-            "address": wallet_data.get("address", ""),
-            "balance": current_balance,
-            "saved_external_wallet": wallet_data.get("saved_external_wallet", "")
-        }
 
 auth_service = AuthService()

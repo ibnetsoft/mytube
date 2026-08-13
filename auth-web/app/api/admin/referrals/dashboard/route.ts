@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireAdmin } from '../../_auth'
 import { getAdmin, scopedCountry, matchesCountryScope, displayName } from '../_shared'
+import { getServerCache, setServerCache } from '@/lib/server-cache'
 
 export const dynamic = 'force-dynamic'
+const DASHBOARD_CACHE_TTL_SECONDS = 60
 
 export async function GET(req: Request) {
     try {
@@ -11,6 +13,16 @@ export async function GET(req: Request) {
 
         const supabase = getAdmin()
         const scope = scopedCountry(requester)
+        const cacheKey = `admin:referrals:dashboard:${scope || 'all'}`
+        const cached = await getServerCache(cacheKey)
+        if (cached) {
+            return NextResponse.json(cached, {
+                headers: {
+                    'Cache-Control': `private, max-age=${DASHBOARD_CACHE_TTL_SECONDS}`,
+                    'X-Admin-Cache': 'HIT',
+                },
+            })
+        }
 
         const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
@@ -105,7 +117,7 @@ export async function GET(req: Request) {
             visibleWithdrawals.filter((w: any) => w.status === 'COMPLETED').map((w: any) => ({ commission_tokens: w.amount }))
         )
 
-        return NextResponse.json({
+        const response = {
             success: true,
             data: {
                 totalReferralMembers: level1Count + level2Count,
@@ -119,6 +131,15 @@ export async function GET(req: Request) {
                 topSponsor,
                 topCountry,
                 topWorker,
+            },
+        }
+
+        await setServerCache(cacheKey, response, DASHBOARD_CACHE_TTL_SECONDS)
+
+        return NextResponse.json(response, {
+            headers: {
+                'Cache-Control': `private, max-age=${DASHBOARD_CACHE_TTL_SECONDS}`,
+                'X-Admin-Cache': 'MISS',
             },
         })
     } catch (error: any) {

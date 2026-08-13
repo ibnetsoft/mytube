@@ -20,7 +20,27 @@ def _load_packaged_env():
             if path and path.exists():
                 load_dotenv(path, override=False)
         except Exception:
+                pass
+
+
+def _load_youtube_key_pool_from_env_files():
+    """Read all YouTube key entries, including legacy duplicate key lines."""
+    values = [os.getenv("YOUTUBE_API_KEYS", "")]
+    candidates = [Path.cwd() / ".env", Path(__file__).resolve().parent / ".env"]
+    seen_paths = set()
+    for path in candidates:
+        path = path.resolve()
+        if path in seen_paths or not path.exists():
+            continue
+        seen_paths.add(path)
+        try:
+            for line in path.read_text(encoding="utf-8-sig").splitlines():
+                name, separator, value = line.partition("=")
+                if separator and name.strip() in {"YOUTUBE_API_KEY", "YOUTUBE_API_KEYS"}:
+                    values.append(value.strip())
+        except Exception:
             pass
+    return ",".join(value for value in values if value)
 
 
 # .env 파일 로드
@@ -30,15 +50,21 @@ _load_packaged_env()
 class Config:
     # Google API
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+    # Optional comma/semicolon/newline-separated failover keys.
+    YOUTUBE_API_KEYS = _load_youtube_key_pool_from_env_files()
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+    GLM_API_KEY = os.getenv("GLM_API_KEY", os.getenv("ZAI_API_KEY", os.getenv("Z_AI_API_KEY", "")))
+    GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
     # AI Model Settings
     SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "claude-sonnet-4-6")  # 대본 생성 모델
-    TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-2.5-pro")
-    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-2.5-pro"))
-    SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-2.5-pro")
-    IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-2.5-flash")
+    # Keep local/offline defaults on a broadly available text model. The
+    # web-admin settings override these values in production.
+    TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3-flash-preview")
+    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3-flash-preview"))
+    SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3-flash-preview")
+    IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3-flash-preview")
     TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-2.5-flash")
     IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
     VIDEO_GENERATION_MODEL = os.getenv("VIDEO_GENERATION_MODEL", "veo-3.1-fast-generate-preview")  # 영상 생성 모델
@@ -64,7 +90,8 @@ class Config:
     PORT = int(os.getenv("PORT", 8000))
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
-    # 외부 렌더링 (구글 드라이브 동기화 방식) 설정
+    # Remote rendering. USE_EXTERNAL_RENDER now means Google Drive API +
+    # Supabase remote_render_queue. DRIVE_RENDER_QUEUE_PATH is legacy-only.
     USE_EXTERNAL_RENDER = os.getenv("USE_EXTERNAL_RENDER", "false").lower() == "true"
     DRIVE_RENDER_QUEUE_PATH = os.getenv("DRIVE_RENDER_QUEUE_PATH", "G:/내 드라이브/Longform_Render_Queue")
     DRIVE_PATH_KO = os.getenv("DRIVE_PATH_KO", "G:/내 드라이브/Longform_Render_Queue")
@@ -108,7 +135,13 @@ class Config:
         with open(os.path.join(BASE_DIR, "version.json"), "r", encoding="utf-8-sig") as _vf:
             APP_VERSION = _json.load(_vf).get("version", "")
     except Exception:
-        APP_VERSION = ""
+        # Development runs do not have the packaged version.json. Keep the
+        # sidebar version visible by falling back to the source version marker.
+        try:
+            from version import APP_VERSION as _source_app_version
+            APP_VERSION = str(_source_app_version or "")
+        except Exception:
+            APP_VERSION = ""
 
     # Writable local app storage shared by dev and installed builds.
     # AppData is local Windows storage, not Supabase. Supabase sync is handled separately.
@@ -174,7 +207,8 @@ class Config:
         """Supabase에서 받은 API 키를 메모리에만 올림 (파일 저장 없음).
         로컬 앱 재시작 시 Supabase에서 다시 받아오므로 로컬 저장 불필요."""
         valid_keys = {
-            'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'CLAUDE_API_KEY',
+            'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'CLAUDE_API_KEY',
+            'GLM_API_KEY', 'GLM_BASE_URL',
             'ELEVENLABS_API_KEY', 'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
             'TOPVIEW_API_KEY', 'TOPVIEW_UID',
@@ -188,13 +222,62 @@ class Config:
         loaded = []
         for key_name, value in keys.items():
             if key_name in valid_keys and value:
+                # A local .env key is an explicit machine-level override. Do
+                # not replace it with a stale web-admin key during worker jobs.
+                local_override_keys = {
+                    'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'GLM_API_KEY', 'GLM_BASE_URL',
+                    'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL',
+                    'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL',
+                    'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
+                }
+                if key_name in local_override_keys and os.getenv(key_name, '').strip():
+                    continue
                 setattr(cls, key_name, value)
                 os.environ[key_name] = value   # 동일 프로세스 내 서브서비스도 참조 가능
                 loaded.append(key_name)
         if loaded:
+            cls.normalize_generation_models()
             import logging
             logging.getLogger(__name__).info(f"🔑 [Config] Supabase 원격 키 로드 완료: {loaded}")
         return loaded
+
+    @classmethod
+    def normalize_generation_models(cls):
+        """Normalize text-generation model ids before a worker starts a job."""
+        glm_text_model = "glm-5.2"
+        prefer_glm = bool(str(cls.GLM_API_KEY or "").strip())
+        replacements = {
+            "gemini-2.5-pro": "gemini-3-flash-preview",
+            "gemini-2.5-flash": "gemini-3-flash-preview",
+            "gemini-2.0-flash": "gemini-3-flash-preview",
+        }
+        for key_name in (
+            "TOPIC_GENERATION_MODEL",
+            "TITLE_GENERATION_MODEL",
+            "SCRIPT_PLANNING_MODEL",
+            "SCRIPT_GENERATION_MODEL",
+            "IMAGE_PROMPT_MODEL",
+            "TRANSLATION_MODEL",
+        ):
+            current = str(getattr(cls, key_name, "") or "").strip()
+            if prefer_glm and (not current or current.lower().startswith("gemini")):
+                replacement = glm_text_model
+            else:
+                replacement = replacements.get(current.lower())
+            if replacement:
+                setattr(cls, key_name, replacement)
+                os.environ[key_name] = replacement
+
+    @classmethod
+    def validate_generation_models(cls):
+        """Return invalid model settings without making a worker process crash."""
+        cls.normalize_generation_models()
+        required = {
+            "TOPIC_GENERATION_MODEL": cls.TOPIC_GENERATION_MODEL,
+            "SCRIPT_PLANNING_MODEL": cls.SCRIPT_PLANNING_MODEL,
+            "SCRIPT_GENERATION_MODEL": cls.SCRIPT_GENERATION_MODEL,
+        }
+        return [key_name for key_name, value in required.items() if not str(value or "").strip()]
 
     @classmethod
     def load_remote_keys_from_supabase(cls):
@@ -232,7 +315,7 @@ class Config:
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
-            'YOUTUBE_API_KEY', 'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
+            'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'GLM_API_KEY', 'GLM_BASE_URL', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
             'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
             'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY',
@@ -298,8 +381,10 @@ class Config:
     def get_api_keys_status(cls):
         """API 키 상태 반환 (마스킹된 값 및 원본 값)"""
         return {
-            "youtube": {"set": bool(cls.YOUTUBE_API_KEY), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY},
+            "youtube": {"set": bool(cls.YOUTUBE_API_KEY), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY, "fallback_count": len(cls.youtube_api_keys())},
             "gemini": {"set": bool(cls.GEMINI_API_KEY), "masked": cls.mask_key(cls.GEMINI_API_KEY), "value": cls.GEMINI_API_KEY},
+            "glm": {"set": bool(cls.GLM_API_KEY), "masked": cls.mask_key(cls.GLM_API_KEY), "value": cls.GLM_API_KEY},
+            "glm_base_url": {"set": bool(cls.GLM_BASE_URL), "masked": cls.GLM_BASE_URL, "value": cls.GLM_BASE_URL},
             "elevenlabs": {"set": bool(cls.ELEVENLABS_API_KEY), "masked": cls.mask_key(cls.ELEVENLABS_API_KEY), "value": cls.ELEVENLABS_API_KEY},
             "suno": {"set": bool(cls.SUNO_API_KEY), "masked": cls.mask_key(cls.SUNO_API_KEY), "value": cls.SUNO_API_KEY},
             "suno_base_url": {"set": bool(cls.SUNO_API_BASE_URL), "masked": cls.SUNO_API_BASE_URL, "value": cls.SUNO_API_BASE_URL},
@@ -314,6 +399,18 @@ class Config:
             "topview": {"set": bool(cls.TOPVIEW_API_KEY), "masked": cls.mask_key(cls.TOPVIEW_API_KEY), "value": cls.TOPVIEW_API_KEY},
             "topview_uid": {"set": bool(cls.TOPVIEW_UID), "masked": cls.mask_key(cls.TOPVIEW_UID), "value": cls.TOPVIEW_UID}
         }
+
+    @classmethod
+    def youtube_api_keys(cls):
+        """Return unique YouTube keys in primary-then-fallback order."""
+        import re
+        keys = []
+        for value in (cls.YOUTUBE_API_KEY, cls.YOUTUBE_API_KEYS):
+            for key in re.split(r"[,;\r\n]+", str(value or "")):
+                key = key.strip()
+                if key and key not in keys:
+                    keys.append(key)
+        return keys
 
 
     @classmethod

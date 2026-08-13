@@ -189,7 +189,11 @@ async def check_login_middleware(request: Request, call_next):
                 # (service_role 불필요). 없으면(구버전 세션 등) 기존 폴백 동작.
                 from services.auth_service import auth_service
                 session_token = request.cookies.get("desktop_session_token")
-                auth_service.login_user(user_email, session_token=session_token)
+                if not auth_service.login_user(user_email, session_token=session_token):
+                    response = RedirectResponse(url="/login", status_code=302)
+                    response.delete_cookie("user_email")
+                    response.delete_cookie("desktop_session_token")
+                    return response
 
         # [AIR-0133] Per-request language: set on request.state for all routes
         # Routers read request.state.current_lang instead of global app_lang.
@@ -266,6 +270,7 @@ os.makedirs("uploads", exist_ok=True)
 # [EXE] Ensure DB is initialized BEFORE accessing globals
 try:
     db.ensure_local_db_migrated()
+    db.init_db()
     db.migrate_db()
     print(f"[Main] Database migration checked: {db.get_db_path()}")
 except Exception as e:

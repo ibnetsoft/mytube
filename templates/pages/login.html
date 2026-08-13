@@ -765,6 +765,23 @@
         document.getElementById('login-btn').disabled = !(email && pass);
     }
 
+    function formatErrorMessage(value, fallback) {
+        if (typeof value === 'string' && value.trim()) return value.trim();
+        if (Array.isArray(value)) {
+            const parts = value.map(item => formatErrorMessage(item, '')).filter(Boolean);
+            return parts.length ? parts.join(' / ') : fallback;
+        }
+        if (value && typeof value === 'object') {
+            for (const key of ['message', 'error', 'details', 'hint', 'code', 'status']) {
+                const text = formatErrorMessage(value[key], '');
+                if (text) return text;
+            }
+            const parts = Object.values(value).map(item => formatErrorMessage(item, '')).filter(Boolean);
+            return parts.length ? parts.join(' / ') : fallback;
+        }
+        return fallback;
+    }
+
     async function submitLogin() {
         const btn = document.getElementById('login-btn');
         const errEl = document.getElementById('login-error');
@@ -795,7 +812,7 @@
                 window.location.href = '/';
             }
             else {
-                errEl.textContent = data.error || L.msg_login_failed;
+                errEl.textContent = formatErrorMessage(data.error, L.msg_login_failed);
                 const panel = document.getElementById('login-panel');
                 panel.classList.add('shake');
                 setTimeout(() => panel.classList.remove('shake'), 400);

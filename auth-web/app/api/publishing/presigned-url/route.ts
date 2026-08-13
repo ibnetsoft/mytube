@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 // [AIR-0225B] 예전에는 body의 userId(UUID)만 믿고 videos/{userId}/... 경로에
 // 대한 서명 업로드 URL을 발급했다 - UUID만 알면 타인 스토리지 경로에 쓰기가
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
         if (!email || !session_token) {
             return NextResponse.json({ error: 'missing_email_or_session_token' }, { status: 401 })
         }
-        if (!verifyDesktopSessionToken(String(email), String(session_token))) {
+        if (!(await verifyApprovedDesktopSession(String(email), String(session_token)))) {
             return NextResponse.json({ error: 'invalid_or_expired_session' }, { status: 401 })
         }
         if (!fileName) {

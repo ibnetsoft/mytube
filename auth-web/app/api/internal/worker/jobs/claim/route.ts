@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 // starve reassignment. See docs/AIR_WORKER_CENTRAL_API.md for the tuning
 // discussion; env override exists purely for staging experimentation.
 const LEASE_TTL_SECONDS = Number(process.env.AIRWORKER_LEASE_TTL_SECONDS || 300)
+const MAX_CONCURRENT_RENDER_JOBS = Number(process.env.AIRWORKER_MAX_CONCURRENT_RENDER_JOBS || 1)
 
 // [AIR-0227D Stage 4/6] allowed_job_types and worker_group come from the
 // AUTHENTICATED token record (auth.worker), never from the request body -
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
             p_allowed_job_types: allowedJobTypes,
             p_worker_group: worker.worker_group,
             p_lease_ttl_seconds: LEASE_TTL_SECONDS,
+            ...(hermes ? {} : { p_max_concurrent_jobs: MAX_CONCURRENT_RENDER_JOBS }),
         }
     )
 

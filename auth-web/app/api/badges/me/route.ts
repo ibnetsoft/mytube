@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
         if (!email || !sessionToken) {
             return NextResponse.json({ status: 'error', detail: 'missing_email_or_session_token' }, { status: 401 })
         }
-        if (!verifyDesktopSessionToken(email, sessionToken)) {
+        if (!(await verifyApprovedDesktopSession(email, sessionToken))) {
             return NextResponse.json({ status: 'error', detail: 'invalid_or_expired_session' }, { status: 401 })
         }
 

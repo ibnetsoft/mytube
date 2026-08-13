@@ -79,6 +79,25 @@ export function verifyDesktopSessionToken(email: string, token: string): boolean
     }
 }
 
+/** A signed session proves identity; approval must be rechecked on each call. */
+export async function verifyApprovedDesktopSession(email: string, token: string): Promise<boolean> {
+    if (!verifyDesktopSessionToken(email, token)) return false
+
+    const { data: profile, error } = await supabaseAdmin
+        .from('profiles')
+        .select('is_approved')
+        .eq('email', email)
+        .maybeSingle()
+    if (error || !profile) return false
+
+    return !(
+        profile.is_approved === false ||
+        profile.is_approved === null ||
+        profile.is_approved === undefined ||
+        ['false', '0', 'none'].includes(String(profile.is_approved).toLowerCase())
+    )
+}
+
 // [AIR-0225B Batch A] global_settings 'sys_api_*' -> desktop app config key.
 // Mirrors services/web_admin_client.py's WebAdminClient.KEY_MAP exactly - keep
 // both in sync if either changes.

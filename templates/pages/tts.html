@@ -68,7 +68,7 @@
         </button>
         <button onclick="generateTTS()" id="generateBtn"
             class="btn-primary px-4 py-1.5 text-sm rounded-md transition-all active:scale-95">
-            {{ t('btn_generate') }}
+            {{ t('btn_generate_voice') }}
         </button>
 
         <!-- Divider -->
@@ -166,6 +166,10 @@
                 class="flex-1 p-3 text-sm font-mono border-0 focus:ring-0 resize-none bg-transparent dark:text-gray-200 custom-scrollbar leading-relaxed"
                 placeholder="{{ t('script_input_placeholder') }}"></textarea>
 
+            <div id="scriptLoadStatus" class="hidden px-3 py-2 border-t border-gray-700 text-xs text-amber-300 bg-amber-950/20">
+                <span id="scriptLoadStatusText"></span>
+            </div>
+
             <div
                 class="p-1 px-3 bg-[#1c2027]/50 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 flex justify-between">
                 <span>{{ t('est_time_label') }}: <span id="estTime">0:00</span></span>
@@ -199,8 +203,8 @@
 <script>
     let speechSynth = window.speechSynthesis;
     let utterance = null;
-
     document.addEventListener('DOMContentLoaded', async () => {
+        initTTSProjectFromUrl();
         checkScriptStatus(); // [NEW] Check Status
         await checkAPIStatus();
         await loadVoices();
@@ -254,6 +258,40 @@
 
         updateProviderSettingsVisibility();
     });
+
+    function initTTSProjectFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const scopedProjectId = window.getCurrentProject ? window.getCurrentProject() : null;
+        const projectId = params.get('project_id') || params.get('id') || scopedProjectId || localStorage.getItem('currentProjectId');
+        if (projectId && window.setCurrentProject) {
+            window.setCurrentProject(projectId);
+        }
+    }
+
+    function extractProjectScript(data) {
+        if (!data) return "";
+
+        const candidates = [
+            data.script,
+            data.full_script,
+            data.pregenerated_script_text,
+            data.settings && data.settings.script,
+            data.settings && data.settings.full_script,
+            data.settings && data.settings.pregenerated_script_text,
+            data.project && data.project.script,
+        ];
+
+        for (const candidate of candidates) {
+            if (!candidate) continue;
+            if (typeof candidate === 'string') return candidate;
+            if (candidate.full_script) return candidate.full_script;
+            if (candidate.script) return candidate.script;
+            if (candidate.content) return candidate.content;
+            if (candidate.text) return candidate.text;
+        }
+
+        return "";
+    }
 
     function updateProviderSettingsVisibility() {
         const provider = document.getElementById('providerSelect').value;
@@ -311,25 +349,21 @@
 
         let hasScript = false;
 
-        // 1. Check Local Storage
-        const localData = Utils.storage.get('fullScript');
-        if (localData && localData.script) {
-            hasScript = true;
-        } else {
-            // 2. Check DB
-            const projectId = getCurrentProject();
-            if (projectId) {
-                try {
-                    const result = await API.project.getScript(projectId);
-                    if (result && result.full_script) {
-                        hasScript = true;
-                        // Sync to local
-                        Utils.storage.set('fullScript', { script: result.full_script });
-                    }
-                } catch (e) {
-                    console.error("Script check failed:", e);
+        const projectId = getCurrentProject();
+        if (projectId) {
+            try {
+                const projectFull = await API.project.getFull(projectId);
+                const scriptText = extractProjectScript(projectFull);
+                if (scriptText) {
+                    hasScript = true;
+                    Utils.storage.set('fullScript', { script: scriptText, full_script: scriptText });
                 }
+            } catch (e) {
+                console.error("Script check failed:", e);
             }
+        } else {
+            const localData = Utils.storage.get('fullScript');
+            hasScript = !!(localData && (localData.script || localData.full_script));
         }
 
         if (hasScript) {
@@ -350,12 +384,10 @@
         const data = e.detail;
 
         // 1. Script Restoration
-        if (data.full_script && data.full_script.full_script) {
-            Utils.storage.set('fullScript', { script: data.full_script.full_script });
-            loadScript();
-        } else if (data.settings && data.settings.script) {
-            Utils.storage.set('fullScript', { script: data.settings.script });
-            loadScript();
+        const restoredScript = extractProjectScript(data);
+        if (restoredScript) {
+            Utils.storage.set('fullScript', { script: restoredScript, full_script: restoredScript });
+            applyScriptToTextarea(restoredScript);
         }
 
         // 2. Audio Result Restoration
@@ -747,10 +779,12 @@
         console.log("loadScript() called");
         const projectId = getCurrentProject();
         let scriptText = "";
+        let projectLoadFailed = false;
 
         if (projectId) {
             try {
-                // 1. Try to fetch fresh data from server
+                // TTS must only consume an existing script. Script preparation/generation
+                // belongs to the script step, so do not trigger pregeneration refresh here.
                 const projectFull = await API.project.getFull(projectId);
                 console.log("Project Data:", projectFull);
 
@@ -758,12 +792,18 @@
                     currentLanguage = projectFull.project.target_language;
                 }
 
-                // Strategy A: Longform Script (Check various possible keys)
-                if (projectFull.script) {
-                    if (typeof projectFull.script === 'string') {
-                        scriptText = projectFull.script;
-                    } else if (projectFull.script.full_script) {
-                        scriptText = projectFull.script.full_script;
+                scriptText = extractProjectScript(projectFull);
+
+                const pregenStatus = projectFull.settings && projectFull.settings.pregenerated_script_status;
+                if (!scriptText && pregenStatus === 'failed') {
+                    showPreparedScriptFailure();
+                } else if (!scriptText && pregenStatus === 'queued') {
+                    const panel = document.getElementById('scriptLoadStatus');
+                    const statusText = document.getElementById('scriptLoadStatusText');
+                    if (panel && statusText) {
+                        panel.className = 'px-3 py-2 border-t border-gray-700 text-xs text-amber-300 bg-amber-950/20';
+                        panel.classList.remove('hidden');
+                        statusText.textContent = '이 주제의 대본이 아직 준비되지 않았습니다. Hermes Worker에서 생성이 완료되면 다시 불러오세요.';
                     }
                 }
 
@@ -787,24 +827,29 @@
                 }
 
                 if (scriptText) {
+                    showPreparedScriptReady();
                     // Update Local Storage for consistency
-                    Utils.storage.set('fullScript', { script: scriptText });
+                    Utils.storage.set('fullScript', { script: scriptText, full_script: scriptText });
                     applyScriptToTextarea(scriptText);
                     Utils.showToast(`{{ t('toast_script_loaded') }}`, 'success');
                     return;
                 }
 
             } catch (e) {
+                projectLoadFailed = true;
                 console.error("Server script load failed:", e);
                 Utils.showToast(`{{ t('toast_script_load_failed') }}`, 'error');
             }
         }
 
-        // 2. Fallback to Local Storage (if server fetch failed or yielded nothing)
+        // 2. Fallback to Local Storage only when there is no selected project or
+        // the selected project's server load failed. Avoid leaking another
+        // project's cached script into this TTS screen.
         const localData = Utils.storage.get('fullScript');
-        if (localData && localData.script) {
+        const localScript = localData && (localData.script || localData.full_script || localData.content || localData.text);
+        if ((!projectId || projectLoadFailed) && localScript) {
             console.log("Loaded script from local storage");
-            applyScriptToTextarea(localData.script);
+            applyScriptToTextarea(localScript);
         } else {
             if (projectId && !scriptText) Utils.showToast(`{{ t('err_no_script') }}`, 'warning');
         }
@@ -818,6 +863,20 @@
         setTimeout(() => {
             if (document.getElementById('multiVoiceToggle').checked) analyzeScriptForCharacters();
         }, 100);
+    }
+
+    function showPreparedScriptFailure() {
+        const panel = document.getElementById('scriptLoadStatus');
+        const text = document.getElementById('scriptLoadStatusText');
+        if (!panel || !text) return;
+        panel.className = 'px-3 py-2 border-t border-red-800 text-xs text-red-300 bg-red-950/30';
+        panel.classList.remove('hidden');
+        text.textContent = '이 주제의 대본 생성이 실패했습니다. AI Worker 로그에서 원인을 확인한 뒤 다시 생성해야 합니다.';
+    }
+
+    function showPreparedScriptReady() {
+        const panel = document.getElementById('scriptLoadStatus');
+        if (panel) panel.classList.add('hidden');
     }
 
     function updateStats() {

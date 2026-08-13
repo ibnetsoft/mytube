@@ -1,6 +1,6 @@
 #define MyAppName "AIR Studio"
 #define MyAppPublisher "AIR Studio"
-#define MyAppExeName "AIRLauncher.exe"
+#define MyAppExeName "AIRStudio.exe"
 #define MyAppVersion GetEnv("AIR_VERSION")
 
 [Setup]
@@ -32,25 +32,18 @@ Name: "{userappdata}\AIRStudio"
 Name: "{localappdata}\AIRStudio\logs"
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\Launcher\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Launcher\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
-Name: "startup"; Description: "Start AIR Studio when Windows starts"; GroupDescription: "Startup and update:"; Flags: checkedonce
+Name: "startup"; Description: "Start AIR Studio when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AIRStudio"; ValueData: """{app}\Launcher\{#MyAppExeName}"""; Tasks: startup
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AIRStudio"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: startup
 
 [Run]
-Filename: "{app}\Launcher\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\AIRStudio\logs"
-; Clean up atomic-swap artefacts left by a failed or interrupted update
-Type: filesandordirs; Name: "{app}\app_backup"
-Type: filesandordirs; Name: "{app}\app_new"
-Type: filesandordirs; Name: "{app}\extract"
-; NOTE: current.json is intentionally NOT deleted on uninstall.
-; It records installed version, install timestamp, and build ID and is
-; useful for support triage, reinstall version detection, and log correlation.

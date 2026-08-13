@@ -34,6 +34,26 @@ UUID_RE = re.compile(
 )
 
 
+def _human_error(value: Any, fallback: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("message", "error", "details", "hint", "code", "status"):
+            text = _human_error(value.get(key), "")
+            if text:
+                return text
+        parts = [_human_error(item, "") for item in value.values()]
+        parts = [item for item in parts if item]
+        if parts:
+            return " / ".join(parts)
+    if isinstance(value, list):
+        parts = [_human_error(item, "") for item in value]
+        parts = [item for item in parts if item]
+        if parts:
+            return " / ".join(parts)
+    return fallback
+
+
 class WebAdminClient:
     """Small wrapper for Vercel web-admin and Supabase REST integration."""
 
@@ -41,6 +61,8 @@ class WebAdminClient:
         "sys_api_gemini": "GEMINI_API_KEY",
         "sys_api_youtube": "YOUTUBE_API_KEY",
         "sys_api_claude": "CLAUDE_API_KEY",
+        "sys_api_glm": "GLM_API_KEY",
+        "sys_api_glm_base_url": "GLM_BASE_URL",
         "sys_api_elevenlabs": "ELEVENLABS_API_KEY",
         "sys_api_suno": "SUNO_API_KEY",
         "sys_api_suno_base_url": "SUNO_API_BASE_URL",
@@ -101,6 +123,15 @@ class WebAdminClient:
             headers["Content-Type"] = "application/json"
         return headers
 
+    def dashboard_headers(self, content_type: bool = False) -> Dict[str, str]:
+        headers: Dict[str, str] = {}
+        bypass_secret = os.getenv("VERCEL_AUTOMATION_BYPASS_SECRET", "").strip()
+        if bypass_secret:
+            headers["x-vercel-protection-bypass"] = bypass_secret
+        if content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
+
     def _disable_warnings(self):
         try:
             import urllib3
@@ -140,6 +171,25 @@ class WebAdminClient:
             f"{self.supabase_url}/rest/v1/{table}",
             headers=headers,
             json=payload,
+            timeout=timeout or self.timeout,
+            verify=False,
+            proxies={"http": None, "https": None},
+        )
+
+    def rpc(
+        self,
+        function_name: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        timeout: Optional[int] = None,
+    ):
+        if not self.has_supabase() or not function_name:
+            return None
+        self._disable_warnings()
+        return requests.post(
+            f"{self.supabase_url}/rest/v1/rpc/{function_name}",
+            headers=self.headers(content_type=True),
+            json=payload or {},
             timeout=timeout or self.timeout,
             verify=False,
             proxies={"http": None, "https": None},
@@ -401,11 +451,17 @@ class WebAdminClient:
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-login",
                 json=payload,
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
-            data = response.json()
+            try:
+                data = response.json()
+            except Exception:
+                return {"success": False, "error": f"Login server returned HTTP {response.status_code}"}
             if not isinstance(data, dict):
                 return {"success": False, "error": "로그인 서버 응답 오류"}
+            if not data.get("success"):
+                data["error"] = _human_error(data.get("error"), f"Login failed (HTTP {response.status_code})")
             return data
         except Exception as e:
             return {"success": False, "error": f"로그인 서버 연결 오류: {e}"}
@@ -420,6 +476,7 @@ class WebAdminClient:
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-resync",
                 json={"email": email, "session_token": session_token},
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -451,6 +508,7 @@ class WebAdminClient:
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-referrals",
                 json=payload,
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -481,6 +539,7 @@ class WebAdminClient:
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-support",
                 json=payload,
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -501,6 +560,7 @@ class WebAdminClient:
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-announcements",
                 json={"email": email, "session_token": session_token, "action": "list", "lang": lang},
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -534,6 +594,7 @@ class WebAdminClient:
             response = requests.post(
                 f"{self.dashboard_url}/api/desktop-project-sync",
                 json=payload,
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -568,6 +629,7 @@ class WebAdminClient:
                     "contact": contact,
                     "preferred_category_ids": preferred_category_ids or [],
                 },
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -590,6 +652,7 @@ class WebAdminClient:
                     "current_password": current_password,
                     "new_password": new_password,
                 },
+                headers=self.dashboard_headers(content_type=True),
                 timeout=self.timeout,
             )
             data = response.json()
@@ -701,6 +764,76 @@ class WebAdminClient:
             return response.json() or []
         except Exception:
             return []
+
+    def fetch_style_presets(self, preset_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Fetch shared image/script style presets for the local Worker console.
+
+        The Supabase table is the source of truth.  The Worker keeps a local
+        cache for generation, but editing must update this shared record first
+        so the desktop app and Worker cannot quietly drift apart.
+        """
+        params: Dict[str, Any] = {
+            "select": "id,preset_type,key_code,display_name_ko,display_name_vi,prompt_template,gemini_instruction,image_url,created_at",
+            "order": "created_at.desc",
+        }
+        if preset_types:
+            params["preset_type"] = "in.(" + ",".join(preset_types) + ")"
+        response = self.supabase_get("style_presets", params=params, timeout=10)
+        if response is None or response.status_code != 200:
+            if response is not None:
+                print(f"[WebAdmin] style presets load failed: HTTP {response.status_code} {response.text[:200]}")
+            return []
+        try:
+            return response.json() or []
+        except Exception:
+            return []
+
+    def upsert_style_preset(self, preset: Dict[str, Any]) -> Dict[str, Any]:
+        """Create or update one shared image/script preset by key_code."""
+        if not self.has_supabase():
+            return {"success": False, "error": "중앙 스타일 저장소 연결 설정이 없습니다."}
+        key_code = str(preset.get("key_code") or "").strip().lower()
+        if not key_code:
+            return {"success": False, "error": "스타일 코드가 비어 있습니다."}
+        payload = dict(preset)
+        payload["key_code"] = key_code
+        self._disable_warnings()
+        headers = self.headers(content_type=True)
+        headers["Prefer"] = "resolution=merge-duplicates,return=representation"
+        try:
+            response = requests.post(
+                f"{self.supabase_url}/rest/v1/style_presets?on_conflict=key_code",
+                headers=headers,
+                json=payload,
+                timeout=10,
+                verify=False,
+                proxies={"http": None, "https": None},
+            )
+            if response.status_code >= 300:
+                return {"success": False, "error": f"스타일 저장 실패 (HTTP {response.status_code})"}
+            rows = response.json() or []
+            return {"success": True, "preset": rows[0] if rows else payload}
+        except Exception as e:
+            return {"success": False, "error": f"스타일 저장 연결 오류: {e}"}
+
+    def delete_style_preset(self, key_code: str) -> Dict[str, Any]:
+        """Delete a shared style preset by its stable key."""
+        if not self.has_supabase():
+            return {"success": False, "error": "중앙 스타일 저장소 연결 설정이 없습니다."}
+        try:
+            response = requests.delete(
+                f"{self.supabase_url}/rest/v1/style_presets",
+                headers=self.headers(),
+                params={"key_code": f"eq.{key_code}"},
+                timeout=10,
+                verify=False,
+                proxies={"http": None, "https": None},
+            )
+            if response.status_code >= 300:
+                return {"success": False, "error": f"스타일 삭제 실패 (HTTP {response.status_code})"}
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": f"스타일 삭제 연결 오류: {e}"}
 
     def fetch_music_plan_templates(self) -> List[Dict[str, Any]]:
         response = self.supabase_get(

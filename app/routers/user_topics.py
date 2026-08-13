@@ -87,6 +87,25 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
     ) and all(isinstance(scene, dict) for scene in scenes)
 
 
+def _topic_has_publish_description(topic: dict) -> bool:
+    metadata = topic.get("publish_metadata")
+    if not metadata:
+        progress_payload = topic.get("progress_payload")
+        if isinstance(progress_payload, str):
+            try:
+                progress_payload = json.loads(progress_payload)
+            except Exception:
+                progress_payload = {}
+        if isinstance(progress_payload, dict):
+            metadata = progress_payload.get("publish_metadata")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    return bool(str((metadata or {}).get("description") or "").strip())
+
+
 def _is_fully_prepared_topic(topic: dict) -> bool:
     return (
         topic.get("pregenerated_structure_status") == "ready"
@@ -94,6 +113,7 @@ def _is_fully_prepared_topic(topic: dict) -> bool:
         and topic.get("pregenerated_script_status") == "ready"
         and str(topic.get("pregenerated_script") or "").strip()
         and _structure_has_ready_media_prompts(topic.get("pregenerated_structure"))
+        and _topic_has_publish_description(topic)
     )
 
 
@@ -108,6 +128,7 @@ def _is_recommendable_topic(topic: dict) -> bool:
         and topic.get("pregenerated_script_status") == "ready"
         and bool(str(topic.get("pregenerated_script") or "").strip())
         and _structure_has_ready_media_prompts(topic.get("pregenerated_structure"))
+        and _topic_has_publish_description(topic)
     )
 
 
@@ -254,6 +275,7 @@ def _call_bridge(action: str, params: dict | None = None) -> dict:
         r = requests.post(
             f"{web_admin_client.dashboard_url}/api/desktop-topics-bridge",
             json={"email": email, "session_token": session_token, "action": action, "params": params or {}},
+            headers=web_admin_client.dashboard_headers(content_type=True),
             timeout=15,
             verify=False,
             proxies={"http": None, "https": None},
@@ -271,6 +293,185 @@ def _call_bridge(action: str, params: dict | None = None) -> dict:
     if r.status_code >= 500:
         raise BridgeError(f"desktop-topics-bridge error ({action}): {body.get('detail')}")
     return body
+
+
+def _supabase_direct_config() -> tuple[str, dict]:
+    url = (
+        os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        or os.getenv("SUPABASE_URL")
+        or getattr(config, "SUPABASE_URL", "")
+        or ""
+    ).strip().strip('"').rstrip("/")
+    key = (
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or getattr(config, "SUPABASE_SERVICE_ROLE_KEY", "")
+        or ""
+    ).strip().strip('"')
+    if not url or not key:
+        return "", {}
+    return url, {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+
+def _supabase_get_direct(table: str, params: dict, timeout: int = 15) -> list:
+    supabase_url, headers = _supabase_direct_config()
+    if not supabase_url:
+        raise BridgeError("local Supabase fallback is not configured")
+    r = requests.get(
+        f"{supabase_url}/rest/v1/{table}",
+        headers=headers,
+        params=params,
+        timeout=timeout,
+        verify=False,
+        proxies={"http": None, "https": None},
+    )
+    if r.status_code >= 400:
+        raise BridgeError(f"local Supabase GET failed ({table}, HTTP {r.status_code}): {r.text[:200]}")
+    return r.json()
+
+
+def _supabase_patch_direct(table: str, params: dict, payload: dict, timeout: int = 15) -> list:
+    supabase_url, headers = _supabase_direct_config()
+    if not supabase_url:
+        raise BridgeError("local Supabase fallback is not configured")
+    patch_headers = {**headers, "Prefer": "return=representation"}
+    r = requests.patch(
+        f"{supabase_url}/rest/v1/{table}",
+        headers=patch_headers,
+        params=params,
+        json=payload,
+        timeout=timeout,
+        verify=False,
+        proxies={"http": None, "https": None},
+    )
+    if r.status_code >= 400:
+        raise BridgeError(f"local Supabase PATCH failed ({table}, HTTP {r.status_code}): {r.text[:200]}")
+    return r.json() if r.text else []
+
+
+def _call_local_supabase_action(action: str, params: dict | None = None) -> dict | None:
+    params = params or {}
+
+    if action == "get_longform_policy":
+        keys = [
+            "sys_api_longform_min_duration_minutes",
+            "sys_api_longform_base_payout",
+            "sys_api_longform_extra_minute_payout",
+            "sys_api_longform_duration_lock_enabled",
+        ]
+        rows = _supabase_get_direct(
+            "global_settings",
+            {"select": "key,value", "key": f"in.({','.join(keys)})"},
+        )
+        return {"status": "ok", "rows": rows}
+
+    if action == "get_pending_topics":
+        limit_value = max(1, min(500, _to_int(params.get("limit"), 200)))
+        rows = _supabase_get_direct(
+            "topics_queue",
+            {
+                "select": "*,categories!inner(*)",
+                "status": "eq.pending",
+                "generated_title": "not.is.null",
+                "order": "created_at.desc",
+                "limit": str(limit_value),
+            },
+        )
+        return {"status": "ok", "rows": rows}
+
+    if action == "get_stored_translations":
+        topic_ids = [str(t).strip() for t in (params.get("topic_ids") or []) if str(t).strip()]
+        lang = str(params.get("lang") or "").strip()
+        if not topic_ids or lang not in {"en", "vi", "th"}:
+            return {"status": "ok", "rows": []}
+        rows = _supabase_get_direct(
+            "topics_queue",
+            {
+                "select": f"id,topic_{lang},category_name_{lang}",
+                "id": f"in.({','.join(topic_ids)})",
+            },
+        )
+        return {"status": "ok", "rows": rows}
+
+    if action == "save_translations":
+        topic_id = str(params.get("topic_id") or "").strip()
+        fields = params.get("fields") or {}
+        if not topic_id or not isinstance(fields, dict):
+            return {"status": "error", "detail": "invalid_translation_payload"}
+        rows = _supabase_patch_direct("topics_queue", {"id": f"eq.{topic_id}"}, fields)
+        return {"status": "ok", "rows": rows}
+
+    if action == "get_rebalancing_settings":
+        try:
+            rows = _supabase_get_direct(
+                "topic_rebalancing_settings",
+                {"select": "*", "is_active": "eq.true", "limit": "1"},
+            )
+        except BridgeError:
+            rows = []
+        return {"status": "ok", "rows": rows}
+
+    if action == "get_boosts":
+        try:
+            rows = _supabase_get_direct(
+                "category_demand_boosts",
+                {"select": "category_id,boost_multiplier", "is_active": "eq.true"},
+            )
+        except BridgeError:
+            rows = []
+        return {"status": "ok", "rows": rows}
+
+    if action == "claim_topic":
+        topic_id = str(params.get("topic_id") or "").strip()
+        if not topic_id:
+            return {"status": "error", "detail": "topic_not_found"}
+        rows = _supabase_get_direct(
+            "topics_queue",
+            {
+                "select": "*,categories!inner(*)",
+                "id": f"eq.{topic_id}",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            return {"status": "error", "detail": "topic_not_found"}
+        topic = rows[0]
+        if topic.get("status") != "pending":
+            return {"status": "error", "detail": "topic_already_claimed"}
+        if not _is_recommendable_topic(topic):
+            return {"status": "error", "detail": "topic_not_ready"}
+
+        email = auth_service.get_user_email()
+        patched = _supabase_patch_direct(
+            "topics_queue",
+            {"id": f"eq.{topic_id}", "status": "eq.pending"},
+            {
+                "status": "assigned",
+                "assigned_employee_email": email,
+                "assigned_at": datetime.utcnow().isoformat() + "Z",
+            },
+        )
+        if not patched:
+            return {"status": "error", "detail": "topic_already_claimed"}
+        return {"status": "ok", "topic": patched[0]}
+
+    return None
+
+
+def _call_bridge_or_local(action: str, params: dict | None = None) -> dict:
+    try:
+        return _call_bridge(action, params)
+    except HTTPException:
+        raise
+    except BridgeError as bridge_error:
+        fallback = _call_local_supabase_action(action, params)
+        if fallback is None:
+            raise bridge_error
+        print(f"[User Topics] Using local Supabase fallback for {action}: {bridge_error}")
+        return fallback
 
 
 def _normalize_content_language(value: str, default: str = "ko") -> str:
@@ -301,7 +502,7 @@ def _fetch_longform_policy() -> dict:
         "sys_api_longform_duration_lock_enabled": "true",
     }
     try:
-        result = _call_bridge("get_longform_policy")
+        result = _call_bridge_or_local("get_longform_policy")
         for row in result.get("rows") or []:
             if row.get("key"):
                 defaults[row["key"]] = row.get("value")
@@ -580,7 +781,7 @@ def _fetch_stored_translations(topic_ids: list[str], lang_code: str) -> dict:
 
     lang = lang_code
     try:
-        result = _call_bridge("get_stored_translations", {"topic_ids": [str(t) for t in topic_ids], "lang": lang})
+        result = _call_bridge_or_local("get_stored_translations", {"topic_ids": [str(t) for t in topic_ids], "lang": lang})
         out = {}
         for row in result.get("rows") or []:
             rid = str(row.get("id") or "").strip()
@@ -617,7 +818,7 @@ async def _save_translations_to_db(translations: dict, lang_code: str) -> None:
         }
         try:
             await asyncio.to_thread(
-                _call_bridge, "save_translations", {"topic_id": topic_id, "lang": lang, "fields": fields}
+                _call_bridge_or_local, "save_translations", {"topic_id": topic_id, "lang": lang, "fields": fields}
             )
         except Exception as e:
             print(f"[User Topics] Failed to save translation for topic {topic_id} ({lang}): {e}")
@@ -732,7 +933,7 @@ async def get_recommended_topics(
     # ???????꿔꺂??틝?????(????亦????숈?????????밸븶?????β뼯援????
     if not refresh:
         try:
-            cached = _call_bridge("get_cached_recommendations", {"limit": limit})
+            cached = _call_bridge_or_local("get_cached_recommendations", {"limit": limit})
             rows = cached.get("rows") or []
             if rows and len(rows) >= limit:
                 prepared_rows = [topic for topic in rows if _is_recommendable_topic(topic)]
@@ -743,14 +944,17 @@ async def get_recommended_topics(
             print(f"[User Topics] Failed to fetch cached recommendations: {e}")
 
     # ??????????밸븶?ⓥ뮧??????곗뒭????
-    profile = (_call_bridge("get_profile_prefs") or {}).get("profile")
     user_prefs = {}
-    if profile:
-        user_prefs = {
-            "preferred_languages": profile.get("preferred_languages", ["ko"]),
-            "preferred_video_length": profile.get("preferred_video_length", ""),
-            "preferred_category_ids": profile.get("preferred_category_ids", []),
-        }
+    try:
+        profile = (_call_bridge_or_local("get_profile_prefs") or {}).get("profile")
+        if profile:
+            user_prefs = {
+                "preferred_languages": profile.get("preferred_languages", ["ko"]),
+                "preferred_video_length": profile.get("preferred_video_length", ""),
+                "preferred_category_ids": profile.get("preferred_category_ids", []),
+            }
+    except Exception as e:
+        print(f"[User Topics] Profile preferences unavailable; using defaults: {e}")
 
     # ??????????援경퓴??????????癲????濚밸Ŧ???
     preferred_languages = user_prefs.get("preferred_languages", ["ko"])
@@ -760,7 +964,7 @@ async def get_recommended_topics(
     # ???숆강?붺춯?筌????????利????濚밸Ŧ??????곗뒭????
     rebalancing_settings = {}
     try:
-        rebalancing_result = _call_bridge("get_rebalancing_settings")
+        rebalancing_result = _call_bridge_or_local("get_rebalancing_settings")
         rows = rebalancing_result.get("rows") or []
         if rows:
             rebalancing_settings = rows[0] or {}
@@ -771,7 +975,7 @@ async def get_recommended_topics(
     try:
         # Score a broader live pool before taking the user's page-sized result.
         # Limiting the pool too early can hide an interest category behind newer rows.
-        available_result = _call_bridge("get_pending_topics", {"limit": 200})
+        available_result = _call_bridge_or_local("get_pending_topics", {"limit": 200})
         available_topics = available_result.get("rows") or []
     except HTTPException:
         raise
@@ -829,7 +1033,7 @@ async def get_recommended_topics(
         ]
 
         try:
-            _call_bridge("save_recommendations", {"rows": recommendations})
+            _call_bridge_or_local("save_recommendations", {"rows": recommendations})
         except Exception as e:
             print(f"[User Topics] Failed to save recommendations: {e}")
 
@@ -899,7 +1103,7 @@ async def claim_topic(req: ClaimTopicRequest):
         # [AIR-0227E-P4] resolve+fetch+patch(topics_queue)+patch(user_topic_recommendations)
         # now happens as one atomic action on the bridge (auth-web), not four
         # separate direct-to-Supabase calls from here.
-        bridge_result = _call_bridge("claim_topic", {"topic_id": req.topic_id})
+        bridge_result = _call_bridge_or_local("claim_topic", {"topic_id": req.topic_id})
         if bridge_result.get("status") != "ok":
             detail = bridge_result.get("detail") or "topic_not_found"
             if detail == "topic_already_claimed":
@@ -1098,7 +1302,7 @@ def _apply_multipliers_to_topics(topics: list) -> list:
     """Apply category boost multipliers to cached topics."""
     # ???ㅳ늾???雅?퍔瑗?????숈?????????????????癲ル슢???쇳맪?????뉖???????깅렰 ???곗뒭????
     try:
-        boosts_result = _call_bridge("get_boosts")
+        boosts_result = _call_bridge_or_local("get_boosts")
         boosts = {b.get("category_id"): b.get("boost_multiplier", 1.0) for b in boosts_result.get("rows") or []}
         for topic in topics:
             category_id = topic.get("category_id")

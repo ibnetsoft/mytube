@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
+import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
+
+const CATEGORIES_CACHE_KEY = 'admin:categories'
+const CATEGORIES_CACHE_TTL_SECONDS = 300
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,6 +35,16 @@ export async function GET(req: Request) {
         const requester = await requireAdmin(req)
         if (isAuthResponse(requester)) return requester
 
+        const cached = await getServerCache<{ categories: any[] }>(CATEGORIES_CACHE_KEY)
+        if (cached) {
+            return NextResponse.json(cached, {
+                headers: {
+                    'Cache-Control': `private, max-age=${CATEGORIES_CACHE_TTL_SECONDS}`,
+                    'X-Admin-Cache': 'HIT',
+                },
+            })
+        }
+
         const supabase = getAdmin()
         const { data, error } = await supabase
             .from('categories')
@@ -39,11 +53,19 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        return NextResponse.json({
+        const response = {
             categories: (data || []).map((category: any) => ({
                 ...category,
                 language: normalizeContentLanguage(category.language),
             }))
+        }
+        await setServerCache(CATEGORIES_CACHE_KEY, response, CATEGORIES_CACHE_TTL_SECONDS)
+
+        return NextResponse.json(response, {
+            headers: {
+                'Cache-Control': `private, max-age=${CATEGORIES_CACHE_TTL_SECONDS}`,
+                'X-Admin-Cache': 'MISS',
+            },
         })
     } catch (e: any) {
         console.error('Failed to get categories:', e)
@@ -147,6 +169,7 @@ export async function POST(req: Request) {
         }
         if (queueInsertError) throw queueInsertError
 
+        await deleteServerCache(CATEGORIES_CACHE_KEY)
         return NextResponse.json({ success: true, category: createdCategory })
     } catch (e: any) {
         console.error('Failed to create category:', e)
@@ -172,6 +195,7 @@ export async function DELETE(req: Request) {
 
         if (error) throw error
 
+        await deleteServerCache(CATEGORIES_CACHE_KEY)
         return NextResponse.json({ success: true })
     } catch (e: any) {
         console.error('Failed to delete category:', e)
@@ -267,6 +291,7 @@ export async function PUT(req: Request) {
             }
         }
 
+        await deleteServerCache(CATEGORIES_CACHE_KEY)
         return NextResponse.json({ success: true, category: updatedCategory })
     } catch (e: any) {
         console.error('Failed to update category:', e)

@@ -2,7 +2,7 @@
 Gemini API 라우터
 /api/gemini/* 및 /api/nursery/* 엔드포인트
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 import httpx
@@ -53,6 +53,74 @@ class NurseryImagePromptsRequest(BaseModel):
     project_id: Optional[int] = None
 
 
+def _sync_claimed_topic_pregeneration(project_id: int, settings: dict) -> dict:
+    """Refresh a claimed topic's Worker output into the local project cache."""
+    topic_id = str(settings.get("topic_queue_id") or "").strip()
+    if not topic_id:
+        return settings
+
+    try:
+        from app.routers.user_topics import (
+            _call_bridge,
+            _copy_prepared_topic_assets_to_project,
+            _copy_publish_metadata_to_project,
+            _is_fully_prepared_topic,
+        )
+
+        result = _call_bridge("get_claimed_topic_pregeneration", {"topic_id": topic_id})
+        if result.get("status") != "ok":
+            return settings
+        topic = result.get("topic") or {}
+        structure_status = topic.get("pregenerated_structure_status") or "queued"
+        script_status = topic.get("pregenerated_script_status") or "queued"
+        db.update_project_setting(project_id, "pregenerated_structure_status", structure_status)
+        db.update_project_setting(project_id, "pregenerated_script_status", script_status)
+
+        structure = topic.get("pregenerated_structure")
+        if structure_status == "ready" and structure:
+            db.update_project_setting(
+                project_id, "pregenerated_structure_json", json.dumps(structure, ensure_ascii=False)
+            )
+        script = topic.get("pregenerated_script")
+        if script_status == "ready" and script:
+            db.update_project_setting(project_id, "pregenerated_script_text", script)
+        has_ready_structure = structure_status == "ready" and bool(structure)
+        has_ready_script = script_status == "ready" and bool(script)
+        if has_ready_structure or has_ready_script:
+            _copy_prepared_topic_assets_to_project(project_id, topic)
+
+        generated_title = str(topic.get("generated_title") or "").strip()
+        if generated_title:
+            db.update_project_setting(project_id, "generated_title", generated_title)
+        if not _copy_publish_metadata_to_project(project_id, topic, generated_title) and generated_title:
+            db.save_metadata(project_id, [generated_title], "", [], [])
+        benchmark = topic.get("benchmark_analysis")
+        if benchmark:
+            db.update_project_setting(
+                project_id, "benchmark_analysis_json", json.dumps(benchmark, ensure_ascii=False)
+            )
+        return db.get_project_settings(project_id) or settings
+    except Exception as exc:
+        print(f"[Gemini] Failed to refresh pregeneration for project {project_id}: {exc}")
+        return settings
+
+
+@router.post("/api/projects/{project_id}/refresh-pregeneration")
+async def refresh_claimed_topic_pregeneration(project_id: int):
+    """Expose the latest claimed-topic preparation state to the desktop UI."""
+    from services.auth_service import auth_service
+
+    project = db.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    email = auth_service.get_user_email()
+    if not email or project.get("employee_email") != email:
+        raise HTTPException(status_code=403, detail="Project access denied")
+
+    settings = db.get_project_settings(project_id) or {}
+    return {"status": "ok", "settings": _sync_claimed_topic_pregeneration(project_id, settings)}
+
+
 @router.post("/api/gemini/generate-structure")
 async def generate_script_structure_api(req: StructureGenerateRequest):
     """대본 구조 생성 (중복 방지 적용)"""
@@ -70,6 +138,7 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
     if req.project_id:
         settings = db.get_project_settings(req.project_id) or {}
         if settings.get("topic_queue_id"):
+            settings = _sync_claimed_topic_pregeneration(req.project_id, settings)
             raw = settings.get("pregenerated_structure_json")
             if raw:
                 try:
@@ -79,10 +148,16 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
                 except Exception as e:
                     print(f"[Gemini] Failed to parse pregenerated_structure for project {req.project_id}: {e}")
 
+            if settings.get("pregenerated_structure_status") == "failed":
+                return {
+                    "status": "error",
+                    "error": "AI Worker failed to prepare this plan. Please try another topic or contact the administrator.",
+                    "pregeneration_status": "failed",
+                }
             return {
                 "status": "pending",
                 "error": "이 주제는 아직 기획이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.",
-                "pregeneration_status": settings.get("pregenerated_structure_status") or "none",
+                "pregeneration_status": settings.get("pregenerated_structure_status") or "queued",
             }
 
     from services.auth_service import auth_service
@@ -98,8 +173,18 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
 
         db_analysis = None
         queue_benchmark_analysis = None
+        upload_title = ""
+        title_generation = {}
         if req.project_id:
             db_analysis = db.get_analysis(req.project_id)
+            settings = db.get_project_settings(req.project_id) or {}
+            upload_title = settings.get("generated_title") or settings.get("title") or ""
+            raw_title_generation = settings.get("title_generation_json")
+            if raw_title_generation:
+                try:
+                    title_generation = json.loads(raw_title_generation)
+                except Exception:
+                    title_generation = {}
             if not db_analysis:
                 # [AIR-0230 §2c] db_analysis is PRO's manual "search a video ->
                 # analyze" path (templates/pages/topic.html) - STD claimed
@@ -110,7 +195,6 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
                 # (app/routers/user_topics.py) copies topics_queue.benchmark_analysis
                 # into this project_setting when present.
                 try:
-                    settings = db.get_project_settings(req.project_id) or {}
                     raw = settings.get("benchmark_analysis_json")
                     if raw:
                         # worker/hermes_worker.py's result_payload shape is
@@ -151,6 +235,8 @@ async def generate_script_structure_api(req: StructureGenerateRequest):
             # scene_planner가 GeminiService.generate_script_structure()로 대체되면서
             # 벤치마크 분석/누적 학습지식/최근주제 회피가 전부 죽은 코드가 됐었다.
             benchmark_analysis=analysis_data.get("success_analysis"),
+            upload_title=upload_title,
+            title_generation=title_generation,
             accumulated_knowledge=accumulated_knowledge,
             recent_titles=recent_titles,
         )

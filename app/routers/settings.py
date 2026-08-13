@@ -54,6 +54,7 @@ ADVANCED_GLOBAL_SETTING_FIELDS = {
     "wp_username",
     "wp_password",
     "youtube_api_key",
+    "youtube_api_keys",
     "gemini_api_key",
     "elevenlabs_api_key",
     "pexels_api_key",
@@ -103,6 +104,7 @@ class GlobalSettings(BaseModel):
     user_email: Optional[str] = None
     # [NEW] API Keys
     youtube_api_key: Optional[str] = None
+    youtube_api_keys: Optional[str] = None
     gemini_api_key: Optional[str] = None
     elevenlabs_api_key: Optional[str] = None
     pexels_api_key: Optional[str] = None
@@ -371,6 +373,8 @@ async def save_global_settings_api(settings: GlobalSettings):
     # [NEW] Update API Keys in config/env
     if settings.youtube_api_key is not None:
         config.update_api_key("YOUTUBE_API_KEY", settings.youtube_api_key)
+    if settings.youtube_api_keys is not None:
+        config.update_api_key("YOUTUBE_API_KEYS", settings.youtube_api_keys)
     if settings.gemini_api_key is not None:
         config.update_api_key("GEMINI_API_KEY", settings.gemini_api_key)
     if settings.elevenlabs_api_key is not None:
@@ -1631,6 +1635,7 @@ async def save_api_keys(req: ApiKeySave):
 
     mapping = {
         'youtube': 'YOUTUBE_API_KEY',
+        'youtube_keys': 'YOUTUBE_API_KEYS',
         'gemini': 'GEMINI_API_KEY',
         'elevenlabs': 'ELEVENLABS_API_KEY',
         'suno': 'SUNO_API_KEY',

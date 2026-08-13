@@ -2,6 +2,7 @@
 
 import json
 import os
+import threading
 import time
 
 from logging_setup import get_logger
@@ -82,7 +83,26 @@ def main():
             summary = _job_summary(claimed)
             logger.info("Processing Drive API render job %s", claimed.get("id"))
             write_state("running", summary, int(claimed.get("progress") or 1))
-            worker.process_job(claimed)
+            heartbeat_stop = threading.Event()
+
+            def refresh_heartbeat():
+                while not heartbeat_stop.wait(10):
+                    try:
+                        write_state("running", summary, int(claimed.get("progress") or 1))
+                    except Exception:
+                        logger.exception("Failed to refresh Remote Drive Worker heartbeat")
+
+            heartbeat_thread = threading.Thread(
+                target=refresh_heartbeat,
+                name="remote-drive-heartbeat",
+                daemon=True,
+            )
+            heartbeat_thread.start()
+            try:
+                worker.process_job(claimed)
+            finally:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=2)
 
             state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
             state["status"] = "idle"

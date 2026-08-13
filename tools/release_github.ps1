@@ -6,8 +6,7 @@
 .DESCRIPTION
     Uses the GitHub CLI (gh) to:
       1. Create a GitHub Release tag v{Version}
-      2. Upload all release artifacts (ZIP, installer, latest.json, .sha256 files)
-      3. Update latest.json as a named asset on the release
+      2. Upload the desktop ZIP, installer, and SHA256 files
 
     Prerequisites:
       - GitHub CLI installed: https://cli.github.com
@@ -124,8 +123,6 @@ Channel: **$Channel**
 - ``AIRStudio-${Version}-win-x64.zip`` — portable archive (no installer required)
 - ``AIRStudioSetup-${Version}.exe`` — Windows installer
 
-### Update check
-The app auto-updates via ``latest.json`` on next launch.
 SHA256 checksums are published alongside each artifact.
 "@
 }
@@ -147,15 +144,11 @@ Write-Host ""
 Write-Host "Verifying release artifacts..."
 $ZipPath          = Join-Path $ReleaseDir $ZipName
 $ZipSha256Path    = "$ZipPath.sha256"
-$ManifestPath     = Join-Path $ReleaseDir "latest.json"
-$ManifestSha256   = "$ManifestPath.sha256"
 $InstallerPath    = Join-Path $ReleaseDir $InstallerName
 $InstallerSha256  = "$InstallerPath.sha256"
 
 Assert-Artifact $ZipPath         "portable ZIP"
 Assert-Artifact $ZipSha256Path   "ZIP SHA256 sidecar"
-Assert-Artifact $ManifestPath    "latest.json"
-Assert-Artifact $ManifestSha256  "latest.json SHA256 sidecar"
 
 if (-not $SkipInstaller) {
     Assert-Artifact $InstallerPath    "Inno Setup installer"
@@ -165,9 +158,7 @@ if (-not $SkipInstaller) {
 # Build file list for upload
 $UploadFiles = @(
     $ZipPath,
-    $ZipSha256Path,
-    $ManifestPath,
-    $ManifestSha256
+    $ZipSha256Path
 )
 if (-not $SkipInstaller) {
     $UploadFiles += $InstallerPath
@@ -220,7 +211,4 @@ Write-Host ""
 Write-Host "=== Release published ==="
 Write-Host "  Tag  : $Tag"
 Write-Host "  URL  : https://github.com/$GitHubRepo/releases/tag/$Tag"
-Write-Host ""
-Write-Host "latest.json manifest URL (for update_config.json):"
-Write-Host "  https://github.com/$GitHubRepo/releases/latest/download/latest.json"
 Write-Host ""

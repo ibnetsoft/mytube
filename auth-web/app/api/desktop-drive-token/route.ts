@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +51,7 @@ async function isAuthorized(email: unknown, session_token: unknown, worker_key: 
         if (await isValidServiceRoleKey(worker_key)) return true
     }
     if (typeof email === 'string' && typeof session_token === 'string') {
-        return verifyDesktopSessionToken(email, session_token)
+        return verifyApprovedDesktopSession(email, session_token)
     }
     return false
 }

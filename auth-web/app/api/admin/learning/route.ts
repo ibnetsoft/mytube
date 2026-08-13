@@ -43,6 +43,44 @@ function buildProjectRows(events: any[], limit: number) {
         .slice(0, limit)
 }
 
+function summarizeContentFeedback(rows: any[]) {
+    const titleScores = rows
+        .map((row: any) => Number(row.title_score))
+        .filter((value: number) => Number.isFinite(value))
+    const scriptScores = rows
+        .map((row: any) => Number(row.script_score))
+        .filter((value: number) => Number.isFinite(value))
+    const avg = (values: number[]) => values.length
+        ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+        : null
+
+    return {
+        total_feedback: rows.length,
+        quality_counts: countBy(rows, 'outcome_quality'),
+        source_counts: countBy(rows, 'feedback_source'),
+        category_counts: countBy(rows, 'category_name'),
+        average_title_score: avg(titleScores),
+        average_script_score: avg(scriptScores),
+        recent_feedback: rows.slice(0, 50).map((row: any) => ({
+            id: row.id,
+            topic_queue_id: row.topic_queue_id,
+            category_id: row.category_id,
+            category_name: row.category_name,
+            feedback_source: row.feedback_source,
+            outcome_quality: row.outcome_quality,
+            generated_title: row.generated_title,
+            production_topic: row.production_topic,
+            title_score: row.title_score,
+            script_score: row.script_score,
+            reviewer_email: row.reviewer_email,
+            reviewer_note: row.reviewer_note,
+            metrics: row.metrics || {},
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        })),
+    }
+}
+
 export async function GET(req: Request) {
     try {
         const requester = await requireAdmin(req)
@@ -50,6 +88,7 @@ export async function GET(req: Request) {
 
         const { searchParams } = new URL(req.url)
         const limit = Math.max(1, Math.min(500, Number.parseInt(searchParams.get('limit') || '100', 10) || 100))
+        const categoryId = searchParams.get('categoryId')
         const supabase = getAdmin()
 
         const { data: events, error } = await supabase
@@ -66,6 +105,21 @@ export async function GET(req: Request) {
             .select('id', { count: 'exact', head: true })
 
         if (snapshotError) throw snapshotError
+
+        let feedbackQuery = supabase
+            .from('content_generation_feedback')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(Math.max(limit, 500))
+
+        if (categoryId && categoryId !== 'all') {
+            feedbackQuery = feedbackQuery.eq('category_id', categoryId)
+        }
+
+        const { data: feedbackRows, error: feedbackError } = await feedbackQuery
+        if (feedbackError && !String(feedbackError.message || '').includes('content_generation_feedback')) {
+            throw feedbackError
+        }
 
         const rows = events || []
         const manualReviews = rows.filter((row: any) => row.event_type === 'manual_review')
@@ -98,9 +152,79 @@ export async function GET(req: Request) {
                 qa_hold_count: rows.filter((row: any) => row.event_type === 'qa_hold').length,
                 average_rating: ratings.length ? Math.round((ratings.reduce((sum: number, value: number) => sum + value, 0) / ratings.length) * 100) / 100 : null,
             },
+            content_generation: feedbackError
+                ? { unavailable: true, error: feedbackError.message }
+                : summarizeContentFeedback(feedbackRows || []),
         })
     } catch (error: any) {
         console.error('Learning stats API error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+}
+
+export async function POST(req: Request) {
+    try {
+        const requester = await requireAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
+        const body = await req.json()
+        const topicQueueId = String(body.topic_queue_id || '').trim()
+        if (!topicQueueId) {
+            return NextResponse.json({ error: 'topic_queue_id is required' }, { status: 400 })
+        }
+
+        const quality = String(body.outcome_quality || 'neutral').trim()
+        const allowedQualities = new Set(['excellent', 'good', 'neutral', 'poor', 'rejected', 'unknown'])
+        if (!allowedQualities.has(quality)) {
+            return NextResponse.json({ error: 'invalid outcome_quality' }, { status: 400 })
+        }
+
+        const supabase = getAdmin()
+        const { data: topicRow } = await supabase
+            .from('topics_queue')
+            .select('id, topic, category_id, generated_title, title_candidates, benchmark_analysis, categories(name)')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+
+        const categoryName = Array.isArray(topicRow?.categories)
+            ? topicRow.categories[0]?.name
+            : topicRow?.categories?.name
+
+        const row = {
+            topic_queue_id: topicQueueId,
+            category_id: String(body.category_id || topicRow?.category_id || ''),
+            category_name: body.category_name || categoryName || null,
+            feedback_source: 'manual',
+            outcome_quality: quality,
+            generated_title: String(body.generated_title || topicRow?.generated_title || '').trim() || null,
+            production_topic: String(body.production_topic || topicRow?.topic || '').trim() || null,
+            title_score: body.title_score == null ? null : Number(body.title_score),
+            script_score: body.script_score == null ? null : Number(body.script_score),
+            reviewer_email: requester.user.email,
+            reviewer_note: String(body.reviewer_note || '').slice(0, 2000) || null,
+            metrics: body.metrics && typeof body.metrics === 'object' ? body.metrics : {},
+            title_generation: body.title_generation && typeof body.title_generation === 'object'
+                ? body.title_generation
+                : { title_candidates: topicRow?.title_candidates || [] },
+            benchmark_summary: body.benchmark_summary && typeof body.benchmark_summary === 'object'
+                ? body.benchmark_summary
+                : { benchmark_analysis: topicRow?.benchmark_analysis || null },
+            evaluation: body.evaluation && typeof body.evaluation === 'object'
+                ? body.evaluation
+                : { type: 'manual_review', submitted_at: new Date().toISOString() },
+            updated_at: new Date().toISOString(),
+        }
+
+        const { data, error } = await supabase
+            .from('content_generation_feedback')
+            .upsert(row, { onConflict: 'topic_queue_id,feedback_source' })
+            .select('*')
+            .single()
+
+        if (error) throw error
+        return NextResponse.json({ status: 'ok', feedback: data })
+    } catch (error: any) {
+        console.error('Learning feedback API error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 }

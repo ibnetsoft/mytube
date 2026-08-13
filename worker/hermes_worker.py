@@ -77,17 +77,32 @@ import threading
 import time
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 import central_client
 import job_store
 from logging_setup import get_job_logger, get_logger
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
-from worker_config import OUTPUT_DIR, STATE_DIR, WORKER_ID, WORKER_INSTANCE_ID, ensure_project_root_on_path
+from worker_config import OUTPUT_DIR, PROJECT_ROOT, STATE_DIR, WORKER_ID, WORKER_INSTANCE_ID, ensure_project_root_on_path
 
 STATE_FILE = STATE_DIR / "hermes_worker.json"
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
 RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 AUDIT_DIR = OUTPUT_DIR / "hermes_audit"
 logger = get_logger("hermes_worker")
+
+
+def _load_project_env() -> None:
+    """Load the repository .env even when Manager starts us with cwd=worker/."""
+    for env_path in (PROJECT_ROOT / ".env", Path.cwd() / ".env"):
+        try:
+            if env_path.exists():
+                load_dotenv(env_path, override=False)
+        except Exception as exc:
+            logger.warning(f"Failed to load Hermes env file at {env_path}: {exc}")
+
+
+_load_project_env()
 
 _shutdown_requested = False
 SUPPORTED_JOB_TYPES = ["topic_research", "topic_benchmark_analyze", "web_research", "script_plan_generate", "script_generate"]
@@ -102,6 +117,8 @@ MAX_COUNT = 30
 LEASE_RENEW_INTERVAL_SECONDS = 3.0
 REMOTE_ENABLED = bool(os.environ.get("AIRWORKER_CENTRAL_SERVER_URL"))
 REMOTE_HEARTBEAT_INTERVAL_SECONDS = 30.0
+REMOTE_CLAIM_RETRY_SECONDS = 60.0
+_next_remote_claim_at = 0.0
 
 # [AIR-0230] topic_benchmark_analyze tuning. Kept deliberately small - each
 # analyzed candidate costs one YouTube search + a videos.list/channels.list
@@ -781,16 +798,23 @@ def _try_remote_claim() -> dict | None:
     """[AIR-0230] Ported verbatim from render_worker.py - central_client and
     job_store.create_from_remote_claim are both already job-type-agnostic
     (job_type/payload are passed straight through)."""
+    global _next_remote_claim_at
+    now = time.time()
+    if now < _next_remote_claim_at:
+        return None
     try:
         claimed = central_client.claim_job(WORKER_ID, WORKER_INSTANCE_ID, SUPPORTED_JOB_TYPES)
     except central_client.AuthError as e:
         logger.error(f"Central server rejected our worker token (not retrying this tick): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
         return None
     except central_client.CentralServerUnavailable as e:
-        logger.warning(f"Central server unreachable (will retry next tick): {e}")
+        logger.warning(f"Central server unreachable (will retry after {REMOTE_CLAIM_RETRY_SECONDS:.0f}s): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
         return None
     except Exception as e:
-        logger.error(f"Unexpected error during central server claim (will retry next tick): {e}")
+        logger.error(f"Unexpected error during central server claim (will retry after {REMOTE_CLAIM_RETRY_SECONDS:.0f}s): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
         return None
     if not claimed:
         return None

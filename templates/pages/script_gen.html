@@ -172,7 +172,7 @@
                         <span id="readTime" class="bg-[#1c2027] border border-white/5 px-2 py-0.5 rounded">{{ t('label_read_time') }}0 {{ t('unit_minute') }}</span>
                     </div>
 
-                    <div id="scriptContent" contenteditable="true" class="input-field font-mono text-sm focus:border-blue-500/50 transition-all w-full leading-relaxed overflow-y-auto" style="background-color: transparent; border-color: #1e293b; min-height: 800px; outline: none; white-space: pre-wrap;"></div>
+                    <textarea id="scriptContent" class="input-field font-mono text-sm focus:border-blue-500/50 transition-all w-full leading-relaxed overflow-y-auto" style="background-color: transparent; border-color: #1e293b; min-height: 800px; outline: none; white-space: pre-wrap;"></textarea>
 
                     <div class="flex flex-wrap justify-center gap-3 mt-4 pt-4 border-t border-white/5">
                         <!-- [NEW] Autopilot Continue Button -->
@@ -1122,7 +1122,17 @@
         // topic_queue_id가 없는 경우에만 여기까지 도달)는 건드리지 않는다.
         try {
             const preCheckFull = await API.project.getFull(projectId);
-            const preCheckSettings = preCheckFull.settings || {};
+            let preCheckSettings = preCheckFull.settings || {};
+            if (preCheckSettings.topic_queue_id) {
+                const refreshResponse = await fetch(`/api/projects/${projectId}/refresh-pregeneration`, {
+                    method: 'POST'
+                });
+                if (!refreshResponse.ok) {
+                    throw new Error('Failed to refresh prepared script status');
+                }
+                const refreshed = await refreshResponse.json();
+                preCheckSettings = refreshed.settings || preCheckSettings;
+            }
             if (preCheckSettings.topic_queue_id) {
                 if (preCheckSettings.pregenerated_script_status === 'ready' && preCheckSettings.pregenerated_script_text) {
                     currentScript = preCheckSettings.pregenerated_script_text;
@@ -1131,6 +1141,12 @@
                     updateStats();
                     Utils.showToast(i18n.toast_script_generated, 'success');
                     refreshExplorer();
+                    Utils.setLoading(document.getElementById('generateBtn'), false);
+                    return;
+                }
+
+                if (preCheckSettings.pregenerated_script_status === 'failed') {
+                    Utils.showToast('AI Worker failed to prepare this script. Please select another topic or contact the administrator.', 'error');
                     Utils.setLoading(document.getElementById('generateBtn'), false);
                     return;
                 }
@@ -1186,6 +1202,18 @@
 
         const sections = structureData.sections;
         const topic = document.getElementById('structureTopic')?.value || structureData.topic || '영상';
+        const uploadTitle = structureData.upload_title || '';
+        const titlePromise = structureData.title_promise || '';
+        const openingHook = structureData.opening_hook || '';
+        const payoff = structureData.payoff || '';
+        const titleContract = uploadTitle ? `
+[UPLOAD TITLE CONTRACT]
+- Upload title: ${uploadTitle}
+- Title promise: ${titlePromise || 'infer it from the upload title and topic'}
+- Opening hook to honor: ${openingHook || 'make the first section immediately prove the title is worth staying for'}
+- Final payoff required: ${payoff || 'the script must resolve the curiosity raised by the title'}
+- Every paragraph must serve the clicked title. Do not drift into meta commentary, content strategy, or storytelling lessons unless the title explicitly asks for that.
+` : '';
         let finalScript = '';
 
         const projectFull = await API.project.getFull(projectId);
@@ -1277,6 +1305,9 @@
                     : (sceneDetailLines.length > 0 ? sceneDetailLines.join(', ') : '자유롭게 작성');
                 const sceneEmotion = section.scene_emotion || '';
                 const sceneTtsDirection = section.tts_direction || '';
+                const sceneRetentionHook = section.retention_hook || '';
+                const sceneTitlePromiseLink = section.title_promise_link || '';
+                const sceneEndBridge = section.end_bridge || '';
                 Utils.setLoading(btn, true, `${i18n.loading_generating_prefix} (${i + 1}/${sections.length}: ${sectionTitle})`);
                 console.log(`Generating section ${i + 1}: ${sectionTitle} `);
 
@@ -1304,11 +1335,12 @@
 
 [영상 주제]
 ${topic}
+${titleContract}
 
 [현재 섹션]
 - 제목: ${sectionTitle}
 - 주요 내용: ${keyPointsText}
-${sceneEmotion ? `- 감정/분위기: ${sceneEmotion}\n` : ''}${sceneTtsDirection ? `- 성우 연기 지침: ${sceneTtsDirection}\n` : ''}
+${sceneEmotion ? `- 감정/분위기: ${sceneEmotion}\n` : ''}${sceneTtsDirection ? `- 성우 연기 지침: ${sceneTtsDirection}\n` : ''}${sceneRetentionHook ? `- Retention hook: ${sceneRetentionHook}\n` : ''}${sceneTitlePromiseLink ? `- Title promise link: ${sceneTitlePromiseLink}\n` : ''}${sceneEndBridge ? `- End bridge to next scene: ${sceneEndBridge}\n` : ''}
 [작성 지침]
 0. ${lengthInstruction}
 ${modeInstruction}

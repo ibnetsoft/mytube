@@ -21,9 +21,10 @@ from google import genai
 from google.genai import types
 
 
-DEFAULT_TEXT_MODEL = "gemini-2.5-flash"
+DEFAULT_TEXT_MODEL = "gemini-3-flash-preview"
 LEGACY_TEXT_MODEL_ALIASES = {
     "gemini-2.0-flash": DEFAULT_TEXT_MODEL,
+    "gemini-2.5-pro": DEFAULT_TEXT_MODEL,
     "gemini-3.1-pro-preview": DEFAULT_TEXT_MODEL,
 }
 
@@ -156,7 +157,44 @@ class GeminiService:
         
         return text.strip().strip(',').strip()
 
+    def _can_use_glm_text_fallback(self) -> bool:
+        return bool((getattr(config, "GLM_API_KEY", "") or "").strip())
+
+    async def _generate_text_with_glm_fallback(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        project_id: int,
+        task_type: str,
+        json_mode: bool,
+        reason: str,
+    ) -> str:
+        from services.glm_service import glm_service
+
+        self.log_debug(f"[Gemini Text] Falling back to GLM for {task_type}: {reason}")
+        return await glm_service.generate_text(
+            prompt,
+            model="glm-5.2",
+            temperature=temperature,
+            max_tokens=max_tokens,
+            task_type=task_type,
+            json_mode=json_mode,
+            project_id=project_id,
+        )
+
     async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL, use_search: bool = False, json_mode: bool = False) -> str:
+        if not self.api_key and self._can_use_glm_text_fallback():
+            return await self._generate_text_with_glm_fallback(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                project_id=project_id,
+                task_type=task_type,
+                json_mode=json_mode,
+                reason="Gemini API key is not configured",
+            )
         """텍스트 생성"""
         if not self.api_key:
             raise Exception("Gemini API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
@@ -225,7 +263,61 @@ class GeminiService:
             self.log_debug(f"❌ [Gemini Text] Exception: {e}")
             db.add_ai_log(project_id, task_type, model, 'google', 'failed', 
                          prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
+            if self._can_use_glm_text_fallback():
+                return await self._generate_text_with_glm_fallback(
+                    prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    project_id=project_id,
+                    task_type=task_type,
+                    json_mode=json_mode,
+                    reason=str(e),
+                )
             raise e
+
+    async def generate_grounded_research(self, prompt: str, *, model: str = DEFAULT_TEXT_MODEL) -> dict:
+        """Run Gemini Google Search grounding and retain its auditable sources."""
+        if not self.api_key:
+            raise Exception("Gemini API 키가 설정되지 않았습니다.")
+        model = LEGACY_TEXT_MODEL_ALIASES.get(model, model or DEFAULT_TEXT_MODEL)
+        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "tools": [{"googleSearch": {}}],
+            # Gemini API rejects responseMimeType when Google Search grounding
+            # tools are enabled. The caller parses the returned JSON text.
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4096},
+        }
+        start_time = _time.time()
+        async with httpx.AsyncClient(timeout=180.0, trust_env=False) as client:
+            response = await client.post(url, json=payload)
+            result = response.json()
+        if "candidates" not in result:
+            error = (result.get("error") or {}).get("message", str(result))
+            raise Exception(f"Gemini 웹 조사 오류: {error}")
+
+        candidate = result["candidates"][0]
+        parts = ((candidate.get("content") or {}).get("parts") or [])
+        text = "".join(str(part.get("text") or "") for part in parts).strip()
+        metadata = candidate.get("groundingMetadata") or {}
+        sources, seen = [], set()
+        for chunk in metadata.get("groundingChunks") or []:
+            web = chunk.get("web") or {}
+            uri = str(web.get("uri") or "").strip()
+            if not uri or uri in seen:
+                continue
+            seen.add(uri)
+            sources.append({"title": str(web.get("title") or uri), "url": uri})
+        usage = result.get("usageMetadata") or {}
+        db.add_ai_log(None, "hermes_web_research", model, "google", "success",
+                      prompt_summary=prompt[:100], input_tokens=usage.get("promptTokenCount", 0),
+                      output_tokens=usage.get("candidatesTokenCount", 0), elapsed_time=_time.time() - start_time)
+        return {
+            "text": text,
+            "sources": sources,
+            "search_queries": metadata.get("webSearchQueries") or [],
+            "grounding_supports": metadata.get("groundingSupports") or [],
+        }
 
     async def generate_text_from_image(self, prompt: str, image_bytes: bytes, mime_type: str = "image/png", project_id: int = None, task_type: str = "vision_gen") -> str:
         """이미지 + 텍스트 생성 (Vision)"""

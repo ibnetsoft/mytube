@@ -8,6 +8,7 @@ import zipfile
 import argparse
 import sys
 import re
+import traceback
 
 import requests
 
@@ -78,6 +79,7 @@ class RemoteDriveWorker:
         self.google_token_path = os.getenv("REMOTE_RENDER_GOOGLE_TOKEN_PATH") or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
         self.supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+        self.max_concurrent_jobs = int(os.getenv("REMOTE_RENDER_MAX_CONCURRENT_JOBS", "1"))
         if not self.supabase_url or not self.supabase_key:
             raise RuntimeError("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.")
 
@@ -107,7 +109,22 @@ class RemoteDriveWorker:
             return response.json()
         return None
 
+    def _active_rendering_count(self):
+        active_after = (
+            datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=30)
+        ).isoformat()
+        params = {
+            "select": "id",
+            "render_mode": "eq.drive_api",
+            "status": "eq.rendering",
+            "updated_at": f"gt.{active_after}",
+        }
+        rows = self._request("GET", self.queue_url, params=params) or []
+        return len(rows)
+
     def fetch_next_job(self):
+        if self.max_concurrent_jobs > 0 and self._active_rendering_count() >= self.max_concurrent_jobs:
+            return None
         params = {
             "select": "*",
             "render_mode": "eq.drive_api",
@@ -289,12 +306,19 @@ class RemoteDriveWorker:
                 completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             )
         except Exception as e:
+            error_detail = "\n".join(
+                [
+                    f"Exception: {type(e).__name__}: {e}",
+                    "Traceback:",
+                    traceback.format_exc(),
+                ]
+            ).strip()
             self.update_job(
                 job_id,
                 status="failed",
                 progress=-1,
                 message=f"렌더링 실패: {e}",
-                error_message=str(e),
+                error_message=error_detail,
             )
             raise
         finally:

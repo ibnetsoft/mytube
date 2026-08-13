@@ -17,11 +17,9 @@
         (catches the env-var-style leak even if the value itself isn't a JWT,
         e.g. a placeholder or a differently-shaped secret)
       - any ".env" file anywhere in the scanned tree whose key names are not on
-        the explicit allow-list below. The packaged app is still expected to
-        ship a *public*-config-only .env (NEXT_PUBLIC_SUPABASE_URL + SMTP
-        credentials for signup email, per AIR-0225B Stage 0's own design) -
-        this script fails the build if that file ever grows an unexpected key,
-        not merely for existing.
+        the explicit allow-list below. The packaged app may ship a
+        *public*-config-only .env (NEXT_PUBLIC_SUPABASE_URL only). This script
+        fails the build if that file ever grows an unexpected key.
 
     Run this BEFORE "Publish GitHub Release" in the Windows release workflow.
     A non-zero exit code must block the publish step.
@@ -52,12 +50,7 @@ $EnvVarLiteralPattern = [regex]'SUPABASE_SERVICE_ROLE_KEY\s*='
 # tools/build_windows.ps1's own EnvLines construction - keep in sync).
 # Anything else appearing as a key in a shipped .env fails the build.
 $EnvAllowedKeys = @(
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "SMTP_USER",
-    "SMTP_PASS",
-    "SMTP_FROM"
+    "NEXT_PUBLIC_SUPABASE_URL"
 )
 
 $script:FindingsCount = 0

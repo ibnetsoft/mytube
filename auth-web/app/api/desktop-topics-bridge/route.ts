@@ -52,6 +52,11 @@ function hasReadySceneMediaPrompts(topic: any): boolean {
     )
 }
 
+function hasPublishDescription(topic: any): boolean {
+    const metadata = topic?.publish_metadata || topic?.progress_payload?.publish_metadata || {}
+    return String(metadata?.description || '').trim().length > 0
+}
+
 function isPreparedUserTopic(topic: any): boolean {
     const scriptReady = topic?.pregenerated_script_status === 'ready'
         && String(topic?.pregenerated_script || '').trim().length > 0
@@ -64,6 +69,7 @@ function isPreparedUserTopic(topic: any): boolean {
         && scriptReady
         && structureReady
         && hasReadySceneMediaPrompts(topic)
+        && hasPublishDescription(topic)
 }
 
 export async function POST(req: Request) {

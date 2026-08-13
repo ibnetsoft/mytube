@@ -4,16 +4,14 @@
     AIR Studio Windows build pipeline (AIR-0216).
 
 .DESCRIPTION
-    Builds PyInstaller bundle, Launcher/Updater binaries, and optional Inno Setup
-    installer.  Produces a standardised release/ directory:
+    Builds the PyInstaller bundle and optional Inno Setup installer. Produces a
+    standardised release/ directory:
 
         release/
           AIRStudio-{version}-win-x64.zip           portable archive
           AIRStudio-{version}-win-x64.zip.sha256     SHA256 sidecar
           AIRStudioSetup-{version}.exe               Inno Setup installer
           AIRStudioSetup-{version}.exe.sha256        SHA256 sidecar
-          latest.json                                update manifest
-          latest.json.sha256                         SHA256 sidecar
 
 .PARAMETER Version
     Semantic version string (default: "0.1.0").  Pass "auto" to read from
@@ -22,11 +20,6 @@
 .PARAMETER Build
     Integer build / task ID.  Pass 0 (default) to auto-increment from
     packaging/windows/build_counter.txt.
-
-.PARAMETER GitHubRepo
-    GitHub repository in OWNER/REPO format (default: ibnetsoft/AIR-releases).
-    Releases are published to a separate public repo so the source repo can
-    stay private; this only affects the URLs embedded in latest.json.
 
 .PARAMETER Channel
     Release channel: "stable" | "beta" | "dev" (default: stable).
@@ -50,7 +43,6 @@
 param(
     [string]$Version = "0.1.0",
     [int]$Build = 0,
-    [string]$GitHubRepo = "ibnetsoft/AIR-releases",
     [ValidateSet("stable","beta","dev")]
     [string]$Channel = "stable",
     [switch]$SkipInstaller,
@@ -69,8 +61,7 @@ $CounterFile     = Join-Path $Root "packaging\windows\build_counter.txt"
 $ReleaseDir      = Join-Path $Root "release"
 $DistDir         = Join-Path $Root "dist\AIRStudio"
 $StagingRoot     = Join-Path $ReleaseDir "staging\AIRStudio"
-$StagingApp      = Join-Path $StagingRoot "app"
-$StagingLauncher = Join-Path $StagingRoot "Launcher"
+$StagingApp      = $StagingRoot
 
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
 
@@ -110,14 +101,12 @@ $ZipName          = "AIRStudio-$Version-win-x64.zip"
 $InstallerName    = "AIRStudioSetup-$Version.exe"
 $ZipPath          = Join-Path $ReleaseDir $ZipName
 $InstallerPath    = Join-Path $ReleaseDir $InstallerName
-$ManifestPath     = Join-Path $ReleaseDir "latest.json"
 
 Write-Host ""
 Write-Host "=== AIR Studio Windows Build ==="
 Write-Host "  Version : $Version"
 Write-Host "  Build   : $Build"
 Write-Host "  Channel : $Channel"
-Write-Host "  Repo    : $GitHubRepo"
 Write-Host ""
 
 # ---------------------------------------------------------------------------
@@ -171,20 +160,34 @@ try {
     if (Test-Path $StagingRoot) {
         Remove-Item -LiteralPath $StagingRoot -Recurse -Force
     }
-    New-Item -ItemType Directory -Force -Path $StagingApp      | Out-Null
-    New-Item -ItemType Directory -Force -Path $StagingLauncher | Out-Null
+    New-Item -ItemType Directory -Force -Path $StagingApp | Out-Null
 
     Copy-Item -Path (Join-Path $DistDir "*") -Destination $StagingApp -Recurse -Force
 
-    # ---- .env (public config + SMTP credentials for packaged app) ----
-    # [AIR-0225B] SUPABASE_SERVICE_ROLE_KEY must NEVER be written here. This key
-    # bypasses Postgres RLS entirely; embedding it in a package that ships to
-    # every end user's PC turned every public GitHub release into a full-database
-    # credential leak (see worknote/AIR-0225B-stage0-service-role-removal-investigation.md).
-    # The desktop app must only ever carry the public Supabase URL (safe to expose
-    # by design - NEXT_PUBLIC_*) plus a user JWT obtained at login time. Any feature
-    # still requiring privileged Supabase access must be proxied through auth-web.
+    # Keep the installed app's displayed version aligned with the release
+    # artifact. config.py reads this file before falling back to version.py.
+    $VersionRecord = [ordered]@{
+        version = $Version
+        build = $Build
+        channel = $Channel
+    }
+    $VersionRecord | ConvertTo-Json -Compress | Set-Content -Path (Join-Path $StagingApp "version.json") -Encoding UTF8 -NoNewline
+
+    # ---- .env (public configuration only) ----
+    # Public desktop packages must never contain credentials. The Supabase URL is
+    # intentionally public; all privileged access and email delivery stay server-side.
     $EnvSupabaseUrl = $env:NEXT_PUBLIC_SUPABASE_URL
+    if (-not $EnvSupabaseUrl) {
+        $RootEnvPath = Join-Path $Root ".env"
+        if (Test-Path $RootEnvPath) {
+            $PublicUrlLine = Get-Content -LiteralPath $RootEnvPath | Where-Object {
+                $_ -match '^\s*NEXT_PUBLIC_SUPABASE_URL\s*='
+            } | Select-Object -First 1
+            if ($PublicUrlLine -match '^\s*NEXT_PUBLIC_SUPABASE_URL\s*=\s*(.*)$') {
+                $EnvSupabaseUrl = $Matches[1].Trim().Trim('"').Trim("'")
+            }
+        }
+    }
     $EnvLines = @()
     if ($EnvSupabaseUrl) {
         $EnvLines += "NEXT_PUBLIC_SUPABASE_URL=$EnvSupabaseUrl"
@@ -192,102 +195,21 @@ try {
         Write-Warning "NEXT_PUBLIC_SUPABASE_URL not set - packaged app will ship without a Supabase URL."
     }
 
-    # SMTP (회원가입 이메일 인증코드 발송용). AIR-0225: previously missing here
-    # entirely, so send_verify_code() silently failed on every packaged build
-    # (services/email_service.py returns False when SMTP_USER/SMTP_PASS are
-    # unset - no crash, no visible error, just "발송에 실패했습니다").
-    $EnvSmtpHost = $env:SMTP_HOST
-    $EnvSmtpPort = $env:SMTP_PORT
-    $EnvSmtpUser = $env:SMTP_USER
-    $EnvSmtpPass = $env:SMTP_PASS
-    $EnvSmtpFrom = $env:SMTP_FROM
-    if ($EnvSmtpUser -and $EnvSmtpPass) {
-        if ($EnvSmtpHost) { $EnvLines += "SMTP_HOST=$EnvSmtpHost" }
-        if ($EnvSmtpPort) { $EnvLines += "SMTP_PORT=$EnvSmtpPort" }
-        $EnvLines += "SMTP_USER=$EnvSmtpUser"
-        $EnvLines += "SMTP_PASS=$EnvSmtpPass"
-        if ($EnvSmtpFrom) { $EnvLines += "SMTP_FROM=$EnvSmtpFrom" }
-    } else {
-        Write-Warning "SMTP_USER / SMTP_PASS not set - packaged app will ship without email-sending credentials (signup verification codes will fail to send)."
-    }
-
     if ($EnvLines.Count -gt 0) {
-        Write-Host "Writing packaged .env with $($EnvLines.Count) credential line(s)..."
+        Write-Host "Writing packaged public .env with $($EnvLines.Count) line(s)..."
         $EnvLines -join "`n" | Set-Content -Path (Join-Path $StagingApp ".env") -Encoding UTF8 -NoNewline
     }
-
-    # ---- PyInstaller: AIRLauncher ----
-    Write-Host "Building AIRLauncher.exe..."
-    & "venv\Scripts\python.exe" -m PyInstaller `
-        --noconfirm --clean --onefile --noconsole `
-        --name AIRLauncher `
-        --distpath $StagingLauncher `
-        --workpath (Join-Path $Root "build\AIRLauncher") `
-        (Join-Path $Root "packaging\windows\launcher\AIRLauncher.py")
-
-    # ---- PyInstaller: AIRUpdater ----
-    Write-Host "Building AIRUpdater.exe..."
-    & "venv\Scripts\python.exe" -m PyInstaller `
-        --noconfirm --clean --onefile --noconsole `
-        --name AIRUpdater `
-        --distpath $StagingLauncher `
-        --workpath (Join-Path $Root "build\AIRUpdater") `
-        (Join-Path $Root "packaging\windows\launcher\AIRUpdater.py")
-
-    # ---- update_config.json ----
-    @{
-        manifest_url = "https://github.com/$GitHubRepo/releases/latest/download/latest.json"
-    } | ConvertTo-Json -Depth 3 | Set-Content `
-        -Path (Join-Path $StagingLauncher "update_config.json") -Encoding UTF8
-
-    # ---- Canonical version record ----
-    $InstalledAt  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    $VersionRecord = [ordered]@{
-        version      = $Version
-        installed_at = $InstalledAt
-        build        = $Build
-    }
-    $VersionRecordJson = $VersionRecord | ConvertTo-Json -Depth 3
-
-    # NOTE: `Set-Content -Encoding UTF8` in Windows PowerShell 5.1 always emits a
-    # UTF-8 BOM (there is no utf8NoBOM encoding until PS Core 6+, and this script
-    # targets 5.1 - see #Requires above). config.py reads this file with plain
-    # "utf-8", so a BOM makes json.load() throw and APP_VERSION silently ends up
-    # "" - the sidebar version display then never renders. Write without a BOM
-    # explicitly via .NET instead of Set-Content.
-    $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText((Join-Path $StagingRoot "current.json"), $VersionRecordJson, $Utf8NoBom)
-    [System.IO.File]::WriteAllText((Join-Path $StagingApp  "version.json"), $VersionRecordJson, $Utf8NoBom)
 
     # ---- Portable ZIP ----
     Write-Host "Creating portable ZIP: $ZipName"
     if (Test-Path $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
     Compress-Archive -Path (Join-Path $StagingRoot "*") -DestinationPath $ZipPath -Force
 
-    # ---- latest.json + ZIP SHA256 ----
-    Write-Host "Computing ZIP SHA256..."
-    $ZipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ZipPath).Hash.ToLowerInvariant()
-
-    $Manifest = [ordered]@{
-        version       = $Version
-        build         = $Build
-        channel       = $Channel
-        mandatory     = $false
-        installer_url = "https://github.com/$GitHubRepo/releases/download/v$Version/$InstallerName"
-        portable_url  = "https://github.com/$GitHubRepo/releases/download/v$Version/$ZipName"
-        sha256        = $ZipHash
-        notes         = "AIR Studio v$Version (build $Build, channel $Channel)"
-    }
-    $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
-
     # ---- SHA256 sidecar files ----
     Write-Host ""
     Write-Host "--- Release artifacts ---"
     Write-Host "ZIP      : $ZipPath"
     Write-Sha256Sidecar -FilePath $ZipPath | Out-Null
-
-    Write-Host "Manifest : $ManifestPath"
-    Write-Sha256Sidecar -FilePath $ManifestPath | Out-Null
 
     # ---- Inno Setup installer ----
     $InstallerBuilt = $false
@@ -324,8 +246,6 @@ try {
         Write-Host "  $InstallerPath"
         Write-Host "  $InstallerPath.sha256"
     }
-    Write-Host "  $ManifestPath"
-    Write-Host "  $ManifestPath.sha256"
     Write-Host ""
     Write-Host "To publish to GitHub Releases:"
     if ($InstallerBuilt) {

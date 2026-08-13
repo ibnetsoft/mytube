@@ -42,6 +42,15 @@ def _route_with_project_id(base_path: str, project_id: Optional[int]) -> str:
         return f"{base_path}?project_id={project_id}"
     return base_path
 
+
+def _image_gen_route(project_id: Optional[int] = None, prepared: bool = False) -> str:
+    params = []
+    if project_id:
+        params.append(f"project_id={project_id}")
+    if prepared:
+        params.append("prepared=true")
+    return "/image-gen" + (f"?{'&'.join(params)}" if params else "")
+
 def _render(request, template, page, title, **extra):
     from services.auth_service import auth_service
     from services.i18n import Translator
@@ -87,6 +96,8 @@ async def page_script_plan(request: Request, project_id: Optional[int] = Query(N
     app_mode = _resolve_page_mode(project_id)
     if app_mode == "longform_music":
         return RedirectResponse(url=_route_with_project_id("/music-plan", project_id), status_code=302)
+    if _is_standard_membership():
+        return RedirectResponse(url=_image_gen_route(project_id, prepared=True), status_code=302)
     return _render(
         request,
         "pages/script_plan.html",
@@ -115,6 +126,8 @@ async def page_music_plan(request: Request, project_id: Optional[int] = Query(No
 
 @router.get("/script-gen", response_class=HTMLResponse)
 async def page_script_gen(request: Request, project_id: Optional[int] = Query(None)):
+    if _is_standard_membership():
+        return RedirectResponse(url=_image_gen_route(project_id, prepared=True), status_code=302)
     project = None
     if project_id:
         project = db.get_project(project_id)

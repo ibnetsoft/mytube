@@ -816,6 +816,24 @@ def migrate_db():
     conn = get_db()
     cursor = conn.cursor()
 
+    # Claimed topics can carry Worker-prepared plans and scripts.  These
+    # columns must exist before the first refresh, otherwise old local DBs
+    # silently discard the prepared payload and the UI polls forever.
+    cursor.execute("PRAGMA table_info(project_settings)")
+    project_setting_columns = {row[1] for row in cursor.fetchall()}
+    for column, column_type in [
+        ("pregenerated_structure_status", "TEXT"),
+        ("pregenerated_structure_json", "TEXT"),
+        ("pregenerated_script_status", "TEXT"),
+        ("pregenerated_script_text", "TEXT"),
+        ("benchmark_analysis_json", "TEXT"),
+        ("generated_title", "TEXT"),
+        ("title_generation_json", "TEXT"),
+    ]:
+        if column not in project_setting_columns:
+            cursor.execute(f"ALTER TABLE project_settings ADD COLUMN {column} {column_type}")
+    conn.commit()
+
     # [NEW] Subtitle Style Presets Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS subtitle_style_presets (
@@ -2222,16 +2240,19 @@ def get_script(project_id: int) -> Optional[Dict]:
         return data
         
     # 2. Fallback: project_settings 테이블 조회
-    cursor.execute("SELECT script FROM project_settings WHERE project_id = ?", (project_id,))
+    cursor.execute("SELECT script, pregenerated_script_text FROM project_settings WHERE project_id = ?", (project_id,))
     setting_row = cursor.fetchone()
     conn.close()
     
-    if setting_row and setting_row['script']:
-        print(f"[DB_DEBUG] Found in project_settings. Content len: {len(setting_row['script'])}")
+    fallback_script = None
+    if setting_row:
+        fallback_script = setting_row['script'] or setting_row['pregenerated_script_text']
+    if fallback_script:
+        print(f"[DB_DEBUG] Found in project_settings. Content len: {len(fallback_script)}")
         return {
             'project_id': project_id,
-            'full_script': setting_row['script'],
-            'word_count': len(setting_row['script']),
+            'full_script': fallback_script,
+            'word_count': len(fallback_script),
             'estimated_duration': 60
         }
         
@@ -3429,9 +3450,10 @@ def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
             'estimated_duration': script_row.get('estimated_duration', 0),
             'title': settings_row.get('title') if settings_row else None,
         }
-    elif settings_row and settings_row.get('script'):
+    elif settings_row and (settings_row.get('script') or settings_row.get('pregenerated_script_text')):
+        fallback_script = settings_row.get('script') or settings_row.get('pregenerated_script_text')
         script = {
-            'full_script': settings_row['script'],
+            'full_script': fallback_script,
             'word_count': 0,
             'estimated_duration': 0,
             'title': settings_row.get('title'),
@@ -3462,10 +3484,31 @@ def get_project_full_data_v2(project_id: int) -> Optional[Dict]:
 
 # ============ 글로벌 설정 (기본값) ============
 
+def _ensure_global_settings_table(conn=None):
+    """Create global_settings if a fresh/legacy local DB is missing it."""
+    owns_conn = conn is None
+    if conn is None:
+        conn = get_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS global_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+    finally:
+        if owns_conn:
+            conn.close()
+
+
 def save_global_setting(key: str, value: Any):
     """글로벌 설정 저장"""
     conn = get_db()
     cursor = conn.cursor()
+    _ensure_global_settings_table(conn)
 
     json_val = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
 
@@ -3509,9 +3552,17 @@ def get_global_setting(key: str, default: Any = None, value_type: str = None) ->
 
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM global_settings WHERE key = ?", (key,))
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        cursor.execute("SELECT value FROM global_settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+    except sqlite3.OperationalError as e:
+        if "no such table: global_settings" not in str(e):
+            conn.close()
+            raise
+        _ensure_global_settings_table(conn)
+        row = None
+    finally:
+        conn.close()
 
     if row:
         val = row['value']
@@ -3925,6 +3976,16 @@ def clear_all_style_presets():
     conn.close()
 
 
+def delete_style_preset(style_key: str):
+    """Delete one local image-style cache entry."""
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM style_presets WHERE style_key = ?", (style_key,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # ===========================================
 # 자막 스타일 프리셋 관리
 # ===========================================
@@ -4090,6 +4151,16 @@ def save_script_style_preset(style_key: str, prompt_value: str, display_name_ko:
     
     conn.commit()
     conn.close()
+
+
+def delete_script_style_preset(style_key: str):
+    """Delete one local script-style cache entry."""
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM script_style_presets WHERE style_key = ?", (style_key,))
+        conn.commit()
+    finally:
+        conn.close()
 
 # Removed duplicate get_thumbnail_style_presets to avoid collision
 
@@ -4493,7 +4564,7 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
     import threading
     def _push_remote():
         try:
-            import requests as _req, os as _os
+            import requests as _req, os as _os, time as _time
             from pathlib import Path
             base_dir = Path(__file__).parent
 
@@ -4509,6 +4580,14 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
 
             # DASHBOARD_URL 환경변수 사용
             base_url = _os.getenv("DASHBOARD_URL", "https://mytube-ashy-seven.vercel.app")
+
+            global _REMOTE_LOG_PUSH_DISABLED_UNTIL
+            try:
+                disabled_until = float(_REMOTE_LOG_PUSH_DISABLED_UNTIL)
+            except Exception:
+                disabled_until = 0.0
+            if disabled_until > _time.time():
+                return
 
             # 로컬 배포 환경 자동 감지 (localhost:3000 우선)
             if _os.getenv("DEBUG") == "true" or _os.path.exists(_os.path.join(base_dir, ".env.local")):
@@ -4573,7 +4652,10 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
             resp = _req.post(f"{base_url}/api/logs", json=payload, timeout=10, proxies={"http": None, "https": None})
             if resp.status_code != 200:
                 try:
-                    print(f"[Sync] Failed to push log to {base_url}: {resp.status_code} {resp.text}")
+                    if resp.status_code in (404, 410, 429, 500, 502, 503, 504):
+                        _REMOTE_LOG_PUSH_DISABLED_UNTIL = _time.time() + 300
+                    body = (resp.text or "").replace("\r", " ").replace("\n", " ")[:240]
+                    print(f"[Sync] Failed to push log to {base_url}: {resp.status_code} {body}")
                 except Exception:
                     pass
             else:

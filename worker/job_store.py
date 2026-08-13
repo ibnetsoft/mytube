@@ -129,6 +129,10 @@ def init_db():
         )
         """
     )
+    # Older workers recorded the last in-flight checkpoint (for example,
+    # script revision at 84%) when a job became COMPLETED. A terminal success
+    # must always be represented as 100%, both for the dashboard and API users.
+    conn.execute("UPDATE jobs SET progress = 100 WHERE status = ? AND progress < 100", (COMPLETED,))
     conn.commit()
 
 
@@ -254,6 +258,27 @@ def list_jobs(status: Optional[str] = None, limit: int = 100) -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
+def cancel_nonterminal_jobs_by_source(source: str, *, reason: str) -> list[str]:
+    """Cancel queued or active jobs created by one producer.
+
+    Hermes autopilot jobs must never resume merely because the Worker Manager
+    restarted.  This deliberately scopes cancellation by ``source`` so
+    dashboard/manual jobs remain untouched.
+    """
+    statuses = (QUEUED, *ACTIVE_STATUSES)
+    placeholders = ", ".join("?" for _ in statuses)
+    rows = _conn().execute(
+        f"SELECT job_id FROM jobs WHERE source = ? AND status IN ({placeholders})",
+        (source, *statuses),
+    ).fetchall()
+    cancelled = []
+    for row in rows:
+        job_id = row["job_id"]
+        transition(job_id, CANCELED, reason=reason)
+        cancelled.append(job_id)
+    return cancelled
+
+
 def transition(job_id: str, to_status: str, *, reason: str = "", worker_pid: Optional[int] = None,
                progress: Optional[int] = None, progress_message: Optional[str] = None,
                error_code: Optional[str] = None, error_message: Optional[str] = None,
@@ -283,6 +308,12 @@ def transition(job_id: str, to_status: str, *, reason: str = "", worker_pid: Opt
     if to_status in (COMPLETED, FAILED, CANCELED):
         fields.append("completed_at = ?")
         params.append(time.time())
+    if to_status == COMPLETED:
+        # Completion is a business outcome, not another intermediate checkpoint.
+        # Never leave a completed job displayed as the last worker checkpoint.
+        progress = 100
+        if progress_message is None:
+            progress_message = "작업 완료"
     if to_status == QUEUED and current in (FAILED, ABANDONED):
         fields.append("retry_count = retry_count + 1")
         fields.append("worker_pid = NULL")

@@ -162,21 +162,14 @@
                         </a>
                     </li>
 
-                    <li class="{% if app_mode in ['commerce', 'webtoon'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %} {% if is_std_nav %}order-[2]{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'webtoon'] or (is_std_nav and app_mode != 'longform_music') %}hidden{% endif %} {% if is_std_nav %}order-[2]{% endif %}">
                         <a href="{% if app_mode == 'longform_music' %}/music-plan{% else %}/script-plan{% endif %}" id="nav-plan"
                             class="sidebar-item {% if page == 'script-plan' or page == 'music-plan' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
                             <span data-i18n-key="{% if app_mode == 'longform_music' %}nav_music_plan{% else %}nav_plan{% endif %}">{% if app_mode == 'longform_music' %}{{ t('nav_music_plan') }}{% else %}{{ t('nav_plan') }}{% endif %}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %} {% if is_std_nav %}order-[3]{% endif %}">
-                        <a href="/script-gen" id="nav-script"
-                            class="sidebar-item {% if page == 'script-gen' %}active{% endif %}">
-                            <span class="sidebar-icon"></span>
-                            <span data-i18n-key="nav_script">{{ t('nav_script') }}</span>
-                        </a>
-                    </li>
-                    <li class="{% if app_mode in ['commerce', 'shorts'] or (membership == 'std' and app_mode != 'longform_music') %}hidden{% endif %} {% if is_std_nav %}order-[7]{% endif %}">
+                    <li class="{% if app_mode in ['commerce', 'shorts'] or is_std_nav %}hidden{% endif %} {% if is_std_nav %}order-[7]{% endif %}">
                         <a href="/title-desc" id="nav-title"
                             class="sidebar-item {% if page == 'title-desc' %}active{% endif %}">
                             <span class="sidebar-icon"></span>
@@ -1083,15 +1076,18 @@
                         // ✨ UI 진행 상태 업데이트 (Green Light)
                         // 사용자 요청: 각 단계별 실제 데이터 존재 여부만 확인 (Strict Mode)
                         const settings = fullData.settings || {};
+                        const topicSelected = !!(fullData.project && fullData.project.topic);
+                        const hasScript = !!fullData.script
+                            || !!(settings.pregenerated_script_status === 'ready' && settings.pregenerated_script_text);
                         const steps = {
-                            'topic': !!(fullData.project && fullData.project.topic),
+                            'topic': topicSelected,
                             'plan': !!fullData.script_structure,
-                            'script': !!fullData.script || (fullData.shorts && Object.keys(fullData.shorts).length > 0),
+                            'script': hasScript || (fullData.shorts && Object.keys(fullData.shorts).length > 0),
                             'image': fullData.image_prompts && fullData.image_prompts.length > 0,
                             'tts': !!fullData.tts,
                             'subtitle': !!settings.subtitle_path,
                             'thumbnail': fullData.thumbnails && fullData.thumbnails.length > 0,
-                            'desc': !!(fullData.metadata && fullData.metadata.description),
+                            'desc': topicSelected || !!(fullData.metadata && fullData.metadata.description),
                         };
 
                         document.querySelectorAll('.step-item').forEach(el => {
@@ -1267,6 +1263,9 @@
                 const navRepository = document.getElementById('nav-repository');
                 const navUpload = document.getElementById('nav-upload');
                 const navAutopilot = document.getElementById('nav-autopilot');
+                const stepPlan = document.querySelector('.step-item[data-step="plan"]');
+                const stepScript = document.querySelector('.step-item[data-step="script"]');
+                const stepDesc = document.querySelector('.step-item[data-step="desc"]');
 
                 // Helper to hide/show
                 const isStandard = '{{ membership }}'.trim().toLowerCase() === 'std' || '{{ membership }}'.trim().toLowerCase() === 'standard';
@@ -1278,6 +1277,11 @@
                     }
                     if (show) el.parentElement.classList.remove('hidden');
                     else el.parentElement.classList.add('hidden');
+                };
+                const setStepVisible = (el, show) => {
+                    if (!el) return;
+                    if (show) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
                 };
                 const setNavLabel = (el, label) => {
                     if (!el) return;
@@ -1471,6 +1475,19 @@
                     setNavLabel(navAudio, "{{ t('nav_audio') }}");
                 }
 
+                if (isStandard) {
+                    setVisible(navPlan, false);
+                    setVisible(navScript, false);
+                    setVisible(navTitle, false);
+                    setStepVisible(stepPlan, mode !== 'commerce' && mode !== 'webtoon' && mode !== 'longform_music');
+                    setStepVisible(stepScript, mode !== 'commerce' && mode !== 'longform_music');
+                    setStepVisible(stepDesc, true);
+                } else {
+                    setStepVisible(stepPlan, mode !== 'commerce' && mode !== 'webtoon' && mode !== 'longform_music');
+                    setStepVisible(stepScript, mode !== 'commerce' && mode !== 'longform_music');
+                    setStepVisible(stepDesc, mode !== 'commerce' && mode !== 'shorts');
+                }
+
             } catch (e) {
                 console.error("Failed to apply mode to nav:", e);
             }
@@ -1536,18 +1553,121 @@
             }
         }
 
+        const UPDATE_MODAL_I18N = {
+            ko: {
+                title: 'New Update Found!',
+                body: (version) => `최신 버전(v${version})이 출시되었습니다.<br>안정적인 작업 환경을 위해 지금 업데이트해 주세요.`,
+                loading: '다운로드 중',
+                button: '업데이트 다운로드 및 재시작',
+                processing: '처리 중...',
+                installing: '설치 중...',
+                restarting: '앱을 재시작합니다...',
+                errorPrefix: '업데이트 오류: ',
+                startFailed: '업데이트를 시작할 수 없습니다.'
+            },
+            en: {
+                title: 'New Update Found!',
+                body: (version) => `Version ${version} is available.<br>Update now for a more stable workspace.`,
+                loading: 'Downloading',
+                button: 'Download Update and Restart',
+                processing: 'Processing...',
+                installing: 'Installing...',
+                restarting: 'Restarting the app...',
+                errorPrefix: 'Update error: ',
+                startFailed: 'Could not start the update.'
+            },
+            vi: {
+                title: 'Đã Có Bản Cập Nhật!',
+                body: (version) => `Phiên bản ${version} đã sẵn sàng.<br>Hãy cập nhật ngay để làm việc ổn định hơn.`,
+                loading: 'Đang tải xuống',
+                button: 'Tải bản cập nhật và khởi động lại',
+                processing: 'Đang xử lý...',
+                installing: 'Đang cài đặt...',
+                restarting: 'Đang khởi động lại ứng dụng...',
+                errorPrefix: 'Lỗi cập nhật: ',
+                startFailed: 'Không thể bắt đầu cập nhật.'
+            },
+            th: {
+                title: 'พบอัปเดตใหม่!',
+                body: (version) => `เวอร์ชัน ${version} พร้อมใช้งานแล้ว<br>โปรดอัปเดตตอนนี้เพื่อให้การทำงานเสถียรขึ้น`,
+                loading: 'กำลังดาวน์โหลด',
+                button: 'ดาวน์โหลดอัปเดตและรีสตาร์ท',
+                processing: 'กำลังดำเนินการ...',
+                installing: 'กำลังติดตั้ง...',
+                restarting: 'กำลังรีสตาร์ทแอป...',
+                errorPrefix: 'ข้อผิดพลาดในการอัปเดต: ',
+                startFailed: 'ไม่สามารถเริ่มการอัปเดตได้.'
+            }
+        };
+
+        function getUpdateModalLang() {
+            const lang = window.currentLang || localStorage.getItem('language') || localStorage.getItem('login_lang') || 'ko';
+            return UPDATE_MODAL_I18N[lang] ? lang : 'ko';
+        }
+
+        function updateUpdateModalText(lang) {
+            const overlay = document.getElementById('updateModalOverlay');
+            if (!overlay) return;
+            const activeLang = UPDATE_MODAL_I18N[lang] ? lang : 'ko';
+            const L = UPDATE_MODAL_I18N[activeLang];
+            const version = overlay.dataset.version || '';
+            const title = document.getElementById('updateModalTitle');
+            const body = document.getElementById('updateModalBody');
+            const loading = document.getElementById('updateModalLoadingLabel');
+            const buttonLabel = document.getElementById('btnStartUpdateLabel');
+            if (title) title.textContent = L.title;
+            if (body) body.innerHTML = L.body(version);
+            if (loading) loading.textContent = L.loading;
+            if (buttonLabel) buttonLabel.textContent = L.button;
+            overlay.querySelectorAll('[data-update-lang]').forEach(btn => {
+                const isActive = btn.dataset.updateLang === activeLang;
+                btn.classList.toggle('bg-blue-600', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('bg-white/5', !isActive);
+                btn.classList.toggle('text-gray-300', !isActive);
+            });
+        }
+
+        async function changeUpdateModalLanguage(lang) {
+            window.currentLang = lang;
+            localStorage.setItem('language', lang);
+            localStorage.setItem('login_lang', lang);
+            updateLangButtonStates(lang);
+            updateUpdateModalText(lang);
+            try {
+                await fetch('/api/settings/language', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lang })
+                });
+            } catch (e) {
+                console.warn('Update modal language save failed:', e);
+            }
+        }
+
         function showUpdateModal(newVersion) {
-            // Create modal dynamically
+            const existing = document.getElementById('updateModalOverlay');
+            if (existing) existing.remove();
+            const lang = getUpdateModalLang();
+            const L = UPDATE_MODAL_I18N[lang];
             const overlay = document.createElement('div');
+            overlay.id = 'updateModalOverlay';
+            overlay.dataset.version = newVersion;
             overlay.className = "fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center backdrop-blur-sm";
             overlay.innerHTML = `
                 <div class="bg-[#1c2027] rounded-2xl shadow-2xl p-8 max-w-md w-full border border-gray-700 text-center mx-4">
+                    <div class="flex justify-center gap-2 mb-5">
+                        <button type="button" data-update-lang="ko" onclick="changeUpdateModalLanguage('ko')" class="px-2 py-1 rounded-lg text-[11px] font-bold transition">KO</button>
+                        <button type="button" data-update-lang="en" onclick="changeUpdateModalLanguage('en')" class="px-2 py-1 rounded-lg text-[11px] font-bold transition">EN</button>
+                        <button type="button" data-update-lang="vi" onclick="changeUpdateModalLanguage('vi')" class="px-2 py-1 rounded-lg text-[11px] font-bold transition">VI</button>
+                        <button type="button" data-update-lang="th" onclick="changeUpdateModalLanguage('th')" class="px-2 py-1 rounded-lg text-[11px] font-bold transition">TH</button>
+                    </div>
                     <div class="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">🚀</div>
-                    <h2 class="text-xl font-bold text-white mb-2">{{ t("modal.update.title") }}</h2>
-                    <p class="text-gray-400 text-sm mb-6">최신 버전(v${newVersion})이 출시되었습니다.<br>안정적인 작업 환경을 위해 지금 업데이트해 주세요.</p>
+                    <h2 id="updateModalTitle" class="text-xl font-bold text-white mb-2">${L.title}</h2>
+                    <p id="updateModalBody" class="text-gray-400 text-sm mb-6">${L.body(newVersion)}</p>
                     <div id="updateProgressContainer" class="hidden mb-6 text-left">
                         <div class="flex justify-between text-xs text-gray-400 mb-1">
-                            <span>{{ t("modal.update.loading") }}</span>
+                            <span id="updateModalLoadingLabel">${L.loading}</span>
                             <span id="updateProgressText">0%</span>
                         </div>
                         <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
@@ -1555,11 +1675,12 @@
                         </div>
                     </div>
                     <button id="btnStartUpdate" onclick="startUpdate()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
-                        <span>업데이트 다운로드 및 재시작</span>
+                        <span id="btnStartUpdateLabel">${L.button}</span>
                     </button>
                 </div>
             `;
             document.body.appendChild(overlay);
+            updateUpdateModalText(lang);
         }
 
         async function startUpdate() {
@@ -1567,10 +1688,11 @@
             const progressContainer = document.getElementById('updateProgressContainer');
             const progressText = document.getElementById('updateProgressText');
             const progressBar = document.getElementById('updateProgressBar');
+            const L = UPDATE_MODAL_I18N[getUpdateModalLang()];
 
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
-            btn.innerHTML = '<span class="animate-spin text-xl">⏳</span> 처리 중...';
+            btn.innerHTML = `<span class="animate-spin text-xl">⏳</span> ${L.processing}`;
             progressContainer.classList.remove('hidden');
 
             try {
@@ -1594,7 +1716,7 @@
                     
                     if (statusData.error) {
                         clearInterval(interval);
-                        alert("업데이트 오류: " + statusData.error);
+                        alert(L.errorPrefix + statusData.error);
                         window.location.reload();
                         return;
                     }
@@ -1604,8 +1726,8 @@
 
                     if (!statusData.is_downloading && statusData.progress === 100) {
                         clearInterval(interval);
-                        progressText.innerText = "설치 중...";
-                        btn.innerHTML = '<span class="animate-spin text-xl">🔄</span> 앱을 재시작합니다...';
+                        progressText.innerText = L.installing;
+                        btn.innerHTML = `<span class="animate-spin text-xl">🔄</span> ${L.restarting}`;
                         
                         // Apply and Restart
                         await fetch('/api/update/apply', { method: 'POST' });
@@ -1615,7 +1737,7 @@
 
             } catch(e) {
                 console.error(e);
-                alert("업데이트를 시작할 수 없습니다.");
+                alert(L.startFailed);
             }
         }
     </script>

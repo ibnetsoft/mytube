@@ -26,7 +26,7 @@ from pathlib import Path
 # (%LOCALAPPDATA%\AIRStudio\), as a SIBLING data directory. This is a data-
 # location choice only, not a channel merge: install path, registry Run key,
 # version source (worker_version.py), and update mechanism all remain fully
-# independent of AIR Studio Desktop's own channel (docs/AIR_WORKER_VERSIONING.md).
+# independent of AIR Studio Desktop's own channel.
 #
 # No production users exist yet for AIR Worker (still Conditional Go, never
 # deployed) - there is nothing to migrate, so this is a direct default-path
@@ -58,7 +58,7 @@ OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp"            # reserved - render scratch still uses tempfile.mkdtemp() under system %TEMP%, not migrated here
 CONFIG_DIR = BASE_DIR / "config"        # reserved - no user-editable config file lives here yet
 CRASH_DIR = BASE_DIR / "crash"          # reserved - no crash-dump writer exists yet
-UPDATE_DIR = BASE_DIR / "update"        # reserved - _dev/simulate_worker_update.py operates on the install dir directly, doesn't stage through here yet
+UPDATE_DIR = BASE_DIR / "update"        # reserved worker runtime directory
 QUARANTINE_DIR = BASE_DIR / "quarantine"  # reserved - partial/abandoned render outputs are not yet moved here (see docs/AIR_WORKER_JOB_RECOVERY.md for current abandon policy)
 for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, IPC_DIR, COMMAND_DIR, RESULT_DIR,
            CANCEL_FLAG_DIR, SHUTDOWN_FLAG_DIR, OUTPUT_DIR, TEMP_DIR, CONFIG_DIR,

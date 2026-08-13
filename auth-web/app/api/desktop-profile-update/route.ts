@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
         }
         const normalizedEmail = String(email)
 
-        if (!verifyDesktopSessionToken(normalizedEmail, String(session_token))) {
+        if (!(await verifyApprovedDesktopSession(normalizedEmail, String(session_token)))) {
             return NextResponse.json({ success: false, error: '세션이 만료되었거나 유효하지 않습니다. 다시 로그인해주세요.' }, { status: 401 })
         }
 
@@ -63,6 +63,18 @@ export async function POST(req: Request) {
         if (updateError) {
             console.error('[DesktopProfileUpdate] Update error:', updateError.message)
             return NextResponse.json({ success: false, error: '프로필 저장에 실패했습니다.' }, { status: 500 })
+        }
+
+        // Preferred categories directly affect topic recommendation scoring.
+        // Drop unclaimed cached recommendations so the next app refresh scores
+        // against the newly saved profile instead of a stale snapshot.
+        const { error: cacheClearError } = await supabaseAdmin
+            .from('user_topic_recommendations')
+            .delete()
+            .eq('employee_email', normalizedEmail)
+            .eq('is_claimed', false)
+        if (cacheClearError) {
+            console.warn('[DesktopProfileUpdate] recommendation cache clear warning:', cacheClearError.message)
         }
 
         // [AIR-0225B Phase 1 follow-up] The admin dashboard

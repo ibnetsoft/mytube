@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireSuperAdmin } from '../_auth'
+import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
 
 export const dynamic = 'force-dynamic'
+const STYLE_PRESETS_CACHE_TTL_SECONDS = 300
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,6 +22,17 @@ export async function GET(req: Request) {
 
         const { searchParams } = new URL(req.url)
         const type = searchParams.get('type') // optional filter: 'image' | 'script' | 'thumbnail'
+        const cacheKey = `admin:style-presets:${type || 'web'}`
+
+        const cached = await getServerCache<{ presets: any[] }>(cacheKey)
+        if (cached) {
+            return NextResponse.json(cached, {
+                headers: {
+                    'Cache-Control': `private, max-age=${STYLE_PRESETS_CACHE_TTL_SECONDS}`,
+                    'X-Admin-Cache': 'HIT',
+                },
+            })
+        }
 
         const supabase = getAdmin()
         let query = supabase.from('style_presets').select('*').order('created_at', { ascending: false })
@@ -37,7 +50,15 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        return NextResponse.json({ presets: data || [] })
+        const response = { presets: data || [] }
+        await setServerCache(cacheKey, response, STYLE_PRESETS_CACHE_TTL_SECONDS)
+
+        return NextResponse.json(response, {
+            headers: {
+                'Cache-Control': `private, max-age=${STYLE_PRESETS_CACHE_TTL_SECONDS}`,
+                'X-Admin-Cache': 'MISS',
+            },
+        })
     } catch (e: any) {
         console.error('Failed to get style presets:', e)
         return NextResponse.json({ error: e.message }, { status: 500 })
@@ -84,6 +105,8 @@ export async function POST(req: Request) {
 
         if (error) throw error
 
+        await deleteServerCache('admin:style-presets:web')
+        await deleteServerCache(`admin:style-presets:${preset_type}`)
         return NextResponse.json({ success: true, preset: data?.[0] })
     } catch (e: any) {
         console.error('Failed to save style preset:', e)
@@ -131,6 +154,9 @@ export async function DELETE(req: Request) {
 
         if (error) throw error
 
+        await deleteServerCache('admin:style-presets:web')
+        await deleteServerCache('admin:style-presets:script')
+        await deleteServerCache('admin:style-presets:thumbnail')
         return NextResponse.json({ success: true })
     } catch (e: any) {
         console.error('Failed to delete style preset:', e)

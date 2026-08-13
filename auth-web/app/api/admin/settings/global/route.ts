@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireSuperAdmin } from '../../_auth'
+import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
 
 export const dynamic = 'force-dynamic'
+const GLOBAL_SETTINGS_CACHE_KEY = 'admin:settings:global'
+const GLOBAL_SETTINGS_CACHE_TTL_SECONDS = 300
 
 const KEYS = [
     'gemini', 'youtube', 'claude', 'elevenlabs', 'topview', 'topview_uid',
@@ -40,6 +43,16 @@ export async function GET(req: Request) {
         const requester = await requireSuperAdmin(req)
         if (isAuthResponse(requester)) return requester
 
+        const cached = await getServerCache<Record<string, string>>(GLOBAL_SETTINGS_CACHE_KEY)
+        if (cached) {
+            return NextResponse.json(cached, {
+                headers: {
+                    'Cache-Control': `private, max-age=${GLOBAL_SETTINGS_CACHE_TTL_SECONDS}`,
+                    'X-Admin-Cache': 'HIT',
+                },
+            })
+        }
+
         const sb = getAdmin()
         const { data } = await sb.from('global_settings').select('key, value').in('key', [...KEYS.map(k => `sys_api_${k}`), ...EXACT_KEYS])
         const result: Record<string, string> = {}
@@ -47,7 +60,13 @@ export async function GET(req: Request) {
             const k = row.key.startsWith('sys_api_') ? row.key.replace('sys_api_', '') : row.key
             result[k] = row.value || ''
         }
-        return NextResponse.json(result)
+        await setServerCache(GLOBAL_SETTINGS_CACHE_KEY, result, GLOBAL_SETTINGS_CACHE_TTL_SECONDS)
+        return NextResponse.json(result, {
+            headers: {
+                'Cache-Control': `private, max-age=${GLOBAL_SETTINGS_CACHE_TTL_SECONDS}`,
+                'X-Admin-Cache': 'MISS',
+            },
+        })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
@@ -68,6 +87,7 @@ export async function POST(req: Request) {
             if (body[k] === undefined) continue
             await sb.from('global_settings').upsert({ key: k, value: body[k] }, { onConflict: 'key' })
         }
+        await deleteServerCache(GLOBAL_SETTINGS_CACHE_KEY)
         return NextResponse.json({ success: true })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })

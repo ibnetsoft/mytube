@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 
 import requests
 from fastapi import APIRouter, HTTPException, Request
@@ -673,14 +674,35 @@ async def sync_auth(request: Request):
             # 쿠키가 없으면(예: 프론트가 아닌 내부 호출) auth_service에 로그인 시
             # 저장해 둔 토큰으로 폴백한다 - service_role 직접 조회 폴백보다 우선.
             session_token = request.cookies.get("desktop_session_token") or auth_service.get_session_token()
-            profile = None
-            if session_token:
-                resync_result = web_admin_client.desktop_resync(email, session_token)
-                if resync_result.get("success"):
-                    profile = {
-                        "membership": resync_result.get("membership"),
-                        "token_balance": resync_result.get("token_balance"),
-                    }
+            if not session_token:
+                auth_service.logout_user()
+                response = JSONResponse(
+                    {"success": False, "error": "세션이 없습니다. 다시 로그인해주세요.", "requires_login": True},
+                    status_code=403,
+                )
+                response.delete_cookie("user_email")
+                response.delete_cookie("desktop_session_token")
+                return response
+
+            resync_result = web_admin_client.desktop_resync(email, session_token)
+            if not resync_result.get("success"):
+                auth_service.logout_user()
+                response = JSONResponse(
+                    {
+                        "success": False,
+                        "error": resync_result.get("error") or "관리자 승인 대기 상태입니다. 다시 로그인해주세요.",
+                        "requires_login": True,
+                    },
+                    status_code=403,
+                )
+                response.delete_cookie("user_email")
+                response.delete_cookie("desktop_session_token")
+                return response
+
+            profile = {
+                "membership": resync_result.get("membership"),
+                "token_balance": resync_result.get("token_balance"),
+            }
                     # [AIR-0225B 자동 복구] 공용 AI 키(global_settings)는 원래
                     # login_user()의 최초 1회 resync에서만 로드된다. 그 한 번이
                     # 실패하면(auth-web 콜드스타트/일시적 네트워크 오류 등) 앱을
@@ -688,20 +710,18 @@ async def sync_auth(request: Request):
                     # 조용히 죽는다 - 실제 발생 사례 확인됨. sync는 프론트가 모든
                     # 페이지 로드마다 호출하므로, 여기서 같은 응답에 실려 오는
                     # global_settings를 매번 적용해 자연 복구되게 한다.
-                    try:
-                        rows = resync_result.get("global_settings") or []
-                        if rows:
-                            sys_keys = web_admin_client.translate_global_settings_rows(rows)
-                            if sys_keys:
-                                from config import config
-                                was_missing = not config.GEMINI_API_KEY
-                                loaded = config.load_remote_keys(sys_keys)
-                                if loaded and was_missing:
-                                    print(f"[Sync] Recovered missing global API keys via resync: {loaded}")
-                    except Exception as key_err:
-                        print(f"[Sync] Failed to apply global API keys from resync: {key_err}")
-            if profile is None:
-                profile = web_admin_client.fetch_profile_by_email(email)
+            try:
+                rows = resync_result.get("global_settings") or []
+                if rows:
+                    sys_keys = web_admin_client.translate_global_settings_rows(rows)
+                    if sys_keys:
+                        from config import config
+                        was_missing = not config.GEMINI_API_KEY
+                        loaded = config.load_remote_keys(sys_keys)
+                        if loaded and was_missing:
+                            print(f"[Sync] Recovered missing global API keys via resync: {loaded}")
+            except Exception as key_err:
+                print(f"[Sync] Failed to apply global API keys from resync: {key_err}")
             if profile:
                 auth_service._membership = profile.get("membership", "std")
                 auth_service._token_balance = profile.get("token_balance", 0)
@@ -807,7 +827,11 @@ async def get_daily_topic():
         r_update = requests.patch(
             update_url,
             headers=patch_headers,
-            json={"status": "assigned"},
+            json={
+                "status": "assigned",
+                "assigned_employee_email": email,
+                "assigned_at": datetime.now(timezone.utc).isoformat(),
+            },
             timeout=5,
             verify=False,
             proxies={"http": None, "https": None},
@@ -831,6 +855,16 @@ async def get_daily_topic():
         db.update_project_setting(project_id, "topic_queue_id", topic_id)
         db.update_project_setting(project_id, "topic_queue_category_id", category_id or "")
         db.update_project_setting(project_id, "target_language", assigned_language)
+        db.update_project_setting(
+            project_id,
+            "pregenerated_structure_status",
+            item.get("pregenerated_structure_status") or "queued",
+        )
+        db.update_project_setting(
+            project_id,
+            "pregenerated_script_status",
+            item.get("pregenerated_script_status") or "queued",
+        )
         # AI가 정한 스타일을 워커가 임의로 바꾸지 못하도록 잠근다.
         db.update_project_setting(project_id, "style_locked", "1")
         if category_video_type == "longform":

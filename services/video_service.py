@@ -3164,7 +3164,7 @@ class VideoService:
         
         return output_path
 
-    def generate_subtitles_from_metadata(self, audio_path: str) -> List[dict]:
+    def generate_subtitles_from_metadata(self, audio_path: str, max_chars: int = 25) -> List[dict]:
         """
         TTS 생성시 만들어진 메타데이터(.vtt 또는 .json)를 이용하여 자막 생성
         (Whisper 없이도 정확한 싱크 가능)
@@ -3172,6 +3172,11 @@ class VideoService:
         import os
         import json
         import re
+
+        try:
+            max_chars = max(20, min(40, int(max_chars)))
+        except Exception:
+            max_chars = 25
 
         if not audio_path:
             return []
@@ -3246,7 +3251,7 @@ class VideoService:
                 current_block = []
                 current_start = 0.0
                 current_chars = 0
-                MAX_CHARS = 35   # 단위를 작게 분할하여 대사 타이밍 씽크 정확도 향상
+                MAX_CHARS = max_chars   # 자막 페이지 옵션: 한 자막 최대 글자 수
 
                 # Check format: Is it list of {word, start, end}?
                 # Yes, tts_service saves it that way.
@@ -3264,7 +3269,7 @@ class VideoService:
 
                     # Grouping Logic — 문장부호(. ? !)와 쉼표(,) 및 글자수 초과 기준으로 정교하게 분리
                     is_end_char = word.strip().endswith(('.', '?', '!', '…'))
-                    is_comma = word.strip().endswith(',') and current_chars > 15
+                    is_comma = word.strip().endswith(',') and current_chars > max(12, MAX_CHARS // 2)
                     is_long = current_chars > MAX_CHARS
                     is_last = (i == len(data) - 1)
 
@@ -3320,7 +3325,7 @@ class VideoService:
             print(f"줌 효과 적용 실패: {e}")
             return img_clip
 
-    def generate_smart_subtitles(self, script_text: str, duration: float) -> List[dict]:
+    def generate_smart_subtitles(self, script_text: str, duration: float, max_chars: int = 25) -> List[dict]:
         """
         대본을 지능적으로 분할하고 시간을 배분 (글자수 비례 + 문장 병합)
         """
@@ -3328,19 +3333,47 @@ class VideoService:
             return []
             
         import re
+
+        try:
+            max_chars = max(20, min(40, int(max_chars)))
+        except Exception:
+            max_chars = 25
         
         # 괄호, 대괄호 및 별표 지문 제거 (자막 노출 방지)
         script_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', script_text).strip()
         
         # 1. Atomic Split (split by punctuation)
         raw_sentences = []
+
+        def split_long_sentence(sentence: str) -> List[str]:
+            if len(sentence) <= max_chars:
+                return [sentence]
+
+            chunks = []
+            remaining = sentence.strip()
+            while len(remaining) > max_chars:
+                split_at = -1
+                for idx in range(max_chars, max(0, max_chars - 10), -1):
+                    if idx < len(remaining) and remaining[idx].isspace():
+                        split_at = idx
+                        break
+                if split_at <= 0:
+                    split_at = max_chars
+                chunk = remaining[:split_at].strip()
+                if chunk:
+                    chunks.append(chunk)
+                remaining = remaining[split_at:].strip()
+            if remaining:
+                chunks.append(remaining)
+            return chunks
+
         lines = [L.strip() for L in script_text.splitlines() if L.strip()]
         for line in lines:
             # 문장 부호 뒤 공백 기준 분리
             parts = re.split(r'(?<=[.?!])\s+', line)
             for p in parts:
                 if p.strip():
-                    raw_sentences.append(p.strip())
+                    raw_sentences.extend(split_long_sentence(p.strip()))
         
         if not raw_sentences:
             return []
@@ -3349,7 +3382,7 @@ class VideoService:
         # [MODIFIED] Grouping re-enabled for better readability (Requested: Long single lines)
         grouped_sentences = []
         current_group = ""
-        MAX_GROUP_LEN = 25 # 자막 한 줄에 적당한 길이 (기존 40 -> 한 줄 지향 25로 축소)
+        MAX_GROUP_LEN = max_chars # 자막 페이지 옵션: 한 자막 최대 글자 수
         
         for s in raw_sentences:
             if not current_group:

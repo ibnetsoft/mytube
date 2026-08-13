@@ -129,6 +129,42 @@ const CONTENT_LANGUAGE_OPTIONS = [
 const normalizeContentLanguage = (value: any) => CONTENT_LANGUAGE_OPTIONS.some(option => option.value === value) ? value : 'ko'
 const contentLanguageLabel = (value: any) => CONTENT_LANGUAGE_OPTIONS.find(option => option.value === normalizeContentLanguage(value))?.label || '한국어'
 
+const firstNonEmpty = (...values: any[]) => values.map(v => String(v || '').trim()).find(Boolean) || ''
+
+const getTopicPreparation = (item: any) => {
+    const structure = item?.pregenerated_structure || {}
+    const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
+    const publishMetadata = item?.publish_metadata || item?.progress_payload?.publish_metadata || {}
+    const hasTitle = firstNonEmpty(item?.generated_title, item?.topic).length > 0
+    const hasStructure = item?.pregenerated_structure_status === 'ready' && scenes.length > 0
+    const hasScript = item?.pregenerated_script_status === 'ready'
+    const hasMediaPrompts = hasStructure
+        && ['ready', 'fallback_ready'].includes(String(structure?.media_prompt_status || ''))
+        && scenes.every((scene: any) => (
+            ['ready', 'fallback_ready'].includes(String(scene?.media_prompt_status || ''))
+            && firstNonEmpty(scene?.image_prompt, scene?.prompt_en, scene?.visual_prompt, scene?.visual_description)
+            && firstNonEmpty(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
+        ))
+    const hasDescription = firstNonEmpty(publishMetadata?.description).length > 0
+    const missing = [
+        !hasTitle ? '제목' : '',
+        !hasStructure ? '기획' : '',
+        !hasScript ? '대본' : '',
+        !hasMediaPrompts ? '이미지/영상 프롬프트' : '',
+        !hasDescription ? '설명 메타데이터' : '',
+    ].filter(Boolean)
+
+    return {
+        ready: item?.status === 'pending' && hasTitle && hasStructure && hasScript && hasMediaPrompts && hasDescription,
+        missing,
+        scenes: scenes.length,
+        structureStatus: item?.pregenerated_structure_status || 'queued',
+        scriptStatus: item?.pregenerated_script_status || 'queued',
+        mediaStatus: structure?.media_prompt_status || 'queued',
+        hasDescription,
+    }
+}
+
 const typeMap: Record<string, string> = {
     'video': 'VIDEO',
     'image': 'IMAGE',
@@ -237,7 +273,7 @@ export default function DashboardContent() {
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
-    const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'completed'>('working')
+    const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'preparing' | 'completed'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
     const [topicQueuePage, setTopicQueuePage] = useState(1)
     const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
@@ -1402,6 +1438,18 @@ export default function DashboardContent() {
         return msg;
     };
 
+    const buildRenderQueueFailureDetail = (task: any): string => {
+        const lines = [
+            task.error_code ? `error_code: ${task.error_code}` : null,
+            task.error_message ? String(task.error_message).trim() : null,
+            task.worker_id ? `worker_id: ${task.worker_id}` : null,
+            task.worker_instance_id ? `worker_instance_id: ${task.worker_instance_id}` : null,
+            task.lease_id ? `lease_id: ${task.lease_id}` : null,
+            task.attempt_number ? `attempt_number: ${task.attempt_number}` : null,
+        ].filter(Boolean);
+        return lines.join('\n\n');
+    };
+
     const openThumbnailModal = (task: any) => {
         setThumbnailPreviewFile(null);
         setThumbnailEditTask(task);
@@ -1566,6 +1614,7 @@ export default function DashboardContent() {
                                         ? Math.round(Number(meta.total_duration_seconds || 0) / 60)
                                         : null
                                     const localizedMessage = translateRenderQueueMessage(task.message)
+                                    const failureDetail = task.status === 'failed' ? buildRenderQueueFailureDetail(task) : ''
                                     return (
                                     <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
                                         <td className="px-4 py-4 whitespace-nowrap">
@@ -1666,8 +1715,18 @@ export default function DashboardContent() {
                                                 <span className="font-bold font-mono text-[10px] w-8 text-right">{task.progress || 0}%</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-4 max-w-[250px] truncate text-gray-400 italic" title={localizedMessage}>
-                                            {localizedMessage}
+                                        <td className="px-4 py-4 max-w-[320px] text-gray-400 italic" title={localizedMessage}>
+                                            <div className="line-clamp-2 break-words">{localizedMessage}</div>
+                                            {failureDetail ? (
+                                                <details className="mt-2 not-italic">
+                                                    <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-300 hover:text-red-200">
+                                                        Details
+                                                    </summary>
+                                                    <pre className="mt-2 max-h-56 max-w-[520px] overflow-auto whitespace-pre-wrap break-words rounded border border-red-500/20 bg-red-950/20 p-3 text-[10px] leading-relaxed text-red-100">
+                                                        {failureDetail}
+                                                    </pre>
+                                                </details>
+                                            ) : null}
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             {meta.result_thumbnail_file_id ? (
@@ -3158,11 +3217,13 @@ export default function DashboardContent() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {categories.filter(c => (c.video_type || 'longform') === categoryListTab && normalizeContentLanguage(c.language) === categoryLangTab).map((cat) => {
-                                        const pendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
+                                        const allPendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
+                                        const pendingTopics = allPendingTopics.filter(t => getTopicPreparation(t).ready);
+                                        const preparingTopics = allPendingTopics.filter(t => !getTopicPreparation(t).ready);
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
                                         const previewTopicItems = pendingTopics.slice(0, 10);
                                         const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
-                                        const staleYearPendingCount = pendingTopics.filter((topicItem: any) => /2024|2025/.test(String(topicItem.topic || ''))).length;
+                                        const staleYearPendingCount = allPendingTopics.filter((topicItem: any) => /2024|2025/.test(String(topicItem.topic || ''))).length;
 
                                         return (
                                             <div key={cat.id} className="bg-black/40 border border-white/10 rounded-3xl p-6 relative flex flex-col justify-between hover:border-blue-500/50 transition-all">
@@ -3220,13 +3281,29 @@ export default function DashboardContent() {
                                                     </div>
                                                      
                                                     {/* 주제 대기열 카운트 */}
-                                                    <div className="flex gap-3 text-[11px] font-black tracking-wider uppercase mb-6">
+                                                    <div className="flex flex-wrap gap-3 text-[11px] font-black tracking-wider uppercase mb-6">
                                                         <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-lg">대기주제: {pendingTopics.length}개</span>
                                                         <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-lg">완료주제: {completedTopics.length}개</span>
                                                     </div>
                                                 </div>
 
-                                                {false && canManageTopics && (
+                                                {preparingTopics.length > 0 && (
+                                                    <div className="mb-6 rounded-xl border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-[11px] font-bold text-orange-200">
+                                                        <div className="mb-1 font-black">준비중 {preparingTopics.length}개 - 유저앱에는 표시 안 됨</div>
+                                                        <div className="space-y-1 text-orange-100/80">
+                                                            {preparingTopics.slice(0, 3).map((topicItem: any) => {
+                                                                const prep = getTopicPreparation(topicItem)
+                                                                return (
+                                                                    <div key={`preparing-${topicItem.id}`} className="truncate">
+                                                                        {topicItem.generated_title || topicItem.topic || topicItem.id}: 필요 {prep.missing.join(', ') || '확인'}
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {false && false && canManageTopics && (
                                                 <button
                                                     disabled={generatingCatId === cat.id}
                                                     onClick={() => handleTriggerAiTopics(cat.id)}
@@ -3236,7 +3313,7 @@ export default function DashboardContent() {
                                                 </button>
                                                 )}
 
-                                                {false && canManageTopics && (() => {
+                                                {false && false && canManageTopics && (() => {
                                                     const benchmarkJob = benchmarkJobByCat[cat.id]
                                                     const benchmarkStatusLabel = benchmarkJob
                                                         ? (benchmarkJob.status === 'completed' ? `완료 (${benchmarkJob.result_payload?.candidates?.length || 0}개 영상 분석됨)`
@@ -3392,9 +3469,14 @@ export default function DashboardContent() {
                         {(() => {
                             const getTopicAssignee = (item: any) => item.assigned_employee_email;
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
-                            const isPendingTopic = (item: any) => item.status === 'pending';
+                            const isPendingTopic = (item: any) => item.status === 'pending' && getTopicPreparation(item).ready;
+                            const isPreparingTopic = (item: any) => item.status === 'pending' && !getTopicPreparation(item).ready;
                             const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
-                            const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working' ? isWorkingTopic(item) : isPendingTopic(item);
+                            const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working'
+                                ? isWorkingTopic(item)
+                                : topicQueueStatusFilter === 'preparing'
+                                    ? isPreparingTopic(item)
+                                    : isPendingTopic(item);
                             // "완료" 탭은 topics_queue가 아니라 리모트 렌더큐를 그대로 보여준다 (아래 참고) -
                             // 여기 topics는 계속 pending/assigned 두 상태만 대상으로 한다.
                             const topicQueueSource = topics;
@@ -3466,6 +3548,17 @@ export default function DashboardContent() {
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTopicQueueStatusFilter('preparing')}
+                                            className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
+                                                topicQueueStatusFilter === 'preparing'
+                                                    ? 'bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-900/20'
+                                                    : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-orange-500/40'
+                                            }`}
+                                        >
+                                            준비중 <span className="ml-1 text-[10px] opacity-70">{topics.filter(topic => isPreparingTopic(topic)).length}</span>
+                                        </button>
                                         {[
                                             { key: 'working', label: '작업중' },
                                             { key: 'pending', label: '대기중' },
@@ -3569,13 +3662,17 @@ export default function DashboardContent() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5 font-medium">
-                                        {pagedTopics.map((item) => (
+                                        {pagedTopics.map((item) => {
+                                            const prep = getTopicPreparation(item)
+                                            return (
                                             <tr
                                                 key={item.id}
                                                 className={`transition-colors h-10 text-xs ${
                                                     editingTopicId === String(item.id)
                                                         ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-400/30'
-                                                        : 'hover:bg-white/[0.03]'
+                                                        : prep.ready
+                                                            ? 'hover:bg-white/[0.03]'
+                                                            : 'bg-orange-500/[0.03] hover:bg-orange-500/[0.06]'
                                                 }`}
                                             >
                                                 <td className="px-10 py-3 text-gray-300 font-bold">
@@ -3617,6 +3714,20 @@ export default function DashboardContent() {
                                                             ) : (
                                                                 <div className="space-y-2">
                                                                     <span className="block truncate">{item.topic}</span>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${
+                                                                            prep.ready
+                                                                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                                                                                : 'border-orange-500/20 bg-orange-500/10 text-orange-300'
+                                                                        }`}>
+                                                                            {prep.ready ? '준비완료' : `필요: ${prep.missing.join(', ') || '확인'}`}
+                                                                        </span>
+                                                                        {!prep.ready && (
+                                                                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-black text-gray-300">
+                                                                                기획 {prep.structureStatus} · 대본 {prep.scriptStatus} · 프롬프트 {prep.mediaStatus}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                     {(topicActualPayout(item) > 0 || topicVideoClipRatio(item) || topicSceneSummary(item)) && (
                                                                         <div className="flex flex-wrap gap-1.5">
                                                                             {topicActualPayout(item) > 0 && (
@@ -3675,13 +3786,22 @@ export default function DashboardContent() {
                                                                 { key: 'desc', label: '설명' },
                                                             ];
                                                             const stepMap = item.progress_payload?.steps || {};
+                                                            const publishMetadata = item.publish_metadata || item.progress_payload?.publish_metadata || {};
+                                                            const hasPublishDescription = String(publishMetadata?.description || '').trim().length > 0;
+                                                            const isStepDone = (key: string) => {
+                                                                if (stepMap[key]) return true;
+                                                                if (key === 'plan') return item.pregenerated_structure_status === 'ready';
+                                                                if (key === 'script') return item.pregenerated_script_status === 'ready';
+                                                                if (key === 'desc') return hasPublishDescription;
+                                                                return false;
+                                                            };
                                                             const submittedStatuses = ['remote_packaging', 'remote_queued', 'rendering', 'rendered', 'completed'];
                                                             const isSubmitted = submittedStatuses.includes(String(item.progress_payload?.project_status || ''));
                                                             const allSteps = [...stepDefs, { key: '__submit', label: '제출' }];
                                                             return (
                                                                 <div className="flex items-center gap-0.5 text-[10px] font-bold whitespace-nowrap">
                                                                     {allSteps.map((step, idx) => {
-                                                                        const done = step.key === '__submit' ? isSubmitted : !!stepMap[step.key];
+                                                                        const done = step.key === '__submit' ? isSubmitted : isStepDone(step.key);
                                                                         return (
                                                                             <span key={`${item.id}-progress-${step.key}`}>
                                                                                 {idx > 0 && <span className="text-gray-700">-</span>}
@@ -3721,7 +3841,7 @@ export default function DashboardContent() {
                                                     )}
                                                 </td>
                                             </tr>
-                                        ))}
+                                        )})}
                                         {filteredTopics.length === 0 && (
                                             <tr>
                                                 <td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">

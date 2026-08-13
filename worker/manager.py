@@ -44,6 +44,7 @@ from worker_config import (
     SHUTDOWN_JOB_ABORT_GRACE_SECONDS,
     STATE_DIR,
     WORKER_ID,
+    ensure_project_root_on_path,
 )
 
 logger = get_logger("manager")
@@ -138,6 +139,7 @@ class WorkerManager:
             rec.pid = popen.pid
             rec.status = "starting"
             rec.started_at = time.time()
+            rec.last_error = None
             rec.restart_count_total += 1
             return True
 
@@ -532,8 +534,12 @@ def main():
     # hermes_worker.py가 자식 프로세스에서 config.GEMINI_API_KEY를 읽을 수 있도록
     # 워커 시작 전에 환경변수에 세팅합니다.
     try:
+        ensure_project_root_on_path()
         from config import Config
         keys_loaded = Config.load_remote_keys_from_supabase()
+        invalid_models = Config.validate_generation_models()
+        if invalid_models:
+            raise RuntimeError(f"Missing generation model settings: {', '.join(invalid_models)}")
         if keys_loaded:
             logger.info(f"웹어드민 API 키 로드 완료: {keys_loaded}")
         else:
@@ -543,6 +549,12 @@ def main():
 
     manager = WorkerManager()
     manager.run_startup_recovery()
+    cancelled_autopilot_jobs = job_store.cancel_nonterminal_jobs_by_source(
+        "autopilot",
+        reason="autopilot jobs do not resume automatically after Manager restart",
+    )
+    if cancelled_autopilot_jobs:
+        logger.info("[AUTOPILOT] Cancelled %d pending job(s) on startup; manual start is required", len(cancelled_autopilot_jobs))
     manager.start_all()
 
     # ── 시스템 트레이 기동 (Windows 전용, 실패해도 CLI 모드로 계속) ──

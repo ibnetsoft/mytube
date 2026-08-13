@@ -23,7 +23,6 @@
 | **Local API Process** | 127.0.0.1 전용 HTTP 서버 — 관리 UI/CLI가 상태를 조회하는 창구 | Worker Manager 내부 스레드 또는 경량 자식 프로세스(§4에서 결정) |
 | **Job Scheduler** | 우선순위 큐 유지, "다음에 뭘 실행할지" 결정 | Worker Manager 내부 컴포넌트(별도 OS 프로세스 아님 — 상태 조율 로직이라 IPC 오버헤드보다 인프로세스가 적합) |
 | **Health Monitor** | 각 프로세스의 heartbeat/리소스 사용량 수집, 반복 크래시 카운트 | Worker Manager 내부 컴포넌트 |
-| **Auto Updater** | 모듈별 독립 업데이트(§UPDATE_STRATEGY) | 별도 `subprocess.Popen` 자식(업데이트 도중 Manager 자체가 교체될 수 있어 분리 필요 — AIR Studio의 `AIRLauncher`/`AIRUpdater` 분리 패턴과 동일한 이유) |
 
 **Job Scheduler/Health Monitor를 별도 OS 프로세스로 만들지 않는 이유**: 이 둘은 "실행"이
 아니라 "조율/관찰"이 본질이라, 프로세스 경계를 나누면 상태 동기화 비용만 늘고 격리 이득이

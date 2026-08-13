@@ -42,6 +42,7 @@ import signal
 import sys
 import threading
 import time
+import traceback
 from pathlib import Path
 
 import central_client
@@ -60,6 +61,8 @@ _shutdown_requested = False
 SUPPORTED_JOB_TYPES = ["render_video"]
 LEASE_RENEW_INTERVAL_SECONDS = 3.0
 REMOTE_ENABLED = bool(os.environ.get("AIRWORKER_CENTRAL_SERVER_URL"))
+REMOTE_CLAIM_RETRY_SECONDS = 60.0
+_next_remote_claim_at = 0.0
 
 
 def _handle_signal(signum, frame):
@@ -214,6 +217,25 @@ def _report_remote_outcome(job: dict, job_log, *, success: bool, output_ref: str
         job_log.warning(f"Could not report {'completion' if success else 'failure'} to central server ({e}) - queued for retry, local status is final regardless")
 
 
+def _remote_progress(job: dict, job_log, worker_status: str, progress: int, message: str):
+    if not _is_remote(job):
+        return
+    try:
+        central_client.report_progress(job["remote_job_id"], job["lease_id"], WORKER_INSTANCE_ID, progress, message, worker_status)
+    except Exception as e:
+        job_log.warning(f"Progress report to central server failed (non-fatal): {e}")
+
+
+def _format_exception_detail(exc: Exception) -> str:
+    return "\n".join(
+        [
+            f"Exception: {type(exc).__name__}: {exc}",
+            "Traceback:",
+            traceback.format_exc(),
+        ]
+    ).strip()
+
+
 def _flush_pending_remote_acks():
     """[Stage 7] Retries reporting outcomes that failed to reach the central
     server earlier - runs once per main-loop iteration so a temporary
@@ -239,6 +261,7 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
     try:
         job_store.transition(job_id, job_store.PREPARING, reason="preparing render inputs")
         write_state("preparing", job, 0, job_id)
+        _remote_progress(job, job_log, "PREPARING", 1, "Preparing render inputs.")
         job_log.info("-> PREPARING")
 
         source_path = job["payload"].get("source_path")
@@ -255,23 +278,21 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
 
         job_store.transition(job_id, job_store.RENDERING, reason="starting real render pipeline")
         write_state("rendering", job, 0, job_id)
+        _remote_progress(job, job_log, "RENDERING", 20, "Rendering video on remote worker.")
         job_log.info("-> RENDERING (calling services.remote_render_service.remote_render_executor_func)")
 
         def _on_progress(pct, msg):
             job_store.update_progress(job_id, pct, msg)
             write_state("rendering", job, pct, job_id)
             job_log.info(f"progress={pct} message={msg}")
-            if _is_remote(job):
-                try:
-                    central_client.report_progress(job["remote_job_id"], job["lease_id"], WORKER_INSTANCE_ID, pct, msg)
-                except Exception as e:
-                    job_log.warning(f"Progress report to central server failed (non-fatal): {e}")
+            _remote_progress(job, job_log, "RENDERING", pct, msg)
 
         output_path = run_render(job_id, temp_dir, _on_progress)
         job_log.info(f"Render complete: {output_path}")
 
         job_store.transition(job_id, job_store.UPLOADING, reason="render complete, delivering output")
         write_state("uploading", job, 100, job_id)
+        _remote_progress(job, job_log, "UPLOADING", 92, "Uploading rendered video.")
         job_log.info("-> UPLOADING")
         delivered_path = adapter.upload(output_path, job)
         job_log.info(f"Delivered to {delivered_path}")
@@ -288,9 +309,10 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
         logger.warning(f"Job {job_id} state changed externally mid-run, aborting our own processing: {e}")
         job_log.warning(f"Aborted: externally transitioned ({e})")
     except Exception as e:
-        _fail_and_maybe_retry(job, error_code="RENDER_EXCEPTION", error_message=str(e), job_log=job_log)
-        _report_remote_outcome(job, job_log, success=False, error_code="RENDER_EXCEPTION", error_message=str(e))
-        _last_error = str(e)
+        error_detail = _format_exception_detail(e)
+        _fail_and_maybe_retry(job, error_code="RENDER_EXCEPTION", error_message=error_detail, job_log=job_log)
+        _report_remote_outcome(job, job_log, success=False, error_code="RENDER_EXCEPTION", error_message=error_detail)
+        _last_error = error_detail
     finally:
         if renew_stop:
             renew_stop.set()
@@ -300,19 +322,26 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
 
 
 def _try_remote_claim() -> dict | None:
+    global _next_remote_claim_at
+    now = time.time()
+    if now < _next_remote_claim_at:
+        return None
     try:
         claimed = central_client.claim_job(WORKER_ID, WORKER_INSTANCE_ID, SUPPORTED_JOB_TYPES)
     except central_client.AuthError as e:
         logger.error(f"Central server rejected our worker token (not retrying this tick): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
         return None
     except central_client.CentralServerUnavailable as e:
-        logger.warning(f"Central server unreachable (will retry next tick): {e}")
+        logger.warning(f"Central server unreachable (will retry after {REMOTE_CLAIM_RETRY_SECONDS:.0f}s): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
         return None
     except Exception as e:
         # [Same class of bug as _report_remote_outcome, hardened proactively]
         # any other unexpected response (malformed claim, unexpected 4xx)
         # must not crash the main loop - just skip this tick's remote claim.
-        logger.error(f"Unexpected error during central server claim (will retry next tick): {e}")
+        logger.error(f"Unexpected error during central server claim (will retry after {REMOTE_CLAIM_RETRY_SECONDS:.0f}s): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
         return None
     if not claimed:
         return None

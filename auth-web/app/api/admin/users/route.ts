@@ -55,7 +55,22 @@ export async function GET(req: Request) {
                 if (batch.length < perPage) break
             }
         }
-        const { data: profiles } = await supabaseAdmin.from('profiles').select('*')
+        const userIds = (users || []).map((u: any) => u.id).filter(Boolean)
+        let profiles: any[] = []
+        if (requestedPage != null) {
+            if (userIds.length > 0) {
+                const { data, error: profilesError } = await supabaseAdmin
+                    .from('profiles')
+                    .select('*')
+                    .in('id', userIds)
+                if (profilesError) throw profilesError
+                profiles = data || []
+            }
+        } else {
+            const { data, error: profilesError } = await supabaseAdmin.from('profiles').select('*')
+            if (profilesError) throw profilesError
+            profiles = data || []
+        }
 
         const normMembership = (v: string) => ({ standard: 'std', independent: 'pro' })[v] ?? v
         const authUserIds = new Set((users || []).map(u => u.id))
@@ -66,7 +81,6 @@ export async function GET(req: Request) {
             const rawMembership = profileData.membership_tier || profileData.membership || (user.app_metadata?.membership || 'std')
             const membership = normMembership(rawMembership)
 
-            console.log(`[Users API] ${user.email} | membership=${membership} | full_name=${user.user_metadata?.full_name}`)
             const userMetadata = {
                 ...(user.user_metadata || {}),
                 full_name: user.user_metadata?.full_name || profileData.full_name || '',
@@ -111,10 +125,11 @@ export async function GET(req: Request) {
         })
 
         // profiles에만 있고 auth.users에 없는 유저도 포함
-        const orphanProfiles = (profiles || []).filter((p: any) => !authUserIds.has(p.id))
+        const orphanProfiles = requestedPage == null
+            ? (profiles || []).filter((p: any) => !authUserIds.has(p.id))
+            : []
         for (const p of orphanProfiles) {
             const membership = normMembership(p.membership_tier || p.membership || 'std')
-            console.log(`[Users API] orphan profile ${p.email || p.id} | membership=${membership}`)
             enrichedUsers.push({
                 id: p.id,
                 email: p.email || '',
@@ -157,8 +172,12 @@ export async function GET(req: Request) {
             } as any)
         }
 
-        console.log(`[Users API] Returning ${enrichedUsers.length} users (auth=${users?.length ?? 0}, orphan=${orphanProfiles.length})`)
-        return NextResponse.json({ users: enrichedUsers }, {
+        return NextResponse.json({
+            users: enrichedUsers,
+            page: requestedPage,
+            perPage,
+            hasMore: requestedPage != null ? users.length === perPage : false,
+        }, {
             headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
         })
     } catch (error: any) {

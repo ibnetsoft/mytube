@@ -2,9 +2,7 @@
 [AIR-0227E-P2-14] Local update / atomic-swap / rollback simulation for the
 AIR Worker onedir install layout.
 
-Adapts the exact pattern already proven in
-packaging/windows/launcher/AIRUpdater.py (AIR Studio's own atomic-swap
-updater, AIR-0215 hardened) rather than inventing a new one: rename the
+Uses an atomic-swap pattern: rename the
 live install dir to a backup name, rename the staged new version into its
 place, and if the second rename fails, restore the backup. `os.rename()` on
 the same NTFS volume is atomic, so at no point does a partially-swapped
@@ -64,8 +62,7 @@ def simulate(root: Path, fail_swap: bool) -> int:
         if fail_swap:
             # Simulate a failure detected right after the rename would have
             # happened (e.g. a post-swap integrity check finding the exe
-            # missing) - same recovery path AIRUpdater.py takes if promotion
-            # of app_new fails.
+            # missing).
             if not (staged_new / "AIRWorker.exe").exists():
                 raise RuntimeError("staged new version is missing AIRWorker.exe - refusing to promote it")
             _atomic_rename(staged_new, live)

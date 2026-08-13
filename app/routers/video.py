@@ -418,6 +418,13 @@ async def generate_subtitles_api(req: dict = Body(...)):
     project_id = req.get("project_id")
     if not project_id:
         raise HTTPException(400, "project_id required")
+
+    def _subtitle_max_chars(value, fallback=25):
+        try:
+            parsed = int(value)
+        except Exception:
+            parsed = fallback
+        return max(20, min(40, parsed))
         
     try:
         # Load necessary data
@@ -426,6 +433,12 @@ async def generate_subtitles_api(req: dict = Body(...)):
             return {"status": "error", "error": "TTS 오디오가 없습니다."}
             
         project = db.get_project(project_id)
+        project_settings = db.get_project_settings(project_id) or {}
+        subtitle_max_chars = _subtitle_max_chars(
+            req.get("subtitle_max_chars") or project_settings.get("subtitle_max_chars"),
+            25
+        )
+        db.update_project_setting(project_id, 'subtitle_max_chars', subtitle_max_chars)
         
         # Script text for alignment (optional)
         script_data = db.get_script(project_id)
@@ -465,12 +478,12 @@ async def generate_subtitles_api(req: dict = Body(...)):
 
         # 2. Try Metadata-based Generation (Best Sync)
         # TTS 생성 시 만들어진 .vtt(Edge)나 .json(ElevenLabs)이 있으면 우선 사용
-        subtitles = video_service.generate_subtitles_from_metadata(audio_path)
+        subtitles = video_service.generate_subtitles_from_metadata(audio_path, max_chars=subtitle_max_chars)
         
         if not subtitles:
             # 3. Fallback: Simple Generation (Duration Split)
             print("Metadata not found, falling back to SMART generation (Weighted Split).")
-            subtitles = video_service.generate_smart_subtitles(full_script, audio_duration)
+            subtitles = video_service.generate_smart_subtitles(full_script, audio_duration, max_chars=subtitle_max_chars)
         
         if not subtitles:
             return {"status": "error", "error": "자막 생성 실패 (대본이 없거나 메타데이터를 찾을 수 없습니다)"}
@@ -709,9 +722,12 @@ async def auto_sync_images_api(req: dict = Body(...)):
 
 
 @router.post("/project/{project_id}/subtitle/regenerate")
-async def regenerate_subtitles_api(project_id: int):
+async def regenerate_subtitles_api(project_id: int, req: dict = Body(default=None)):
     """자막 강제 재생성"""
-    return await generate_subtitles_api({"project_id": project_id})
+    return await generate_subtitles_api({
+        "project_id": project_id,
+        "subtitle_max_chars": req.get("subtitle_max_chars") if isinstance(req, dict) else None
+    })
 
 
 @router.post("/projects/{project_id}/subtitle/reset")

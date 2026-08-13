@@ -45,6 +45,7 @@ const TOPICS_QUEUE_LIST_SELECT = `
     assigned_script_style,
     language,
     progress_payload,
+    publish_metadata,
     asset_mix_summary,
     total_scenes,
     video_scenes,
@@ -58,7 +59,9 @@ const TOPICS_QUEUE_LIST_SELECT = `
     payout_policy,
     duration_reason,
     difficulty_level,
+    pregenerated_structure,
     pregenerated_structure_status,
+    pregenerated_script_status,
     generated_title,
     translation_status,
     categories(id,name,language,upload_channel_id,upload_channel_name,upload_channel_handle)
@@ -716,8 +719,22 @@ export async function POST(req: Request) {
         }
 
         // 4. Supabase topics_queue 에 적재
-        const inserts = topics.map((item, index) => {
-            const topic = typeof item === 'string' ? item : item?.topic
+        const categoryLabel = String(category.name || '').trim()
+        const normalizeTitle = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim()
+        const isPlaceholderTitle = (value: string) => {
+            const normalized = value.replace(/[\s·_-]+/g, '').toLowerCase()
+            const categoryNormalized = categoryLabel.replace(/[\s·_-]+/g, '').toLowerCase()
+            return !normalized || normalized === categoryNormalized || normalized.length < 12
+        }
+        const normalizedTopics = topics.map((item: any) => ({
+            item,
+            title: normalizeTitle(typeof item === 'string' ? item : (item?.title || item?.topic)),
+        }))
+        if (normalizedTopics.some(({ title }) => isPlaceholderTitle(title))) {
+            throw new Error(`AI returned a category label instead of a publishable title for '${categoryLabel}'.`)
+        }
+
+        const inserts = normalizedTopics.map(({ item, title: topic }, index) => {
             const geminiDuration = isLongformCategory
                 ? clampDuration(item?.recommended_duration_minutes, minDurationMinutes)
                 : null
@@ -751,6 +768,7 @@ export async function POST(req: Request) {
             return {
                 category_id: category.id,
                 topic: String(topic || '').trim(),
+                generated_title: String(topic || '').trim(),
                 assigned_employee_email: assignedEmployeeEmail,
                 assigned_script_style: assignedScriptStyle,
                 language: targetLang,
@@ -790,7 +808,7 @@ export async function POST(req: Request) {
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, language, translation_status, benchmark_analysis, pregenerated_structure_status, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, language, translation_status, benchmark_analysis, pregenerated_structure_status, generated_title, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)

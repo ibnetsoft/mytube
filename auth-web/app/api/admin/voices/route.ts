@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireSuperAdmin } from '../_auth'
+import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
 
 export const dynamic = 'force-dynamic'
+const VOICES_CACHE_KEY = 'admin:voices'
+const VOICES_CACHE_TTL_SECONDS = 300
 
 type CustomVoice = {
     name: string
@@ -55,7 +58,24 @@ export async function GET(req: Request) {
     try {
         const requester = await requireSuperAdmin(req)
         if (isAuthResponse(requester)) return requester
-        return NextResponse.json({ voices: await loadVoices() })
+        const cached = await getServerCache<{ voices: CustomVoice[] }>(VOICES_CACHE_KEY)
+        if (cached) {
+            return NextResponse.json(cached, {
+                headers: {
+                    'Cache-Control': `private, max-age=${VOICES_CACHE_TTL_SECONDS}`,
+                    'X-Admin-Cache': 'HIT',
+                },
+            })
+        }
+
+        const response = { voices: await loadVoices() }
+        await setServerCache(VOICES_CACHE_KEY, response, VOICES_CACHE_TTL_SECONDS)
+        return NextResponse.json(response, {
+            headers: {
+                'Cache-Control': `private, max-age=${VOICES_CACHE_TTL_SECONDS}`,
+                'X-Admin-Cache': 'MISS',
+            },
+        })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
@@ -81,6 +101,7 @@ export async function POST(req: Request) {
             else voices.push(requested)
         }
         await saveVoices(voices)
+        await deleteServerCache(VOICES_CACHE_KEY)
         return NextResponse.json({ success: true, registeredCount: requestedVoices.length, voices })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
@@ -99,6 +120,7 @@ export async function DELETE(req: Request) {
 
         const voices = (await loadVoices()).filter(voice => voice.voice_id !== voiceId)
         await saveVoices(voices)
+        await deleteServerCache(VOICES_CACHE_KEY)
         return NextResponse.json({ success: true, voices })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })

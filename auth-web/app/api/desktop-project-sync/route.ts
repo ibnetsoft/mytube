@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
         }
         const normalizedEmail = String(email)
 
-        if (!verifyDesktopSessionToken(normalizedEmail, String(session_token))) {
+        if (!(await verifyApprovedDesktopSession(normalizedEmail, String(session_token)))) {
             return NextResponse.json({ success: false, error: '세션이 만료되었거나 유효하지 않습니다. 다시 로그인해주세요.' }, { status: 401 })
         }
 

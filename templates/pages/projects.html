@@ -1284,8 +1284,19 @@
             }
 
             setCurrentProject(projectId);
-            const projectRoute = data.project_mode === 'longform_music' ? '/music-plan' : '/script-plan';
-            window.location.href = `${projectRoute}?project_id=${projectId}&auto=true&topic=${encodeURIComponent(data.topic?.topic || '')}`;
+            const nextStep = data.next_step || (data.ready_for_image_generation ? 'tts' : null);
+            const projectRoute = data.project_mode === 'longform_music'
+                ? '/music-plan'
+                : (nextStep === 'tts' ? '/tts' : (nextStep === 'image-gen' ? '/image-gen' : '/script-plan'));
+            const params = new URLSearchParams({
+                project_id: String(projectId),
+                auto: 'true',
+                topic: data.topic?.topic || ''
+            });
+            if (nextStep === 'tts' || nextStep === 'image-gen') {
+                params.set('prepared', 'true');
+            }
+            window.location.href = `${projectRoute}?${params.toString()}`;
         } catch (e) {
             if (card) {
                 card.disabled = false;

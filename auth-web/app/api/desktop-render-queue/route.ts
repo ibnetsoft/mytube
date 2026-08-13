@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { verifyDesktopSessionToken } from '@/lib/desktopSession'
+import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         if (!email || !session_token) {
             return NextResponse.json({ success: false, error: 'Missing email or session_token' }, { status: 400 })
         }
-        if (!verifyDesktopSessionToken(String(email), String(session_token))) {
+        if (!(await verifyApprovedDesktopSession(String(email), String(session_token)))) {
             return NextResponse.json({ success: false, error: '세션이 만료되었거나 유효하지 않습니다. 다시 로그인해주세요.' }, { status: 401 })
         }
         if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
         if (!email || !sessionToken) {
             return NextResponse.json({ success: false, error: 'Missing email or session_token' }, { status: 400 })
         }
-        if (!verifyDesktopSessionToken(email, sessionToken)) {
+        if (!(await verifyApprovedDesktopSession(email, sessionToken))) {
             return NextResponse.json({ success: false, error: '세션이 만료되었거나 유효하지 않습니다. 다시 로그인해주세요.' }, { status: 401 })
         }
 

@@ -38,11 +38,27 @@ results):
 import os
 import time
 import uuid
+from pathlib import Path
+from json import JSONDecodeError
 
 import requests
+from dotenv import dotenv_values, load_dotenv
 
-CENTRAL_SERVER_URL = os.environ.get("AIRWORKER_CENTRAL_SERVER_URL", "http://127.0.0.1:8799")
+_env_values = {}
+for env_path in (Path.cwd() / ".env", Path(__file__).resolve().parent.parent / ".env"):
+    if env_path.exists():
+        _env_values.update({k: v for k, v in dotenv_values(env_path).items() if v})
+        load_dotenv(env_path, override=False)
+
+CENTRAL_SERVER_URL = (
+    _env_values.get("AIRWORKER_CENTRAL_SERVER_URL")
+    or _env_values.get("DASHBOARD_URL")
+    or os.environ.get("AIRWORKER_CENTRAL_SERVER_URL")
+    or os.environ.get("DASHBOARD_URL")
+    or "http://127.0.0.1:8799"
+).rstrip("/")
 WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "")
+VERCEL_PROTECTION_BYPASS_SECRET = os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET", "")
 
 MAX_RETRIES = 5
 BACKOFF_BASE_SECONDS = 1.0
@@ -79,6 +95,8 @@ class LeaseConflict(Exception):
 
 def _headers(idempotency_key: str | None = None) -> dict:
     h = {"Authorization": f"Bearer {WORKER_TOKEN}"}
+    if VERCEL_PROTECTION_BYPASS_SECRET:
+        h["x-vercel-protection-bypass"] = VERCEL_PROTECTION_BYPASS_SECRET
     if idempotency_key:
         h["Idempotency-Key"] = idempotency_key
     return h
@@ -108,7 +126,17 @@ def _request(method: str, path: str, json_body: dict | None = None, idempotency_
             time.sleep(delay)
             continue
         resp.raise_for_status()
-        return resp.json() if resp.content else {}
+        if not resp.content:
+            return {}
+        content_type = resp.headers.get("content-type", "")
+        if "application/json" not in content_type.lower():
+            raise CentralServerUnavailable(
+                f"{method} {path} returned non-JSON response ({resp.status_code}, {content_type}): {resp.text[:120]}"
+            )
+        try:
+            return resp.json()
+        except (ValueError, JSONDecodeError) as e:
+            raise CentralServerUnavailable(f"{method} {path} returned invalid JSON: {e}")
 
     raise CentralServerUnavailable(f"{method} {path} failed after {MAX_RETRIES} attempts: {last_exc}")
 
