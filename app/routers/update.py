@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from services.updater_service import updater_service
 from pydantic import BaseModel
 
@@ -14,7 +14,11 @@ async def check_update():
 
 @router.post("/download")
 async def start_download(req: DownloadRequest):
-    updater_service.start_download(req.url, req.sha256)
+    if not updater_service.start_download(req.url, req.sha256):
+        raise HTTPException(
+            status_code=409,
+            detail=updater_service.download_error or "Update download is already in progress",
+        )
     return {"success": True, "message": "Download started"}
 
 @router.get("/status")

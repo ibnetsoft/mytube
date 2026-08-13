@@ -1545,7 +1545,7 @@
                 const res = await fetch('/api/update/check');
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data.has_update) {
+                if (data.has_update && data.can_apply_update !== false) {
                     showUpdateModal(data.latest_version);
                 }
             } catch (e) {
@@ -1689,6 +1689,11 @@
             const progressText = document.getElementById('updateProgressText');
             const progressBar = document.getElementById('updateProgressBar');
             const L = UPDATE_MODAL_I18N[getUpdateModalLang()];
+            const resetButton = () => {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = `<span id="btnStartUpdateLabel">${L.button}</span>`;
+            };
 
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -1699,7 +1704,11 @@
                 // Get URL again or just send empty to let backend use global_settings
                 // But wait, the check API gave us the URL, let's fetch it again
                 const checkRes = await fetch('/api/update/check');
+                if (!checkRes.ok) throw new Error("Update check failed");
                 const checkData = await checkRes.json();
+                if (!checkData.has_update || checkData.can_apply_update === false || !checkData.download_url) {
+                    throw new Error("No applicable update is available.");
+                }
                 
                 const dlRes = await fetch('/api/update/download', {
                     method: 'POST',
@@ -1707,7 +1716,8 @@
                     body: JSON.stringify({url: checkData.download_url, sha256: checkData.sha256})
                 });
                 
-                if (!dlRes.ok) throw new Error("Download start failed");
+                const dlData = await dlRes.json().catch(() => ({}));
+                if (!dlRes.ok || !dlData.success) throw new Error(dlData.detail || "Download start failed");
 
                 // Poll status
                 const interval = setInterval(async () => {
@@ -1717,7 +1727,7 @@
                     if (statusData.error) {
                         clearInterval(interval);
                         alert(L.errorPrefix + statusData.error);
-                        window.location.reload();
+                        resetButton();
                         return;
                     }
 
@@ -1729,15 +1739,24 @@
                         progressText.innerText = L.installing;
                         btn.innerHTML = `<span class="animate-spin text-xl">🔄</span> ${L.restarting}`;
                         
-                        // Apply and Restart
-                        await fetch('/api/update/apply', { method: 'POST' });
+                        // Apply and restart only after the server confirms it can
+                        // replace the installed app. A dev server must not reload
+                        // back into the same update prompt.
+                        const applyRes = await fetch('/api/update/apply', { method: 'POST' });
+                        const applyData = await applyRes.json().catch(() => ({}));
+                        if (!applyRes.ok || !applyData.success) {
+                            alert(L.errorPrefix + (applyData.error || "Update apply failed"));
+                            resetButton();
+                            return;
+                        }
                         setTimeout(() => { window.location.reload(); }, 4000);
                     }
                 }, 1000);
 
             } catch(e) {
                 console.error(e);
-                alert(L.startFailed);
+                alert(L.errorPrefix + (e.message || L.startFailed));
+                resetButton();
             }
         }
     </script>
