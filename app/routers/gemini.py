@@ -345,19 +345,15 @@ async def script_generate(req: GeminiRequest):
 async def gemini_analyze_comments(req: AnalysisRequest):
     """비디오 종합 분석 (댓글 + 자막)"""
     # 1. 댓글 가져오기
+    from services.youtube_data_api import async_youtube_get
+
     params = {
         "part": "snippet",
         "videoId": req.video_id,
         "maxResults": 50,
         "order": "relevance",
-        "key": config.YOUTUBE_API_KEY
     }
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/commentThreads",
-            params=params
-        )
-        comments_data = response.json()
+    comments_data = await async_youtube_get("commentThreads", params)
 
     comments = []
     if "items" in comments_data:

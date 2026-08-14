@@ -8,7 +8,7 @@ const GLOBAL_SETTINGS_CACHE_KEY = 'admin:settings:global'
 const GLOBAL_SETTINGS_CACHE_TTL_SECONDS = 300
 
 const KEYS = [
-    'gemini', 'youtube', 'claude', 'elevenlabs', 'topview', 'topview_uid',
+    'gemini', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'topview', 'topview_uid',
     'suno', 'suno_base_url', 'music_provider',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',

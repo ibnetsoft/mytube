@@ -1828,14 +1828,24 @@ def get_projects_with_status(employee_email: str = None) -> List[Dict]:
         # even after the description was saved and the header progress bar showed it complete.
         mode_scoped_metadata = get_project_metadata(r["id"], r.get("app_mode")) or {}
         has_description = bool(r["description"]) or bool(mode_scoped_metadata.get("description"))
+        longform_assets_ready = False
+        if not is_music_mode:
+            try:
+                from services.longform_asset_readiness import sync_project_asset_readiness
+                asset_readiness = sync_project_asset_readiness(r["id"])
+                longform_assets_ready = bool(asset_readiness.get("assets_ready"))
+            except Exception as e:
+                print(f"[DB] Asset readiness sync warning for project {r['id']}: {e}")
+                longform_assets_ready = bool(r.get("assets_ready"))
         progress = { # Detailed progress
+            "topic": bool(r["topic"]),
             "plan": bool(r["has_structure"]),     # 대본 기획
             "script": bool(r["has_script"]),      # 대본 생성
-            "image": int(r["image_count"] or 0) > 0,        # 이미지 생성 (하나라도 있으면)
+            "image": longform_assets_ready,        # 이미지/영상 에셋이 모든 씬에 준비됨
             "tts": bool(r["has_tts"]),            # TTS
             "video": bool(r["video_path"]),       # 영상 렌더링
             "subtitle": has_subtitle,             # 자막 저장
-            "thumbnail": int(r["thumbnail_count"] or 0) > 0,# 썸네일
+            "thumbnail": has_thumbnail,           # 썸네일
             "upload": bool(r["is_uploaded"]),     # 업로드
             "publish": bool(r.get("is_published", 0)), # 발행
             "desc": has_description,       # 설명

@@ -77,7 +77,7 @@ def _read_job_result(job_id: str) -> dict | None:
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
-GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research"}
+GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research", "publish_metadata_generate"}
 
 
 def _safe_result_id(result_id: str) -> str:
@@ -92,14 +92,15 @@ def _read_generated_result(path: Path) -> dict | None:
 
 
 def _autopilot_generation_diagnostics() -> dict:
-    state: dict = {}
+    state: dict = autopilot_manager.get_status()
     if AUTOPILOT_STATE_FILE.exists():
         try:
             loaded = json.loads(AUTOPILOT_STATE_FILE.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
+            if isinstance(loaded, dict) and not state:
                 state = loaded
         except (json.JSONDecodeError, OSError):
-            state = {}
+            if not state:
+                state = {}
 
     logs = state.get("logs") if isinstance(state.get("logs"), list) else []
     hermes_results_dir = OUTPUT_DIR / "hermes_results"
@@ -115,6 +116,9 @@ def _autopilot_generation_diagnostics() -> dict:
     return {
         "is_running": bool(state.get("is_running")),
         "current_step": state.get("current_step") or "",
+        "last_run_status": state.get("last_run_status") or "",
+        "last_error": state.get("last_error") or "",
+        "last_completed_result_id": state.get("last_completed_result_id") or "",
         "generated_count": stats.get("generated_count", 0),
         "recent_logs": logs[-8:],
         "partial_result_count": partial_count,
@@ -142,6 +146,25 @@ def _result_title(data: dict) -> str:
         or benchmark_title_generation.get("final_title")
         or ""
     )
+
+
+def _result_category(data: dict) -> str:
+    title_generation = data.get("title_generation") if isinstance(data.get("title_generation"), dict) else {}
+    benchmark_analysis = data.get("benchmark_analysis") if isinstance(data.get("benchmark_analysis"), dict) else {}
+    benchmark_title_generation = (
+        benchmark_analysis.get("title_generation")
+        if isinstance(benchmark_analysis.get("title_generation"), dict)
+        else {}
+    )
+    for value in (
+        data.get("category"),
+        title_generation.get("category"),
+        benchmark_title_generation.get("category"),
+    ):
+        category = str(value or "").strip()
+        if category:
+            return category
+    return ""
 
 
 def _scene_has_image_prompt(scene: dict) -> bool:
@@ -178,6 +201,36 @@ def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
     return raw_status or "missing"
 
 
+def _quality_gate_status(data: dict, structure: dict, scenes: list, script: str) -> dict:
+    media_status = _structure_media_prompt_status(structure, scenes)
+    missing = []
+    review = []
+    if not data.get("benchmark_analysis"):
+        missing.append("benchmark")
+    if not _result_title(data):
+        missing.append("title")
+    if not (data.get("research_bundle") or structure.get("research_bundle")):
+        missing.append("web_research")
+    if not scenes:
+        missing.append("scenes")
+    if media_status == "fallback_ready":
+        review.append("media_prompts_fallback")
+    elif media_status != "ready":
+        missing.append("media_prompts")
+    if not script.strip():
+        missing.append("script")
+    if not data.get("publish_metadata"):
+        missing.append("publish_metadata")
+    status = "fail" if missing else ("review" if review else "pass")
+    return {
+        "status": status,
+        "missing": missing,
+        "review": review,
+        "media_prompt_status": media_status,
+        "can_auto_render": status == "pass",
+    }
+
+
 def _generated_result_summary(path: Path) -> dict | None:
     data = _read_generated_result(path)
     if not isinstance(data, dict):
@@ -185,12 +238,23 @@ def _generated_result_summary(path: Path) -> dict | None:
     structure = data.get("structure") if isinstance(data.get("structure"), dict) else {}
     scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
     script = str(data.get("script") or "")
+    research_bundle = data.get("research_bundle") or structure.get("research_bundle")
+    media_status = _structure_media_prompt_status(structure, scenes)
+    quality_gate = _quality_gate_status(data, structure, scenes, script)
+    material_statuses = {
+        "benchmark": "ready" if data.get("benchmark_analysis") else "missing",
+        "title": "ready" if _result_title(data) else "missing",
+        "web_research": "ready" if research_bundle else "missing",
+        "plan_prompts": "review" if media_status == "fallback_ready" else ("ready" if scenes and media_status == "ready" else ("ready" if scenes else "missing")),
+        "script": "ready" if script.strip() else "missing",
+        "publish_metadata": "ready" if data.get("publish_metadata") else "missing",
+    }
     stat = path.stat()
     return {
         "id": path.stem,
         "filename": path.name,
         "topic_queue_id": data.get("topic_queue_id") or path.stem,
-        "category": data.get("category") or "",
+        "category": _result_category(data),
         "title": _result_title(data),
         "scene_count": len(scenes),
         "script_chars": len(script),
@@ -198,7 +262,9 @@ def _generated_result_summary(path: Path) -> dict | None:
         "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
         "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
         "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
-        "media_prompt_status": _structure_media_prompt_status(structure, scenes),
+        "media_prompt_status": media_status,
+        "material_statuses": material_statuses,
+        "quality_gate": quality_gate,
         "updated_at": stat.st_mtime,
         "completed_at": data.get("completed_at") or stat.st_mtime,
     }
@@ -250,6 +316,9 @@ def _merge_topic_generated_result(target: dict, data: dict, *, source: str, sour
         value = data.get(key)
         if value not in (None, "", [], {}):
             target[key] = value
+    category = _result_category(target) or _result_category(data)
+    if category:
+        target["category"] = category
     if isinstance(data.get("structure"), dict):
         target["structure"] = data["structure"]
     if isinstance(data.get("script"), str) and data["script"].strip():
@@ -268,11 +337,21 @@ def _topic_generated_result_summary(result_id: str, data: dict) -> dict:
     sources = data.get("_sources") if isinstance(data.get("_sources"), list) else []
     job_types = {str(source.get("job_type") or "") for source in sources}
     status = data.get("status") or ""
+    media_status = _structure_media_prompt_status(structure, scenes)
+    quality_gate = _quality_gate_status(data, structure, scenes, script)
+    material_statuses = {
+        "benchmark": "ready" if data.get("benchmark_analysis") else "missing",
+        "title": "ready" if _result_title(data) else "missing",
+        "web_research": "ready" if (data.get("research_bundle") or structure.get("research_bundle")) else "missing",
+        "plan_prompts": "review" if media_status == "fallback_ready" else ("ready" if scenes and media_status == "ready" else ("ready" if scenes else "missing")),
+        "script": "ready" if script.strip() else "missing",
+        "publish_metadata": "ready" if data.get("publish_metadata") else "missing",
+    }
     return {
         "id": result_id,
         "filename": result_id,
         "topic_queue_id": data.get("topic_queue_id") or result_id,
-        "category": data.get("category") or data.get("topic") or "",
+        "category": _result_category(data),
         "title": _result_title(data),
         "scene_count": len(scenes),
         "script_chars": len(script),
@@ -280,9 +359,11 @@ def _topic_generated_result_summary(result_id: str, data: dict) -> dict:
         "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
         "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
         "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
-        "media_prompt_status": _structure_media_prompt_status(structure, scenes),
+        "media_prompt_status": media_status,
+        "material_statuses": material_statuses,
+        "quality_gate": quality_gate,
         "status": status,
-        "stage": "script" if script.strip() else ("plan" if "script_plan_generate" in job_types and scenes else "title"),
+        "stage": "metadata" if "publish_metadata_generate" in job_types and data.get("publish_metadata") else ("script" if script.strip() else ("plan" if "script_plan_generate" in job_types and scenes else "title")),
         "updated_at": data.get("updated_at") or data.get("completed_at"),
         "completed_at": data.get("completed_at") or data.get("updated_at"),
     }
@@ -687,28 +768,22 @@ async def yt_search(
 ):
     """YouTube 검색 프록시"""
     require_auth(authorization, cookie)
-    from config import Config
-    import httpx
-    if not Config.YOUTUBE_API_KEY:
-        return {"error": "YOUTUBE_API_KEY이 설정되지 않았습니다"}
+    from services.youtube_data_api import async_youtube_get
     params = {
         "part": "snippet",
         "q": body.get("query", ""),
         "type": "video",
         "maxResults": min(body.get("max_results", 10), 25),
         "order": body.get("order", "relevance"),
-        "key": Config.YOUTUBE_API_KEY,
     }
     if body.get("published_after"):
         params["publishedAfter"] = body["published_after"]
     if body.get("relevance_language"):
         params["relevanceLanguage"] = body["relevance_language"]
-    async with httpx.AsyncClient() as client:
-        r = await client.get(f"{Config.YOUTUBE_BASE_URL}/search", params=params)
-        if r.status_code != 200:
-            err = r.json().get("error", {})
-            return {"error": err.get("message", "YouTube API Error")}
-        return r.json()
+    data = await async_youtube_get("search", params)
+    if data.get("error"):
+        return {"error": data.get("message") or data.get("error")}
+    return data
 
 
 @app.get("/api/yt/videos/{video_id}")
@@ -719,19 +794,11 @@ async def yt_videos(
 ):
     """YouTube 영상 상세 정보 프록시"""
     require_auth(authorization, cookie)
-    from config import Config
-    import httpx
-    if not Config.YOUTUBE_API_KEY:
-        return {"error": "YOUTUBE_API_KEY이 설정되지 않았습니다"}
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{Config.YOUTUBE_BASE_URL}/videos",
-            params={"part": "snippet,statistics,contentDetails", "id": video_id, "key": Config.YOUTUBE_API_KEY},
-        )
-        if r.status_code != 200:
-            err = r.json().get("error", {})
-            return {"error": err.get("message", "YouTube API Error")}
-        return r.json()
+    from services.youtube_data_api import async_youtube_get
+    data = await async_youtube_get("videos", {"part": "snippet,statistics,contentDetails", "id": video_id})
+    if data.get("error"):
+        return {"error": data.get("message") or data.get("error")}
+    return data
 
 
 @app.get("/api/yt/channel/{channel_id}")
@@ -742,19 +809,11 @@ async def yt_channel(
 ):
     """YouTube 채널 정보 프록시"""
     require_auth(authorization, cookie)
-    from config import Config
-    import httpx
-    if not Config.YOUTUBE_API_KEY:
-        return {"error": "YOUTUBE_API_KEY이 설정되지 않았습니다"}
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{Config.YOUTUBE_BASE_URL}/channels",
-            params={"part": "snippet,statistics", "id": channel_id, "key": Config.YOUTUBE_API_KEY},
-        )
-        if r.status_code != 200:
-            err = r.json().get("error", {})
-            return {"error": err.get("message", "YouTube API Error")}
-        return r.json()
+    from services.youtube_data_api import async_youtube_get
+    data = await async_youtube_get("channels", {"part": "snippet,statistics", "id": channel_id})
+    if data.get("error"):
+        return {"error": data.get("message") or data.get("error")}
+    return data
 
 
 @app.get("/api/yt/trending-keywords")
@@ -768,9 +827,26 @@ async def yt_trending_keywords(
     """Gemini 기반 트렌드 키워드 생성 (버블 차트용)"""
     require_auth(authorization, cookie)
     from config import Config
-    import httpx
+    import asyncio
     import re as _re
-    if not Config.GEMINI_API_KEY:
+    from services.ai_router import generate_text
+    fallback_keywords = [
+        {"keyword": "AI 영상", "translation": "AI 영상", "volume": 96, "category": "Technology"},
+        {"keyword": "경제 전망", "translation": "경제 전망", "volume": 88, "category": "Finance"},
+        {"keyword": "부동산 이슈", "translation": "부동산 이슈", "volume": 82, "category": "Finance"},
+        {"keyword": "건강 루틴", "translation": "건강 루틴", "volume": 76, "category": "Health"},
+        {"keyword": "여행 브이로그", "translation": "여행 브이로그", "volume": 70, "category": "Travel"},
+        {"keyword": "요리 레시피", "translation": "요리 레시피", "volume": 64, "category": "Cooking"},
+        {"keyword": "영화 리뷰", "translation": "영화 리뷰", "volume": 58, "category": "Film"},
+        {"keyword": "게임 공략", "translation": "게임 공략", "volume": 52, "category": "Gaming"},
+    ]
+    if (
+        not Config.GEMINI_API_KEY
+        and not getattr(Config, "DEEPSEEK_API_KEY", "")
+        and not getattr(Config, "GLM_API_KEY", "")
+    ):
+        return {"status": "ok", "keywords": fallback_keywords, "source": "fallback"}
+    if False and not Config.GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY이 설정되지 않았습니다"}
     lang_map = {"ko": "South Korea (Korean)", "ja": "Japan (Japanese)", "en": "USA/International (English)"}
     period_map = {"now": "REAL-TIME / NOW", "week": "THIS WEEK (Last 7 days)", "month": "THIS MONTH (Last 30 days)"}
@@ -796,6 +872,27 @@ async def yt_trending_keywords(
         f'[{{"keyword": "Keyword in Target Language", "translation": "한국어 뜻 설명", "volume": 98, "category": "Gaming"}}, ...]\n\n'
         f"RETURN ONLY THE JSON LIST. NO MARKDOWN."
     )
+    try:
+        text = await asyncio.wait_for(
+            generate_text(
+                prompt,
+                model=Config.TOPIC_GENERATION_MODEL,
+                temperature=0.9,
+                max_tokens=4096,
+                task_type="yt_trending_keywords",
+                json_mode=True,
+            ),
+            timeout=5,
+        )
+        match = _re.search(r'\[[\s\S]*\]', text or "")
+        keywords = json.loads(match.group(0) if match else text)
+        if isinstance(keywords, list):
+            return {"status": "ok", "keywords": keywords}
+        return {"status": "ok", "keywords": fallback_keywords, "source": "fallback"}
+    except Exception as e:
+        logger.error(f"trending-keywords error: {e}")
+        return {"status": "ok", "keywords": fallback_keywords, "source": "fallback"}
+
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
@@ -839,9 +936,12 @@ async def api_get_settings(
     keys = [
         ("GEMINI_API_KEY", "Gemini API 키"),
         ("CLAUDE_API_KEY", "Claude API 키"),
+        ("DEEPSEEK_API_KEY", "DeepSeek API 키"),
+        ("DEEPSEEK_BASE_URL", "DeepSeek Base URL"),
         ("GLM_API_KEY", "GLM API 키"),
         ("GLM_BASE_URL", "GLM Base URL"),
         ("YOUTUBE_API_KEY", "YouTube Data API 키"),
+        ("YOUTUBE_API_KEYS", "YouTube Data API 백업 키"),
         ("ELEVENLABS_API_KEY", "ElevenLabs API 키"),
         ("SUNO_API_KEY", "Suno API 키"),
         ("TOPIC_GENERATION_MODEL", "제목 생성 모델"),
@@ -876,7 +976,8 @@ async def api_set_setting(
         return {"ok": True, "message": "변경 없음 (마스킹된 값)"}
         
     allowed = {
-        "GEMINI_API_KEY", "CLAUDE_API_KEY", "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY",
+        "GEMINI_API_KEY", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
+        "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
         "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
     }
@@ -907,7 +1008,7 @@ async def api_set_setting(
         except Exception as sb_err:
             logger.warning(f"Supabase 원격 저장 실패 (로컬 저장은 유지됨): {sb_err}")
             
-        return {"ok": True, "message": f"{key} 저장 완료 (원격 동기화 시도 완료)"}
+        return {"ok": True, "success": True, "message": f"{key} 저장 완료 (원격 동기화 시도 완료)"}
     except Exception as e:
         logger.error(f"설정 저장 실패: {key} — {e}")
         return {"error": f"저장 실패: {e}"}
@@ -1196,6 +1297,7 @@ a:hover { text-decoration: underline; }
 .badge-rendering { background: #23863622; color: #3fb950; }
 .badge-uploading { background: #a371f722; color: #a371f7; }
 .badge-completed { background: #23863622; color: #3fb950; }
+.badge-review { background: #d2992222; color: #d29922; }
 .badge-failed { background: #f8514922; color: #f85149; }
 .badge-canceled { background: #f8514922; color: #f85149; }
 .badge-abandoned { background: #f8514922; color: #f85149; }
@@ -1285,9 +1387,15 @@ tr:hover { background: #161b22; }
 .empty .icon { font-size: 48px; margin-bottom: 12px; }
 
 /* ── Settings tab ── */
+.settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.settings-panel { border: 1px solid #21262d; border-radius: 8px; background: rgba(13,17,23,0.35); padding: 16px; min-width: 0; }
+.settings-panel-title { color: #c9d1d9; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.settings-panel-note { color: #8b949e; font-size: 12px; margin-bottom: 12px; line-height: 1.5; }
+.setting-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #21262d; }
 .setting-row:last-child { border-bottom: none !important; }
 .setting-input:focus { border-color: #58a6ff !important; box-shadow: 0 0 0 2px rgba(88,166,255,0.15); }
 .setting-input::placeholder { color: #484f58; }
+@media (max-width: 1100px) { .settings-grid { grid-template-columns: 1fr; } }
 
 /* ── Result viewer ── */
 .result-viewer { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
@@ -1856,7 +1964,7 @@ tr:hover { background: #161b22; }
             <div class="status-card" style="padding:16px;background:rgba(255,255,255,0.01);">
               <div class="name" style="margin-bottom:12px;">🎛️ 생성할 카테고리 필터</div>
               <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">체크한 카테고리만 자동 생성에 포함됩니다.</p>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="auto-categories-checkboxes">
+              <div style="display:grid;grid-template-columns:1fr;gap:8px;" id="auto-categories-checkboxes">
                 <!-- Javascript will render checkboxes -->
               </div>
             </div>
@@ -1967,6 +2075,7 @@ const JOB_TYPE_LABELS = {
   web_research: 'Gemini 웹 자료 조사',
   script_plan_generate: '대본 기획 생성',
   script_generate: '대본 생성',
+  publish_metadata_generate: '설명·태그 생성',
 };
 const JOB_TYPE_DESCRIPTIONS = {
   render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
@@ -1975,6 +2084,7 @@ const JOB_TYPE_DESCRIPTIONS = {
   web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
   script_plan_generate: '제목을 바탕으로 훅, 전개, 결말을 포함한 대본 기획을 만들고 있습니다.',
   script_generate: '기획을 바탕으로 시청 흐름을 고려한 대본을 작성하고 검수하고 있습니다.',
+  publish_metadata_generate: '완성된 대본을 바탕으로 유튜브 설명, 태그, 해시태그를 만들고 있습니다.',
 };
 function humanStatus(s) {
   return STATUS_LABELS[s] || STATUS_LABELS[String(s || '').toLowerCase()] || s || '-';
@@ -2011,6 +2121,7 @@ function jobDescription(job) {
     web_research: '제목과 카테고리에 필요한 웹 자료 조사',
     script_plan_generate: '씬 구조·오프닝·결말 및 이미지·영상 프롬프트 기획',
     script_generate: '제목 약속에 맞춘 대본 작성 및 품질 검수',
+    publish_metadata_generate: '업로드용 설명·태그·해시태그 생성',
   };
   const task = descriptions[type] || JOB_TYPE_DESCRIPTIONS[type] || '작업 정보를 처리하는 중';
   return context ? `${context} · ${task}` : task;
@@ -2100,6 +2211,7 @@ function isHermesGenerationJob(job) {
     'web_research',
     'script_plan_generate',
     'script_generate',
+    'publish_metadata_generate',
   ].includes(job?.job_type);
 }
 
@@ -2182,7 +2294,7 @@ let generatedResultsLoaded = false;
 function getGeneratedTitle(data) {
   const structure = data?.structure || {};
   const titleGeneration = getGeneratedTitleGeneration(data);
-  return data?.generated_title || data?.upload_title || structure.upload_title || titleGeneration.generated_title || titleGeneration.final_title || '-';
+  return data?.generated_title || data?.title || data?.upload_title || structure.upload_title || titleGeneration.generated_title || titleGeneration.final_title || '-';
 }
 
 function getGeneratedTitleGeneration(data) {
@@ -2197,6 +2309,17 @@ function getGeneratedPublishMetadata(data) {
   const progressMetadata = data?.progress_payload?.publish_metadata;
   if (progressMetadata && Object.keys(progressMetadata).length) return progressMetadata;
   return {};
+}
+
+function getGeneratedPublishTitle(data, publishMetadata) {
+  const metadata = publishMetadata || getGeneratedPublishMetadata(data);
+  if (Array.isArray(metadata.titles) && metadata.titles.length) return String(metadata.titles[0] || '').trim();
+  if (metadata.title) return String(metadata.title || '').trim();
+  return getGeneratedTitle(data);
+}
+
+function getGeneratedPublishDescription(publishMetadata) {
+  return String((publishMetadata || {}).description || '').trim();
 }
 
 function getGeneratedScenes(data) {
@@ -2220,10 +2343,63 @@ function hasGeneratedMediaPrompts(structure, scenes) {
     && scenes.every(scene => sceneImagePrompt(scene) && sceneVideoPrompt(scene));
 }
 
+function generatedQualityGate(data) {
+  const gate = data?.quality_gate || {};
+  if (gate.status) return gate;
+  const structure = data?.structure || {};
+  const scenes = getGeneratedScenes(data);
+  const mediaStatus = String(structure?.media_prompt_status || data?.media_prompt_status || '').trim();
+  const missing = [];
+  const review = [];
+  if (!(data?.benchmark_analysis || data?.material_statuses?.benchmark === 'ready')) missing.push('benchmark');
+  if (getGeneratedTitle(data) === '-') missing.push('title');
+  if (!(data?.research_bundle || structure?.research_bundle || data?.material_statuses?.web_research === 'ready')) missing.push('web_research');
+  if (!scenes.length && !data?.scene_count) missing.push('scenes');
+  if (mediaStatus === 'fallback_ready' || data?.material_statuses?.plan_prompts === 'review') review.push('media_prompts_fallback');
+  else if (!(mediaStatus === 'ready' || data?.material_statuses?.plan_prompts === 'ready')) missing.push('media_prompts');
+  if (!(String(data?.script || '').trim() || data?.has_script || data?.material_statuses?.script === 'ready')) missing.push('script');
+  if (!(Object.keys(getGeneratedPublishMetadata(data)).length || data?.material_statuses?.publish_metadata === 'ready')) missing.push('publish_metadata');
+  const status = missing.length ? 'fail' : (review.length ? 'review' : 'pass');
+  return { status, missing, review, media_prompt_status: mediaStatus, can_auto_render: status === 'pass' };
+}
+
+function generatedMaterialStatuses(data) {
+  const structure = data?.structure || {};
+  const scenes = getGeneratedScenes(data);
+  const statuses = data?.material_statuses || {};
+  return {
+    benchmark: statuses.benchmark || (data?.benchmark_analysis ? 'ready' : 'missing'),
+    title: statuses.title || (getGeneratedTitle(data) !== '-' ? 'ready' : 'missing'),
+    web_research: statuses.web_research || ((data?.research_bundle || structure?.research_bundle) ? 'ready' : 'missing'),
+    plan_prompts: statuses.plan_prompts || (String(structure?.media_prompt_status || '').trim() === 'fallback_ready' ? 'review' : (scenes.length && hasGeneratedMediaPrompts(structure, scenes) ? 'ready' : 'missing')),
+    script: statuses.script || (String(data?.script || '').trim() ? 'ready' : 'missing'),
+    publish_metadata: statuses.publish_metadata || (Object.keys(getGeneratedPublishMetadata(data)).length ? 'ready' : 'missing'),
+  };
+}
+
+function renderMaterialBadges(statuses) {
+  const labels = {
+    benchmark: '벤치마크',
+    title: '제목',
+    web_research: '자료조사',
+    plan_prompts: '씬/프롬프트',
+    script: '대본',
+    publish_metadata: '설명/태그',
+  };
+  return Object.entries(labels).map(([key, label]) => {
+    const state = statuses?.[key] || 'missing';
+    const cls = state === 'ready' ? 'badge-completed' : (state === 'review' ? 'badge-review' : (state === 'failed' ? 'badge-failed' : 'badge-idle'));
+    return `<span class="badge ${cls}" title="${escapeHtml(label)}: ${escapeHtml(state)}">${escapeHtml(label)} ${escapeHtml(state)}</span>`;
+  }).join(' ');
+}
+
 function renderGeneratedEmptyState(diagnostics) {
   const lines = [];
   if (diagnostics) {
     lines.push(`Current step: ${diagnostics.current_step || '-'}`);
+    if (diagnostics.last_run_status) lines.push(`Last run status: ${diagnostics.last_run_status}`);
+    if (diagnostics.last_error) lines.push(`Last error: ${diagnostics.last_error}`);
+    if (diagnostics.last_completed_result_id) lines.push(`Last completed result: ${diagnostics.last_completed_result_id}`);
     lines.push(`Completed final results: ${diagnostics.generated_count || 0}`);
     lines.push(`Benchmark/partial result files: ${diagnostics.partial_result_count || 0}`);
     if (diagnostics.latest_partial_at) lines.push(`Latest partial file: ${fmtTime(diagnostics.latest_partial_at)}`);
@@ -2261,14 +2437,15 @@ async function loadGeneratedResults() {
     const promptState = ready
       ? '프롬프트 준비됨'
       : (row.has_legacy_visual_direction ? '구버전: 시각 연출만 있음' : '프롬프트 없음');
-    const scriptState = row.has_script ? `${row.script_chars || 0}자` : '대본 없음';
-    const stageLabel = row.stage === 'script' ? '대본 생성' : (row.stage === 'plan' ? '기획 생성' : '제목 생성');
-    const statusText = row.status && row.status !== 'COMPLETED' ? ` · ${row.status}` : '';
+    const scriptState = row.has_script ? `${row.script_chars || 0} chars` : 'script missing';
+    const stageLabel = row.stage === 'metadata' ? 'metadata ready' : (row.stage === 'script' ? 'script ready' : (row.stage === 'plan' ? 'plan ready' : 'title ready'));
+    const statusText = row.status && row.status !== 'COMPLETED' ? ` / ${row.status}` : '';
+    const materialBadges = renderMaterialBadges(generatedMaterialStatuses(row));
     return `<tr>
       <td><a href="#" onclick="showGeneratedResult('${escapeHtml(row.id)}');return false">${escapeHtml(row.topic_queue_id || row.id)}</a></td>
       <td>${escapeHtml(row.category || '-')}</td>
-      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong></td>
-      <td>${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0}장면, ${scriptState}, ${promptState}</span></td>
+      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong><div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
+      <td>${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0} scenes, ${scriptState}, ${promptState}</span></td>
       <td>${fmtTime(row.completed_at || row.updated_at)}</td>
     </tr>`;
   }).join('');
@@ -2308,16 +2485,23 @@ async function showGeneratedResult(resultId) {
   const titleJson = Object.keys(titleGeneration).length
     ? `<div class="prompt-box">${escapeHtml(JSON.stringify(titleGeneration, null, 2))}</div>`
     : '<div class="info">제목 생성 상세 데이터가 없습니다.</div>';
-  const publishTitle = Array.isArray(publishMetadata.titles) && publishMetadata.titles.length
-    ? publishMetadata.titles[0]
-    : getGeneratedTitle(data);
-  const publishDescription = String(publishMetadata.description || '').trim();
+  const publishTitle = getGeneratedPublishTitle(data, publishMetadata);
+  const publishDescription = getGeneratedPublishDescription(publishMetadata);
   const publishTags = Array.isArray(publishMetadata.tags) ? publishMetadata.tags : [];
   const publishHashtags = Array.isArray(publishMetadata.hashtags) ? publishMetadata.hashtags : [];
+  const qualityGate = generatedQualityGate(data);
+  const qualityClass = qualityGate.status === 'pass' ? 'badge-completed' : (qualityGate.status === 'review' ? 'badge-review' : 'badge-failed');
+  const qualityText = qualityGate.status === 'pass'
+    ? '자동 렌더 가능'
+    : (qualityGate.status === 'review' ? `검수 필요: ${(qualityGate.review || []).join(', ') || 'review'}` : `렌더 보류: ${(qualityGate.missing || []).join(', ') || 'missing'}`);
+  const qualityHtml = `<div class="generated-meta">
+    <div class="label">품질 게이트</div><div><span class="badge ${qualityClass}">${escapeHtml(qualityGate.status)}</span> <span class="info">${escapeHtml(qualityText)}</span></div>
+    <div class="label">자동 렌더</div><div>${qualityGate.can_auto_render ? '<span class="badge badge-completed">allowed</span>' : '<span class="badge badge-review">blocked</span>'}</div>
+  </div>`;
   const metadataHtml = Object.keys(publishMetadata).length
     ? `<div class="generated-meta">
-        <div class="label">Title</div><div>${escapeHtml(publishTitle || '-')}</div>
-        <div class="label">Description</div><div><div class="prompt-box">${escapeHtml(publishDescription || '-')}</div></div>
+        <div class="label">예비 렌더링 영상제목</div><div><strong>${escapeHtml(publishTitle || '-')}</strong></div>
+        <div class="label">예비 렌더링 상세</div><div><div class="prompt-box">${escapeHtml(publishDescription || '-')}</div></div>
         <div class="label">Tags</div><div>${escapeHtml(publishTags.join(', ') || '-')}</div>
         <div class="label">Hashtags</div><div>${escapeHtml(publishHashtags.join(' ') || '-')}</div>
       </div>`
@@ -2325,7 +2509,7 @@ async function showGeneratedResult(resultId) {
   const mediaReady = hasGeneratedMediaPrompts(structure, scenes);
   const mediaStatusLabel = String(structure.media_prompt_status || (mediaReady ? 'ready' : 'missing'));
   const mediaStatus = mediaReady
-    ? `<span class="badge badge-completed">${escapeHtml(mediaStatusLabel)}</span>`
+    ? `<span class="badge ${mediaStatusLabel === 'fallback_ready' ? 'badge-review' : 'badge-completed'}">${escapeHtml(mediaStatusLabel)}</span>${mediaStatusLabel === 'fallback_ready' ? ' <span class="info">AI 디렉터 프롬프트가 검증을 통과하지 못해 fallback 프롬프트가 사용되었습니다.</span>' : ''}`
     : '<span class="badge badge-failed">missing</span> <span class="info">이 결과에는 image_prompt/video_prompt가 저장되어 있지 않습니다. 구버전 자동생성 결과일 가능성이 큽니다.</span>';
   const sceneHtml = scenes.length ? scenes.map((scene, idx) => `
     <div class="scene-card">
@@ -2351,13 +2535,14 @@ async function showGeneratedResult(resultId) {
     <div class="generated-section">
       <h4>기본 정보</h4>
       ${metaHtml}
+      ${qualityHtml}
     </div>
     <div class="generated-section">
       <h4>제목 생성</h4>
       ${titleJson}
     </div>
     <div class="generated-section">
-      <h4>YouTube Metadata</h4>
+      <h4>예비 렌더링 업로드 정보</h4>
       ${metadataHtml}
     </div>
     <div class="generated-section">
@@ -2891,9 +3076,12 @@ async function doLogout() {
 const settingLabels = {
   'GEMINI_API_KEY': 'Gemini API Key',
   'CLAUDE_API_KEY': 'Claude API Key',
+  'DEEPSEEK_API_KEY': 'DeepSeek API Key',
+  'DEEPSEEK_BASE_URL': 'DeepSeek Base URL',
   'GLM_API_KEY': 'GLM API Key',
   'GLM_BASE_URL': 'GLM Base URL',
   'YOUTUBE_API_KEY': 'YouTube API Key',
+  'YOUTUBE_API_KEYS': 'YouTube Backup API Keys',
   'ELEVENLABS_API_KEY': 'ElevenLabs API Key',
   'SUNO_API_KEY': 'Suno API Key',
   'TOPIC_GENERATION_MODEL': '제목 생성 모델',
@@ -2907,9 +3095,12 @@ const settingLabels = {
 const settingIcons = {
   'GEMINI_API_KEY': '&#x1F4E7;',
   'CLAUDE_API_KEY': '&#x1F4E7;',
+  'DEEPSEEK_API_KEY': '&#x1F4E7;',
+  'DEEPSEEK_BASE_URL': '&#x1F310;',
   'GLM_API_KEY': '&#x1F4E7;',
   'GLM_BASE_URL': '&#x1F310;',
   'YOUTUBE_API_KEY': '&#x1F3AC;',
+  'YOUTUBE_API_KEYS': '&#x1F3AC;',
   'ELEVENLABS_API_KEY': '&#x1F3A4;',
   'SUNO_API_KEY': '&#x1F3B5;',
   'TOPIC_GENERATION_MODEL': '&#x1F916;',
@@ -2935,6 +3126,18 @@ async function loadSettings() {
     const icon = settingIcons[item.key] || '&#x2699;';
     const placeholder = item.value || '';
     const setLabel = item.set ? '<span style="color:#3fb950;font-size:12px;margin-left:8px">&#x2714; 설정됨</span>' : '<span style="color:#8b949e;font-size:12px;margin-left:8px">미설정</span>';
+    const inputControl = item.key === 'YOUTUBE_API_KEYS'
+      ? `<textarea id="setting-${escapeHtml(item.key)}" class="setting-input"
+            placeholder="${escapeHtml(placeholder)}"
+            rows="4"
+            style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;resize:vertical;"
+          ></textarea>
+          <div style="margin-top:4px;color:#8b949e;font-size:12px;">최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용됩니다.</div>`
+      : `<input type="text" id="setting-${escapeHtml(item.key)}" class="setting-input"
+            placeholder="${escapeHtml(placeholder)}"
+            style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();saveSetting('${escapeHtml(item.key)}')}"
+          />`;
     html += `
       <div class="setting-row" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #21262d;" data-key="${escapeHtml(item.key)}">
         <span style="font-size:18px;width:28px;text-align:center;">${icon}</span>
@@ -2942,17 +3145,48 @@ async function loadSettings() {
           <div style="font-weight:600;font-size:14px;margin-bottom:4px;">
             ${escapeHtml(label)} ${setLabel}
           </div>
-          <input type="text" id="setting-${escapeHtml(item.key)}" class="setting-input"
-            placeholder="${escapeHtml(placeholder)}"
-            style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();saveSetting('${escapeHtml(item.key)}')}"
-          />
+          ${inputControl}
         </div>
         <button class="btn btn-sm btn-primary" onclick="saveSetting('${escapeHtml(item.key)}')" style="white-space:nowrap;">저장</button>
       </div>`;
     settingsOriginal[item.key] = item.value;
   }
   container.innerHTML = html;
+  const apiSettingKeys = new Set([
+    'GEMINI_API_KEY',
+    'CLAUDE_API_KEY',
+    'DEEPSEEK_API_KEY',
+    'DEEPSEEK_BASE_URL',
+    'GLM_API_KEY',
+    'GLM_BASE_URL',
+    'YOUTUBE_API_KEY',
+    'YOUTUBE_API_KEYS',
+    'ELEVENLABS_API_KEY',
+    'SUNO_API_KEY',
+  ]);
+  const apiRows = [];
+  const modelRows = [];
+  for (const row of Array.from(container.querySelectorAll('.setting-row'))) {
+    row.style.alignItems = 'flex-start';
+    row.style.borderBottom = '1px solid #21262d';
+    row.style.padding = '12px 0';
+    const key = row.getAttribute('data-key') || '';
+    if (apiSettingKeys.has(key)) apiRows.push(row.outerHTML);
+    else modelRows.push(row.outerHTML);
+  }
+  container.innerHTML = `
+    <div class="settings-grid">
+      <div class="settings-panel">
+        <div class="settings-panel-title">API Keys</div>
+        <div class="settings-panel-note">YouTube primary and backup keys live here. Backup keys are used in order, up to 5 total keys.</div>
+        ${apiRows.join('')}
+      </div>
+      <div class="settings-panel">
+        <div class="settings-panel-title">Model Settings</div>
+        <div class="settings-panel-note">Models used by Hermes for topics, titles, scripts, structure, and prompt generation.</div>
+        ${modelRows.join('')}
+      </div>
+    </div>`;
   document.getElementById('settings-status').textContent = '';
 }
 
@@ -3314,6 +3548,7 @@ function parseDuration(dur) {
 
 /* ── Autopilot functions ── */
 let autopilotSettingsInitialized = false;
+let autopilotStatusSnapshot = null;
 const ALL_CATEGORIES = ["탈북사연", "해외감동", "노후금융", "황혼19금", "옛날이야기", "한국사연", "무협", "경제"];
 
 function toggleLimitInput() {
@@ -3326,16 +3561,26 @@ function renderCategoryCheckboxes(activeCats) {
   if (!container) return;
   container.innerHTML = '';
   
-  ALL_CATEGORIES.forEach(cat => {
+  ALL_CATEGORIES.forEach((cat, index) => {
     const isChecked = activeCats ? activeCats.includes(cat) : true;
-    const label = document.createElement('label');
-    label.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;color:#c9d1d9;cursor:pointer;background:rgba(255,255,255,0.02);padding:6px;border-radius:4px;border:1px solid rgba(255,255,255,0.05);';
-    label.innerHTML = `
-      <input type="checkbox" class="auto-cat-checkbox" value="${cat}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" />
-      <span>${cat}</span>
+    const row = document.createElement('div');
+    row.className = 'auto-cat-row';
+    row.dataset.category = cat;
+    row.style.cssText = 'display:grid;grid-template-columns:minmax(130px,1fr) 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
+    row.innerHTML = `
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
+        <input type="checkbox" class="auto-cat-checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" />
+        <span style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(cat)}</span>
+      </label>
+      <input type="number" class="auto-cat-limit" id="auto-cat-limit-${index}" value="1" min="1" max="100" title="생성 수" style="width:86px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+      <button class="btn btn-primary btn-sm auto-cat-start" type="button" data-category="${escapeHtml(cat)}" data-index="${index}">▶ 시작</button>
+      <button class="btn btn-danger btn-sm auto-cat-stop" type="button" data-category="${escapeHtml(cat)}" data-index="${index}" disabled>■ 중지</button>
     `;
-    container.appendChild(label);
+    container.appendChild(row);
+    row.querySelector('.auto-cat-start')?.addEventListener('click', () => startCategoryAutopilot(cat, index));
+    row.querySelector('.auto-cat-stop')?.addEventListener('click', () => stopCategoryAutopilot(cat));
   });
+  updateCategoryRunControls(autopilotStatusSnapshot);
 }
 
 function renderActiveCategoryBadges(activeCats) {
@@ -3381,6 +3626,34 @@ function getSettingsFromUI() {
   };
 }
 
+function updateCategoryRunControls(statusData) {
+  const data = statusData || {};
+  const isRunning = Boolean(data.is_running);
+  const currentCategory = String(data.current_category || '');
+  document.querySelectorAll('.auto-cat-row').forEach(row => {
+    const category = row.dataset.category || '';
+    const isCurrent = isRunning && category === currentCategory;
+    row.style.borderColor = isCurrent ? 'rgba(35,134,54,0.65)' : 'rgba(255,255,255,0.05)';
+    row.style.background = isCurrent ? 'rgba(35,134,54,0.08)' : 'rgba(255,255,255,0.02)';
+  });
+  document.querySelectorAll('.auto-cat-start').forEach(btn => {
+    btn.disabled = isRunning;
+    btn.title = isRunning ? '현재 생성이 끝나거나 중지된 뒤 시작할 수 있습니다.' : '이 카테고리만 생성 시작';
+  });
+  document.querySelectorAll('.auto-cat-stop').forEach(btn => {
+    const category = btn.dataset.category || '';
+    btn.disabled = !isRunning || category !== currentCategory;
+    btn.title = category === currentCategory ? '현재 카테고리 생성 중지' : '현재 실행 중인 카테고리만 중지할 수 있습니다.';
+  });
+}
+
+function categoryLimitValue(index) {
+  const input = document.getElementById(`auto-cat-limit-${index}`);
+  const value = Number.parseInt(input?.value || '1', 10);
+  if (!Number.isInteger(value) || value < 1 || value > 100) return null;
+  return value;
+}
+
 async function saveAutopilotSettings() {
   const settings = getSettingsFromUI();
   try {
@@ -3402,8 +3675,12 @@ async function loadAutopilotStatus() {
   try {
     const data = await api('GET', '/api/autopilot/hermes/status');
     if (!data) return;
+    autopilotStatusSnapshot = data;
     
     const isRunning = data.is_running;
+    const lastRunStatus = String(data.last_run_status || '').toLowerCase();
+    const isFailed = !isRunning && lastRunStatus === 'failed';
+    const isCompleted = !isRunning && lastRunStatus === 'completed';
     document.getElementById('auto-btn-start').disabled = isRunning;
     document.getElementById('auto-btn-stop').disabled = !isRunning;
     
@@ -3411,13 +3688,26 @@ async function loadAutopilotStatus() {
     if (isRunning) {
       statusBadgeEl.className = 'badge badge-running';
       statusBadgeEl.textContent = '동작 중';
+    } else if (isFailed) {
+      statusBadgeEl.className = 'badge badge-failed';
+      statusBadgeEl.textContent = '실패';
+    } else if (isCompleted) {
+      statusBadgeEl.className = 'badge badge-completed';
+      statusBadgeEl.textContent = '완료';
     } else {
       statusBadgeEl.className = 'badge badge-stopped';
       statusBadgeEl.textContent = '중지됨';
     }
     
-    document.getElementById('auto-info-running').innerHTML = isRunning ? '<span style="color:#3fb950;font-weight:bold;">실행 중</span>' : '중지됨';
-    document.getElementById('auto-info-step').textContent = data.current_step || '-';
+    const runLabel = isRunning
+      ? '<span style="color:#3fb950;font-weight:bold;">실행 중</span>'
+      : (isFailed
+        ? '<span style="color:#f85149;font-weight:bold;">실패</span>'
+        : (isCompleted ? '<span style="color:#3fb950;font-weight:bold;">완료</span>' : '중지됨'));
+    document.getElementById('auto-info-running').innerHTML = runLabel;
+    document.getElementById('auto-info-step').textContent = isFailed && data.last_error
+      ? `failed - ${data.last_error}`
+      : (data.current_step || '-');
     document.getElementById('auto-info-category').textContent = data.current_category || '-';
     document.getElementById('auto-info-topic').textContent = data.current_topic || '-';
     document.getElementById('auto-info-image-style').textContent = data.current_image_style || '-';
@@ -3432,6 +3722,7 @@ async function loadAutopilotStatus() {
     } else {
       renderActiveCategoryBadges(null);
     }
+    updateCategoryRunControls(data);
     
     // UI 초기화 (최초 1회만 설정 채워넣음)
     if (!autopilotSettingsInitialized && data.settings) {
@@ -3441,10 +3732,12 @@ async function loadAutopilotStatus() {
       
       toggleLimitInput();
       renderCategoryCheckboxes(data.settings.active_categories);
+      updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;
     } else if (!autopilotSettingsInitialized) {
       // 폰백 렌더링
       renderCategoryCheckboxes(null);
+      updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;
     }
     
@@ -3458,6 +3751,54 @@ async function loadAutopilotStatus() {
   } catch(e) {
     console.error('loadAutopilotStatus error:', e);
   }
+}
+
+async function startCategoryAutopilot(category, index) {
+  if (autopilotStatusSnapshot?.is_running) {
+    showToast('이미 자동 생성이 실행 중입니다. 현재 작업을 중지하거나 완료 후 다시 시작하세요.', 'warning');
+    return;
+  }
+  const limit = categoryLimitValue(index);
+  if (!limit) {
+    showToast('카테고리별 생성 수는 1~100 사이로 입력하세요.', 'error');
+    return;
+  }
+  const settings = {
+    ...getSettingsFromUI(),
+    mode: 'target_limit',
+    target_limit: limit,
+    min_buffer_per_category: 1,
+    active_categories: [category],
+    force_generate: true,
+  };
+  document.getElementById('auto-start-limit').value = limit;
+  document.getElementById('auto-setting-mode').value = 'target_limit';
+  document.getElementById('auto-setting-limit').value = limit;
+  document.getElementById('auto-setting-buffer').value = 1;
+  toggleLimitInput();
+  try {
+    const res = await api('POST', '/api/autopilot/hermes/start', { settings });
+    if (res && res.success) {
+      showToast(`${category}: ${limit}개 생성 시작`, 'success');
+      loadAutopilotStatus();
+    } else {
+      showToast(`${category} 생성 시작 실패: ` + (res?.error || '알 수 없음'), 'error');
+    }
+  } catch(e) {
+    showToast(`${category} 생성 시작 통신 실패`, 'error');
+  }
+}
+
+async function stopCategoryAutopilot(category) {
+  if (!autopilotStatusSnapshot?.is_running) {
+    showToast('현재 실행 중인 자동 생성이 없습니다.', 'info');
+    return;
+  }
+  if (autopilotStatusSnapshot.current_category && autopilotStatusSnapshot.current_category !== category) {
+    showToast(`현재 실행 중인 카테고리는 ${autopilotStatusSnapshot.current_category}입니다.`, 'warning');
+    return;
+  }
+  await stopAutopilot();
 }
 
 async function startAutopilot() {

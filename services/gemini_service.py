@@ -157,10 +157,13 @@ class GeminiService:
         
         return text.strip().strip(',').strip()
 
+    def _can_use_text_fallback(self) -> bool:
+        return bool((getattr(config, "DEEPSEEK_API_KEY", "") or "").strip()) or self._can_use_glm_text_fallback()
+
     def _can_use_glm_text_fallback(self) -> bool:
         return bool((getattr(config, "GLM_API_KEY", "") or "").strip())
 
-    async def _generate_text_with_glm_fallback(
+    async def _generate_text_with_text_fallback(
         self,
         prompt: str,
         *,
@@ -171,6 +174,20 @@ class GeminiService:
         json_mode: bool,
         reason: str,
     ) -> str:
+        if (getattr(config, "DEEPSEEK_API_KEY", "") or "").strip():
+            from services.deepseek_service import deepseek_service
+
+            self.log_debug(f"[Gemini Text] Falling back to DeepSeek for {task_type}: {reason}")
+            return await deepseek_service.generate_text(
+                prompt,
+                model="deepseek-chat",
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+                json_mode=json_mode,
+                project_id=project_id,
+            )
+
         from services.glm_service import glm_service
 
         self.log_debug(f"[Gemini Text] Falling back to GLM for {task_type}: {reason}")
@@ -185,8 +202,8 @@ class GeminiService:
         )
 
     async def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 8192, project_id: int = None, task_type: str = "text_gen", model: str = DEFAULT_TEXT_MODEL, use_search: bool = False, json_mode: bool = False) -> str:
-        if not self.api_key and self._can_use_glm_text_fallback():
-            return await self._generate_text_with_glm_fallback(
+        if not self.api_key and self._can_use_text_fallback():
+            return await self._generate_text_with_text_fallback(
                 prompt,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -263,8 +280,8 @@ class GeminiService:
             self.log_debug(f"❌ [Gemini Text] Exception: {e}")
             db.add_ai_log(project_id, task_type, model, 'google', 'failed', 
                          prompt_summary=prompt[:100], error_msg=str(e), elapsed_time=elapsed)
-            if self._can_use_glm_text_fallback():
-                return await self._generate_text_with_glm_fallback(
+            if self._can_use_text_fallback():
+                return await self._generate_text_with_text_fallback(
                     prompt,
                     temperature=temperature,
                     max_tokens=max_tokens,

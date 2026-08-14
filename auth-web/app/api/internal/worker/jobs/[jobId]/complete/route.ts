@@ -134,8 +134,6 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
             .update({
                 pregenerated_script: script,
                 pregenerated_script_status: 'ready',
-                publish_metadata: resultPayload.publish_metadata || null,
-                progress_payload: { publish_metadata: resultPayload.publish_metadata || null },
                 narrative_blueprint: resultPayload.narrative_blueprint || null,
                 script_quality_report: resultPayload.script_quality_report || null,
             })
@@ -147,15 +145,76 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                 .update({
                     pregenerated_script: script,
                     pregenerated_script_status: 'ready',
-                    progress_payload: { publish_metadata: resultPayload.publish_metadata || null },
                 })
                 .eq('id', topicQueueId)
             error = fallback.error
         }
         if (error) console.warn('[complete/route] pregenerated_script sync-back update failed (non-fatal):', error.message)
+        const jobPayload = job.payload || {}
+        const { error: enqueueError } = await supabaseAdmin
+            .from('remote_hermes_queue')
+            .insert({
+                job_type: 'publish_metadata_generate',
+                category_id: job.category_id ?? null,
+                payload: {
+                    topic_queue_id: String(topicQueueId),
+                    topic: resultPayload.topic || jobPayload.topic,
+                    script,
+                    structure: jobPayload.structure || {},
+                    upload_title: resultPayload.upload_title || jobPayload.upload_title,
+                    title_generation: resultPayload.title_generation || jobPayload.title_generation,
+                    narrative_blueprint: resultPayload.narrative_blueprint || {},
+                    language: jobPayload.language,
+                },
+                status: 'pending',
+            })
+        if (enqueueError) console.warn('[complete/route] Failed to chain-enqueue publish_metadata_generate (non-fatal):', enqueueError.message)
+        await supabaseAdmin
+            .from('topics_queue')
+            .update({ publish_metadata_status: 'queued' })
+            .eq('id', topicQueueId)
         await recordContentGenerationFeedback(jobId, job, topicQueueId, script)
     } catch (e) {
         console.warn('[complete/route] pregenerated_script sync-back failed (non-fatal):', e)
+    }
+}
+
+async function syncPublishMetadata(jobId: string): Promise<void> {
+    try {
+        const { data: job } = await supabaseAdmin
+            .from('remote_hermes_queue')
+            .select('job_type, status, payload, result_payload')
+            .eq('id', jobId)
+            .maybeSingle()
+
+        if (!job || job.status !== 'completed' || job.job_type !== 'publish_metadata_generate') return
+
+        const topicQueueId = job.payload?.topic_queue_id
+        const publishMetadata = job.result_payload?.publish_metadata
+        if (!topicQueueId || !publishMetadata) return
+
+        let { error } = await supabaseAdmin
+            .from('topics_queue')
+            .update({
+                publish_metadata: publishMetadata,
+                publish_metadata_status: 'ready',
+                progress_payload: { publish_metadata: publishMetadata },
+            })
+            .eq('id', topicQueueId)
+
+        if (error) {
+            const fallback = await supabaseAdmin
+                .from('topics_queue')
+                .update({
+                    publish_metadata: publishMetadata,
+                    progress_payload: { publish_metadata: publishMetadata },
+                })
+                .eq('id', topicQueueId)
+            error = fallback.error
+        }
+        if (error) console.warn('[complete/route] publish_metadata sync-back update failed (non-fatal):', error.message)
+    } catch (e) {
+        console.warn('[complete/route] publish_metadata sync-back failed (non-fatal):', e)
     }
 }
 
@@ -268,9 +327,10 @@ async function recordContentGenerationFeedback(jobId: string, job: any, topicQue
             .eq('id', topicQueueId)
             .maybeSingle()
 
-        const categoryName = Array.isArray(topicRow?.categories)
-            ? topicRow.categories[0]?.name
-            : topicRow?.categories?.name
+        const categories = (topicRow as any)?.categories
+        const categoryName = Array.isArray(categories)
+            ? categories[0]?.name
+            : categories?.name
 
         const row = {
             topic_queue_id: String(topicQueueId),
@@ -323,6 +383,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
     if (response.status === 200) {
         await syncPregeneratedStructure(params.jobId)
         await syncPregeneratedScript(params.jobId)
+        await syncPublishMetadata(params.jobId)
     }
     return response
 }

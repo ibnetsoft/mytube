@@ -56,6 +56,7 @@ interface UserProfile {
         country_code?: string
         referral_country?: string
         commission_rate?: number
+        is_superadmin?: boolean
     }
 }
 
@@ -100,7 +101,7 @@ interface PublishingRequest {
     id: string
     user_id: string
     video_url: string
-    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'release_requested' | 'public' | 'failed' | 'rejected'
+    status: 'pending' | 'approved' | 'to_be_published' | 'published' | 'release_requested' | 'public' | 'qa_hold' | 'failed' | 'rejected'
     metadata: any
     created_at: string
     profiles?: {
@@ -139,9 +140,9 @@ const getTopicPreparation = (item: any) => {
     const hasStructure = item?.pregenerated_structure_status === 'ready' && scenes.length > 0
     const hasScript = item?.pregenerated_script_status === 'ready'
     const hasMediaPrompts = hasStructure
-        && ['ready', 'fallback_ready'].includes(String(structure?.media_prompt_status || ''))
+        && String(structure?.media_prompt_status || '') === 'ready'
         && scenes.every((scene: any) => (
-            ['ready', 'fallback_ready'].includes(String(scene?.media_prompt_status || ''))
+            String(scene?.media_prompt_status || '') === 'ready'
             && firstNonEmpty(scene?.image_prompt, scene?.prompt_en, scene?.visual_prompt, scene?.visual_description)
             && firstNonEmpty(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
         ))
@@ -341,7 +342,7 @@ export default function DashboardContent() {
 
     // 시스템 전역 API 키 설정
     const [sysKeys, setSysKeys] = useState({
-        gemini: '', youtube: '', claude: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
+        gemini: '', youtube: '', youtube_keys: '', claude: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
         longform_min_duration_minutes: '15',
@@ -1061,6 +1062,7 @@ export default function DashboardContent() {
         if (req.status === 'release_requested') return { label: isKor ? '🚀 공개 전환 중' : '🚀 Releasing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
         if (req.status === 'published') return { label: isKor ? '✓ 비공개 업로드 완료' : '✓ Uploaded (Private)', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-black' }
         if (req.status === 'approved' || req.status === 'to_be_published') return { label: isKor ? '⚡ 발행 진행 중' : '⚡ Publishing', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30 font-black animate-pulse' }
+        if (req.status === 'qa_hold') return { label: isKor ? 'QA 보류' : 'QA Hold', className: 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-black' }
         if (req.status === 'failed') return { label: isKor ? '❌ 업로드 실패' : '❌ Failed', className: 'bg-red-500/15 text-red-400 border-red-500/30 font-black' }
         if (req.status === 'rejected') return { label: isKor ? '🚫 제외됨' : '🚫 Rejected', className: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30 font-black' }
         return { label: isKor ? '⏳ 대기중' : '⏳ Pending', className: 'bg-orange-500/15 text-orange-400 border-orange-500/30 font-black' }
@@ -1072,6 +1074,7 @@ export default function DashboardContent() {
             if (req.metadata?.is_invalid_request) acc.invalid += 1
             else if (req.status === 'published' || req.status === 'release_requested' || req.status === 'public') acc.published += 1
             else if (req.status === 'approved' || req.status === 'to_be_published') acc.processing += 1
+            else if (req.status === 'qa_hold') acc.failed += 1
             else if (req.status === 'failed') acc.failed += 1
             else acc.pending += 1
             return acc
@@ -1278,6 +1281,7 @@ export default function DashboardContent() {
             setSysKeys({
                 gemini: data.gemini || '',
                 youtube: data.youtube || '',
+                youtube_keys: data.youtube_keys || '',
                 claude: data.claude || '',
                 elevenlabs: data.elevenlabs || '',
                 suno: data.suno || '',
@@ -4455,19 +4459,30 @@ export default function DashboardContent() {
                                             { key: 'gemini',  label: 'Gemini API Key',        hint: 'AI 생성 전반 (스크립트, 이미지 프롬프트, 음악 등)' },
                                             { key: 'claude',  label: 'Claude API Key',         hint: '대본 생성 전용 (Anthropic Claude)' },
                                             { key: 'youtube', label: 'YouTube Data API Key',  hint: '채널/영상 검색 및 통계 조회' },
+                                            { key: 'youtube_keys', label: 'YouTube Backup API Keys', hint: '최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용' },
                                         ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
                                             <div key={key} className="space-y-1.5">
                                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">{label}</label>
                                                 <p className="text-[10px] text-gray-600">{hint}</p>
-                                                <input
-                                                    type="password"
-                                                    value={sysKeys[key] as string}
-                                                    onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
-                                                    onFocus={e => (e.target as HTMLInputElement).type = 'text'}
-                                                    onBlur={e => (e.target as HTMLInputElement).type = 'password'}
-                                                    placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
-                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
-                                                />
+                                                {key === 'youtube_keys' ? (
+                                                    <textarea
+                                                        value={sysKeys[key] as string}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
+                                                        rows={4}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700 resize-y"
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        type="password"
+                                                        value={sysKeys[key] as string}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
+                                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                        placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
+                                                    />
+                                                )}
                                             </div>
                                         ))}
                                     </div>

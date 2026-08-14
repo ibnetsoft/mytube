@@ -5,13 +5,13 @@ import os
 import shutil
 import time
 from typing import List, Optional, Dict, Any
-import httpx
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 
 from config import config
 import database as db
 from app.models.media import SearchRequest
 from services.drive_bundle_service import drive_bundle_service
+from services.youtube_data_api import async_youtube_get
 
 router = APIRouter(prefix="/api", tags=["YouTube"])
 
@@ -98,7 +98,6 @@ async def youtube_search(req: SearchRequest):
         "type": "video",
         "maxResults": req.max_results,
         "order": req.order,
-        "key": config.YOUTUBE_API_KEY
     }
 
     if req.published_after:
@@ -110,23 +109,11 @@ async def youtube_search(req: SearchRequest):
     if req.relevance_language:
         params["relevanceLanguage"] = req.relevance_language
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/search",
-            params=params
-        )
-        data = response.json()
-        
-        # [NEW] Error Handling for API Credentials
-        if response.status_code != 200:
-            error_data = data.get("error", {})
-            message = error_data.get("message", "YouTube API Error")
-            print(f"[YouTube Search] Failed: {response.status_code} - {message}")
-            if "API key not valid" in message or "API_KEY_INVALID" in str(error_data):
-                return {"error": "API_KEY_INVALID", "message": "유효하지 않은 YouTube API 키입니다. 설정에서 확인해주세요."}
-            return {"error": "API_ERROR", "message": message}
-
-        return data
+    data = await async_youtube_get("search", params)
+    if data.get("error"):
+        print(f"[YouTube Search] Failed: {data.get('message')}")
+        return {"error": data.get("error"), "message": data.get("message")}
+    return data
 
 
 @router.post("/projects/{project_id}/youtube/auto-upload")
@@ -309,21 +296,13 @@ async def youtube_video_detail(video_id: str):
     params = {
         "part": "snippet,statistics,contentDetails",
         "id": video_id,
-        "key": config.YOUTUBE_API_KEY
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/videos",
-            params=params
-        )
-        data = response.json()
-        if response.status_code != 200:
-            error_data = data.get("error", {})
-            message = error_data.get("message", "YouTube API Error")
-            print(f"[YouTube Video] Failed: {response.status_code} - {message}")
-            return {"error": "API_ERROR", "message": message}
-        return data
+    data = await async_youtube_get("videos", params)
+    if data.get("error"):
+        print(f"[YouTube Video] Failed: {data.get('message')}")
+        return {"error": data.get("error"), "message": data.get("message")}
+    return data
 
 
 @router.get("/youtube/comments/{video_id}")
@@ -334,15 +313,9 @@ async def youtube_comments(video_id: str, max_results: int = 100):
         "videoId": video_id,
         "maxResults": max_results,
         "order": "relevance",
-        "key": config.YOUTUBE_API_KEY
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/commentThreads",
-            params=params
-        )
-        return response.json()
+    return await async_youtube_get("commentThreads", params)
 
 
 @router.get("/youtube/channel/{channel_id}")
@@ -351,15 +324,9 @@ async def youtube_channel(channel_id: str):
     params = {
         "part": "snippet,statistics",
         "id": channel_id,
-        "key": config.YOUTUBE_API_KEY
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{config.YOUTUBE_BASE_URL}/channels",
-            params=params
-        )
-        return response.json()
+    return await async_youtube_get("channels", params)
 
 
 @router.post("/youtube/upload-external/{project_id}")

@@ -69,6 +69,7 @@ export const HERMES_JOB_TYPES = [
     'web_research',
     'script_plan_generate',
     'script_generate',
+    'publish_metadata_generate',
 ]
 
 export function isHermesWorker(worker: AuthenticatedWorker): boolean {

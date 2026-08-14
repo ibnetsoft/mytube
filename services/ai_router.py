@@ -4,20 +4,23 @@ AI Provider Router.
 Provider detection:
 - model starts with "claude" -> Anthropic Claude
 - model starts with "glm" -> GLM/Zhipu
-- everything else -> Google Gemini, unless GLM_API_KEY is configured
+- model starts with "deepseek" -> DeepSeek
+- everything else -> Google Gemini, unless a text fallback key is configured
 
-When GLM_API_KEY is configured, Gemini text model names are redirected to
-glm-5.2 so text generation no longer consumes Gemini quota. Gemini-specific
-non-text features such as Imagen, Veo, and native Google Search grounding
-remain outside this router.
+When DEEPSEEK_API_KEY or GLM_API_KEY is configured, Gemini text model names are
+redirected to that text provider so generation no longer consumes Gemini quota.
+Gemini-specific non-text features such as Imagen, Veo, and native Google Search
+grounding remain outside this router.
 """
 
 from config import config
 from services.claude_service import claude_service
+from services.deepseek_service import deepseek_service
 from services.gemini_service import gemini_service
 from services.glm_service import glm_service
 
 FALLBACK_GEMINI_MODEL = "gemini-3-flash-preview"
+FALLBACK_DEEPSEEK_MODEL = "deepseek-chat"
 FALLBACK_GLM_MODEL = "glm-5.2"
 UNAVAILABLE_GEMINI_MODELS = {
     "gemini-2.0-flash",
@@ -29,21 +32,28 @@ def _has_glm_key() -> bool:
     return bool((getattr(config, "GLM_API_KEY", "") or "").strip())
 
 
+def _has_deepseek_key() -> bool:
+    return bool((getattr(config, "DEEPSEEK_API_KEY", "") or "").strip())
+
+
 def fallback_text_model() -> str:
+    if _has_deepseek_key():
+        return FALLBACK_DEEPSEEK_MODEL
     return FALLBACK_GLM_MODEL if _has_glm_key() else FALLBACK_GEMINI_MODEL
 
 
 def normalize_model(model: str) -> str:
     """Normalize text model choice.
 
-    With GLM_API_KEY present, any Gemini text model is routed to GLM by
-    default. This lets a local .env GLM key override stale Gemini web-admin
-    model settings without needing to edit every model field manually.
+    With DEEPSEEK_API_KEY or GLM_API_KEY present, any Gemini text model is
+    routed to the configured text provider by default. This lets a local .env
+    key override stale Gemini web-admin model settings without needing to edit
+    every model field manually.
     """
     selected = str(model or "").strip()
     selected_lower = selected.lower()
-    if _has_glm_key() and (not selected or selected_lower.startswith("gemini")):
-        return FALLBACK_GLM_MODEL
+    if (not selected or selected_lower.startswith("gemini")) and (_has_deepseek_key() or _has_glm_key()):
+        return fallback_text_model()
     if selected_lower in UNAVAILABLE_GEMINI_MODELS:
         return fallback_text_model()
     return selected or fallback_text_model()
@@ -53,6 +63,8 @@ def detect_provider(model: str) -> str:
     selected = str(model or "").strip().lower()
     if selected.startswith("claude"):
         return "claude"
+    if selected.startswith("deepseek"):
+        return "deepseek"
     if selected.startswith("glm"):
         return "glm"
     return "gemini"
@@ -89,6 +101,16 @@ async def generate_text(
             fallback_provider = detect_provider(fallback_model)
             print(f"[AI Router] Claude failed for {task_type}: {exc}")
             print(f"[AI Router] Falling back to {fallback_provider.upper()} (model={fallback_model})")
+            if fallback_provider == "deepseek":
+                return await deepseek_service.generate_text(
+                    prompt,
+                    model=fallback_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
+                    json_mode=json_mode,
+                    project_id=project_id,
+                )
             if fallback_provider == "glm":
                 return await glm_service.generate_text(
                     prompt,
@@ -109,6 +131,23 @@ async def generate_text(
                 use_search=use_search,
                 json_mode=json_mode,
             )
+
+    if provider == "deepseek":
+        if use_search:
+            print(
+                f"[AI Router] DeepSeek does not support Gemini search grounding; "
+                f"running plain text generation for {task_type}"
+            )
+        print(f"[AI Router] Using DeepSeek for {task_type} (model={selected})")
+        return await deepseek_service.generate_text(
+            prompt,
+            model=selected,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            task_type=task_type,
+            json_mode=json_mode,
+            project_id=project_id,
+        )
 
     if provider == "glm":
         if use_search:
@@ -140,13 +179,25 @@ async def generate_text(
             json_mode=json_mode,
         )
     except Exception as exc:
-        if not _has_glm_key():
+        if not (_has_deepseek_key() or _has_glm_key()):
             raise
+        fallback_model = fallback_text_model()
+        fallback_provider = detect_provider(fallback_model)
         print(f"[AI Router] Gemini failed for {task_type}: {exc}")
-        print(f"[AI Router] Falling back to GLM (model={FALLBACK_GLM_MODEL})")
+        print(f"[AI Router] Falling back to {fallback_provider.upper()} (model={fallback_model})")
+        if fallback_provider == "deepseek":
+            return await deepseek_service.generate_text(
+                prompt,
+                model=fallback_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+                json_mode=json_mode,
+                project_id=project_id,
+            )
         return await glm_service.generate_text(
             prompt,
-            model=FALLBACK_GLM_MODEL,
+            model=fallback_model,
             temperature=temperature,
             max_tokens=max_tokens,
             task_type=task_type,

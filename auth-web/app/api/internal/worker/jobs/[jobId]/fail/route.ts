@@ -34,6 +34,12 @@ async function markPregeneratedFailed(jobId: string): Promise<void> {
                 .update({ pregenerated_script_status: 'failed' })
                 .eq('id', topicQueueId)
             if (error) console.warn('[fail/route] pregenerated_script_status update failed (non-fatal):', error.message)
+        } else if (job.job_type === 'publish_metadata_generate') {
+            const { error } = await supabaseAdmin
+                .from('topics_queue')
+                .update({ publish_metadata_status: 'failed' })
+                .eq('id', topicQueueId)
+            if (error) console.warn('[fail/route] publish_metadata_status update failed (non-fatal):', error.message)
         }
     } catch (e) {
         console.warn('[fail/route] pregenerated status sync failed (non-fatal):', e)

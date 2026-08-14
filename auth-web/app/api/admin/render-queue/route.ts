@@ -31,6 +31,11 @@ function buildDriveViewLink(fileId?: string | null) {
     return `https://drive.google.com/file/d/${fileId}/view`
 }
 
+function buildDriveFolderLink(folderId?: string | null) {
+    if (!folderId) return null
+    return `https://drive.google.com/drive/folders/${folderId}`
+}
+
 function normalizeQueueItem(row: any, topicRow?: any) {
     const metadata = row?.metadata || {}
     const title = metadata.playlist_title || metadata.title || row?.project_name || 'Untitled'
@@ -176,6 +181,25 @@ export async function POST(req: Request) {
 
         const title = (topicRow as any)?.topic || task.project_name || `Project ${task.project_id}`
         const videoUrl = buildDriveViewLink(task.result_file_id)
+        const taskMetadata = task.metadata || {}
+        const driveFolderId =
+            taskMetadata.drive_folder_id ||
+            taskMetadata.result_folder_id ||
+            taskMetadata.folder_id ||
+            null
+        const driveVideoFileId =
+            task.result_file_id ||
+            taskMetadata.drive_video_file_id ||
+            taskMetadata.result_video_file_id ||
+            null
+        const driveThumbnailFileId =
+            taskMetadata.drive_thumbnail_file_id ||
+            taskMetadata.result_thumbnail_file_id ||
+            null
+        const driveMetadataFileId =
+            taskMetadata.drive_metadata_file_id ||
+            taskMetadata.result_metadata_file_id ||
+            null
 
         const { data: existingRows } = await sb
             .from('publishing_requests')
@@ -188,11 +212,29 @@ export async function POST(req: Request) {
 
         const metadataPayload = {
             ...(existingRow?.metadata || {}),
+            ...taskMetadata,
             project_id: task.project_id,
             title,
-            drive_video_file_id: task.result_file_id,
+            project_name: task.project_name || title,
+            drive_folder_id: driveFolderId,
+            drive_folder_name: taskMetadata.drive_folder_name || taskMetadata.result_folder_name || null,
+            drive_video_file_id: driveVideoFileId,
+            drive_video_file_name: task.result_file_name || taskMetadata.drive_video_file_name || taskMetadata.result_video_file_name || null,
+            drive_thumbnail_file_id: driveThumbnailFileId,
+            drive_thumbnail_file_name: taskMetadata.drive_thumbnail_file_name || taskMetadata.result_thumbnail_file_name || null,
+            drive_metadata_file_id: driveMetadataFileId,
+            drive_metadata_file_name: taskMetadata.drive_metadata_file_name || taskMetadata.result_metadata_file_name || null,
+            drive_folder_link: buildDriveFolderLink(driveFolderId),
+            drive_video_link: buildDriveViewLink(driveVideoFileId),
+            drive_thumbnail_link: buildDriveViewLink(driveThumbnailFileId),
+            drive_metadata_link: buildDriveViewLink(driveMetadataFileId),
             channel_id: channelId,
+            channel_name: category?.upload_channel_name || category?.upload_channel_handle || taskMetadata.channel_name || null,
             privacy_status: 'private',
+            app_mode: taskMetadata.app_mode || taskMetadata.display_type || 'longform',
+            track_count: taskMetadata.track_count || null,
+            track_durations: Array.isArray(taskMetadata.track_durations) ? taskMetadata.track_durations : [],
+            total_duration_seconds: taskMetadata.total_duration_seconds || null,
             source: 'render_queue_admin_upload',
         }
 

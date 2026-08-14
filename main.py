@@ -120,7 +120,7 @@ from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 app = FastAPI(
     title="피카딜리스튜디오",
     description="AI 기반 YouTube 영상 자동화 제작 플랫폼",
-    version="2.0.0"
+    version=config.APP_VERSION or "2.0.0"
 )
 
 
@@ -672,7 +672,14 @@ async def get_project_full(project_id: int):
     payload = db.get_project_full_data_v2(project_id) or {}
     if payload:
         from services.longform_asset_readiness import sync_project_asset_readiness
+        from services.topic_queue_sync_service import build_project_progress_snapshot
         payload["asset_readiness"] = sync_project_asset_readiness(project_id)
+        progress_snapshot = build_project_progress_snapshot(project_id)
+        progress_steps = dict(progress_snapshot.get("steps") or {})
+        if "template" in progress_steps and "thumbnail" not in progress_steps:
+            progress_steps["thumbnail"] = progress_steps["template"]
+        payload["progress"] = progress_steps
+        payload["progress_snapshot"] = progress_snapshot
     return payload
 
 
@@ -1818,6 +1825,11 @@ if __name__ == "__main__":
     # [NEW] Auto Publish Service Start
     from services.auto_publish_service import auto_publish_service
     auto_publish_service.start()
+
+    # Public YouTube performance monitoring feeds the learning dataset after
+    # an admin has explicitly released an uploaded video.
+    from services.youtube_monitoring_service import youtube_monitoring_service
+    youtube_monitoring_service.start()
 
     # [SDK] Smart Queue Dispatcher: disabled by default (web-admin owns topic generation)
     if os.getenv("ENABLE_USER_APP_DISPATCHER", "false").strip().lower() == "true":

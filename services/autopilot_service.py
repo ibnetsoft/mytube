@@ -716,16 +716,15 @@ Return JSON only:
 
     async def _find_best_material(self, keyword: str):
         try:
+            from services.youtube_data_api import async_youtube_get
+
             params = {
                 "part": "snippet", "q": keyword, "type": "video",
                 "maxResults": 3, "order": "relevance", "videoDuration": "short",
-                "key": config.YOUTUBE_API_KEY
             }
-            async with httpx.AsyncClient() as client:
-                response = await client.get(self.search_url, params=params, timeout=10)
-                data = response.json()
-                if "items" in data and data["items"]:
-                    return data["items"][0]
+            data = await async_youtube_get("search", params, timeout=10)
+            if "items" in data and data["items"]:
+                return data["items"][0]
         except Exception as e:
             print(f"⚠️ [SDK Autopilot Fallback] _find_best_material failed: {e}")
             

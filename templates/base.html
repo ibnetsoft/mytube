@@ -1074,20 +1074,31 @@
                         window.dispatchEvent(new CustomEvent('projectStateRestored', { detail: fullData }));
 
                         // ✨ UI 진행 상태 업데이트 (Green Light)
-                        // 사용자 요청: 각 단계별 실제 데이터 존재 여부만 확인 (Strict Mode)
+                        // 프로젝트 목록과 같은 서버 계산값을 우선 사용한다.
                         const settings = fullData.settings || {};
                         const topicSelected = !!(fullData.project && fullData.project.topic);
                         const hasScript = !!fullData.script
                             || !!(settings.pregenerated_script_status === 'ready' && settings.pregenerated_script_text);
-                        const steps = {
+                        const imagePrompts = Array.isArray(fullData.image_prompts) ? fullData.image_prompts : [];
+                        const mediaAssetsReady = imagePrompts.length > 0 && imagePrompts.every(p => (
+                            (p && String(p.image_url || '').trim())
+                            || (p && String(p.video_url || '').trim())
+                        ));
+                        const fallbackSteps = {
                             'topic': topicSelected,
                             'plan': !!fullData.script_structure,
                             'script': hasScript || (fullData.shorts && Object.keys(fullData.shorts).length > 0),
-                            'image': fullData.image_prompts && fullData.image_prompts.length > 0,
+                            'image': mediaAssetsReady,
                             'tts': !!fullData.tts,
                             'subtitle': !!settings.subtitle_path,
                             'thumbnail': fullData.thumbnails && fullData.thumbnails.length > 0,
-                            'desc': topicSelected || !!(fullData.metadata && fullData.metadata.description),
+                            'desc': !!(fullData.metadata && String(fullData.metadata.description || '').trim()),
+                        };
+                        const progressSteps = fullData.progress || {};
+                        const steps = {
+                            ...fallbackSteps,
+                            ...progressSteps,
+                            thumbnail: progressSteps.thumbnail ?? progressSteps.template ?? fallbackSteps.thumbnail,
                         };
 
                         document.querySelectorAll('.step-item').forEach(el => {

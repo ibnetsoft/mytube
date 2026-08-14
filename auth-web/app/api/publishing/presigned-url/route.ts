@@ -7,7 +7,7 @@ import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 // 대한 서명 업로드 URL을 발급했다 - UUID만 알면 타인 스토리지 경로에 쓰기가
 // 가능한 구멍이었다. 이제 email + HMAC session_token 을 검증하고, 업로드
 // 경로의 user_id 는 세션 email 로부터 서버가 직접 해석한다.
-async function resolveUserId(admin: ReturnType<typeof createClient>, email: string): Promise<string | null> {
+async function resolveUserId(admin: any, email: string): Promise<string | null> {
     const { data, error } = await admin
         .from('profiles')
         .select('id')

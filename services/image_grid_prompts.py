@@ -59,12 +59,26 @@ def _scene_image_prompt(scene: Mapping[str, Any]) -> str:
     )
 
 
-def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Create one persisted 2x2 prompt per complete chronological four-scene block.
+def _grid_windows(scene_count: int) -> list[tuple[int, int]]:
+    """Return 4-scene windows, adding an overlapping final window for tails."""
+    if scene_count < 4:
+        return []
 
-    A 2x2 image must have exactly four described panels. Trailing one-to-three
-    scenes intentionally remain individual prompts instead of asking a model to
-    invent unspecified panels.
+    windows = [(start, start + 4) for start in range(0, scene_count - 3, 4)]
+    if scene_count % 4:
+        final_window = (scene_count - 4, scene_count)
+        if windows[-1] != final_window:
+            windows.append(final_window)
+    return windows
+
+
+def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Create persisted strict 2x2 prompts from chronological scene prompts.
+
+    Every grid prompt describes exactly four panels. When the total scene count
+    leaves a trailing one-to-three scenes, the final 2x2 prompt overlaps the
+    previous block and uses the last four scenes so the tail is still visible in
+    the user app without inventing blank or fake panels.
     """
     ordered_scenes: list[dict[str, Any]] = []
     for fallback_number, scene in enumerate(scenes, start=1):
@@ -82,8 +96,8 @@ def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[s
         )
 
     grid_prompts: list[dict[str, Any]] = []
-    for start_index in range(0, len(ordered_scenes) - 3, 4):
-        panels = ordered_scenes[start_index : start_index + 4]
+    for start_index, end_index in _grid_windows(len(ordered_scenes)):
+        panels = ordered_scenes[start_index:end_index]
         panel_lines = [
             f"- Panel {index + 1} (Position: {GRID_PANEL_POSITIONS[index]}): {panel['prompt']}"
             for index, panel in enumerate(panels)
@@ -134,3 +148,52 @@ def normalize_image_grid_prompts(value: Any) -> list[dict[str, Any]]:
             }
         )
     return normalized
+
+
+def validate_image_grid_prompt_readiness(
+    scenes: Iterable[Mapping[str, Any]],
+    image_grid_prompts: Any,
+    *,
+    require_status: str | None = None,
+    status: Any = None,
+) -> None:
+    """Raise ValueError unless persisted 2x2 prompts cover every promptable scene."""
+    if require_status is not None and str(status or "").strip() != require_status:
+        raise ValueError(f"image_grid_prompt_status must be {require_status}")
+
+    scene_numbers: list[int | str] = []
+    for fallback_number, scene in enumerate(scenes, start=1):
+        if not isinstance(scene, Mapping):
+            continue
+        if not _scene_image_prompt(scene):
+            continue
+        scene_numbers.append(_scene_number(scene, fallback_number))
+
+    if len(scene_numbers) >= 4 and not image_grid_prompts:
+        raise ValueError("image_grid_prompts missing")
+
+    grids = normalize_image_grid_prompts(image_grid_prompts)
+    if len(scene_numbers) >= 4 and not grids:
+        raise ValueError("no valid image_grid_prompts")
+
+    seen_prompts: set[str] = set()
+    covered_scene_numbers: set[int | str] = set()
+    expected_prompt_count = len(_grid_windows(len(scene_numbers)))
+    if len(grids) != expected_prompt_count:
+        raise ValueError(f"image_grid_prompts count mismatch: expected {expected_prompt_count}, got {len(grids)}")
+
+    for grid in grids:
+        prompt = str(grid.get("prompt") or "").strip()
+        if len(prompt) < 600:
+            raise ValueError(f"image_grid_prompt too short for grid {grid.get('grid_number')}")
+        if prompt in seen_prompts:
+            raise ValueError(f"duplicate image_grid_prompt for grid {grid.get('grid_number')}")
+        seen_prompts.add(prompt)
+        numbers = grid.get("scene_numbers")
+        if not isinstance(numbers, list) or len(numbers) != 4:
+            raise ValueError(f"image_grid_prompt must contain exactly 4 scene numbers for grid {grid.get('grid_number')}")
+        covered_scene_numbers.update(numbers)
+
+    missing = [number for number in scene_numbers if number not in covered_scene_numbers]
+    if missing:
+        raise ValueError(f"image_grid_prompts do not cover scene(s): {missing}")

@@ -97,7 +97,7 @@ def _load_project_env() -> None:
     for env_path in (PROJECT_ROOT / ".env", Path.cwd() / ".env"):
         try:
             if env_path.exists():
-                load_dotenv(env_path, override=False)
+                load_dotenv(env_path, override=True)
         except Exception as exc:
             logger.warning(f"Failed to load Hermes env file at {env_path}: {exc}")
 
@@ -105,7 +105,14 @@ def _load_project_env() -> None:
 _load_project_env()
 
 _shutdown_requested = False
-SUPPORTED_JOB_TYPES = ["topic_research", "topic_benchmark_analyze", "web_research", "script_plan_generate", "script_generate"]
+SUPPORTED_JOB_TYPES = [
+    "topic_research",
+    "topic_benchmark_analyze",
+    "web_research",
+    "script_plan_generate",
+    "script_generate",
+    "publish_metadata_generate",
+]
 DEFAULT_COUNT = 10
 MAX_COUNT = 30
 
@@ -462,41 +469,14 @@ async def _youtube_get(path: str, params: dict) -> dict:
     server of its own for the desktop app's routes, and importing FastAPI
     route handlers as plain functions isn't a supported pattern in that
     router - see its Request-bound signatures)."""
-    import httpx
-    from config import config
+    from services.youtube_data_api import async_youtube_get
 
-    keys = config.youtube_api_keys()
-    if not keys:
-        raise RuntimeError("YouTube API key is not configured")
-
-    # A key can be blocked by API restrictions or exhaust its quota while
-    # another project key remains healthy. Try the next key only for errors
-    # where failover can help, without hiding malformed-request errors.
-    retryable_statuses = {403, 429, 500, 502, 503, 504}
-    failures = []
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        for index, key in enumerate(keys, start=1):
-            response = await client.get(
-                f"{config.YOUTUBE_BASE_URL}/{path}",
-                params={**params, "key": key},
-            )
-            try:
-                data = response.json()
-            except ValueError:
-                data = {}
-            if response.status_code == 200:
-                if index > 1:
-                    logger.info("YouTube API failover succeeded on backup key %s for %s", index, path)
-                return data
-
-            error_message = (data.get("error") or {}).get("message", "YouTube API Error")
-            failures.append(f"key {index}: HTTP {response.status_code} - {error_message}")
-            error_lower = str(error_message).lower()
-            key_configuration_error = "api key" in error_lower or "apikey" in error_lower
-            if response.status_code not in retryable_statuses and not key_configuration_error:
-                break
-
-    raise RuntimeError(f"YouTube API error ({path}) after {len(failures)} key(s): " + " | ".join(failures))
+    data = await async_youtube_get(path, params)
+    if data.get("error"):
+        raise RuntimeError(f"YouTube API error ({path}): {data.get('message') or data.get('error')}")
+    if int(data.get("_youtube_key_index") or 1) > 1:
+        logger.info("YouTube API failover succeeded on backup key %s for %s", data.get("_youtube_key_index"), path)
+    return data
 
 
 async def _search_candidate_videos(
@@ -910,11 +890,55 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
     job_log.info(f"-> RENDERING (keyword={keyword!r}, video_type={video_type}, pool={search_pool_size}, pick={max_candidates})")
 
     ensure_project_root_on_path()
-    from services.gemini_service import gemini_service
+    from config import config
+    from services import ai_router
+    from services.prompts import prompts as prompt_templates
     from services.source_service import source_service
     import asyncio
 
     async def _run_analysis() -> tuple[list[dict], dict]:
+        async def _analyze_comments_with_router(comments: list[str], video_title: str, transcript: str | None) -> dict:
+            script_section = ""
+            if transcript:
+                script_section = f"""
+[영상 스크립트 (앞부분 발췌)]
+{transcript[:5000]}
+... (후략)
+"""
+            prompt = prompt_templates.GEMINI_ANALYZE_COMMENTS.format(
+                script_indicator=("및 스크립트" if transcript else ""),
+                video_title=video_title,
+                script_section=script_section,
+                comments_text=chr(10).join(comments[:50]),
+            )
+            text = await ai_router.generate_text(
+                prompt,
+                config.SCRIPT_GENERATION_MODEL,
+                temperature=0.3,
+                max_tokens=4096,
+                task_type="benchmark_comment_analysis",
+            )
+            match = re.search(r"\{[\s\S]*\}", text or "")
+            if match:
+                return json.loads(match.group())
+            return {"error": "parse_failed", "raw": text}
+
+        async def _extract_success_strategy_with_router(analysis_data: dict) -> list[dict]:
+            prompt = prompt_templates.GEMINI_EXTRACT_STRATEGY.format(
+                analysis_json=json.dumps(analysis_data, ensure_ascii=False)
+            )
+            text = await ai_router.generate_text(
+                prompt,
+                config.SCRIPT_GENERATION_MODEL,
+                temperature=0.3,
+                max_tokens=2048,
+                task_type="benchmark_strategy_extraction",
+            )
+            match = re.search(r"\[[\s\S]*\]", text or "")
+            if match:
+                return json.loads(match.group())
+            return []
+
         audit_payload = {
             "job_id": job_id,
             "job_type": "topic_benchmark_analyze",
@@ -1060,14 +1084,14 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
                 transcript_error = str(e)
 
             comments, comments_audit = await _fetch_comments_with_audit(video_id)
-            analysis = await gemini_service.analyze_comments(
+            analysis = await _analyze_comments_with_router(
                 comments=comments, video_title=candidate["title"], transcript=transcript
             )
 
             success_strategies = []
             if not analysis.get("error"):
                 try:
-                    success_strategies = await gemini_service.extract_success_strategy(analysis)
+                    success_strategies = await _extract_success_strategy_with_router(analysis)
                 except Exception as e:
                     job_log.warning(f"Success-strategy extraction failed for {video_id}: {e}")
 
@@ -1207,6 +1231,7 @@ Return JSON only:
     result_path = RESULTS_DIR / f"{job_id}.json"
     result_payload = {"job_id": job_id, "job_type": "web_research", "status": "COMPLETED", "research_bundle": bundle}
     result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving web research result")
     job_store.transition(job_id, job_store.COMPLETED, reason="Gemini web research complete", output_path=str(result_path))
     job_log.info("WEB_RESEARCH complete: %d sources; queries=%r", len(bundle["sources"]), bundle["search_queries"])
     for source in bundle["sources"]:
@@ -1364,6 +1389,21 @@ def _validate_media_prompt_quality(media: dict, scene_label: str) -> None:
         raise ValueError(f"video_prompt contains a discontinuous scene change for scene {scene_label}")
 
 
+def _validate_unique_media_prompts(scenes: list[dict]) -> None:
+    seen_image_prompts: dict[str, str] = {}
+    seen_video_prompts: dict[str, str] = {}
+    for index, scene in enumerate(scenes, start=1):
+        label = str(scene.get("scene_id") or scene.get("scene_order") or index)
+        image_prompt = str(scene.get("image_prompt") or "").strip()
+        video_prompt = str(scene.get("video_prompt") or "").strip()
+        if image_prompt in seen_image_prompts:
+            raise ValueError(f"duplicate image_prompt for scenes {seen_image_prompts[image_prompt]} and {label}")
+        if video_prompt in seen_video_prompts:
+            raise ValueError(f"duplicate video_prompt for scenes {seen_video_prompts[video_prompt]} and {label}")
+        seen_image_prompts[image_prompt] = label
+        seen_video_prompts[video_prompt] = label
+
+
 def _generate_scene_media_prompts(
     structure: dict,
     topic: str,
@@ -1380,25 +1420,27 @@ def _generate_scene_media_prompts(
 
     from config import Config, config
     from services import ai_router
-    from services.image_grid_prompts import build_image_grid_prompts
+    from services.image_grid_prompts import build_image_grid_prompts, validate_image_grid_prompt_readiness
 
     Config.refresh_remote_keys_if_stale()
     model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
     if str(model).lower().startswith("claude"):
         model = "gemini-2.5-flash"
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
-    prompt = f"""
+    def _build_media_prompt(prompt_scenes: list, chunk_label: str) -> str:
+        return f"""
 You are the visual director for a YouTube video production pipeline.
-Create production-ready image and AI-video prompts for every scene below.
+Create production-ready image and AI-video prompts for every scene in this chunk.
 
 TOPIC: {topic}
 UPLOAD TITLE: {upload_title}
 LANGUAGE OF NARRATION: {language}
+CHUNK: {chunk_label}
 ADMIN-SELECTED IMAGE STYLE KEY: {image_style_key}
 ADMIN-SELECTED IMAGE STYLE DIRECTIVE:
 {image_style_directive}
 SCENE PLAN:
-{json.dumps(scenes, ensure_ascii=False, indent=2)}
+{json.dumps(prompt_scenes, ensure_ascii=False, indent=2)}
 
 Rules:
 1. Return exactly one result for every input scene, preserving scene_id and scene_order.
@@ -1408,7 +1450,7 @@ Rules:
 5. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them. Preserve recurring locations and important props as well.
 6. image_prompt quality guardrails: include "no text, no words, no letters, no labels, no watermarks, no captions"; for human characters include correct anatomy, exactly two arms, exactly two hands, anatomically correct hands, no extra limbs, no fused fingers, no duplicated people.
 7. Treat image_prompt as the exact opening keyframe for video_prompt. The first frame must match its subject, pose, location, wardrobe, props, composition, and lighting before motion begins.
-8. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. Do not introduce a new subject, location, outfit, or prop midway through the shot.
+8. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot.
 9. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
 10. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
 11. video_prompt must not request cuts, transitions, dialogue, narration, subtitles, captions, sound effects, music, or audio. It must describe visual motion only.
@@ -1437,23 +1479,54 @@ Return ONLY valid JSON in this shape:
 
     try:
         import asyncio
-        raw = asyncio.run(asyncio.wait_for(
-            ai_router.generate_text(
-                prompt,
-                model,
-                temperature=0.45,
-                max_tokens=16384,
-                task_type="scene_media_prompt_generation",
-            ),
-            timeout=90,
-        ))
-        generated = _extract_json(raw)
-        generated_scenes = generated.get("scenes") if isinstance(generated, dict) else None
-        if not isinstance(generated_scenes, list) or len(generated_scenes) != len(scenes):
-            raise ValueError(
-                f"media prompt count mismatch: expected {len(scenes)}, got "
-                f"{len(generated_scenes or [])}"
-            )
+        generated_scenes = []
+        director_notes = {"overall_vision": "chunked media prompt generation", "error": False, "chunks": []}
+        chunk_size = 8
+        for offset in range(0, len(scenes), chunk_size):
+            chunk = scenes[offset:offset + chunk_size]
+            chunk_label = f"{offset + 1}-{offset + len(chunk)} of {len(scenes)}"
+            prompt = _build_media_prompt(chunk, chunk_label)
+            last_chunk_error = None
+            for attempt in range(2):
+                try:
+                    raw = asyncio.run(asyncio.wait_for(
+                        ai_router.generate_text(
+                            prompt,
+                            model,
+                            temperature=0.35 if attempt else 0.45,
+                            max_tokens=8192,
+                            task_type="scene_media_prompt_generation",
+                        ),
+                        timeout=90,
+                    ))
+                    generated = _extract_json(raw)
+                    chunk_scenes = generated.get("scenes") if isinstance(generated, dict) else None
+                    if not isinstance(chunk_scenes, list) or len(chunk_scenes) != len(chunk):
+                        raise ValueError(
+                            f"media prompt count mismatch for chunk {chunk_label}: expected {len(chunk)}, got "
+                            f"{len(chunk_scenes or [])}"
+                        )
+                    for generated_item in chunk_scenes:
+                        scene_label = str(
+                            generated_item.get("scene_id")
+                            or generated_item.get("scene_order")
+                            or chunk_label
+                        )
+                        _validate_media_prompt_quality(generated_item, scene_label)
+                    break
+                except Exception as chunk_error:
+                    last_chunk_error = chunk_error
+                    job_log.warning(f"Media prompt chunk {chunk_label} attempt {attempt + 1}/2 failed: {chunk_error}")
+            else:
+                raise ValueError(
+                    f"media prompt chunk {chunk_label} failed after retry: {last_chunk_error}"
+                )
+            director_notes["chunks"].append({
+                "chunk": chunk_label,
+                "scene_count": len(chunk_scenes),
+                "director_notes": generated.get("director_notes") if isinstance(generated, dict) else {},
+            })
+            generated_scenes.extend(chunk_scenes)
 
         by_key = {}
         for item in generated_scenes:
@@ -1480,7 +1553,9 @@ Return ONLY valid JSON in this shape:
             merged["media_prompt_status"] = "ready"
             enriched_scenes.append(merged)
 
+        _validate_unique_media_prompts(enriched_scenes)
         image_grid_prompts = build_image_grid_prompts(enriched_scenes)
+        validate_image_grid_prompt_readiness(enriched_scenes, image_grid_prompts, status="ready", require_status="ready")
         result = dict(structure)
         result["scenes"] = enriched_scenes
         result["image_style"] = image_style_key
@@ -1488,81 +1563,13 @@ Return ONLY valid JSON in this shape:
         result["image_style_selection"] = image_style_selection or {}
         result["image_grid_prompts"] = image_grid_prompts
         result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
-        result["media_prompt_director"] = generated.get("director_notes") or {}
+        result["media_prompt_director"] = director_notes
         result["media_prompt_status"] = "ready"
         job_log.info(f"Prepared {len(image_grid_prompts)} strict 2x2 image grid prompt(s)")
         return result
     except Exception as e:
-        # Prompt generation must not strand a valid plan at 65%. Keep the
-        # scene plan intact and provide deterministic, generator-ready prompts
-        # so the saved result still contains media prompts for every scene.
-        job_log.warning(f"Scene media prompt generation fallback: {e}")
-        fallback_scenes = []
-        for index, scene in enumerate(scenes, start=1):
-            scene_id = str(scene.get("scene_id") or f"scene{index:03d}")
-            scene_order = scene.get("scene_order") or index
-            context = str(
-                scene.get("visual_description")
-                or scene.get("scene_summary")
-                or scene.get("narration")
-                or scene.get("description")
-                or upload_title
-            ).strip()
-            # Scene narration may mention editing language such as "cut to";
-            # keep that source text from tripping the continuous-shot guard.
-            context = re.sub(
-                r"\b(cut to|hard cut|jump cut|teleport(?:ation)?)\b",
-                "continuous visual change",
-                context,
-                flags=re.IGNORECASE,
-            )
-            image_prompt = (
-                f"Documentary-style economic explainer keyframe for the scene context: {context}. "
-                f"Show the primary subject and visible action in a believable contemporary financial setting, "
-                f"with a clear foreground, midground, and background, medium-wide composition, eye-level angle, "
-                f"readable body language, restrained {image_style_key} visual language, realistic materials, "
-                f"coherent cool-to-warm lighting, controlled contrast, and continuity-friendly wardrobe and props. "
-                f"Use accurate office, street, bank, or home details appropriate to the subject. "
-                f"No text, no words, no letters, no labels, no watermarks, no captions; correct anatomy, "
-                f"exactly two arms, exactly two hands, anatomically correct hands, no extra limbs, no fused fingers."
-            )
-            video_prompt = (
-                f"Start from the exact image keyframe for this scene: {context}. "
-                f"Use one continuous shot for the planned duration. Begin with the subject held clearly in frame, "
-                f"then use exactly one slow push-in camera movement while the subject performs one restrained, "
-                f"physically plausible action related to the economic situation. Let only subtle background activity "
-                f"and natural light movement continue. Preserve the same identity, wardrobe, props, location, and "
-                f"composition throughout; use a gentle focus response as attention shifts to the subject, then end "
-                f"on a stable readable pose. No cuts, no transitions, no morphing, no teleportation, no dialogue, "
-                f"no narration, no subtitles, no captions, no sound effects, no music, and no audio instructions."
-            )
-            media = {
-                "scene_id": scene_id,
-                "scene_order": scene_order,
-                "image_prompt": image_prompt,
-                "video_prompt": video_prompt,
-                "lighting_hint": "Controlled documentary lighting with restrained contrast and clear subject separation.",
-                "visual_style": image_style_key,
-                "shot_hints": [{"camera": "medium-wide", "composition": "clear foreground, midground, background", "movement": "slow push-in", "emotion": "focused concern", "purpose": "make the economic consequence readable"}],
-            }
-            _validate_media_prompt_quality(media, scene_id)
-            merged = dict(scene)
-            merged.update(media)
-            merged["image_style"] = image_style_key
-            merged["media_prompt_status"] = "fallback_ready"
-            fallback_scenes.append(merged)
-        image_grid_prompts = build_image_grid_prompts(fallback_scenes)
-        result = dict(structure)
-        result["scenes"] = fallback_scenes
-        result["image_style"] = image_style_key
-        result["image_style_directive"] = image_style_directive
-        result["image_style_selection"] = image_style_selection or {}
-        result["image_grid_prompts"] = image_grid_prompts
-        result["image_grid_prompt_status"] = "fallback_ready" if image_grid_prompts else "not_applicable"
-        result["media_prompt_director"] = {"fallback": True, "reason": str(e)}
-        result["media_prompt_status"] = "fallback_ready"
-        job_log.info(f"Prepared {len(image_grid_prompts)} fallback strict 2x2 image grid prompt(s)")
-        return result
+        job_log.error(f"Scene media prompt generation failed; refusing fallback completion: {e}")
+        raise
 
 
 def _build_fallback_scene_plan(
@@ -1595,26 +1602,70 @@ def _build_fallback_scene_plan(
         slots.append((cursor, end, phase))
         cursor = end
 
-    title = (upload_title or topic or "경제 이슈").strip()
+    title = (upload_title or topic or "video topic").strip()
+    style_lower = str(script_style or "").lower()
+    is_story_style = any(marker in style_lower for marker in ("story", "folk", "tale"))
     benchmark_title = ""
     if isinstance(benchmark_analysis, dict):
         benchmark_title = str(benchmark_analysis.get("title") or "").strip()
+
     scenes = []
     for index, (start, end, phase) in enumerate(slots, start=1):
         duration = end - start
         scene_id = f"scene{index:03d}"
-        if phase == "opening":
-            summary = f"Opening beat {index}: expose the personal money tension behind '{title}'."
-            purpose = "Create immediate curiosity and a concrete household-level stake."
-        elif phase == "development":
-            summary = f"Development beat {index}: connect the viewer's daily spending pressure to the market signal."
-            purpose = "Escalate from a familiar problem into the economic mechanism."
-        elif phase == "explanation":
-            summary = f"Explanation beat {index}: explain one cause, consequence, or decision point behind '{title}'."
-            purpose = "Make the economic logic clear without losing narrative momentum."
+        if is_story_style:
+            if phase == "opening":
+                summary = f"Opening beat {index}: reveal the strange incident or object behind '{title}'."
+                purpose = "Create immediate mystery, place, and emotional stakes."
+            elif phase == "development":
+                summary = f"Development beat {index}: follow the villagers, family, or witness as the secret deepens."
+                purpose = "Escalate suspicion through character choices and village consequences."
+            elif phase == "explanation":
+                summary = f"Revelation beat {index}: uncover one hidden motive, promise, betrayal, or supernatural clue behind '{title}'."
+                purpose = "Turn the mystery into an emotionally readable folk-tale revelation."
+            else:
+                summary = f"Payoff beat {index}: resolve the secret and leave a lingering moral aftertaste."
+                purpose = "Deliver the emotional consequence and close the tale with resonance."
+            scene_situation = (
+                f"Timed {phase} visual beat for '{title}'. Show an old Korean village, a character decision, "
+                f"a mysterious object, a family conflict, a rumor, a night road, a well, a courtyard, or a hidden room. "
+                f"Reference technique from benchmark '{benchmark_title}' without copying its content."
+            )
+            emotion = "quiet suspense"
+            retention = "Leave one story secret unresolved into the next beat."
+            bridge = "Move into the next beat by revealing a new clue, reaction, or consequence."
+            visual_direction = (
+                "Atmospheric Korean folk-tale visuals with village lanes, hanok courtyards, wells, lanterns, "
+                "wooden doors, worn fabric, dusk shadows, restrained motion, and character-focused staging."
+            )
+            tts_direction = "Calm Korean storytelling narration with suspense, warmth, and clear emotional turns."
         else:
-            summary = f"Steady beat {index}: resolve the implication and prepare the next practical insight."
-            purpose = "Carry the analysis toward a grounded payoff."
+            if phase == "opening":
+                summary = f"Opening beat {index}: expose the personal money tension behind '{title}'."
+                purpose = "Create immediate curiosity and a concrete household-level stake."
+            elif phase == "development":
+                summary = f"Development beat {index}: connect the viewer's daily spending pressure to the market signal."
+                purpose = "Escalate from a familiar problem into the economic mechanism."
+            elif phase == "explanation":
+                summary = f"Explanation beat {index}: explain one cause, consequence, or decision point behind '{title}'."
+                purpose = "Make the economic logic clear without losing narrative momentum."
+            else:
+                summary = f"Steady beat {index}: resolve the implication and prepare the next practical insight."
+                purpose = "Carry the analysis toward a grounded payoff."
+            scene_situation = (
+                f"Timed {phase} visual beat for '{title}'. Show a specific economic pressure through "
+                f"people, prices, charts, bank screens, market headlines, or household decisions. "
+                f"Reference technique from benchmark '{benchmark_title}' without copying its content."
+            )
+            emotion = "focused concern"
+            retention = "Leave one clear economic question unresolved into the next beat."
+            bridge = "Move into the next beat by raising the next cause or consequence."
+            visual_direction = (
+                "Documentary economy explainer visuals with realistic Korean urban details, "
+                "market screens, receipts, household objects, bank or street context, and restrained motion."
+            )
+            tts_direction = "Calm but urgent Korean narration, clear pacing, no exaggerated shouting."
+
         scenes.append({
             "scene_id": scene_id,
             "scene_order": index,
@@ -1623,33 +1674,37 @@ def _build_fallback_scene_plan(
             "time_range": f"{start}-{end}s",
             "pacing_phase": phase,
             "scene_summary": summary,
-            "scene_situation": (
-                f"Timed {phase} visual beat for '{title}'. Show a specific economic pressure through "
-                f"people, prices, charts, bank screens, market headlines, or household decisions. "
-                f"Reference technique from benchmark '{benchmark_title}' without copying its content."
-            ),
-            "scene_emotion": "focused concern",
+            "scene_situation": scene_situation,
+            "scene_emotion": emotion,
             "scene_purpose": purpose,
-            "retention_hook": "Leave one clear economic question unresolved into the next beat.",
+            "retention_hook": retention,
             "title_promise_link": f"This beat advances the viewer promise of '{title}'.",
-            "end_bridge": "Move into the next beat by raising the next cause or consequence.",
+            "end_bridge": bridge,
             "target_duration": duration,
-            "visual_direction": (
-                "Documentary economy explainer visuals with realistic Korean urban details, "
-                "market screens, receipts, household objects, bank or street context, and restrained motion."
-            ),
-            "tts_direction": "Calm but urgent Korean narration, clear pacing, no exaggerated shouting.",
+            "visual_direction": visual_direction,
+            "tts_direction": tts_direction,
         })
+
+    if is_story_style:
+        title_promise = f"Reveal the secret behind '{title}' through character choices, village rumor, and emotional payoff."
+        opening_hook = f"Start with the impossible incident inside '{title}' and make the viewer want the hidden truth."
+        payoff = "Resolve the mystery with a clear emotional reveal and a folk-tale moral aftertaste."
+        global_mood = "atmospheric Korean folk tale mystery"
+    else:
+        title_promise = f"Explain why '{title}' matters to the viewer's money decisions."
+        opening_hook = f"Start with the contradiction inside '{title}' and make it personal."
+        payoff = "Give a grounded explanation of the economic signal and what viewers should watch next."
+        global_mood = "urgent economic explainer"
 
     return {
         "topic": topic,
         "upload_title": title,
-        "title_promise": f"Explain why '{title}' matters to the viewer's money decisions.",
-        "opening_hook": f"Start with the contradiction inside '{title}' and make it personal.",
-        "payoff": "Give a grounded explanation of the economic signal and what viewers should watch next.",
+        "title_promise": title_promise,
+        "opening_hook": opening_hook,
+        "payoff": payoff,
         "scene_count": len(scenes),
         "target_duration_seconds": target_duration,
-        "global_mood": "urgent economic explainer",
+        "global_mood": global_mood,
         "scenes": scenes,
         "planner_notes": {
             "strategy": "Fallback deterministic scene plan created because AI planner returned no usable scenes.",
@@ -1670,25 +1725,59 @@ def _fallback_narration_section(
     total: int,
     min_chars: int,
 ) -> str:
-    title = (upload_title or topic or "이번 경제 이슈").strip()
+    title = (upload_title or topic or "\uc774\ubc88 \uc774\uc57c\uae30").strip()
     summary = str(scene.get("scene_summary") or scene.get("scene_situation") or title).strip()
-    purpose = str(scene.get("scene_purpose") or "이 장면의 핵심 경제 신호를 설명합니다.").strip()
-    hook = str(scene.get("retention_hook") or "다음 장면에서 더 구체적인 원인을 확인합니다.").strip()
+    purpose = str(scene.get("scene_purpose") or "").strip()
+    hook = str(scene.get("retention_hook") or "").strip()
+    scene_context = " ".join(
+        str(scene.get(key) or "")
+        for key in (
+            "scene_summary",
+            "scene_situation",
+            "scene_purpose",
+            "visual_direction",
+            "image_prompt",
+            "video_prompt",
+        )
+    ).lower()
+    is_story = any(
+        marker in scene_context
+        for marker in ("folk", "tale", "story", "village", "hanok", "well", "courtyard", "lantern")
+    )
+
+    if is_story:
+        purpose = purpose or "\uc7a5\uba74\uc758 \ube44\ubc00\uacfc \uac10\uc815\uc744 \ucc28\ubd84\ud788 \uc313\uc544 \uc62c\ub9bd\ub2c8\ub2e4."
+        hook = hook or "\ub2e4\uc74c \uc7a5\uba74\uc5d0\uc11c \uc228\uaca8\uc9c4 \uc774\uc720\uac00 \ud55c \uacb9 \ub354 \ub4dc\ub7ec\ub0a9\ub2c8\ub2e4."
+        text = (
+            f"{idx + 1}\ubc88\uc9f8 \uc7a5\uba74\uc785\ub2c8\ub2e4. '{title}'\uc758 \ube44\ubc00\uc740 "
+            f"\ub9c8\uc744 \uc0ac\ub78c\ub4e4\uc774 \uc26c\uc774 \uaebc\ub0b4\uc9c0 \ubabb\ud55c \uae30\uc5b5 \uc18d\uc5d0\uc11c \uc2dc\uc791\ub429\ub2c8\ub2e4. "
+            f"{summary} {purpose} \ub0a1\uc740 \ub9c8\ub8e8, \ubc14\ub78c\uc5d0 \ud754\ub4e4\ub9ac\ub294 \ub4f1\ubd88, "
+            f"\uc6b0\ubb3c\uac00\uc5d0 \ub0a8\uc740 \ubc1c\uc790\uad6d\ucc98\ub7fc \uc791\uc740 \ub2e8\uc11c\ub4e4\uc774 \ud558\ub098\uc529 \uc774\uc57c\uae30\ub97c \ub04c\uc5b4\ub0c5\ub2c8\ub2e4. "
+            f"{hook} \uadf8\ub798\uc11c \uc774 \uc7a5\uba74\uc740 \ub204\uac00 \uc65c \uc228\uaca8\uc57c \ud588\ub294\uc9c0, "
+            f"\uadf8\ub9ac\uace0 \uadf8 \uc120\ud0dd\uc774 \uc2ed \ub144 \ub4a4 \uc5b4\ub5a4 \ub300\uac00\ub85c \ub3cc\uc544\uc624\ub294\uc9c0\ub97c \ubcf4\uc5ec\uc90d\ub2c8\ub2e4."
+        )
+        while len(text) < min_chars:
+            text += (
+                " \ub9c8\uc744 \uc0ac\ub78c\ub4e4\uc740 \uc218\uad70\uac70\ub9ac\uc9c0\ub9cc, \uc815\uc791 \ub2f9\uc0ac\uc790\ub294 "
+                "\uc544\uc9c1 \uc785\uc744 \uc5f4\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \ubcf4\ub530\ub9ac \uc548\uc5d0 \ub4e0 \uac83\uc774 "
+                "\ubb3c\uac74\uc778\uc9c0, \uc57d\uc18d\uc778\uc9c0, \uc544\ub2c8\uba74 \uc8c4\uc758 \uc99d\uac70\uc778\uc9c0 \uc544\uc9c1 \uc544\ubb34\ub3c4 \ubaa8\ub985\ub2c8\ub2e4."
+            )
+        return text
+
+    purpose = purpose or "\uc774 \uc7a5\uba74\uc758 \ud575\uc2ec \uacbd\uc81c \uc2e0\ud638\ub97c \uc124\uba85\ud569\ub2c8\ub2e4."
+    hook = hook or "\ub2e4\uc74c \uc7a5\uba74\uc5d0\uc11c \ub354 \uad6c\uccb4\uc801\uc778 \uc6d0\uc778\uc744 \ud655\uc778\ud569\ub2c8\ub2e4."
     text = (
-        f"{idx + 1}번째 장면입니다. 지금 우리가 봐야 할 핵심은 '{title}'라는 질문이 "
-        f"단순한 체감 문제가 아니라 실제 돈의 흐름과 연결되어 있다는 점입니다. "
-        f"{summary} {purpose} 화면 속 가격표, 통장 잔액, 시장 지표는 모두 같은 방향을 가리킵니다. "
-        f"소득은 천천히 움직이는데 생활비와 자산 가격은 먼저 반응하고, 그 차이가 시청자의 선택을 압박합니다. "
-        f"{hook} 그래서 이 장면은 다음 판단으로 넘어가기 전, 왜 지금 이 문제가 개인의 지갑까지 도착했는지 "
-        f"분명하게 짚고 넘어갑니다."
+        f"{idx + 1}\ubc88\uc9f8 \uc7a5\uba74\uc785\ub2c8\ub2e4. \uc9c0\uae08 \uc6b0\ub9ac\uac00 \ubd10\uc57c \ud560 \ud575\uc2ec\uc740 '{title}'\uc774 "
+        f"\uc2e4\uc81c \ub3c8\uc758 \ud750\ub984\uacfc \uc5b4\ub5bb\uac8c \uc5f0\uacb0\ub418\ub294\uc9c0\uc785\ub2c8\ub2e4. "
+        f"{summary} {purpose} \ud654\uba74 \uc18d \uac00\uaca9\ud45c, \ud1b5\uc7a5 \uc794\uc561, \uc2dc\uc7a5 \uc9c0\ud45c\ub294 \ubaa8\ub450 \uac19\uc740 \ubc29\ud5a5\uc744 \uac00\ub9ac\ud0b5\ub2c8\ub2e4. "
+        f"{hook} \uadf8\ub798\uc11c \uc774 \uc7a5\uba74\uc740 \uc65c \uc9c0\uae08 \uc774 \ubb38\uc81c\uac00 \uac1c\uc778\uc758 \uc9c0\uac11\uae4c\uc9c0 \ub3c4\ucc29\ud588\ub294\uc9c0 \uc9da\uace0 \ub118\uc5b4\uac11\ub2c8\ub2e4."
     )
     while len(text) < min_chars:
         text += (
-            " 이 흐름을 놓치면 숫자는 뉴스 속 이야기로만 보이지만, 실제로는 장보기와 저축, 투자 판단에 "
-            "동시에 영향을 주는 신호가 됩니다."
+            " \uc774 \ud750\ub984\uc740 \ub2e8\uc21c\ud55c \ub274\uc2a4\uac00 \uc544\ub2c8\ub77c, \uc18c\ube44\uc640 \uc800\ucd95, \ub300\ucd9c, "
+            "\uc790\uc0b0 \ud310\ub2e8\uc5d0 \ub3d9\uc2dc\uc5d0 \uc601\ud5a5\uc744 \uc8fc\ub294 \uc2e0\ud638\uc785\ub2c8\ub2e4."
         )
     return text
-
 
 def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     """[AIR-0230 §2d] Pre-bakes a scene structure for one topics_queue row
@@ -2317,6 +2406,24 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, duration_seconds, upload_title, title_generation
 
 
+def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, str, dict, dict, str]:
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for publish_metadata_generate")
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise ValueError("payload.topic is required for publish_metadata_generate")
+    script = str(payload.get("script") or "").strip()
+    if not script:
+        raise ValueError("payload.script is required for publish_metadata_generate")
+    title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
+    upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
+    structure = payload.get("structure") if isinstance(payload.get("structure"), dict) else {}
+    narrative_blueprint = payload.get("narrative_blueprint") if isinstance(payload.get("narrative_blueprint"), dict) else {}
+    language = str(payload.get("language") or "ko").strip()
+    return topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language
+
+
 def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
     write_state("preparing", job, 0, job_id)
@@ -2348,7 +2455,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     min_chars = max(20, round(chars_per_section * 0.7)) if is_shorts else max(50, round(chars_per_section * 0.8))
     max_chars = round(chars_per_section * 1.2)
 
-    async def _run_generation() -> tuple[str, dict, dict, dict, int, dict]:
+    async def _run_generation() -> tuple[str, dict, dict, dict, int]:
         narrative_blueprint = await _generate_narrative_blueprint(
             ai_router, model, topic, upload_title, structure, title_generation, language, style_directive
         )
@@ -2445,16 +2552,9 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
             except Exception as e:
                 job_log.warning(f"Script rewrite failed (keeping draft): {e}")
 
-        job_store.update_progress(job_id, 90, "publish metadata")
-        write_state("running", job, 90, job_id)
-        publish_metadata = await _generate_publish_metadata(
-            ai_router, config.TITLE_GENERATION_MODEL or model, topic, upload_title,
-            final_script, language, narrative_blueprint, structure,
-        )
+        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count
 
-        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, publish_metadata
-
-    final_script, narrative_blueprint, initial_quality, final_quality, revision_count, publish_metadata = asyncio.run(_run_generation())
+    final_script, narrative_blueprint, initial_quality, final_quality, revision_count = asyncio.run(_run_generation())
     if not final_script:
         raise ValueError("Generated script was empty after all sections were processed")
     if _script_needs_revision(final_quality):
@@ -2482,7 +2582,6 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         "script": final_script,
         "upload_title": upload_title,
         "title_generation": title_generation,
-        "publish_metadata": publish_metadata,
         "narrative_blueprint": narrative_blueprint,
         "initial_script_quality_report": initial_quality,
         "script_quality_report": final_quality,
@@ -2496,6 +2595,62 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     job_store.transition(job_id, job_store.COMPLETED, reason="script generation complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating publish metadata payload)")
+
+    topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language = _validate_publish_metadata_payload(job["payload"])
+
+    job_store.transition(job_id, job_store.RENDERING, reason="generating publish metadata")
+    write_state("running", job, 30, job_id)
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+    import asyncio
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.TITLE_GENERATION_MODEL or config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+
+    publish_metadata = asyncio.run(
+        _generate_publish_metadata(
+            ai_router,
+            model,
+            topic,
+            upload_title,
+            script,
+            language,
+            narrative_blueprint,
+            structure,
+        )
+    )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving publish metadata")
+    write_state("running", job, 90, job_id)
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "publish_metadata_generate",
+        "status": "COMPLETED",
+        "topic_queue_id": topic_queue_id,
+        "topic": topic,
+        "upload_title": upload_title,
+        "publish_metadata": publish_metadata,
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="publish metadata complete", output_path=str(result_path))
     job_log.info(f"-> COMPLETED, result at {result_path}")
     logger.info(f"Completed job {job_id} -> {result_path}")
     return str(result_path), result_payload
@@ -2570,8 +2725,6 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 "status": "pending",
                 "pregenerated_script": result_payload.get("script"),
                 "pregenerated_script_status": "ready",
-                "publish_metadata": result_payload.get("publish_metadata"),
-                "progress_payload": {"publish_metadata": result_payload.get("publish_metadata")},
                 "narrative_blueprint": result_payload.get("narrative_blueprint"),
                 "script_quality_report": result_payload.get("script_quality_report"),
             }
@@ -2584,7 +2737,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if r.status_code not in (200, 204):
                 fallback = {
                     k: v for k, v in patch_data.items()
-                    if k not in ("narrative_blueprint", "script_quality_report", "publish_metadata")
+                    if k not in ("narrative_blueprint", "script_quality_report")
                 }
                 r = _req.patch(
                     f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
@@ -2633,6 +2786,38 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 else:
                     job_log.warning(f"Supabase patch failed: {r.status_code} {r.text[:200]}")
 
+        elif job_type == "publish_metadata_generate":
+            tq_id = result_payload.get("topic_queue_id")
+            if not tq_id:
+                job_log.info("No topic_queue_id in publish metadata result - skipping Supabase update")
+                return
+            patch_data = {
+                "publish_metadata": result_payload.get("publish_metadata"),
+                "progress_payload": {"publish_metadata": result_payload.get("publish_metadata")},
+                "publish_metadata_status": "ready",
+            }
+            r = _req.patch(
+                f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                headers={**headers, "Prefer": "return=minimal"},
+                json=patch_data,
+                timeout=10,
+            )
+            if r.status_code not in (200, 204):
+                fallback = {
+                    "publish_metadata": result_payload.get("publish_metadata"),
+                    "progress_payload": {"publish_metadata": result_payload.get("publish_metadata")},
+                }
+                r = _req.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json=fallback,
+                    timeout=10,
+                )
+            if r.status_code in (200, 204):
+                job_log.info(f"Supabase: updated topics_queue#{tq_id} with publish metadata")
+            else:
+                job_log.warning(f"Supabase patch failed: {r.status_code} {r.text[:200]}")
+
         # topic_benchmark_analyze — no Supabase table to write to; results are
         # consumed by subsequent script_plan_generate / script_generate jobs.
 
@@ -2675,6 +2860,8 @@ def process_one_job(job: dict) -> None:
             output_ref, result_payload = _process_script_plan_generate(job, job_id, job_log)
         elif job_type == "script_generate":
             output_ref, result_payload = _process_script_generate(job, job_id, job_log)
+        elif job_type == "publish_metadata_generate":
+            output_ref, result_payload = _process_publish_metadata_generate(job, job_id, job_log)
         else:
             output_ref, result_payload = _process_topic_research(job, job_id, job_log)
 

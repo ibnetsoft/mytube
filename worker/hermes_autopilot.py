@@ -77,6 +77,9 @@ class HermesAutopilotManager:
         self.current_topic = ""
         self.current_topic_queue_id = ""
         self.current_image_style = ""
+        self.last_run_status = "idle"
+        self.last_error = ""
+        self.last_completed_result_id = ""
         self.logs = []
         self.loop_task = None
         
@@ -87,6 +90,7 @@ class HermesAutopilotManager:
             "min_buffer_per_category": 5,
             "active_categories": CATEGORIES.copy(),
             "category_image_style_overrides": {},
+            "force_generate": False,
         }
         self.session_stats = {
             "generated_count": 0
@@ -106,7 +110,17 @@ class HermesAutopilotManager:
                 self.current_topic = data.get("current_topic", "")
                 self.current_topic_queue_id = str(data.get("current_topic_queue_id") or "")
                 self.current_image_style = data.get("current_image_style", "")
+                self.last_run_status = data.get("last_run_status", "idle")
+                self.last_error = data.get("last_error", "")
+                self.last_completed_result_id = str(data.get("last_completed_result_id") or "")
                 self.logs = data.get("logs", [])
+                if self.last_run_status == "idle" and self.logs:
+                    recent_text = "\n".join(str(item) for item in self.logs[-12:]).lower()
+                    if "generation failed" in recent_text or "처리 중 에러" in recent_text or "error" in recent_text:
+                        self.last_run_status = "failed"
+                        self.last_error = self.last_error or self.logs[-1]
+                        self.current_step = "failed"
+                        self._save_state()
                 
                 # settings 로드
                 loaded_settings = data.get("settings", {})
@@ -124,6 +138,8 @@ class HermesAutopilotManager:
                 # If it crashed/restarted while running, reset running flag gracefully
                 if self.is_running:
                     self.is_running = False
+                    self.last_run_status = "stopped"
+                    self.current_step = "stopped"
                     self.add_log("시스템 재시작으로 인해 오토파일럿이 중단되었습니다. 대기 상태로 전환합니다.")
                     self._save_state()
             except Exception as e:
@@ -140,6 +156,9 @@ class HermesAutopilotManager:
                 "current_topic": self.current_topic,
                 "current_topic_queue_id": self.current_topic_queue_id,
                 "current_image_style": self.current_image_style,
+                "last_run_status": self.last_run_status,
+                "last_error": self.last_error,
+                "last_completed_result_id": self.last_completed_result_id,
                 "logs": self.logs[-200:],  # keep last 200 logs
                 "settings": self.settings,
                 "session_stats": self.session_stats,
@@ -170,6 +189,8 @@ class HermesAutopilotManager:
         return normalized
 
     def _apply_settings(self, new_settings: dict | None = None):
+        if new_settings is not None and "force_generate" not in new_settings:
+            self.settings["force_generate"] = False
         for k, v in (new_settings or {}).items():
             if k not in self.settings:
                 continue
@@ -191,6 +212,7 @@ class HermesAutopilotManager:
             self.settings["min_buffer_per_category"] = 5
         if self.settings.get("mode") not in {"infinite", "target_limit"}:
             self.settings["mode"] = "target_limit"
+        self.settings["force_generate"] = bool(self.settings.get("force_generate", False))
 
     @staticmethod
     def _has_ready_media_prompts(structure: dict | None) -> bool:
@@ -210,6 +232,16 @@ class HermesAutopilotManager:
                 return False
             if not str(scene.get("video_prompt") or "").strip():
                 return False
+        try:
+            from services.image_grid_prompts import validate_image_grid_prompt_readiness
+            validate_image_grid_prompt_readiness(
+                scenes,
+                structure.get("image_grid_prompts"),
+                status=structure.get("image_grid_prompt_status"),
+                require_status="ready",
+            )
+        except Exception:
+            return False
         return True
 
     def add_log(self, message: str):
@@ -263,12 +295,19 @@ class HermesAutopilotManager:
 
     def get_status(self) -> dict:
         self._apply_settings()
+        if not self.is_running and self.last_run_status == "running":
+            self.last_run_status = "stopped"
+            self.current_step = "stopped"
+            self._save_state()
         return {
             "is_running": self.is_running,
             "current_step": self.current_step,
             "current_category": self.current_category,
             "current_topic": self.current_topic,
             "current_image_style": self.current_image_style,
+            "last_run_status": self.last_run_status,
+            "last_error": self.last_error,
+            "last_completed_result_id": self.last_completed_result_id,
             "logs": self.logs,
             "settings": self.settings,
             "session_stats": self.session_stats
@@ -290,6 +329,9 @@ class HermesAutopilotManager:
             
             if not resume:
                 self.session_stats["generated_count"] = 0
+                self.last_completed_result_id = ""
+            self.last_run_status = "running"
+            self.last_error = ""
             self.is_running = True
             self.current_step = "initializing"
             self.add_log("Hermes 자동 생성기(Autopilot) 시작 요청됨.")
@@ -330,10 +372,16 @@ class HermesAutopilotManager:
                 return {"success": False, "error": "실행 중이 아닙니다."}
             
             self.is_running = False
+            self.last_run_status = "stopped"
             self.add_log("오토파일럿 중지 요청됨. 현재 진행 중인 스텝이 끝나는 대로 정지합니다.")
             if self.loop_task:
                 self.loop_task.cancel()
-            self.current_step = "stopped"
+            if self.last_run_status == "completed":
+                self.current_step = "completed"
+            elif self.last_run_status == "failed":
+                self.current_step = "failed"
+            else:
+                self.current_step = "stopped"
             self._save_state()
             return {"success": True}
 
@@ -617,6 +665,55 @@ class HermesAutopilotManager:
         }
         return styles.get(category, "Use concrete human stakes, a natural Korean YouTube title rhythm, and a clear curiosity gap.")
 
+    def _title_generation_models(self) -> list[str]:
+        from config import config as app_config
+
+        candidates = [
+            app_config.TITLE_GENERATION_MODEL,
+            app_config.TOPIC_GENERATION_MODEL,
+            "gemini-3-flash-preview",
+            "gemini-2.5-flash",
+        ]
+        models: list[str] = []
+        for model in candidates:
+            model = str(model or "").strip()
+            if model and model not in models:
+                models.append(model)
+        return models or ["gemini-2.5-flash"]
+
+    async def _generate_title_text_with_fallback(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        task_type: str,
+    ) -> str:
+        last_error: Exception | None = None
+        for model in self._title_generation_models():
+            try:
+                if model.lower().startswith("gemini"):
+                    from services.gemini_service import gemini_service
+
+                    return await gemini_service.generate_text(
+                        prompt,
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        task_type=task_type,
+                    )
+                return await ai_router.generate_text(
+                    prompt,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
+                )
+            except Exception as e:
+                last_error = e
+                logger.warning(f"{task_type} failed with model={model}; trying fallback if available: {e}")
+        raise last_error or RuntimeError(f"{task_type} failed without a configured model")
+
     async def _ai_evaluate_title_plan(self, category: str, plan: dict, benchmark_titles: list[str]) -> dict:
         candidates = plan.get("title_candidates") or []
         if not candidates:
@@ -653,11 +750,8 @@ Return ONLY JSON:
 }}
 """
         try:
-            from config import config as app_config
-            model = app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash"
-            raw_text = await ai_router.generate_text(
+            raw_text = await self._generate_title_text_with_fallback(
                 prompt,
-                model=model,
                 temperature=0.25,
                 max_tokens=2000,
                 task_type="hermes_autopilot_title_eval",
@@ -729,11 +823,8 @@ Return ONLY JSON:
 }}
 """
         try:
-            from config import config as app_config
-            model = app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash"
-            raw_text = await ai_router.generate_text(
+            raw_text = await self._generate_title_text_with_fallback(
                 prompt,
-                model=model,
                 temperature=0.2,
                 max_tokens=1000,
                 task_type="hermes_autopilot_title_script_fit",
@@ -896,11 +987,8 @@ Return ONLY valid JSON in this schema:
   ]
 }}
 """
-        from config import config as app_config
-        model = app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash"
-        raw_text = await ai_router.generate_text(
+        raw_text = await self._generate_title_text_with_fallback(
             prompt,
-            model=model,
             temperature=0.85,
             max_tokens=2500,
             task_type="hermes_autopilot_title_gen",
@@ -1073,10 +1161,33 @@ Return ONLY a JSON array of strings.
         except Exception as exc:
             self.add_log(f"Benchmark keyword discovery fallback for '{category}': {exc}")
 
+        def is_allowed_keyword(item: str) -> bool:
+            normalized_item = item.lower()
+            if category == "옛날이야기":
+                allowed_terms = [
+                    "조선", "옛날", "전래", "민담", "민간", "설화", "풍습", "무속",
+                    "마을", "시골", "전설", "야담", "고전", "한국", "기이", "괴담",
+                    "미스터리", "한옥", "선비", "며느리", "구전", "옛이야기",
+                ]
+                blocked_terms = [
+                    "금값", "코스피", "환율", "금리", "주가", "etf", "부동산", "pf",
+                    "경제", "물가", "인플레이션", "유가", "달러", "원화", "투자",
+                    "매수", "매도", "주식", "채권", "나스닥", "비트코인",
+                ]
+                if any(term in normalized_item for term in blocked_terms):
+                    return False
+                return any(term in item for term in allowed_terms)
+            return True
+
         keywords: list[str] = []
-        for item in [*discovered, *seeds]:
+        # Use trusted category seeds first. AI-discovered phrases are only an
+        # expansion layer and must remain inside the selected category.
+        for item in [*seeds, *discovered]:
             normalized = re.sub(r"\s+", " ", item).strip()
             if not normalized or normalized == category or normalized in keywords:
+                continue
+            if not is_allowed_keyword(normalized):
+                self.add_log(f"Discarded off-category benchmark keyword for '{category}': {normalized}")
                 continue
             keywords.append(normalized)
         return keywords[:10]
@@ -1088,6 +1199,24 @@ Return ONLY a JSON array of strings.
         every returned candidate must still have a real YouTube video id and
         API-backed performance metadata from a prior successful run.
         """
+        def is_category_match(title: str) -> bool:
+            if category != "옛날이야기":
+                return True
+            allowed_terms = [
+                "조선", "옛날", "전래", "민담", "민간", "설화", "풍습", "무속",
+                "마을", "시골", "전설", "야담", "고전", "한국", "기이", "괴담",
+                "미스터리", "한옥", "선비", "며느리", "구전", "옛이야기", "정조",
+            ]
+            blocked_terms = [
+                "금값", "코스피", "환율", "금리", "주가", "etf", "부동산", "pf",
+                "경제", "물가", "인플레이션", "유가", "달러", "원화", "투자",
+                "매수", "매도", "주식", "채권", "나스닥", "비트코인",
+            ]
+            lowered = title.lower()
+            if any(term in lowered for term in blocked_terms):
+                return False
+            return any(term in title for term in allowed_terms)
+
         result_dir = Path(OUTPUT_DIR) / "hermes_results"
         files = sorted(result_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
         for path in files:
@@ -1121,6 +1250,9 @@ Return ONLY a JSON array of strings.
                     title = json.loads(f'"{title}"')
                 except Exception:
                     pass
+                if not is_category_match(title):
+                    self.add_log(f"Discarded off-category cached benchmark for '{category}': {title}")
+                    continue
                 candidates.append({
                     "title": title,
                     "video_id": video_id,
@@ -1185,6 +1317,8 @@ Return ONLY a JSON array of strings.
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    self.last_run_status = "failed"
+                    self.last_error = str(e)
                     self.add_log(f"❌ 카테고리 '{category}' 처리 중 에러 발생: {e}")
                     logger.error(traceback.format_exc())
                     await self._mark_current_topic_failed(e)
@@ -1214,10 +1348,16 @@ Return ONLY a JSON array of strings.
                 await asyncio.sleep(3.0)
 
         except asyncio.CancelledError:
+            self.last_run_status = "stopped"
             self.add_log("오토파일럿 루프가 취소되었습니다. 정지 완료.")
         finally:
             self.is_running = False
-            self.current_step = "stopped"
+            if self.last_run_status == "completed":
+                self.current_step = "completed"
+            elif self.last_run_status == "failed":
+                self.current_step = "failed"
+            else:
+                self.current_step = "stopped"
             self._save_state()
 
     async def _process_category(self, category: str):
@@ -1257,7 +1397,7 @@ Return ONLY a JSON array of strings.
                 self.add_log(f"Supabase 카테고리 ID 조회 실패 (무시): {e}")
 
         # [신규] 카테고리별 최소 대기주제 유지량(min_buffer_per_category) 검사
-        if supabase_url and supabase_key and category_id:
+        if supabase_url and supabase_key and category_id and not self.settings.get("force_generate"):
             try:
                 min_buffer = self.settings.get("min_buffer_per_category", 5)
                 async with httpx.AsyncClient(timeout=10.0) as client:
@@ -1286,6 +1426,8 @@ Return ONLY a JSON array of strings.
                             return
             except Exception as e:
                 self.add_log(f"Supabase 대기주제 개수 조회 실패 (무시하고 진행): {e}")
+        elif self.settings.get("force_generate"):
+            self.add_log(f"'{category}' 카테고리 강제 생성 모드: 기존 대기 대본 수와 관계없이 생성합니다.")
 
         # Do not persist a category-name placeholder.  Exploration can use a
         # local correlation ID; the real queue row is created only after title QA.
@@ -1456,6 +1598,10 @@ Return ONLY a JSON array of strings.
                         "is_auto_generated": True,
                         "pregenerated_structure_status": "queued",
                         "pregenerated_script_status": "queued",
+                        "benchmark_status": "ready",
+                        "title_status": "ready",
+                        "web_research_status": "ready",
+                        "publish_metadata_status": "none",
                         "benchmark_analysis": benchmark_payload,
                         "generated_title": generated_title,
                         "title_candidates": title_plan["title_candidates"],
@@ -1469,6 +1615,30 @@ Return ONLY a JSON array of strings.
                         headers={**headers, "Prefer": "return=representation"},
                         json=row_data,
                     )
+                    if r.status_code not in (200, 201, 204) and "Could not find" in r.text:
+                        optional_columns = {
+                            "benchmark_status",
+                            "title_status",
+                            "web_research_status",
+                            "publish_metadata_status",
+                            "benchmark_analysis",
+                            "generated_title",
+                            "title_candidates",
+                            "assigned_script_style",
+                            "assigned_image_style",
+                            "pregenerated_structure_status",
+                            "pregenerated_script_status",
+                        }
+                        fallback_row_data = {
+                            key: value for key, value in row_data.items()
+                            if key not in optional_columns
+                        }
+                        self.add_log("Supabase schema is missing optional topic columns. Retrying topic insert with minimal fields.")
+                        r = await client.post(
+                            f"{supabase_url}/rest/v1/topics_queue",
+                            headers={**headers, "Prefer": "return=representation"},
+                            json=fallback_row_data,
+                        )
                     if r.status_code not in (200, 201, 204):
                         raise RuntimeError(f"Supabase approved topic insert failed: {r.status_code} {r.text[:200]}")
                     response_rows = r.json()
@@ -1566,7 +1736,6 @@ Return ONLY a JSON array of strings.
         final_script = script_data["script"]
         narrative_blueprint = script_data.get("narrative_blueprint")
         script_quality_report = script_data.get("script_quality_report")
-        publish_metadata = script_data.get("publish_metadata")
         char_count = len(final_script)
         self.add_log(f"✍️ 최종 대본 집필 완료 (총 글자수: {char_count}자)")
 
@@ -1575,6 +1744,29 @@ Return ONLY a JSON array of strings.
         benchmark_payload["title_generation"] = title_plan
         self.current_topic = generated_title
         self.add_log(f"Script-fit title: '{generated_title}'")
+
+        self.current_step = "YouTube 설명·태그 생성"
+        metadata_job_id = job_store.submit_job(
+            job_type="publish_metadata_generate",
+            payload={
+                "topic_queue_id": topic_queue_id,
+                "topic": generated_title,
+                "script": final_script,
+                "structure": structure,
+                "upload_title": generated_title,
+                "title_generation": title_plan,
+                "narrative_blueprint": narrative_blueprint or {},
+                "language": "ko",
+            },
+            priority=100,
+            source="autopilot",
+        )
+        self.add_log(f"-> publish_metadata_generate 작업 제출 완료 (Job ID: {metadata_job_id})")
+        await self._wait_for_job(metadata_job_id)
+        metadata_data = self._read_result_file(metadata_job_id) or {}
+        publish_metadata = metadata_data.get("publish_metadata") or {}
+        if not publish_metadata:
+            raise RuntimeError("publish_metadata_generate returned no publish_metadata")
 
         # Supabase에 최종 대본 동기화 및 큐 완료 처리
         if supabase_url and supabase_key and topic_queue_id:
@@ -1597,6 +1789,7 @@ Return ONLY a JSON array of strings.
                             "script_quality_report": script_quality_report,
                             "publish_metadata": publish_metadata,
                             "progress_payload": {"publish_metadata": publish_metadata},
+                            "publish_metadata_status": "ready",
                             "status": "pending"
                         }
                     )
@@ -1657,6 +1850,9 @@ Return ONLY a JSON array of strings.
             encoding="utf-8"
         )
         self.session_stats["generated_count"] += 1
+        self.last_run_status = "completed"
+        self.last_error = ""
+        self.last_completed_result_id = str(topic_queue_id)
         self._save_state()
         self.add_log(
             f"Completed full generation count: "

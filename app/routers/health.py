@@ -8,7 +8,7 @@ async def health_check():
     """서버 상태 및 API 연결 확인"""
     return {
         "status": "ok",
-        "version": "2.0.0",
+        "version": config.APP_VERSION or "2.0.0",
         "apis": {
             "youtube": bool(config.YOUTUBE_API_KEY),
             "gemini": bool(config.GEMINI_API_KEY),

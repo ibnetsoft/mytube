@@ -60,7 +60,10 @@ class WebAdminClient:
     KEY_MAP = {
         "sys_api_gemini": "GEMINI_API_KEY",
         "sys_api_youtube": "YOUTUBE_API_KEY",
+        "sys_api_youtube_keys": "YOUTUBE_API_KEYS",
         "sys_api_claude": "CLAUDE_API_KEY",
+        "sys_api_deepseek": "DEEPSEEK_API_KEY",
+        "sys_api_deepseek_base_url": "DEEPSEEK_BASE_URL",
         "sys_api_glm": "GLM_API_KEY",
         "sys_api_glm_base_url": "GLM_BASE_URL",
         "sys_api_elevenlabs": "ELEVENLABS_API_KEY",

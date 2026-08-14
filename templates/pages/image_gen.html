@@ -213,6 +213,7 @@
                     <div class="flex flex-col gap-1.5 mt-2">
                         <div class="flex gap-2">
                             <button type="button" onclick="copyAllPrompts()" class="px-3 py-1.5 bg-[#2a303b] hover:bg-[#323946] border border-white/10 text-xs text-white rounded transition-colors flex items-center gap-1"><span>📋</span> {{ t('btn_copy_prompt') }}</button>
+                            <button type="button" onclick="showGridPromptsModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 border border-emerald-500/50 text-xs text-white rounded transition-colors flex items-center gap-1"><span>▦</span> 2x2 프롬프트 보기</button>
                             <a href="https://chatgpt.com/" target="_blank" class="px-3 py-1.5 bg-[#10a37f]/90 hover:bg-[#10a37f] border border-[#10a37f]/50 text-xs text-white rounded transition-colors flex items-center gap-1"><span>🤖</span> Open ChatGPT</a>
                         </div>
                         <div id="wf_step2_grid_copy_buttons" class="flex flex-wrap gap-2 mt-2"></div>

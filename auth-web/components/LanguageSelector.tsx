@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState } from 'react'
@@ -7,15 +6,10 @@ import { Language } from '@/lib/translations'
 import { ChevronDown, Globe } from 'lucide-react'
 
 const languages: { code: Language; name: string; flag: string }[] = [
-    { code: 'ko', name: '한국어', flag: '🇰🇷' },
-    { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳' },
-    { code: 'es', name: 'Español', flag: '🇪🇸' },
-    { code: 'th', name: 'ภาษาไทย', flag: '🇹🇭' },
-    { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩' },
-    { code: 'fr', name: 'Français', flag: '🇫🇷' },
-    { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-    { code: 'pt', name: 'Português (Brasil)', flag: '🇧🇷' },
+    { code: 'ko', name: 'Korean', flag: 'KO' },
+    { code: 'en', name: 'English', flag: 'EN' },
+    { code: 'vi', name: 'Vietnamese', flag: 'VI' },
+    { code: 'th', name: 'Thai', flag: 'TH' },
 ]
 
 export default function LanguageSelector() {

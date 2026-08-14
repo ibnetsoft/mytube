@@ -44,12 +44,38 @@ function hasReadySceneMediaPrompts(topic: any): boolean {
     const structure = topic?.pregenerated_structure
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
     if (topic?.pregenerated_structure_status !== 'ready' || !structure || scenes.length === 0) return false
-    if (!['ready', 'fallback_ready'].includes(String(structure.media_prompt_status || ''))) return false
-    return scenes.every((scene: any) =>
-        ['ready', 'fallback_ready'].includes(String(scene?.media_prompt_status || ''))
-        && String(scene?.image_prompt || scene?.prompt_en || scene?.visual_prompt || scene?.visual_description || '').trim().length > 0
-        && String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim().length > 0
-    )
+    if (String(structure.media_prompt_status || '') !== 'ready') return false
+    const seenImagePrompts = new Set<string>()
+    const seenVideoPrompts = new Set<string>()
+    const scenesReady = scenes.every((scene: any) => {
+        const imagePrompt = String(scene?.image_prompt || scene?.prompt_en || scene?.visual_prompt || scene?.visual_description || '').trim()
+        const videoPrompt = String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim()
+        if (!imagePrompt || !videoPrompt) return false
+        if (seenImagePrompts.has(imagePrompt) || seenVideoPrompts.has(videoPrompt)) return false
+        seenImagePrompts.add(imagePrompt)
+        seenVideoPrompts.add(videoPrompt)
+        return String(scene?.media_prompt_status || '') === 'ready'
+    })
+    if (!scenesReady) return false
+    if (String(structure.image_grid_prompt_status || '') !== 'ready') return false
+
+    const grids = Array.isArray(structure.image_grid_prompts) ? structure.image_grid_prompts : []
+    const expectedGridCount = Math.floor(scenes.length / 4) + (scenes.length % 4 ? 1 : 0)
+    if (grids.length !== expectedGridCount) return false
+    const seenGridPrompts = new Set<string>()
+    const coveredSceneNumbers = new Set<string>()
+    for (const grid of grids) {
+        const prompt = String(grid?.prompt || grid?.grid_prompt || '').trim()
+        const sceneNumbers = Array.isArray(grid?.scene_numbers) ? grid.scene_numbers : []
+        if (!prompt || sceneNumbers.length !== 4) return false
+        if (seenGridPrompts.has(prompt)) return false
+        seenGridPrompts.add(prompt)
+        for (const sceneNumber of sceneNumbers) coveredSceneNumbers.add(String(sceneNumber))
+    }
+    return scenes.every((scene: any, index: number) => {
+        const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
+        return coveredSceneNumbers.has(String(Number.isFinite(sceneNumber) ? sceneNumber : index + 1))
+    })
 }
 
 function hasPublishDescription(topic: any): boolean {

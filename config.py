@@ -23,6 +23,13 @@ def _load_packaged_env():
                 pass
 
 
+def _load_project_env_override():
+    """Make the repository .env authoritative for local worker runs."""
+    project_env = Path(__file__).resolve().parent / ".env"
+    if project_env.exists():
+        load_dotenv(project_env, override=True)
+
+
 def _load_youtube_key_pool_from_env_files():
     """Read all YouTube key entries, including legacy duplicate key lines."""
     values = [os.getenv("YOUTUBE_API_KEYS", "")]
@@ -46,6 +53,7 @@ def _load_youtube_key_pool_from_env_files():
 # .env 파일 로드
 load_dotenv()
 _load_packaged_env()
+_load_project_env_override()
 
 class Config:
     # Google API
@@ -54,6 +62,8 @@ class Config:
     YOUTUBE_API_KEYS = _load_youtube_key_pool_from_env_files()
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
     GLM_API_KEY = os.getenv("GLM_API_KEY", os.getenv("ZAI_API_KEY", os.getenv("Z_AI_API_KEY", "")))
     GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
@@ -217,7 +227,7 @@ class Config:
         로컬 앱 재시작 시 Supabase에서 다시 받아오므로 로컬 저장 불필요."""
         valid_keys = {
             'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'CLAUDE_API_KEY',
-            'GLM_API_KEY', 'GLM_BASE_URL',
+            'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'GLM_API_KEY', 'GLM_BASE_URL',
             'ELEVENLABS_API_KEY', 'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
             'TOPVIEW_API_KEY', 'TOPVIEW_UID',
@@ -234,7 +244,8 @@ class Config:
                 # A local .env key is an explicit machine-level override. Do
                 # not replace it with a stale web-admin key during worker jobs.
                 local_override_keys = {
-                    'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'GLM_API_KEY', 'GLM_BASE_URL',
+                    'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL',
+                    'GLM_API_KEY', 'GLM_BASE_URL',
                     'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL',
                     'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL',
                     'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
@@ -253,7 +264,9 @@ class Config:
     @classmethod
     def normalize_generation_models(cls):
         """Normalize text-generation model ids before a worker starts a job."""
+        deepseek_text_model = "deepseek-chat"
         glm_text_model = "glm-5.2"
+        prefer_deepseek = bool(str(cls.DEEPSEEK_API_KEY or "").strip())
         prefer_glm = bool(str(cls.GLM_API_KEY or "").strip())
         replacements = {
             "gemini-2.5-pro": "gemini-3-flash-preview",
@@ -269,8 +282,8 @@ class Config:
             "TRANSLATION_MODEL",
         ):
             current = str(getattr(cls, key_name, "") or "").strip()
-            if prefer_glm and (not current or current.lower().startswith("gemini")):
-                replacement = glm_text_model
+            if (not current or current.lower().startswith("gemini")) and (prefer_deepseek or prefer_glm):
+                replacement = deepseek_text_model if prefer_deepseek else glm_text_model
             else:
                 replacement = replacements.get(current.lower())
             if replacement:
@@ -324,7 +337,9 @@ class Config:
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
-            'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'GLM_API_KEY', 'GLM_BASE_URL', 'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
+            'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'CLAUDE_API_KEY',
+            'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'GLM_API_KEY', 'GLM_BASE_URL',
+            'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
             'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
             'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY',
@@ -345,6 +360,10 @@ class Config:
             return False
 
         # 런타임 업데이트
+        if key_name == 'YOUTUBE_API_KEYS':
+            import re
+            value = ",".join(part.strip() for part in re.split(r"[,;\r\n]+", str(value or "")) if part.strip())
+
         setattr(cls, key_name, value)
         os.environ[key_name] = value  # [ADD] 업기 위해 환경변수도 즉시 업데이트
 
@@ -389,9 +408,12 @@ class Config:
     @classmethod
     def get_api_keys_status(cls):
         """API 키 상태 반환 (마스킹된 값 및 원본 값)"""
+        youtube_keys = cls.youtube_api_keys()
         return {
-            "youtube": {"set": bool(cls.YOUTUBE_API_KEY), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY, "fallback_count": len(cls.youtube_api_keys())},
+            "youtube": {"set": bool(youtube_keys), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY, "fallback_count": len(youtube_keys[:5])},
             "gemini": {"set": bool(cls.GEMINI_API_KEY), "masked": cls.mask_key(cls.GEMINI_API_KEY), "value": cls.GEMINI_API_KEY},
+            "deepseek": {"set": bool(cls.DEEPSEEK_API_KEY), "masked": cls.mask_key(cls.DEEPSEEK_API_KEY), "value": cls.DEEPSEEK_API_KEY},
+            "deepseek_base_url": {"set": bool(cls.DEEPSEEK_BASE_URL), "masked": cls.DEEPSEEK_BASE_URL, "value": cls.DEEPSEEK_BASE_URL},
             "glm": {"set": bool(cls.GLM_API_KEY), "masked": cls.mask_key(cls.GLM_API_KEY), "value": cls.GLM_API_KEY},
             "glm_base_url": {"set": bool(cls.GLM_BASE_URL), "masked": cls.GLM_BASE_URL, "value": cls.GLM_BASE_URL},
             "elevenlabs": {"set": bool(cls.ELEVENLABS_API_KEY), "masked": cls.mask_key(cls.ELEVENLABS_API_KEY), "value": cls.ELEVENLABS_API_KEY},

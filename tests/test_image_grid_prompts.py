@@ -4,6 +4,7 @@ from app.routers import image, user_topics
 from services.image_grid_prompts import (
     build_image_grid_prompts,
     normalize_image_grid_prompts,
+    validate_image_grid_prompt_readiness,
 )
 
 
@@ -18,16 +19,39 @@ def _scenes(count: int) -> list[dict]:
     ]
 
 
-def test_grid_prompts_use_only_complete_four_scene_blocks():
+def test_grid_prompts_add_overlapping_final_block_for_tail_scenes():
     grids = build_image_grid_prompts(_scenes(9))
 
-    assert len(grids) == 2
+    assert len(grids) == 3
     assert grids[0]["scene_numbers"] == [1, 2, 3, 4]
     assert grids[1]["scene_numbers"] == [5, 6, 7, 8]
+    assert grids[2]["scene_numbers"] == [6, 7, 8, 9]
     assert grids[0]["panel_count"] == 4
     assert "Panel 4 (Position: Bottom-Right)" in grids[0]["prompt"]
     assert "scene 5" not in grids[0]["prompt"]
     assert "NO borders" in grids[0]["prompt"]
+
+
+def test_grid_prompts_cover_scene_53_with_final_last_four_window():
+    grids = build_image_grid_prompts(_scenes(53))
+
+    assert len(grids) == 14
+    assert grids[-2]["scene_numbers"] == [49, 50, 51, 52]
+    assert grids[-1]["scene_numbers"] == [50, 51, 52, 53]
+
+
+def test_validate_grid_prompts_requires_tail_coverage():
+    scenes = _scenes(9)
+    old_complete_blocks_only = build_image_grid_prompts(_scenes(8))
+
+    try:
+        validate_image_grid_prompt_readiness(scenes, old_complete_blocks_only, status="ready", require_status="ready")
+    except ValueError as exc:
+        assert "do not cover" in str(exc) or "count mismatch" in str(exc)
+    else:
+        raise AssertionError("tail scene coverage should be required")
+
+    validate_image_grid_prompt_readiness(scenes, build_image_grid_prompts(scenes), status="ready", require_status="ready")
 
 
 def test_normalize_grid_prompts_discards_partial_or_invalid_records():

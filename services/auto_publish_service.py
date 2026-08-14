@@ -89,6 +89,7 @@ class AutoPublishService:
 
                 try:
                     db.update_project_setting(int(project_id), "admin_publish_status", str(req.get("status") or "approved"))
+                    self._sync_request_metadata_to_project_settings(int(project_id), metadata)
                     # [private-first release flow] Videos upload as private by
                     # default so a human can watch the actual rendered output
                     # before it goes live - this must not silently fall back to
@@ -99,6 +100,32 @@ class AutoPublishService:
                         requested_publish_at=metadata.get("publish_at"),
                         requested_channel_id=metadata.get("channel_id"),
                     )
+
+                    if result.get("status") == "qa_hold":
+                        hold_metadata = {
+                            **metadata,
+                            "qa_result": result.get("qa_result") or metadata.get("qa_result") or {},
+                            "qa_hold_message": result.get("message") or "Upload held by QA.",
+                            "qa_held_at": datetime.utcnow().isoformat() + "Z",
+                        }
+                        patch_res = web_admin_client.supabase_patch(
+                            "publishing_requests",
+                            {
+                                "status": "qa_hold",
+                                "metadata": hold_metadata,
+                            },
+                            params={"id": f"eq.{req_id}"},
+                            timeout=15,
+                        )
+                        if patch_res is not None and patch_res.status_code in (200, 204):
+                            print(f"[Auto Publish] QA hold for request {req_id}.")
+                        else:
+                            body = patch_res.text[:200] if patch_res is not None else "no response"
+                            print(f"[Warning] QA hold update failed for request {req_id}: {body}")
+                        continue
+
+                    if result.get("status") != "ok" or not result.get("video_id") or not result.get("url"):
+                        raise RuntimeError(result.get("message") or "YouTube upload did not return a video id.")
 
                     merged_metadata = {
                         **metadata,
@@ -156,6 +183,45 @@ class AutoPublishService:
 
         except Exception:
             pass
+
+    def _sync_request_metadata_to_project_settings(self, project_id, metadata):
+        if not isinstance(metadata, dict):
+            return
+
+        mapping = {
+            "drive_folder_id": "drive_project_folder_id",
+            "result_folder_id": "drive_project_folder_id",
+            "drive_folder_name": "drive_project_folder_name",
+            "result_folder_name": "drive_project_folder_name",
+            "drive_video_file_id": "drive_video_file_id",
+            "result_video_file_id": "drive_video_file_id",
+            "drive_video_file_name": "drive_video_file_name",
+            "result_video_file_name": "drive_video_file_name",
+            "drive_thumbnail_file_id": "drive_thumbnail_file_id",
+            "result_thumbnail_file_id": "drive_thumbnail_file_id",
+            "drive_thumbnail_file_name": "drive_thumbnail_file_name",
+            "result_thumbnail_file_name": "drive_thumbnail_file_name",
+            "drive_metadata_file_id": "drive_metadata_file_id",
+            "result_metadata_file_id": "drive_metadata_file_id",
+            "drive_metadata_file_name": "drive_metadata_file_name",
+            "result_metadata_file_name": "drive_metadata_file_name",
+            "privacy_status": "upload_privacy",
+            "publish_at": "upload_schedule_at",
+            "app_mode": "app_mode",
+        }
+
+        for source_key, setting_key in mapping.items():
+            value = metadata.get(source_key)
+            if value not in (None, ""):
+                db.update_project_setting(project_id, setting_key, value)
+
+        channel_id = metadata.get("channel_id") or metadata.get("upload_channel_id")
+        if channel_id not in (None, ""):
+            db.update_project_setting(project_id, "youtube_channel_id", channel_id)
+
+        title = metadata.get("title") or metadata.get("project_name")
+        if title:
+            db.update_project_setting(project_id, "title", title)
 
     def _process_release_queue(self, release_queue):
         print(f"[Info] Found {len(release_queue)} videos to release to public.")

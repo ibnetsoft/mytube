@@ -77,10 +77,10 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
     scenes = structure.get("scenes")
     if not isinstance(scenes, list) or not scenes:
         return False
-    if structure.get("media_prompt_status") not in ("ready", "fallback_ready"):
+    if structure.get("media_prompt_status") != "ready":
         return False
     return all(
-        scene.get("media_prompt_status") in ("ready", "fallback_ready")
+        scene.get("media_prompt_status") == "ready"
         and _scene_image_prompt(scene)
         and _scene_video_prompt(scene)
         for scene in scenes

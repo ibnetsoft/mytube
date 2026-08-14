@@ -81,6 +81,58 @@ function summarizeContentFeedback(rows: any[]) {
     }
 }
 
+function summarizeYoutubeLearning(metricsRows: any[], snapshotRows: any[]) {
+    const latestByVideo = new Map<string, any>()
+    for (const row of metricsRows || []) {
+        const videoId = String(row.video_id || '')
+        if (!videoId) continue
+        const existing = latestByVideo.get(videoId)
+        if (!existing || String(row.captured_at || '') > String(existing.captured_at || '')) {
+            latestByVideo.set(videoId, row)
+        }
+    }
+
+    const latest = Array.from(latestByVideo.values())
+    const scores = (snapshotRows || [])
+        .map((row: any) => Number(row.performance_score))
+        .filter((value: number) => Number.isFinite(value))
+    const avgScore = scores.length
+        ? Math.round((scores.reduce((sum: number, value: number) => sum + value, 0) / scores.length) * 100) / 100
+        : null
+
+    return {
+        total_metric_captures: (metricsRows || []).length,
+        monitored_videos: latest.length,
+        average_performance_score: avgScore,
+        outcome_counts: countBy(snapshotRows || [], 'outcome_label'),
+        latest_metrics: latest
+            .sort((a: any, b: any) => String(b.captured_at || '').localeCompare(String(a.captured_at || '')))
+            .slice(0, 20)
+            .map((row: any) => ({
+                video_id: row.video_id,
+                local_project_id: row.local_project_id,
+                captured_at: row.captured_at,
+                hours_since_public: row.hours_since_public,
+                views: row.views,
+                likes: row.likes,
+                comments: row.comments,
+                score: row.score || {},
+                title: row.metadata?.title || row.raw_payload?.snippet?.title || '',
+            })),
+        recent_learning: (snapshotRows || []).slice(0, 20).map((row: any) => ({
+            video_id: row.video_id,
+            local_project_id: row.local_project_id,
+            captured_at: row.captured_at,
+            hours_since_public: row.hours_since_public,
+            performance_score: row.performance_score,
+            outcome_label: row.outcome_label,
+            learning_summary: row.learning_summary,
+            recommendations: row.recommendations || [],
+            title: row.generation_context?.title || '',
+        })),
+    }
+}
+
 export async function GET(req: Request) {
     try {
         const requester = await requireAdmin(req)
@@ -121,6 +173,26 @@ export async function GET(req: Request) {
             throw feedbackError
         }
 
+        const { data: youtubeMetricsRows, error: youtubeMetricsError } = await supabase
+            .from('youtube_video_metrics')
+            .select('*')
+            .order('captured_at', { ascending: false })
+            .limit(Math.max(limit, 500))
+
+        if (youtubeMetricsError && !String(youtubeMetricsError.message || '').includes('youtube_video_metrics')) {
+            throw youtubeMetricsError
+        }
+
+        const { data: videoLearningRows, error: videoLearningError } = await supabase
+            .from('video_learning_snapshots')
+            .select('*')
+            .order('captured_at', { ascending: false })
+            .limit(Math.max(limit, 500))
+
+        if (videoLearningError && !String(videoLearningError.message || '').includes('video_learning_snapshots')) {
+            throw videoLearningError
+        }
+
         const rows = events || []
         const manualReviews = rows.filter((row: any) => row.event_type === 'manual_review')
         const ratings = manualReviews
@@ -155,6 +227,12 @@ export async function GET(req: Request) {
             content_generation: feedbackError
                 ? { unavailable: true, error: feedbackError.message }
                 : summarizeContentFeedback(feedbackRows || []),
+            youtube_learning: youtubeMetricsError || videoLearningError
+                ? {
+                    unavailable: true,
+                    error: youtubeMetricsError?.message || videoLearningError?.message,
+                }
+                : summarizeYoutubeLearning(youtubeMetricsRows || [], videoLearningRows || []),
         })
     } catch (error: any) {
         console.error('Learning stats API error:', error)
@@ -186,9 +264,10 @@ export async function POST(req: Request) {
             .eq('id', topicQueueId)
             .maybeSingle()
 
-        const categoryName = Array.isArray(topicRow?.categories)
-            ? topicRow.categories[0]?.name
-            : topicRow?.categories?.name
+        const categories = (topicRow as any)?.categories
+        const categoryName = Array.isArray(categories)
+            ? categories[0]?.name
+            : categories?.name
 
         const row = {
             topic_queue_id: topicQueueId,

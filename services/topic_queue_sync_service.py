@@ -9,31 +9,36 @@ STEP_LABELS = {
     "topic": "주제",
     "plan": "기획",
     "script": "대본",
-    "intro": "인트로",
     "image": "이미지",
-    "template": "템플릿",
     "tts": "TTS",
     "subtitle": "자막",
-    "video": "영상",
-    "upload": "업로드",
+    "template": "썸네일",
+    "desc": "설명",
+    "upload": "제출",
 }
 
 STEP_ORDER = [
     "topic",
     "plan",
     "script",
-    "intro",
     "image",
-    "template",
     "tts",
     "subtitle",
-    "video",
+    "template",
+    "desc",
     "upload",
 ]
 
 
 def _safe_list(value: Any) -> List[Any]:
     return value if isinstance(value, list) else []
+
+
+def _has_media_asset(prompt: Dict[str, Any]) -> bool:
+    return bool(
+        str(prompt.get("image_url") or "").strip()
+        or str(prompt.get("video_url") or "").strip()
+    )
 
 
 def build_project_progress_snapshot(project_id: int) -> Dict[str, Any]:
@@ -43,21 +48,25 @@ def build_project_progress_snapshot(project_id: int) -> Dict[str, Any]:
     script = db.get_script(project_id)
     image_prompts = _safe_list(db.get_image_prompts(project_id) or [])
     tts_data = db.get_tts(project_id)
+    metadata = db.get_project_metadata(project_id, settings.get("app_mode") or "longform") or {}
+    media_assets_ready = bool(image_prompts) and all(
+        isinstance(prompt, dict) and _has_media_asset(prompt)
+        for prompt in image_prompts
+    )
 
     steps = {
         "topic": bool(project.get("topic")),
         "plan": bool(script_structure),
         "script": bool((script or {}).get("full_script")),
-        "intro": bool(settings.get("intro_video_path") or settings.get("background_video_url")),
-        "image": len(image_prompts) > 0,
+        "image": media_assets_ready,
+        "tts": bool(tts_data),
+        "subtitle": bool(settings.get("subtitle_path")),
         "template": bool(
             settings.get("thumbnail_url")
             or settings.get("thumbnail_path")
             or db.get_thumbnails(project_id)
         ),
-        "tts": bool(tts_data),
-        "subtitle": bool(settings.get("subtitle_path") or (tts_data and settings.get("subtitle_style_enum"))),
-        "video": bool(settings.get("video_path") or settings.get("external_video_path")),
+        "desc": bool(str(metadata.get("description") or "").strip()),
         "upload": bool(settings.get("is_uploaded")),
     }
 

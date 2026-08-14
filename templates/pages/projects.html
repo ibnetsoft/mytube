@@ -116,8 +116,8 @@
     </div>
 </div>
 
-<div class="overflow-x-auto bg-[#1c2027] rounded-3xl shadow-2xl border border-gray-700 overflow-hidden">
-    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+<div class="overflow-x-auto bg-[#1c2027] rounded-3xl shadow-2xl border border-gray-700">
+    <table class="min-w-[1480px] table-fixed divide-y divide-gray-200 dark:divide-gray-700">
         <thead class="bg-[#1c2027]/50">
             <tr id="projectTableHeadRow"></tr>
         </thead>
@@ -255,7 +255,7 @@
                     class="w-4 h-4 text-blue-600 bg-[#1c2027] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#1c2027]/50 dark:border-gray-600 cursor-pointer">
             </th>
             <th scope="col"
-                class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#1c2027]/50 border-r border-white/5 max-w-[280px] truncate w-[20%]"
+                class="px-3 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap sticky z-10 bg-[#1c2027]/50 border-r border-white/5 w-[300px] min-w-[300px] max-w-[300px] truncate"
                 style="left: 40px;">
                 {{ t('th_project_name') }}
             </th>
@@ -268,21 +268,17 @@
                 {{ t('th_edit_date') }}
             </th>
             <th scope="col"
-                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap">
-                ${window.currentLang === 'th' ? 'งานถัดไป' : (window.currentLang === 'vi' ? 'Tiếp theo' : (window.currentLang === 'en' ? 'Next Action' : '다음 작업'))}
-            </th>
-            <th scope="col"
-                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap max-w-[320px] w-[30%]">
+                class="px-2 py-2 text-left text-[11px] font-medium text-gray-500 dark:text-gray-300 tracking-wider whitespace-nowrap w-[420px] min-w-[420px] max-w-[420px]">
                 ${isMusicMode ? (window.currentLang === 'th' ? 'ชื่อเพลง' : (window.currentLang === 'vi' ? 'Tên bài hát' : (window.currentLang === 'en' ? 'Music Title' : '음악 제목'))) : `{{ t('th_video_title') }}`}
             </th>
             ${statusColumns.map(label => `
                 <th scope="col"
-                    class="px-0 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap max-w-[40px]"
+                    class="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-normal leading-tight w-[72px] min-w-[72px] max-w-[72px]"
                     title="${label}">${label}</th>
             `).join('')}
             {% if not ((membership | lower) in ['std', 'standard']) %}
             <th scope="col"
-                class="px-0 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap max-w-[40px]">
+                class="px-1 py-2 text-center text-[10px] font-medium text-gray-500 dark:text-gray-300 tracking-normal whitespace-nowrap w-[56px] min-w-[56px] max-w-[56px]">
                 {{ t('th_manage') }}
             </th>
             {% endif %}
@@ -460,24 +456,24 @@
             };
 
             const musicStatusCells = `
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_plan, 'music-plan', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_cover, 'image-gen', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_tracks, 'audio-gen', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_thumbnail, 'thumbnail', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_render, 'render', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_desc, 'title-desc', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.music_publish, 'render', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_plan, 'music-plan', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_cover, 'image-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_tracks, 'audio-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_render, 'render', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_desc, 'title-desc', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.music_publish, 'render', p.id)}</td>
             `;
 
             const defaultStatusCells = `
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.plan, planStep, p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.script, 'script-gen', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.image, 'image-gen', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.tts, 'tts', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.subtitle, 'subtitle-gen', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
-                <td class="px-0 py-2 text-center whitespace-nowrap">${checkLink(s.desc, 'title-desc', p.id)}</td>
-                <td class="px-1 py-2 text-center whitespace-nowrap relative">
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.plan, planStep, p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.script, 'script-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.image, 'image-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.tts, 'tts', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.subtitle, 'subtitle-gen', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.thumbnail, 'thumbnail', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]">${checkLink(s.desc, 'title-desc', p.id)}</td>
+                <td class="px-1 py-2 text-center whitespace-nowrap relative w-[72px] min-w-[72px] max-w-[72px]">
                     ${isIndependent ? checkLink(s.upload, 'upload', p.id) : `
                     <button onclick="event.stopPropagation(); submitProjectToDrive('${p.id}', this)"
                         class="flex items-center justify-center w-6 h-6 mx-auto rounded-full transition ${
@@ -493,7 +489,7 @@
                     `}
                 </td>
                 ${isIndependent ? `
-                <td class="px-1 py-2 text-center whitespace-nowrap relative">
+                <td class="px-1 py-2 text-center whitespace-nowrap relative w-[72px] min-w-[72px] max-w-[72px]">
                     ${checkLink(s.publish, 'publish', p.id)}
                 </td>` : ''}
             `;
@@ -530,7 +526,7 @@
                     <input type="checkbox" name="projectSelect" value="${p.id}" onchange="updateBulkActionState()" 
                         class="w-4 h-4 text-blue-600 bg-[#1c2027] border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 bg-[#1c2027]/50 dark:border-gray-600 cursor-pointer">
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-[#1c2027] group-hover:bg-[#0a0f1d] border-r border-white/5 max-w-[280px] truncate"
+                <td class="px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-900 dark:text-white sticky z-10 bg-[#1c2027] group-hover:bg-[#0a0f1d] border-r border-white/5 w-[300px] min-w-[300px] max-w-[300px] truncate"
                     style="left: 40px;"
                     ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'name')">
                     <div class="flex items-center gap-1">
@@ -545,10 +541,7 @@
                 </td>
                 <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${created}</td>
                 <td class="px-1 py-2 whitespace-nowrap text-center text-[11px] text-gray-500 dark:text-gray-400 w-20">${updated}</td>
-                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[140px]">
-                    ${renderNextActionCell(p)}
-                </td>
-                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 max-w-[320px] truncate" 
+                <td class="px-2 py-2 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400 w-[420px] min-w-[420px] max-w-[420px] truncate" 
                     title="${p.video_title || ''}" ondblclick="event.stopPropagation(); startInlineEdit(this, '${p.id}', 'video_title')">
                     <div class="flex flex-col min-w-0">
                         <span class="truncate">${p.video_title || '-'}</span>
@@ -559,7 +552,7 @@
                 </td>
                 ${isMusicMode ? musicStatusCells : defaultStatusCells}
                 {% if not ((membership | lower) in ['std', 'standard']) %}
-                <td class="px-2 py-2 whitespace-nowrap text-center text-sm font-medium">
+                <td class="px-1 py-2 whitespace-nowrap text-center text-sm font-medium w-[56px] min-w-[56px] max-w-[56px]">
                     ${manageCell}
                 </td>
                 {% endif %}

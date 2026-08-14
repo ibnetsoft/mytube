@@ -40,7 +40,7 @@ export default function LearningStatsPanel({ adminFetch, refreshLabel }: Learnin
             const remoteRes = await adminFetch('/api/admin/learning?limit=100', { method: 'GET' })
             if (remoteRes.ok) {
                 const data = await remoteRes.json()
-                setLearningStats(data.stats || data)
+                setLearningStats(data.stats ? { ...data.stats, youtube_learning: data.youtube_learning, content_generation: data.content_generation } : data)
                 return
             }
 
@@ -102,6 +102,12 @@ export default function LearningStatsPanel({ adminFetch, refreshLabel }: Learnin
                     <StatCard label="QA Holds" value={learningStats?.qa_hold_count || 0} unit="hold" color="orange" subLabel="업로드 보류" />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <StatCard label="Public Videos" value={learningStats?.youtube_learning?.monitored_videos || 0} unit="videos" color="blue" subLabel="공개 후 모니터링" />
+                    <StatCard label="Metric Captures" value={learningStats?.youtube_learning?.total_metric_captures || 0} unit="sets" color="green" subLabel="YouTube 통계 수집" />
+                    <StatCard label="YT Avg Score" value={learningStats?.youtube_learning?.average_performance_score ?? '-'} unit="/100" color="orange" subLabel="성과 점수" />
+                </div>
+
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
                         <h3 className="text-sm font-black mb-4">이벤트 유형 TOP</h3>
@@ -143,6 +149,61 @@ export default function LearningStatsPanel({ adminFetch, refreshLabel }: Learnin
                             ))}
                             {(!learningStats?.projects || learningStats.projects.length === 0) && <div className="text-xs text-gray-500">아직 프로젝트 데이터가 없습니다.</div>}
                         </div>
+                    </div>
+                </div>
+
+                <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                        <h3 className="text-sm font-black">공개 영상 성과 학습</h3>
+                        <span className="text-[10px] text-gray-500">YouTube Public Metrics</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                            <thead className="text-gray-500 uppercase bg-white/5">
+                                <tr>
+                                    <th className="px-4 py-3">Video</th>
+                                    <th className="px-4 py-3">Slot</th>
+                                    <th className="px-4 py-3">Views</th>
+                                    <th className="px-4 py-3">Engagement</th>
+                                    <th className="px-4 py-3">Score</th>
+                                    <th className="px-4 py-3">Learning</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {(learningStats?.youtube_learning?.recent_learning || []).slice(0, 20).map((row: any) => (
+                                    <tr key={`${row.video_id}-${row.hours_since_public}`} className="hover:bg-white/5">
+                                        <td className="px-4 py-3">
+                                            <a
+                                                href={`https://youtu.be/${row.video_id}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-blue-300 hover:underline font-black"
+                                            >
+                                                {row.title || row.video_id}
+                                            </a>
+                                            <div className="text-[10px] text-gray-500">PID {row.local_project_id || '-'}</div>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-300">{row.hours_since_public}h</td>
+                                        <td className="px-4 py-3 text-gray-300 tabular-nums">
+                                            {(row.metrics?.views || 0).toLocaleString()}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-300">
+                                            {Math.round(Number(row.metrics?.score?.engagement_rate || 0) * 10000) / 100}%
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="font-black text-emerald-300">{row.performance_score ?? '-'}</span>
+                                            <div className="text-[10px] text-gray-500">{row.outcome_label || 'unknown'}</div>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-400 max-w-[520px] truncate" title={row.learning_summary || ''}>
+                                            {row.learning_summary || '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {(!learningStats?.youtube_learning?.recent_learning || learningStats.youtube_learning.recent_learning.length === 0) && (
+                                    <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">아직 공개 영상 성과 데이터가 없습니다.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
