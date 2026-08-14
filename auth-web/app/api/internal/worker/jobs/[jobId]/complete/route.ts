@@ -27,13 +27,37 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
         const topicQueueId = job.payload?.topic_queue_id
         const structure = job.result_payload?.structure
         if (!topicQueueId || !structure) return
+        const selectedImageStyle = String(
+            job.result_payload?.image_style || structure?.image_style || ''
+        ).trim()
+        const rawImageStyleSelection = job.result_payload?.image_style_selection || structure?.image_style_selection || null
+        const imageStyleSelection = rawImageStyleSelection && typeof rawImageStyleSelection === 'object'
+            ? rawImageStyleSelection
+            : null
+        const updatePayload: Record<string, any> = {
+            pregenerated_structure: structure,
+            pregenerated_structure_status: 'ready',
+        }
+        if (selectedImageStyle) {
+            updatePayload.assigned_image_style = selectedImageStyle
+        }
+        if (imageStyleSelection) {
+            const existingBenchmark = job.payload?.benchmark_analysis || {}
+            updatePayload.benchmark_analysis = {
+                ...(existingBenchmark && typeof existingBenchmark === 'object' ? existingBenchmark : {}),
+                image_style_selection: imageStyleSelection,
+            }
+            if (
+                !updatePayload.benchmark_analysis.image_style_selection.assigned_image_style
+                && selectedImageStyle
+            ) {
+                updatePayload.benchmark_analysis.image_style_selection.assigned_image_style = selectedImageStyle
+            }
+        }
 
         const { error } = await supabaseAdmin
             .from('topics_queue')
-            .update({
-                pregenerated_structure: structure,
-                pregenerated_structure_status: 'ready',
-            })
+            .update(updatePayload)
             .eq('id', topicQueueId)
 
         if (error) {
@@ -69,6 +93,8 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     topic: jobPayload.topic,
                     structure,
                     script_style: jobPayload.script_style,
+                    image_style: selectedImageStyle || jobPayload.image_style,
+                    image_style_selection: imageStyleSelection || jobPayload.image_style_selection,
                     language: jobPayload.language,
                     target_duration_seconds: jobPayload.target_duration_seconds,
                     upload_title: job.result_payload?.upload_title || jobPayload.upload_title,

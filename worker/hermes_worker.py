@@ -1485,6 +1485,7 @@ Return ONLY valid JSON in this shape:
         result["scenes"] = enriched_scenes
         result["image_style"] = image_style_key
         result["image_style_directive"] = image_style_directive
+        result["image_style_selection"] = image_style_selection or {}
         result["image_grid_prompts"] = image_grid_prompts
         result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
         result["media_prompt_director"] = generated.get("director_notes") or {}
@@ -1555,6 +1556,7 @@ Return ONLY valid JSON in this shape:
         result["scenes"] = fallback_scenes
         result["image_style"] = image_style_key
         result["image_style_directive"] = image_style_directive
+        result["image_style_selection"] = image_style_selection or {}
         result["image_grid_prompts"] = image_grid_prompts
         result["image_grid_prompt_status"] = "fallback_ready" if image_grid_prompts else "not_applicable"
         result["media_prompt_director"] = {"fallback": True, "reason": str(e)}
@@ -1774,6 +1776,8 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
         "topic_queue_id": topic_queue_id,
         "upload_title": upload_title,
         "title_generation": title_generation,
+        "image_style": image_style,
+        "image_style_selection": image_style_selection or {},
         "structure": structure,
         "completed_at": completed_at,
         "error": None,

@@ -866,9 +866,14 @@ def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
         or category.get("default_script_style")
         or "default"
     )
+    structure = topic.get("pregenerated_structure")
+    structure_image_style = ""
+    if isinstance(structure, dict):
+        structure_image_style = str(structure.get("image_style") or "").strip()
     image_style = (
         topic.get("image_style")
         or topic.get("assigned_image_style")
+        or structure_image_style
         or category.get("default_image_style")
         or "realistic"
     )
