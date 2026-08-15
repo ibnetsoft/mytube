@@ -362,6 +362,7 @@ async function recordContentGenerationFeedback(jobId: string, job: any, topicQue
                 script_score: scriptScore,
                 worker_script_quality_report: resultPayload.script_quality_report || null,
                 narrative_blueprint: resultPayload.narrative_blueprint || null,
+                learning_profile: resultPayload.learning_profile || null,
             },
             updated_at: new Date().toISOString(),
         }

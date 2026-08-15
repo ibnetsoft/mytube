@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 import {
     createStdDriveUploadSession,
     ensureStdProjectDriveFolders,
@@ -44,6 +45,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
     if (sceneNumber != null && !Number.isFinite(sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Invalid scene number' }, { status: 400 })
+    }
+    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber) && assetType === 'image') {
+        return NextResponse.json({
+            success: false,
+            error: 'Video file is required for scenes 1-12.',
+            code: 'video_required_for_scene',
+        }, { status: 422 })
     }
 
     const { data: project, error: projectError } = await supabaseAdmin

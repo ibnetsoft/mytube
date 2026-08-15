@@ -1130,8 +1130,10 @@ async def render_project_video(
                         "message": Translator(getattr(http_request.state, "current_lang", "ko")).t("err_scene_assets_not_ready"),
                         "completion_percent": readiness.get("completion_percent", 0),
                         "missing_scene_numbers": readiness.get(
-                            "missing_asset_scenes"
+                            "blocking_scene_numbers"
                         )
+                        or readiness.get("missing_asset_scenes")
+                        or readiness.get("missing_required_video_scenes")
                         or [],
                         "duplicate_scene_numbers": readiness.get(
                             "duplicate_scene_numbers"

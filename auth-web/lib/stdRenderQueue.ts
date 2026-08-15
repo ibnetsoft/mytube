@@ -179,7 +179,15 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     const images: Array<string | null> = []
     for (const scene of scenes) {
         const sceneNumber = Number(scene.scene_number)
-        const asset = sceneAssets.find((item: any) => Number(item.scene_number) === sceneNumber)
+        const videoAsset = sceneAssets.find((item: any) =>
+            Number(item.scene_number) === sceneNumber
+            && String(item.asset_type || '').toLowerCase() === 'video'
+        )
+        const imageAsset = sceneAssets.find((item: any) =>
+            Number(item.scene_number) === sceneNumber
+            && String(item.asset_type || '').toLowerCase() === 'image'
+        )
+        const asset = videoAsset || imageAsset
         if (!asset?.drive_file_id) {
             images.push(null)
             continue

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from './supabaseAdmin'
 import { driveFileLink, driveFolderLink } from './stdGoogleDrive'
+import { isStdRequiredVideoScene } from './stdPolicy'
 
 const DESKTOP_PROJECT_TABLE = 'desktop_project_metadata'
 
@@ -27,7 +28,18 @@ function buildSteps(project: any, scenes: any[], assets: any[]) {
             .map((asset: any) => Number(asset.scene_number))
             .filter(Number.isFinite)
     )
-    const allScenesReady = scenes.length > 0 && scenes.every((scene: any) => readySceneNumbers.has(Number(scene.scene_number)))
+    const readyVideoSceneNumbers = new Set(
+        assets
+            .filter((asset: any) => asset.asset_type === 'video' && ['uploaded', 'assigned'].includes(asset.status))
+            .map((asset: any) => Number(asset.scene_number))
+            .filter(Number.isFinite)
+    )
+    const allScenesReady = scenes.length > 0 && scenes.every((scene: any) => {
+        const sceneNumber = Number(scene.scene_number)
+        return isStdRequiredVideoScene(sceneNumber)
+            ? readyVideoSceneNumbers.has(sceneNumber)
+            : readySceneNumbers.has(sceneNumber)
+    })
 
     return {
         topic: true,

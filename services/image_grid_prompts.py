@@ -105,11 +105,14 @@ def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[s
         prompt = (
             "Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). "
             "There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. "
-            "The panels must touch seamlessly. Each panel must represent one scene:\n"
+            "The panels must touch seamlessly. No text, no words, no letters, no labels, no captions, no watermarks anywhere. "
+            "Keep recurring characters, wardrobe, props, location logic, lighting direction, and color palette consistent across all four panels, "
+            "while making each panel clearly different in action, composition, and emotional beat. Each panel must represent one scene:\n"
             + "\n".join(panel_lines)
             + "\n\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid with absolutely NO black borders, "
             "NO outlines, NO white borders, and NO dividing lines/crosses. Every panel must seamlessly connect to the edge. "
-            "No more, no less. Maintain consistent characters across all panels."
+            "No more, no less. Maintain consistent characters across all panels. The Top-Left, Top-Right, Bottom-Left, and Bottom-Right panels "
+            "must each visibly correspond to their assigned scene prompt."
         )
         grid_prompts.append(
             {
@@ -186,6 +189,12 @@ def validate_image_grid_prompt_readiness(
         prompt = str(grid.get("prompt") or "").strip()
         if len(prompt) < 600:
             raise ValueError(f"image_grid_prompt too short for grid {grid.get('grid_number')}")
+        for position in GRID_PANEL_POSITIONS:
+            if f"Position: {position}" not in prompt:
+                raise ValueError(f"image_grid_prompt missing panel position {position} for grid {grid.get('grid_number')}")
+        for required in ("NO borders", "NO grid lines", "no text", "no words", "no letters", "no captions", "no watermarks"):
+            if required.lower() not in prompt.lower():
+                raise ValueError(f"image_grid_prompt missing guardrail '{required}' for grid {grid.get('grid_number')}")
         if prompt in seen_prompts:
             raise ValueError(f"duplicate image_grid_prompt for grid {grid.get('grid_number')}")
         seen_prompts.add(prompt)

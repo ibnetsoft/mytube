@@ -1,4 +1,6 @@
 import asyncio
+import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException
@@ -38,21 +40,19 @@ def test_readiness_reports_missing_assets_gaps_and_duplicates():
     assert result["duplicate_scene_numbers"] == [3]
 
 
-def test_readiness_flags_missing_video_in_intro_zone_without_blocking_ready():
-    # Scene 1 text is 75 chars (~10s @7.5 cps) -> scene 2 starts near t=10s,
-    # well inside a 180s cutoff, so scene 2 needs a real clip even though it
-    # already has an image (soft rule: assets_ready stays true either way).
+def test_readiness_blocks_missing_video_in_intro_zone():
     result = readiness.evaluate_scene_asset_readiness(
         [
             {"scene_number": 1, "scene_text": "x" * 75, "video_url": "/scene_001.mp4"},
             {"scene_number": 2, "scene_text": "y" * 20, "image_url": "/scene_002.png"},
         ],
-        video_required_until_sec=180,
+        video_required_until_sec=10,
     )
 
-    assert result["assets_ready"] is True
+    assert result["assets_ready"] is False
     assert result["required_video_zone_scenes"] == [1, 2]
     assert result["missing_required_video_scenes"] == [2]
+    assert result["blocking_scene_numbers"] == [2]
 
 
 def test_readiness_ignores_intro_zone_rule_when_cutoff_disabled():
@@ -63,6 +63,43 @@ def test_readiness_ignores_intro_zone_rule_when_cutoff_disabled():
 
     assert result["required_video_zone_scenes"] == []
     assert result["missing_required_video_scenes"] == []
+
+
+def test_sync_defaults_video_required_zone_to_first_12_scenes(monkeypatch):
+    writes = {}
+    monkeypatch.setattr(
+        readiness.db,
+        "get_project",
+        lambda project_id: {"id": project_id, "status": "draft"},
+    )
+    monkeypatch.setattr(
+        readiness.db,
+        "get_project_settings",
+        lambda project_id: {"app_mode": "longform"},
+    )
+    monkeypatch.setattr(
+        readiness.db,
+        "get_image_prompts",
+        lambda project_id: [
+            {"scene_number": scene_number, "image_url": f"/scene_{scene_number:03d}.png"}
+            for scene_number in range(1, 16)
+        ],
+    )
+    monkeypatch.setattr(
+        readiness.db,
+        "update_project_setting",
+        lambda project_id, key, value: writes.__setitem__(key, value),
+    )
+
+    result = readiness.sync_project_asset_readiness(77)
+
+    assert result["video_required_until_sec"] == 60
+    assert result["assets_ready"] is False
+    assert result["completion_percent"] == 20
+    assert result["required_video_zone_scenes"] == list(range(1, 13))
+    assert result["missing_required_video_scenes"] == list(range(1, 13))
+    persisted = json.loads(writes["asset_readiness_json"])
+    assert persisted["video_required_until_sec"] == 60
 
 
 def test_sync_persists_ready_and_project_complete(monkeypatch):
@@ -81,7 +118,7 @@ def test_sync_persists_ready_and_project_complete(monkeypatch):
         readiness.db,
         "get_image_prompts",
         lambda project_id: [
-            {"scene_number": 1, "image_url": "/scene_001.png"},
+            {"scene_number": 1, "video_url": "/scene_001.mp4"},
             {"scene_number": 2, "video_url": "/scene_002.mp4"},
         ],
     )
@@ -148,6 +185,7 @@ def test_longform_render_is_blocked_when_assets_are_not_ready(monkeypatch):
                 99,
                 video.RenderRequest(project_id=99),
                 BackgroundTasks(),
+                SimpleNamespace(state=SimpleNamespace(current_lang="ko")),
             )
         )
 

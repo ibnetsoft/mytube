@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { enqueueStdProjectRender } from '@/lib/stdRenderQueue'
 
@@ -40,12 +41,26 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
 
     const activeSceneNumbers = new Set((assets || []).map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
-    const missingScenes = (scenes || []).filter((scene: any) => !activeSceneNumbers.has(Number(scene.scene_number)))
+    const activeVideoSceneNumbers = new Set(
+        (assets || [])
+            .filter((asset: any) => asset.asset_type === 'video')
+            .map((asset: any) => Number(asset.scene_number))
+            .filter(Number.isFinite)
+    )
+    const missingScenes = (scenes || []).filter((scene: any) => {
+        const sceneNumber = Number(scene.scene_number)
+        return isStdRequiredVideoScene(sceneNumber)
+            ? !activeVideoSceneNumbers.has(sceneNumber)
+            : !activeSceneNumbers.has(sceneNumber)
+    })
     if (missingScenes.length > 0) {
         return NextResponse.json({
             success: false,
-            error: 'Some scenes do not have uploaded assets',
+            error: 'Some scenes do not have required uploaded assets',
             missing_scene_numbers: missingScenes.map((scene: any) => scene.scene_number),
+            required_video_scene_numbers: (scenes || [])
+                .map((scene: any) => Number(scene.scene_number))
+                .filter((sceneNumber: number) => isStdRequiredVideoScene(sceneNumber)),
         }, { status: 409 })
     }
 

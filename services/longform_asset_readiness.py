@@ -19,11 +19,11 @@ TERMINAL_PROJECT_STATUSES = {
     "youtube_published",
 }
 
-# Matches the char-count/7.5 heuristic used for scripts.estimated_duration
-# (see database.py update_project_setting) — no TTS audio exists yet at the
-# image-gen stage, so scene start times can only be estimated this way.
+# The user app keeps this setting hidden. The default policy is 60 seconds,
+# mapped to the first 12 scenes at 5 seconds per scene.
 CHARS_PER_SECOND = 7.5
-DEFAULT_VIDEO_REQUIRED_UNTIL_SEC = 180
+DEFAULT_VIDEO_REQUIRED_UNTIL_SEC = 60
+VIDEO_REQUIRED_SCENE_SECONDS = 5
 
 
 def _has_value(value: Any) -> bool:
@@ -99,14 +99,17 @@ def evaluate_scene_asset_readiness(
     required_video_zone_scenes: List[int] = []
     missing_required_video_scenes: List[int] = []
     if video_required_until_sec and video_required_until_sec > 0:
-        estimated_starts = _estimate_scene_start_seconds(expected_scene_numbers, scene_map)
-        for number in expected_scene_numbers:
-            if estimated_starts.get(number, 0.0) < video_required_until_sec:
-                required_video_zone_scenes.append(number)
-                if number not in scene_map or not _has_value(scene_map[number].get("video_url")):
-                    missing_required_video_scenes.append(number)
+        required_scene_count = max(
+            1,
+            int((float(video_required_until_sec) + VIDEO_REQUIRED_SCENE_SECONDS - 1) // VIDEO_REQUIRED_SCENE_SECONDS),
+        )
+        required_video_zone_scenes = expected_scene_numbers[:required_scene_count]
+        for number in required_video_zone_scenes:
+            if number not in scene_map or not _has_value(scene_map[number].get("video_url")):
+                missing_required_video_scenes.append(number)
 
-    ready_scene_count = len(expected_scene_numbers) - len(missing_asset_scenes)
+    blocking_scene_numbers = sorted(set(missing_asset_scenes + missing_required_video_scenes))
+    ready_scene_count = len(expected_scene_numbers) - len(blocking_scene_numbers)
     completion_percent = (
         round((ready_scene_count / len(expected_scene_numbers)) * 100)
         if expected_scene_numbers
@@ -114,7 +117,7 @@ def evaluate_scene_asset_readiness(
     )
     duplicate_scene_numbers = sorted(set(duplicate_scene_numbers))
     assets_ready = bool(expected_scene_numbers) and not (
-        missing_asset_scenes or missing_scene_rows or duplicate_scene_numbers
+        blocking_scene_numbers or missing_scene_rows or duplicate_scene_numbers
     )
 
     return {
@@ -126,6 +129,7 @@ def evaluate_scene_asset_readiness(
         "ready_scene_count": ready_scene_count,
         "scene_order": expected_scene_numbers,
         "missing_asset_scenes": missing_asset_scenes,
+        "blocking_scene_numbers": blocking_scene_numbers,
         "missing_image_scenes": missing_image_scenes,
         "missing_video_scenes": missing_video_scenes,
         "missing_scene_rows": missing_scene_rows,
@@ -164,13 +168,7 @@ def sync_project_asset_readiness(
             "project_complete": False,
         }
 
-    raw_cutoff = settings.get("video_required_until_sec")
-    try:
-        video_required_until_sec = (
-            float(raw_cutoff) if raw_cutoff not in (None, "") else DEFAULT_VIDEO_REQUIRED_UNTIL_SEC
-        )
-    except (TypeError, ValueError):
-        video_required_until_sec = DEFAULT_VIDEO_REQUIRED_UNTIL_SEC
+    video_required_until_sec = DEFAULT_VIDEO_REQUIRED_UNTIL_SEC
 
     result = evaluate_scene_asset_readiness(
         db.get_image_prompts(project_id),
@@ -201,6 +199,7 @@ def sync_project_asset_readiness(
             )
         )
         desired = {
+            "video_required_until_sec": DEFAULT_VIDEO_REQUIRED_UNTIL_SEC,
             "assets_ready": 1 if result["assets_ready"] else 0,
             "asset_completion_percent": result["completion_percent"],
             "asset_readiness_json": readiness_json,

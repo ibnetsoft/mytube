@@ -47,6 +47,14 @@ CATEGORIES = [
 ]
 
 
+class QualityGateError(RuntimeError):
+    """Raised when a generated package is complete but not good enough to publish."""
+
+    def __init__(self, errors: list[str]):
+        self.errors = errors
+        super().__init__("; ".join(errors))
+
+
 def _format_view_count(value) -> str:
     try:
         return f"{int(value):,}회"
@@ -80,6 +88,7 @@ class HermesAutopilotManager:
         self.last_run_status = "idle"
         self.last_error = ""
         self.last_completed_result_id = ""
+        self._quality_feedback: list[str] = []
         self.logs = []
         self.loop_task = None
         
@@ -90,7 +99,14 @@ class HermesAutopilotManager:
             "min_buffer_per_category": 5,
             "active_categories": CATEGORIES.copy(),
             "category_image_style_overrides": {},
+            "benchmark_channel_ids_by_category": {},
+            "benchmark_channel_auto_discovery_enabled": True,
+            "benchmark_channel_discovery_min_channels": 8,
+            "benchmark_channel_discovery_interval_hours": 24,
+            "benchmark_channel_discovery_max_search_calls": 1,
+            "benchmark_channel_discovery_last_at": {},
             "force_generate": False,
+            "quality_max_attempts": 3,
         }
         self.session_stats = {
             "generated_count": 0
@@ -196,11 +212,21 @@ class HermesAutopilotManager:
                 continue
             if k == "active_categories":
                 self.settings[k] = self._normalize_active_categories(v)
+            elif k == "benchmark_channel_ids_by_category":
+                self.settings[k] = self._normalize_benchmark_channel_settings(v)
+            elif k == "benchmark_channel_discovery_last_at":
+                self.settings[k] = self._normalize_category_timestamp_settings(v)
             else:
                 self.settings[k] = v
 
         self.settings["active_categories"] = self._normalize_active_categories(
             self.settings.get("active_categories", CATEGORIES)
+        )
+        self.settings["benchmark_channel_ids_by_category"] = self._normalize_benchmark_channel_settings(
+            self.settings.get("benchmark_channel_ids_by_category", {})
+        )
+        self.settings["benchmark_channel_discovery_last_at"] = self._normalize_category_timestamp_settings(
+            self.settings.get("benchmark_channel_discovery_last_at", {})
         )
         try:
             self.settings["target_limit"] = max(1, min(100, int(self.settings.get("target_limit", 1))))
@@ -210,9 +236,156 @@ class HermesAutopilotManager:
             self.settings["min_buffer_per_category"] = max(0, int(self.settings.get("min_buffer_per_category", 5)))
         except (TypeError, ValueError):
             self.settings["min_buffer_per_category"] = 5
+        try:
+            self.settings["quality_max_attempts"] = max(1, min(5, int(self.settings.get("quality_max_attempts", 3))))
+        except (TypeError, ValueError):
+            self.settings["quality_max_attempts"] = 3
+        try:
+            self.settings["benchmark_channel_discovery_min_channels"] = max(
+                1, min(30, int(self.settings.get("benchmark_channel_discovery_min_channels", 8)))
+            )
+        except (TypeError, ValueError):
+            self.settings["benchmark_channel_discovery_min_channels"] = 8
+        try:
+            self.settings["benchmark_channel_discovery_interval_hours"] = max(
+                1, min(168, int(self.settings.get("benchmark_channel_discovery_interval_hours", 24)))
+            )
+        except (TypeError, ValueError):
+            self.settings["benchmark_channel_discovery_interval_hours"] = 24
+        try:
+            self.settings["benchmark_channel_discovery_max_search_calls"] = max(
+                0, min(3, int(self.settings.get("benchmark_channel_discovery_max_search_calls", 1)))
+            )
+        except (TypeError, ValueError):
+            self.settings["benchmark_channel_discovery_max_search_calls"] = 1
         if self.settings.get("mode") not in {"infinite", "target_limit"}:
             self.settings["mode"] = "target_limit"
         self.settings["force_generate"] = bool(self.settings.get("force_generate", False))
+        self.settings["benchmark_channel_auto_discovery_enabled"] = bool(
+            self.settings.get("benchmark_channel_auto_discovery_enabled", True)
+        )
+
+    def _normalize_benchmark_channel_settings(self, value) -> dict:
+        if not isinstance(value, dict):
+            return {}
+        normalized = {}
+        for category in CATEGORIES:
+            raw = value.get(category)
+            if isinstance(raw, str):
+                parts = re.split(r"[\s,;]+", raw)
+            elif isinstance(raw, list):
+                parts = raw
+            else:
+                parts = []
+            ids = []
+            for item in parts:
+                channel_id = str(item or "").strip()
+                if channel_id and channel_id not in ids:
+                    ids.append(channel_id)
+            normalized[category] = ids
+        return normalized
+
+    def _normalize_category_timestamp_settings(self, value) -> dict:
+        if not isinstance(value, dict):
+            return {}
+        normalized = {}
+        for category in CATEGORIES:
+            try:
+                timestamp = float(value.get(category) or 0)
+            except (TypeError, ValueError):
+                timestamp = 0.0
+            if timestamp > 0:
+                normalized[category] = timestamp
+        return normalized
+
+    def _should_discover_benchmark_channels(self, category: str, existing_channel_ids: list[str]) -> bool:
+        if not self.settings.get("benchmark_channel_auto_discovery_enabled", True):
+            return False
+        if int(self.settings.get("benchmark_channel_discovery_max_search_calls") or 0) <= 0:
+            return False
+        min_channels = int(self.settings.get("benchmark_channel_discovery_min_channels") or 8)
+        if len(existing_channel_ids or []) < min_channels:
+            return True
+        last_map = self.settings.get("benchmark_channel_discovery_last_at") or {}
+        last_at = float(last_map.get(category) or 0)
+        interval_seconds = int(self.settings.get("benchmark_channel_discovery_interval_hours") or 24) * 3600
+        return (time.time() - last_at) >= interval_seconds
+
+    async def _auto_discover_benchmark_channels(
+        self,
+        category: str,
+        benchmark_keywords: list[str],
+        existing_channel_ids: list[str],
+    ) -> list[str]:
+        existing = list(existing_channel_ids or [])
+        if not self._should_discover_benchmark_channels(category, existing):
+            return existing
+
+        max_calls = int(self.settings.get("benchmark_channel_discovery_max_search_calls") or 1)
+        queries = []
+        for value in [*(benchmark_keywords or []), category]:
+            query = " ".join(str(value or "").split()).strip()
+            if query and query not in queries:
+                queries.append(query)
+        queries = queries[:max_calls]
+        if not queries:
+            return existing
+
+        self.add_log(
+            f"채널 풀 자동 업데이트: {category} 검색 {len(queries)}회 "
+            f"(현재 {len(existing)}개, 목표 {self.settings.get('benchmark_channel_discovery_min_channels')}개)"
+        )
+        discovered = []
+        attempted = False
+        try:
+            from services.youtube_data_api import async_youtube_get
+            for query in queries:
+                attempted = True
+                data = await async_youtube_get(
+                    "search",
+                    {
+                        "part": "snippet",
+                        "q": query,
+                        "type": "video",
+                        "maxResults": 5,
+                        "order": "viewCount",
+                        "relevanceLanguage": "ko",
+                        "videoDuration": "medium",
+                    },
+                    timeout=12,
+                )
+                if data.get("error"):
+                    self.add_log(f"채널 자동 업데이트 실패: {query} - {data.get('message') or data.get('error')}")
+                    continue
+                for item in data.get("items", []):
+                    snippet = item.get("snippet") or {}
+                    channel_id = str(snippet.get("channelId") or "").strip()
+                    if not channel_id or channel_id in existing or channel_id in discovered:
+                        continue
+                    discovered.append(channel_id)
+                    self.add_log(
+                        f"새 벤치마크 채널 발견: {category} / "
+                        f"{snippet.get('channelTitle') or channel_id} ({channel_id})"
+                    )
+        finally:
+            if attempted:
+                last_map = dict(self.settings.get("benchmark_channel_discovery_last_at") or {})
+                last_map[category] = time.time()
+                self.settings["benchmark_channel_discovery_last_at"] = self._normalize_category_timestamp_settings(last_map)
+
+        if not discovered:
+            self._save_state()
+            return existing
+
+        channel_map = self._normalize_benchmark_channel_settings(
+            self.settings.get("benchmark_channel_ids_by_category") or {}
+        )
+        merged = [*existing, *discovered]
+        channel_map[category] = merged[:30]
+        self.settings["benchmark_channel_ids_by_category"] = channel_map
+        self._save_state()
+        self.add_log(f"채널 풀 자동 업데이트 완료: {category} {len(existing)}개 -> {len(channel_map[category])}개")
+        return channel_map[category]
 
     @staticmethod
     def _has_ready_media_prompts(structure: dict | None) -> bool:
@@ -891,25 +1064,116 @@ Return ONLY JSON:
             self.add_log(f"Learning memory fetch failed (ignored): {e}")
             return {}
 
+        performance_rows = []
+        if category_id:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(
+                        f"{supabase_url}/rest/v1/video_learning_snapshots",
+                        headers=headers,
+                        params={
+                            "select": "outcome_label,performance_score,learning_summary,recommendations,metrics,generation_context,captured_at",
+                            "generation_context->>category_id": f"eq.{category_id}",
+                            "order": "captured_at.desc",
+                            "limit": "20",
+                        },
+                    )
+                if response.status_code == 200:
+                    performance_rows = response.json()
+                elif response.status_code not in (400, 404):
+                    self.add_log(f"Performance learning unavailable (status={response.status_code}): {response.text[:160]}")
+            except Exception as e:
+                self.add_log(f"Performance learning fetch failed (ignored): {e}")
+
         successful_titles = []
         failed_titles = []
+        successful_script_patterns = []
+        failed_script_patterns = []
+        recurring_avoid_rules = []
         for row in rows or []:
             title = str(row.get("generated_title") or "").strip()
-            if not title:
-                continue
+            evaluation = row.get("evaluation") or {}
+            quality_report = evaluation.get("worker_script_quality_report") or {}
+            blueprint = evaluation.get("narrative_blueprint") or {}
             title_score = float(row.get("title_score") or 0)
             script_score = float(row.get("script_score") or 0)
             blended = title_score * 0.45 + script_score * 0.55
             quality = row.get("outcome_quality")
             if quality in ("excellent", "good") or blended >= 75:
-                successful_titles.append(title)
+                if title:
+                    successful_titles.append(title)
+                strengths = [str(item).strip() for item in (quality_report.get("strengths") or []) if str(item or "").strip()]
+                if strengths:
+                    successful_script_patterns.extend(strengths[:3])
+                if isinstance(blueprint, dict):
+                    pattern = {
+                        "logline": blueprint.get("logline"),
+                        "central_conflict": blueprint.get("central_conflict"),
+                        "turning_point": blueprint.get("turning_point"),
+                        "final_payoff": blueprint.get("final_payoff"),
+                    }
+                    if any(pattern.values()):
+                        successful_script_patterns.append(pattern)
             elif quality in ("poor", "rejected") or blended < 55:
-                failed_titles.append(title)
+                if title:
+                    failed_titles.append(title)
+                issues = [
+                    str(item).strip()
+                    for item in [
+                        *(quality_report.get("critical_issues") or []),
+                        *(quality_report.get("revision_notes") or []),
+                    ]
+                    if str(item or "").strip()
+                ]
+                failed_script_patterns.extend(issues[:5])
+                recurring_avoid_rules.extend(issues[:5])
+
+        performance_lessons = []
+        for row in performance_rows or []:
+            label = row.get("outcome_label")
+            score = row.get("performance_score")
+            summary = str(row.get("learning_summary") or "").strip()
+            recommendations = row.get("recommendations") if isinstance(row.get("recommendations"), list) else []
+            context = row.get("generation_context") or {}
+            if summary or recommendations:
+                performance_lessons.append({
+                    "outcome": label,
+                    "score": score,
+                    "title": context.get("title"),
+                    "summary": summary,
+                    "recommendations": recommendations[:3],
+                })
+
+        def _dedupe(items, limit: int):
+            seen = set()
+            result = []
+            for item in items:
+                key = json.dumps(item, ensure_ascii=False, sort_keys=True) if isinstance(item, dict) else str(item)
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                result.append(item)
+                if len(result) >= limit:
+                    break
+            return result
 
         return {
             "sample_count": len(rows or []),
+            "performance_sample_count": len(performance_rows or []),
             "successful_titles": successful_titles[:8],
             "failed_titles": failed_titles[:8],
+            "successful_script_patterns": _dedupe(successful_script_patterns, 10),
+            "failed_script_patterns": _dedupe(failed_script_patterns, 12),
+            "performance_lessons": _dedupe(performance_lessons, 8),
+            "script_generation_rules": {
+                "reuse": "Reuse only abstract hook, tension, reveal, and payoff patterns from successful rows.",
+                "avoid": _dedupe(recurring_avoid_rules, 10),
+                "never": [
+                    "Do not copy titles, names, incidents, or wording from previous outputs.",
+                    "Do not write meta commentary about storytelling, strategy, analysis, algorithms, or content creation.",
+                    "Do not save a script that fails the category promise or title promise.",
+                ],
+            },
             "recent_feedback": [
                 {
                     "title": row.get("generated_title"),
@@ -918,6 +1182,7 @@ Return ONLY JSON:
                     "script_score": row.get("script_score"),
                     "source": row.get("feedback_source"),
                     "metrics": row.get("metrics") or {},
+                    "script_quality": ((row.get("evaluation") or {}).get("worker_script_quality_report") or {}),
                 }
                 for row in (rows or [])[:10]
             ],
@@ -1313,7 +1578,27 @@ Return ONLY a JSON array of strings.
                 self.add_log(f"카테고리 '{category}'의 생성 루프 시작")
                 
                 try:
-                    await self._process_category(category)
+                    max_quality_attempts = int(self.settings.get("quality_max_attempts", 3))
+                    for quality_attempt in range(1, max_quality_attempts + 1):
+                        try:
+                            if quality_attempt > 1:
+                                self.add_log(
+                                    f"품질 게이트 재생성 루프: '{category}' "
+                                    f"{quality_attempt}/{max_quality_attempts}회차 시작"
+                                )
+                            await self._process_category(category)
+                            break
+                        except QualityGateError as quality_error:
+                            self._quality_feedback = quality_error.errors[:20]
+                            self.add_log(
+                                f"❌ 품질 게이트 실패({quality_attempt}/{max_quality_attempts}): "
+                                f"{quality_error}"
+                            )
+                            await self._mark_current_topic_failed(quality_error)
+                            self.current_topic_queue_id = ""
+                            if quality_attempt >= max_quality_attempts:
+                                raise
+                            await asyncio.sleep(2.0)
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
@@ -1440,15 +1725,33 @@ Return ONLY a JSON array of strings.
         
         benchmark_keywords = await self._discover_benchmark_keywords(category)
         self.add_log(f"Benchmark search keywords for '{category}': {', '.join(benchmark_keywords)}")
+        benchmark_channel_ids = (
+            (self.settings.get("benchmark_channel_ids_by_category") or {}).get(category)
+            or []
+        )
+        benchmark_channel_ids = await self._auto_discover_benchmark_channels(
+            category,
+            benchmark_keywords,
+            benchmark_channel_ids,
+        )
+        if benchmark_channel_ids:
+            self.add_log(f"벤치마크 채널 RSS 풀 적용: {category} 채널 {len(benchmark_channel_ids)}개")
+        else:
+            self.add_log(
+                f"⚠️ {category} 벤치마크 채널 풀을 확보하지 못했습니다. "
+                "YouTube 검색 쿼터/키 상태를 확인해야 합니다."
+            )
         benchmark_job_id = job_store.submit_job(
             job_type="topic_benchmark_analyze",
             payload={
                 "keyword": category,
+                "category": category,
                 "language": "ko",
                 "video_type": "longform",
                 "max_candidates": 3,
                 "search_pool_size": 20,
                 "search_keywords": benchmark_keywords,
+                "benchmark_channel_ids": benchmark_channel_ids,
                 "topic_queue_id": topic_queue_id
             },
             priority=100,
@@ -1484,7 +1787,7 @@ Return ONLY a JSON array of strings.
             if not _is_real_youtube_candidate(candidate):
                 self.add_log(f"⚠️ 참조 영상 #{index}: 실제 YouTube 영상을 찾지 못해 대체값이 반환되었습니다. 이 결과로 생성하지 않습니다.")
                 raise RuntimeError("실제 YouTube 참조 영상을 확보하지 못했습니다.")
-            if candidate.get("performance_data_source") not in ("youtube_api", "youtube_api_cached"):
+            if candidate.get("performance_data_source") not in ("youtube_api", "youtube_api_cached", "youtube_rss_seed"):
                 self.add_log(f"⚠️ 참조 영상 #{index}: YouTube 조회수 통계를 확인하지 못했습니다. 임의 성과 수치로는 생성하지 않습니다.")
                 raise RuntimeError("실제 YouTube 성과 통계를 확보하지 못했습니다.")
             video_id = candidate.get("video_id")
@@ -1669,6 +1972,9 @@ Return ONLY a JSON array of strings.
                 "upload_title": generated_title,
                 "title_generation": title_plan,
                 "research_bundle": research_bundle,
+                "learning_profile": learning_profile,
+                "defer_ready_until_quality_gate": True,
+                "quality_feedback": getattr(self, "_quality_feedback", []),
             },
             priority=100,
             source="autopilot"
@@ -1694,12 +2000,12 @@ Return ONLY a JSON array of strings.
                         headers={**headers, "Prefer": "return=minimal"},
                         json={
                             "pregenerated_structure": structure,
-                            "pregenerated_structure_status": "ready",
+                            "pregenerated_structure_status": "queued",
                             "total_scenes": scene_count
                         }
                     )
                     if r.status_code in (200, 204):
-                        self.add_log("Supabase: 대본 구조 및 상태 동기화 완료")
+                        self.add_log("Supabase: 대본 구조 임시 저장 완료(품질 게이트 전 ready 보류)")
             except Exception as e:
                 self.add_log(f"Supabase 대본 구조 동기화 실패: {e}")
 
@@ -1721,6 +2027,9 @@ Return ONLY a JSON array of strings.
                 "narration_mode": "dramatic_single",
                 "upload_title": generated_title,
                 "title_generation": title_plan,
+                "learning_profile": learning_profile,
+                "defer_ready_until_quality_gate": True,
+                "quality_feedback": getattr(self, "_quality_feedback", []),
             },
             priority=100,
             source="autopilot"
@@ -1757,6 +2066,8 @@ Return ONLY a JSON array of strings.
                 "title_generation": title_plan,
                 "narrative_blueprint": narrative_blueprint or {},
                 "language": "ko",
+                "defer_ready_until_quality_gate": True,
+                "quality_feedback": getattr(self, "_quality_feedback", []),
             },
             priority=100,
             source="autopilot",
@@ -1767,6 +2078,37 @@ Return ONLY a JSON array of strings.
         publish_metadata = metadata_data.get("publish_metadata") or {}
         if not publish_metadata:
             raise RuntimeError("publish_metadata_generate returned no publish_metadata")
+
+        summary_payload = {
+            "topic_queue_id": topic_queue_id,
+            "category": category,
+            "original_benchmark_title": video_title,
+            "performance_ratio": performance_ratio,
+            "benchmark_analysis": benchmark_payload,
+            "benchmark_job_id": benchmark_job_id,
+            "benchmark_audit_path": audit_path,
+            "benchmark_audit_summary": audit_summary,
+            "generated_title": generated_title,
+            "title_generation": title_plan,
+            "title_candidates": title_plan["title_candidates"],
+            "narrative_blueprint": narrative_blueprint,
+            "script_quality_report": script_quality_report,
+            "publish_metadata": publish_metadata,
+            "structure": structure,
+            "script": final_script,
+            "char_count": char_count,
+            "completed_at": time.time()
+        }
+
+        from services.generation_quality_gate import validate_generation_package
+
+        quality_errors = validate_generation_package(summary_payload, category=category)
+        if quality_errors:
+            self.add_log("품질 게이트가 최종 패키지를 거부했습니다:")
+            for error in quality_errors[:12]:
+                self.add_log(f"  - {error}")
+            raise QualityGateError(quality_errors)
+        self.add_log("✅ 품질 게이트 통과: 대본/이미지/영상프롬프트/2x2/메타데이터 검증 완료")
 
         # Supabase에 최종 대본 동기화 및 큐 완료 처리
         if supabase_url and supabase_key and topic_queue_id:
@@ -1823,33 +2165,12 @@ Return ONLY a JSON array of strings.
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         local_result_path = RESULTS_DIR / f"{topic_queue_id}.json"
         
-        summary_payload = {
-            "topic_queue_id": topic_queue_id,
-            "category": category,
-            "original_benchmark_title": video_title,
-            "performance_ratio": performance_ratio,
-            "benchmark_analysis": benchmark_payload,
-            "benchmark_job_id": benchmark_job_id,
-            "benchmark_audit_path": audit_path,
-            "benchmark_audit_summary": audit_summary,
-            "category": category,
-            "generated_title": generated_title,
-            "title_generation": title_plan,
-            "title_candidates": title_plan["title_candidates"],
-            "narrative_blueprint": narrative_blueprint,
-            "script_quality_report": script_quality_report,
-            "publish_metadata": publish_metadata,
-            "structure": structure,
-            "script": final_script,
-            "char_count": char_count,
-            "completed_at": time.time()
-        }
-        
         local_result_path.write_text(
             json.dumps(summary_payload, ensure_ascii=False, indent=2),
             encoding="utf-8"
         )
         self.session_stats["generated_count"] += 1
+        self._quality_feedback = []
         self.last_run_status = "completed"
         self.last_error = ""
         self.last_completed_result_id = str(topic_queue_id)

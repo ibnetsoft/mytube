@@ -1958,6 +1958,27 @@ tr:hover { background: #161b22; }
                 <input type="number" id="auto-setting-buffer" value="5" min="1" style="width:100%;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
                 <p style="font-size:10px;color:#6e7681;margin-top:4px;line-height:1.4;">* 큐에 사전 대본이 이 수치 이상 존재 시 해당 카테고리는 건너뜁니다.</p>
               </div>
+              <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;margin-top:12px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#c9d1d9;margin-bottom:10px;cursor:pointer;">
+                  <input type="checkbox" id="auto-setting-channel-discovery-enabled" checked />
+                  벤치마크 채널 풀 자동 업데이트
+                </label>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+                  <label style="display:block;font-size:11px;color:#8b949e;">
+                    최소 채널
+                    <input type="number" id="auto-setting-channel-min" value="8" min="1" max="30" style="width:100%;margin-top:5px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+                  </label>
+                  <label style="display:block;font-size:11px;color:#8b949e;">
+                    갱신 주기(시간)
+                    <input type="number" id="auto-setting-channel-interval" value="24" min="1" max="168" style="width:100%;margin-top:5px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+                  </label>
+                  <label style="display:block;font-size:11px;color:#8b949e;">
+                    검색 호출/회
+                    <input type="number" id="auto-setting-channel-search-calls" value="1" min="0" max="3" style="width:100%;margin-top:5px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+                  </label>
+                </div>
+                <p style="font-size:10px;color:#6e7681;margin-top:6px;line-height:1.4;">* 검색 API는 채널 풀 갱신 때만 제한적으로 사용하고, 실제 벤치마크 후보 수집은 RSS로 진행합니다.</p>
+              </div>
               <button class="btn btn-secondary" onclick="saveAutopilotSettings()" style="width:100%;margin-top:8px;">💾 설정값 저장</button>
             </div>
             
@@ -1967,6 +1988,15 @@ tr:hover { background: #161b22; }
               <div style="display:grid;grid-template-columns:1fr;gap:8px;" id="auto-categories-checkboxes">
                 <!-- Javascript will render checkboxes -->
               </div>
+            </div>
+          </div>
+          <div class="status-card" style="padding:16px;background:rgba(255,255,255,0.01);margin-top:16px;">
+            <div class="name" style="margin-bottom:8px;">📺 카테고리별 벤치마크 채널 ID</div>
+            <p style="font-size:11px;color:#8b949e;margin-bottom:12px;line-height:1.5;">
+              워커가 제한된 검색으로 좋은 채널을 발견해 자동 저장합니다. 필요하면 직접 보강하거나 제거할 수 있고, 여러 개는 줄바꿈, 쉼표, 공백으로 구분하세요.
+            </p>
+            <div id="auto-benchmark-channel-settings" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+              <!-- Javascript will render channel ID textareas -->
             </div>
           </div>
         </div>
@@ -3583,6 +3613,49 @@ function renderCategoryCheckboxes(activeCats) {
   updateCategoryRunControls(autopilotStatusSnapshot);
 }
 
+function parseBenchmarkChannelIds(value) {
+  return String(value || '')
+    .split(/[\s,;]+/)
+    .map(v => v.trim())
+    .filter(Boolean)
+    .filter((v, idx, arr) => arr.indexOf(v) === idx);
+}
+
+function renderBenchmarkChannelSettings(savedMap) {
+  const container = document.getElementById('auto-benchmark-channel-settings');
+  if (!container) return;
+  const map = savedMap && typeof savedMap === 'object' ? savedMap : {};
+  container.innerHTML = '';
+  ALL_CATEGORIES.forEach((cat, index) => {
+    const ids = Array.isArray(map[cat]) ? map[cat] : parseBenchmarkChannelIds(map[cat]);
+    const item = document.createElement('label');
+    item.style.cssText = 'display:block;min-width:0;';
+    item.innerHTML = `
+      <span style="display:block;font-size:12px;color:#c9d1d9;font-weight:700;margin-bottom:5px;">${escapeHtml(cat)}</span>
+      <textarea
+        id="auto-benchmark-channels-${index}"
+        data-category="${escapeHtml(cat)}"
+        rows="3"
+        spellcheck="false"
+        placeholder="UCxxxxxxxx&#10;UCyyyyyyyy"
+        style="width:100%;resize:vertical;min-height:66px;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;font-size:12px;line-height:1.45;"
+      >${escapeHtml(ids.join('\n'))}</textarea>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function getBenchmarkChannelSettingsFromUI() {
+  const result = {};
+  ALL_CATEGORIES.forEach(cat => { result[cat] = []; });
+  document.querySelectorAll('#auto-benchmark-channel-settings textarea[data-category]').forEach(input => {
+    const category = input.dataset.category || '';
+    if (!ALL_CATEGORIES.includes(category)) return;
+    result[category] = parseBenchmarkChannelIds(input.value);
+  });
+  return result;
+}
+
 function renderActiveCategoryBadges(activeCats) {
   const categories = Array.isArray(activeCats) ? activeCats : ALL_CATEGORIES;
   const title = document.getElementById('auto-active-category-title');
@@ -3611,6 +3684,10 @@ function getSettingsFromUI() {
   const mode = document.getElementById('auto-setting-mode').value;
   const limit = parseInt(document.getElementById('auto-setting-limit').value) || 10;
   const buffer = parseInt(document.getElementById('auto-setting-buffer').value) || 5;
+  const discoveryEnabled = Boolean(document.getElementById('auto-setting-channel-discovery-enabled')?.checked);
+  const discoveryMin = parseInt(document.getElementById('auto-setting-channel-min')?.value) || 8;
+  const discoveryInterval = parseInt(document.getElementById('auto-setting-channel-interval')?.value) || 24;
+  const discoverySearchCalls = parseInt(document.getElementById('auto-setting-channel-search-calls')?.value) || 0;
   
   const checkboxes = document.querySelectorAll('.auto-cat-checkbox');
   const active_categories = [];
@@ -3622,7 +3699,12 @@ function getSettingsFromUI() {
     mode,
     target_limit: limit,
     min_buffer_per_category: buffer,
-    active_categories
+    active_categories,
+    benchmark_channel_ids_by_category: getBenchmarkChannelSettingsFromUI(),
+    benchmark_channel_auto_discovery_enabled: discoveryEnabled,
+    benchmark_channel_discovery_min_channels: discoveryMin,
+    benchmark_channel_discovery_interval_hours: discoveryInterval,
+    benchmark_channel_discovery_max_search_calls: discoverySearchCalls
   };
 }
 
@@ -3662,6 +3744,7 @@ async function saveAutopilotSettings() {
       const savedSettings = res.settings || settings;
       renderActiveCategoryBadges(savedSettings.active_categories);
       renderCategoryCheckboxes(savedSettings.active_categories);
+      renderBenchmarkChannelSettings(savedSettings.benchmark_channel_ids_by_category);
       showToast('오토파일럿 설정이 저장되었습니다.', 'success');
     } else {
       showToast('설정 저장 실패: ' + (res?.error || '알 수 없음'), 'error');
@@ -3729,14 +3812,20 @@ async function loadAutopilotStatus() {
       document.getElementById('auto-setting-mode').value = data.settings.mode || 'infinite';
       document.getElementById('auto-setting-limit').value = data.settings.target_limit || 10;
       document.getElementById('auto-setting-buffer').value = data.settings.min_buffer_per_category || 5;
+      document.getElementById('auto-setting-channel-discovery-enabled').checked = data.settings.benchmark_channel_auto_discovery_enabled !== false;
+      document.getElementById('auto-setting-channel-min').value = data.settings.benchmark_channel_discovery_min_channels || 8;
+      document.getElementById('auto-setting-channel-interval').value = data.settings.benchmark_channel_discovery_interval_hours || 24;
+      document.getElementById('auto-setting-channel-search-calls').value = data.settings.benchmark_channel_discovery_max_search_calls ?? 1;
       
       toggleLimitInput();
       renderCategoryCheckboxes(data.settings.active_categories);
+      renderBenchmarkChannelSettings(data.settings.benchmark_channel_ids_by_category);
       updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;
     } else if (!autopilotSettingsInitialized) {
       // 폰백 렌더링
       renderCategoryCheckboxes(null);
+      renderBenchmarkChannelSettings(null);
       updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;
     }

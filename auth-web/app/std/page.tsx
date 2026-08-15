@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Mic, RefreshCw, Upload } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
+import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 
 type Topic = {
     id: number
@@ -71,7 +72,9 @@ export default function StdPortalPage() {
     const [topics, setTopics] = useState<Topic[]>([])
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
+    const [authChecking, setAuthChecking] = useState(true)
     const [loading, setLoading] = useState(false)
+    const [projectLoading, setProjectLoading] = useState(false)
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
     const [message, setMessage] = useState('')
@@ -81,8 +84,9 @@ export default function StdPortalPage() {
         'Content-Type': 'application/json',
     }), [token])
 
-    const loadStdData = async (accessToken: string) => {
-        setLoading(true)
+    const loadStdData = async (accessToken: string, options: { showLoading?: boolean } = {}) => {
+        const showLoading = options.showLoading !== false
+        if (showLoading) setLoading(true)
         setMessage('')
         try {
             const headers = { Authorization: `Bearer ${accessToken}` }
@@ -101,18 +105,21 @@ export default function StdPortalPage() {
         } catch (error: any) {
             setMessage(error.message || '데이터를 불러오지 못했습니다.')
         } finally {
-            setLoading(false)
+            if (showLoading) setLoading(false)
         }
     }
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }) => {
-            const accessToken = data.session?.access_token
-            if (accessToken) {
-                setToken(accessToken)
-                void loadStdData(accessToken)
-            }
-        }).catch(() => {})
+        supabase.auth.getSession()
+            .then(async ({ data }) => {
+                const accessToken = data.session?.access_token
+                if (accessToken) {
+                    setToken(accessToken)
+                    await loadStdData(accessToken)
+                }
+            })
+            .catch(() => {})
+            .finally(() => setAuthChecking(false))
     }, [])
 
     const signIn = async () => {
@@ -152,7 +159,7 @@ export default function StdPortalPage() {
     }
 
     const openProject = async (projectId: string) => {
-        setLoading(true)
+        setProjectLoading(true)
         setMessage('')
         try {
             const res = await fetch(`/api/std/projects/${projectId}`, {
@@ -164,14 +171,14 @@ export default function StdPortalPage() {
         } catch (error: any) {
             setMessage(error.message || '작업 조회 실패')
         } finally {
-            setLoading(false)
+            setProjectLoading(false)
         }
     }
 
-    const reloadSelectedProject = async () => {
+    const reloadSelectedProject = async (options: { refreshLists?: boolean } = {}) => {
         if (!selectedProject?.project?.id) return
         await openProject(selectedProject.project.id)
-        await loadStdData(token)
+        if (options.refreshLists) await loadStdData(token, { showLoading: false })
     }
 
     const uploadAsset = async (scene: any, assetType: 'image' | 'video', file: File | null) => {
@@ -246,7 +253,7 @@ export default function StdPortalPage() {
                 throw new Error((payload.error || '제출 실패') + missing)
             }
             setMessage('렌더 큐에 제출되었습니다.')
-            await reloadSelectedProject()
+            await reloadSelectedProject({ refreshLists: true })
         } catch (error: any) {
             setMessage(error.message || '제출 실패')
         } finally {
@@ -288,6 +295,23 @@ export default function StdPortalPage() {
         (selectedProject?.assets || []).filter((asset: any) => asset.asset_type === 'audio' && ['uploaded', 'assigned'].includes(asset.status))
     ), [selectedProject])
 
+    const imageGridPrompts = useMemo(
+        () => selectedProject ? imageGridPromptsFor(selectedProject.project) : [],
+        [selectedProject]
+    )
+
+    if (authChecking) {
+        return (
+            <main className="min-h-screen bg-[#f6f7f9] text-[#111827] flex items-center justify-center px-5">
+                <section className="w-full max-w-sm border border-[#d9dde5] bg-white p-6 rounded-lg shadow-sm">
+                    <div className="h-5 w-32 rounded bg-[#e5e7eb]" />
+                    <div className="mt-4 h-3 w-full rounded bg-[#f1f5f9]" />
+                    <div className="mt-2 h-3 w-2/3 rounded bg-[#f1f5f9]" />
+                </section>
+            </main>
+        )
+    }
+
     if (!token) {
         return (
             <main className="min-h-screen bg-[#f6f7f9] text-[#111827] flex items-center justify-center px-5">
@@ -324,7 +348,7 @@ export default function StdPortalPage() {
                         <h2 className="font-bold">내 작업</h2>
                         <div className="mt-3 space-y-2">
                             {projects.map(project => (
-                                <button key={project.id} onClick={() => openProject(project.id)} className="w-full text-left border border-[#e5e7eb] rounded-md p-3 hover:border-[#2563eb]">
+                                <button key={project.id} disabled={projectLoading} onClick={() => openProject(project.id)} className="w-full text-left border border-[#e5e7eb] rounded-md p-3 hover:border-[#2563eb] disabled:opacity-50">
                                     <div className="font-semibold text-sm">{project.title}</div>
                                     <div className="text-xs text-[#64748b] mt-1">{statusLabel[project.status] || project.status} · {project.assigned_duration_minutes || '-'}분</div>
                                 </button>
@@ -350,6 +374,11 @@ export default function StdPortalPage() {
 
                 <section className="bg-white border border-[#e5e7eb] rounded-lg p-5 min-h-[620px]">
                     {message && <div className="mb-4 border border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8] px-3 py-2 rounded-md text-sm">{message}</div>}
+                    {projectLoading && (
+                        <div className="mb-4 border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2 rounded-md text-sm text-[#64748b]">
+                            작업 상세를 불러오는 중입니다.
+                        </div>
+                    )}
                     {!selectedProject ? (
                         <div>
                             <h2 className="text-lg font-bold">작업 상세</h2>
@@ -403,10 +432,10 @@ export default function StdPortalPage() {
 
                             <div className="mt-5 space-y-3">
                                 <h3 className="font-bold">씬 프롬프트와 에셋 업로드</h3>
-                                {imageGridPromptsFor(selectedProject.project).length > 0 && (
+                                {imageGridPrompts.length > 0 && (
                                     <div className="mb-5 space-y-3">
                                         <h3 className="font-bold">2x2 이미지 생성 프롬프트</h3>
-                                        {imageGridPromptsFor(selectedProject.project).map((grid: any) => (
+                                        {imageGridPrompts.map((grid: any) => (
                                             <div key={grid.grid_number} className="border border-[#e5e7eb] rounded-md p-3">
                                                 <div className="flex items-center justify-between gap-3">
                                                     <div className="font-semibold text-sm">Grid {String(grid.grid_number).padStart(3, '0')}</div>
@@ -421,19 +450,32 @@ export default function StdPortalPage() {
                                     const sceneAssets = assetsByScene.get(String(scene.scene_number)) || []
                                     const isImageUploading = uploadingKey === `${scene.scene_number}-image`
                                     const isVideoUploading = uploadingKey === `${scene.scene_number}-video`
+                                    const requiresVideo = isStdRequiredVideoScene(scene.scene_number)
                                     return (
                                         <div key={scene.id} className="border border-[#e5e7eb] rounded-md p-3">
                                             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="font-semibold text-sm">Scene {String(scene.scene_number).padStart(3, '0')} · {scene.scene_title}</div>
+                                                {requiresVideo && (
+                                                    <span className="rounded bg-[#ffedd5] px-2 py-0.5 text-[10px] font-bold text-[#c2410c]">
+                                                        영상 필수
+                                                    </span>
+                                                )}
                                                 <div className="text-xs text-[#64748b]">{scene.asset_status || 'missing'}</div>
                                             </div>
                                             <p className="mt-2 text-sm text-[#475569]">{scene.scene_text}</p>
+                                            {requiresVideo && (
+                                                <p className="mt-2 text-xs font-semibold text-[#c2410c]">
+                                                    1-{STD_REQUIRED_VIDEO_SCENE_COUNT}번 씬은 영상 파일을 업로드해야 합니다.
+                                                </p>
+                                            )}
                                             <div className="mt-3 flex flex-wrap gap-2">
+                                                {!requiresVideo && (
                                                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[#cbd5e1] px-3 py-2 text-xs font-semibold hover:border-[#2563eb]">
                                                     <Upload className="h-4 w-4" />
                                                     {isImageUploading ? '이미지 업로드중' : '이미지 업로드'}
                                                     <input disabled={Boolean(uploadingKey)} type="file" accept="image/*" className="hidden" onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)} />
                                                 </label>
+                                                )}
                                                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[#cbd5e1] px-3 py-2 text-xs font-semibold hover:border-[#2563eb]">
                                                     <Upload className="h-4 w-4" />
                                                     {isVideoUploading ? '영상 업로드중' : '영상 업로드'}

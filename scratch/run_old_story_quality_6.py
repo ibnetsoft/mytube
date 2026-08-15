@@ -27,6 +27,7 @@ os.environ["SCRIPT_GENERATION_MODEL"] = "deepseek-chat"
 os.environ["IMAGE_PROMPT_MODEL"] = "deepseek-chat"
 
 import job_store
+from services.generation_quality_gate import validate_generation_package
 from hermes_autopilot import HermesAutopilotManager
 from shutdown_flag import clear_shutdown_flag, request_shutdown
 from worker_config import OUTPUT_DIR
@@ -79,6 +80,7 @@ def validate_result(path: Path) -> list[str]:
 
     if data.get("category") != CATEGORY:
         errors.append(f"category mismatch: {data.get('category')!r}")
+    errors.extend(validate_generation_package(data, category=CATEGORY))
     script_style = structure.get("script_style") or data.get("script_style") or data.get("assigned_script_style")
     if script_style not in (EXPECTED_SCRIPT_STYLE, None, ""):
         errors.append(f"script_style mismatch: {script_style!r}")

@@ -75,6 +75,7 @@ import signal
 import sys
 import threading
 import time
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -137,6 +138,12 @@ MAX_BENCHMARK_CANDIDATES = 3
 DEFAULT_SEARCH_POOL_SIZE = 15
 MAX_SEARCH_POOL_SIZE = 30
 DEFAULT_COMMENT_SAMPLE_SIZE = 50
+DEFAULT_RSS_VIDEOS_PER_CHANNEL = 15
+MAX_RSS_CHANNELS_PER_JOB = 30
+BENCHMARK_CHANNEL_POOL_PATHS = [
+    PROJECT_ROOT / "data" / "youtube_benchmark_channels.json",
+    PROJECT_ROOT / "worker" / "youtube_benchmark_channels.json",
+]
 MAX_AUDIT_TRANSCRIPT_CHARS = 40000
 MAX_AUDIT_COMMENT_CHARS = 3000
 
@@ -245,19 +252,20 @@ def _fallback_publish_metadata(topic: str, upload_title: str, script: str, langu
                 _u(r"\ub05d\uae4c\uc9c0 \uc2dc\uccad\ud574 \uc8fc\uc154\uc11c \uac10\uc0ac\ud569\ub2c8\ub2e4."),
             ] if part
         )
+        compact_topic = re.sub(r"\s+", " ", (topic or title)).strip()
         tags = [
             tag for tag in [
-                topic,
-                _u(r"\ud669\ud63c\uc758 \uc0ac\ub791"),
-                _u(r"\ub178\ub144 \uc774\uc57c\uae30"),
-                _u(r"\uac00\uc871 \ub4dc\ub77c\ub9c8"),
-                _u(r"\uac10\ub3d9 \uc0ac\uc5f0"),
+                compact_topic,
+                title[:24],
+                _u(r"\uc774\uc57c\uae30"),
+                _u(r"\uc0ac\uc5f0"),
+                _u(r"\ub4dc\ub77c\ub9c8"),
             ] if tag
         ]
         hashtags = [
-            _u(r"#\ud669\ud63c\uc758\uc0ac\ub791"),
-            _u(r"#\uac00\uc871\ub4dc\ub77c\ub9c8"),
-            _u(r"#\uac10\ub3d9\uc0ac\uc5f0"),
+            _u(r"#\uc774\uc57c\uae30"),
+            _u(r"#\uc0ac\uc5f0"),
+            _u(r"#\ub4dc\ub77c\ub9c8"),
         ]
     else:
         description = "\n\n".join(part for part in [title, script_excerpt] if part)
@@ -308,6 +316,81 @@ def _clean_metadata_list(values: list, fallback: list[str], *, hashtag: bool = F
         seen.add(key)
         cleaned.append(value)
     return cleaned or fallback
+
+
+_METADATA_INTERNAL_TERMS = (
+    "AI",
+    "worker",
+    "prompt",
+    "benchmark",
+    "QA",
+    "quality gate",
+    "learning_profile",
+    "scene plan",
+    "narrative_blueprint",
+    "script_quality_report",
+    "자동 생성",
+    "프롬프트",
+    "벤치마크",
+    "품질 게이트",
+    "작업자",
+)
+
+
+def _metadata_hangul_ratio(value: str) -> float:
+    text = str(value or "")
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    if hangul + latin == 0:
+        return 0.0
+    return hangul / (hangul + latin)
+
+
+def _metadata_title_matches_script(title: str, script: str) -> bool:
+    def variants(token: str) -> set[str]:
+        result = {token}
+        for suffix in ("에서", "으로", "에게", "에게서", "부터", "까지", "은", "는", "이", "가", "을", "를", "과", "와", "도", "만"):
+            if token.endswith(suffix) and len(token) - len(suffix) >= 2:
+                result.add(token[: -len(suffix)])
+        return result
+
+    title_tokens = [
+        token for token in re.findall(r"[\uac00-\ud7a3A-Za-z0-9]{2,}", str(title or ""))
+        if token not in {"그리고", "하지만", "그런데", "이야기", "사연"}
+    ]
+    if not title_tokens:
+        return True
+    script_text = str(script or "")
+    matched = sum(1 for token in title_tokens[:8] if any(variant in script_text for variant in variants(token)))
+    return matched >= max(1, min(2, len(title_tokens[:8]) // 3))
+
+
+def _validate_publish_metadata_quality(metadata: dict, topic: str, upload_title: str, script: str, language: str) -> None:
+    if not isinstance(metadata, dict):
+        raise ValueError("publish_metadata must be an object")
+    title = str((metadata.get("titles") or [upload_title])[0] if isinstance(metadata.get("titles"), list) else upload_title).strip()
+    description = str(metadata.get("description") or "").strip()
+    tags = metadata.get("tags") if isinstance(metadata.get("tags"), list) else []
+    hashtags = metadata.get("hashtags") if isinstance(metadata.get("hashtags"), list) else []
+    blob = "\n".join([title, description, " ".join(map(str, tags)), " ".join(map(str, hashtags))])
+    if len(description) < 120:
+        raise ValueError("publish_metadata.description too short")
+    if language == "ko" and _metadata_hangul_ratio(description) < 0.8:
+        raise ValueError("publish_metadata.description is not Korean enough")
+    if any(term.lower() in blob.lower() for term in _METADATA_INTERNAL_TERMS):
+        raise ValueError("publish_metadata leaks internal production terms")
+    if not _metadata_title_matches_script(title or upload_title, script):
+        raise ValueError("publish_metadata title does not match script content")
+    clean_tags = [str(tag or "").strip() for tag in tags if str(tag or "").strip()]
+    clean_hashtags = [str(tag or "").strip() for tag in hashtags if str(tag or "").strip()]
+    if len(clean_tags) < 5:
+        raise ValueError("publish_metadata requires at least 5 tags")
+    if len(clean_hashtags) < 3:
+        raise ValueError("publish_metadata requires at least 3 hashtags")
+    if any(len(tag) > 30 for tag in clean_tags):
+        raise ValueError("publish_metadata contains overlong tag")
+    if any(not tag.startswith("#") for tag in clean_hashtags):
+        raise ValueError("publish_metadata hashtags must start with #")
 
 
 def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, script: str, language: str) -> dict:
@@ -364,10 +447,16 @@ Return ONLY JSON:
 Rules:
 - Write in {language_name}.
 - Put the best title first.
+- The first title should normally be the PRIMARY TITLE unless the script clearly requires a more honest version.
 - Titles must fit YouTube title style and stay under 100 characters.
-- Description must be useful for upload, not a production note.
-- Do not mention AI, worker, prompt, benchmark, QA, or internal process.
-- Tags should be topical search phrases, not sentences.
+- Description must be 2-4 natural paragraphs, useful for upload, and clearly match the script.
+- Description must not reveal spoilers too early, but it must honestly represent the title promise.
+- Do not mention AI, worker, prompt, benchmark, QA, learning, scene plan, quality gate, internal process, or generated assets.
+- Do not include markdown tables, production notes, JSON explanation, timestamps, scene numbers, or labels such as "Title:".
+- Tags should be topical Korean search phrases, not sentences, no #.
+- Hashtags must start with # and be short.
+- Avoid unrelated category contamination. For example, old-story metadata must not include economy/investment tags.
+- Return at least 8 tags and at least 5 hashtags.
 
 TOPIC: {topic}
 PRIMARY TITLE: {upload_title}
@@ -377,14 +466,29 @@ SCRIPT EXCERPT:
 {(script or "")[:6000]}
 """
     try:
-        raw = await ai_router.generate_text(
-            prompt,
-            model,
-            temperature=0.55,
-            max_tokens=2200,
-            task_type="hermes_publish_metadata",
-        )
-        return _normalize_publish_metadata(_extract_json(raw), topic, upload_title, script, language)
+        last_error = None
+        for attempt in range(2):
+            retry_note = ""
+            if last_error:
+                retry_note = (
+                    "\n\n[PREVIOUS METADATA QA FAILURE]\n"
+                    f"{last_error}\n"
+                    "Regenerate all fields and fix this failure. Return JSON only.\n"
+                )
+            raw = await ai_router.generate_text(
+                prompt + retry_note,
+                model,
+                temperature=0.45 if attempt else 0.55,
+                max_tokens=2600,
+                task_type="hermes_publish_metadata",
+            )
+            metadata = _normalize_publish_metadata(_extract_json(raw), topic, upload_title, script, language)
+            try:
+                _validate_publish_metadata_quality(metadata, topic, upload_title, script, language)
+                return metadata
+            except Exception as qa_error:
+                last_error = str(qa_error)
+        raise ValueError(last_error or "publish metadata quality check failed")
     except Exception as e:
         fallback = _fallback_publish_metadata(topic, upload_title, script, language)
         fallback["metadata_error"] = str(e)
@@ -420,7 +524,7 @@ def _validate_payload(payload: dict) -> tuple[str, str, str, int]:
     return keyword, language, country, count
 
 
-def _validate_benchmark_payload(payload: dict) -> tuple[str, str, str, int, int]:
+def _validate_benchmark_payload(payload: dict) -> tuple[str, str, str, int, int, list[str]]:
     """[AIR-0230] category_id is deliberately NOT accepted here - the worker
     has no Supabase access (by design, see docs/AIR_WORKER_ARCHITECTURE.md
     §4's central/worker boundary), so whatever creates this job (web-admin,
@@ -463,6 +567,93 @@ def _validate_benchmark_payload(payload: dict) -> tuple[str, str, str, int, int]
     return keyword, language, video_type, max_candidates, search_pool_size, search_keywords
 
 
+def _normalize_channel_ids(raw_value) -> list[str]:
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+            raw_value = parsed
+        except Exception:
+            raw_value = re.split(r"[\s,;]+", raw_value)
+    if not isinstance(raw_value, list):
+        return []
+    channel_ids = []
+    for item in raw_value:
+        value = str(item or "").strip()
+        if not value or value in channel_ids:
+            continue
+        channel_ids.append(value)
+    return channel_ids
+
+
+def _load_channel_pool_from_mapping(mapping: dict, keyword: str, category: str = "") -> list[str]:
+    keys = [
+        category,
+        keyword,
+        str(category or "").casefold(),
+        str(keyword or "").casefold(),
+        "default",
+        "*",
+    ]
+    for key in keys:
+        if not key:
+            continue
+        value = mapping.get(key)
+        channel_ids = _normalize_channel_ids(value)
+        if channel_ids:
+            return channel_ids
+    return []
+
+
+def _load_benchmark_channel_pool(payload: dict, keyword: str) -> tuple[list[str], dict]:
+    """Load benchmark seed channels without spending search.list quota.
+
+    Supported inputs, in priority order:
+    - job payload: benchmark_channel_ids/channel_ids
+    - env YOUTUBE_BENCHMARK_CHANNELS_JSON: list or {category: [ids]}
+    - data/youtube_benchmark_channels.json or worker/youtube_benchmark_channels.json
+    """
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    payload_ids = _normalize_channel_ids(payload.get("benchmark_channel_ids") or payload.get("channel_ids"))
+    if payload_ids:
+        return payload_ids[:MAX_RSS_CHANNELS_PER_JOB], {"source": "payload", "category": category, "count": len(payload_ids)}
+
+    env_value = os.environ.get("YOUTUBE_BENCHMARK_CHANNELS_JSON", "").strip()
+    if env_value:
+        try:
+            parsed = json.loads(env_value)
+            if isinstance(parsed, dict):
+                env_ids = _load_channel_pool_from_mapping(parsed, keyword, category)
+            else:
+                env_ids = _normalize_channel_ids(parsed)
+            if env_ids:
+                return env_ids[:MAX_RSS_CHANNELS_PER_JOB], {
+                    "source": "env:YOUTUBE_BENCHMARK_CHANNELS_JSON",
+                    "category": category,
+                    "count": len(env_ids),
+                }
+        except Exception as exc:
+            logger.warning("Invalid YOUTUBE_BENCHMARK_CHANNELS_JSON: %s", exc)
+
+    for path in BENCHMARK_CHANNEL_POOL_PATHS:
+        if not path.exists():
+            continue
+        try:
+            parsed = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                file_ids = _load_channel_pool_from_mapping(parsed, keyword, category)
+            else:
+                file_ids = _normalize_channel_ids(parsed)
+            if file_ids:
+                return file_ids[:MAX_RSS_CHANNELS_PER_JOB], {
+                    "source": str(path),
+                    "category": category,
+                    "count": len(file_ids),
+                }
+        except Exception as exc:
+            logger.warning("Could not read benchmark channel pool %s: %s", path, exc)
+    return [], {"source": "none", "category": category, "count": 0}
+
+
 async def _youtube_get(path: str, params: dict) -> dict:
     """Same request shape as app/routers/youtube.py's endpoints, called
     directly here rather than through FastAPI (this process has no HTTP
@@ -492,8 +683,19 @@ async def _search_candidate_videos(
         value = " ".join(str(item or "").split()).strip()
         if value and value not in queries:
             queries.append(value)
-    # Keep the API cost bounded while still exploring multiple interests.
-    queries = queries[:10]
+    if str(os.environ.get("YOUTUBE_SEARCH_FALLBACK_ENABLED", "")).strip().lower() not in {"1", "true", "yes", "on"}:
+        raise RuntimeError(
+            "YouTube search fallback is disabled. Configure benchmark_channel_ids or "
+            "YOUTUBE_BENCHMARK_CHANNELS_JSON so the worker can use RSS + videos.list."
+        )
+    fallback_limit = os.environ.get("YOUTUBE_SEARCH_FALLBACK_MAX_CALLS_PER_RUN", "1")
+    try:
+        fallback_limit_int = int(fallback_limit)
+    except (TypeError, ValueError):
+        fallback_limit_int = 1
+    queries = queries[: max(0, min(10, fallback_limit_int))]
+    if not queries:
+        raise RuntimeError("YouTube search fallback call limit is 0")
     candidates_by_id = {}
     query_audits = []
     per_query_limit = max(3, min(5, max_results))
@@ -536,10 +738,80 @@ async def _search_candidate_videos(
     candidates = list(candidates_by_id.values())[:pool_limit]
     return candidates, {
         "endpoint": "search",
+        "quota_policy": {
+            "enabled_by": "YOUTUBE_SEARCH_FALLBACK_ENABLED",
+            "max_calls_per_run": fallback_limit_int,
+        },
         "queries": query_audits,
         "query_count": len(query_audits),
         "result_count": sum(item["result_count"] for item in query_audits),
     }
+
+
+async def _rss_candidate_videos(payload: dict, keyword: str, max_results: int) -> tuple[list[dict], dict]:
+    from services.youtube_data_api import async_fetch_channel_rss_videos
+
+    channel_ids, pool_audit = _load_benchmark_channel_pool(payload, keyword)
+    if not channel_ids:
+        return [], {
+            "endpoint": "youtube_channel_rss",
+            "quota_cost": 0,
+            "channel_pool": pool_audit,
+            "channels": [],
+            "result_count": 0,
+        }
+
+    per_channel = max(1, min(DEFAULT_RSS_VIDEOS_PER_CHANNEL, max_results))
+    candidates_by_id = {}
+    channel_audits = []
+    for channel_index, channel_id in enumerate(channel_ids, start=1):
+        try:
+            items = await async_fetch_channel_rss_videos(channel_id, limit=per_channel)
+            channel_audits.append({"channel_id": channel_id, "result_count": len(items), "error": None})
+        except Exception as exc:
+            channel_audits.append({"channel_id": channel_id, "result_count": 0, "error": str(exc)})
+            continue
+        for item_index, item in enumerate(items, start=1):
+            video_id = item.get("video_id")
+            if not video_id or video_id in candidates_by_id:
+                continue
+            candidates_by_id[video_id] = {
+                **item,
+                "search_rank": len(candidates_by_id) + 1,
+                "search_query": keyword,
+                "rss_channel_rank": channel_index,
+                "rss_item_rank": item_index,
+            }
+
+    candidates = list(candidates_by_id.values())[: max(1, min(50, max_results * max(1, len(channel_ids))))]
+    return candidates, {
+        "endpoint": "youtube_channel_rss",
+        "quota_cost": 0,
+        "channel_pool": pool_audit,
+        "channels": channel_audits,
+        "result_count": len(candidates),
+    }
+
+
+async def _collect_candidate_videos(
+    payload: dict,
+    keyword: str,
+    language: str,
+    video_type: str,
+    max_results: int,
+    search_keywords: list[str] | None = None,
+) -> tuple[list[dict], dict]:
+    rss_candidates, rss_audit = await _rss_candidate_videos(payload, keyword, max_results)
+    if rss_candidates:
+        rss_audit["fallback_search_used"] = False
+        return rss_candidates, rss_audit
+
+    search_candidates, search_audit = await _search_candidate_videos(
+        keyword, language, video_type, max_results, search_keywords
+    )
+    search_audit["rss_attempt"] = rss_audit
+    search_audit["fallback_search_used"] = True
+    return search_candidates, search_audit
 
 
 async def _fetch_video_and_channel_stats(candidates: list[dict]) -> tuple[list[dict], dict]:
@@ -550,14 +822,24 @@ async def _fetch_video_and_channel_stats(candidates: list[dict]) -> tuple[list[d
     if not candidates:
         return [], {"video_ids": [], "channel_ids": [], "videos_response": {}, "channels_response": {}}
 
-    video_ids = ",".join(c["video_id"] for c in candidates)
-    channel_ids = ",".join(sorted({c["channel_id"] for c in candidates}))
+    from services.youtube_data_api import async_youtube_list_by_ids, unique_nonempty
 
-    videos_data = await _youtube_get("videos", {"part": "statistics", "id": video_ids})
-    channels_data = await _youtube_get("channels", {"part": "statistics", "id": channel_ids})
+    video_ids_list = unique_nonempty(c.get("video_id") for c in candidates)
+    channel_ids_list = unique_nonempty(c.get("channel_id") for c in candidates)
+    videos_data = await async_youtube_list_by_ids("videos", video_ids_list, part="statistics")
+    if videos_data.get("error"):
+        raise RuntimeError(f"YouTube API error (videos): {videos_data.get('message') or videos_data.get('error')}")
+    channels_data = await async_youtube_list_by_ids("channels", channel_ids_list, part="statistics")
+    if channels_data.get("error"):
+        raise RuntimeError(f"YouTube API error (channels): {channels_data.get('message') or channels_data.get('error')}")
     stats_audit = {
-        "video_ids": video_ids.split(",") if video_ids else [],
-        "channel_ids": channel_ids.split(",") if channel_ids else [],
+        "video_ids": video_ids_list,
+        "channel_ids": channel_ids_list,
+        "quota_policy": {
+            "videos_list_calls": videos_data.get("batch_count", 0),
+            "channels_list_calls": channels_data.get("batch_count", 0),
+            "max_ids_per_call": 50,
+        },
         "videos_response": videos_data,
         "channels_response": channels_data,
     }
@@ -885,7 +1167,7 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
 
     keyword, language, video_type, max_candidates, search_pool_size, search_keywords = _validate_benchmark_payload(job["payload"])
 
-    job_store.transition(job_id, job_store.RENDERING, reason="searching YouTube for high-performing videos")
+    job_store.transition(job_id, job_store.RENDERING, reason="collecting YouTube benchmark candidates")
     write_state("running", job, 10, job_id)
     job_log.info(f"-> RENDERING (keyword={keyword!r}, video_type={video_type}, pool={search_pool_size}, pick={max_candidates})")
 
@@ -955,65 +1237,23 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
         }
 
         try:
-            candidates, search_audit = await _search_candidate_videos(
-                keyword, language, video_type, search_pool_size, search_keywords
+            candidates, search_audit = await _collect_candidate_videos(
+                job.get("payload") or {}, keyword, language, video_type, search_pool_size, search_keywords
             )
             audit_payload["search"] = search_audit
             if not candidates:
-                raise ValueError("No candidates returned from YouTube search")
+                raise ValueError("No candidates returned from YouTube RSS/channel pool")
         except Exception as search_e:
-            raise RuntimeError(f"YouTube search unavailable; benchmark cannot continue: {search_e}") from search_e
-            audit_payload["fallbacks"].append({"stage": "search", "error": str(search_e), "applied_at": time.time()})
-            candidates = [
-                {
-                    "search_rank": 1,
-                    "video_id": "dummy_vid_123",
-                    "channel_id": "dummy_channel_456",
-                    "title": f"[fallback] {keyword} reference video unavailable",
-                    "channel_title": "fallback benchmark channel",
-                    "published_at": None,
-                    "description": "",
-                    "thumbnail_url": None,
-                }
-            ]
-            audit_payload["search"] = {
-                "endpoint": "search",
-                "params": {
-                    "part": "snippet",
-                    "q": keyword,
-                    "type": "video",
-                    "maxResults": search_pool_size,
-                    "order": "viewCount",
-                    "relevanceLanguage": language,
-                    "videoDuration": "short" if video_type == "shorts" else "medium",
-                },
-                "error": str(search_e),
-                "result_count": 0,
-                "raw_response": None,
-            }
+            raise RuntimeError(f"YouTube benchmark candidate collection unavailable; benchmark cannot continue: {search_e}") from search_e
 
         try:
             enriched, stats_audit = await _fetch_video_and_channel_stats(candidates)
             audit_payload["stats"] = stats_audit
+            enriched = [candidate for candidate in enriched if int(candidate.get("view_count") or 0) > 0]
+            if not enriched:
+                raise ValueError("No candidates had public non-zero YouTube statistics")
         except Exception as stats_e:
             raise RuntimeError(f"YouTube statistics unavailable; benchmark cannot continue: {stats_e}") from stats_e
-            audit_payload["fallbacks"].append({"stage": "stats", "error": str(stats_e), "applied_at": time.time()})
-            enriched = []
-            for c in candidates:
-                enriched.append({
-                    **c,
-                    "view_count": 150000,
-                    "subscriber_count": 12000,
-                    "performance_ratio": 12.5,
-                    "performance_data_source": "fallback",
-                })
-            audit_payload["stats"] = {
-                "video_ids": [c["video_id"] for c in candidates],
-                "channel_ids": sorted({c["channel_id"] for c in candidates}),
-                "error": str(stats_e),
-                "videos_response": None,
-                "channels_response": None,
-            }
 
         keyword_ranking = _rank_search_keywords(enriched)
         audit_payload["search"]["keyword_ranking"] = keyword_ranking
@@ -1265,6 +1505,46 @@ def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, st
     return topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation
 
 
+def _quality_feedback_instruction(payload: dict) -> str:
+    feedback = payload.get("quality_feedback") if isinstance(payload, dict) else None
+    if not isinstance(feedback, list):
+        return ""
+    items = [str(item or "").strip() for item in feedback if str(item or "").strip()]
+    if not items:
+        return ""
+    return (
+        "\n[PREVIOUS QUALITY GATE FAILURES - MUST FIX THIS RUN]\n"
+        + "\n".join(f"- {item}" for item in items[:20])
+        + "\nDo not repeat the failed patterns above. Generate fresh, specific, complete results.\n"
+    )
+
+
+def _learning_profile_instruction(payload: dict) -> str:
+    profile = payload.get("learning_profile") if isinstance(payload, dict) else None
+    if not isinstance(profile, dict) or not profile:
+        return ""
+
+    compact = {
+        "successful_script_patterns": (profile.get("successful_script_patterns") or [])[:8],
+        "failed_script_patterns": (profile.get("failed_script_patterns") or [])[:10],
+        "performance_lessons": (profile.get("performance_lessons") or [])[:6],
+        "script_generation_rules": profile.get("script_generation_rules") or {},
+    }
+    if not any(compact.values()):
+        return ""
+    return (
+        "\n[LEARNING MEMORY FOR THIS CATEGORY - APPLY CAREFULLY]\n"
+        "Use this as production learning from previous generated videos. "
+        "Extract abstract structure only; never copy titles, names, incidents, or sentences.\n"
+        f"{json.dumps(compact, ensure_ascii=False)}\n"
+        "Required application:\n"
+        "- Preserve successful hook/tension/reveal/payoff patterns when they fit this new title.\n"
+        "- Avoid failed patterns and QA issues listed above.\n"
+        "- If performance lessons conflict with generic style rules, prioritize the concrete category lesson.\n"
+        "- Still obey the current upload title and scene plan over memory.\n"
+    )
+
+
 def _resolve_image_style_directive(image_style: str, image_style_selection: dict | None = None) -> tuple[str, str]:
     """Resolve an image style key into the concrete prompt directive used by
     desktop image generation. Worker pre-generation must honor the same admin
@@ -1359,6 +1639,175 @@ def _mostly_english(value: str) -> bool:
     return len(letters) >= 40 and len(letters) >= len(hangul) * 2
 
 
+MEDIA_CAMERA_MOVEMENTS = (
+    "slow push-in",
+    "slow pull-back",
+    "gentle pan",
+    "gentle tilt",
+    "slow dolly",
+    "slow tracking shot",
+    "locked-off shot",
+    "subtle crane movement",
+    "slow drift",
+)
+
+
+def _category_visual_grammar(topic: str, upload_title: str, structure: dict | None = None) -> str:
+    blob = json.dumps(
+        {
+            "topic": topic,
+            "upload_title": upload_title,
+            "category": (structure or {}).get("category") if isinstance(structure, dict) else "",
+            "global_mood": (structure or {}).get("global_mood") if isinstance(structure, dict) else "",
+        },
+        ensure_ascii=False,
+    ).lower()
+    if any(term in blob for term in ("옛날", "folk", "tale", "village", "hanok")):
+        return (
+            "Old Korean folk-tale visual grammar: tactile hanok courtyards, worn fabric, wooden gates, wells, "
+            "paper lanterns, mountain silhouettes, restrained gestures, warm dusk or moonlit blue lighting, "
+            "emotion readable through posture and hands, no modern objects, no typography."
+        )
+    if any(term in blob for term in ("무협", "martial", "jianghu", "sword", "sect")):
+        return (
+            "Martial-arts fiction visual grammar: readable silhouettes, robes and belts consistent across scenes, "
+            "courtyards, bamboo forests, mountain paths, training halls, precise weapon placement, controlled wind, "
+            "no chaotic limb duplication, no modern street objects."
+        )
+    if any(term in blob for term in ("경제", "금리", "주식", "부동산", "money", "market", "finance")):
+        return (
+            "Documentary economy visual grammar: realistic Korean household and urban details, receipts, bank counters, "
+            "market screens without readable text, apartment exteriors, restrained infographic-like composition, "
+            "no fake logos, no readable numbers or letters."
+        )
+    return (
+        "Human documentary-story visual grammar: realistic lived-in spaces, expressive faces and hands, restrained camera, "
+        "clear foreground/midground/background, culturally coherent props, no text overlays, no logos."
+    )
+
+
+def _fallback_visual_direction_plan(
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    image_style_key: str,
+    image_style_directive: str,
+) -> dict:
+    return {
+        "visual_bible_version": "fallback_v1",
+        "overall_vision": f"Consistent longform visual sequence for {upload_title or topic}.",
+        "category_visual_grammar": _category_visual_grammar(topic, upload_title, structure),
+        "image_style_key": image_style_key,
+        "image_style_directive": image_style_directive,
+        "recurring_characters": [
+            "Keep every recurring person visually consistent: age range, face shape, hair, clothing color, body type, and key prop."
+        ],
+        "recurring_locations": [
+            "Keep recurring places consistent: architecture, time period, light direction, weather, and key background anchors."
+        ],
+        "continuity_anchors": [
+            "Opening keyframe of each video prompt must exactly match the image prompt.",
+            "Do not add modern objects, readable text, logos, captions, or unexpected extra people.",
+            "Vary composition and camera movement across neighboring scenes while preserving the same visual world.",
+        ],
+        "palette": "Restrained, category-appropriate palette with clear lighting continuity.",
+        "camera_language": list(MEDIA_CAMERA_MOVEMENTS),
+        "negative_prompt": (
+            "no text, no words, no letters, no labels, no watermarks, no captions, no logos, correct anatomy, "
+            "exactly two arms, exactly two hands, anatomically correct hands, no extra limbs, no fused fingers, "
+            "no duplicated people"
+        ),
+    }
+
+
+def _build_visual_direction_plan(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    image_style_key: str,
+    image_style_directive: str,
+    language: str,
+) -> dict:
+    import asyncio
+
+    scenes_preview = []
+    for scene in (structure.get("scenes") or [])[:12]:
+        if isinstance(scene, dict):
+            scenes_preview.append({
+                "scene_id": scene.get("scene_id"),
+                "scene_order": scene.get("scene_order"),
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "visual_direction": scene.get("visual_direction"),
+                "scene_emotion": scene.get("scene_emotion"),
+            })
+    fallback = _fallback_visual_direction_plan(topic, upload_title, structure, image_style_key, image_style_directive)
+    prompt = f"""
+You are the visual showrunner for a longform AI video.
+
+Create a compact visual bible that will govern every scene image prompt and every single-shot video prompt.
+
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+LANGUAGE: {language}
+IMAGE STYLE KEY: {image_style_key}
+IMAGE STYLE DIRECTIVE:
+{image_style_directive}
+CATEGORY VISUAL GRAMMAR:
+{_category_visual_grammar(topic, upload_title, structure)}
+SCENE PREVIEW:
+{json.dumps(scenes_preview, ensure_ascii=False, indent=2)}
+
+Rules:
+- Preserve story facts and category tone.
+- Define recurring character continuity, recurring location continuity, palette, camera language, and negative prompt.
+- Keep it practical for image/video generation, not a prose essay.
+- Do not include Korean administrative explanation inside fields that will be reused in English prompts.
+- Return ONLY JSON.
+
+Schema:
+{{
+  "visual_bible_version": "v1",
+  "overall_vision": "English visual direction",
+  "category_visual_grammar": "English category-specific visual rules",
+  "recurring_characters": ["English continuity anchor"],
+  "recurring_locations": ["English continuity anchor"],
+  "continuity_anchors": ["English rule"],
+  "palette": "English palette and lighting rule",
+  "camera_language": ["allowed camera movement phrase"],
+  "negative_prompt": "English negative prompt"
+}}
+"""
+    try:
+        raw = asyncio.run(asyncio.wait_for(
+            ai_router.generate_text(
+                prompt,
+                model,
+                temperature=0.25,
+                max_tokens=2200,
+                task_type="scene_visual_direction_plan",
+            ),
+            timeout=45,
+        ))
+        plan = _extract_json(raw)
+        if not isinstance(plan, dict):
+            raise ValueError("visual direction plan is not an object")
+        for key, value in fallback.items():
+            plan.setdefault(key, value)
+        plan["image_style_key"] = image_style_key
+        plan["image_style_directive"] = image_style_directive
+        plan["camera_language"] = [
+            item for item in (plan.get("camera_language") or [])
+            if str(item).strip() in MEDIA_CAMERA_MOVEMENTS
+        ] or list(MEDIA_CAMERA_MOVEMENTS)
+        return plan
+    except Exception as exc:
+        fallback["error"] = str(exc)
+        return fallback
+
+
 def _validate_media_prompt_quality(media: dict, scene_label: str) -> None:
     image_prompt = str(media.get("image_prompt") or "").strip()
     video_prompt = str(media.get("video_prompt") or "").strip()
@@ -1373,8 +1822,17 @@ def _validate_media_prompt_quality(media: dict, scene_label: str) -> None:
     generic_terms = ("cinematic scene", "beautiful scene", "high quality image", "camera moves")
     if any(term in image_prompt.lower() for term in generic_terms):
         raise ValueError(f"image_prompt contains generic filler for scene {scene_label}")
-    if not re.search(r"\b(push-in|push in|dolly|zoom|pan|tilt|tracking|handheld|crane|pull-back|pull back|rack focus|locked-off|locked off|drift)\b", video_prompt, re.I):
-        raise ValueError(f"video_prompt lacks a concrete camera movement for scene {scene_label}")
+    image_lower = image_prompt.lower()
+    for required in ("no text", "no words", "no letters", "no watermarks", "no captions"):
+        if required not in image_lower:
+            raise ValueError(f"image_prompt missing negative guardrail '{required}' for scene {scene_label}")
+    movement_count = sum(1 for movement in MEDIA_CAMERA_MOVEMENTS if movement in video_prompt.lower())
+    if movement_count != 1:
+        raise ValueError(f"video_prompt must contain exactly one approved camera movement for scene {scene_label}")
+    video_lower = video_prompt.lower()
+    for required in ("no dialogue", "no narration", "no subtitles", "no captions", "no music", "no sound effects", "no audio"):
+        if required not in video_lower:
+            raise ValueError(f"video_prompt missing negative motion guardrail '{required}' for scene {scene_label}")
     positive_audio_patterns = (
         r"\b(with|include|add|generate|create|use)\s+(dialogue|narration|voice-over|voiceover|subtitles|captions|sound effects|music|audio)\b",
         r"\b(dialogue|narration|voice-over|voiceover|subtitles|captions|sound effects|music|audio)\s+(plays|starts|rises|swells|is heard|can be heard)\b",
@@ -1392,6 +1850,8 @@ def _validate_media_prompt_quality(media: dict, scene_label: str) -> None:
 def _validate_unique_media_prompts(scenes: list[dict]) -> None:
     seen_image_prompts: dict[str, str] = {}
     seen_video_prompts: dict[str, str] = {}
+    normalized_images: list[tuple[str, str]] = []
+    normalized_videos: list[tuple[str, str]] = []
     for index, scene in enumerate(scenes, start=1):
         label = str(scene.get("scene_id") or scene.get("scene_order") or index)
         image_prompt = str(scene.get("image_prompt") or "").strip()
@@ -1402,6 +1862,13 @@ def _validate_unique_media_prompts(scenes: list[dict]) -> None:
             raise ValueError(f"duplicate video_prompt for scenes {seen_video_prompts[video_prompt]} and {label}")
         seen_image_prompts[image_prompt] = label
         seen_video_prompts[video_prompt] = label
+        normalized_images.append((label, re.sub(r"\s+", " ", image_prompt.lower())))
+        normalized_videos.append((label, re.sub(r"\s+", " ", video_prompt.lower())))
+    for values, field in ((normalized_images, "image_prompt"), (normalized_videos, "video_prompt")):
+        for i, (left_label, left) in enumerate(values):
+            for right_label, right in values[i + 1:]:
+                if len(left) > 120 and len(right) > 120 and SequenceMatcher(None, left, right).ratio() >= 0.998:
+                    raise ValueError(f"near-duplicate {field} for scenes {left_label} and {right_label}")
 
 
 def _generate_scene_media_prompts(
@@ -1427,6 +1894,17 @@ def _generate_scene_media_prompts(
     if str(model).lower().startswith("claude"):
         model = "gemini-2.5-flash"
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
+    visual_direction_plan = _build_visual_direction_plan(
+        ai_router,
+        model,
+        topic,
+        upload_title,
+        structure,
+        image_style_key,
+        image_style_directive,
+        language,
+    )
+
     def _build_media_prompt(prompt_scenes: list, chunk_label: str) -> str:
         return f"""
 You are the visual director for a YouTube video production pipeline.
@@ -1439,6 +1917,8 @@ CHUNK: {chunk_label}
 ADMIN-SELECTED IMAGE STYLE KEY: {image_style_key}
 ADMIN-SELECTED IMAGE STYLE DIRECTIVE:
 {image_style_directive}
+GLOBAL VISUAL BIBLE - MUST GOVERN EVERY SCENE:
+{json.dumps(visual_direction_plan, ensure_ascii=False, indent=2)}
 SCENE PLAN:
 {json.dumps(prompt_scenes, ensure_ascii=False, indent=2)}
 
@@ -1446,15 +1926,15 @@ Rules:
 1. Return exactly one result for every input scene, preserving scene_id and scene_order.
 2. Do not change scene boundaries, duration, story facts, or character identity.
 3. Treat the admin-selected image style as the visual language for the whole video. Integrate it naturally into every scene; do not mix incompatible art styles or repeat it as a meaningless keyword list.
-4. image_prompt must describe one coherent keyframe with: primary subject, visible action, setting, historically/culturally accurate era and location, foreground/midground/background composition, shot size and angle, facial emotion or readable body language, lighting, color palette, and continuity anchors.
+4. image_prompt must describe one coherent keyframe with: primary subject, visible action, setting, historically/culturally accurate era and location, foreground/midground/background composition, shot size and angle, facial emotion or readable body language, lighting, color palette, and continuity anchors from the visual bible.
 5. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them. Preserve recurring locations and important props as well.
 6. image_prompt quality guardrails: include "no text, no words, no letters, no labels, no watermarks, no captions"; for human characters include correct anatomy, exactly two arms, exactly two hands, anatomically correct hands, no extra limbs, no fused fingers, no duplicated people.
 7. Treat image_prompt as the exact opening keyframe for video_prompt. The first frame must match its subject, pose, location, wardrobe, props, composition, and lighting before motion begins.
 8. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot.
 9. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
 10. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
-11. video_prompt must not request cuts, transitions, dialogue, narration, subtitles, captions, sound effects, music, or audio. It must describe visual motion only.
-12. Make each prompt specific to its scene. Do not use generic phrases such as "cinematic scene" without concrete visual details. Do not invent text, logos, brands, or historically impossible objects.
+11. video_prompt must include these exact negative phrases: "no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio". It must describe visual motion only.
+12. Make each prompt specific to its scene. Vary shot size, composition, subject action, and approved camera movement from neighboring scenes. Do not use generic phrases such as "cinematic scene" without concrete visual details. Do not invent text, logos, brands, or historically impossible objects.
 13. Write image_prompt and video_prompt in English for generator compatibility. Keep administrative rationale out of both prompts.
 14. Minimum length: image_prompt 220+ characters, video_prompt 260+ characters.
 
@@ -1469,6 +1949,9 @@ Return ONLY valid JSON in this shape:
       "video_prompt": "detailed English single-shot visual motion prompt with timing, one camera movement, subject motion, ambient motion, focus response, and stable end pose",
       "lighting_hint": "specific lighting",
       "visual_style": "specific visual style",
+      "continuity_identity": "recurring character/location/prop continuity used in this scene",
+      "keyframe_subject": "opening keyframe subject and pose",
+      "motion_plan": "one camera movement plus subject/background motion",
       "shot_hints": [
         {{"camera": "close-up", "composition": "...", "movement": "slow push-in", "emotion": "...", "purpose": "..."}}
       ]
@@ -1546,7 +2029,10 @@ Return ONLY valid JSON in this shape:
             _validate_media_prompt_quality(media, key[0] or key[1])
 
             merged = dict(scene)
-            for field in ("image_prompt", "video_prompt", "lighting_hint", "visual_style", "shot_hints"):
+            for field in (
+                "image_prompt", "video_prompt", "lighting_hint", "visual_style",
+                "continuity_identity", "keyframe_subject", "motion_plan", "shot_hints",
+            ):
                 if media.get(field) is not None:
                     merged[field] = media[field]
             merged["image_style"] = image_style_key
@@ -1561,6 +2047,7 @@ Return ONLY valid JSON in this shape:
         result["image_style"] = image_style_key
         result["image_style_directive"] = image_style_directive
         result["image_style_selection"] = image_style_selection or {}
+        result["visual_direction_plan"] = visual_direction_plan
         result["image_grid_prompts"] = image_grid_prompts
         result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
         result["media_prompt_director"] = director_notes
@@ -1805,6 +2292,12 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     # with the web-admin (same assumption every other desktop install
     # already depends on for this function - not new to this job type).
     style_directive = resolve_script_style_directive(script_style)
+    learning_instruction = _learning_profile_instruction(job.get("payload") or {})
+    feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
+    if learning_instruction:
+        style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
+    if feedback_instruction:
+        style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
 
     structure = asyncio.run(
         scene_planner_service.plan_scenes(
@@ -1868,6 +2361,8 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
         "image_style": image_style,
         "image_style_selection": image_style_selection or {},
         "structure": structure,
+        "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
         "error": None,
     }
@@ -2450,6 +2945,12 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     # narration use the same model choice.
     model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
     style_directive = resolve_script_style_directive(script_style)
+    learning_instruction = _learning_profile_instruction(job.get("payload") or {})
+    feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
+    if learning_instruction:
+        style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
+    if feedback_instruction:
+        style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
     total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
     chars_per_section = round(total_target_chars / len(scenes))
     min_chars = max(20, round(chars_per_section * 0.7)) if is_shorts else max(50, round(chars_per_section * 0.8))
@@ -2582,6 +3083,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         "script": final_script,
         "upload_title": upload_title,
         "title_generation": title_generation,
+        "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
         "narrative_blueprint": narrative_blueprint,
         "initial_script_quality_report": initial_quality,
         "script_quality_report": final_quality,
@@ -2589,6 +3091,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         "char_count": char_count,
         "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
         "narration_mode": narration_mode,
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
         "error": None,
     }
@@ -2630,6 +3133,7 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
             structure,
         )
     )
+    _validate_publish_metadata_quality(publish_metadata, topic, upload_title, script, language)
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving publish metadata")
     write_state("running", job, 90, job_id)
@@ -2645,6 +3149,7 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "topic": topic,
         "upload_title": upload_title,
         "publish_metadata": publish_metadata,
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
         "error": None,
     }
@@ -2679,6 +3184,17 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
     }
 
     try:
+        if result_payload.get("defer_ready_until_quality_gate") and job_type in {
+            "script_plan_generate",
+            "script_generate",
+            "publish_metadata_generate",
+        }:
+            job_log.info(
+                "Quality-gated autopilot job complete locally; deferring Supabase ready sync "
+                "until the full package passes final validation."
+            )
+            return
+
         if job_type == "topic_research":
             topics = result_payload.get("topics", [])
             payload_data = result_payload.get("_payload_data")

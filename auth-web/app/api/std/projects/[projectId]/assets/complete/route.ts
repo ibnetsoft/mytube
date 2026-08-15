@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 import { driveFileLink, driveFolderLink, getStdDriveFileMetadata } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 
@@ -11,16 +12,20 @@ const ASSET_TYPES = new Set(['image', 'video', 'audio', 'thumbnail', 'original']
 async function updateSceneAssetStatus(projectId: string, sceneNumber: number) {
     const { data: activeAssets } = await supabaseAdmin
         .from('std_project_assets')
-        .select('id')
+        .select('id,asset_type')
         .eq('project_id', projectId)
         .eq('scene_number', sceneNumber)
         .in('asset_type', ['image', 'video'])
         .in('status', ['uploaded', 'assigned'])
 
+    const isReady = isStdRequiredVideoScene(sceneNumber)
+        ? Boolean((activeAssets || []).some((asset: any) => asset.asset_type === 'video'))
+        : Boolean(activeAssets && activeAssets.length > 0)
+
     await supabaseAdmin
         .from('std_project_scenes')
         .update({
-            asset_status: activeAssets && activeAssets.length > 0 ? 'ready' : 'missing',
+            asset_status: isReady ? 'ready' : 'missing',
             updated_at: new Date().toISOString(),
         })
         .eq('project_id', projectId)
@@ -47,6 +52,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (!ASSET_TYPES.has(assetType)) return NextResponse.json({ success: false, error: 'Invalid asset type' }, { status: 400 })
     if (sceneNumber != null && !Number.isFinite(sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Invalid scene number' }, { status: 400 })
+    }
+    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber) && assetType === 'image') {
+        return NextResponse.json({
+            success: false,
+            error: 'Video file is required for scenes 1-12.',
+            code: 'video_required_for_scene',
+        }, { status: 422 })
     }
 
     const { data: project, error: projectError } = await supabaseAdmin
