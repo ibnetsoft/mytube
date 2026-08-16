@@ -1479,14 +1479,32 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
             )
 
         results = []
-        for candidate in top_candidates:
+        total_candidates = max(1, len(top_candidates))
+        for candidate_index, candidate in enumerate(top_candidates, start=1):
             video_id = candidate["video_id"]
+            candidate_progress_base = 20 + int(55 * (candidate_index - 1) / total_candidates)
+            job_store.update_progress(
+                job_id,
+                candidate_progress_base,
+                f"benchmark candidate {candidate_index}/{total_candidates}",
+            )
+            write_state("running", job, candidate_progress_base, job_id)
+            job_log.info(
+                "BENCHMARK_ANALYZE #%s/%s video_id=%s title=%r",
+                candidate_index,
+                total_candidates,
+                video_id,
+                candidate.get("title") or "",
+            )
 
             transcript = None
             transcript_error = None
             try:
-                extracted = await source_service.extract_text_from_youtube(
-                    f"https://www.youtube.com/watch?v={video_id}"
+                extracted = await asyncio.wait_for(
+                    source_service.extract_text_from_youtube(
+                        f"https://www.youtube.com/watch?v={video_id}"
+                    ),
+                    timeout=25.0,
                 )
                 transcript = extracted.get("content")
             except Exception as e:
@@ -1494,17 +1512,52 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
                 job_log.warning(f"Transcript extraction failed for {video_id} (continuing without it): {e}")
                 transcript_error = str(e)
 
-            comments, comments_audit = await _fetch_comments_with_audit(video_id)
-            analysis = await _analyze_comments_with_router(
-                comments=comments, video_title=candidate["title"], transcript=transcript
-            )
+            try:
+                comments, comments_audit = await asyncio.wait_for(_fetch_comments_with_audit(video_id), timeout=20.0)
+            except Exception as e:
+                job_log.warning(f"Comment fetch failed for {video_id} (continuing without comments): {e}")
+                comments = []
+                comments_audit = {"video_id": video_id, "count": 0, "error": str(e), "items": []}
+
+            try:
+                analysis = await asyncio.wait_for(
+                    _analyze_comments_with_router(
+                        comments=comments,
+                        video_title=candidate["title"],
+                        transcript=transcript,
+                    ),
+                    timeout=90.0,
+                )
+            except Exception as e:
+                job_log.warning(f"Comment/transcript analysis failed for {video_id} (using compact fallback): {e}")
+                analysis = {
+                    "error": "analysis_fallback",
+                    "reason": str(e),
+                    "summary": f"High-performing reference title: {candidate.get('title') or ''}",
+                    "viewer_interest": ["clear curiosity gap", "historical/folk-story stakes", "specific hidden truth"],
+                    "retention_pattern": ["open with unresolved event", "delay the true cause", "pay off with a concrete moral turn"],
+                }
 
             success_strategies = []
             if not analysis.get("error"):
                 try:
-                    success_strategies = await _extract_success_strategy_with_router(analysis)
+                    success_strategies = await asyncio.wait_for(
+                        _extract_success_strategy_with_router(analysis),
+                        timeout=60.0,
+                    )
                 except Exception as e:
                     job_log.warning(f"Success-strategy extraction failed for {video_id}: {e}")
+            if not success_strategies:
+                success_strategies = [
+                    {
+                        "pattern": "specific folk mystery title",
+                        "application": "Use one concrete impossible event, then reveal the cause only near the end.",
+                    },
+                    {
+                        "pattern": "emotion before explanation",
+                        "application": "Let shame, fear, debt, or devotion drive each scene before giving exposition.",
+                    },
+                ]
 
             results.append({
                 **candidate,
@@ -2485,9 +2538,12 @@ def _build_fallback_scene_plan(
         elif cursor < 600:
             step = 20
             phase = "explanation"
-        else:
+        elif cursor < 1200:
             step = 30
             phase = "steady"
+        else:
+            step = 40
+            phase = "closing"
         end = min(cursor + step, target_duration)
         slots.append((cursor, end, phase))
         cursor = end
@@ -2810,6 +2866,291 @@ def _is_martial_plan_context(script_style: str, topic: str, upload_title: str, i
             "\ubc18\uc9c0",
         )
     )
+
+
+def _old_story_title_is_grave_vigil(topic: str, upload_title: str) -> bool:
+    title_blob = _text_with_mojibake_repairs(topic, upload_title)
+    return any(term in title_blob for term in ("며느리", "시어머니", "묘에", "묘지", "grave vigil"))
+
+
+def _clean_planned_scene_situation(scene: dict) -> str:
+    text = str((scene or {}).get("scene_situation") or "").strip()
+    if not text:
+        return str((scene or {}).get("scene_summary") or "").strip()
+    for marker in ("advances the hook:", "advances the hook："):
+        if marker in text:
+            text = text.split(marker, 1)[1].strip()
+            break
+    text = re.sub(r"^First-minute micro beat\s+\d+/\d+\s+\([^)]+\)\.\s*", "", text).strip()
+    text = re.sub(r"^Keep this as a separate fast visual cut[^:]*:\s*", "", text).strip()
+    return text or str((scene or {}).get("scene_summary") or "").strip()
+
+
+def _old_story_wedding_bride_beats(title: str) -> list[tuple[str, str, str]]:
+    return [
+        ("혼례 마당에 등불이 켜지고 신부의 빈 가마가 먼저 보인다", "사라진 신부라는 핵심 사건을 즉시 세운다", "가마는 비었는데 왜 신부의 신발만 남았을까?"),
+        ("젊은 신랑이 빈 자리 앞에서 굳어 버리고 마을이 숨을 죽인다", "신랑의 상처를 중심 감정으로 고정한다", "그 순간 신랑은 무엇을 보지 못했을까?"),
+        ("신부 방 안에서 찢어진 붉은 댕기와 접히지 않은 편지가 발견된다", "비밀의 물증을 보여주되 이유는 숨긴다", "편지는 왜 끝까지 접히지 못했을까?"),
+        ("신부가 사라지기 직전 뒤뜰 장독대 앞에서 누군가와 마주친다", "실종이 충동이 아니라 선택이었음을 암시한다", "그 밤 그녀를 부른 사람은 누구였을까?"),
+        ("신랑의 아버지가 하인들에게 서재 문을 잠그라고 명한다", "신랑 집안의 숨겨진 죄를 첫 단서로 심는다", "잠긴 서재 안에는 무엇이 있었을까?"),
+        ("신부가 혼례복 소매 안에 작은 열쇠를 숨긴 채 산길로 향한다", "신부의 도주가 목적 있는 행동임을 보여준다", "그 열쇠는 어느 문을 열기 위한 것이었을까?"),
+        ("신랑은 밤새 산길과 냇가를 뒤지지만 발자국은 절벽 앞에서 끊긴다", "첫 수색의 실패로 40년 미스터리를 시작한다", "발자국은 왜 물가가 아니라 절벽에서 끊겼을까?"),
+        ("마을 사람들은 신부가 겁을 먹고 달아났다고 수군거린다", "오해와 소문이 신랑의 세월을 갉아먹게 만든다", "소문 속에 빠진 한 가지 진실은 무엇일까?"),
+        ("신랑은 신부가 남긴 편지를 펼치지만 먹물이 번져 핵심 문장이 보이지 않는다", "초반에 진실을 노출하지 않고 미스터리를 유지한다", "지워진 문장 하나가 왜 40년을 가를까?"),
+        ("신부의 어머니가 찾아와 아무 말 없이 신랑에게 낡은 비녀를 건넨다", "신부 쪽 가족도 비밀을 알고 있음을 암시한다", "그 비녀 속에는 무엇이 숨겨져 있을까?"),
+        ("젊은 신랑은 기다리겠다고 맹세하지만 집안 어른들은 혼례 이야기를 묻으려 한다", "사랑과 집안 체면의 갈등을 세운다", "왜 어른들은 신부보다 소문을 더 두려워했을까?"),
+        ("마지막 오프닝 컷에서 늙은 신랑이 같은 무덤 앞에 다시 선다", "40년 후 현재로 도약할 고리를 만든다", "그가 이제야 찾아온 까닭은 무엇일까?"),
+        ("40년 뒤 백발이 된 신랑은 낡은 비녀 속에서 두 번째 편지 조각을 발견한다", "현재 추적의 출발점을 만든다", "비녀는 왜 이제야 열렸을까?"),
+        ("편지 조각에는 신부가 서재에서 본 장부의 일부만 적혀 있다", "가문의 죄를 단계적으로 드러내기 시작한다", "장부에는 누구의 이름이 지워져 있었을까?"),
+        ("신랑은 죽은 아버지의 서재 바닥을 다시 뜯어 오래된 나무함을 찾는다", "과거 집안 비밀을 행동으로 추적한다", "나무함은 왜 바닥 아래 묻혀 있었을까?"),
+        ("나무함 속에는 신부 집안이 억울하게 빼앗긴 땅문서가 들어 있다", "가문의 죄를 구체적 피해로 만든다", "빼앗긴 땅문서가 왜 신부의 운명을 바꾸었을까?"),
+        ("문서 옆에는 신랑의 아버지가 신부 아버지를 모함했다는 증서가 남아 있다", "신부가 알게 된 진실의 무게를 보여준다", "신부는 이 증서를 보고 어떤 선택을 했을까?"),
+        ("신부는 혼례 전날 그 증서를 들고 신랑을 찾아가려다 그의 잠든 얼굴을 보고 멈춘다", "사랑 때문에 고발하지 못한 갈등을 보여준다", "왜 그녀는 진실을 바로 말하지 못했을까?"),
+        ("신부는 죄가 드러나면 신랑까지 몰락할 것을 알고 혼자 떠나기로 결심한다", "실종의 동기를 희생으로 구체화한다", "사라지는 것이 정말 그를 지키는 길이었을까?"),
+        ("그녀는 서재 열쇠와 증서 사본을 절집 노승에게 맡긴다", "40년 뒤 진실이 돌아올 장치를 만든다", "노승은 왜 40년 동안 침묵했을까?"),
+        ("신랑은 노승의 제자를 찾아가지만 이미 암자는 폐허가 되어 있다", "추적에 장애물을 만든다", "폐허 속에서 남은 단서는 무엇일까?"),
+        ("폐허의 기둥 안에서 신부의 필체로 적힌 짧은 기도가 발견된다", "신부가 살아서 숨어 지낸 흔적을 남긴다", "기도문은 누구를 위해 쓰였을까?"),
+        ("기도문에는 신랑을 원망하지 말라는 말만 있고 자기 행방은 없다", "신부의 사랑과 침묵을 동시에 강화한다", "그녀는 왜 끝까지 자신을 지웠을까?"),
+        ("마을의 늙은 산지기가 신부가 해마다 혼례날 산길에 꽃을 놓았다고 증언한다", "40년 세월 속 지속된 마음을 보여준다", "그 꽃은 누구에게 바친 것이었을까?"),
+        ("신랑은 산길 끝 작은 초가에서 신부가 살았던 흔적을 발견한다", "신부의 희생이 실제 삶이었다는 증거를 준다", "그 초가에는 왜 혼례복 한 벌이 남아 있었을까?"),
+        ("초가 벽장에는 신랑의 집안이 갚아야 할 사람들의 이름이 빼곡히 적혀 있다", "신부가 복수가 아니라 속죄를 선택했음을 보여준다", "그 이름들을 누가 대신 갚아 왔을까?"),
+        ("신부는 40년 동안 몰래 품삯을 모아 피해자들의 자손에게 돌려주고 있었다", "희생의 구체적 행동을 드러낸다", "그녀는 왜 자기 이름을 끝내 밝히지 않았을까?"),
+        ("신랑은 자신이 기다리는 동안 그녀도 다른 방식으로 곁에 있었다는 사실을 깨닫는다", "오해를 회한으로 전환한다", "기다림보다 더 무거운 사랑이 있을까?"),
+        ("초가 아궁이 밑에서 마지막 편지의 첫 장이 나온다", "최종 고백으로 가는 문을 연다", "마지막 편지는 왜 세 장으로 나뉘어 숨겨졌을까?"),
+        ("첫 장에는 신부가 떠난 밤 신랑 아버지에게 협박받은 일이 적혀 있다", "외부 압박과 선택의 불가피함을 보여준다", "협박의 조건은 무엇이었을까?"),
+        ("신랑 아버지는 증서를 없애지 않으면 신랑을 역모 누명에 엮겠다고 했다", "희생의 이유를 더 강하게 만든다", "신부는 누구를 살리려 침묵했을까?"),
+        ("두 번째 장에는 신부가 증서를 숨긴 장소와 피해자 명단이 적혀 있다", "비밀을 해결 가능한 행동으로 바꾼다", "그 장소는 왜 무덤 근처였을까?"),
+        ("신랑은 신부가 묻힌 줄 알았던 무덤이 사실 증서 보관처였음을 알게 된다", "무덤의 의미를 반전시킨다", "비어 있던 무덤은 누구를 기다리고 있었을까?"),
+        ("무덤 속 작은 돌함에서 원본 증서와 신부의 머리카락 한 줌이 나온다", "물증과 감정을 결합한다", "머리카락은 왜 함께 묻혔을까?"),
+        ("세 번째 편지에는 신부가 병든 몸으로 마지막까지 신랑의 이름을 불렀다고 적혀 있다", "감정적 클라이맥스를 준비한다", "그녀는 마지막 순간 무엇을 부탁했을까?"),
+        ("신부는 자신을 찾지 말고 억울한 이들의 이름을 회복해 달라고 부탁한다", "사랑을 개인 감정에서 속죄로 확장한다", "신랑은 이제 무엇을 해야 할까?"),
+        ("신랑은 마을 사람들을 모아 아버지의 죄와 신부의 희생을 공개한다", "진실 공개 장면을 만든다", "마을은 누구를 부끄러워해야 할까?"),
+        ("오랫동안 신부를 욕하던 이들이 하나둘 고개를 숙인다", "소문이 뒤집히는 사회적 보상을 준다", "사라진 사람의 이름은 어떻게 돌아올까?"),
+        ("신랑은 빼앗긴 땅과 재산을 피해자 자손에게 돌려주겠다고 선언한다", "속죄를 말이 아닌 행동으로 완성한다", "40년 늦은 사과는 받아들여질까?"),
+        ("신랑은 신부의 빈 무덤 앞에 혼례 때 쓰지 못한 술잔 두 개를 놓는다", "사랑의 결말을 시각적이고 감정적으로 만든다", "빈 잔 하나는 누구를 기다릴까?"),
+        ("그는 처음으로 신부에게 도망쳤다고 원망한 죄를 고백한다", "주인공의 내적 결산을 만든다", "용서는 죽은 사람에게도 닿을까?"),
+        ("바람에 마지막 편지 뒷장이 펼쳐지고 신부의 마지막 부탁이 드러난다", "최종 페이오프 직전의 마지막 단서를 제시한다", "그녀가 끝까지 숨긴 한 문장은 무엇일까?"),
+        ("마지막 문장에는 당신을 떠난 것이 아니라 당신의 내일을 지킨 것이라고 적혀 있다", "제목의 이유를 명확히 해소한다", "그제야 신랑은 무엇을 이해했을까?"),
+        ("신랑은 신부의 이름을 비석에 새기고 더는 정씨부인이라 부르지 않는다", "지워진 존재의 이름을 되찾아 준다", "이름을 되찾는 순간 어떤 세월이 끝날까?"),
+        ("피해자 자손들이 무덤 앞에 흙 한 줌씩 올리며 고맙다고 인사한다", "신부의 희생이 공동체에 닿았음을 보여준다", "늦은 감사는 그녀에게 닿았을까?"),
+        ("신랑은 남은 재산을 팔아 신부가 돌보던 사람들을 끝까지 책임지기로 한다", "속죄의 지속성을 만든다", "그의 남은 삶은 누구의 것이 될까?"),
+        ("그날 밤 신랑은 꿈에서 젊은 신부가 혼례복을 입고 웃는 모습을 본다", "환상은 짧게 감정의 해소로만 사용한다", "꿈속의 신부는 무슨 말을 남겼을까?"),
+        ("신부는 원망하지 않았다고 말하고, 이제 그만 자신을 용서하라고 한다", "용서와 화해를 전달한다", "용서받은 사람은 어떻게 살아야 할까?"),
+        ("아침이 되자 무덤가에는 간밤에 없던 붉은 꽃잎이 놓여 있다", "민담적 여운을 절제해서 남긴다", "꽃잎은 누가 두고 갔을까?"),
+        ("신랑은 마을 아이들에게 이 이야기를 숨기지 말고 전하라고 부탁한다", "이야기의 교훈을 다음 세대로 넘긴다", "사람은 어떤 진실을 잊지 말아야 할까?"),
+        ("마을 사람들은 해마다 혼례날 신부의 무덤에 등불을 켠다", "개인 비극을 공동체 기억으로 바꾼다", "등불은 누구의 길을 밝히는 걸까?"),
+        ("마지막으로 늙은 신랑은 빈 잔 옆에 자신의 잔을 내려놓고 조용히 웃는다", "사랑과 회한의 마지막 정서를 닫는다", "40년의 기다림은 끝난 걸까?"),
+        ("바람이 불어 두 잔 사이의 먼지를 걷어내고, 편지의 마지막 먹물이 햇빛에 드러난다", "잔잔한 이미지로 여운을 남긴다", "진심은 늦어도 사라지지 않는다"),
+    ]
+
+
+def _old_story_tiger_woodcutter_beats(title: str) -> list[tuple[str, str, str]]:
+    return [
+        ("산길 입구에 호랑이를 세 번 살리면 집안이 망한다는 금기패가 보인다", "제목의 세 번 구원과 비극을 첫 장면에 세운다", "왜 호랑이를 살리는 일이 죄가 되었을까?"),
+        ("젊은 나무꾼이 덫에 걸려 피 흘리는 호랑이를 발견한다", "첫 선택의 순간을 동정과 두려움 사이에 놓는다", "그는 도끼를 들고도 왜 물러서지 못했을까?"),
+        ("호랑이가 사람 말처럼 살려 달라는 눈빛으로 나무꾼을 바라본다", "민담적 기이함을 과장 없이 심는다", "짐승의 부탁을 사람은 믿어도 되는 걸까?"),
+        ("나무꾼은 덫줄을 끊고 호랑이를 풀어 주지만 발목 상처를 숨긴다", "첫 번째 구원을 행동으로 확정한다", "상처를 숨긴 까닭은 무엇이었을까?"),
+        ("호랑이는 사라지기 전 세 번의 은혜를 갚겠다는 듯 고개를 숙인다", "호랑이의 약속을 복선으로 만든다", "짐승의 은혜는 사람의 은혜와 같을까?"),
+        ("마을 노인은 산짐승의 약속을 믿으면 산이 사람을 삼킨다고 경고한다", "외부 경고로 비극의 윤곽을 만든다", "노인은 과거에 무엇을 보았을까?"),
+        ("나무꾼의 아내는 피 묻은 짚신을 보고 산에서 무슨 일이 있었는지 묻는다", "가족의 불안과 비밀을 연결한다", "그 피가 사람의 피가 아니라고 누가 믿을까?"),
+        ("밤마다 산 너머에서 세 번 낮게 우는 소리가 들린다", "호랑이와 나무꾼 사이의 보이지 않는 연결을 강화한다", "울음소리는 감사일까, 부름일까?"),
+        ("첫눈이 내린 날 호랑이가 나무꾼 집 앞에 죽은 노루를 두고 간다", "첫 번째 보답이 축복처럼 보이게 한다", "선물이 왜 더 큰 불안을 불렀을까?"),
+        ("굶주리던 집안은 고기를 먹지만 아내는 문턱의 발자국을 지우지 못한다", "은혜의 이면에 두려움을 남긴다", "발자국은 왜 집 안쪽을 향해 있었을까?"),
+        ("마을 사람들은 나무꾼이 산신의 복을 받았다고 부러워한다", "처음에는 구원이 이익처럼 보이게 한다", "복이라 부른 일이 정말 복이었을까?"),
+        ("나무꾼은 호랑이를 다시 만나면 약속을 돌려주겠다고 혼잣말한다", "후반의 약속 파기를 위한 내면 갈등을 심는다", "돌려줄 수 없는 은혜도 있을까?"),
+        ("봄 장마 뒤 호랑이가 절벽 아래에 갇힌 새끼 곁에서 울부짖는다", "두 번째 구원의 새로운 원인을 만든다", "새끼를 구하면 산의 원한도 풀릴까?"),
+        ("나무꾼은 밧줄을 묶어 내려가 새끼 호랑이를 끌어올린다", "위험을 감수한 두 번째 행동을 보여준다", "사람이 짐승의 새끼를 안는 순간 무엇이 바뀔까?"),
+        ("어미 호랑이는 새끼를 핥다가 나무꾼의 손등 피 냄새를 맡는다", "은혜와 포식 본능의 충돌을 처음 드러낸다", "감사와 굶주림 중 무엇이 먼저일까?"),
+        ("나무꾼은 그 눈빛을 보고도 새끼를 살렸다는 자부심으로 산을 내려온다", "주인공의 선의와 자만이 섞이기 시작한다", "선한 일도 자랑이 되면 위험해질까?"),
+        ("마을 닭과 염소가 하나씩 사라지고 사람들은 산짐승을 의심한다", "은혜가 공동체 피해로 번지게 한다", "누가 사라진 짐승 값을 치르게 될까?"),
+        ("나무꾼은 호랑이 짓임을 알면서도 자신을 해치지 않을 거라며 침묵한다", "비극의 원인을 단순한 선의가 아니라 방치로 바꾼다", "모른 척한 침묵도 죄가 될까?"),
+        ("아내는 아이에게 산길에 가지 말라며 호랑이 발자국을 보여준다", "가족을 위험권 안으로 끌어들인다", "금지한 길은 왜 더 가까워졌을까?"),
+        ("노인은 호랑이를 한 번 살리면 목숨을 구하고 두 번 살리면 배고픔을 부른다고 말한다", "세 번째 구원의 의미를 예언으로 준비한다", "세 번째에는 무엇을 잃게 될까?"),
+        ("나무꾼은 덫을 놓은 사냥꾼들을 말리다 호랑이가 다시 쫓기는 것을 본다", "세 번째 구원이 피할 수 없는 선택처럼 다가오게 한다", "그는 사람 편에 설까, 산 편에 설까?"),
+        ("사냥꾼들은 호랑이가 이미 사람 냄새에 익었다며 죽여야 한다고 주장한다", "공동체의 안전 논리를 세운다", "사람 냄새를 배운 짐승은 돌아갈 수 있을까?"),
+        ("나무꾼은 자신에게 빚진 짐승이라며 사냥꾼들의 덫을 몰래 끊는다", "세 번째 구원을 선의가 아닌 소유감으로 오염시킨다", "은혜를 빌미로 생명을 마음대로 할 수 있을까?"),
+        ("풀려난 호랑이는 사냥꾼을 피하다 나무꾼의 집 쪽으로 내려간다", "구원의 결과가 가족에게 향하게 한다", "살려 준 길은 왜 집으로 이어졌을까?"),
+        ("아내는 마당 끝에서 호랑이를 보고 아이를 안고 문을 걸어 잠근다", "가족이 직접 위협받는 장면으로 긴장을 올린다", "문 하나가 산짐승을 막을 수 있을까?"),
+        ("나무꾼은 호랑이 앞에 무릎 꿇고 이제 은혜를 다 갚았으니 돌아가라 말한다", "약속 청산의 시도를 보여준다", "말로 끊은 약속을 짐승이 알아들을까?"),
+        ("호랑이는 대답 대신 나무꾼의 그림자를 밟고 산 쪽으로 물러난다", "비극의 표식을 남기되 아직 터뜨리지 않는다", "그림자를 밟힌 사람은 어디까지 쫓기게 될까?"),
+        ("그날 밤 나무꾼은 꿈에서 자신이 덫에 걸린 호랑이로 변해 울부짖는다", "죄책감과 민담적 저주를 내면화한다", "꿈은 경고였을까, 판결이었을까?"),
+        ("마을 회의에서 사라진 가축 값을 두고 나무꾼이 거짓말을 한다", "침묵이 거짓으로 악화되는 전환점을 만든다", "거짓말 하나가 누구를 더 굶주리게 할까?"),
+        ("노인은 호랑이가 은혜를 갚는 게 아니라 사람의 허영을 먹는다고 일러준다", "제목의 '까닭'을 도덕적 핵심으로 좁힌다", "호랑이가 정말 먹은 것은 고기였을까?"),
+        ("나무꾼은 가족을 지키겠다며 도끼를 들지만 산길 초입에서 다시 머뭇거린다", "결단하지 못하는 주인공의 약점을 보여준다", "이번에는 베어야 할까, 또 살려야 할까?"),
+        ("호랑이는 세 번째 밤 마당에 노루가 아니라 찢긴 덫줄을 놓고 간다", "은혜의 선물이 경고로 바뀌었음을 보여준다", "덫줄은 누구에게 남긴 말이었을까?"),
+        ("나무꾼의 아이가 산에서 들은 낮은 울음소리를 따라가려 한다", "비극이 다음 세대에 번질 위기를 만든다", "아이를 부른 것은 호랑이였을까, 아버지의 죄였을까?"),
+        ("나무꾼은 아이를 찾으러 산에 들어가 호랑이 새끼가 죽어 있는 것을 발견한다", "두 번째 구원의 결과가 끝내 실패했음을 드러낸다", "살린 목숨은 왜 다시 죽었을까?"),
+        ("죽은 새끼 곁에서 어미 호랑이는 더 이상 나무꾼을 알아보지 못한다", "감사의 관계가 완전히 끊어진 순간을 만든다", "은혜를 기억하지 못하는 짐승을 누가 탓할까?"),
+        ("나무꾼은 자신의 손등 피 냄새가 새끼에게 사람 냄새를 묻혔다는 사실을 깨닫는다", "비극의 직접 원인을 구체화한다", "선의가 새끼를 죽게 했다면 그는 무엇을 갚아야 할까?"),
+        ("사냥꾼들이 사람 냄새 나는 새끼를 미끼로 어미를 노렸다는 말이 드러난다", "인간의 욕심과 나무꾼의 방치를 함께 엮는다", "진짜 덫은 누가 놓은 걸까?"),
+        ("나무꾼은 마을을 살리려면 자신이 호랑이를 산 깊은 곳으로 데려가야 한다고 결심한다", "희생적 마지막 행동을 준비한다", "그가 돌아오지 못할 길을 택한 이유는 무엇일까?"),
+        ("아내는 세 번 살린 은혜를 믿지 말고 가족 곁에 남으라고 붙잡는다", "가족과 속죄 사이의 마지막 갈등을 만든다", "남는 것이 책임일까, 떠나는 것이 책임일까?"),
+        ("나무꾼은 아이에게 산짐승을 불쌍히 여겨도 문턱 안으로 들이지 말라 말한다", "교훈을 인물의 마지막 말로 압축한다", "그 말은 왜 유언처럼 들렸을까?"),
+        ("깊은 산 고개에서 나무꾼은 호랑이에게 자신이 잘못한 일을 하나씩 고백한다", "잡아먹히는 까닭을 도덕적 고백으로 선명하게 한다", "짐승 앞의 고백은 누구를 위한 것일까?"),
+        ("호랑이는 덫줄 자국이 남은 발을 들어 나무꾼 앞에 놓는다", "첫 번째 구원의 기억을 시각적으로 되살린다", "상처는 은혜일까, 원한일까?"),
+        ("나무꾼은 도끼를 내려놓고 자신이 세 번 살린 것은 호랑이가 아니라 자기 허영이었다고 인정한다", "최종 깨달음을 제목의 이유와 연결한다", "사람은 왜 선행마저 자기 것으로 만들까?"),
+        ("호랑이가 달려들기 전 산 전체가 눈 내린 듯 조용해진다", "비극의 순간을 자극보다 민담적 정적으로 처리한다", "조용한 산은 무엇을 판결했을까?"),
+        ("다음 날 마을 사람들은 피 묻은 도끼와 찢긴 저고리만 발견한다", "잡아먹힌 결말을 직접적이되 절제해서 보여준다", "사라진 몸보다 무거운 것은 무엇이었을까?"),
+        ("아내는 남편이 남긴 짚신을 산길 입구에 걸고 아이에게 이야기를 들려준다", "사적인 비극을 전승되는 교훈으로 바꾼다", "남은 사람은 어떤 이야기를 믿어야 할까?"),
+        ("노인은 그 뒤로 산에서 호랑이 울음이 세 번 들리면 불을 끄라고 말한다", "민담의 금기를 공동체 규칙으로 완성한다", "세 번의 울음은 은혜일까, 경고일까?"),
+        ("마을 사람들은 덫을 모두 거두지만 산짐승에게 먹이를 주지도 않는다", "균형과 경계라는 결론을 행동으로 보여준다", "살리는 것과 길들이는 것은 어떻게 다를까?"),
+        ("아이 장성한 뒤 아버지의 도끼를 들고 산에 오르지만 호랑이를 찾지 않는다", "교훈이 다음 세대에서 지켜졌음을 보여준다", "찾지 않는 용기도 있을까?"),
+        ("산길 금기패에는 호랑이를 살리지 말라는 말 대신 은혜를 소유하지 말라고 새겨진다", "이야기의 핵심을 단순 금지에서 성찰로 끌어올린다", "사람들이 오래 기억한 문장은 무엇이었을까?"),
+        ("마지막 장면에서 오래된 덫줄이 나무뿌리에 묻혀 썩어 간다", "비극의 원인이 사라지는 이미지를 준다", "썩어 간 덫줄은 누구의 죄를 데려갈까?"),
+        ("산바람 속에 세 번 낮은 울음이 들리고 마을의 등불이 하나씩 꺼진다", "민담적 여운과 제목의 숫자를 마지막에 되새긴다", "세 번 살린 마음은 결국 무엇을 남겼을까?"),
+        ("이야기는 나무꾼이 착해서가 아니라 경계를 잊었기 때문에 잡아먹혔다고 끝난다", "제목의 '까닭'을 마지막 문장으로 명확히 닫는다", "선의에도 지켜야 할 선이 있다"),
+    ]
+
+
+def _old_story_nameless_grave_grandmother_beats(title: str) -> list[tuple[str, str, str]]:
+    actions = [
+        "새벽 안개 속 이름 없는 무덤 앞에 홀로 절하는 할머니를 보여준다",
+        "마을 아이들이 비석 없는 봉분을 피해 달아나는 모습을 보여준다",
+        "할머니가 무덤 앞에 따뜻한 밥 한 숟가락을 놓고 돌아선다",
+        "주막 노파가 그 무덤에는 사람 이름을 새기면 안 된다고 말한다",
+        "할머니 손목의 낡은 매듭끈이 절할 때마다 흔들린다",
+        "젊은 시절 할머니가 장터에서 한 사내를 처음 만난 기억이 스친다",
+        "사내가 전쟁 같은 흉년 속에서도 어린아이를 살리려 쌀자루를 숨긴다",
+        "마을 원로들이 쌀 도둑 누명을 씌울 사람을 찾기 시작한다",
+        "젊은 할머니가 사내에게 도망가라고 하지만 그는 아이 이름을 먼저 묻는다",
+        "비 오는 밤 사내가 끌려가고 할머니는 매듭끈 한 가닥만 움켜쥔다",
+        "처형장 대신 산비탈에서 몰래 묻힌 봉분이 만들어진다",
+        "할머니는 그날부터 이름을 새기지 않겠다는 약속을 혼자 지킨다",
+        "수십 년 뒤 마을 사람들은 할머니의 절을 미친 습관으로만 여긴다",
+        "할머니의 며느리가 집안 체면을 이유로 무덤길을 막으려 한다",
+        "할머니는 제사상보다 그 무덤의 밥그릇을 먼저 챙긴다",
+        "손자가 무덤 주인이 누구냐고 묻자 할머니가 처음으로 눈물을 삼킨다",
+        "낡은 장롱 밑에서 이름 없는 묘와 같은 흙이 묻은 보자기가 나온다",
+        "보자기 안에는 반으로 찢긴 호적과 아이의 작은 은장도가 들어 있다",
+        "마을 원로의 아들이 찾아와 그 무덤 이야기를 더 캐지 말라 협박한다",
+        "할머니는 협박을 듣고도 다음 날 더 이른 새벽에 산길을 오른다",
+        "산길에서 할머니가 쓰러지고 손자는 처음으로 무덤 앞 밥상을 대신 차린다",
+        "손자는 봉분 아래에서 바람에 드러난 작은 기와 조각을 발견한다",
+        "기와 조각에는 사내가 살린 아이의 젖명이 희미하게 새겨져 있다",
+        "할머니는 그 젖명이 자기 아들의 옛 이름이었다고 고백하려다 멈춘다",
+        "과거 회상에서 사내가 누명을 쓰고 할머니의 아이를 살린 사실이 드러난다",
+        "젊은 할머니가 아이를 안고 살려 달라 빌던 밤의 장면이 이어진다",
+        "사내는 아이를 살리는 대신 자신의 이름을 지워 달라는 조건을 남긴다",
+        "마을 원로들은 진짜 쌀을 빼돌린 집안 이름을 숨기기 위해 사내를 묻는다",
+        "할머니는 증언하면 아이가 다시 죽는다는 협박 때문에 평생 침묵한다",
+        "현재의 할머니는 손자에게 장독대 아래 묻은 두 번째 보자기를 꺼내라 한다",
+        "두 번째 보자기에는 원로들의 붉은 손도장이 찍힌 각서가 남아 있다",
+        "며느리는 집안이 무너질까 두려워 각서를 태우려 하지만 손자가 막는다",
+        "할머니는 이름 없는 무덤 앞에서 마지막으로 세 번 절하고 말을 잇지 못한다",
+        "밤새 무덤가 등불이 꺼지지 않고 마을 사람들이 하나둘 모여든다",
+        "할머니가 죽기 전날 남긴 말이 손자의 입을 통해 처음 공개된다",
+        "그 말은 그 사람 이름을 새기지 말고 우리가 진 빚을 새기라는 부탁이었다",
+        "손자는 비석을 세우려던 계획을 멈추고 빈 돌판 앞에 마을 사람들을 세운다",
+        "원로 집안의 후손이 각서의 손도장을 보고 무릎을 꿇는다",
+        "할머니 아들이 살아남은 아이였음을 알고 마을이 숨을 죽인다",
+        "아들은 평생 어머니가 왜 그 무덤 앞에 먼저 갔는지 뒤늦게 깨닫는다",
+        "며느리는 제사상 음식을 들고 처음으로 이름 없는 무덤 앞에 오른다",
+        "손자는 사내의 이름 대신 살려 낸 아이들의 이름을 돌판에 새기자고 제안한다",
+        "마을 사람들은 쌀을 숨겼던 집집마다 한 줌씩 곡식을 가져온다",
+        "비어 있던 돌판에는 이름 하나가 아니라 마을의 죄와 감사가 새겨진다",
+        "할머니 장례날 무덤 앞 밥그릇에 처음으로 두 숟가락이 놓인다",
+        "원로 후손은 빼앗은 논을 팔아 굶어 죽은 이들의 제사를 다시 세운다",
+        "손자는 매듭끈을 풀어 봉분 흙 위에 묻고 오래된 약속을 놓아준다",
+        "아들은 어머니에게 한 번도 묻지 못한 세월을 무덤 앞에서 사과한다",
+        "마을 아이들이 더 이상 도망가지 않고 무덤가 잡초를 뽑는다",
+        "새 비석에는 이름 없는 사람도 한 마을을 살릴 수 있다는 말이 새겨진다",
+        "마지막 새벽에 할머니가 늘 걷던 산길 위로 흰 밥김 같은 안개가 오른다",
+        "손자는 할머니의 마지막 말을 아이들에게 들려주며 이야기를 전한다",
+        "이야기는 이름을 남기지 않은 은혜가 가장 오래 사람을 붙든다고 끝난다",
+    ]
+    purposes = [
+        "익명의 무덤과 반복된 절이라는 중심 미스터리를 연다",
+        "마을의 두려움과 금기를 외부 시선으로 보여준다",
+        "할머니의 행동이 제사가 아니라 약속임을 암시한다",
+        "비석 없는 이유를 금기로 제시해 궁금증을 키운다",
+        "중심 소품을 심어 과거와 현재를 연결한다",
+        "젊은 시절 인연을 열어 감정의 뿌리를 만든다",
+        "사내가 단순 연인이 아니라 생명의 은인임을 준비한다",
+        "누명을 만들 공동체의 죄를 배치한다",
+        "사내의 선택이 아이와 이어져 있음을 암시한다",
+        "비극의 밤을 감각적으로 각인한다",
+        "무덤의 탄생을 보여준다",
+        "평생 이어질 약속을 확정한다",
+    ]
+    beats: list[tuple[str, str, str]] = []
+    for idx, action in enumerate(actions):
+        purpose = purposes[idx] if idx < len(purposes) else f"'{title}'의 마지막 말에 필요한 새 단서와 감정 변화를 전진시킨다"
+        hook = [
+            "그 무덤에는 왜 이름이 없었을까?",
+            "할머니는 누구에게 절하고 있었을까?",
+            "밥 한 숟가락에는 어떤 빚이 담겼을까?",
+            "이름을 새기면 왜 안 되는 걸까?",
+            "매듭끈은 누구의 약속을 묶고 있을까?",
+            "그 사내는 할머니에게 어떤 사람이었을까?",
+            "살아난 아이는 훗날 누구로 남았을까?",
+            "누명을 씌운 진짜 사람은 누구였을까?",
+            "그 아이의 이름은 왜 숨겨졌을까?",
+            "끌려간 사내는 마지막에 무엇을 부탁했을까?",
+            "봉분 아래에는 무엇이 함께 묻혔을까?",
+            "침묵은 약속이었을까, 두려움이었을까?",
+        ][idx % 12]
+        beats.append((action, purpose, hook))
+    return beats
+
+
+def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_title: str) -> dict:
+    """Keep old-story repairs anchored to the actual title and scene situation."""
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "옛날이야기").strip()
+    title_blob = _text_with_mojibake_repairs(title)
+    wedding_beats = (
+        _old_story_wedding_bride_beats(title)
+        if all(term in title_blob for term in ("혼례", "신부")) or ("신랑" in title_blob and "40년" in title_blob)
+        else []
+    )
+    tiger_beats = (
+        _old_story_tiger_woodcutter_beats(title)
+        if "호랑이" in title_blob and "나무꾼" in title_blob
+        else []
+    )
+    nameless_grave_beats = (
+        _old_story_nameless_grave_grandmother_beats(title)
+        if "무덤" in title_blob and "할머니" in title_blob
+        else []
+    )
+    repaired = dict(structure)
+    repaired_scenes = []
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        if wedding_beats and idx < len(wedding_beats):
+            situation_beat, purpose, hook = wedding_beats[idx]
+        elif tiger_beats and idx < len(tiger_beats):
+            situation_beat, purpose, hook = tiger_beats[idx]
+        elif nameless_grave_beats and idx < len(nameless_grave_beats):
+            situation_beat, purpose, hook = nameless_grave_beats[idx]
+        else:
+            situation_beat = _clean_planned_scene_situation(scene)
+            purpose = f"'{title}'의 이유와 감정선을 새 행동 또는 단서로 한 단계 전진시킨다"
+            hook = str(scene.get("retention_hook") or "").strip()
+        contaminated_hook = any(term in hook for term in ("세 형제", "첫째", "둘째", "막내", "어머니의 유언", "흙 인형", "반지", "우물물이 밤새 붉은"))
+        if not hook or contaminated_hook:
+            hook = "이 선택 뒤에 숨은 진짜 이유는 무엇일까?"
+        scene["scene_summary"] = situation_beat[:160]
+        scene["scene_situation"] = situation_beat
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 약속을 이 장면의 실제 사건과 감정으로 이어간다"
+        scene["end_bridge"] = hook
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene.pop("image_prompt", None)
+        scene.pop("video_prompt", None)
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "sanitized_to_title_from_scene_situation": True,
+        "repair_reason": "old story non-grave plan aligned to title and scene_situation",
+    }
+    return repaired
 
 
 def _scene_plan_category_contamination_errors(
@@ -3253,9 +3594,9 @@ def _repair_old_story_scene_plan_repetition(structure: dict, topic: str, upload_
     if not isinstance(scenes, list) or not scenes:
         return structure
     title = (upload_title or topic or "옛날이야기").strip()
-    title_blob = _text_with_mojibake_repairs(topic, upload_title)
-    if any(term in title_blob for term in ("며느리", "시어머니", "묘에", "묘지", "grave vigil")):
+    if _old_story_title_is_grave_vigil(topic, upload_title):
         return _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
+    return _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
     beat_templates = [
         ("마을 어귀에 걸린 금기와 소문을 먼저 보여준다", "이야기의 세계를 옛 마을의 불길한 약속 안에 고정한다", "그 금기는 왜 지금까지 아무도 어기지 못했을까?"),
         ("어머니의 유언이 세 형제 앞에서 서로 다르게 해석된다", "제목의 약속을 가족 갈등과 금지된 선택으로 연결한다", "유언 속에서 빠진 한 문장이 있다면 무엇일까?"),
@@ -3463,8 +3804,8 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
 Old-story script guard:
 - Stay inside a pre-modern Korean folk-tale world. Do not introduce modern objects, places, institutions, or disputes.
 - Forbidden modern drift: developer, redevelopment, excavator, museum, bus, phone, cellphone, Seoul trip, police report, court lawsuit, camera, broadcast, apartment, car, hospital, office.
-- Do not invent a new external subplot that is not in the scene plan. Expand only the daughter-in-law, mother-in-law grave, village rumor, red thread, old documents, family guilt, and final promise.
-- Never replace the title promise with a different family plot. The protagonist remains the daughter-in-law and the payoff must clearly explain why she stayed by the grave for three years.
+- Do not invent a new external subplot that is not in the scene plan. Expand only the characters, place, object, secret, and emotional promise already present in the upload title and scene_situation fields.
+- Never replace the title promise with a different family plot. The protagonist, central mystery, and final payoff must stay anchored to the upload title.
 - Do not narrate planning labels such as middle turn, scene purpose, hook, prompt, camera, shot, or visual direction.
 """.strip()
         style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
@@ -3541,6 +3882,8 @@ Scene planning guard:
     ).strip()
     script_style_context = f"{script_style} {category_context}".strip()
     finance_plan_context = _is_finance_plan_context(script_style_context, topic, upload_title, image_style)
+    if _is_old_story_plan_context(script_style_context, topic, upload_title, image_style) and not _old_story_title_is_grave_vigil(topic, upload_title):
+        structure = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
     plan_errors = _scene_plan_repetition_errors(structure)
     if plan_errors:
         if finance_plan_context:
@@ -3725,6 +4068,104 @@ def _script_gen_length_instruction(duration_seconds: int, is_shorts: bool) -> tu
     return total_target_chars, length_instruction
 
 
+def _parse_scene_duration_seconds(scene: dict, fallback: float) -> float:
+    for key in ("target_duration", "duration_seconds", "duration", "play_time", "seconds"):
+        raw = scene.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, (int, float)):
+            value = float(raw)
+        else:
+            match = re.search(r"\d+(?:\.\d+)?", str(raw))
+            if not match:
+                continue
+            value = float(match.group(0))
+        if value > 0:
+            return value
+    return max(1.0, float(fallback or 1.0))
+
+
+def _scene_duration_map(scenes: list[dict], duration_seconds: int) -> list[float]:
+    fallback = max(1.0, float(duration_seconds or 0) / max(1, len(scenes)))
+    durations = [_parse_scene_duration_seconds(scene, fallback) for scene in scenes]
+    total = sum(durations)
+    if total <= 0:
+        return [fallback for _ in scenes]
+    return durations
+
+
+def _scene_char_budgets(
+    scenes: list[dict],
+    duration_seconds: int,
+    total_target_chars: float,
+    is_shorts: bool,
+) -> list[dict]:
+    durations = _scene_duration_map(scenes, duration_seconds)
+    total_duration = max(1.0, sum(durations))
+    budgets: list[dict] = []
+    for idx, (scene, scene_duration) in enumerate(zip(scenes, durations), start=1):
+        target_chars = max(20.0, total_target_chars * (scene_duration / total_duration))
+        if is_shorts:
+            min_chars = max(18, round(target_chars * 0.7))
+            max_chars = max(min_chars + 8, round(target_chars * 1.25))
+        elif scene_duration <= 6:
+            min_chars = max(35, round(target_chars * 0.65))
+            max_chars = min(180, max(min_chars + 20, round(target_chars * 1.35)))
+        else:
+            min_chars = max(70, round(target_chars * 0.78))
+            max_chars = max(min_chars + 30, round(target_chars * 1.22))
+        budgets.append({
+            "scene_order": scene.get("scene_order") or scene.get("order") or idx,
+            "duration_seconds": round(scene_duration, 2),
+            "target_chars": round(target_chars),
+            "min_chars": min_chars,
+            "max_chars": max_chars,
+        })
+    return budgets
+
+
+def _chunk_scenes_for_script_generation(
+    scenes: list[dict],
+    budgets: list[dict],
+    *,
+    max_chunks: int = 5,
+) -> list[tuple[int, list[dict], list[dict]]]:
+    if not scenes:
+        return []
+    total_duration = sum(float(item.get("duration_seconds") or 0) for item in budgets) or float(len(scenes))
+    target_chunk_duration = max(90.0, total_duration / max(1, max_chunks))
+    chunks: list[tuple[int, list[dict], list[dict]]] = []
+    start_idx = 0
+    current_scenes: list[dict] = []
+    current_budgets: list[dict] = []
+    current_duration = 0.0
+
+    for idx, (scene, budget) in enumerate(zip(scenes, budgets)):
+        current_scenes.append(scene)
+        current_budgets.append(budget)
+        current_duration += float(budget.get("duration_seconds") or 0)
+        remaining_scenes = len(scenes) - idx - 1
+        remaining_chunks = max_chunks - len(chunks) - 1
+        can_close = remaining_scenes > 0 and remaining_chunks > 0
+        if can_close and current_duration >= target_chunk_duration:
+            chunks.append((start_idx, current_scenes, current_budgets))
+            start_idx = idx + 1
+            current_scenes = []
+            current_budgets = []
+            current_duration = 0.0
+
+    if current_scenes:
+        chunks.append((start_idx, current_scenes, current_budgets))
+    return chunks
+
+
+def _select_script_draft_model(config, final_model: str) -> str:
+    selected = (final_model or "").strip()
+    if selected.lower().startswith("claude") and (getattr(config, "DEEPSEEK_API_KEY", "") or "").strip():
+        return "deepseek-chat"
+    return selected
+
+
 def _script_gen_mode_instruction(is_multi: bool, known_characters: list[str], is_dramatic_single: bool = False) -> str:
     if is_multi:
         known_chars_line = ""
@@ -3868,8 +4309,8 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 {continuity_section}
 
 [CURRENT SCENE]
-- Summary: {scene_summary}
-- Situation and purpose: {key_points_text}
+- Situation and purpose, authoritative: {key_points_text}
+- Summary, supporting only: {scene_summary}
 {extra_context}
 
 [WRITING RULES]
@@ -3883,6 +4324,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 8. Write for the ear: vary sentence length, use concrete details, and make each paragraph move the situation, emotion, or information forward.
 9. Strict anti-repetition rule: if the previous context already mentions the same money amount, worry, routine, or conclusion, do not explain it again. Advance to the next beat instead.
 10. Keep this section compact. If you need more space, choose the strongest two or three sentences only.
+11. If Summary conflicts with Situation and purpose, ignore Summary and follow Situation and purpose plus the upload title.
 
 Output only the narration body."""
     return clean_prompt
@@ -3915,6 +4357,131 @@ Output only the narration body."""
 4. 이모티콘 및 꾸밈 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
 
 본문만 출력하세요:"""
+
+
+def _build_script_chunk_prompt(
+    topic: str,
+    chunk_scenes: list[dict],
+    chunk_budgets: list[dict],
+    is_shorts: bool,
+    is_multi: bool,
+    known_characters: list[str],
+    length_instruction: str,
+    language: str,
+    upload_title: str = "",
+    structure_context: dict | None = None,
+    narrative_blueprint: dict | None = None,
+    previous_context: dict | None = None,
+    narration_mode: str = "single",
+) -> str:
+    structure_context = structure_context or {}
+    narrative_blueprint = narrative_blueprint or {}
+    previous_context = previous_context or {}
+    is_dramatic_single = narration_mode == "dramatic_single"
+    mode_instruction = _script_gen_mode_instruction(is_multi, known_characters, is_dramatic_single=is_dramatic_single)
+    language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
+    budget_by_order = {str(item.get("scene_order")): item for item in chunk_budgets}
+    scene_payload = []
+    for idx, scene in enumerate(chunk_scenes):
+        scene_order = scene.get("scene_order") or scene.get("order") or idx + 1
+        budget = budget_by_order.get(str(scene_order)) or chunk_budgets[idx]
+        scene_payload.append({
+            "scene_order": scene_order,
+            "target_duration_seconds": budget.get("duration_seconds"),
+            "target_chars": budget.get("target_chars"),
+            "min_chars": budget.get("min_chars"),
+            "max_chars": budget.get("max_chars"),
+            "scene_summary": scene.get("scene_summary"),
+            "scene_situation": scene.get("scene_situation"),
+            "scene_purpose": scene.get("scene_purpose"),
+            "scene_emotion": scene.get("scene_emotion"),
+            "tts_direction": scene.get("tts_direction"),
+            "retention_hook": scene.get("retention_hook"),
+            "title_promise_link": scene.get("title_promise_link"),
+            "end_bridge": scene.get("end_bridge"),
+        })
+
+    research_bundle = structure_context.get("research_bundle") or {}
+    research_section = ""
+    if research_bundle:
+        research_section = f"""
+[RESEARCH CONTEXT]
+{research_bundle.get("research_brief") or ""}
+Verified facts: {json.dumps((research_bundle.get("verified_facts") or [])[:10], ensure_ascii=False)}
+Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=False)}
+"""
+
+    return f"""You are an expert Korean YouTube long-form narration writer. Write multiple planned scenes as one continuous script chunk.
+
+[TOPIC]
+{topic}
+
+[UPLOAD TITLE CONTRACT]
+- Upload title: {upload_title}
+- Title promise: {structure_context.get("title_promise") or "infer it from the upload title and topic"}
+- Opening hook: {structure_context.get("opening_hook") or ""}
+- Final payoff required: {structure_context.get("payoff") or ""}
+- Every scene must serve the clicked title. Do not drift into a different story, policy lecture, or meta commentary.
+
+[STORY BLUEPRINT]
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+{research_section}
+
+[CONTINUITY BEFORE THIS CHUNK]
+{json.dumps(previous_context or {}, ensure_ascii=False)}
+
+[SCENES TO WRITE]
+{json.dumps(scene_payload, ensure_ascii=False)}
+
+[WRITING RULES]
+0. {length_instruction}
+1. Respect target_duration_seconds and character budgets per scene. Do not make all scenes the same length.
+2. A 5-second scene is a short micro beat: one or two vivid sentences only. Longer scenes may carry more action, emotion, or explanation.
+{mode_instruction}
+4. {language_instruction}
+5. Output Korean narration body only inside JSON. No scene titles, headings, markdown, timecodes, camera directions, subtitle notes, or sound-effect labels.
+6. Use scene_situation and scene_purpose as authoritative. If scene_summary conflicts with them, ignore scene_summary.
+7. Every scene must add new action, information, decision, or consequence. Do not repeat the same sentence, fact, image, worry, or emotional beat.
+8. Preserve continuity across the scenes in this chunk and from previous_context.
+9. End each scene with its end_bridge only when it sounds natural; otherwise make the final sentence pull into the next beat.
+10. For each output item, keep text between min_chars and max_chars as closely as possible. Never pad with repetition.
+
+Return ONLY JSON in this exact shape:
+{{
+  "sections": [
+    {{"scene_order": 1, "text": "narration body for that scene"}}
+  ]
+}}"""
+
+
+def _parse_script_chunk_sections(
+    raw_text: str,
+    chunk_scenes: list[dict],
+    is_multi: bool,
+    fallback_factory,
+) -> list[str]:
+    data = _extract_json(raw_text)
+    sections = data.get("sections")
+    if not isinstance(sections, list):
+        raise ValueError("script chunk JSON missing sections")
+    by_order: dict[str, str] = {}
+    for item in sections:
+        if not isinstance(item, dict):
+            continue
+        order = str(item.get("scene_order") or "").strip()
+        text = _clean_section_text(str(item.get("text") or "").strip(), is_multi)
+        if order and text:
+            by_order[order] = text
+
+    result: list[str] = []
+    for local_idx, scene in enumerate(chunk_scenes):
+        scene_order = str(scene.get("scene_order") or scene.get("order") or "").strip()
+        text = by_order.get(scene_order)
+        if not text:
+            text = fallback_factory(local_idx, scene)
+        result.append(text)
+    return result
 
 
 def _short_script_excerpt(text: str, max_chars: int = 1400) -> str:
@@ -4318,7 +4885,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     is_multi = narration_mode == "multi"
     is_shorts = duration_seconds <= 60
 
-    job_store.transition(job_id, job_store.RENDERING, reason="generating narration section by section")
+    job_store.transition(job_id, job_store.RENDERING, reason="generating duration-aware narration chunks")
     write_state("running", job, 10, job_id)
     job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode})")
 
@@ -4334,6 +4901,11 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     # (app/routers/gemini.py::script_generate) so pre-baked and live-generated
     # narration use the same model choice.
     model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    draft_model = _select_script_draft_model(config, model)
+    if draft_model != model:
+        job_log.info(
+            f"Using {draft_model} for script draft/blueprint and reserving {model} for script QA/rewrite"
+        )
     style_directive = resolve_script_style_directive(script_style)
     learning_instruction = _learning_profile_instruction(job.get("payload") or {})
     feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
@@ -4393,10 +4965,14 @@ Hard retry rules:
         structure = dict(structure)
         structure.pop("image_grid_prompts", None)
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
+    elif old_story_context:
+        structure = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
+        structure = dict(structure)
+        structure.pop("image_grid_prompts", None)
+        scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
     total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
-    chars_per_section = round(total_target_chars / len(scenes))
-    min_chars = max(20, round(chars_per_section * 0.7)) if is_shorts else max(50, round(chars_per_section * 0.8))
-    max_chars = round(chars_per_section * 1.2)
+    scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts)
+    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=5)
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int]:
         if old_story_context and grave_vigil_context:
@@ -4424,7 +5000,7 @@ Hard retry rules:
             )
         else:
             narrative_blueprint = await _generate_narrative_blueprint(
-                ai_router, model, topic, upload_title, structure, title_generation, language, style_directive
+                ai_router, draft_model, topic, upload_title, structure, title_generation, language, style_directive
             )
 
         final_parts = []
@@ -4433,7 +5009,7 @@ Hard retry rules:
             narrative_blueprint.get("hidden_information"),
             narrative_blueprint.get("central_conflict"),
         ]
-        for idx, scene in enumerate(scenes):
+        for chunk_idx, (start_idx, chunk_scenes, chunk_budgets) in enumerate(script_chunks):
             previous_context = {}
             if final_parts:
                 previous_context = {
@@ -4441,15 +5017,15 @@ Hard retry rules:
                     "previous_script_excerpt": _short_script_excerpt(final_parts[-1], 1200),
                     "previous_scene_summaries": [
                         str(item.get("scene_summary") or "").strip()
-                        for item in scenes[max(0, idx - 6):idx]
+                        for item in scenes[max(0, start_idx - 6):start_idx]
                         if str(item.get("scene_summary") or "").strip()
                     ],
                     "known_characters": known_characters,
                     "unresolved_threads": [t for t in unresolved_threads if t],
                 }
-            prompt = _build_section_prompt(
-                topic, scene, is_shorts, is_multi, known_characters,
-                length_instruction, min_chars, max_chars, language,
+            prompt = _build_script_chunk_prompt(
+                topic, chunk_scenes, chunk_budgets, is_shorts, is_multi, known_characters,
+                length_instruction, language,
                 upload_title=upload_title,
                 structure_context=structure,
                 narrative_blueprint=narrative_blueprint,
@@ -4461,32 +5037,64 @@ Hard retry rules:
 
             try:
                 raw_text = await ai_router.generate_text(
-                    prompt, model, temperature=0.7, max_tokens=8192,
+                    prompt, draft_model, temperature=0.7, max_tokens=8192,
                     task_type="hermes_script_generate",
                 )
-                section_text = _clean_section_text(raw_text.strip(), is_multi)
-                section_text = _trim_section_to_limit(section_text, max_chars)
-                if not section_text:
-                    raise ValueError("model returned an empty section")
-                if is_multi:
-                    for name in _extract_speaker_names(section_text):
-                        if name not in known_characters:
-                            known_characters.append(name)
-            except Exception as e:
-                job_log.warning(f"Section {idx + 1}/{len(scenes)} generation fallback: {e}")
-                section_text = _fallback_narration_section(
-                    topic, upload_title, scene, idx, len(scenes), min_chars
+                chunk_parts = _parse_script_chunk_sections(
+                    raw_text,
+                    chunk_scenes,
+                    is_multi,
+                    lambda local_idx, scene: _fallback_narration_section(
+                        topic,
+                        upload_title,
+                        scene,
+                        start_idx + local_idx,
+                        len(scenes),
+                        int(chunk_budgets[local_idx].get("min_chars") or 80),
+                    ),
                 )
+            except Exception as e:
+                job_log.warning(
+                    f"Script chunk {chunk_idx + 1}/{len(script_chunks)} generation fallback: {e}"
+                )
+                chunk_parts = [
+                    _fallback_narration_section(
+                        topic,
+                        upload_title,
+                        scene,
+                        start_idx + local_idx,
+                        len(scenes),
+                        int(chunk_budgets[local_idx].get("min_chars") or 80),
+                    )
+                    for local_idx, scene in enumerate(chunk_scenes)
+                ]
 
-            final_parts.append(section_text)
-            if scene.get("end_bridge"):
-                unresolved_threads.append(scene.get("end_bridge"))
-            progress = int(10 + 60 * (idx + 1) / len(scenes))
-            job_store.update_progress(job_id, progress, f"section {idx + 1}/{len(scenes)} complete")
+            for local_idx, (scene, section_text) in enumerate(zip(chunk_scenes, chunk_parts)):
+                budget = chunk_budgets[local_idx]
+                section_text = _trim_section_to_limit(
+                    section_text,
+                    int(budget.get("max_chars") or 220),
+                )
+                if section_text:
+                    final_parts.append(section_text)
+                    if is_multi:
+                        for name in _extract_speaker_names(section_text):
+                            if name not in known_characters:
+                                known_characters.append(name)
+                if scene.get("end_bridge"):
+                    unresolved_threads.append(scene.get("end_bridge"))
+
+            processed_scene_count = min(len(scenes), start_idx + len(chunk_scenes))
+            progress = int(10 + 60 * processed_scene_count / len(scenes))
+            message = (
+                f"script chunk {chunk_idx + 1}/{len(script_chunks)} complete "
+                f"(scenes {start_idx + 1}-{processed_scene_count})"
+            )
+            job_store.update_progress(job_id, progress, message)
             write_state("running", job, progress, job_id)
 
-            if idx < len(scenes) - 1:
-                await asyncio.sleep(0.5)  # same inter-section pacing script_gen.html uses
+            if chunk_idx < len(script_chunks) - 1:
+                await asyncio.sleep(0.5)
 
         draft_script = "\n\n".join(p for p in final_parts if p).strip()
         job_store.update_progress(job_id, 78, "script QA")

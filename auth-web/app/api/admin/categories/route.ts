@@ -89,6 +89,7 @@ export async function POST(req: Request) {
             upload_channel_name,
             upload_channel_handle,
             language,
+            seed_sample_topics,
         } = await req.json()
         const categoryLanguage = normalizeContentLanguage(language)
 
@@ -130,6 +131,9 @@ export async function POST(req: Request) {
         const createdCategory = data?.[0]
         if (!createdCategory) throw new Error('Category creation returned no row')
 
+        const shouldSeedSampleTopics = Boolean(seed_sample_topics)
+        if (shouldSeedSampleTopics) {
+
         // 카테고리 생성 성공 시 임시 트리거: AI 주제 생성을 모방하여 큐에 즉시 샘플 주제 3개 적재 (또는 배치 스케줄러가 나중에 채움)
         // 일단 UI 연동 및 빠른 테스트를 위해 카테고리 추가 시 기본 샘플 주제 3개를 큐에 넣어둡니다.
         const categoryId = createdCategory.id
@@ -168,6 +172,7 @@ export async function POST(req: Request) {
             queueInsertError = retry.error
         }
         if (queueInsertError) throw queueInsertError
+        }
 
         await deleteServerCache(CATEGORIES_CACHE_KEY)
         return NextResponse.json({ success: true, category: createdCategory })

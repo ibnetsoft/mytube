@@ -61,11 +61,8 @@ const TOPICS_QUEUE_LIST_SELECT = `
     difficulty_level,
     pregenerated_structure,
     pregenerated_structure_status,
+    pregenerated_script,
     pregenerated_script_status,
-    benchmark_status,
-    title_status,
-    web_research_status,
-    publish_metadata_status,
     generated_title,
     translation_status,
     categories(id,name,language,upload_channel_id,upload_channel_name,upload_channel_handle)
@@ -782,10 +779,6 @@ export async function POST(req: Request) {
                 // claim_topic() → project_settings → scene_planner.py까지 전달되게 한다
                 // (migrations/air_0230_topics_queue_benchmark_analysis_column.sql, 미적용 초안).
                 benchmark_analysis: benchmarkAnalysis,
-                benchmark_status: benchmarkAnalysis ? 'ready' : 'none',
-                title_status: 'ready',
-                web_research_status: benchmarkAnalysis?.web_research ? 'ready' : 'none',
-                publish_metadata_status: 'none',
                 // [AIR-0230 §2d] 이번 배치의 상위 PREGEN_BUFFER_SIZE개만 기획 사전생성
                 // 대상으로 표시 - 실제 job 큐잉은 insert 성공 후, DB가 id를 발급한 뒤에 한다.
                 pregenerated_structure_status: index < PREGEN_BUFFER_SIZE ? 'queued' : 'none',
@@ -816,11 +809,11 @@ export async function POST(req: Request) {
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, language, translation_status, benchmark_analysis, pregenerated_structure_status, generated_title, benchmark_status, title_status, web_research_status, publish_metadata_status, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, language, translation_status, benchmark_analysis, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
-                .select('id')
+                .select('id, topic, pregenerated_structure_status')
             insertedRows = retry.data
             insertError = retry.error
         }

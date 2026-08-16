@@ -314,6 +314,8 @@ def transition(job_id: str, to_status: str, *, reason: str = "", worker_pid: Opt
         progress = 100
         if progress_message is None:
             progress_message = "작업 완료"
+        error_code = ""
+        error_message = ""
     if to_status == QUEUED and current in (FAILED, ABANDONED):
         fields.append("retry_count = retry_count + 1")
         fields.append("worker_pid = NULL")

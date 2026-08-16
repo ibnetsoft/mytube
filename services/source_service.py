@@ -116,13 +116,21 @@ class SourceService:
 
             raise Exception("이 영상에는 사용 가능한 자막이 없습니다.")
 
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
             loop = asyncio.get_event_loop()
-            with ThreadPoolExecutor() as pool:
-                data = await loop.run_in_executor(pool, _fetch_transcript)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(pool, _fetch_transcript),
+                timeout=20.0,
+            )
+        except asyncio.TimeoutError as e:
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise Exception("유튜브 자막 추출 시간 초과") from e
         except Exception as e:
             print(f"YouTube Extraction Error: {e}")
             raise Exception(f"유튜브 자막 추출 실패: {str(e)}")
+        else:
+            pool.shutdown(wait=False, cancel_futures=True)
 
         # item이 dict(구버전) 또는 object(신버전) 모두 처리
         texts = []

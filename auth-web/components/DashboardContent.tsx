@@ -139,6 +139,7 @@ const getTopicPreparation = (item: any) => {
     const hasTitle = firstNonEmpty(item?.generated_title, item?.topic).length > 0
     const hasStructure = item?.pregenerated_structure_status === 'ready' && scenes.length > 0
     const hasScript = item?.pregenerated_script_status === 'ready'
+        && firstNonEmpty(item?.pregenerated_script).length > 0
     const hasMediaPrompts = hasStructure
         && String(structure?.media_prompt_status || '') === 'ready'
         && scenes.every((scene: any) => (
@@ -156,7 +157,7 @@ const getTopicPreparation = (item: any) => {
     ].filter(Boolean)
 
     return {
-        ready: item?.status === 'pending' && hasTitle && hasStructure && hasScript && hasMediaPrompts && hasDescription,
+        ready: Boolean(item?.status === 'pending' && hasTitle && hasStructure && hasScript && hasMediaPrompts && hasDescription),
         missing,
         scenes: scenes.length,
         structureStatus: item?.pregenerated_structure_status || 'queued',
