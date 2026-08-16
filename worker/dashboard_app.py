@@ -179,6 +179,18 @@ def _scene_has_image_prompt(scene: dict) -> bool:
     )
 
 
+def _structure_has_image_grid_prompts(structure: dict) -> bool:
+    prompts = structure.get("image_grid_prompts") if isinstance(structure, dict) else None
+    if not isinstance(prompts, list):
+        return False
+    for prompt in prompts:
+        if not isinstance(prompt, dict):
+            continue
+        if str(prompt.get("prompt") or prompt.get("grid_prompt") or "").strip():
+            return True
+    return False
+
+
 def _scene_has_video_prompt(scene: dict) -> bool:
     return bool(
         str(
@@ -196,7 +208,7 @@ def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
     if raw_status in {"ready", "fallback_ready"}:
         return raw_status
     valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
-    if valid_scenes and all(_scene_has_image_prompt(scene) and _scene_has_video_prompt(scene) for scene in valid_scenes):
+    if valid_scenes and _structure_has_image_grid_prompts(structure) and all(_scene_has_video_prompt(scene) for scene in valid_scenes):
         return "ready"
     return raw_status or "missing"
 
@@ -259,7 +271,8 @@ def _generated_result_summary(path: Path) -> dict | None:
         "scene_count": len(scenes),
         "script_chars": len(script),
         "has_script": bool(script.strip()),
-        "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
+        "has_image_prompts": _structure_has_image_grid_prompts(structure),
+        "has_image_grid_prompts": _structure_has_image_grid_prompts(structure),
         "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
         "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
         "media_prompt_status": media_status,
@@ -356,7 +369,8 @@ def _topic_generated_result_summary(result_id: str, data: dict) -> dict:
         "scene_count": len(scenes),
         "script_chars": len(script),
         "has_script": bool(script.strip()),
-        "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
+        "has_image_prompts": _structure_has_image_grid_prompts(structure),
+        "has_image_grid_prompts": _structure_has_image_grid_prompts(structure),
         "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
         "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
         "media_prompt_status": media_status,

@@ -2073,6 +2073,42 @@ def _validate_unique_video_prompts(scenes: list[dict]) -> None:
                 raise ValueError(f"near-duplicate video_prompt for scenes {left_label} and {right_label}")
 
 
+def _split_script_into_scene_excerpts(script_text: str, scene_count: int, max_chars: int = 900) -> list[str]:
+    """Approximate final narration coverage for each planned scene."""
+    if scene_count <= 0:
+        return []
+    text = str(script_text or "").strip()
+    if not text:
+        return [""] * scene_count
+
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", text) if p.strip()]
+    if len(paragraphs) >= scene_count:
+        buckets = [[] for _ in range(scene_count)]
+        for index, paragraph in enumerate(paragraphs):
+            bucket_index = min(scene_count - 1, int(index * scene_count / len(paragraphs)))
+            buckets[bucket_index].append(paragraph)
+        return ["\n\n".join(bucket)[:max_chars].strip() for bucket in buckets]
+
+    chunk_size = max(1, len(text) // scene_count)
+    excerpts = []
+    for index in range(scene_count):
+        start = index * chunk_size
+        end = len(text) if index == scene_count - 1 else (index + 1) * chunk_size
+        excerpts.append(text[start:end][:max_chars].strip())
+    return excerpts
+
+
+def _attach_script_excerpts_to_scenes(scenes: list[dict], script_text: str) -> list[dict]:
+    excerpts = _split_script_into_scene_excerpts(script_text, len(scenes))
+    enriched = []
+    for index, scene in enumerate(scenes):
+        merged = dict(scene)
+        if index < len(excerpts) and excerpts[index]:
+            merged["script_excerpt"] = excerpts[index]
+        enriched.append(merged)
+    return enriched
+
+
 def _generate_direct_image_grid_prompts(
     ai_router,
     model: str,
@@ -2107,6 +2143,7 @@ def _generate_direct_image_grid_prompts(
                 "scene_number": scene_number,
                 "scene_summary": scene.get("scene_summary"),
                 "scene_situation": scene.get("scene_situation"),
+                "script_excerpt": scene.get("script_excerpt"),
                 "scene_emotion": scene.get("scene_emotion"),
                 "keyframe_subject": scene.get("keyframe_subject"),
                 "continuity_identity": scene.get("continuity_identity"),
@@ -2143,7 +2180,8 @@ Rules:
 4. Write each panel_prompt as a concise English visual beat: subject, action, setting, composition, emotion, and one unique prop or background anchor. Keep each panel_prompt under 70 words.
 5. The final prompt must be compact: common layout rules once, shared_style once, then the four panel briefs. Avoid repeating negative guardrails inside every panel.
 6. Every final prompt must include: "No borders", "NO grid lines", "no text", "no words", "no letters", "no captions", and "no watermarks".
-7. No Korean administrative commentary. Return ONLY valid JSON.
+7. Ground every panel in script_excerpt first, then use scene_situation and keyframe_subject only as supporting context. Do not contradict the final narration.
+8. No Korean administrative commentary. Return ONLY valid JSON.
 
 Schema:
 {{
@@ -2210,6 +2248,7 @@ def _generate_scene_media_prompts(
     image_style_selection: dict | None,
     language: str,
     job_log,
+    script_text: str = "",
 ) -> dict:
     """Attach image/video generation prompts without changing scene boundaries."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else None
@@ -2224,6 +2263,7 @@ def _generate_scene_media_prompts(
     model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
     if str(model).lower().startswith("claude"):
         model = "gemini-2.5-flash"
+    scenes = _attach_script_excerpts_to_scenes(scenes, script_text)
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
     visual_direction_plan = _build_visual_direction_plan(
         ai_router,
@@ -2265,17 +2305,18 @@ SCENE PLAN:
 Rules:
 1. Return exactly one result for every input scene, preserving scene_id and scene_order.
 2. Do not change scene boundaries, duration, story facts, or character identity.
-3. Treat the admin-selected image style as the visual language for the whole video. Integrate it naturally into the continuity notes; do not mix incompatible art styles.
-4. Do NOT generate per-scene image prompts. Image generation is handled only by strict 2x2 image_grid_prompts later.
-5. keyframe_subject must describe the opening keyframe in one concise English sentence: primary subject, pose/action, location, lighting, and continuity anchors.
-6. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them.
-7. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot. Never write the generic phrase "camera moves"; name the exact approved movement instead.
-8. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
-9. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
-10. video_prompt must include these exact negative phrases: "no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio". It must describe visual motion only.
-11. Make each prompt specific to its scene. Vary shot size, composition, subject action, and approved camera movement from neighboring scenes. Do not use generic phrases such as "cinematic scene" without concrete visual details. Do not invent text, logos, brands, or historically impossible objects.
-12. Write video_prompt and continuity notes in English for generator compatibility. Keep administrative rationale out.
-13. Minimum length: video_prompt 260+ characters.
+3. Treat script_excerpt as the most authoritative source for what appears in the scene. Use scene_summary/scene_situation only to clarify context; never contradict the final narration.
+4. Treat the admin-selected image style as the visual language for the whole video. Integrate it naturally into the continuity notes; do not mix incompatible art styles.
+5. Do NOT generate per-scene image prompts. Image generation is handled only by strict 2x2 image_grid_prompts later.
+6. keyframe_subject must describe the opening keyframe in one concise English sentence: primary subject, pose/action, location, lighting, and continuity anchors.
+7. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them.
+8. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot. Never write the generic phrase "camera moves"; name the exact approved movement instead.
+9. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
+10. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
+11. video_prompt must include these exact negative phrases: "no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio". It must describe visual motion only.
+12. Make each prompt specific to its scene. Vary shot size, composition, subject action, and approved camera movement from neighboring scenes. Do not use generic phrases such as "cinematic scene" without concrete visual details. Do not invent text, logos, brands, or historically impossible objects.
+13. Write video_prompt and continuity notes in English for generator compatibility. Keep administrative rationale out.
+14. Minimum length: video_prompt 260+ characters.
 
 Return ONLY valid JSON in this shape:
 {{
@@ -3541,32 +3582,6 @@ Scene planning guard:
     if category_errors:
         raise RuntimeError(f"scene plan category QA failed: {category_errors[:8]}")
 
-    job_store.update_progress(job_id, 65, "generating scene image and video prompts")
-    write_state("running", job, 65, job_id)
-    job_log.info(f"-> GENERATING MEDIA PROMPTS (scene_count={structure.get('scene_count')})")
-    job_log.info(
-        f"-> IMAGE STYLE SELECTED BY WORKER (style={image_style}, "
-        f"source={(image_style_selection or {}).get('selection_source')})"
-    )
-    structure = _generate_scene_media_prompts(
-        structure=structure,
-        topic=topic,
-        upload_title=upload_title,
-        image_style=image_style,
-        image_style_selection=image_style_selection,
-        language=language,
-        job_log=job_log,
-    )
-    category_errors = _scene_plan_category_contamination_errors(
-        structure,
-        script_style=script_style_context,
-        topic=topic,
-        upload_title=upload_title,
-        image_style=image_style,
-    )
-    if category_errors:
-        raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
-
     job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
     write_state("running", job, 90, job_id)
     job_log.info(f"-> UPLOADING (scene_count={structure.get('scene_count')})")
@@ -4552,6 +4567,38 @@ Hard retry rules:
             f"{json.dumps(repeated_sentences[:8], ensure_ascii=False)}"
         )
 
+    image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
+    image_style_selection = (
+        (job.get("payload") or {}).get("image_style_selection")
+        if isinstance((job.get("payload") or {}).get("image_style_selection"), dict)
+        else {}
+    )
+    job_store.update_progress(job_id, 90, "generating media prompts from final script")
+    write_state("running", job, 90, job_id)
+    job_log.info(
+        f"-> GENERATING MEDIA PROMPTS FROM FINAL SCRIPT "
+        f"(scene_count={len(scenes)}, script_chars={len(final_script)})"
+    )
+    structure = _generate_scene_media_prompts(
+        structure=structure,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+        image_style_selection=image_style_selection,
+        language=language,
+        job_log=job_log,
+        script_text=final_script,
+    )
+    category_errors = _scene_plan_category_contamination_errors(
+        structure,
+        script_style=script_style_context,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+    )
+    if category_errors:
+        raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
+
     job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
     write_state("running", job, 95, job_id)
     char_count = len(final_script)
@@ -4567,8 +4614,11 @@ Hard retry rules:
         "topic_queue_id": topic_queue_id,
         "topic": topic,
         "script": final_script,
+        "structure": structure,
         "upload_title": upload_title,
         "title_generation": title_generation,
+        "image_style": image_style,
+        "image_style_selection": image_style_selection,
         "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
         "narrative_blueprint": narrative_blueprint,
         "initial_script_quality_report": initial_quality,
@@ -4727,6 +4777,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 "status": "pending",
                 "pregenerated_script": result_payload.get("script"),
                 "pregenerated_script_status": "ready",
+                "pregenerated_structure": result_payload.get("structure"),
+                "pregenerated_structure_status": "ready",
                 "narrative_blueprint": result_payload.get("narrative_blueprint"),
                 "script_quality_report": result_payload.get("script_quality_report"),
             }

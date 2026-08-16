@@ -2285,6 +2285,8 @@ Return ONLY a JSON array of strings.
             raise RuntimeError("대본 생성 본문 데이터가 유효하지 않습니다.")
             
         final_script = script_data["script"]
+        if isinstance(script_data.get("structure"), dict):
+            structure = script_data["structure"]
         narrative_blueprint = script_data.get("narrative_blueprint")
         script_quality_report = script_data.get("script_quality_report")
         char_count = len(final_script)
