@@ -33,7 +33,8 @@ from pathlib import Path
 
 MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024  # 500MB - a render input package should never be larger than this
 ALLOWED_DOWNLOAD_EXTENSIONS = {".zip"}
-ALLOWED_UPLOAD_EXTENSIONS = {".mp4"}
+# [Voicebox] render_audio 잡의 TTS 결과물(.mp3)도 업로드 대상
+ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mp3"}
 MAX_RETRIES = 3
 RETRY_BACKOFF_SECONDS = 2.0
 
@@ -124,9 +125,10 @@ def download_input_package(file_id: str, dest_dir: Path) -> Path:
 
 
 def upload_output(local_output_path: Path, remote_filename: str) -> str:
-    """Uploads a completed render output.mp4 to the configured Drive
-    working folder. Returns the Drive file id (stable reference, cheaper
-    than a webViewLink for the central server to store)."""
+    """Uploads a completed render output to the configured Drive working
+    folder - render_video's output.mp4 or render_audio's Voicebox TTS .mp3.
+    Returns the Drive file id (stable reference, cheaper than a webViewLink
+    for the central server to store)."""
     if not DRIVE_TOKEN_PATH or not DRIVE_FOLDER_ID:
         raise DriveAdapterError("AIRWORKER_DRIVE_TOKEN_PATH / AIRWORKER_DRIVE_FOLDER_ID not configured")
 
@@ -137,10 +139,12 @@ def upload_output(local_output_path: Path, remote_filename: str) -> str:
 
     from services.google_drive_service import google_drive_service
 
+    mimetype = "audio/mpeg" if safe_name.lower().endswith(".mp3") else "video/mp4"
+
     def _push():
         return google_drive_service.upsert_file(
             str(local_output_path), token_path=DRIVE_TOKEN_PATH, folder_id=DRIVE_FOLDER_ID,
-            filename=safe_name, mimetype="video/mp4",
+            filename=safe_name, mimetype=mimetype,
         )
 
     result = _with_retry(_push, "Drive file upload")

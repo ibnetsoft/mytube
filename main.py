@@ -369,6 +369,7 @@ from app.routers import media as media_router # [NEW]
 from app.routers import settings as settings_router # [NEW]
 from app.routers import youtube as youtube_router
 from app.routers import tts as tts_router
+from app.routers import voicebox_tts as voicebox_tts_router  # [Voicebox] 로컬 TTS 대안
 from app.routers import repository as repository_router # [NEW]
 from app.routers import health as health_router
 from app.routers import queue as queue_router # [NEW]
@@ -411,6 +412,7 @@ app.include_router(media_router.router)
 app.include_router(settings_router.router)
 app.include_router(youtube_router.router)
 app.include_router(tts_router.router)
+app.include_router(voicebox_tts_router.router)  # [Voicebox] /api/voicebox/*
 app.include_router(repository_router.router)
 app.include_router(health_router.router)
 app.include_router(queue_router.router)

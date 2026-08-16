@@ -159,6 +159,11 @@ async def page_video_gen(request: Request):
 async def page_tts(request: Request):
     return _render(request, "pages/tts.html", "tts", "nav_tts")
 
+@router.get("/voicebox-tts", response_class=HTMLResponse)
+async def page_voicebox_tts(request: Request):
+    """[Voicebox] 로컬/워커 Voicebox TTS 전용 페이지 (기존 ElevenLabs TTS 페이지와 별개)"""
+    return _render(request, "pages/voicebox_tts.html", "voicebox-tts", "nav_voicebox_tts")
+
 @router.get("/render", response_class=HTMLResponse)
 async def page_render(request: Request):
     if _is_standard_membership():

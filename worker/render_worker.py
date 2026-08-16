@@ -40,6 +40,7 @@ already-finished work.
 import os
 import signal
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -58,7 +59,10 @@ DELIVERED_DIR = OUTPUT_DIR / "delivered"  # [P2-VALIDATION] moved out of state/ 
 logger = get_logger("render_worker")
 
 _shutdown_requested = False
-SUPPORTED_JOB_TYPES = ["render_video"]
+# [Voicebox] render_audio: asset zip 없이 metadata.voicebox_tts 스펙만으로 워커
+# 머신의 로컬 Voicebox에서 TTS를 생성하는 잡 (docs/AIR_WORKER_JOB_PROTOCOL.md).
+# 중앙 서버 경로는 워커 토큰의 allowed_job_types 에 render_audio 가 있어야 클레임된다.
+SUPPORTED_JOB_TYPES = ["render_video", "render_audio"]
 LEASE_RENEW_INTERVAL_SECONDS = 3.0
 REMOTE_ENABLED = bool(os.environ.get("AIRWORKER_CENTRAL_SERVER_URL"))
 REMOTE_CLAIM_RETRY_SECONDS = 60.0
@@ -248,6 +252,66 @@ def _flush_pending_remote_acks():
             _report_remote_outcome(job, job_log, success=False, error_code=job.get("error_code") or "", error_message=job.get("error_message") or "")
 
 
+def _extract_voicebox_spec(job: dict) -> dict:
+    """render_audio 잡의 Voicebox TTS 스펙 추출.
+
+    - 중앙 서버 경로: payload.metadata.voicebox_tts (auth-web 클레임 라우트가
+      remote_render_queue 의 metadata 컬럼만 워커에 전달하기 때문에 여기에 실어 보낸다)
+    - 로컬 잡 경로:   payload.tts_payload / payload.voicebox_tts (대시보드·fixture 편의)
+    - 프로토콜 문서 필드명(script_text/voice_id)도 하위 호환으로 수용
+    """
+    payload = job.get("payload") or {}
+    spec = None
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict):
+        spec = metadata.get("voicebox_tts")
+    if not isinstance(spec, dict):
+        spec = payload.get("tts_payload") or payload.get("voicebox_tts")
+    if not isinstance(spec, dict):
+        raise RenderPipelineError(
+            "render_audio payload has no Voicebox TTS spec (expected metadata.voicebox_tts)"
+        )
+    return spec
+
+
+def _validate_voicebox_spec(job: dict) -> dict:
+    spec = _extract_voicebox_spec(job)
+    text = str(spec.get("script_text") or spec.get("text") or "").strip()
+    if not text:
+        raise RenderPipelineError("render_audio spec has no text to synthesize")
+    return spec
+
+
+def _run_voicebox_tts(job: dict, temp_dir: Path, on_progress) -> Path:
+    """[Voicebox] 워커 머신의 로컬 Voicebox로 TTS 생성 (blocking). MP3 경로 반환.
+
+    ensure_project_root_on_path() 가 render_pipeline_adapter 임포트 시점에
+    프로젝트 루트를 sys.path 에 추가하므로 services.voicebox_client 를 그대로
+    재사용할 수 있다 (스튜디오와 동일한 생성/MP3 변환/병합 로직).
+    """
+    from services.voicebox_client import generate_voicebox_audio_sync
+
+    spec = _extract_voicebox_spec(job)
+    text = str(spec.get("script_text") or spec.get("text") or "").strip()
+    voice_ref = str(spec.get("voice_ref") or spec.get("voice_id") or "")
+    output_path = temp_dir / f"{job['job_id']}.mp3"
+
+    result = generate_voicebox_audio_sync(
+        text=text,
+        voice_ref=voice_ref,
+        output_path=str(output_path),
+        engine=spec.get("engine") or None,
+        language=str(spec.get("language") or "ko"),
+        speed=float(spec.get("speed") or 1.0),
+        seed=spec.get("seed"),
+        multi_voice=bool(spec.get("multi_voice")),
+        voice_map=spec.get("voice_map") or {},
+        # 0-100 진행률을 렌더 단계 구간(20~90%)으로 보정해 그대로 흘려보낸다
+        progress_cb=lambda pct, msg: on_progress(20 + int(pct * 0.7), msg),
+    )
+    return Path(result["audio_path"])
+
+
 def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
     job_id = job["job_id"]
     job_log = get_job_logger(job_id)
@@ -264,11 +328,18 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
         _remote_progress(job, job_log, "PREPARING", 1, "Preparing render inputs.")
         job_log.info("-> PREPARING")
 
-        source_path = job["payload"].get("source_path")
-        if not source_path:
-            raise RenderPipelineError("payload.source_path is required for render_video")
-        temp_dir = prepare_temp_dir(source_path)
-        job_log.info(f"Prepared temp_dir={temp_dir}")
+        if job["job_type"] == "render_audio":
+            # [Voicebox TTS] asset zip 없이 대본 텍스트 스펙만으로 생성 - 준비 단계에서
+            # 스펙 검증만 하고 작업 디렉토리를 만든다 (다운로드/압축해제 없음)
+            _validate_voicebox_spec(job)
+            temp_dir = Path(tempfile.mkdtemp(prefix="airworker_tts_"))
+            job_log.info(f"Voicebox TTS job prepared, work_dir={temp_dir}")
+        else:
+            source_path = job["payload"].get("source_path")
+            if not source_path:
+                raise RenderPipelineError("payload.source_path is required for render_video")
+            temp_dir = prepare_temp_dir(source_path)
+            job_log.info(f"Prepared temp_dir={temp_dir}")
 
         if _is_soft_cancel_requested(job_id):
             job_store.transition(job_id, job_store.CANCELED, reason="cancelled at PREPARING checkpoint (soft-cancel, no process kill needed)")
@@ -278,8 +349,6 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
 
         job_store.transition(job_id, job_store.RENDERING, reason="starting real render pipeline")
         write_state("rendering", job, 0, job_id)
-        _remote_progress(job, job_log, "RENDERING", 20, "Rendering video on remote worker.")
-        job_log.info("-> RENDERING (calling services.remote_render_service.remote_render_executor_func)")
 
         def _on_progress(pct, msg):
             job_store.update_progress(job_id, pct, msg)
@@ -287,7 +356,14 @@ def process_one_job(job: dict, adapter: "upload_adapter.UploadAdapter") -> None:
             job_log.info(f"progress={pct} message={msg}")
             _remote_progress(job, job_log, "RENDERING", pct, msg)
 
-        output_path = run_render(job_id, temp_dir, _on_progress)
+        if job["job_type"] == "render_audio":
+            _remote_progress(job, job_log, "RENDERING", 20, "Generating TTS via local Voicebox.")
+            job_log.info("-> RENDERING (Voicebox TTS)")
+            output_path = _run_voicebox_tts(job, temp_dir, _on_progress)
+        else:
+            _remote_progress(job, job_log, "RENDERING", 20, "Rendering video on remote worker.")
+            job_log.info("-> RENDERING (calling services.remote_render_service.remote_render_executor_func)")
+            output_path = run_render(job_id, temp_dir, _on_progress)
         job_log.info(f"Render complete: {output_path}")
 
         job_store.transition(job_id, job_store.UPLOADING, reason="render complete, delivering output")

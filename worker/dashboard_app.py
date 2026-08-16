@@ -1,14 +1,16 @@
-"""
-AIR Worker Web Dashboard — FastAPI app with embedded single-page HTML.
+﻿"""
+AIR Worker Web Dashboard ??FastAPI app with embedded single-page HTML.
 
 Runs inside the Manager process on a separate uvicorn instance bound to
 127.0.0.1:3002 (daemon thread).  Reuses the same DPAPI auth token as the
 Local API (local_api_token.py) so the user only needs one token.
 """
 import json
+import os
 import time
 from pathlib import Path
 
+import httpx
 import job_store
 from fastapi import FastAPI, Header, HTTPException, Response
 from local_api_token import verify_token
@@ -44,7 +46,7 @@ def require_auth(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
-    # 인증 해제: 바로 통과
+    # ?몄쬆 ?댁젣: 諛붾줈 ?듦낵
     pass
 
 
@@ -167,18 +169,6 @@ def _result_category(data: dict) -> str:
     return ""
 
 
-def _scene_has_image_prompt(scene: dict) -> bool:
-    return bool(
-        str(
-            scene.get("image_prompt")
-            or scene.get("prompt_en")
-            or scene.get("visual_prompt")
-            or scene.get("visual_description")
-            or ""
-        ).strip()
-    )
-
-
 def _scene_has_video_prompt(scene: dict) -> bool:
     return bool(
         str(
@@ -196,7 +186,9 @@ def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
     if raw_status in {"ready", "fallback_ready"}:
         return raw_status
     valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
-    if valid_scenes and all(_scene_has_image_prompt(scene) and _scene_has_video_prompt(scene) for scene in valid_scenes):
+    grid_status = str(structure.get("image_grid_prompt_status") or "").strip()
+    grids = structure.get("image_grid_prompts") if isinstance(structure, dict) else []
+    if valid_scenes and grid_status == "ready" and isinstance(grids, list) and grids and all(_scene_has_video_prompt(scene) for scene in valid_scenes):
         return "ready"
     return raw_status or "missing"
 
@@ -259,7 +251,8 @@ def _generated_result_summary(path: Path) -> dict | None:
         "scene_count": len(scenes),
         "script_chars": len(script),
         "has_script": bool(script.strip()),
-        "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
+        "has_image_prompts": bool(structure.get("image_grid_prompts")),
+        "has_image_grid_prompts": bool(structure.get("image_grid_prompts")),
         "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
         "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
         "media_prompt_status": media_status,
@@ -356,7 +349,8 @@ def _topic_generated_result_summary(result_id: str, data: dict) -> dict:
         "scene_count": len(scenes),
         "script_chars": len(script),
         "has_script": bool(script.strip()),
-        "has_image_prompts": any(isinstance(scene, dict) and _scene_has_image_prompt(scene) for scene in scenes),
+        "has_image_prompts": bool(structure.get("image_grid_prompts")),
+        "has_image_grid_prompts": bool(structure.get("image_grid_prompts")),
         "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
         "has_legacy_visual_direction": any(isinstance(scene, dict) and scene.get("visual_direction") for scene in scenes),
         "media_prompt_status": media_status,
@@ -430,11 +424,11 @@ def _normalize_style_preset(body: dict) -> dict:
     display_name_ko = str(body.get("display_name_ko") or "").strip()
     prompt_template = str(body.get("prompt_template") or "").strip()
     if preset_type not in STYLE_PRESET_TYPES:
-        raise HTTPException(400, "스타일 타입은 image 또는 script만 가능합니다.")
+        raise HTTPException(400, "?ㅽ?????낆? image ?먮뒗 script留?媛?ν빀?덈떎.")
     if not key_code or not key_code.replace("_", "").isalnum():
-        raise HTTPException(400, "스타일 코드는 영문, 숫자, 밑줄만 사용할 수 있습니다.")
+        raise HTTPException(400, "?ㅽ???肄붾뱶???곷Ц, ?レ옄, 諛묒쨪留??ъ슜?????덉뒿?덈떎.")
     if not display_name_ko or not prompt_template:
-        raise HTTPException(400, "한글 표시명과 프롬프트 템플릿은 필수입니다.")
+        raise HTTPException(400, "?쒓? ?쒖떆紐낃낵 ?꾨＼?꾪듃 ?쒗뵆由우? ?꾩닔?낅땲??")
     return {
         "preset_type": preset_type,
         "key_code": key_code,
@@ -476,6 +470,37 @@ def _sync_style_preset_to_local(preset: dict) -> None:
 @app.get("/health")
 async def health():
     return {"status": "ok", "time": time.time()}
+
+
+@app.get("/api/voicebox/health")
+async def api_voicebox_health(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """?뚯빱 癒몄떊 湲곗? Voicebox 濡쒖뺄 ?쒕쾭 ?곹깭 ?뺤씤."""
+    require_auth(authorization, cookie)
+    try:
+        from config import Config
+        base_url = (os.environ.get("VOICEBOX_BASE_URL") or getattr(Config, "VOICEBOX_BASE_URL", "") or "http://127.0.0.1:17493").rstrip("/")
+    except Exception:
+        base_url = (os.environ.get("VOICEBOX_BASE_URL") or "http://127.0.0.1:17493").rstrip("/")
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
+            response = await client.get(f"{base_url}/health")
+            response.raise_for_status()
+            health_data = response.json()
+        return {"reachable": True, "base_url": base_url, "health": health_data}
+    except Exception as e:
+        return {
+            "reachable": False,
+            "base_url": base_url,
+            "error": (
+                f"Voicebox ?쒕쾭({base_url})???곌껐?????놁뒿?덈떎. "
+                "?뚯빱 癒몄떊?먯꽌 Voicebox ?깆씠 ?ㅽ뻾 以묒씤吏 ?뺤씤?댁＜?몄슂. "
+                f"({type(e).__name__})"
+            ),
+        }
 
 
 @app.get("/api/status")
@@ -567,7 +592,7 @@ async def api_logs(
     from worker_config import LOG_FILES
     path = LOG_FILES.get(process)
     if not path or not Path(path).exists():
-        return {"error": f"로그를 찾을 수 없습니다: '{process}'", "available": list(LOG_FILES.keys())}
+        return {"error": f"濡쒓렇瑜?李얠쓣 ???놁뒿?덈떎: '{process}'", "available": list(LOG_FILES.keys())}
     lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
     return {"process": process, "lines": lines[-tail_lines:]}
 
@@ -602,7 +627,7 @@ async def api_save_style_preset(
 
     result = web_admin_client.upsert_style_preset(preset)
     if not result.get("success"):
-        raise HTTPException(502, result.get("error") or "중앙 스타일 저장소에 저장하지 못했습니다.")
+        raise HTTPException(502, result.get("error") or "以묒븰 ?ㅽ?????μ냼????ν븯吏 紐삵뻽?듬땲??")
     saved = result.get("preset") or preset
     # The remote API returns the same fields, but normalize to defend against
     # a partial representation response before writing the local cache.
@@ -622,7 +647,7 @@ async def api_delete_style_preset(
     preset_type = preset_type.strip().lower()
     key_code = key_code.strip().lower()
     if preset_type not in STYLE_PRESET_TYPES or not key_code.replace("_", "").isalnum():
-        raise HTTPException(400, "잘못된 스타일 정보입니다.")
+        raise HTTPException(400, "?섎せ???ㅽ????뺣낫?낅땲??")
     from worker_config import ensure_project_root_on_path
     ensure_project_root_on_path()
     from services.web_admin_client import web_admin_client
@@ -630,7 +655,7 @@ async def api_delete_style_preset(
 
     result = web_admin_client.delete_style_preset(key_code)
     if not result.get("success"):
-        raise HTTPException(502, result.get("error") or "중앙 스타일 저장소에서 삭제하지 못했습니다.")
+        raise HTTPException(502, result.get("error") or "以묒븰 ?ㅽ?????μ냼?먯꽌 ??젣?섏? 紐삵뻽?듬땲??")
     if preset_type == "script":
         db.delete_script_style_preset(key_code)
     else:
@@ -679,7 +704,7 @@ async def api_save_category_image_style_mapping(
     """Save a Worker manual override; it takes precedence over AI selection."""
     require_auth(authorization, cookie)
     if category not in CATEGORIES:
-        raise HTTPException(404, "지원하지 않는 Hermes 카테고리입니다.")
+        raise HTTPException(404, "吏?먰븯吏 ?딅뒗 Hermes 移댄뀒怨좊━?낅땲??")
     from worker_config import ensure_project_root_on_path
     ensure_project_root_on_path()
     from services.web_admin_client import web_admin_client
@@ -688,11 +713,11 @@ async def api_save_category_image_style_mapping(
     styles = web_admin_client.fetch_style_presets(["image"])
     allowed_keys = {str(style.get("key_code") or "").strip().lower() for style in styles}
     if style_key and style_key not in allowed_keys:
-        raise HTTPException(400, "등록되지 않은 이미지 스타일입니다.")
+        raise HTTPException(400, "?깅줉?섏? ?딆? ?대?吏 ?ㅽ??쇱엯?덈떎.")
 
     result = await autopilot_manager.save_category_image_style_override(category, style_key or None)
     if not result.get("success"):
-        raise HTTPException(400, result.get("error") or "이미지 스타일 매칭을 저장하지 못했습니다.")
+        raise HTTPException(400, result.get("error") or "?대?吏 ?ㅽ???留ㅼ묶????ν븯吏 紐삵뻽?듬땲??")
     return {"success": True, "manual_override": result.get("override")}
 
 
@@ -766,7 +791,7 @@ async def yt_search(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
-    """YouTube 검색 프록시"""
+    """Search YouTube videos."""
     require_auth(authorization, cookie)
     from services.youtube_data_api import async_youtube_get
     params = {
@@ -792,7 +817,7 @@ async def yt_videos(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
-    """YouTube 영상 상세 정보 프록시"""
+    """Fetch YouTube video details."""
     require_auth(authorization, cookie)
     from services.youtube_data_api import async_youtube_get
     data = await async_youtube_get("videos", {"part": "snippet,statistics,contentDetails", "id": video_id})
@@ -807,7 +832,7 @@ async def yt_channel(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
-    """YouTube 채널 정보 프록시"""
+    """Fetch YouTube channel details."""
     require_auth(authorization, cookie)
     from services.youtube_data_api import async_youtube_get
     data = await async_youtube_get("channels", {"part": "snippet,statistics", "id": channel_id})
@@ -824,21 +849,21 @@ async def yt_trending_keywords(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
-    """Gemini 기반 트렌드 키워드 생성 (버블 차트용)"""
+    '''Generate trending keyword suggestions.'''
     require_auth(authorization, cookie)
     from config import Config
     import asyncio
     import re as _re
     from services.ai_router import generate_text
     fallback_keywords = [
-        {"keyword": "AI 영상", "translation": "AI 영상", "volume": 96, "category": "Technology"},
-        {"keyword": "경제 전망", "translation": "경제 전망", "volume": 88, "category": "Finance"},
-        {"keyword": "부동산 이슈", "translation": "부동산 이슈", "volume": 82, "category": "Finance"},
-        {"keyword": "건강 루틴", "translation": "건강 루틴", "volume": 76, "category": "Health"},
-        {"keyword": "여행 브이로그", "translation": "여행 브이로그", "volume": 70, "category": "Travel"},
-        {"keyword": "요리 레시피", "translation": "요리 레시피", "volume": 64, "category": "Cooking"},
-        {"keyword": "영화 리뷰", "translation": "영화 리뷰", "volume": 58, "category": "Film"},
-        {"keyword": "게임 공략", "translation": "게임 공략", "volume": 52, "category": "Gaming"},
+        {"keyword": "AI video", "translation": "AI video", "volume": 96, "category": "Technology"},
+        {"keyword": "finance outlook", "translation": "finance outlook", "volume": 88, "category": "Finance"},
+        {"keyword": "real estate news", "translation": "real estate news", "volume": 82, "category": "Finance"},
+        {"keyword": "health routine", "translation": "health routine", "volume": 76, "category": "Health"},
+        {"keyword": "travel vlog", "translation": "travel vlog", "volume": 70, "category": "Travel"},
+        {"keyword": "cooking recipe", "translation": "cooking recipe", "volume": 64, "category": "Cooking"},
+        {"keyword": "movie review", "translation": "movie review", "volume": 58, "category": "Film"},
+        {"keyword": "game guide", "translation": "game guide", "volume": 52, "category": "Gaming"},
     ]
     if (
         not Config.GEMINI_API_KEY
@@ -847,7 +872,7 @@ async def yt_trending_keywords(
     ):
         return {"status": "ok", "keywords": fallback_keywords, "source": "fallback"}
     if False and not Config.GEMINI_API_KEY:
-        return {"error": "GEMINI_API_KEY이 설정되지 않았습니다"}
+        return {"error": "GEMINI_API_KEY is not configured"}
     lang_map = {"ko": "South Korea (Korean)", "ja": "Japan (Japanese)", "en": "USA/International (English)"}
     period_map = {"now": "REAL-TIME / NOW", "week": "THIS WEEK (Last 7 days)", "month": "THIS MONTH (Last 30 days)"}
     age_map = {"all": "ALL Ages", "10s": "Teenagers (10-19)", "20s": "Young Adults (20-29)", "30s": "Adults (30-39)", "40s": "Middle-aged (40+)"}
@@ -869,7 +894,7 @@ async def yt_trending_keywords(
         f"- 3-5 keywords: 70-90 (High)\n"
         f"- Rest: 20-60 (Moderate)\n\n"
         f'OUTPUT FORMAT (JSON List):\n'
-        f'[{{"keyword": "Keyword in Target Language", "translation": "한국어 뜻 설명", "volume": 98, "category": "Gaming"}}, ...]\n\n'
+        f'[{{"keyword": "Keyword in Target Language", "translation": "?쒓뎅?????ㅻ챸", "volume": 98, "category": "Gaming"}}, ...]\n\n'
         f"RETURN ONLY THE JSON LIST. NO MARKDOWN."
     )
     try:
@@ -900,7 +925,7 @@ async def yt_trending_keywords(
                 json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.9}},
             )
             if r.status_code != 200:
-                return {"error": f"Gemini API 오류: {r.status_code}"}
+                return {"error": f"Gemini API ?ㅻ쪟: {r.status_code}"}
             text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
             match = _re.search(r'\[[\s\S]*\]', text)
             if match:
@@ -915,8 +940,8 @@ async def yt_trending_keywords(
 # Settings endpoints (Hermes / AI API keys)
 # ---------------------------------------------------------------------------
 
-# 키 값은 마스킹해서 응답
-_MASKED = "••••••••"
+# Mask API keys in settings responses.
+_MASKED = "********"
 
 def _mask_value(v: str) -> str:
     if not v:
@@ -934,21 +959,24 @@ async def api_get_settings(
     require_auth(authorization, cookie)
     from config import Config
     keys = [
-        ("GEMINI_API_KEY", "Gemini API 키"),
-        ("CLAUDE_API_KEY", "Claude API 키"),
-        ("DEEPSEEK_API_KEY", "DeepSeek API 키"),
+        ("GEMINI_API_KEY", "Gemini API Key"),
+        ("CLAUDE_API_KEY", "Claude API Key"),
+        ("DEEPSEEK_API_KEY", "DeepSeek API Key"),
         ("DEEPSEEK_BASE_URL", "DeepSeek Base URL"),
-        ("GLM_API_KEY", "GLM API 키"),
+        ("GLM_API_KEY", "GLM API Key"),
         ("GLM_BASE_URL", "GLM Base URL"),
-        ("YOUTUBE_API_KEY", "YouTube Data API 키"),
-        ("YOUTUBE_API_KEYS", "YouTube Data API 백업 키"),
-        ("ELEVENLABS_API_KEY", "ElevenLabs API 키"),
-        ("SUNO_API_KEY", "Suno API 키"),
-        ("TOPIC_GENERATION_MODEL", "제목 생성 모델"),
-        ("TITLE_GENERATION_MODEL", "제목 후보 모델"),
-        ("SCRIPT_GENERATION_MODEL", "대본 생성 모델"),
-        ("SCRIPT_PLANNING_MODEL", "대본 구조 모델"),
-        ("IMAGE_PROMPT_MODEL", "이미지/영상 프롬프트 모델"),
+        ("YOUTUBE_API_KEY", "YouTube Data API Key"),
+        ("YOUTUBE_API_KEYS", "YouTube Data API Backup Keys"),
+        ("ELEVENLABS_API_KEY", "ElevenLabs API Key"),
+        ("VOICEBOX_BASE_URL", "Voicebox Server URL"),
+        ("VOICEBOX_ENGINE", "Voicebox Engine"),
+        ("VOICEBOX_MODEL_SIZE", "Voicebox Model Size"),
+        ("SUNO_API_KEY", "Suno API Key"),
+        ("TOPIC_GENERATION_MODEL", "Topic Generation Model"),
+        ("TITLE_GENERATION_MODEL", "Title Generation Model"),
+        ("SCRIPT_GENERATION_MODEL", "Script Generation Model"),
+        ("SCRIPT_PLANNING_MODEL", "Script Planning Model"),
+        ("IMAGE_PROMPT_MODEL", "Image/Video Prompt Model"),
     ]
     result = []
     for attr, label in keys:
@@ -968,27 +996,27 @@ async def api_set_setting(
     key = (body.get("key") or "").strip()
     value = (body.get("value") or "").strip()
     if not key:
-        return {"error": "key가 필요합니다"}
+        return {"error": "key is required"}
     
-    # 보안: 마스킹된 값이 그대로 들어오면 변경하지 않음 (API 키 계열만 해당)
+    # 蹂댁븞: 留덉뒪?밸맂 媛믪씠 洹몃?濡??ㅼ뼱?ㅻ㈃ 蹂寃쏀븯吏 ?딆쓬 (API ??怨꾩뿴留??대떦)
     is_key = "KEY" in key
     if is_key and (value == _MASKED or value.startswith(_MASKED)):
-        return {"ok": True, "message": "변경 없음 (마스킹된 값)"}
+        return {"ok": True, "message": "No change; masked value was submitted"}
         
     allowed = {
         "GEMINI_API_KEY", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
-        "ELEVENLABS_API_KEY", "SUNO_API_KEY",
+        "ELEVENLABS_API_KEY", "SUNO_API_KEY", "VOICEBOX_BASE_URL", "VOICEBOX_ENGINE", "VOICEBOX_MODEL_SIZE",
         "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
     }
     if key not in allowed:
-        return {"error": f"허용되지 않은 설정 키: {key}"}
+        return {"error": f"Setting is not allowed: {key}"}
     try:
         from config import Config
         Config.update_api_key(key, value)
-        logger.info(f"설정 변경 (대시보드): {key} = {value if 'KEY' not in key else '••••'}")
+        logger.info(f"Setting changed: {key} = {value if 'KEY' not in key else _MASKED}")
         
-        # Supabase 원격 동시 저장 시도 (Dual-write)
+        # Supabase ?먭꺽 ?숈떆 ????쒕룄 (Dual-write)
         try:
             from services.web_admin_client import web_admin_client
             sb_key = None
@@ -998,20 +1026,20 @@ async def api_set_setting(
                     break
             
             if sb_key and web_admin_client.has_supabase():
-                # bool 값일 경우 문자열로 형변환해서 전송
+                # bool 媛믪씪 寃쎌슦 臾몄옄?대줈 ?뺣??섑빐???꾩넚
                 str_val = str(value).lower() if isinstance(value, bool) else str(value)
                 ok = web_admin_client.save_global_setting(sb_key, str_val)
                 if ok:
-                    logger.info(f"Supabase 원격 동기화 완료: {sb_key} = {str_val}")
+                    logger.info(f"Supabase ?먭꺽 ?숆린???꾨즺: {sb_key} = {str_val}")
                 else:
-                    logger.warning(f"Supabase 원격 동기화 실패 (응답 에러): {sb_key}")
+                    logger.warning(f"Supabase ?먭꺽 ?숆린???ㅽ뙣 (?묐떟 ?먮윭): {sb_key}")
         except Exception as sb_err:
-            logger.warning(f"Supabase 원격 저장 실패 (로컬 저장은 유지됨): {sb_err}")
+            logger.warning(f"Supabase ?먭꺽 ????ㅽ뙣 (濡쒖뺄 ??μ? ?좎???: {sb_err}")
             
-        return {"ok": True, "success": True, "message": f"{key} 저장 완료 (원격 동기화 시도 완료)"}
+        return {"ok": True, "success": True, "message": f"{key} ????꾨즺 (?먭꺽 ?숆린???쒕룄 ?꾨즺)"}
     except Exception as e:
-        logger.error(f"설정 저장 실패: {key} — {e}")
-        return {"error": f"저장 실패: {e}"}
+        logger.error(f"Failed to save setting: {key} - {e}")
+        return {"error": f"Save failed: {e}"}
 
 
 # ---------------------------------------------------------------------------
@@ -1057,7 +1085,7 @@ async def api_autopilot_save_settings(
     require_auth(authorization, cookie)
     new_settings = body.get("settings")
     if not new_settings:
-        return {"error": "settings가 필요합니다"}
+        return {"error": "settings is required"}
     return await autopilot_manager.save_settings(new_settings)
 
 
@@ -1082,7 +1110,7 @@ async def api_autopilot_stop(
 
 
 # ---------------------------------------------------------------------------
-# Login page (serves HTML — no auth required)
+# Login page (serves HTML ??no auth required)
 # ---------------------------------------------------------------------------
 
 @app.get("/api/generated-results")
@@ -1157,7 +1185,7 @@ async def login_page():
 async def auth_login(body: dict, response: Response):
     token = (body.get("token") or "").strip()
     if not verify_token(token):
-        return {"error": "토큰이 올바르지 않습니다"}
+        return {"error": "?좏겙???щ컮瑜댁? ?딆뒿?덈떎"}
     response = Response(
         content='{"ok":true}',
         media_type="application/json",
@@ -1188,64 +1216,51 @@ async def dashboard_page():
 # HTML templates (login + dashboard)
 # =========================================================================
 
-LOGIN_HTML = r"""<!DOCTYPE html>
+LOGIN_HTML = '''<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIR Worker — 로그인</title>
+<title>AIR Worker Login</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+body { font-family: Arial, sans-serif; background: #0f1117; color: #e1e4e8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
 .login-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 40px; width: 400px; max-width: 90vw; }
-.login-box h1 { font-size: 24px; margin-bottom: 8px; }
-.login-box p { color: #8b949e; margin-bottom: 24px; font-size: 14px; }
-input { width: 100%; padding: 10px 14px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e1e4e8; font-size: 14px; outline: none; }
-input:focus { border-color: #58a6ff; }
-button { width: 100%; padding: 10px; border: none; border-radius: 6px; background: #238636; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 16px; }
-button:hover { background: #2ea043; }
+h1 { font-size: 24px; margin: 0 0 8px; }
+p { color: #8b949e; margin: 0 0 24px; font-size: 14px; }
+input { width: 100%; padding: 10px 14px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e1e4e8; font-size: 14px; box-sizing: border-box; }
+button { width: 100%; padding: 10px; border: 0; border-radius: 6px; background: #238636; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 16px; }
 .error { color: #f85149; font-size: 13px; margin-top: 12px; display: none; }
 </style>
 </head>
 <body>
 <div class="login-box">
   <h1>AIR Worker</h1>
-  <p>대시보드에 접근하려면 인증 토큰을 입력하세요.</p>
-  <input type="password" id="token-input" placeholder="인증 토큰" autocomplete="off">
-  <button onclick="login()">로그인</button>
-  <div class="error" id="error-msg"></div>
+  <p>Enter your dashboard access token.</p>
+  <input id="token" type="password" placeholder="Dashboard token" autofocus>
+  <button onclick="login()">Login</button>
+  <div id="error" class="error">Invalid token.</div>
 </div>
 <script>
 async function login() {
-  const token = document.getElementById('token-input').value.trim();
-  const errEl = document.getElementById('error-msg');
-  errEl.style.display = 'none';
-  try {
-    const res = await fetch('/auth/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({token})
-    });
-    const data = await res.json();
-    if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
-    window.location.href = '/';
-  } catch(e) { errEl.textContent = '서버 오류'; errEl.style.display = 'block'; }
+  const token = document.getElementById('token').value.trim();
+  const res = await fetch('/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token}) });
+  if (res.ok) location.reload();
+  else document.getElementById('error').style.display = 'block';
 }
-document.getElementById('token-input').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+document.getElementById('token').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); });
 </script>
 </body>
-</html>"""
+</html>'''
 
-
-DASHBOARD_HTML = r"""<!DOCTYPE html>
+DASHBOARD_HTML = r'''<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIR Worker — 대시보드</title>
+<title>AIR Worker Dashboard</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-/* ── Reset & Base ── */
+/* ?? Reset & Base ?? */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; font-size: 14px; line-height: 1.5; }
 a { color: #58a6ff; text-decoration: none; }
@@ -1254,7 +1269,7 @@ a:hover { text-decoration: underline; }
 ::-webkit-scrollbar-track { background: #161b22; }
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
 
-/* ── Layout ── */
+/* ?? Layout ?? */
 .app { display: flex; height: 100vh; }
 .sidebar { width: 220px; background: #161b22; border-right: 1px solid #21262d; display: flex; flex-direction: column; flex-shrink: 0; }
 .sidebar-brand { padding: 20px 16px; border-bottom: 1px solid #21262d; }
@@ -1272,11 +1287,11 @@ a:hover { text-decoration: underline; }
 .refresh-indicator { font-size: 12px; color: #8b949e; }
 .content { flex: 1; overflow-y: auto; padding: 24px; }
 
-/* ── Cards ── */
+/* ?? Cards ?? */
 .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
 .card-title { font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
 
-/* ── Status Cards Grid ── */
+/* ?? Status Cards Grid ?? */
 .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .status-card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px; }
 .status-card .name { font-size: 16px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
@@ -1284,7 +1299,7 @@ a:hover { text-decoration: underline; }
 .status-card .progress-bar { height: 4px; background: #21262d; border-radius: 2px; margin-top: 10px; overflow: hidden; }
 .status-card .progress-fill { height: 100%; background: #238636; border-radius: 2px; transition: width 0.3s; }
 
-/* ── Badges ── */
+/* ?? Badges ?? */
 .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
 .badge-running { background: #23863622; color: #3fb950; }
 .badge-idle { background: #8b949e22; color: #8b949e; }
@@ -1302,14 +1317,14 @@ a:hover { text-decoration: underline; }
 .badge-canceled { background: #f8514922; color: #f85149; }
 .badge-abandoned { background: #f8514922; color: #f85149; }
 
-/* ── Tables ── */
+/* ?? Tables ?? */
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #21262d; }
 th { color: #8b949e; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
 td { font-size: 13px; }
 tr:hover { background: #161b22; }
 
-/* ── Buttons ── */
+/* ?? Buttons ?? */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; color: #c9d1d9; font-size: 13px; cursor: pointer; transition: all 0.15s; }
 .btn:hover { background: #30363d; }
 .btn-primary { background: #238636; border-color: #238636; color: #fff; }
@@ -1323,7 +1338,7 @@ tr:hover { background: #161b22; }
 .btn-stop:hover:not(:disabled) { background: #da363322; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Forms ── */
+/* ?? Forms ?? */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 6px; font-weight: 500; }
 .form-group input, .form-group select, .form-group textarea {
@@ -1333,21 +1348,21 @@ tr:hover { background: #161b22; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #58a6ff; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* ── Log viewer ── */
+/* ?? Log viewer ?? */
 .log-viewer { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #8b949e; }
 
-/* ── Tab content ── */
+/* ?? Tab content ?? */
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* ── Job detail modal ── */
+/* ?? Job detail modal ?? */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
 .modal-overlay.active { display: flex; }
 .modal { background: #161b22; border: 1px solid #21262d; border-radius: 12px; width: 700px; max-width: 90vw; max-height: 80vh; overflow-y: auto; padding: 24px; }
 .modal h3 { margin-bottom: 16px; }
 .modal .close { float: right; cursor: pointer; color: #8b949e; font-size: 20px; }
 
-/* ── YouTube Explore Tab ── */
+/* ?? YouTube Explore Tab ?? */
 .yt-filter-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .yt-lang-btn.active { background: #1f6feb22; border-color: #58a6ff; color: #58a6ff; }
 .yt-search-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -1367,13 +1382,13 @@ tr:hover { background: #161b22; }
 .yt-analysis-text { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 16px; font-size: 13px; line-height: 1.8; color: #c9d1d9; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin-top: 12px; }
 .yt-stat { font-size: 11px; color: #8b949e; margin-top: 2px; }
 
-/* ── Timeline ── */
+/* ?? Timeline ?? */
 .timeline { border-left: 2px solid #21262d; padding-left: 20px; margin: 16px 0; }
 .timeline-item { position: relative; padding: 8px 0; font-size: 13px; }
 .timeline-item::before { content: ''; position: absolute; left: -26px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: #58a6ff; border: 2px solid #0d1117; }
 .timeline-item .time { color: #8b949e; font-size: 11px; }
 
-/* ── Notification toast ── */
+/* ?? Notification toast ?? */
 .toast-container { position: fixed; top: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
 .toast { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; font-size: 13px; animation: slideIn 0.3s ease; }
 .toast.success { border-left: 3px solid #3fb950; }
@@ -1382,11 +1397,11 @@ tr:hover { background: #161b22; }
 .toast.info { border-left: 3px solid #58a6ff; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
 
-/* ── Empty state ── */
+/* ?? Empty state ?? */
 .empty { text-align: center; padding: 40px; color: #8b949e; }
 .empty .icon { font-size: 48px; margin-bottom: 12px; }
 
-/* ── Settings tab ── */
+/* ?? Settings tab ?? */
 .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .settings-panel { border: 1px solid #21262d; border-radius: 8px; background: rgba(13,17,23,0.35); padding: 16px; min-width: 0; }
 .settings-panel-title { color: #c9d1d9; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
@@ -1397,7 +1412,7 @@ tr:hover { background: #161b22; }
 .setting-input::placeholder { color: #484f58; }
 @media (max-width: 1100px) { .settings-grid { grid-template-columns: 1fr; } }
 
-/* ── Result viewer ── */
+/* ?? Result viewer ?? */
 .result-viewer { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
 .generated-result-layout { display: grid; grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr); gap: 16px; }
 .generated-result-detail { display: flex; flex-direction: column; gap: 14px; }
@@ -1417,44 +1432,44 @@ tr:hover { background: #161b22; }
   <div class="sidebar">
     <div class="sidebar-brand">
       <h1>AIR Worker</h1>
-      <span>대시보드</span>
+      <span>??쒕낫??/span>
     </div>
     <div class="nav">
       <div class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
-        <span class="icon">&#x1F4CA;</span> 대시보드
+        <span class="icon">&#x1F4CA;</span> ??쒕낫??
       </div>
       <div class="nav-item" data-tab="rendering" onclick="switchTab('rendering')">
-        <span class="icon">&#x1F3AC;</span> 렌더링 상황
+        <span class="icon">&#x1F3AC;</span> ?뚮뜑留??곹솴
       </div>
       <div class="nav-item" data-tab="topic-search" onclick="switchTab('topic-search')">
-        <span class="icon">&#x1F50D;</span> 주제 찾기
+        <span class="icon">&#x1F50D;</span> 二쇱젣 李얘린
       </div>
       <div class="nav-item" data-tab="yt-explore" onclick="switchTab('yt-explore')">
-        <span class="icon">&#x1F30D;</span> YouTube 탐색
+        <span class="icon">&#x1F30D;</span> YouTube ?먯깋
       </div>
       <div class="nav-item" data-tab="hermes-autopilot" onclick="switchTab('hermes-autopilot')">
-        <span class="icon">&#x1F916;</span> Hermes 자동 생성
+        <span class="icon">&#x1F916;</span> Hermes ?먮룞 ?앹꽦
       </div>
       <div class="nav-item" data-tab="generated-results" onclick="switchTab('generated-results')">
-        <span class="icon">&#x1F4D1;</span> 생성 결과 확인
+        <span class="icon">&#x1F4D1;</span> ?앹꽦 寃곌낵 ?뺤씤
       </div>
       <div class="nav-item" data-tab="hermes-gen" onclick="switchTab('hermes-gen')">
-        <span class="icon">&#x1F4DD;</span> Hermes 제목 생성
+        <span class="icon">&#x1F4DD;</span> Hermes ?쒕ぉ ?앹꽦
       </div>
       <div class="nav-item" data-tab="styles" onclick="switchTab('styles')">
-        <span class="icon">&#x1F3A8;</span> 스타일 관리
+        <span class="icon">&#x1F3A8;</span> ?ㅽ???愿由?
       </div>
       <div class="nav-item" data-tab="category-image-styles" onclick="switchTab('category-image-styles')">
-        <span class="icon">&#x1F5BC;</span> 카테고리 이미지 스타일
+        <span class="icon">&#x1F5BC;</span> 移댄뀒怨좊━ ?대?吏 ?ㅽ???
       </div>
       <div class="nav-item" data-tab="history" onclick="switchTab('history')">
-        <span class="icon">&#x1F4CB;</span> 작업 히스토리
+        <span class="icon">&#x1F4CB;</span> ?묒뾽 ?덉뒪?좊━
       </div>
       <div class="nav-item" data-tab="logs" onclick="switchTab('logs')">
-        <span class="icon">&#x1F4C4;</span> 로그
+        <span class="icon">&#x1F4C4;</span> 濡쒓렇
       </div>
       <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
-        <span class="icon">&#x2699;</span> 설정
+        <span class="icon">&#x2699;</span> ?ㅼ젙
       </div>
     </div>
   </div>
@@ -1462,193 +1477,193 @@ tr:hover { background: #161b22; }
   <!-- Main content -->
   <div class="main">
     <div class="topbar">
-      <h2 id="page-title">대시보드</h2>
+      <h2 id="page-title">??쒕낫??/h2>
       <div class="topbar-actions">
         <span class="refresh-indicator" id="refresh-timer"></span>
-        <button class="btn btn-sm" onclick="refreshAll()">&#x1F504; 새로고침</button>
-        <button class="btn btn-sm" onclick="doLogout()">로그아웃</button>
+        <button class="btn btn-sm" onclick="refreshAll()">&#x1F504; ?덈줈怨좎묠</button>
+        <button class="btn btn-sm" onclick="doLogout()">濡쒓렇?꾩썐</button>
       </div>
     </div>
 
     <div class="content">
-      <!-- ═══ Tab: Overview ═══ -->
+      <!-- ?먥븧??Tab: Overview ?먥븧??-->
       <div class="tab-content active" id="tab-overview">
         <div class="status-grid" id="process-cards"></div>
         <div class="card">
-          <div class="card-title">최근 작업</div>
+          <div class="card-title">理쒓렐 ?묒뾽</div>
           <table>
-            <thead><tr><th>ID</th><th>유형</th><th>상태</th><th>진행률</th><th>생성시간</th></tr></thead>
+            <thead><tr><th>ID</th><th>?좏삎</th><th>?곹깭</th><th>吏꾪뻾瑜?/th><th>?앹꽦?쒓컙</th></tr></thead>
             <tbody id="recent-jobs-body"></tbody>
           </table>
-          <div class="empty" id="recent-empty" style="display:none"><div class="icon">&#x1F4ED;</div>아직 작업이 없습니다</div>
+          <div class="empty" id="recent-empty" style="display:none"><div class="icon">&#x1F4ED;</div>?꾩쭅 ?묒뾽???놁뒿?덈떎</div>
         </div>
       </div>
 
-      <!-- ═══ Tab: Rendering ═══ -->
+      <!-- ?먥븧??Tab: Rendering ?먥븧??-->
       <div class="tab-content" id="tab-rendering">
         <div class="card" id="render-active-card">
-          <div class="card-title">현재 렌더 작업</div>
+          <div class="card-title">?꾩옱 ?뚮뜑 ?묒뾽</div>
           <div id="render-active-content"></div>
         </div>
         <div class="card">
-          <div class="card-title">렌더 작업 목록</div>
+          <div class="card-title">?뚮뜑 ?묒뾽 紐⑸줉</div>
           <table>
-            <thead><tr><th>ID</th><th>상태</th><th>진행률</th><th>메시지</th><th>시작</th><th>작업</th></tr></thead>
+            <thead><tr><th>ID</th><th>?곹깭</th><th>吏꾪뻾瑜?/th><th>硫붿떆吏</th><th>?쒖옉</th><th>?묒뾽</th></tr></thead>
             <tbody id="render-jobs-body"></tbody>
           </table>
-          <div class="empty" id="render-empty" style="display:none"><div class="icon">&#x1F3AC;</div>렌더 작업이 없습니다</div>
+          <div class="empty" id="render-empty" style="display:none"><div class="icon">&#x1F3AC;</div>?뚮뜑 ?묒뾽???놁뒿?덈떎</div>
         </div>
       </div>
 
-      <!-- ═══ Tab: Topic Search ═══ -->
+      <!-- ?먥븧??Tab: Topic Search ?먥븧??-->
       <div class="tab-content" id="tab-topic-search">
         <div class="card">
-          <div class="card-title">&#x1F50D; 주제 찾기</div>
-          <p class="info" style="margin:-4px 0 16px">관심 키워드와 시청자 반응을 살펴볼 콘텐츠 주제를 찾습니다.</p>
+          <div class="card-title">&#x1F50D; 二쇱젣 李얘린</div>
+          <p class="info" style="margin:-4px 0 16px">愿???ㅼ썙?쒖? ?쒖껌??諛섏쓳???댄렣蹂?肄섑뀗痢?二쇱젣瑜?李얠뒿?덈떎.</p>
           <div class="form-row">
             <div class="form-group">
-              <label>키워드 *</label>
-              <input type="text" id="tr-keyword" placeholder="예: 인공지능">
+              <label>?ㅼ썙??*</label>
+              <input type="text" id="tr-keyword" placeholder="?? ?멸났吏??>
             </div>
             <div class="form-group">
-              <label>언어</label>
+              <label>?몄뼱</label>
               <select id="tr-language">
-                <option value="ko">한국어</option>
-                <option value="en">영어</option>
-                <option value="ja">日本語</option>
+                <option value="ko">?쒓뎅??/option>
+                <option value="en">?곸뼱</option>
+                <option value="ja">?ζ쑍沃?/option>
               </select>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>국가/시장</label>
-              <input type="text" id="tr-country" placeholder="예: KR, US (비워두면 전체 시장)" value="">
+              <label>援??/?쒖옣</label>
+              <input type="text" id="tr-country" placeholder="?? KR, US (鍮꾩썙?먮㈃ ?꾩껜 ?쒖옣)" value="">
             </div>
             <div class="form-group">
-              <label>주제 개수</label>
+              <label>二쇱젣 媛쒖닔</label>
               <input type="number" id="tr-count" min="1" max="30" value="10">
             </div>
           </div>
-          <button class="btn btn-primary" onclick="submitTopicResearch()">주제 찾기</button>
+          <button class="btn btn-primary" onclick="submitTopicResearch()">二쇱젣 李얘린</button>
         </div>
 
         <div class="card" style="margin-top:16px">
-          <div class="card-title">&#x1F4C8; 고성과 영상 분석</div>
-          <p class="info" style="margin:-4px 0 16px">YouTube에서 잘 된 영상의 제목, 구성, 반응을 분석해 기획에 활용합니다.</p>
+          <div class="card-title">&#x1F4C8; 怨좎꽦怨??곸긽 遺꾩꽍</div>
+          <p class="info" style="margin:-4px 0 16px">YouTube?먯꽌 ?????곸긽???쒕ぉ, 援ъ꽦, 諛섏쓳??遺꾩꽍??湲고쉷???쒖슜?⑸땲??</p>
           <div class="form-row">
             <div class="form-group">
-              <label>키워드 *</label>
-              <input type="text" id="ba-keyword" placeholder="예: 인공지능">
+              <label>?ㅼ썙??*</label>
+              <input type="text" id="ba-keyword" placeholder="?? ?멸났吏??>
             </div>
             <div class="form-group">
-              <label>비디오 타입</label>
+              <label>鍮꾨뵒?????/label>
               <select id="ba-video-type">
-                <option value="longform">롱폼</option>
-                <option value="shorts">쇼츠</option>
+                <option value="longform">濡깊뤌</option>
+                <option value="shorts">?쇱툩</option>
               </select>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>언어</label>
+              <label>?몄뼱</label>
               <select id="ba-language">
-                <option value="ko">한국어</option>
-                <option value="en">영어</option>
-                <option value="ja">日本語</option>
+                <option value="ko">?쒓뎅??/option>
+                <option value="en">?곸뼱</option>
+                <option value="ja">?ζ쑍沃?/option>
               </select>
             </div>
             <div class="form-group">
-              <label>분석 대상 수</label>
+              <label>遺꾩꽍 ?????/label>
               <input type="number" id="ba-max-candidates" min="1" max="3" value="1">
             </div>
           </div>
-          <button class="btn btn-primary" onclick="submitBenchmark()">벤치마크 분석</button>
+          <button class="btn btn-primary" onclick="submitBenchmark()">踰ㅼ튂留덊겕 遺꾩꽍</button>
         </div>
       </div>
 
-      <!-- ═══ Tab: Hermes Generation ═══ -->
+      <!-- ?먥븧??Tab: Hermes Generation ?먥븧??-->
       <div class="tab-content" id="tab-hermes-gen">
         <div class="card">
-          <div class="card-title">&#x1F4DD; 대본 기획 생성</div>
-          <p class="info" style="margin:-4px 0 16px">제목에서 출발해 첫 훅, 장면별 전개, 결말까지의 설계를 만듭니다.</p>
+          <div class="card-title">&#x1F4DD; ?蹂?湲고쉷 ?앹꽦</div>
+          <p class="info" style="margin:-4px 0 16px">?쒕ぉ?먯꽌 異쒕컻??泥??? ?λ㈃蹂??꾧컻, 寃곕쭚源뚯????ㅺ퀎瑜?留뚮벊?덈떎.</p>
           <div class="form-group">
-            <label>주제 *</label>
-            <input type="text" id="sp-topic" placeholder="예: 인공지능의 미래">
+            <label>二쇱젣 *</label>
+            <input type="text" id="sp-topic" placeholder="?? ?멸났吏?μ쓽 誘몃옒">
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>대상 길이 (초)</label>
+              <label>???湲몄씠 (珥?</label>
               <input type="number" id="sp-duration" min="15" value="600">
             </div>
             <div class="form-group">
-              <label>대본 스타일</label>
-              <select id="sp-style"><option value="default">기본</option></select>
+              <label>?蹂??ㅽ???/label>
+              <select id="sp-style"><option value="default">湲곕낯</option></select>
             </div>
           </div>
           <div class="form-group">
-            <label>언어</label>
+            <label>?몄뼱</label>
             <select id="sp-language">
-              <option value="ko">한국어</option>
-              <option value="en">영어</option>
-              <option value="ja">日本語</option>
+              <option value="ko">?쒓뎅??/option>
+              <option value="en">?곸뼱</option>
+              <option value="ja">?ζ쑍沃?/option>
             </select>
           </div>
-          <button class="btn btn-primary" onclick="submitScriptPlan()">구조 생성</button>
+          <button class="btn btn-primary" onclick="submitScriptPlan()">援ъ“ ?앹꽦</button>
         </div>
 
         <div class="card" style="margin-top:16px">
-          <div class="card-title">&#x1F4AC; 대본 생성</div>
-          <p class="info" style="margin:-4px 0 16px">기획을 바탕으로 대본을 작성한 뒤, 흐름과 몰입도를 검수합니다.</p>
+          <div class="card-title">&#x1F4AC; ?蹂??앹꽦</div>
+          <p class="info" style="margin:-4px 0 16px">湲고쉷??諛뷀깢?쇰줈 ?蹂몄쓣 ?묒꽦???? ?먮쫫怨?紐곗엯?꾨? 寃?섑빀?덈떎.</p>
           <div class="form-group">
-            <label>주제 *</label>
-            <input type="text" id="sg-topic" placeholder="예: 인공지능의 미래">
+            <label>二쇱젣 *</label>
+            <input type="text" id="sg-topic" placeholder="?? ?멸났吏?μ쓽 誘몃옒">
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>대상 길이 (초)</label>
+              <label>???湲몄씠 (珥?</label>
               <input type="number" id="sg-duration" min="15" value="600">
             </div>
             <div class="form-group">
-              <label>나레이션 모드</label>
+              <label>?섎젅?댁뀡 紐⑤뱶</label>
               <select id="sg-narration-mode">
-                <option value="single">1인 (단일)</option>
-                <option value="dramatic_single" selected>극적 1인 (중간)</option>
-                <option value="multi">다인 (멀티)</option>
+                <option value="single">1??(?⑥씪)</option>
+                <option value="dramatic_single" selected>洹뱀쟻 1??(以묎컙)</option>
+                <option value="multi">?ㅼ씤 (硫??</option>
               </select>
             </div>
           </div>
           <div class="form-group">
-            <label>대본 스타일</label>
-            <select id="sg-style"><option value="default">기본</option></select>
+            <label>?蹂??ㅽ???/label>
+            <select id="sg-style"><option value="default">湲곕낯</option></select>
           </div>
           <div class="form-group">
-            <label>장면 구성 (비워두면 주제로 자동 기획)</label>
+            <label>?λ㈃ 援ъ꽦 (鍮꾩썙?먮㈃ 二쇱젣濡??먮룞 湲고쉷)</label>
             <textarea id="sg-structure" rows="4" placeholder='{"scenes": [{"scene_summary": "...", "scene_situation": "..."}]}'></textarea>
           </div>
-          <button class="btn btn-primary" onclick="submitScriptGenerate()">대본 생성</button>
+          <button class="btn btn-primary" onclick="submitScriptGenerate()">?蹂??앹꽦</button>
         </div>
       </div>
 
-      <!-- ═══ Tab: History ═══ -->
+      <!-- ?먥븧??Tab: History ?먥븧??-->
       <div class="tab-content" id="tab-generated-results">
         <div class="generated-result-layout">
           <div class="card">
-            <div class="card-title">&#x1F4D1; 생성 결과 목록</div>
-            <p class="info" style="margin:-4px 0 16px">Hermes 자동 생성이 저장한 제목, 기획, 대본, 이미지 프롬프트, 영상 프롬프트를 확인합니다.</p>
+            <div class="card-title">&#x1F4D1; ?앹꽦 寃곌낵 紐⑸줉</div>
+            <p class="info" style="margin:-4px 0 16px">Hermes ?먮룞 ?앹꽦????ν븳 ?쒕ぉ, 湲고쉷, ?蹂? ?대?吏 ?꾨＼?꾪듃, ?곸긽 ?꾨＼?꾪듃瑜??뺤씤?⑸땲??</p>
             <div style="display:flex;gap:8px;margin-bottom:12px">
-              <button class="btn btn-sm" onclick="loadGeneratedResults()">&#x1F504; 새로고침</button>
+              <button class="btn btn-sm" onclick="loadGeneratedResults()">&#x1F504; ?덈줈怨좎묠</button>
               <span class="info" id="generated-results-dir"></span>
             </div>
             <table>
-              <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+              <thead><tr><th>ID</th><th>移댄뀒怨좊━</th><th>?쒕ぉ</th><th>援ъ꽦</th><th>?앹꽦??/th></tr></thead>
               <tbody id="generated-results-body"></tbody>
             </table>
-            <div class="empty" id="generated-results-empty" style="display:none"><div class="icon">&#x1F4ED;</div>저장된 생성 결과가 없습니다</div>
+            <div class="empty" id="generated-results-empty" style="display:none"><div class="icon">&#x1F4ED;</div>??λ맂 ?앹꽦 寃곌낵媛 ?놁뒿?덈떎</div>
           </div>
           <div class="card">
-            <div class="card-title">&#x1F50E; 상세 확인</div>
+            <div class="card-title">&#x1F50E; ?곸꽭 ?뺤씤</div>
             <div id="generated-result-detail" class="generated-result-detail">
-              <div class="empty" style="padding:24px"><div class="icon">&#x1F4CC;</div>왼쪽 목록에서 결과를 선택하세요</div>
+              <div class="empty" style="padding:24px"><div class="icon">&#x1F4CC;</div>?쇱そ 紐⑸줉?먯꽌 寃곌낵瑜??좏깮?섏꽭??/div>
             </div>
           </div>
         </div>
@@ -1656,143 +1671,143 @@ tr:hover { background: #161b22; }
 
       <div class="tab-content" id="tab-history">
         <div class="card">
-          <div class="card-title">필터</div>
+          <div class="card-title">?꾪꽣</div>
           <div class="form-row">
             <div class="form-group">
-              <label>상태</label>
+              <label>?곹깭</label>
               <select id="hist-filter-status" onchange="loadHistory()">
-                <option value="">전체</option>
-                <option value="QUEUED">대기 중</option>
-                <option value="CLAIMED">작업 준비</option>
-                <option value="PREPARING">준비 중</option>
-                <option value="RENDERING">처리 중</option>
-                <option value="UPLOADING">결과 저장 중</option>
-                <option value="COMPLETED">완료</option>
-                <option value="FAILED">실패</option>
-                <option value="CANCELED">취소됨</option>
+                <option value="">?꾩껜</option>
+                <option value="QUEUED">?湲?以?/option>
+                <option value="CLAIMED">?묒뾽 以鍮?/option>
+                <option value="PREPARING">以鍮?以?/option>
+                <option value="RENDERING">泥섎━ 以?/option>
+                <option value="UPLOADING">寃곌낵 ???以?/option>
+                <option value="COMPLETED">?꾨즺</option>
+                <option value="FAILED">?ㅽ뙣</option>
+                <option value="CANCELED">痍⑥냼??/option>
               </select>
             </div>
             <div class="form-group">
-              <label>작업 유형</label>
+              <label>?묒뾽 ?좏삎</label>
               <select id="hist-filter-type" onchange="loadHistory()">
-                <option value="">전체</option>
-                <option value="render_video">영상 렌더링</option>
-                <option value="topic_research">주제 탐색</option>
-                <option value="topic_benchmark_analyze">고성과 영상 분석</option>
-                <option value="web_research">Gemini 웹 자료 조사</option>
-                <option value="script_plan_generate">대본 기획 생성</option>
-                <option value="script_generate">대본 생성</option>
+                <option value="">?꾩껜</option>
+                <option value="render_video">?곸긽 ?뚮뜑留?/option>
+                <option value="topic_research">二쇱젣 ?먯깋</option>
+                <option value="topic_benchmark_analyze">怨좎꽦怨??곸긽 遺꾩꽍</option>
+                <option value="web_research">Gemini ???먮즺 議곗궗</option>
+                <option value="script_plan_generate">?蹂?湲고쉷 ?앹꽦</option>
+                <option value="script_generate">?蹂??앹꽦</option>
               </select>
             </div>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">작업 목록</div>
+          <div class="card-title">?묒뾽 紐⑸줉</div>
           <table>
-            <thead><tr><th>ID</th><th>유형</th><th>상태</th><th>진행률</th><th>생성시간</th><th>작업</th></tr></thead>
+            <thead><tr><th>ID</th><th>?좏삎</th><th>?곹깭</th><th>吏꾪뻾瑜?/th><th>?앹꽦?쒓컙</th><th>?묒뾽</th></tr></thead>
             <tbody id="history-body"></tbody>
           </table>
-          <div class="empty" id="history-empty" style="display:none"><div class="icon">&#x1F4CB;</div>작업이 없습니다</div>
+          <div class="empty" id="history-empty" style="display:none"><div class="icon">&#x1F4CB;</div>?묒뾽???놁뒿?덈떎</div>
         </div>
       </div>
 
-      <!-- ═══ Tab: Logs ═══ -->
+      <!-- ?먥븧??Tab: Logs ?먥븧??-->
       <div class="tab-content" id="tab-logs">
         <div class="card">
           <div class="form-row" style="align-items: end;">
             <div class="form-group">
-              <label>프로세스</label>
+              <label>?꾨줈?몄뒪</label>
               <select id="log-process" onchange="loadLogs()">
-                <option value="manager">작업 관리자</option>
-                <option value="render_worker">영상 작업 Worker</option>
+                <option value="manager">?묒뾽 愿由ъ옄</option>
+                <option value="render_worker">?곸긽 ?묒뾽 Worker</option>
                 <option value="remote_drive_worker">Drive API Render Worker</option>
-                <option value="hermes_worker">AI 기획·대본 Worker</option>
-                <option value="local_api">앱 연결 API</option>
-                <option value="dashboard">대시보드</option>
+                <option value="hermes_worker">AI 湲고쉷쨌?蹂?Worker</option>
+                <option value="local_api">???곌껐 API</option>
+                <option value="dashboard">??쒕낫??/option>
               </select>
             </div>
-            <button class="btn" onclick="loadLogs()">로그 불러오기</button>
+            <button class="btn" onclick="loadLogs()">濡쒓렇 遺덈윭?ㅺ린</button>
           </div>
         </div>
         <div class="card">
-          <div class="card-title">로그 출력</div>
-          <div class="log-viewer" id="log-output">로그를 불러오는 중...</div>
+          <div class="card-title">濡쒓렇 異쒕젰</div>
+          <div class="log-viewer" id="log-output">濡쒓렇瑜?遺덈윭?ㅻ뒗 以?..</div>
         </div>
       </div>
 
-      <!-- ═══ Tab: Settings ═══ -->
+      <!-- ?먥븧??Tab: Settings ?먥븧??-->
       <div class="tab-content" id="tab-settings">
         <div class="card">
-          <div class="card-title">&#x2699; Hermes / AI API 설정</div>
+          <div class="card-title">&#x2699; Hermes / AI API ?ㅼ젙</div>
           <p style="color:#8b949e;margin-bottom:16px;font-size:13px;">
-            웹 어드민에서 설정한 값도 사용되지만, 여기서 직접 입력하면 로컬 .env 파일에 저장되어 즉시 적용됩니다.
-            빈칸으로 두면 웹 어드민 값이 우선 적용됩니다.
+            ???대뱶誘쇱뿉???ㅼ젙??媛믩룄 ?ъ슜?섏?留? ?ш린??吏곸젒 ?낅젰?섎㈃ 濡쒖뺄 .env ?뚯씪????λ릺??利됱떆 ?곸슜?⑸땲??
+            鍮덉뭏?쇰줈 ?먮㈃ ???대뱶誘?媛믪씠 ?곗꽑 ?곸슜?⑸땲??
           </p>
           <div id="settings-list"></div>
           <div style="margin-top:20px;display:flex;gap:12px;align-items:center;">
-            <button class="btn btn-primary" onclick="saveAllSettings()">모든 변경사항 저장</button>
-            <button class="btn" onclick="loadSettings()">다시 불러오기</button>
+            <button class="btn btn-primary" onclick="saveAllSettings()">紐⑤뱺 蹂寃쎌궗?????/button>
+            <button class="btn" onclick="loadSettings()">?ㅼ떆 遺덈윭?ㅺ린</button>
             <span id="settings-status" style="font-size:13px;color:#8b949e"></span>
           </div>
         </div>
       </div>
 
-      <!-- ═══ Tab: Style Presets ═══ -->
+      <!-- ?먥븧??Tab: Style Presets ?먥븧??-->
       <div class="tab-content" id="tab-styles">
         <div class="card">
-          <div class="card-title">&#x1F3A8; 이미지·대본 스타일 프리셋</div>
-          <p class="info" style="margin:-4px 0 16px">여기서 저장한 스타일은 중앙 저장소와 AI Worker에 즉시 함께 반영됩니다. 대본 스타일은 다음 대본 기획과 생성 프롬프트에 그대로 적용됩니다.</p>
+          <div class="card-title">&#x1F3A8; ?대?吏쨌?蹂??ㅽ????꾨━??/div>
+          <p class="info" style="margin:-4px 0 16px">?ш린????ν븳 ?ㅽ??쇱? 以묒븰 ??μ냼? AI Worker??利됱떆 ?④퍡 諛섏쁺?⑸땲?? ?蹂??ㅽ??쇱? ?ㅼ쓬 ?蹂?湲고쉷怨??앹꽦 ?꾨＼?꾪듃??洹몃?濡??곸슜?⑸땲??</p>
           <input type="hidden" id="style-edit-key">
           <div class="form-row">
             <div class="form-group">
-              <label>스타일 타입 *</label>
+              <label>?ㅽ??????*</label>
               <select id="style-preset-type" onchange="updateStyleFormHelp()">
-                <option value="image">이미지 스타일</option>
-                <option value="script">대본 스타일</option>
+                <option value="image">?대?吏 ?ㅽ???/option>
+                <option value="script">?蹂??ㅽ???/option>
               </select>
             </div>
             <div class="form-group">
-              <label>스타일 코드 *</label>
-              <input id="style-key-code" type="text" placeholder="예: realistic 또는 historical_drama">
+              <label>?ㅽ???肄붾뱶 *</label>
+              <input id="style-key-code" type="text" placeholder="?? realistic ?먮뒗 historical_drama">
             </div>
             <div class="form-group">
-              <label>한글 표시명 *</label>
-              <input id="style-name-ko" type="text" placeholder="예: 실사 영화풍">
+              <label>?쒓? ?쒖떆紐?*</label>
+              <input id="style-name-ko" type="text" placeholder="?? ?ㅼ궗 ?곹솕??>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>베트남어 표시명</label>
-              <input id="style-name-vi" type="text" placeholder="선택 사항">
+              <label>踰좏듃?⑥뼱 ?쒖떆紐?/label>
+              <input id="style-name-vi" type="text" placeholder="?좏깮 ?ы빆">
             </div>
             <div class="form-group">
-              <label>프리뷰 이미지 URL</label>
-              <input id="style-image-url" type="text" placeholder="https://... (선택 사항)">
+              <label>?꾨━酉??대?吏 URL</label>
+              <input id="style-image-url" type="text" placeholder="https://... (?좏깮 ?ы빆)">
             </div>
           </div>
           <div class="form-group">
-            <label id="style-prompt-label">프롬프트 템플릿 *</label>
-            <textarea id="style-prompt-template" rows="5" placeholder="스타일에 적용할 핵심 지시사항을 작성하세요."></textarea>
+            <label id="style-prompt-label">?꾨＼?꾪듃 ?쒗뵆由?*</label>
+            <textarea id="style-prompt-template" rows="5" placeholder="?ㅽ??쇱뿉 ?곸슜???듭떖 吏?쒖궗??쓣 ?묒꽦?섏꽭??"></textarea>
             <p class="info" id="style-prompt-help" style="margin-top:6px"></p>
           </div>
           <div class="form-group" id="style-image-instruction-group">
-            <label>AI 추가 지시사항</label>
-            <textarea id="style-gemini-instruction" rows="3" placeholder="예: 화면 안에 텍스트나 말풍선을 넣지 마세요."></textarea>
-            <p class="info" style="margin-top:6px">이미지 프롬프트 생성 시 함께 적용되는 추가 제약입니다.</p>
+            <label>AI 異붽? 吏?쒖궗??/label>
+            <textarea id="style-gemini-instruction" rows="3" placeholder="?? ?붾㈃ ?덉뿉 ?띿뒪?몃굹 留먰뭾?좎쓣 ?ｌ? 留덉꽭??"></textarea>
+            <p class="info" style="margin-top:6px">?대?吏 ?꾨＼?꾪듃 ?앹꽦 ???④퍡 ?곸슜?섎뒗 異붽? ?쒖빟?낅땲??</p>
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
-            <button class="btn" id="style-cancel-btn" onclick="resetStyleForm()" style="display:none">수정 취소</button>
-            <button class="btn btn-primary" id="style-save-btn" onclick="saveStylePreset()">스타일 저장</button>
+            <button class="btn" id="style-cancel-btn" onclick="resetStyleForm()" style="display:none">?섏젙 痍⑥냼</button>
+            <button class="btn btn-primary" id="style-save-btn" onclick="saveStylePreset()">?ㅽ??????/button>
           </div>
         </div>
 
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">
-            <div class="card-title" style="margin:0">등록된 스타일</div>
+            <div class="card-title" style="margin:0">?깅줉???ㅽ???/div>
             <div style="display:flex;gap:8px">
-              <button class="btn btn-sm" data-style-filter="image" onclick="setStyleFilter('image')">이미지 스타일</button>
-              <button class="btn btn-sm" data-style-filter="script" onclick="setStyleFilter('script')">대본 스타일</button>
-              <button class="btn btn-sm" onclick="loadStylePresets()">새로고침</button>
+              <button class="btn btn-sm" data-style-filter="image" onclick="setStyleFilter('image')">?대?吏 ?ㅽ???/button>
+              <button class="btn btn-sm" data-style-filter="script" onclick="setStyleFilter('script')">?蹂??ㅽ???/button>
+              <button class="btn btn-sm" onclick="loadStylePresets()">?덈줈怨좎묠</button>
             </div>
           </div>
           <div id="style-store-notice" class="info" style="margin-bottom:12px"></div>
@@ -1800,200 +1815,200 @@ tr:hover { background: #161b22; }
         </div>
       </div>
 
-      <!-- ═══ Tab: Category Image Style Mapping ═══ -->
+      <!-- ?먥븧??Tab: Category Image Style Mapping ?먥븧??-->
       <div class="tab-content" id="tab-category-image-styles">
         <div class="card">
-          <div class="card-title">카테고리별 이미지 스타일 매칭</div>
-          <p class="info" style="margin:-4px 0 16px">수동으로 선택한 스타일은 해당 카테고리의 자동 이미지 스타일 선택보다 우선합니다. 자동 선택으로 돌리면 제목과 주제에 맞춰 Worker가 선택합니다.</p>
+          <div class="card-title">移댄뀒怨좊━蹂??대?吏 ?ㅽ???留ㅼ묶</div>
+          <p class="info" style="margin:-4px 0 16px">?섎룞?쇰줈 ?좏깮???ㅽ??쇱? ?대떦 移댄뀒怨좊━???먮룞 ?대?吏 ?ㅽ????좏깮蹂대떎 ?곗꽑?⑸땲?? ?먮룞 ?좏깮?쇰줈 ?뚮━硫??쒕ぉ怨?二쇱젣??留욎떠 Worker媛 ?좏깮?⑸땲??</p>
           <table>
-            <thead><tr><th>카테고리</th><th>자동 선택 기본값</th><th>수동 우선 스타일</th><th>저장</th></tr></thead>
+            <thead><tr><th>移댄뀒怨좊━</th><th>?먮룞 ?좏깮 湲곕낯媛?/th><th>?섎룞 ?곗꽑 ?ㅽ???/th><th>???/th></tr></thead>
             <tbody id="category-image-styles-body"></tbody>
           </table>
-          <div class="empty" id="category-image-styles-empty" style="display:none">이미지 스타일 정보를 불러오지 못했습니다.</div>
+          <div class="empty" id="category-image-styles-empty" style="display:none">?대?吏 ?ㅽ????뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲??</div>
         </div>
       </div>
 
-      <!-- ═══ Tab: YouTube Explore ═══ -->
+      <!-- ?먥븧??Tab: YouTube Explore ?먥븧??-->
       <div class="tab-content" id="tab-yt-explore">
-        <!-- 버블 차트 카드 -->
+        <!-- 踰꾨툝 李⑦듃 移대뱶 -->
         <div class="card">
-          <div class="card-title">&#x1F4C8; 트렌드 키워드 클라우드</div>
+          <div class="card-title">&#x1F4C8; ?몃젋???ㅼ썙???대씪?곕뱶</div>
           <div class="yt-filter-row">
-            <button class="btn btn-sm yt-lang-btn active" data-lang="ko">한국어</button>
+            <button class="btn btn-sm yt-lang-btn active" data-lang="ko">?쒓뎅??/button>
             <button class="btn btn-sm yt-lang-btn" data-lang="en">English</button>
-            <button class="btn btn-sm yt-lang-btn" data-lang="ja">日本語</button>
+            <button class="btn btn-sm yt-lang-btn" data-lang="ja">?ζ쑍沃?/button>
             <select id="yt-period">
-              <option value="now">실시간</option>
-              <option value="week">이번 주</option>
-              <option value="month">이번 달</option>
+              <option value="now">?ㅼ떆媛?/option>
+              <option value="week">?대쾲 二?/option>
+              <option value="month">?대쾲 ??/option>
             </select>
             <select id="yt-age">
-              <option value="all">전체 연령</option>
-              <option value="10s">10대</option>
-              <option value="20s">20대</option>
-              <option value="30s">30대</option>
-              <option value="40s">40대 이상</option>
+              <option value="all">?꾩껜 ?곕졊</option>
+              <option value="10s">10?</option>
+              <option value="20s">20?</option>
+              <option value="30s">30?</option>
+              <option value="40s">40? ?댁긽</option>
             </select>
-            <button class="btn btn-sm btn-primary" onclick="loadTrendKeywords()">&#x1F504; 새로고침</button>
+            <button class="btn btn-sm btn-primary" onclick="loadTrendKeywords()">&#x1F504; ?덈줈怨좎묠</button>
           </div>
           <div id="bubble-chart-container" style="height:420px;position:relative;">
             <div id="bubble-chart"></div>
-            <div class="bubble-loading" id="bubble-loading" style="display:none">키워드 생성 중...</div>
+            <div class="bubble-loading" id="bubble-loading" style="display:none">?ㅼ썙???앹꽦 以?..</div>
           </div>
         </div>
 
-        <!-- YouTube 검색 카드 -->
+        <!-- YouTube 寃??移대뱶 -->
         <div class="card">
-          <div class="card-title">&#x1F50D; YouTube 영상 검색</div>
+          <div class="card-title">&#x1F50D; YouTube ?곸긽 寃??/div>
           <div class="yt-search-row">
-            <input type="text" id="yt-search-query" placeholder="검색어를 입력하세요..."
+            <input type="text" id="yt-search-query" placeholder="寃?됱뼱瑜??낅젰?섏꽭??.."
                    style="flex:1" onkeydown="if(event.key==='Enter')searchYtVideos()">
             <select id="yt-search-order">
-              <option value="relevance">관련도</option>
-              <option value="date">최신순</option>
-              <option value="viewCount">조회수</option>
-              <option value="rating">평점</option>
+              <option value="relevance">愿?⑤룄</option>
+              <option value="date">理쒖떊??/option>
+              <option value="viewCount">議고쉶??/option>
+              <option value="rating">?됱젏</option>
             </select>
             <select id="yt-search-period">
-              <option value="">전체 기간</option>
-              <option value="now">오늘</option>
-              <option value="week">이번 주</option>
-              <option value="month">이번 달</option>
+              <option value="">?꾩껜 湲곌컙</option>
+              <option value="now">?ㅻ뒛</option>
+              <option value="week">?대쾲 二?/option>
+              <option value="month">?대쾲 ??/option>
             </select>
             <select id="yt-search-lang">
-              <option value="">언어 없음</option>
-              <option value="ko">한국어</option>
+              <option value="">?몄뼱 ?놁쓬</option>
+              <option value="ko">?쒓뎅??/option>
               <option value="en">English</option>
-              <option value="ja">日本語</option>
+              <option value="ja">?ζ쑍沃?/option>
             </select>
-            <button class="btn btn-primary" onclick="searchYtVideos()">검색</button>
+            <button class="btn btn-primary" onclick="searchYtVideos()">寃??/button>
           </div>
           <div id="yt-suggested-tags" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
         </div>
 
-        <!-- 검색 결과 카드 -->
+        <!-- 寃??寃곌낵 移대뱶 -->
         <div class="card" id="yt-results-card" style="display:none">
-          <div class="card-title">검색 결과 (<span id="yt-result-count">0</span>개)</div>
+          <div class="card-title">寃??寃곌낵 (<span id="yt-result-count">0</span>媛?</div>
           <div style="overflow-x:auto">
             <table>
               <thead>
                 <tr>
                   <th style="width:40px"></th>
-                  <th style="width:120px">썸네일</th>
-                  <th>제목</th>
-                  <th style="width:140px">채널</th>
-                  <th style="width:100px">게시일</th>
-                  <th style="width:70px">조회수</th>
-                  <th style="width:80px">구독자</th>
-                  <th style="width:70px">기여도</th>
-                  <th style="width:60px">성과</th>
-                  <th style="width:60px">좋아요</th>
-                  <th style="width:60px">작업</th>
+                  <th style="width:120px">?몃꽕??/th>
+                  <th>?쒕ぉ</th>
+                  <th style="width:140px">梨꾨꼸</th>
+                  <th style="width:100px">寃뚯떆??/th>
+                  <th style="width:70px">議고쉶??/th>
+                  <th style="width:80px">援щ룆??/th>
+                  <th style="width:70px">湲곗뿬??/th>
+                  <th style="width:60px">?깃낵</th>
+                  <th style="width:60px">醫뗭븘??/th>
+                  <th style="width:60px">?묒뾽</th>
                 </tr>
               </thead>
               <tbody id="yt-results-body"></tbody>
             </table>
           </div>
-          <div id="yt-search-loading" style="display:none;padding:20px;text-align:center;color:#8b949e">검색 중...</div>
+          <div id="yt-search-loading" style="display:none;padding:20px;text-align:center;color:#8b949e">寃??以?..</div>
         </div>
       </div>
 
-      <!-- ═══ Tab: Hermes Autopilot ═══ -->
+      <!-- ?먥븧??Tab: Hermes Autopilot ?먥븧??-->
       <div class="tab-content" id="tab-hermes-autopilot">
         <div class="card">
-          <div class="card-title">&#x1F916; Hermes 자동 대본 생성기 (Autopilot)</div>
+          <div class="card-title">&#x1F916; Hermes ?먮룞 ?蹂??앹꽦湲?(Autopilot)</div>
           <p style="color:#8b949e;margin-bottom:16px;font-size:13px;">
-            설정된 8가지 카테고리(탈북사연, 해외감동, 노후금융, 황혼19금, 옛날이야기, 한국사연, 무협, 경제)에 대해 
-            유튜브 탐색 및 고성과 영상 분석 → 신규 주제 발굴 → 구조 기획 → 대본 생성을 자동으로 진행합니다.<br>
-            생성된 대본 결과는 로컬 및 중앙 Supabase 서버(topics_queue)에 즉시 저장됩니다.
+            ?ㅼ젙??8媛吏 移댄뀒怨좊━(?덈턿?ъ뿰, ?댁쇅媛먮룞, ?명썑湲덉쑖, ?⑺샎19湲? ?쏅궇?댁빞湲? ?쒓뎅?ъ뿰, 臾댄삊, 寃쎌젣)?????
+            ?좏뒠釉??먯깋 諛?怨좎꽦怨??곸긽 遺꾩꽍 ???좉퇋 二쇱젣 諛쒓뎬 ??援ъ“ 湲고쉷 ???蹂??앹꽦???먮룞?쇰줈 吏꾪뻾?⑸땲??<br>
+            ?앹꽦???蹂?寃곌낵??濡쒖뺄 諛?以묒븰 Supabase ?쒕쾭(topics_queue)??利됱떆 ??λ맗?덈떎.
           </p>
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;">
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8b949e;white-space:nowrap;">
-              생성 수
+              ?앹꽦 ??
               <input type="number" id="auto-start-limit" value="1" min="1" max="100" style="width:72px;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
             </label>
-            <button class="btn btn-primary" id="auto-btn-start" onclick="startAutopilot()">▶ 자동 생성 시작</button>
-            <button class="btn btn-danger" id="auto-btn-stop" onclick="stopAutopilot()" disabled>■ 자동 생성 중지</button>
-            <span id="auto-status-text" class="badge badge-stopped">중지됨</span>
+            <button class="btn btn-primary" id="auto-btn-start" onclick="startAutopilot()">???먮룞 ?앹꽦 ?쒖옉</button>
+            <button class="btn btn-danger" id="auto-btn-stop" onclick="stopAutopilot()" disabled>???먮룞 ?앹꽦 以묒?</button>
+            <span id="auto-status-text" class="badge badge-stopped">以묒???/span>
           </div>
           
           <div class="status-grid" style="grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:16px;">
             <div class="status-card">
-              <div class="name">현재 상태</div>
+              <div class="name">?꾩옱 ?곹깭</div>
               <table style="width:100%">
-                <tr><th style="width:120px">동작 여부</th><td id="auto-info-running">-</td></tr>
-                <tr><th>현재 단계</th><td id="auto-info-step">-</td></tr>
-                <tr><th>진행 카테고리</th><td id="auto-info-category">-</td></tr>
-                <tr><th>최근 생성 주제</th><td id="auto-info-topic">-</td></tr>
-                <tr><th>선정 이미지 스타일</th><td id="auto-info-image-style">-</td></tr>
-                <tr><th>세션 생성량</th><td id="auto-info-generated">0 개</td></tr>
+                <tr><th style="width:120px">?숈옉 ?щ?</th><td id="auto-info-running">-</td></tr>
+                <tr><th>?꾩옱 ?④퀎</th><td id="auto-info-step">-</td></tr>
+                <tr><th>吏꾪뻾 移댄뀒怨좊━</th><td id="auto-info-category">-</td></tr>
+                <tr><th>理쒓렐 ?앹꽦 二쇱젣</th><td id="auto-info-topic">-</td></tr>
+                <tr><th>?좎젙 ?대?吏 ?ㅽ???/th><td id="auto-info-image-style">-</td></tr>
+                <tr><th>?몄뀡 ?앹꽦??/th><td id="auto-info-generated">0 媛?/td></tr>
               </table>
             </div>
             <div class="status-card">
-              <div class="name" id="auto-active-category-title">설정된 카테고리 (8개)</div>
+              <div class="name" id="auto-active-category-title">?ㅼ젙??移댄뀒怨좊━ (8媛?</div>
               <div id="auto-active-category-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
             </div>
           </div>
         </div>
 
-        <!-- ⚙️ Autopilot Settings Panel -->
+        <!-- ?숋툘 Autopilot Settings Panel -->
         <div class="card" style="margin-top:16px;">
-          <div class="card-title">&#x2699;&#xFE0F; 오토파일럿 작업량 및 카테고리 세팅</div>
+          <div class="card-title">&#x2699;&#xFE0F; ?ㅽ넗?뚯씪???묒뾽??諛?移댄뀒怨좊━ ?명똿</div>
           <div class="status-grid" style="grid-template-columns: 1fr 1fr; gap:20px;">
             <div class="status-card" style="padding:16px;background:rgba(255,255,255,0.01);">
-              <div class="name" style="margin-bottom:12px;">⏰ 작업 및 정지 규칙 설정</div>
+              <div class="name" style="margin-bottom:12px;">???묒뾽 諛??뺤? 洹쒖튃 ?ㅼ젙</div>
               <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">작업 모드</label>
+                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">?묒뾽 紐⑤뱶</label>
                 <select id="auto-setting-mode" onchange="toggleLimitInput()" style="width:100%;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;">
-                  <option value="infinite">무제한 지속 생성 🟢</option>
-                  <option value="target_limit">목표 개수 생성 후 자동 정지 🟡</option>
+                  <option value="infinite">臾댁젣??吏???앹꽦 ?윟</option>
+                  <option value="target_limit">紐⑺몴 媛쒖닔 ?앹꽦 ???먮룞 ?뺤? ?윞</option>
                 </select>
               </div>
               <div id="auto-limit-group" style="margin-bottom:12px;display:none;">
-                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">목표 총 생성량 (개)</label>
+                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">紐⑺몴 珥??앹꽦??(媛?</label>
                 <input type="number" id="auto-setting-limit" value="10" min="1" style="width:100%;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
               </div>
               <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">카테고리별 최소 대기 대본 유지량 (버퍼)</label>
+                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">移댄뀒怨좊━蹂?理쒖냼 ?湲??蹂??좎???(踰꾪띁)</label>
                 <input type="number" id="auto-setting-buffer" value="5" min="1" style="width:100%;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
-                <p style="font-size:10px;color:#6e7681;margin-top:4px;line-height:1.4;">* 큐에 사전 대본이 이 수치 이상 존재 시 해당 카테고리는 건너뜁니다.</p>
+                <p style="font-size:10px;color:#6e7681;margin-top:4px;line-height:1.4;">* ?먯뿉 ?ъ쟾 ?蹂몄씠 ???섏튂 ?댁긽 議댁옱 ???대떦 移댄뀒怨좊━??嫄대꼫?곷땲??</p>
               </div>
               <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;margin-top:12px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#c9d1d9;margin-bottom:10px;cursor:pointer;">
                   <input type="checkbox" id="auto-setting-channel-discovery-enabled" checked />
-                  벤치마크 채널 풀 자동 업데이트
+                  踰ㅼ튂留덊겕 梨꾨꼸 ? ?먮룞 ?낅뜲?댄듃
                 </label>
                 <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
                   <label style="display:block;font-size:11px;color:#8b949e;">
-                    최소 채널
+                    理쒖냼 梨꾨꼸
                     <input type="number" id="auto-setting-channel-min" value="8" min="1" max="30" style="width:100%;margin-top:5px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
                   </label>
                   <label style="display:block;font-size:11px;color:#8b949e;">
-                    갱신 주기(시간)
+                    媛깆떊 二쇨린(?쒓컙)
                     <input type="number" id="auto-setting-channel-interval" value="24" min="1" max="168" style="width:100%;margin-top:5px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
                   </label>
                   <label style="display:block;font-size:11px;color:#8b949e;">
-                    검색 호출/회
+                    寃???몄텧/??
                     <input type="number" id="auto-setting-channel-search-calls" value="1" min="0" max="3" style="width:100%;margin-top:5px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
                   </label>
                 </div>
-                <p style="font-size:10px;color:#6e7681;margin-top:6px;line-height:1.4;">* 검색 API는 채널 풀 갱신 때만 제한적으로 사용하고, 실제 벤치마크 후보 수집은 RSS로 진행합니다.</p>
+                <p style="font-size:10px;color:#6e7681;margin-top:6px;line-height:1.4;">* 寃??API??梨꾨꼸 ? 媛깆떊 ?뚮쭔 ?쒗븳?곸쑝濡??ъ슜?섍퀬, ?ㅼ젣 踰ㅼ튂留덊겕 ?꾨낫 ?섏쭛? RSS濡?吏꾪뻾?⑸땲??</p>
               </div>
-              <button class="btn btn-secondary" onclick="saveAutopilotSettings()" style="width:100%;margin-top:8px;">💾 설정값 저장</button>
+              <button class="btn btn-secondary" onclick="saveAutopilotSettings()" style="width:100%;margin-top:8px;">?뮶 ?ㅼ젙媛????/button>
             </div>
             
             <div class="status-card" style="padding:16px;background:rgba(255,255,255,0.01);">
-              <div class="name" style="margin-bottom:12px;">🎛️ 생성할 카테고리 필터</div>
-              <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">체크한 카테고리만 자동 생성에 포함됩니다.</p>
+              <div class="name" style="margin-bottom:12px;">?럾截??앹꽦??移댄뀒怨좊━ ?꾪꽣</div>
+              <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">泥댄겕??移댄뀒怨좊━留??먮룞 ?앹꽦???ы븿?⑸땲??</p>
               <div style="display:grid;grid-template-columns:1fr;gap:8px;" id="auto-categories-checkboxes">
                 <!-- Javascript will render checkboxes -->
               </div>
             </div>
           </div>
           <div class="status-card" style="padding:16px;background:rgba(255,255,255,0.01);margin-top:16px;">
-            <div class="name" style="margin-bottom:8px;">📺 카테고리별 벤치마크 채널 ID</div>
+            <div class="name" style="margin-bottom:8px;">?벟 移댄뀒怨좊━蹂?踰ㅼ튂留덊겕 梨꾨꼸 ID</div>
             <p style="font-size:11px;color:#8b949e;margin-bottom:12px;line-height:1.5;">
-              워커가 제한된 검색으로 좋은 채널을 발견해 자동 저장합니다. 필요하면 직접 보강하거나 제거할 수 있고, 여러 개는 줄바꿈, 쉼표, 공백으로 구분하세요.
+              ?뚯빱媛 ?쒗븳??寃?됱쑝濡?醫뗭? 梨꾨꼸??諛쒓껄???먮룞 ??ν빀?덈떎. ?꾩슂?섎㈃ 吏곸젒 蹂닿컯?섍굅???쒓굅?????덇퀬, ?щ윭 媛쒕뒗 以꾨컮轅? ?쇳몴, 怨듬갚?쇰줈 援щ텇?섏꽭??
             </p>
             <div id="auto-benchmark-channel-settings" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
               <!-- Javascript will render channel ID textareas -->
@@ -2002,8 +2017,8 @@ tr:hover { background: #161b22; }
         </div>
         
         <div class="card">
-          <div class="card-title">자동 생성 로그</div>
-          <div class="log-viewer" id="auto-logs" style="height: 350px;">자동 생성기 로그가 여기에 표시됩니다...</div>
+          <div class="card-title">?먮룞 ?앹꽦 濡쒓렇</div>
+          <div class="log-viewer" id="auto-logs" style="height: 350px;">?먮룞 ?앹꽦湲?濡쒓렇媛 ?ш린???쒖떆?⑸땲??..</div>
         </div>
       </div>
     </div>
@@ -2014,7 +2029,7 @@ tr:hover { background: #161b22; }
 <div class="modal-overlay" id="job-modal">
   <div class="modal">
     <span class="close" onclick="closeModal()">&times;</span>
-    <h3 id="modal-title">작업 상세</h3>
+    <h3 id="modal-title">?묒뾽 ?곸꽭</h3>
     <div id="modal-body"></div>
   </div>
 </div>
@@ -2023,11 +2038,11 @@ tr:hover { background: #161b22; }
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-/* ── Globals ── */
+/* ?? Globals ?? */
 let refreshInterval = null;
 let countdown = 3;
 
-/* ── API helpers ── */
+/* ?? API helpers ?? */
 async function api(method, path, body) {
   const opts = { method, headers: {'Content-Type': 'application/json'} };
   if (body) opts.body = JSON.stringify(body);
@@ -2045,20 +2060,20 @@ function showToast(msg, type='success') {
   setTimeout(() => el.remove(), 4000);
 }
 
-/* ── Tab switching ── */
+/* ?? Tab switching ?? */
 const tabTitles = {
-  'generated-results': '생성 결과 확인',
-  'overview': '대시보드',
-  'rendering': '렌더링 상황',
-  'topic-search': '주제 찾기',
-  'yt-explore': 'YouTube 탐색',
-  'hermes-autopilot': 'Hermes 자동 생성',
-  'hermes-gen': 'Hermes 제목 생성',
-  'styles': '스타일 관리',
-  'category-image-styles': '카테고리 이미지 스타일',
-  'history': '작업 히스토리',
-  'logs': '로그',
-  'settings': '설정',
+  'generated-results': '?앹꽦 寃곌낵 ?뺤씤',
+  'overview': '??쒕낫??,
+  'rendering': '?뚮뜑留??곹솴',
+  'topic-search': '二쇱젣 李얘린',
+  'yt-explore': 'YouTube ?먯깋',
+  'hermes-autopilot': 'Hermes ?먮룞 ?앹꽦',
+  'hermes-gen': 'Hermes ?쒕ぉ ?앹꽦',
+  'styles': '?ㅽ???愿由?,
+  'category-image-styles': '移댄뀒怨좊━ ?대?吏 ?ㅽ???,
+  'history': '?묒뾽 ?덉뒪?좊━',
+  'logs': '濡쒓렇',
+  'settings': '?ㅼ젙',
 };
 
 function switchTab(tabId) {
@@ -2078,7 +2093,7 @@ function switchTab(tabId) {
   if (tabId === 'generated-results') loadGeneratedResults();
 }
 
-/* ── Time formatting ── */
+/* ?? Time formatting ?? */
 function fmtTime(ts) {
   if (!ts) return '-';
   const d = new Date(ts * 1000);
@@ -2090,31 +2105,31 @@ function fmtShort(ts) {
   return d.toLocaleTimeString('ko-KR');
 }
 
-/* ── Status badge ── */
+/* ?? Status badge ?? */
 const STATUS_LABELS = {
-  QUEUED: '대기 중', CLAIMED: '작업 준비', PREPARING: '준비 중',
-  RENDERING: '처리 중', UPLOADING: '결과 저장 중', COMPLETED: '완료',
-  FAILED: '실패', CANCELED: '취소됨', ABANDONED: '중단됨',
-  running: '실행 중', idle: '대기 중', stopped: '중지됨',
-  starting: '시작 중', disabled: '사용 안 함',
+  QUEUED: '?湲?以?, CLAIMED: '?묒뾽 以鍮?, PREPARING: '以鍮?以?,
+  RENDERING: '泥섎━ 以?, UPLOADING: '寃곌낵 ???以?, COMPLETED: '?꾨즺',
+  FAILED: '?ㅽ뙣', CANCELED: '痍⑥냼??, ABANDONED: '以묐떒??,
+  running: '?ㅽ뻾 以?, idle: '?湲?以?, stopped: '以묒???,
+  starting: '?쒖옉 以?, disabled: '?ъ슜 ????,
 };
 const JOB_TYPE_LABELS = {
-  render_video: '영상 렌더링',
-  topic_research: '주제 탐색',
-  topic_benchmark_analyze: '고성과 영상 분석',
-  web_research: 'Gemini 웹 자료 조사',
-  script_plan_generate: '대본 기획 생성',
-  script_generate: '대본 생성',
-  publish_metadata_generate: '설명·태그 생성',
+  render_video: '?곸긽 ?뚮뜑留?,
+  topic_research: '二쇱젣 ?먯깋',
+  topic_benchmark_analyze: '怨좎꽦怨??곸긽 遺꾩꽍',
+  web_research: 'Gemini ???먮즺 議곗궗',
+  script_plan_generate: '?蹂?湲고쉷 ?앹꽦',
+  script_generate: '?蹂??앹꽦',
+  publish_metadata_generate: '?ㅻ챸쨌?쒓렇 ?앹꽦',
 };
 const JOB_TYPE_DESCRIPTIONS = {
-  render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
-  topic_research: '키워드와 시청자 반응을 바탕으로 콘텐츠 주제를 찾고 있습니다.',
-  topic_benchmark_analyze: 'YouTube 고성과 영상의 제목, 구성, 반응을 분석하고 있습니다.',
-  web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
-  script_plan_generate: '제목을 바탕으로 훅, 전개, 결말을 포함한 대본 기획을 만들고 있습니다.',
-  script_generate: '기획을 바탕으로 시청 흐름을 고려한 대본을 작성하고 검수하고 있습니다.',
-  publish_metadata_generate: '완성된 대본을 바탕으로 유튜브 설명, 태그, 해시태그를 만들고 있습니다.',
+  render_video: '?蹂멸낵 誘몃뵒?대? 議고빀??理쒖쥌 ?곸긽??留뚮뱾怨??덉뒿?덈떎.',
+  topic_research: '?ㅼ썙?쒖? ?쒖껌??諛섏쓳??諛뷀깢?쇰줈 肄섑뀗痢?二쇱젣瑜?李얘퀬 ?덉뒿?덈떎.',
+  topic_benchmark_analyze: 'YouTube 怨좎꽦怨??곸긽???쒕ぉ, 援ъ꽦, 諛섏쓳??遺꾩꽍?섍퀬 ?덉뒿?덈떎.',
+  web_research: 'Gemini媛 湲곗궗쨌?쇰Ц쨌怨듭떇 ?먮즺瑜?寃?됲빐 ?蹂?洹쇨굅? 異쒖쿂瑜??뺣━?섍퀬 ?덉뒿?덈떎.',
+  script_plan_generate: '?쒕ぉ??諛뷀깢?쇰줈 ?? ?꾧컻, 寃곕쭚???ы븿???蹂?湲고쉷??留뚮뱾怨??덉뒿?덈떎.',
+  script_generate: '湲고쉷??諛뷀깢?쇰줈 ?쒖껌 ?먮쫫??怨좊젮???蹂몄쓣 ?묒꽦?섍퀬 寃?섑븯怨??덉뒿?덈떎.',
+  publish_metadata_generate: '?꾩꽦???蹂몄쓣 諛뷀깢?쇰줈 ?좏뒠釉??ㅻ챸, ?쒓렇, ?댁떆?쒓렇瑜?留뚮뱾怨??덉뒿?덈떎.',
 };
 function humanStatus(s) {
   return STATUS_LABELS[s] || STATUS_LABELS[String(s || '').toLowerCase()] || s || '-';
@@ -2141,23 +2156,23 @@ function jobDescription(job) {
   const category = jobCategory(job);
   const title = jobTitle(job);
   const context = [
-    category ? `카테고리: ${category}` : '',
-    title ? `제목: ${title}` : '',
-  ].filter(Boolean).join(' · ');
+    category ? `移댄뀒怨좊━: ${category}` : '',
+    title ? `?쒕ぉ: ${title}` : '',
+  ].filter(Boolean).join(' 쨌 ');
   const descriptions = {
-    render_video: '최종 영상 렌더링 및 결과 파일 저장',
-    topic_research: '키워드·카테고리 관련 주제 자료 조사',
-    topic_benchmark_analyze: '고성과 영상의 제목·구성·반응 분석',
-    web_research: '제목과 카테고리에 필요한 웹 자료 조사',
-    script_plan_generate: '씬 구조·오프닝·결말 및 이미지·영상 프롬프트 기획',
-    script_generate: '제목 약속에 맞춘 대본 작성 및 품질 검수',
-    publish_metadata_generate: '업로드용 설명·태그·해시태그 생성',
+    render_video: '理쒖쥌 ?곸긽 ?뚮뜑留?諛?寃곌낵 ?뚯씪 ???,
+    topic_research: '?ㅼ썙?쑣룹뭅?뚭퀬由?愿??二쇱젣 ?먮즺 議곗궗',
+    topic_benchmark_analyze: '怨좎꽦怨??곸긽???쒕ぉ쨌援ъ꽦쨌諛섏쓳 遺꾩꽍',
+    web_research: '?쒕ぉ怨?移댄뀒怨좊━???꾩슂?????먮즺 議곗궗',
+    script_plan_generate: '??援ъ“쨌?ㅽ봽?씲룰껐留?諛??대?吏쨌?곸긽 ?꾨＼?꾪듃 湲고쉷',
+    script_generate: '?쒕ぉ ?쎌냽??留욎텣 ?蹂??묒꽦 諛??덉쭏 寃??,
+    publish_metadata_generate: '?낅줈?쒖슜 ?ㅻ챸쨌?쒓렇쨌?댁떆?쒓렇 ?앹꽦',
   };
-  const task = descriptions[type] || JOB_TYPE_DESCRIPTIONS[type] || '작업 정보를 처리하는 중';
-  return context ? `${context} · ${task}` : task;
+  const task = descriptions[type] || JOB_TYPE_DESCRIPTIONS[type] || '?묒뾽 ?뺣낫瑜?泥섎━?섎뒗 以?;
+  return context ? `${context} 쨌 ${task}` : task;
 }
 function legacyJobDescription(job) {
-  return JOB_TYPE_DESCRIPTIONS[job?.job_type] || '작업 정보를 처리하고 있습니다.';
+  return JOB_TYPE_DESCRIPTIONS[job?.job_type] || '?묒뾽 ?뺣낫瑜?泥섎━?섍퀬 ?덉뒿?덈떎.';
 }
 function displayProgress(job) {
   if (String(job?.status || '').toUpperCase() === 'COMPLETED') return 100;
@@ -2169,14 +2184,14 @@ function statusBadge(s) {
   return `<span class="badge badge-${String(s).toLowerCase()}">${humanStatus(s)}</span>`;
 }
 
-/* ── Process cards ── */
+/* ?? Process cards ?? */
 function renderProcessCards(status, jobs = []) {
   const el = document.getElementById('process-cards');
   const procs = status.processes || {};
   let html = '';
   for (const [name, info] of Object.entries(procs)) {
     const s = info.status || 'stopped';
-    const label = {render_worker:'영상 작업 Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
+    const label = {render_worker:'?곸긽 ?묒뾽 Worker', hermes_worker:'AI 湲고쉷쨌?蹂?Worker', local_api:'???곌껐 API', updater:'?낅뜲?댄듃 ?꾧뎄'}[name] || name;
     const icon = {render_worker:'\u{1F3AC}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
     const progress = Math.max(0, Math.min(100, Number(info.progress || 0)));
     const currentJobId = typeof info.current_job === 'string'
@@ -2185,20 +2200,20 @@ function renderProcessCards(status, jobs = []) {
     const activeJob = jobs.find(job => job.job_id === currentJobId);
     const currentJob = activeJob
       ? `${humanJobType(activeJob.job_type)} - ${escapeHtml(jobDescription(activeJob))}`
-      : (currentJobId ? `작업 처리 중 (${truncate(currentJobId, 8)})` : '진행 중인 작업 없음');
+      : (currentJobId ? `?묒뾽 泥섎━ 以?(${truncate(currentJobId, 8)})` : '吏꾪뻾 以묒씤 ?묒뾽 ?놁쓬');
     const jobInfo = info.current_job && typeof info.current_job === 'object' ? info.current_job : null;
     const currentJobDetails = jobInfo && (jobInfo.project_name || jobInfo.asset_file_name || jobInfo.progress_message)
       ? `<div class="info" style="margin-top:6px;padding:8px 10px;border:1px solid rgba(88,166,255,.22);border-radius:6px;background:rgba(13,17,23,.55)">
-          ${jobInfo.project_name ? `<div><span style="color:#8b949e">프로젝트:</span> ${escapeHtml(jobInfo.project_name)}</div>` : ''}
-          ${jobInfo.asset_file_name ? `<div><span style="color:#8b949e">파일:</span> ${escapeHtml(jobInfo.asset_file_name)}</div>` : ''}
-          ${jobInfo.progress_message ? `<div><span style="color:#8b949e">진행:</span> ${escapeHtml(jobInfo.progress_message)}</div>` : ''}
+          ${jobInfo.project_name ? `<div><span style="color:#8b949e">?꾨줈?앺듃:</span> ${escapeHtml(jobInfo.project_name)}</div>` : ''}
+          ${jobInfo.asset_file_name ? `<div><span style="color:#8b949e">?뚯씪:</span> ${escapeHtml(jobInfo.asset_file_name)}</div>` : ''}
+          ${jobInfo.progress_message ? `<div><span style="color:#8b949e">吏꾪뻾:</span> ${escapeHtml(jobInfo.progress_message)}</div>` : ''}
         </div>`
       : '';
     const workerDescription = {
-      render_worker: '영상 조립, 렌더링, 결과 파일 저장을 담당합니다.',
-      hermes_worker: '주제 탐색, 고성과 분석, 대본 기획과 대본 생성을 담당합니다.',
-      local_api: 'AIR Studio 앱과 Worker 사이의 요청을 연결합니다.',
-      updater: 'Worker 업데이트를 확인하고 적용합니다.',
+      render_worker: '?곸긽 議곕┰, ?뚮뜑留? 寃곌낵 ?뚯씪 ??μ쓣 ?대떦?⑸땲??',
+      hermes_worker: '二쇱젣 ?먯깋, 怨좎꽦怨?遺꾩꽍, ?蹂?湲고쉷怨??蹂??앹꽦???대떦?⑸땲??',
+      local_api: 'AIR Studio ?깃낵 Worker ?ъ씠???붿껌???곌껐?⑸땲??',
+      updater: 'Worker ?낅뜲?댄듃瑜??뺤씤?섍퀬 ?곸슜?⑸땲??',
     }[name] || '';
     const hasError = info.last_error && info.last_error.length > 0;
     const isRecentError = hasError && (!info.last_success_at || info.last_success_at < (Date.now()/1000 - 300));
@@ -2210,30 +2225,30 @@ function renderProcessCards(status, jobs = []) {
       <div class="name">${displayIcon} ${displayLabel} ${statusBadge(s)}</div>
       <div class="info">${currentJob}</div>
       ${workerDescription ? `<div class="info" style="margin-top:4px">${workerDescription}</div>` : ''}
-      <div class="info" style="margin-top:4px">프로세스 번호: ${info.pid || '-'}</div>
+      <div class="info" style="margin-top:4px">?꾨줈?몄뒪 踰덊샇: ${info.pid || '-'}</div>
       ${progress > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>` : ''}
-      ${hasError ? `<div class="info" style="color:${isRecentError ? '#f85149' : '#8b949e'};margin-top:4px">${isRecentError ? '\u{26A0} 오류: ' : '\u{2139} 이전 오류 (복구됨): '}${escapeHtml(info.last_error)}</div>` : ''}
-      ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : name === 'hermes_worker' ? `
+      ${hasError ? `<div class="info" style="color:${isRecentError ? '#f85149' : '#8b949e'};margin-top:4px">${isRecentError ? '\u{26A0} ?ㅻ쪟: ' : '\u{2139} ?댁쟾 ?ㅻ쪟 (蹂듦뎄??: '}${escapeHtml(info.last_error)}</div>` : ''}
+      ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 ?꾨줈洹몃옩 ?쒖옉 ???먮룞 ?ㅽ뻾</div>` : name === 'hermes_worker' ? `
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-        <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="생성할 영상 수" title="생성할 영상 수" style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
-        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
-        <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
+        <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="?앹꽦???곸긽 ?? title="?앹꽦???곸긽 ?? style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
+        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 ?쒖옉</button>
+        <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 以묒?</button>
       </div>
-      <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">영상 수: 1개 = 벤치마크 분석·제목 생성·웹 자료 조사·씬 기획 및 이미지·영상 프롬프트 생성·대본 작성·설명 생성을 포함한 내부 6단계를 완료한 영상 1개입니다.</div>` : `
+      <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">?곸긽 ?? 1媛?= 踰ㅼ튂留덊겕 遺꾩꽍쨌?쒕ぉ ?앹꽦쨌???먮즺 議곗궗쨌??湲고쉷 諛??대?吏쨌?곸긽 ?꾨＼?꾪듃 ?앹꽦쨌?蹂??묒꽦쨌?ㅻ챸 ?앹꽦???ы븿???대? 6?④퀎瑜??꾨즺???곸긽 1媛쒖엯?덈떎.</div>` : `
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-sm btn-start" onclick="startProcess('${name}')" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
-        <button class="btn btn-sm btn-stop" onclick="stopProcess('${name}')" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
+        <button class="btn btn-sm btn-start" onclick="startProcess('${name}')" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 ?쒖옉</button>
+        <button class="btn btn-sm btn-stop" onclick="stopProcess('${name}')" ${s==='stopped' ? 'disabled' : ''}>\u23F9 以묒?</button>
       </div>`}
       ${currentJobDetails}
     </div>`;
   }
   if (status.manager_alive === false) {
-    html += `<div class="status-card" style="border-color:#f85149"><div class="name" style="color:#f85149">&#x26A0; Manager 오프라인</div><div class="info">heartbeat 없음 — Worker가 실행 중이 아닐 수 있습니다</div></div>`;
+    html += `<div class="status-card" style="border-color:#f85149"><div class="name" style="color:#f85149">&#x26A0; Manager ?ㅽ봽?쇱씤</div><div class="info">heartbeat ?놁쓬 ??Worker媛 ?ㅽ뻾 以묒씠 ?꾨땺 ???덉뒿?덈떎</div></div>`;
   }
   el.innerHTML = html;
 }
 
-/* ── Recent jobs ── */
+/* ?? Recent jobs ?? */
 function isHermesGenerationJob(job) {
   return job?.source === 'autopilot' || [
     'topic_benchmark_analyze',
@@ -2257,13 +2272,13 @@ async function restartHermesFromCancelled(jobId) {
     };
     const result = await api('POST', '/api/autopilot/hermes/start', { settings });
     if (!result || result.success === false) {
-      showToast(`재시작 실패: ${result?.error || '응답 없음'}`, 'error');
+      showToast(`?ъ떆???ㅽ뙣: ${result?.error || '?묐떟 ?놁쓬'}`, 'error');
       return;
     }
-    showToast(`중단된 작업 ${String(jobId).substring(0, 8)}부터 이어서 시작했습니다.`, 'success');
+    showToast(`以묐떒???묒뾽 ${String(jobId).substring(0, 8)}遺???댁뼱???쒖옉?덉뒿?덈떎.`, 'success');
     setTimeout(refreshAll, 800);
   } catch (e) {
-    showToast(`재시작 실패: ${e}`, 'error');
+    showToast(`?ъ떆???ㅽ뙣: ${e}`, 'error');
   }
 }
 
@@ -2276,14 +2291,14 @@ function renderRecentJobs(jobs) {
     <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
     <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
     <td>${statusBadge(j.status)}${j.status === 'CANCELED' && isHermesGenerationJob(j)
-      ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">재시작</button>`
+      ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">?ъ떆??/button>`
       : ''}</td>
     <td>${displayProgress(j)}%</td>
     <td>${fmtTime(j.created_at)}</td>
   </tr>`).join('');
 }
 
-/* ── Render tab ── */
+/* ?? Render tab ?? */
 function loadRenderTab() {
   api('GET', '/api/jobs?job_type=render_video&limit=20').then(data => {
     if (!data) return;
@@ -2298,7 +2313,7 @@ function loadRenderTab() {
       <td>${displayProgress(j)}%</td>
       <td>${escapeHtml(j.progress_message || j.error_message || '-')}</td>
       <td>${fmtShort(j.started_at)}</td>
-      <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">취소</button>` : ''}</td>
+      <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">痍⑥냼</button>` : ''}</td>
     </tr>`).join('');
 
     // Show active render
@@ -2309,15 +2324,15 @@ function loadRenderTab() {
         <div class="name">${statusBadge(active.status)} ${active.job_id.substring(0,8)}</div>
         <div class="info">${escapeHtml(active.progress_message || jobDescription(active))}</div>
         <div class="progress-bar"><div class="progress-fill" style="width:${displayProgress(active)}%"></div></div>
-        <div style="margin-top:8px">${canCancel(active.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${active.job_id}')">렌더 취소</button>` : ''}</div>
+        <div style="margin-top:8px">${canCancel(active.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${active.job_id}')">?뚮뜑 痍⑥냼</button>` : ''}</div>
       </div>`;
     } else {
-      acEl.innerHTML = '<div class="empty" style="padding:20px"><div class="icon">&#x274C;</div>활성 렌더 작업 없음</div>';
+      acEl.innerHTML = '<div class="empty" style="padding:20px"><div class="icon">&#x274C;</div>?쒖꽦 ?뚮뜑 ?묒뾽 ?놁쓬</div>';
     }
   });
 }
 
-/* ── History tab ── */
+/* ?? History tab ?? */
 /* Generated results tab */
 let generatedResultsLoaded = false;
 
@@ -2357,20 +2372,33 @@ function getGeneratedScenes(data) {
   return Array.isArray(scenes) ? scenes : [];
 }
 
-function sceneImagePrompt(scene) {
-  return String(scene?.image_prompt || scene?.prompt_en || scene?.visual_prompt || scene?.visual_description || '').trim();
-}
-
 function sceneVideoPrompt(scene) {
   return String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim();
 }
 
+function getGeneratedImageGridPrompts(data) {
+  const structure = data?.structure || {};
+  const grids = Array.isArray(structure.image_grid_prompts) ? structure.image_grid_prompts : [];
+  return grids.map((grid, index) => ({
+    grid_number: grid?.grid_number || index + 1,
+    template: String(grid?.template || ''),
+    scene_numbers: Array.isArray(grid?.scene_numbers) ? grid.scene_numbers : [],
+    prompt: String(grid?.prompt || grid?.grid_prompt || '').trim(),
+  })).filter(grid => grid.prompt && grid.scene_numbers.length === 4);
+}
+
 function hasGeneratedMediaPrompts(structure, scenes) {
   const status = String(structure?.media_prompt_status || '').trim();
-  if (status === 'ready' || status === 'fallback_ready') return true;
+  const gridStatus = String(structure?.image_grid_prompt_status || '').trim();
+  const grids = getGeneratedImageGridPrompts({ structure });
+  if (status === 'ready' && gridStatus === 'ready' && grids.length) {
+    return Array.isArray(scenes) && scenes.length > 0 && scenes.every(scene => sceneVideoPrompt(scene));
+  }
+  if (status === 'fallback_ready') return true;
   return Array.isArray(scenes)
     && scenes.length > 0
-    && scenes.every(scene => sceneImagePrompt(scene) && sceneVideoPrompt(scene));
+    && grids.length > 0
+    && scenes.every(scene => sceneVideoPrompt(scene));
 }
 
 function generatedQualityGate(data) {
@@ -2409,12 +2437,12 @@ function generatedMaterialStatuses(data) {
 
 function renderMaterialBadges(statuses) {
   const labels = {
-    benchmark: '벤치마크',
-    title: '제목',
-    web_research: '자료조사',
-    plan_prompts: '씬/프롬프트',
-    script: '대본',
-    publish_metadata: '설명/태그',
+    benchmark: '踰ㅼ튂留덊겕',
+    title: '?쒕ぉ',
+    web_research: '?먮즺議곗궗',
+    plan_prompts: '???꾨＼?꾪듃',
+    script: '?蹂?,
+    publish_metadata: '?ㅻ챸/?쒓렇',
   };
   return Object.entries(labels).map(([key, label]) => {
     const state = statuses?.[key] || 'missing';
@@ -2442,7 +2470,7 @@ function renderGeneratedEmptyState(diagnostics) {
   const detail = lines.length
     ? `<div class="prompt-box" style="margin-top:12px;text-align:left;white-space:pre-wrap">${escapeHtml(lines.join('\n'))}</div>`
     : '';
-  return `<div class="icon">&#x1F4ED;</div>저장 완료된 자동 생성 결과가 없습니다${detail}`;
+  return `<div class="icon">&#x1F4ED;</div>????꾨즺???먮룞 ?앹꽦 寃곌낵媛 ?놁뒿?덈떎${detail}`;
 }
 
 async function loadGeneratedResults() {
@@ -2450,7 +2478,7 @@ async function loadGeneratedResults() {
   const empty = document.getElementById('generated-results-empty');
   const dir = document.getElementById('generated-results-dir');
   if (!body || !empty) return;
-  body.innerHTML = '<tr><td colspan="5" class="info">생성 결과를 불러오는 중...</td></tr>';
+  body.innerHTML = '<tr><td colspan="5" class="info">?앹꽦 寃곌낵瑜?遺덈윭?ㅻ뒗 以?..</td></tr>';
   empty.style.display = 'none';
   const data = await api('GET', '/api/generated-results?limit=100');
   if (!data) return;
@@ -2465,8 +2493,8 @@ async function loadGeneratedResults() {
   body.innerHTML = rows.map(row => {
     const ready = row.has_image_prompts && row.has_video_prompts;
     const promptState = ready
-      ? '프롬프트 준비됨'
-      : (row.has_legacy_visual_direction ? '구버전: 시각 연출만 있음' : '프롬프트 없음');
+      ? '?꾨＼?꾪듃 以鍮꾨맖'
+      : (row.has_legacy_visual_direction ? '援щ쾭?? ?쒓컖 ?곗텧留??덉쓬' : '?꾨＼?꾪듃 ?놁쓬');
     const scriptState = row.has_script ? `${row.script_chars || 0} chars` : 'script missing';
     const stageLabel = row.stage === 'metadata' ? 'metadata ready' : (row.stage === 'script' ? 'script ready' : (row.stage === 'plan' ? 'plan ready' : 'title ready'));
     const statusText = row.status && row.status !== 'COMPLETED' ? ` / ${row.status}` : '';
@@ -2486,7 +2514,7 @@ async function loadGeneratedResults() {
 async function showGeneratedResult(resultId) {
   const container = document.getElementById('generated-result-detail');
   if (!container) return;
-  container.innerHTML = '<div class="info">상세 결과를 불러오는 중...</div>';
+  container.innerHTML = '<div class="info">?곸꽭 寃곌낵瑜?遺덈윭?ㅻ뒗 以?..</div>';
   const data = await api('GET', `/api/generated-results/${encodeURIComponent(resultId)}`);
   if (!data) return;
   const structure = data.structure || {};
@@ -2494,27 +2522,28 @@ async function showGeneratedResult(resultId) {
   const script = data.script || '';
   const titleGeneration = getGeneratedTitleGeneration(data);
   const publishMetadata = getGeneratedPublishMetadata(data);
+  const imageGridPrompts = getGeneratedImageGridPrompts(data);
   const sources = Array.isArray(data._sources) ? data._sources : [];
   const errors = Array.isArray(data.errors) ? data.errors : [];
   const metaHtml = `
     <div class="generated-meta">
-      <div class="label">파일 ID</div><div>${escapeHtml(data._file?.id || resultId)}</div>
+      <div class="label">?뚯씪 ID</div><div>${escapeHtml(data._file?.id || resultId)}</div>
       <div class="label">Queue ID</div><div>${escapeHtml(data.topic_queue_id || '-')}</div>
-      <div class="label">카테고리</div><div>${escapeHtml(data.category || data.topic || '-')}</div>
-      <div class="label">상태</div><div>${escapeHtml(data.status || '-')}</div>
-      <div class="label">생성일</div><div>${fmtTime(data.completed_at || data._file?.updated_at)}</div>
-      <div class="label">제목</div><div><strong>${escapeHtml(getGeneratedTitle(data))}</strong></div>
+      <div class="label">移댄뀒怨좊━</div><div>${escapeHtml(data.category || data.topic || '-')}</div>
+      <div class="label">?곹깭</div><div>${escapeHtml(data.status || '-')}</div>
+      <div class="label">?앹꽦??/div><div>${fmtTime(data.completed_at || data._file?.updated_at)}</div>
+      <div class="label">?쒕ぉ</div><div><strong>${escapeHtml(getGeneratedTitle(data))}</strong></div>
     </div>`;
   const planBits = [
-    ['카테고리', data.category || structure.topic || '-'],
-    ['제목 약속', structure.title_promise],
-    ['오프닝 훅', structure.opening_hook],
-    ['결말/페이오프', structure.payoff],
-    ['전체 무드', structure.global_mood],
+    ['移댄뀒怨좊━', data.category || structure.topic || '-'],
+    ['?쒕ぉ ?쎌냽', structure.title_promise],
+    ['?ㅽ봽????, structure.opening_hook],
+    ['寃곕쭚/?섏씠?ㅽ봽', structure.payoff],
+    ['?꾩껜 臾대뱶', structure.global_mood],
   ].filter(([, value]) => value).map(([label, value]) => `<div class="label">${escapeHtml(label)}</div><div>${escapeHtml(value)}</div>`).join('');
   const titleJson = Object.keys(titleGeneration).length
     ? `<div class="prompt-box">${escapeHtml(JSON.stringify(titleGeneration, null, 2))}</div>`
-    : '<div class="info">제목 생성 상세 데이터가 없습니다.</div>';
+    : '<div class="info">?쒕ぉ ?앹꽦 ?곸꽭 ?곗씠?곌? ?놁뒿?덈떎.</div>';
   const publishTitle = getGeneratedPublishTitle(data, publishMetadata);
   const publishDescription = getGeneratedPublishDescription(publishMetadata);
   const publishTags = Array.isArray(publishMetadata.tags) ? publishMetadata.tags : [];
@@ -2522,16 +2551,16 @@ async function showGeneratedResult(resultId) {
   const qualityGate = generatedQualityGate(data);
   const qualityClass = qualityGate.status === 'pass' ? 'badge-completed' : (qualityGate.status === 'review' ? 'badge-review' : 'badge-failed');
   const qualityText = qualityGate.status === 'pass'
-    ? '자동 렌더 가능'
-    : (qualityGate.status === 'review' ? `검수 필요: ${(qualityGate.review || []).join(', ') || 'review'}` : `렌더 보류: ${(qualityGate.missing || []).join(', ') || 'missing'}`);
+    ? '?먮룞 ?뚮뜑 媛??
+    : (qualityGate.status === 'review' ? `寃???꾩슂: ${(qualityGate.review || []).join(', ') || 'review'}` : `?뚮뜑 蹂대쪟: ${(qualityGate.missing || []).join(', ') || 'missing'}`);
   const qualityHtml = `<div class="generated-meta">
-    <div class="label">품질 게이트</div><div><span class="badge ${qualityClass}">${escapeHtml(qualityGate.status)}</span> <span class="info">${escapeHtml(qualityText)}</span></div>
-    <div class="label">자동 렌더</div><div>${qualityGate.can_auto_render ? '<span class="badge badge-completed">allowed</span>' : '<span class="badge badge-review">blocked</span>'}</div>
+    <div class="label">?덉쭏 寃뚯씠??/div><div><span class="badge ${qualityClass}">${escapeHtml(qualityGate.status)}</span> <span class="info">${escapeHtml(qualityText)}</span></div>
+    <div class="label">?먮룞 ?뚮뜑</div><div>${qualityGate.can_auto_render ? '<span class="badge badge-completed">allowed</span>' : '<span class="badge badge-review">blocked</span>'}</div>
   </div>`;
   const metadataHtml = Object.keys(publishMetadata).length
     ? `<div class="generated-meta">
-        <div class="label">예비 렌더링 영상제목</div><div><strong>${escapeHtml(publishTitle || '-')}</strong></div>
-        <div class="label">예비 렌더링 상세</div><div><div class="prompt-box">${escapeHtml(publishDescription || '-')}</div></div>
+        <div class="label">?덈퉬 ?뚮뜑留??곸긽?쒕ぉ</div><div><strong>${escapeHtml(publishTitle || '-')}</strong></div>
+        <div class="label">?덈퉬 ?뚮뜑留??곸꽭</div><div><div class="prompt-box">${escapeHtml(publishDescription || '-')}</div></div>
         <div class="label">Tags</div><div>${escapeHtml(publishTags.join(', ') || '-')}</div>
         <div class="label">Hashtags</div><div>${escapeHtml(publishHashtags.join(' ') || '-')}</div>
       </div>`
@@ -2539,27 +2568,33 @@ async function showGeneratedResult(resultId) {
   const mediaReady = hasGeneratedMediaPrompts(structure, scenes);
   const mediaStatusLabel = String(structure.media_prompt_status || (mediaReady ? 'ready' : 'missing'));
   const mediaStatus = mediaReady
-    ? `<span class="badge ${mediaStatusLabel === 'fallback_ready' ? 'badge-review' : 'badge-completed'}">${escapeHtml(mediaStatusLabel)}</span>${mediaStatusLabel === 'fallback_ready' ? ' <span class="info">AI 디렉터 프롬프트가 검증을 통과하지 못해 fallback 프롬프트가 사용되었습니다.</span>' : ''}`
-    : '<span class="badge badge-failed">missing</span> <span class="info">이 결과에는 image_prompt/video_prompt가 저장되어 있지 않습니다. 구버전 자동생성 결과일 가능성이 큽니다.</span>';
+    ? `<span class="badge ${mediaStatusLabel === 'fallback_ready' ? 'badge-review' : 'badge-completed'}">${escapeHtml(mediaStatusLabel)}</span>${mediaStatusLabel === 'fallback_ready' ? ' <span class="info">AI ?붾젆???꾨＼?꾪듃媛 寃利앹쓣 ?듦낵?섏? 紐삵빐 fallback ?꾨＼?꾪듃媛 ?ъ슜?섏뿀?듬땲??</span>' : ''}`
+    : '<span class="badge badge-failed">missing</span> <span class="info">This result is missing 2x2 image grid prompts or video prompts.</span>';
+  const gridPromptStatus = String(structure.image_grid_prompt_status || '').trim();
+  const gridPromptHtml = imageGridPrompts.length ? imageGridPrompts.map(grid => `
+    <div class="scene-card">
+      <div class="scene-title">2x2 Grid ${String(grid.grid_number).padStart(3, '0')}</div>
+      <div class="info">Scenes ${escapeHtml(grid.scene_numbers.join(', '))}${grid.template ? ` 쨌 ${escapeHtml(grid.template)}` : ''}</div>
+      <div class="prompt-box">${escapeHtml(grid.prompt)}</div>
+    </div>
+  `).join('') : '<div class="info">No saved 2x2 image generation prompts.</div>';
   const sceneHtml = scenes.length ? scenes.map((scene, idx) => `
     <div class="scene-card">
       <div class="scene-title">Scene ${idx + 1}</div>
       <div class="info">${escapeHtml(scene.scene_summary || scene.summary || '-')}</div>
       ${scene.scene_situation ? `<div class="prompt-box">${escapeHtml(scene.scene_situation)}</div>` : ''}
-      ${(!sceneImagePrompt(scene) && !sceneVideoPrompt(scene) && scene.visual_direction) ? `
-      <div style="margin-top:10px;font-weight:600">구버전 시각 연출 방향</div>
+      ${(!sceneVideoPrompt(scene) && scene.visual_direction) ? `
+      <div style="margin-top:10px;font-weight:600">Legacy visual direction</div>
       <div class="prompt-box">${escapeHtml(scene.visual_direction)}</div>` : ''}
-      <div style="margin-top:10px;font-weight:600">이미지 프롬프트</div>
-      <div class="prompt-box">${escapeHtml(scene.image_prompt || '저장된 이미지 프롬프트가 없습니다.')}</div>
-      <div style="margin-top:10px;font-weight:600">영상 프롬프트</div>
+      <div style="margin-top:10px;font-weight:600">Video Prompt</div>
       <div class="prompt-box">${escapeHtml(scene.video_prompt || '저장된 영상 프롬프트가 없습니다.')}</div>
     </div>
-  `).join('') : '<div class="info">장면 데이터가 없습니다.</div>';
+  `).join('') : '<div class="info">씬 데이터가 없습니다.</div>';
   const errorsHtml = errors.length
     ? `<div class="generated-section"><h4>오류 / 중단 사유</h4><div class="prompt-box">${escapeHtml(errors.join('\n\n'))}</div></div>`
     : '';
   const sourceHtml = sources.length
-    ? `<div class="generated-section"><h4>저장 소스</h4><div class="prompt-box">${escapeHtml(JSON.stringify(sources, null, 2))}</div></div>`
+    ? `<div class="generated-section"><h4>참고 소스</h4><div class="prompt-box">${escapeHtml(JSON.stringify(sources, null, 2))}</div></div>`
     : '';
   container.innerHTML = `
     <div class="generated-section">
@@ -2572,7 +2607,7 @@ async function showGeneratedResult(resultId) {
       ${titleJson}
     </div>
     <div class="generated-section">
-      <h4>예비 렌더링 업로드 정보</h4>
+      <h4>메타데이터</h4>
       ${metadataHtml}
     </div>
     <div class="generated-section">
@@ -2584,7 +2619,12 @@ async function showGeneratedResult(resultId) {
       <div class="result-viewer" style="max-height:420px">${escapeHtml(script || '대본 데이터가 없습니다.')}</div>
     </div>
     <div class="generated-section">
-      <h4>이미지 / 영상 프롬프트</h4>
+      <h4>2x2 Image Generation Prompts</h4>
+      <div style="margin-bottom:10px">${gridPromptStatus === 'ready' ? '<span class="badge badge-completed">ready</span>' : '<span class="badge badge-review">missing</span>'} ${structure.image_grid_prompt_mode ? `<span class="info">${escapeHtml(structure.image_grid_prompt_mode)}</span>` : ''}</div>
+      ${gridPromptHtml}
+    </div>
+    <div class="generated-section">
+      <h4>Video Prompts</h4>
       <div style="margin-bottom:10px">${mediaStatus}</div>
       ${sceneHtml}
     </div>
@@ -2611,38 +2651,38 @@ function loadHistory() {
       <td>${statusBadge(j.status)}</td>
       <td>${displayProgress(j)}%</td>
       <td>${fmtTime(j.created_at)}</td>
-      <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">취소</button>` : `<button class="btn btn-sm" onclick="showJobDetail('${j.job_id}')">상세</button>`}</td>
+      <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">痍⑥냼</button>` : `<button class="btn btn-sm" onclick="showJobDetail('${j.job_id}')">?곸꽭</button>`}</td>
     </tr>`).join('');
   });
 }
 
-/* ── Logs tab ── */
+/* ?? Logs tab ?? */
 function loadLogs() {
   const proc = document.getElementById('log-process').value;
   api('GET', `/api/logs?process=${proc}&tail_lines=200`).then(data => {
     if (!data || data.error) {
-      document.getElementById('log-output').textContent = data?.error || '로그를 불러올 수 없습니다';
+      document.getElementById('log-output').textContent = data?.error || '濡쒓렇瑜?遺덈윭?????놁뒿?덈떎';
       return;
     }
-    document.getElementById('log-output').textContent = (data.lines || []).join('\n') || '(로그 없음)';
+    document.getElementById('log-output').textContent = (data.lines || []).join('\n') || '(濡쒓렇 ?놁쓬)';
     document.getElementById('log-output').scrollTop = document.getElementById('log-output').scrollHeight;
   });
 }
 
-/* ── Shared style presets ── */
+/* ?? Shared style presets ?? */
 let stylePresets = [];
 let styleFilter = 'image';
 
 function updateStyleFormHelp() {
   const type = document.getElementById('style-preset-type').value;
   const isScript = type === 'script';
-  document.getElementById('style-prompt-label').textContent = isScript ? '대본 작성 지시사항 *' : '이미지 프롬프트 템플릿 *';
+  document.getElementById('style-prompt-label').textContent = isScript ? '?蹂??묒꽦 吏?쒖궗??*' : '?대?吏 ?꾨＼?꾪듃 ?쒗뵆由?*';
   document.getElementById('style-prompt-template').placeholder = isScript
-    ? '예: 1인칭 회고체로 시작하고, 대화는 짧게 사용하며, 장면마다 감정의 변화가 드러나게 작성하세요.'
-    : '예: [SUBJECT], cinematic lighting, realistic textures, no text in image';
+    ? '?? 1?몄묶 ?뚭퀬泥대줈 ?쒖옉?섍퀬, ??붾뒗 吏㏐쾶 ?ъ슜?섎ŉ, ?λ㈃留덈떎 媛먯젙??蹂?붽? ?쒕윭?섍쾶 ?묒꽦?섏꽭??'
+    : '?? [SUBJECT], cinematic lighting, realistic textures, no text in image';
   document.getElementById('style-prompt-help').textContent = isScript
-    ? '이 내용은 AI Worker의 대본 기획과 장면별 대본 생성 프롬프트에 그대로 들어갑니다.'
-    : '이미지 프롬프트를 만들 때 스타일 접두어로 사용됩니다. 이미지·영상 프롬프트 생성 이관 단계에서 Worker가 직접 사용합니다.';
+    ? '???댁슜? AI Worker???蹂?湲고쉷怨??λ㈃蹂??蹂??앹꽦 ?꾨＼?꾪듃??洹몃?濡??ㅼ뼱媛묐땲??'
+    : '?대?吏 ?꾨＼?꾪듃瑜?留뚮뱾 ???ㅽ????묐몢?대줈 ?ъ슜?⑸땲?? ?대?吏쨌?곸긽 ?꾨＼?꾪듃 ?앹꽦 ?닿? ?④퀎?먯꽌 Worker媛 吏곸젒 ?ъ슜?⑸땲??';
   document.getElementById('style-image-instruction-group').style.display = isScript ? 'none' : 'block';
 }
 
@@ -2657,7 +2697,7 @@ function resetStyleForm() {
   document.getElementById('style-image-url').value = '';
   document.getElementById('style-prompt-template').value = '';
   document.getElementById('style-gemini-instruction').value = '';
-  document.getElementById('style-save-btn').textContent = '스타일 저장';
+  document.getElementById('style-save-btn').textContent = '?ㅽ??????;
   document.getElementById('style-cancel-btn').style.display = 'none';
   updateStyleFormHelp();
 }
@@ -2676,7 +2716,7 @@ function syncScriptStyleSelects() {
     const select = document.getElementById(id);
     if (!select) continue;
     const selected = select.value || 'default';
-    const options = [{key_code:'default', display_name_ko:'기본'}]
+    const options = [{key_code:'default', display_name_ko:'湲곕낯'}]
       .concat(scriptStyles.filter(p => p.key_code !== 'default'));
     select.innerHTML = options.map(p => `<option value="${escapeHtml(p.key_code)}">${escapeHtml(p.display_name_ko)} (${escapeHtml(p.key_code)})</option>`).join('');
     select.value = options.some(p => p.key_code === selected) ? selected : 'default';
@@ -2685,16 +2725,16 @@ function syncScriptStyleSelects() {
 
 async function loadStylePresets() {
   const list = document.getElementById('style-presets-list');
-  if (list) list.innerHTML = '<div class="info">스타일 목록을 불러오는 중...</div>';
+  if (list) list.innerHTML = '<div class="info">?ㅽ???紐⑸줉??遺덈윭?ㅻ뒗 以?..</div>';
   const data = await api('GET', '/api/style-presets');
   if (!data || data.error) {
-    if (list) list.innerHTML = `<div class="info" style="color:#f85149">스타일 목록을 불러오지 못했습니다: ${escapeHtml(data?.error || '')}</div>`;
+    if (list) list.innerHTML = `<div class="info" style="color:#f85149">?ㅽ???紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲?? ${escapeHtml(data?.error || '')}</div>`;
     return;
   }
   stylePresets = Array.isArray(data.presets) ? data.presets : [];
   document.getElementById('style-store-notice').textContent = data.shared_store_available
-    ? '중앙 스타일 저장소와 연결됨. 저장 즉시 Worker의 생성 지침에도 반영됩니다.'
-    : '중앙 스타일 저장소 연결이 없습니다. Worker 설정을 확인하세요.';
+    ? '以묒븰 ?ㅽ?????μ냼? ?곌껐?? ???利됱떆 Worker???앹꽦 吏移⑥뿉??諛섏쁺?⑸땲??'
+    : '以묒븰 ?ㅽ?????μ냼 ?곌껐???놁뒿?덈떎. Worker ?ㅼ젙???뺤씤?섏꽭??';
   syncScriptStyleSelects();
   renderStylePresets();
 }
@@ -2704,17 +2744,17 @@ function renderStylePresets() {
   if (!list) return;
   const presets = stylePresets.filter(p => p.preset_type === styleFilter);
   if (!presets.length) {
-    list.innerHTML = '<div class="empty" style="padding:20px">등록된 스타일이 없습니다.</div>';
+    list.innerHTML = '<div class="empty" style="padding:20px">?깅줉???ㅽ??쇱씠 ?놁뒿?덈떎.</div>';
     return;
   }
   list.innerHTML = presets.map(p => `<div class="status-card" style="display:flex;flex-direction:column;gap:10px">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-      <div><strong>${escapeHtml(p.display_name_ko || p.key_code)}</strong>${p.display_name_vi ? `<div class="info">${escapeHtml(p.display_name_vi)}</div>` : ''}<div class="info">코드: ${escapeHtml(p.key_code)}</div></div>
-      <div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="editStylePreset('${escapeHtml(p.key_code)}')">수정</button><button class="btn btn-danger btn-sm" onclick="deleteStylePreset('${escapeHtml(p.preset_type)}','${escapeHtml(p.key_code)}')">삭제</button></div>
+      <div><strong>${escapeHtml(p.display_name_ko || p.key_code)}</strong>${p.display_name_vi ? `<div class="info">${escapeHtml(p.display_name_vi)}</div>` : ''}<div class="info">肄붾뱶: ${escapeHtml(p.key_code)}</div></div>
+      <div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="editStylePreset('${escapeHtml(p.key_code)}')">?섏젙</button><button class="btn btn-danger btn-sm" onclick="deleteStylePreset('${escapeHtml(p.preset_type)}','${escapeHtml(p.key_code)}')">??젣</button></div>
     </div>
     ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #30363d">` : ''}
     <div class="result-viewer" style="max-height:110px">${escapeHtml(p.prompt_template || '')}</div>
-    ${p.gemini_instruction ? `<div class="info">추가 지시: ${escapeHtml(p.gemini_instruction)}</div>` : ''}
+    ${p.gemini_instruction ? `<div class="info">異붽? 吏?? ${escapeHtml(p.gemini_instruction)}</div>` : ''}
   </div>`).join('');
 }
 
@@ -2724,19 +2764,19 @@ async function loadCategoryImageStyles() {
   const body = document.getElementById('category-image-styles-body');
   const empty = document.getElementById('category-image-styles-empty');
   if (!body || !empty) return;
-  body.innerHTML = '<tr><td colspan="4" class="info">카테고리와 이미지 스타일을 불러오는 중...</td></tr>';
+  body.innerHTML = '<tr><td colspan="4" class="info">移댄뀒怨좊━? ?대?吏 ?ㅽ??쇱쓣 遺덈윭?ㅻ뒗 以?..</td></tr>';
   empty.style.display = 'none';
   const data = await api('GET', '/api/category-image-style-mappings');
   if (!data || data.error || !Array.isArray(data.categories) || !Array.isArray(data.styles)) {
     body.innerHTML = '';
-    empty.textContent = `이미지 스타일 정보를 불러오지 못했습니다. ${data?.error || ''}`;
+    empty.textContent = `?대?吏 ?ㅽ????뺣낫瑜?遺덈윭?ㅼ? 紐삵뻽?듬땲?? ${data?.error || ''}`;
     empty.style.display = 'block';
     return;
   }
   categoryImageStyleCatalog = data.styles;
   if (!categoryImageStyleCatalog.length) {
     body.innerHTML = '';
-    empty.textContent = '등록된 이미지 스타일이 없습니다. 먼저 스타일 관리에서 이미지 스타일을 등록하세요.';
+    empty.textContent = '?깅줉???대?吏 ?ㅽ??쇱씠 ?놁뒿?덈떎. 癒쇱? ?ㅽ???愿由ъ뿉???대?吏 ?ㅽ??쇱쓣 ?깅줉?섏꽭??';
     empty.style.display = 'block';
     return;
   }
@@ -2744,7 +2784,7 @@ async function loadCategoryImageStyles() {
     const selectId = `category-image-style-${index}`;
     const automatic = escapeHtml(item.automatic_default || 'realistic');
     const options = [
-      `<option value="">자동 선택 (${automatic})</option>`,
+      `<option value="">?먮룞 ?좏깮 (${automatic})</option>`,
       ...categoryImageStyleCatalog.map(style => {
         const key = String(style.key_code || '');
         const label = `${style.display_name_ko || key} (${key})`;
@@ -2755,7 +2795,7 @@ async function loadCategoryImageStyles() {
       <td><strong>${escapeHtml(item.name)}</strong></td>
       <td><code>${automatic}</code></td>
       <td><select id="${selectId}">${options}</select></td>
-      <td><button class="btn btn-sm btn-primary" onclick="saveCategoryImageStyle('${escapeHtml(item.name)}', '${selectId}')">저장</button></td>
+      <td><button class="btn btn-sm btn-primary" onclick="saveCategoryImageStyle('${escapeHtml(item.name)}', '${selectId}')">???/button></td>
     </tr>`;
   }).join('');
 }
@@ -2769,13 +2809,13 @@ async function saveCategoryImageStyle(category, selectId) {
       image_style: select.value,
     });
     if (!result?.success) {
-      showToast('카테고리 이미지 스타일 저장 실패: ' + (result?.error || '응답 없음'), 'error');
+      showToast('移댄뀒怨좊━ ?대?吏 ?ㅽ???????ㅽ뙣: ' + (result?.error || '?묐떟 ?놁쓬'), 'error');
       return;
     }
-    showToast(select.value ? `${category}: ${select.value} 수동 우선 적용` : `${category}: 자동 선택으로 전환`);
+    showToast(select.value ? `${category}: ${select.value} ?섎룞 ?곗꽑 ?곸슜` : `${category}: ?먮룞 ?좏깮?쇰줈 ?꾪솚`);
     await loadCategoryImageStyles();
   } catch (e) {
-    showToast('카테고리 이미지 스타일 저장 통신 실패', 'error');
+    showToast('移댄뀒怨좊━ ?대?吏 ?ㅽ???????듭떊 ?ㅽ뙣', 'error');
   } finally {
     select.disabled = false;
   }
@@ -2794,7 +2834,7 @@ function editStylePreset(key) {
   document.getElementById('style-image-url').value = preset.image_url || '';
   document.getElementById('style-prompt-template').value = preset.prompt_template || '';
   document.getElementById('style-gemini-instruction').value = preset.gemini_instruction || '';
-  document.getElementById('style-save-btn').textContent = '스타일 수정 저장';
+  document.getElementById('style-save-btn').textContent = '?ㅽ????섏젙 ???;
   document.getElementById('style-cancel-btn').style.display = 'inline-flex';
   updateStyleFormHelp();
   document.getElementById('style-key-code').scrollIntoView({behavior:'smooth', block:'center'});
@@ -2811,62 +2851,62 @@ async function saveStylePreset() {
     gemini_instruction: document.getElementById('style-gemini-instruction').value.trim(),
   };
   if (!body.key_code || !body.display_name_ko || !body.prompt_template) {
-    showToast('스타일 코드, 한글 표시명, 지시사항을 입력하세요.', 'error'); return;
+    showToast('?ㅽ???肄붾뱶, ?쒓? ?쒖떆紐? 吏?쒖궗??쓣 ?낅젰?섏꽭??', 'error'); return;
   }
   const button = document.getElementById('style-save-btn');
   button.disabled = true;
   try {
     const data = await api('POST', '/api/style-presets', body);
-    if (!data || data.detail || data.error) throw new Error(data?.detail || data?.error || '저장 실패');
-    showToast('스타일을 저장했고 Worker 생성 지침에 반영했습니다.');
+    if (!data || data.detail || data.error) throw new Error(data?.detail || data?.error || '????ㅽ뙣');
+    showToast('?ㅽ??쇱쓣 ??ν뻽怨?Worker ?앹꽦 吏移⑥뿉 諛섏쁺?덉뒿?덈떎.');
     resetStyleForm();
     await loadStylePresets();
   } catch (e) {
-    showToast(`스타일 저장 실패: ${e.message || e}`, 'error');
+    showToast(`?ㅽ???????ㅽ뙣: ${e.message || e}`, 'error');
   } finally {
     button.disabled = false;
   }
 }
 
 async function deleteStylePreset(type, key) {
-  if (!confirm(`'${key}' 스타일을 삭제하시겠습니까? 이미 이 스타일을 선택한 카테고리는 기본 스타일로 처리됩니다.`)) return;
+  if (!confirm(`'${key}' ?ㅽ??쇱쓣 ??젣?섏떆寃좎뒿?덇퉴? ?대? ???ㅽ??쇱쓣 ?좏깮??移댄뀒怨좊━??湲곕낯 ?ㅽ??쇰줈 泥섎━?⑸땲??`)) return;
   const data = await api('DELETE', `/api/style-presets/${encodeURIComponent(type)}/${encodeURIComponent(key)}`);
-  if (!data || data.detail || data.error) { showToast(`스타일 삭제 실패: ${data?.detail || data?.error || ''}`, 'error'); return; }
-  showToast('스타일을 삭제했습니다.');
+  if (!data || data.detail || data.error) { showToast(`?ㅽ?????젣 ?ㅽ뙣: ${data?.detail || data?.error || ''}`, 'error'); return; }
+  showToast('?ㅽ??쇱쓣 ??젣?덉뒿?덈떎.');
   resetStyleForm();
   await loadStylePresets();
 }
 
-/* ── Job detail modal ── */
+/* ?? Job detail modal ?? */
 async function showJobDetail(jobId) {
   const data = await api('GET', `/api/jobs/${jobId}`);
   if (!data) return;
   const el = document.getElementById('modal-body');
-  document.getElementById('modal-title').textContent = `작업 상세: ${jobId.substring(0,12)}`;
+  document.getElementById('modal-title').textContent = `?묒뾽 ?곸꽭: ${jobId.substring(0,12)}`;
 
   let html = `<table style="width:100%">
     <tr><th>ID</th><td>${data.job_id}</td></tr>
-    <tr><th>작업</th><td><strong>${humanJobType(data.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(data))}</span></td></tr>
-    <tr><th>상태</th><td>${statusBadge(data.status)}</td></tr>
-    <tr><th>진행률</th><td>${displayProgress(data)}% — ${escapeHtml(data.progress_message || (data.status === 'COMPLETED' ? '작업 완료' : ''))}</td></tr>
-    <tr><th>요청 위치</th><td>${escapeHtml(data.source || '-')}</td></tr>
-    <tr><th>생성</th><td>${fmtTime(data.created_at)}</td></tr>
-    <tr><th>시작</th><td>${fmtTime(data.started_at)}</td></tr>
-    <tr><th>완료</th><td>${fmtTime(data.completed_at)}</td></tr>
-    ${data.error_message ? `<tr><th>오류</th><td style="color:#f85149">${escapeHtml(data.error_message)}</td></tr>` : ''}
-    ${data.output_path ? `<tr><th>출력</th><td>${escapeHtml(data.output_path)}</td></tr>` : ''}
+    <tr><th>?묒뾽</th><td><strong>${humanJobType(data.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(data))}</span></td></tr>
+    <tr><th>?곹깭</th><td>${statusBadge(data.status)}</td></tr>
+    <tr><th>吏꾪뻾瑜?/th><td>${displayProgress(data)}% ??${escapeHtml(data.progress_message || (data.status === 'COMPLETED' ? '?묒뾽 ?꾨즺' : ''))}</td></tr>
+    <tr><th>?붿껌 ?꾩튂</th><td>${escapeHtml(data.source || '-')}</td></tr>
+    <tr><th>?앹꽦</th><td>${fmtTime(data.created_at)}</td></tr>
+    <tr><th>?쒖옉</th><td>${fmtTime(data.started_at)}</td></tr>
+    <tr><th>?꾨즺</th><td>${fmtTime(data.completed_at)}</td></tr>
+    ${data.error_message ? `<tr><th>?ㅻ쪟</th><td style="color:#f85149">${escapeHtml(data.error_message)}</td></tr>` : ''}
+    ${data.output_path ? `<tr><th>異쒕젰</th><td>${escapeHtml(data.output_path)}</td></tr>` : ''}
   </table>`;
 
   // Payload
   if (data.payload && Object.keys(data.payload).length) {
-    html += `<div class="card" style="margin-top:16px"><div class="card-title">작업 입력값</div><div class="result-viewer">${escapeHtml(JSON.stringify(data.payload, null, 2))}</div></div>`;
+    html += `<div class="card" style="margin-top:16px"><div class="card-title">?묒뾽 ?낅젰媛?/div><div class="result-viewer">${escapeHtml(JSON.stringify(data.payload, null, 2))}</div></div>`;
   }
 
   // Transitions timeline
   if (data.transitions && data.transitions.length) {
-    html += `<div class="card" style="margin-top:16px"><div class="card-title">상태 전이</div><div class="timeline">`;
+    html += `<div class="card" style="margin-top:16px"><div class="card-title">?곹깭 ?꾩씠</div><div class="timeline">`;
     for (const t of data.transitions) {
-      html += `<div class="timeline-item">${statusBadge(t.to_status)} <span class="time">${fmtTime(t.at)}</span>${t.reason ? ` — ${escapeHtml(t.reason)}` : ''}</div>`;
+      html += `<div class="timeline-item">${statusBadge(t.to_status)} <span class="time">${fmtTime(t.at)}</span>${t.reason ? ` ??${escapeHtml(t.reason)}` : ''}</div>`;
     }
     html += `</div></div>`;
   }
@@ -2874,10 +2914,10 @@ async function showJobDetail(jobId) {
   // Result
   if (data.result) {
     const resultText = JSON.stringify(data.result, null, 2);
-    html += `<div class="card" style="margin-top:16px"><div class="card-title">결과</div><div class="result-viewer">${escapeHtml(resultText)}</div></div>`;
+    html += `<div class="card" style="margin-top:16px"><div class="card-title">寃곌낵</div><div class="result-viewer">${escapeHtml(resultText)}</div></div>`;
   }
 
-  html += `<div style="margin-top:16px">${canCancel(data.status) ? `<button class="btn btn-danger" onclick="cancelJob('${jobId}');closeModal()">작업 취소</button>` : ''}</div>`;
+  html += `<div style="margin-top:16px">${canCancel(data.status) ? `<button class="btn btn-danger" onclick="cancelJob('${jobId}');closeModal()">?묒뾽 痍⑥냼</button>` : ''}</div>`;
 
   el.innerHTML = html;
   document.getElementById('job-modal').classList.add('active');
@@ -2887,10 +2927,10 @@ function closeModal() {
   document.getElementById('job-modal').classList.remove('active');
 }
 
-/* ── Submit: topic_research ── */
+/* ?? Submit: topic_research ?? */
 async function submitTopicResearch() {
   const keyword = document.getElementById('tr-keyword').value.trim();
-  if (!keyword) { showToast('키워드를 입력하세요', 'error'); return; }
+  if (!keyword) { showToast('?ㅼ썙?쒕? ?낅젰?섏꽭??, 'error'); return; }
   const payload = {
     keyword,
     language: document.getElementById('tr-language').value,
@@ -2899,17 +2939,17 @@ async function submitTopicResearch() {
   };
   const res = await api('POST', '/api/jobs/submit', { job_type: 'topic_research', payload });
   if (res && res.job_id) {
-    showToast(`주제 찾기 작업이 제출되었습니다: ${res.job_id.substring(0,8)}`);
+    showToast(`二쇱젣 李얘린 ?묒뾽???쒖텧?섏뿀?듬땲?? ${res.job_id.substring(0,8)}`);
     switchTab('history');
   } else {
-    showToast('작업 제출 실패', 'error');
+    showToast('?묒뾽 ?쒖텧 ?ㅽ뙣', 'error');
   }
 }
 
-/* ── Submit: topic_benchmark_analyze ── */
+/* ?? Submit: topic_benchmark_analyze ?? */
 async function submitBenchmark() {
   const keyword = document.getElementById('ba-keyword').value.trim();
-  if (!keyword) { showToast('키워드를 입력하세요', 'error'); return; }
+  if (!keyword) { showToast('?ㅼ썙?쒕? ?낅젰?섏꽭??, 'error'); return; }
   const payload = {
     keyword,
     language: document.getElementById('ba-language').value,
@@ -2918,17 +2958,17 @@ async function submitBenchmark() {
   };
   const res = await api('POST', '/api/jobs/submit', { job_type: 'topic_benchmark_analyze', payload });
   if (res && res.job_id) {
-    showToast(`벤치마크 분석 작업이 제출되었습니다: ${res.job_id.substring(0,8)}`);
+    showToast(`踰ㅼ튂留덊겕 遺꾩꽍 ?묒뾽???쒖텧?섏뿀?듬땲?? ${res.job_id.substring(0,8)}`);
     switchTab('history');
   } else {
-    showToast('작업 제출 실패', 'error');
+    showToast('?묒뾽 ?쒖텧 ?ㅽ뙣', 'error');
   }
 }
 
-/* ── Submit: script_plan_generate ── */
+/* ?? Submit: script_plan_generate ?? */
 async function submitScriptPlan() {
   const topic = document.getElementById('sp-topic').value.trim();
-  if (!topic) { showToast('주제를 입력하세요', 'error'); return; }
+  if (!topic) { showToast('二쇱젣瑜??낅젰?섏꽭??, 'error'); return; }
   const payload = {
     topic_queue_id: 'dashboard-' + Date.now(),
     topic,
@@ -2938,22 +2978,22 @@ async function submitScriptPlan() {
   };
   const res = await api('POST', '/api/jobs/submit', { job_type: 'script_plan_generate', payload });
   if (res && res.job_id) {
-    showToast(`구조 생성 작업이 제출되었습니다: ${res.job_id.substring(0,8)}`);
+    showToast(`援ъ“ ?앹꽦 ?묒뾽???쒖텧?섏뿀?듬땲?? ${res.job_id.substring(0,8)}`);
     switchTab('history');
   } else {
-    showToast('작업 제출 실패', 'error');
+    showToast('?묒뾽 ?쒖텧 ?ㅽ뙣', 'error');
   }
 }
 
-/* ── Submit: script_generate ── */
+/* ?? Submit: script_generate ?? */
 async function submitScriptGenerate() {
   const topic = document.getElementById('sg-topic').value.trim();
-  if (!topic) { showToast('주제를 입력하세요', 'error'); return; }
+  if (!topic) { showToast('二쇱젣瑜??낅젰?섏꽭??, 'error'); return; }
   let structure = undefined;
   const structText = document.getElementById('sg-structure').value.trim();
   if (structText) {
     try { structure = JSON.parse(structText); }
-    catch(e) { showToast('구조 JSON 파싱 오류', 'error'); return; }
+    catch(e) { showToast('援ъ“ JSON ?뚯떛 ?ㅻ쪟', 'error'); return; }
   }
   const payload = {
     topic_queue_id: 'dashboard-' + Date.now(),
@@ -2966,40 +3006,40 @@ async function submitScriptGenerate() {
   };
   const res = await api('POST', '/api/jobs/submit', { job_type: 'script_generate', payload });
   if (res && res.job_id) {
-    showToast(`대본 생성 작업이 제출되었습니다: ${res.job_id.substring(0,8)}`);
+    showToast(`?蹂??앹꽦 ?묒뾽???쒖텧?섏뿀?듬땲?? ${res.job_id.substring(0,8)}`);
     switchTab('history');
   } else {
-    showToast('작업 제출 실패', 'error');
+    showToast('?묒뾽 ?쒖텧 ?ㅽ뙣', 'error');
   }
 }
 
-/* ── Cancel job ── */
+/* ?? Cancel job ?? */
 async function cancelJob(jobId) {
   const res = await api('POST', `/api/jobs/${jobId}/cancel`);
   if (res && res.success !== false) {
-    showToast(`작업 ${jobId.substring(0,8)} 취소됨`);
+    showToast(`?묒뾽 ${jobId.substring(0,8)} 痍⑥냼??);
     refreshAll();
   } else {
-    showToast(`취소 실패: ${res?.error || '알 수 없음'}`, 'error');
+    showToast(`痍⑥냼 ?ㅽ뙣: ${res?.error || '?????놁쓬'}`, 'error');
   }
 }
 
-/* ── Cancel helper ── */
+/* ?? Cancel helper ?? */
 function canCancel(status) {
   return ['QUEUED','CLAIMED','PREPARING','RENDERING','UPLOADING'].includes(status);
 }
 
-/* ── Process start / stop ── */
+/* ?? Process start / stop ?? */
 const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', remote_drive_worker: 'remote-drive' };
 
 async function startProcess(name) {
   try {
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/start`);
-    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
+    showToast(`${{hermes_worker:'AI 湲고쉷쨌?蹂?Worker', render_worker:'?곸긽 ?묒뾽 Worker'}[name] || name} ?쒖옉???붿껌?덉뒿?덈떎.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
-    showToast(`시작 실패: ${e}`, 'error');
+    showToast(`?쒖옉 ?ㅽ뙣: ${e}`, 'error');
   }
 }
 
@@ -3007,7 +3047,7 @@ async function startHermesForLimit() {
   const input = document.getElementById('hermes-start-limit');
   const targetLimit = Number.parseInt(input?.value, 10);
   if (!Number.isInteger(targetLimit) || targetLimit < 1 || targetLimit > 100) {
-    showToast('생성 수는 1~100 사이로 입력하세요.', 'error');
+    showToast('?앹꽦 ?섎뒗 1~100 ?ъ씠濡??낅젰?섏꽭??', 'error');
     input?.focus();
     return;
   }
@@ -3015,7 +3055,7 @@ async function startHermesForLimit() {
   try {
     const worker = await api('POST', '/api/processes/hermes/start');
     if (!worker?.success) {
-      showToast('AI 기획·대본 Worker 시작 실패: ' + (worker?.error || '응답 없음'), 'error');
+      showToast('AI 湲고쉷쨌?蹂?Worker ?쒖옉 ?ㅽ뙣: ' + (worker?.error || '?묐떟 ?놁쓬'), 'error');
       return;
     }
 
@@ -3025,14 +3065,14 @@ async function startHermesForLimit() {
       settings: { mode: 'target_limit', target_limit: targetLimit },
     });
     if (!autopilot?.success) {
-      showToast('자동 생성 시작 실패: ' + (autopilot?.error || '응답 없음'), 'error');
+      showToast('?먮룞 ?앹꽦 ?쒖옉 ?ㅽ뙣: ' + (autopilot?.error || '?묐떟 ?놁쓬'), 'error');
       return;
     }
 
-    showToast(`AI Worker가 ${targetLimit}개 생성한 뒤 자동 생성을 멈춥니다.`, 'success');
+    showToast(`AI Worker媛 ${targetLimit}媛??앹꽦?????먮룞 ?앹꽦??硫덉땅?덈떎.`, 'success');
     setTimeout(refreshAll, 1000);
   } catch (e) {
-    showToast('AI Worker 시작 통신 실패', 'error');
+    showToast('AI Worker ?쒖옉 ?듭떊 ?ㅽ뙣', 'error');
   }
 }
 
@@ -3041,13 +3081,13 @@ async function stopHermesGeneration() {
     const result = await api('POST', '/api/autopilot/hermes/stop');
     if (result?.success) {
       const cancelled = Number(result.cancelled_job_count || 0);
-      showToast(`AI 기획·대본 Worker를 중지했습니다. 남은 자동 작업 ${cancelled}개도 취소했습니다.`, 'info');
+      showToast(`AI 湲고쉷쨌?蹂?Worker瑜?以묒??덉뒿?덈떎. ?⑥? ?먮룞 ?묒뾽 ${cancelled}媛쒕룄 痍⑥냼?덉뒿?덈떎.`, 'info');
     } else {
-      showToast('AI 기획·대본 Worker 중지 실패: ' + (result?.error || '응답 없음'), 'error');
+      showToast('AI 湲고쉷쨌?蹂?Worker 以묒? ?ㅽ뙣: ' + (result?.error || '?묐떟 ?놁쓬'), 'error');
     }
     setTimeout(refreshAll, 1000);
   } catch (e) {
-    showToast('AI Worker 중지 통신 실패', 'error');
+    showToast('AI Worker 以묒? ?듭떊 ?ㅽ뙣', 'error');
   }
 }
 
@@ -3055,18 +3095,18 @@ async function stopProcess(name) {
   try {
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/stop`);
-    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
+    showToast(`${{hermes_worker:'AI 湲고쉷쨌?蹂?Worker', render_worker:'?곸긽 ?묒뾽 Worker'}[name] || name} 以묒?瑜??붿껌?덉뒿?덈떎.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
-    showToast(`중지 실패: ${e}`, 'error');
+    showToast(`以묒? ?ㅽ뙣: ${e}`, 'error');
   }
 }
 
-/* ── Utility ── */
+/* ?? Utility ?? */
 function truncate(s, n) { return s && s.length > n ? s.substring(0, n) + '...' : (s || ''); }
 function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ── Refresh all ── */
+/* ?? Refresh all ?? */
 async function refreshAll() {
   countdown = 3;
   try {
@@ -3085,22 +3125,22 @@ async function refreshAll() {
   } catch(e) { /* silent */ }
 }
 
-/* ── Auto-refresh countdown ── */
+/* ?? Auto-refresh countdown ?? */
 setInterval(() => {
   countdown--;
   if (countdown <= 0) { countdown = 3; refreshAll(); }
-  document.getElementById('refresh-timer').textContent = `${countdown}s 후 새로고침`;
+  document.getElementById('refresh-timer').textContent = `${countdown}s ???덈줈怨좎묠`;
 }, 1000);
 
-/* ── Logout ── */
+/* ?? Logout ?? */
 async function doLogout() {
   await fetch('/auth/logout', { method: 'POST' });
   window.location.href = '/login';
 }
 
-/* ══════════════════════════════════════════════
+/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
    Settings Tab
-   ══════════════════════════════════════════════ */
+   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧 */
 
 /* Setting label map for Korean UI */
 const settingLabels = {
@@ -3113,12 +3153,15 @@ const settingLabels = {
   'YOUTUBE_API_KEY': 'YouTube API Key',
   'YOUTUBE_API_KEYS': 'YouTube Backup API Keys',
   'ELEVENLABS_API_KEY': 'ElevenLabs API Key',
+  'VOICEBOX_BASE_URL': 'Voicebox ?쒕쾭 URL',
+  'VOICEBOX_ENGINE': 'Voicebox 湲곕낯 ?붿쭊',
+  'VOICEBOX_MODEL_SIZE': 'Voicebox 紐⑤뜽 ?ш린',
   'SUNO_API_KEY': 'Suno API Key',
-  'TOPIC_GENERATION_MODEL': '제목 생성 모델',
-  'TITLE_GENERATION_MODEL': '제목 후보 모델',
-  'SCRIPT_GENERATION_MODEL': '대본 생성 모델',
-  'SCRIPT_PLANNING_MODEL': '구조 생성 모델',
-  'IMAGE_PROMPT_MODEL': '이미지/영상 프롬프트 모델',
+  'TOPIC_GENERATION_MODEL': '?쒕ぉ ?앹꽦 紐⑤뜽',
+  'TITLE_GENERATION_MODEL': '?쒕ぉ ?꾨낫 紐⑤뜽',
+  'SCRIPT_GENERATION_MODEL': '?蹂??앹꽦 紐⑤뜽',
+  'SCRIPT_PLANNING_MODEL': '援ъ“ ?앹꽦 紐⑤뜽',
+  'IMAGE_PROMPT_MODEL': '?대?吏/?곸긽 ?꾨＼?꾪듃 紐⑤뜽',
 };
 
 /* Icons for API keys vs model settings */
@@ -3132,6 +3175,9 @@ const settingIcons = {
   'YOUTUBE_API_KEY': '&#x1F3AC;',
   'YOUTUBE_API_KEYS': '&#x1F3AC;',
   'ELEVENLABS_API_KEY': '&#x1F3A4;',
+  'VOICEBOX_BASE_URL': '&#x1F50A;',
+  'VOICEBOX_ENGINE': '&#x1F50A;',
+  'VOICEBOX_MODEL_SIZE': '&#x1F4E6;',
   'SUNO_API_KEY': '&#x1F3B5;',
   'TOPIC_GENERATION_MODEL': '&#x1F916;',
   'TITLE_GENERATION_MODEL': '&#x1F916;',
@@ -3155,14 +3201,14 @@ async function loadSettings() {
     const label = settingLabels[item.key] || item.key;
     const icon = settingIcons[item.key] || '&#x2699;';
     const placeholder = item.value || '';
-    const setLabel = item.set ? '<span style="color:#3fb950;font-size:12px;margin-left:8px">&#x2714; 설정됨</span>' : '<span style="color:#8b949e;font-size:12px;margin-left:8px">미설정</span>';
+    const setLabel = item.set ? '<span style="color:#3fb950;font-size:12px;margin-left:8px">&#x2714; ?ㅼ젙??/span>' : '<span style="color:#8b949e;font-size:12px;margin-left:8px">誘몄꽕??/span>';
     const inputControl = item.key === 'YOUTUBE_API_KEYS'
       ? `<textarea id="setting-${escapeHtml(item.key)}" class="setting-input"
             placeholder="${escapeHtml(placeholder)}"
             rows="4"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;resize:vertical;"
           ></textarea>
-          <div style="margin-top:4px;color:#8b949e;font-size:12px;">최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용됩니다.</div>`
+          <div style="margin-top:4px;color:#8b949e;font-size:12px;">理쒕? 5媛쒓퉴吏 ?쇳몴 ?먮뒗 以꾨컮轅덉쑝濡??낅젰?섎㈃ ?쒕룄 珥덇낵 ???쒖꽌?濡??泥??ъ슜?⑸땲??</div>`
       : `<input type="text" id="setting-${escapeHtml(item.key)}" class="setting-input"
             placeholder="${escapeHtml(placeholder)}"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;"
@@ -3177,7 +3223,7 @@ async function loadSettings() {
           </div>
           ${inputControl}
         </div>
-        <button class="btn btn-sm btn-primary" onclick="saveSetting('${escapeHtml(item.key)}')" style="white-space:nowrap;">저장</button>
+        <button class="btn btn-sm btn-primary" onclick="saveSetting('${escapeHtml(item.key)}')" style="white-space:nowrap;">???/button>
       </div>`;
     settingsOriginal[item.key] = item.value;
   }
@@ -3193,6 +3239,9 @@ async function loadSettings() {
     'YOUTUBE_API_KEYS',
     'ELEVENLABS_API_KEY',
     'SUNO_API_KEY',
+    'VOICEBOX_BASE_URL',
+    'VOICEBOX_ENGINE',
+    'VOICEBOX_MODEL_SIZE',
   ]);
   const apiRows = [];
   const modelRows = [];
@@ -3209,6 +3258,10 @@ async function loadSettings() {
       <div class="settings-panel">
         <div class="settings-panel-title">API Keys</div>
         <div class="settings-panel-note">YouTube primary and backup keys live here. Backup keys are used in order, up to 5 total keys.</div>
+        <div id="voicebox-health-card" class="status-card" style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.015);">
+          <div class="name" style="font-size:13px;">&#x1F50A; Voicebox ?곹깭 ?뺤씤 以?..</div>
+          <div class="info">?뚯빱 癒몄떊??濡쒖뺄 Voicebox ?쒕쾭瑜??뺤씤?⑸땲??</div>
+        </div>
         ${apiRows.join('')}
       </div>
       <div class="settings-panel">
@@ -3218,23 +3271,53 @@ async function loadSettings() {
       </div>
     </div>`;
   document.getElementById('settings-status').textContent = '';
+  renderVoiceboxHealth();
+}
+
+async function renderVoiceboxHealth() {
+  const card = document.getElementById('voicebox-health-card');
+  if (!card) return;
+  try {
+    const data = await api('GET', '/api/voicebox/health');
+    if (!data || !data.reachable) {
+      card.style.borderColor = '#f85149';
+      card.innerHTML = `
+        <div class="name" style="font-size:13px;color:#f85149">&#x274C; Voicebox ?곌껐 ????/div>
+        <div class="info">${escapeHtml(data?.error || 'Voicebox ?곹깭瑜??뺤씤?????놁뒿?덈떎.')}</div>
+        <div class="info" style="margin-top:4px">URL: ${escapeHtml(data?.base_url || '')}</div>`;
+      return;
+    }
+    const h = data.health || {};
+    const backend = h.backend_variant || h.backend_type || 'unknown';
+    const gpu = h.gpu_available ? `GPU ${h.gpu_type || ''}`.trim() : 'CPU';
+    const model = h.model_loaded ? '紐⑤뜽 濡쒕뱶?? : '紐⑤뜽 誘몃줈??;
+    card.style.borderColor = h.model_loaded ? '#238636' : '#d29922';
+    card.innerHTML = `
+      <div class="name" style="font-size:13px;color:${h.model_loaded ? '#3fb950' : '#d29922'}">&#x2705; Voicebox ?곌껐??/div>
+      <div class="info">${escapeHtml(data.base_url)} 쨌 ${escapeHtml(gpu)} 쨌 ${escapeHtml(backend)} 쨌 ${escapeHtml(model)}</div>`;
+  } catch (e) {
+    card.style.borderColor = '#f85149';
+    card.innerHTML = `
+      <div class="name" style="font-size:13px;color:#f85149">&#x274C; Voicebox ?ъ뒪泥댄겕 ?ㅽ뙣</div>
+      <div class="info">${escapeHtml(e?.message || e)}</div>`;
+  }
 }
 
 async function saveSetting(key) {
   const input = document.getElementById('setting-' + key);
   const value = input.value.trim();
   const statusEl = document.getElementById('settings-status');
-  statusEl.textContent = '저장 중...';
+  statusEl.textContent = '???以?..';
   statusEl.style.color = '#8b949e';
 
   const res = await api('POST', '/api/settings', { key, value });
   if (res && res.success) {
-    showToast(`${settingLabels[key] || key} 저장 완료`);
+    showToast(`${settingLabels[key] || key} ????꾨즺`);
     statusEl.textContent = '';
     await loadSettings();
   } else {
-    showToast(`저장 실패: ${res?.error || '알 수 없음'}`, 'error');
-    statusEl.textContent = '저장 실패';
+    showToast(`????ㅽ뙣: ${res?.error || '?????놁쓬'}`, 'error');
+    statusEl.textContent = '????ㅽ뙣';
     statusEl.style.color = '#f85149';
   }
 }
@@ -3244,7 +3327,7 @@ async function saveAllSettings() {
   let savedCount = 0;
   let errorCount = 0;
   const statusEl = document.getElementById('settings-status');
-  statusEl.textContent = '저장 중...';
+  statusEl.textContent = '???以?..';
   statusEl.style.color = '#8b949e';
 
   for (const input of inputs) {
@@ -3258,22 +3341,22 @@ async function saveAllSettings() {
   }
 
   if (errorCount === 0 && savedCount > 0) {
-    showToast(`${savedCount}개 설정 저장 완료`);
+    showToast(`${savedCount}媛??ㅼ젙 ????꾨즺`);
     statusEl.textContent = '';
     await loadSettings();
   } else if (savedCount > 0) {
-    showToast(`${savedCount}개 저장 완료, ${errorCount}개 실패`, 'warning');
-    statusEl.textContent = `${savedCount}개 성공, ${errorCount}개 실패`;
+    showToast(`${savedCount}媛?????꾨즺, ${errorCount}媛??ㅽ뙣`, 'warning');
+    statusEl.textContent = `${savedCount}媛??깃났, ${errorCount}媛??ㅽ뙣`;
     statusEl.style.color = '#d29922';
     await loadSettings();
   } else {
-    showToast('변경사항 없음', 'info');
-    statusEl.textContent = '변경사항 없음';
+    showToast('蹂寃쎌궗???놁쓬', 'info');
+    statusEl.textContent = '蹂寃쎌궗???놁쓬';
     statusEl.style.color = '#8b949e';
   }
 }
 
-/* ── YouTube Explore ── */
+/* ?? YouTube Explore ?? */
 let ytExploreInitialized = false;
 const BUBBLE_COLORS = {
   'Entertainment': '#58a6ff', 'Gaming': '#3fb950', 'Music': '#a371f7',
@@ -3310,16 +3393,16 @@ async function loadTrendKeywords() {
   try {
     const data = await api('GET', '/api/yt/trending-keywords?language=' + lang + '&period=' + period + '&age=' + age);
     if (data && data.error) {
-      document.getElementById('bubble-chart').innerHTML = '<div style="text-align:center;padding:80px;color:#f85149">⚠ ' + data.error + '</div>';
+      document.getElementById('bubble-chart').innerHTML = '<div style="text-align:center;padding:80px;color:#f85149">??' + data.error + '</div>';
     } else if (data && data.keywords && data.keywords.length > 0) {
       localStorage.setItem(cacheKey, JSON.stringify(data.keywords));
       renderBubbleChart(data.keywords);
     } else if (!cached) {
-      document.getElementById('bubble-chart').innerHTML = '<div style="text-align:center;padding:80px;color:#8b949e">키워드 생성 결과가 비어있습니다. 다시 시도해주세요.</div>';
+      document.getElementById('bubble-chart').innerHTML = '<div style="text-align:center;padding:80px;color:#8b949e">?ㅼ썙???앹꽦 寃곌낵媛 鍮꾩뼱?덉뒿?덈떎. ?ㅼ떆 ?쒕룄?댁＜?몄슂.</div>';
     }
   } catch(e) {
     console.error('loadTrendKeywords error:', e);
-    document.getElementById('bubble-chart').innerHTML = '<div style="text-align:center;padding:80px;color:#f85149">⚠ 네트워크 오류: ' + e.message + '</div>';
+    document.getElementById('bubble-chart').innerHTML = '<div style="text-align:center;padding:80px;color:#f85149">???ㅽ듃?뚰겕 ?ㅻ쪟: ' + e.message + '</div>';
   } finally {
     document.getElementById('bubble-loading').style.display = 'none';
   }
@@ -3372,7 +3455,7 @@ function renderBubbleChart(keywords) {
     .attr('fill', '#c9d1d9').attr('font-size', d => Math.max(10, Math.min(d.w * 0.15, 16)))
     .attr('font-weight', d => d.volume > 70 ? '700' : '400')
     .attr('pointer-events', 'none')
-    .text(d => d.keyword.length > 12 ? d.keyword.slice(0, 11) + '…' : d.keyword);
+    .text(d => d.keyword.length > 12 ? d.keyword.slice(0, 11) + '?? : d.keyword);
   nodeGroup.append('text')
     .attr('text-anchor', 'middle').attr('dy', '1.2em')
     .attr('fill', '#8b949e').attr('font-size', d => Math.max(8, Math.min(d.w * 0.1, 12)))
@@ -3408,7 +3491,7 @@ async function searchYtVideos() {
   try {
     const searchResult = await api('POST', '/api/yt/search', body);
     if (!searchResult || searchResult.error) {
-      searchError = searchResult?.error || '검색 요청 실패';
+      searchError = searchResult?.error || '寃???붿껌 ?ㅽ뙣';
       return;
     }
     const items = searchResult.items || [];
@@ -3464,12 +3547,12 @@ async function searchYtVideos() {
     renderSuggestedTags(videos);
   } catch(e) {
     console.error('searchYtVideos error:', e);
-    searchError = e.message || '네트워크 오류';
+    searchError = e.message || '?ㅽ듃?뚰겕 ?ㅻ쪟';
   } finally {
     loading.style.display = 'none';
     if (searchError) {
       document.getElementById('yt-results-body').innerHTML =
-        '<tr><td colspan="11" style="text-align:center;padding:40px;color:#f85149">⚠ ' + searchError + '</td></tr>';
+        '<tr><td colspan="11" style="text-align:center;padding:40px;color:#f85149">??' + searchError + '</td></tr>';
     }
   }
 }
@@ -3496,7 +3579,7 @@ function renderYtResults(videos) {
       '<td style="text-align:center"><span class="yt-viral-score ' + viralClass + '">' + v.contribution + '%</span></td>' +
       '<td style="font-size:12px;text-align:right;color:#58a6ff">' + v.performance + 'x</td>' +
       '<td style="font-size:12px;text-align:right">' + formatNum(v.likes) + '</td>' +
-      '<td style="text-align:center"><button class="btn btn-sm" onclick="openYtAnalysis(' + i + ')" style="font-size:11px">분석</button></td>' +
+      '<td style="text-align:center"><button class="btn btn-sm" onclick="openYtAnalysis(' + i + ')" style="font-size:11px">遺꾩꽍</button></td>' +
     '</tr>';
   }).join('');
   window._ytResults = videos;
@@ -3520,38 +3603,38 @@ function renderSuggestedTags(videos) {
 function openYtAnalysis(idx) {
   const v = (window._ytResults || [])[idx];
   if (!v) return;
-  const viralLabel = v.contribution > 200 ? '🔥 바이럴' : v.contribution > 50 ? '📈 우수' : '📊 보통';
+  const viralLabel = v.contribution > 200 ? '?뵦 諛붿씠?? : v.contribution > 50 ? '?뱢 ?곗닔' : '?뱤 蹂댄넻';
   const text =
-    '━━━ 영상 분석 ━━━\n\n' +
-    '제목: ' + v.title + '\n' +
-    '채널: ' + v.channelTitle + ' (구독자 ' + formatNum(v.subs) + ')\n' +
-    '게시일: ' + formatDate(v.publishedAt) + '\n' +
-    '재생 시간: ' + parseDuration(v.duration) + '\n\n' +
-    '━━━ 성과 지표 ━━━\n\n' +
-    '조회수: ' + formatNum(v.views) + '\n' +
-    '좋아요: ' + formatNum(v.likes) + '\n' +
-    '댓글: ' + formatNum(v.comments) + '\n' +
-    '채널 기여도: ' + v.contribution + '% (' + viralLabel + ')\n' +
-    '구독자 대비 조회수: ' + v.performance + 'x\n\n' +
-    '━━━ 평가 ━━━\n\n' +
+    '?곣봺???곸긽 遺꾩꽍 ?곣봺??n\n' +
+    '?쒕ぉ: ' + v.title + '\n' +
+    '梨꾨꼸: ' + v.channelTitle + ' (援щ룆??' + formatNum(v.subs) + ')\n' +
+    '寃뚯떆?? ' + formatDate(v.publishedAt) + '\n' +
+    '?ъ깮 ?쒓컙: ' + parseDuration(v.duration) + '\n\n' +
+    '?곣봺???깃낵 吏???곣봺??n\n' +
+    '議고쉶?? ' + formatNum(v.views) + '\n' +
+    '醫뗭븘?? ' + formatNum(v.likes) + '\n' +
+    '?볤?: ' + formatNum(v.comments) + '\n' +
+    '梨꾨꼸 湲곗뿬?? ' + v.contribution + '% (' + viralLabel + ')\n' +
+    '援щ룆???鍮?議고쉶?? ' + v.performance + 'x\n\n' +
+    '?곣봺???됯? ?곣봺??n\n' +
     (v.contribution > 200
-      ? '✅ 이 영상은 채널 평균 조회수보다 ' + v.contribution + '% 더 높은 성과를 기록했습니다. 바이럴 영상으로 분류됩니다.'
+      ? '?????곸긽? 梨꾨꼸 ?됯퇏 議고쉶?섎낫??' + v.contribution + '% ???믪? ?깃낵瑜?湲곕줉?덉뒿?덈떎. 諛붿씠???곸긽?쇰줈 遺꾨쪟?⑸땲??'
       : v.contribution > 50
-        ? '✅ 채널 평균 대비 ' + v.contribution + '% 높은 성과입니다. 우수한 영상입니다.'
-        : '📊 채널 평균 수준의 성과입니다.') + '\n' +
+        ? '??梨꾨꼸 ?됯퇏 ?鍮?' + v.contribution + '% ?믪? ?깃낵?낅땲?? ?곗닔???곸긽?낅땲??'
+        : '?뱤 梨꾨꼸 ?됯퇏 ?섏????깃낵?낅땲??') + '\n' +
     (v.performance > 1
-      ? '\n✅ 구독자 수보다 ' + v.performance + '배 많은 조회수 — 비구독자 노출이 매우 높습니다.'
+      ? '\n??援щ룆???섎낫??' + v.performance + '諛?留롮? 議고쉶????鍮꾧뎄?낆옄 ?몄텧??留ㅼ슦 ?믪뒿?덈떎.'
       : '') + '\n\n' +
-    '태그: ' + (v.tags || []).slice(0, 15).join(', ');
-  document.getElementById('modal-title').textContent = '영상 분석';
+    '?쒓렇: ' + (v.tags || []).slice(0, 15).join(', ');
+  document.getElementById('modal-title').textContent = '?곸긽 遺꾩꽍';
   document.getElementById('modal-body').innerHTML =
     '<div style="margin-bottom:12px"><a href="https://youtube.com/watch?v=' + v.videoId + '" target="_blank" class="btn btn-sm">' +
-    '&#x1F517; YouTube에서 보기</a></div>' +
+    '&#x1F517; YouTube?먯꽌 蹂닿린</a></div>' +
     '<div class="yt-analysis-text">' + escHtml(text) + '</div>';
   document.getElementById('job-modal').style.display = 'flex';
 }
 
-/* ── Utility helpers ── */
+/* ?? Utility helpers ?? */
 function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
@@ -3576,10 +3659,19 @@ function parseDuration(dur) {
   return (h ? h + ':' : '') + String(min).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-/* ── Autopilot functions ── */
+/* ?? Autopilot functions ?? */
 let autopilotSettingsInitialized = false;
 let autopilotStatusSnapshot = null;
-const ALL_CATEGORIES = ["탈북사연", "해외감동", "노후금융", "황혼19금", "옛날이야기", "한국사연", "무협", "경제"];
+const ALL_CATEGORIES = [
+  "\ud0c8\ubd81\uc0ac\uc5f0",
+  "\ud574\uc678\uac10\ub3d9",
+  "\ub178\ud6c4\uae08\uc735",
+  "\ud669\ud63c19\uae08",
+  "\uc61b\ub0a0\uc774\uc57c\uae30",
+  "\ud55c\uad6d\uc0ac\uc5f0",
+  "\ubb34\ud611",
+  "\uacbd\uc81c"
+];
 
 function toggleLimitInput() {
   const mode = document.getElementById('auto-setting-mode').value;
@@ -3590,21 +3682,25 @@ function renderCategoryCheckboxes(activeCats) {
   const container = document.getElementById('auto-categories-checkboxes');
   if (!container) return;
   container.innerHTML = '';
+  const durationMap = autopilotStatusSnapshot?.settings?.target_duration_seconds_by_category || {};
   
   ALL_CATEGORIES.forEach((cat, index) => {
     const isChecked = activeCats ? activeCats.includes(cat) : true;
+    const durationSeconds = Number(durationMap[cat] || 0);
+    const durationMinutes = durationSeconds > 0 ? Math.round(durationSeconds / 60) : '';
     const row = document.createElement('div');
     row.className = 'auto-cat-row';
     row.dataset.category = cat;
-    row.style.cssText = 'display:grid;grid-template-columns:minmax(130px,1fr) 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
+    row.style.cssText = 'display:grid;grid-template-columns:minmax(130px,1fr) 76px 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
     row.innerHTML = `
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
         <input type="checkbox" class="auto-cat-checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" />
         <span style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(cat)}</span>
       </label>
-      <input type="number" class="auto-cat-limit" id="auto-cat-limit-${index}" value="1" min="1" max="100" title="생성 수" style="width:86px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
-      <button class="btn btn-primary btn-sm auto-cat-start" type="button" data-category="${escapeHtml(cat)}" data-index="${index}">▶ 시작</button>
-      <button class="btn btn-danger btn-sm auto-cat-stop" type="button" data-category="${escapeHtml(cat)}" data-index="${index}" disabled>■ 중지</button>
+      <input type="number" class="auto-cat-duration" id="auto-cat-duration-${index}" value="${escapeHtml(durationMinutes)}" min="1" max="60" placeholder="湲곕낯" title="紐⑺몴 湲몄씠(遺?. 鍮꾩슦硫?湲곕낯 湲몄씠" style="width:76px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+      <input type="number" class="auto-cat-limit" id="auto-cat-limit-${index}" value="1" min="1" max="100" title="?앹꽦 ?? style="width:86px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+      <button class="btn btn-primary btn-sm auto-cat-start" type="button" data-category="${escapeHtml(cat)}" data-index="${index}">???쒖옉</button>
+      <button class="btn btn-danger btn-sm auto-cat-stop" type="button" data-category="${escapeHtml(cat)}" data-index="${index}" disabled>??以묒?</button>
     `;
     container.appendChild(row);
     row.querySelector('.auto-cat-start')?.addEventListener('click', () => startCategoryAutopilot(cat, index));
@@ -3656,18 +3752,31 @@ function getBenchmarkChannelSettingsFromUI() {
   return result;
 }
 
+function getTargetDurationSettingsFromUI() {
+  const result = {};
+  document.querySelectorAll('.auto-cat-row').forEach(row => {
+    const category = row.dataset.category || '';
+    const input = row.querySelector('.auto-cat-duration');
+    const minutes = Number.parseInt(input?.value || '', 10);
+    if (category && Number.isInteger(minutes) && minutes > 0) {
+      result[category] = minutes * 60;
+    }
+  });
+  return result;
+}
+
 function renderActiveCategoryBadges(activeCats) {
   const categories = Array.isArray(activeCats) ? activeCats : ALL_CATEGORIES;
   const title = document.getElementById('auto-active-category-title');
   const container = document.getElementById('auto-active-category-badges');
-  if (title) title.textContent = `설정된 카테고리 (${categories.length}개)`;
+  if (title) title.textContent = `?ㅼ젙??移댄뀒怨좊━ (${categories.length}媛?`;
   if (!container) return;
   container.innerHTML = '';
 
   if (categories.length === 0) {
     const empty = document.createElement('span');
     empty.style.cssText = 'color:#8b949e;font-size:12px;';
-    empty.textContent = '선택된 카테고리가 없습니다.';
+    empty.textContent = '?좏깮??移댄뀒怨좊━媛 ?놁뒿?덈떎.';
     container.appendChild(empty);
     return;
   }
@@ -3700,6 +3809,7 @@ function getSettingsFromUI() {
     target_limit: limit,
     min_buffer_per_category: buffer,
     active_categories,
+    target_duration_seconds_by_category: getTargetDurationSettingsFromUI(),
     benchmark_channel_ids_by_category: getBenchmarkChannelSettingsFromUI(),
     benchmark_channel_auto_discovery_enabled: discoveryEnabled,
     benchmark_channel_discovery_min_channels: discoveryMin,
@@ -3720,12 +3830,12 @@ function updateCategoryRunControls(statusData) {
   });
   document.querySelectorAll('.auto-cat-start').forEach(btn => {
     btn.disabled = isRunning;
-    btn.title = isRunning ? '현재 생성이 끝나거나 중지된 뒤 시작할 수 있습니다.' : '이 카테고리만 생성 시작';
+    btn.title = isRunning ? '?꾩옱 ?앹꽦???앸굹嫄곕굹 以묒??????쒖옉?????덉뒿?덈떎.' : '??移댄뀒怨좊━留??앹꽦 ?쒖옉';
   });
   document.querySelectorAll('.auto-cat-stop').forEach(btn => {
     const category = btn.dataset.category || '';
     btn.disabled = !isRunning || category !== currentCategory;
-    btn.title = category === currentCategory ? '현재 카테고리 생성 중지' : '현재 실행 중인 카테고리만 중지할 수 있습니다.';
+    btn.title = category === currentCategory ? '?꾩옱 移댄뀒怨좊━ ?앹꽦 以묒?' : '?꾩옱 ?ㅽ뻾 以묒씤 移댄뀒怨좊━留?以묒??????덉뒿?덈떎.';
   });
 }
 
@@ -3745,12 +3855,12 @@ async function saveAutopilotSettings() {
       renderActiveCategoryBadges(savedSettings.active_categories);
       renderCategoryCheckboxes(savedSettings.active_categories);
       renderBenchmarkChannelSettings(savedSettings.benchmark_channel_ids_by_category);
-      showToast('오토파일럿 설정이 저장되었습니다.', 'success');
+      showToast('?ㅽ넗?뚯씪???ㅼ젙????λ릺?덉뒿?덈떎.', 'success');
     } else {
-      showToast('설정 저장 실패: ' + (res?.error || '알 수 없음'), 'error');
+      showToast('?ㅼ젙 ????ㅽ뙣: ' + (res?.error || '?????놁쓬'), 'error');
     }
   } catch(e) {
-    showToast('설정 저장 통신 실패', 'error');
+    showToast('?ㅼ젙 ????듭떊 ?ㅽ뙣', 'error');
   }
 }
 
@@ -3770,23 +3880,23 @@ async function loadAutopilotStatus() {
     const statusBadgeEl = document.getElementById('auto-status-text');
     if (isRunning) {
       statusBadgeEl.className = 'badge badge-running';
-      statusBadgeEl.textContent = '동작 중';
+      statusBadgeEl.textContent = '?숈옉 以?;
     } else if (isFailed) {
       statusBadgeEl.className = 'badge badge-failed';
-      statusBadgeEl.textContent = '실패';
+      statusBadgeEl.textContent = '?ㅽ뙣';
     } else if (isCompleted) {
       statusBadgeEl.className = 'badge badge-completed';
-      statusBadgeEl.textContent = '완료';
+      statusBadgeEl.textContent = '?꾨즺';
     } else {
       statusBadgeEl.className = 'badge badge-stopped';
-      statusBadgeEl.textContent = '중지됨';
+      statusBadgeEl.textContent = '以묒???;
     }
     
     const runLabel = isRunning
-      ? '<span style="color:#3fb950;font-weight:bold;">실행 중</span>'
+      ? '<span style="color:#3fb950;font-weight:bold;">?ㅽ뻾 以?/span>'
       : (isFailed
-        ? '<span style="color:#f85149;font-weight:bold;">실패</span>'
-        : (isCompleted ? '<span style="color:#3fb950;font-weight:bold;">완료</span>' : '중지됨'));
+        ? '<span style="color:#f85149;font-weight:bold;">?ㅽ뙣</span>'
+        : (isCompleted ? '<span style="color:#3fb950;font-weight:bold;">?꾨즺</span>' : '以묒???));
     document.getElementById('auto-info-running').innerHTML = runLabel;
     document.getElementById('auto-info-step').textContent = isFailed && data.last_error
       ? `failed - ${data.last_error}`
@@ -3797,7 +3907,7 @@ async function loadAutopilotStatus() {
     
     if (data.session_stats) {
       const generated = data.session_stats.generated_count || 0;
-      document.getElementById('auto-info-generated').textContent = generated + ' 개';
+      document.getElementById('auto-info-generated').textContent = generated + ' 媛?;
     }
 
     if (data.settings) {
@@ -3807,7 +3917,7 @@ async function loadAutopilotStatus() {
     }
     updateCategoryRunControls(data);
     
-    // UI 초기화 (최초 1회만 설정 채워넣음)
+    // UI 珥덇린??(理쒖큹 1?뚮쭔 ?ㅼ젙 梨꾩썙?ｌ쓬)
     if (!autopilotSettingsInitialized && data.settings) {
       document.getElementById('auto-setting-mode').value = data.settings.mode || 'infinite';
       document.getElementById('auto-setting-limit').value = data.settings.target_limit || 10;
@@ -3823,7 +3933,7 @@ async function loadAutopilotStatus() {
       updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;
     } else if (!autopilotSettingsInitialized) {
-      // 폰백 렌더링
+      // ?곕갚 ?뚮뜑留?
       renderCategoryCheckboxes(null);
       renderBenchmarkChannelSettings(null);
       updateCategoryRunControls(data);
@@ -3835,7 +3945,7 @@ async function loadAutopilotStatus() {
       logsEl.textContent = data.logs.join('\n');
       logsEl.scrollTop = logsEl.scrollHeight;
     } else {
-      logsEl.textContent = '로그가 없습니다.';
+      logsEl.textContent = '濡쒓렇媛 ?놁뒿?덈떎.';
     }
   } catch(e) {
     console.error('loadAutopilotStatus error:', e);
@@ -3844,12 +3954,12 @@ async function loadAutopilotStatus() {
 
 async function startCategoryAutopilot(category, index) {
   if (autopilotStatusSnapshot?.is_running) {
-    showToast('이미 자동 생성이 실행 중입니다. 현재 작업을 중지하거나 완료 후 다시 시작하세요.', 'warning');
+    showToast('?대? ?먮룞 ?앹꽦???ㅽ뻾 以묒엯?덈떎. ?꾩옱 ?묒뾽??以묒??섍굅???꾨즺 ???ㅼ떆 ?쒖옉?섏꽭??', 'warning');
     return;
   }
   const limit = categoryLimitValue(index);
   if (!limit) {
-    showToast('카테고리별 생성 수는 1~100 사이로 입력하세요.', 'error');
+    showToast('移댄뀒怨좊━蹂??앹꽦 ?섎뒗 1~100 ?ъ씠濡??낅젰?섏꽭??', 'error');
     return;
   }
   const settings = {
@@ -3868,23 +3978,23 @@ async function startCategoryAutopilot(category, index) {
   try {
     const res = await api('POST', '/api/autopilot/hermes/start', { settings });
     if (res && res.success) {
-      showToast(`${category}: ${limit}개 생성 시작`, 'success');
+      showToast(`${category}: ${limit}媛??앹꽦 ?쒖옉`, 'success');
       loadAutopilotStatus();
     } else {
-      showToast(`${category} 생성 시작 실패: ` + (res?.error || '알 수 없음'), 'error');
+      showToast(`${category} ?앹꽦 ?쒖옉 ?ㅽ뙣: ` + (res?.error || '?????놁쓬'), 'error');
     }
   } catch(e) {
-    showToast(`${category} 생성 시작 통신 실패`, 'error');
+    showToast(`${category} ?앹꽦 ?쒖옉 ?듭떊 ?ㅽ뙣`, 'error');
   }
 }
 
 async function stopCategoryAutopilot(category) {
   if (!autopilotStatusSnapshot?.is_running) {
-    showToast('현재 실행 중인 자동 생성이 없습니다.', 'info');
+    showToast('?꾩옱 ?ㅽ뻾 以묒씤 ?먮룞 ?앹꽦???놁뒿?덈떎.', 'info');
     return;
   }
   if (autopilotStatusSnapshot.current_category && autopilotStatusSnapshot.current_category !== category) {
-    showToast(`현재 실행 중인 카테고리는 ${autopilotStatusSnapshot.current_category}입니다.`, 'warning');
+    showToast(`?꾩옱 ?ㅽ뻾 以묒씤 移댄뀒怨좊━??${autopilotStatusSnapshot.current_category}?낅땲??`, 'warning');
     return;
   }
   await stopAutopilot();
@@ -3894,7 +4004,7 @@ async function startAutopilot() {
   const settings = getSettingsFromUI();
   const startLimit = Number.parseInt(document.getElementById('auto-start-limit').value, 10);
   if (!Number.isInteger(startLimit) || startLimit < 1 || startLimit > 100) {
-    showToast('생성 수는 1~100 사이로 입력하세요.', 'error');
+    showToast('?앹꽦 ?섎뒗 1~100 ?ъ씠濡??낅젰?섏꽭??', 'error');
     return;
   }
   settings.mode = 'target_limit';
@@ -3905,13 +4015,13 @@ async function startAutopilot() {
   try {
     const res = await api('POST', '/api/autopilot/hermes/start', { settings });
     if (res && res.success) {
-      showToast(`Hermes가 ${startLimit}개 생성 후 자동 정지합니다.`, 'success');
+      showToast(`Hermes媛 ${startLimit}媛??앹꽦 ???먮룞 ?뺤??⑸땲??`, 'success');
       loadAutopilotStatus();
     } else {
-      showToast('자동 생성기 시작 실패: ' + (res?.error || '알 수 없음'), 'error');
+      showToast('?먮룞 ?앹꽦湲??쒖옉 ?ㅽ뙣: ' + (res?.error || '?????놁쓬'), 'error');
     }
   } catch(e) {
-    showToast('자동 생성기 시작 통신 실패', 'error');
+    showToast('?먮룞 ?앹꽦湲??쒖옉 ?듭떊 ?ㅽ뙣', 'error');
   }
 }
 
@@ -3919,18 +4029,18 @@ async function stopAutopilot() {
   try {
     const res = await api('POST', '/api/autopilot/hermes/stop');
     if (res && res.success) {
-      showToast('Hermes 자동 생성기 중지 요청됨.', 'info');
+      showToast('Hermes ?먮룞 ?앹꽦湲?以묒? ?붿껌??', 'info');
       loadAutopilotStatus();
     } else {
-      showToast('자동 생성기 중지 실패: ' + (res?.error || '알 수 없음'), 'error');
+      showToast('?먮룞 ?앹꽦湲?以묒? ?ㅽ뙣: ' + (res?.error || '?????놁쓬'), 'error');
     }
   } catch(e) {
-    showToast('자동 생성기 중지 통신 실패', 'error');
+    showToast('?먮룞 ?앹꽦湲?以묒? ?듭떊 ?ㅽ뙣', 'error');
   }
 }
 
-/* ── Init ── */
+/* ?? Init ?? */
 refreshAll();
 </script>
 </body>
-</html>"""
+</html>'''

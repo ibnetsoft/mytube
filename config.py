@@ -81,6 +81,10 @@ class Config:
 
     # TTS Keys
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
+    # Voicebox (로컬 TTS 서버 - docs.voicebox.sh, 인증 없음)
+    VOICEBOX_BASE_URL: str = os.getenv("VOICEBOX_BASE_URL", "http://127.0.0.1:17493")
+    VOICEBOX_ENGINE: str = os.getenv("VOICEBOX_ENGINE", "qwen")
+    VOICEBOX_MODEL_SIZE: str = os.getenv("VOICEBOX_MODEL_SIZE", "1.7B")
     SUNO_API_KEY: str = os.getenv("SUNO_API_KEY", "")
     SUNO_API_BASE_URL: str = os.getenv("SUNO_API_BASE_URL", "")
     MUSIC_PROVIDER: str = os.getenv("MUSIC_PROVIDER", "elevenlabs")
@@ -340,6 +344,7 @@ class Config:
             'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'CLAUDE_API_KEY',
             'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'GLM_API_KEY', 'GLM_BASE_URL',
             'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
+            'VOICEBOX_BASE_URL', 'VOICEBOX_ENGINE', 'VOICEBOX_MODEL_SIZE',
             'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
             'GOOGLE_APPLICATION_CREDENTIALS', 'OPENAI_API_KEY', 'PEXELS_API_KEY',

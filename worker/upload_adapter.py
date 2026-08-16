@@ -34,7 +34,9 @@ class LocalCopyUploadAdapter(UploadAdapter):
 
     def upload(self, local_output_path: Path, job: dict) -> str:
         job_id = job["job_id"]
-        dest = self.delivered_dir / f"{job_id}.mp4"
+        # [Voicebox] render_audio(.mp3)도 같은 어댑터를 쓰므로 원본 확장자를 유지한다
+        # (render_video는 output.mp4이므로 기존 동작과 동일)
+        dest = self.delivered_dir / f"{job_id}{Path(local_output_path).suffix}"
         shutil.copy2(local_output_path, dest)
         return str(dest)
 
@@ -49,5 +51,6 @@ class GoogleDriveUploadAdapter(UploadAdapter):
 
     def upload(self, local_output_path: Path, job: dict) -> str:
         from drive_adapter import upload_output
-        remote_filename = f"{job['job_id']}.mp4"
+        # [Voicebox] 오디오 잡(.mp3) 지원 - 비디오는 기존처럼 .mp4
+        remote_filename = f"{job['job_id']}{Path(local_output_path).suffix}"
         return upload_output(local_output_path, remote_filename)

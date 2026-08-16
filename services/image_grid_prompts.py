@@ -1,4 +1,4 @@
-"""Build strict 2x2 storyboard prompts from four scene image prompts."""
+"""Build and validate strict 2x2 storyboard image prompts."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 
 
 GRID_PROMPT_TEMPLATE = "strict_2x2_v1"
+COMPACT_GRID_PROMPT_TEMPLATE = "strict_2x2_compact_v1"
 GRID_PANEL_POSITIONS = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
 _DYNAMIC_PROMPT_MARKERS = (
     "Dynamic elements:",
@@ -70,6 +71,108 @@ def _grid_windows(scene_count: int) -> list[tuple[int, int]]:
         if windows[-1] != final_window:
             windows.append(final_window)
     return windows
+
+
+def grid_windows(scene_count: int) -> list[tuple[int, int]]:
+    return _grid_windows(scene_count)
+
+
+def make_compact_image_grid_prompt(
+    panels: Iterable[Mapping[str, Any]],
+    *,
+    shared_style: str = "",
+    negative_prompt: str = "",
+) -> str:
+    """Compose one compact 2x2 prompt from four panel-level briefs.
+
+    Unlike ``build_image_grid_prompts``, this does not concatenate four full
+    scene prompts. The caller should provide one short visual beat per panel
+    plus a shared style block, which keeps the final prompt manageable for
+    external image generators.
+    """
+    panel_records = list(panels)
+    panel_lines: list[str] = []
+    for index, panel in enumerate(panel_records[:4]):
+        brief = str(
+            panel.get("panel_prompt")
+            or panel.get("brief")
+            or panel.get("prompt")
+            or ""
+        ).strip()
+        if not brief:
+            brief = f"Scene {index + 1}: distinct story beat with consistent characters and setting."
+        panel_lines.append(
+            f"- Panel {index + 1} (Position: {GRID_PANEL_POSITIONS[index]}): {brief}"
+        )
+
+    shared = str(shared_style or "").strip()
+    negative = str(negative_prompt or "").strip()
+    if not negative:
+        negative = (
+            "no text, no words, no letters, no labels, no captions, no watermarks, "
+            "no borders, no grid lines, no dividers, correct anatomy, no extra limbs"
+        )
+
+    return (
+        "Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels. "
+        "No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. "
+        "Use one consistent visual world across all panels.\n"
+        f"Shared style and continuity: {shared or 'consistent characters, wardrobe, props, lighting direction, palette, era, and location logic.'}\n"
+        "Panel briefs:\n"
+        + "\n".join(panel_lines)
+        + "\nNegative guardrails: "
+        + negative
+        + "\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion."
+    )
+
+
+def build_compact_image_grid_prompts(
+    grid_specs: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Normalize AI-authored 2x2 grid specs into persisted prompt records."""
+    normalized: list[dict[str, Any]] = []
+    for index, spec in enumerate(grid_specs, start=1):
+        if not isinstance(spec, Mapping):
+            continue
+        panels = spec.get("panels")
+        if not isinstance(panels, list) or len(panels) != 4:
+            continue
+        prompt = str(spec.get("prompt") or "").strip()
+        if not prompt:
+            prompt = make_compact_image_grid_prompt(
+                panels,
+                shared_style=str(spec.get("shared_style") or ""),
+                negative_prompt=str(spec.get("negative_prompt") or ""),
+            )
+        scene_numbers = spec.get("scene_numbers")
+        if not isinstance(scene_numbers, list) or len(scene_numbers) != 4:
+            scene_numbers = [
+                panel.get("scene_number")
+                for panel in panels
+                if isinstance(panel, Mapping) and panel.get("scene_number") is not None
+            ]
+        scene_ids = spec.get("scene_ids")
+        if not isinstance(scene_ids, list):
+            scene_ids = [
+                str(panel.get("scene_id") or "").strip()
+                for panel in panels
+                if isinstance(panel, Mapping) and str(panel.get("scene_id") or "").strip()
+            ]
+        if len(scene_numbers) != 4:
+            continue
+        normalized.append(
+            {
+                "grid_number": spec.get("grid_number") or index,
+                "template": spec.get("template") or COMPACT_GRID_PROMPT_TEMPLATE,
+                "scene_numbers": scene_numbers,
+                "scene_ids": scene_ids,
+                "panel_count": 4,
+                "shared_style": str(spec.get("shared_style") or "").strip(),
+                "panels": panels,
+                "prompt": prompt,
+            }
+        )
+    return normalized
 
 
 def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -168,8 +271,6 @@ def validate_image_grid_prompt_readiness(
     for fallback_number, scene in enumerate(scenes, start=1):
         if not isinstance(scene, Mapping):
             continue
-        if not _scene_image_prompt(scene):
-            continue
         scene_numbers.append(_scene_number(scene, fallback_number))
 
     if len(scene_numbers) >= 4 and not image_grid_prompts:
@@ -187,7 +288,7 @@ def validate_image_grid_prompt_readiness(
 
     for grid in grids:
         prompt = str(grid.get("prompt") or "").strip()
-        if len(prompt) < 600:
+        if len(prompt) < 420:
             raise ValueError(f"image_grid_prompt too short for grid {grid.get('grid_number')}")
         for position in GRID_PANEL_POSITIONS:
             if f"Position: {position}" not in prompt:

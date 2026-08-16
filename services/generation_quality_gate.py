@@ -164,6 +164,18 @@ def validate_generation_package(
     script = _text(payload.get("script"))
     metadata = payload.get("publish_metadata") if isinstance(payload.get("publish_metadata"), Mapping) else {}
     category = _text(category or payload.get("category"))
+    script_quality = payload.get("script_quality_report")
+
+    if not isinstance(script_quality, Mapping):
+        errors.append("missing script_quality_report")
+    else:
+        verdict = _text(script_quality.get("verdict")).lower()
+        try:
+            score = int(float(script_quality.get("score") or 0))
+        except (TypeError, ValueError):
+            score = 0
+        if verdict != "pass" or score < 78:
+            errors.append(f"script_quality_report not passing: verdict={verdict or 'missing'}, score={score}")
 
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")
@@ -194,30 +206,19 @@ def validate_generation_package(
         if re.search("|".join(re.escape(term) for term in _ECONOMY_TERMS), context_blob, re.I):
             errors.append("off-category economy contamination detected for old-story category")
 
-    image_prompts: list[tuple[str, str]] = []
     video_prompts: list[tuple[str, str]] = []
     for fallback_number, scene in enumerate(scenes, start=1):
         if not isinstance(scene, Mapping):
             errors.append(f"scene {fallback_number} is not an object")
             continue
         label = str(_scene_number(scene, fallback_number))
-        image_prompt = _text(scene.get("image_prompt"))
         video_prompt = _text(scene.get("video_prompt"))
-        image_prompts.append((label, image_prompt))
         video_prompts.append((label, video_prompt))
 
         if scene.get("media_prompt_status") != "ready":
             errors.append(f"scene {label} media_prompt_status is not ready")
-        if len(image_prompt) < DEFAULT_MIN_IMAGE_PROMPT_CHARS:
-            errors.append(f"scene {label} image_prompt too short/missing")
         if len(video_prompt) < DEFAULT_MIN_VIDEO_PROMPT_CHARS:
             errors.append(f"scene {label} video_prompt too short/missing")
-        if any(marker.lower() in image_prompt.lower() for marker in _SCRATCH_IMAGE_MARKERS):
-            errors.append(f"scene {label} image_prompt contains generic/fallback marker")
-        image_lower = image_prompt.lower()
-        for required in ("no text", "no words", "no letters", "no watermarks", "no captions"):
-            if required not in image_lower:
-                errors.append(f"scene {label} image_prompt missing guardrail: {required}")
         video_lower = video_prompt.lower()
         movement_count = sum(1 for movement in APPROVED_VIDEO_CAMERA_MOVEMENTS if movement in video_lower)
         if movement_count != 1:
@@ -226,7 +227,6 @@ def validate_generation_package(
             if required not in video_lower:
                 errors.append(f"scene {label} video_prompt missing guardrail: {required}")
 
-    errors.extend(_duplicate_or_near_duplicate_errors(image_prompts, "image_prompt"))
     errors.extend(_duplicate_or_near_duplicate_errors(video_prompts, "video_prompt"))
 
     try:

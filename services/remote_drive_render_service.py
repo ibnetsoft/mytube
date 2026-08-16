@@ -302,4 +302,42 @@ class RemoteDriveRenderService:
                     pass
 
 
+    def enqueue_voicebox_tts(self, project_id: int, tts_spec: dict):
+        """[Voicebox TTS] 워커 render_audio 잡 제출.
+
+        remote_render_queue 행의 metadata JSONB 에 TTS 스펙을 실어 보낸다 -
+        auth-web 클레임 라우트가 워커에 metadata 컬럼만 전달하기 때문
+        (app/api/internal/worker/jobs/claim/route.ts 참조).
+        Drive 에셋 업로드가 필요 없다는 점이 render_video 와 다르다.
+        """
+        project = db.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project not found: {project_id}")
+
+        task_id = str(uuid.uuid4())
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        payload = {
+            "id": task_id,
+            "job_type": "render_audio",
+            "project_id": int(project_id),
+            "project_name": project.get("name") or f"Project {project_id}",
+            "email": auth_service.get_user_email() or project.get("employee_email") or "unknown",
+            "status": "pending",
+            "progress": 0,
+            "message": "Voicebox TTS 워커 대기 중.",
+            "render_mode": "voicebox_tts",
+            "metadata": {
+                "queue_scope": "voicebox_tts",
+                "job_stage": "pending",
+                "source": "picadilly_local_app",
+                "voicebox_tts": tts_spec,
+            },
+            "updated_at": now,
+        }
+        row = self._post_queue_row(payload)
+
+        db.update_project_setting(project_id, "voicebox_task_id", task_id)
+        return {"task_id": task_id, "queue_row": row}
+
+
 remote_drive_render_service = RemoteDriveRenderService()

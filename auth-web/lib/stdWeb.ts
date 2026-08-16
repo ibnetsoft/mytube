@@ -61,10 +61,6 @@ export function firstText(...values: any[]): string {
     return values.map((value) => String(value || '').trim()).find(Boolean) || ''
 }
 
-export function sceneImagePrompt(scene: any): string {
-    return firstText(scene?.image_prompt, scene?.prompt_en, scene?.visual_prompt, scene?.visual_description)
-}
-
 export function sceneVideoPrompt(scene: any): string {
     return firstText(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
 }
@@ -116,18 +112,14 @@ export function topicHasReadyScenePrompts(topic: any): boolean {
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
     if (topic?.pregenerated_structure_status !== 'ready' || scenes.length === 0) return false
     if (String(structure?.media_prompt_status || '') !== 'ready') return false
-    const seenImagePrompts = new Set<string>()
     const seenVideoPrompts = new Set<string>()
     const scenesReady = scenes.every((scene: any) => {
-        const imagePrompt = sceneImagePrompt(scene)
         const videoPrompt = sceneVideoPrompt(scene)
-        if (!imagePrompt || !videoPrompt) return false
-        if (seenImagePrompts.has(imagePrompt) || seenVideoPrompts.has(videoPrompt)) return false
-        seenImagePrompts.add(imagePrompt)
+        if (!videoPrompt) return false
+        if (seenVideoPrompts.has(videoPrompt)) return false
         seenVideoPrompts.add(videoPrompt)
         return (
         String(scene?.media_prompt_status || '') === 'ready'
-            && imagePrompt
             && videoPrompt
         )
     })
@@ -166,13 +158,13 @@ export function buildStdScenes(topic: any) {
                     scene?.visual_description,
                     scene?.description
                 ),
-                image_prompt: sceneImagePrompt(scene),
+                image_prompt: '',
                 video_prompt: sceneVideoPrompt(scene),
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }
         })
-        .filter((scene: any) => scene.image_prompt && scene.video_prompt)
+        .filter((scene: any) => scene.video_prompt)
 }
 
 export function buildStdImageGridPrompts(topic: any) {

@@ -1083,6 +1083,58 @@ class TTSService:
         
         return await self.generate_edge_tts(text, target_voice, rate_str, filename)
 
+    async def generate_voicebox(
+        self,
+        text: str,
+        voice_ref: Optional[str] = None,
+        filename: str = "voicebox_tts.mp3",
+        engine: Optional[str] = None,
+        language: str = "ko",
+        speed: float = 1.0,
+        seed: Optional[int] = None,
+    ) -> dict:
+        """
+        Voicebox 로컬 TTS 서버로 음성 생성 (ElevenLabs 대안, docs.voicebox.sh)
+
+        voice_ref 형식:
+          - "profile:<id>"               기존 Voicebox 프로필
+          - "preset:<engine>:<voice_id>" 프리셋 보이스 (프로필 자동 생성)
+          - None/빈 값                    기본 프로필/프리셋으로 폴백
+
+        반환 계약은 generate_elevenlabs 와 동일:
+          {"audio_path": MP3 경로, "alignment": [], "duration": 초,
+           "engine": ..., "profile_id": ...}
+        (Voicebox는 워드 얼라인먼트를 제공하지 않으므로 alignment는 빈 리스트)
+        """
+        from services.voicebox_client import (
+            voicebox_client,
+            wav_bytes_to_mp3,
+            audio_duration_seconds,
+        )
+
+        resolved = await voicebox_client.resolve_voice_ref(
+            voice_ref, default_engine=engine, language=language
+        )
+        wav_bytes = await voicebox_client.generate_stream(
+            text,
+            resolved["profile_id"],
+            engine=resolved["engine"],
+            language=language,
+            seed=seed,
+        )
+
+        # generate_elevenlabs 와 동일 규약: filename 이 절대경로면 그대로 사용
+        output_path = filename if os.path.isabs(filename) else os.path.join(self.output_dir, filename)
+        wav_bytes_to_mp3(wav_bytes, output_path, speed)
+
+        return {
+            "audio_path": output_path,
+            "alignment": [],
+            "duration": audio_duration_seconds(output_path),
+            "engine": resolved["engine"],
+            "profile_id": resolved["profile_id"],
+        }
+
     def _split_text(self, text: str, max_chars: int) -> list:
         """텍스트를 문장 단위로 분할"""
         if len(text) <= max_chars:

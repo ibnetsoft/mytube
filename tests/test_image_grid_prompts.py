@@ -2,6 +2,7 @@ import json
 
 from app.routers import image, user_topics
 from services.image_grid_prompts import (
+    build_compact_image_grid_prompts,
     build_image_grid_prompts,
     normalize_image_grid_prompts,
     validate_image_grid_prompt_readiness,
@@ -38,6 +39,39 @@ def test_grid_prompts_cover_scene_53_with_final_last_four_window():
     assert len(grids) == 14
     assert grids[-2]["scene_numbers"] == [49, 50, 51, 52]
     assert grids[-1]["scene_numbers"] == [50, 51, 52, 53]
+
+
+def test_compact_grid_prompts_use_panel_briefs_instead_of_full_scene_prompts():
+    scenes = _scenes(4)
+    for scene in scenes:
+        scene["image_prompt"] = scene["image_prompt"] + " " + ("full scene detail " * 80)
+    composed = build_image_grid_prompts(scenes)[0]["prompt"]
+    compact = build_compact_image_grid_prompts([
+        {
+            "grid_number": 1,
+            "scene_numbers": [1, 2, 3, 4],
+            "shared_style": "Consistent character design, wardrobe, lighting, palette, and camera language.",
+            "panels": [
+                {
+                    "scene_number": number,
+                    "scene_id": f"scene{number:03d}",
+                    "position": position,
+                    "panel_prompt": f"Scene {number}: a concise unique action beat with subject, setting, emotion, and one prop.",
+                }
+                for number, position in zip(
+                    range(1, 5),
+                    ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                )
+            ],
+        }
+    ])[0]
+
+    assert compact["template"] == "strict_2x2_compact_v1"
+    assert compact["scene_numbers"] == [1, 2, 3, 4]
+    assert len(compact["prompt"]) < len(composed)
+    assert compact["prompt"].count("Negative guardrails") == 1
+    assert "full scene detail" not in compact["prompt"]
+    validate_image_grid_prompt_readiness(scenes, [compact], status="ready", require_status="ready")
 
 
 def test_validate_grid_prompts_requires_tail_coverage():

@@ -17,7 +17,7 @@ from typing import List, Optional
 import database as db
 from config import config
 from services.auth_service import auth_service
-from services.image_grid_prompts import build_image_grid_prompts, normalize_image_grid_prompts
+from services.image_grid_prompts import normalize_image_grid_prompts
 
 router = APIRouter(tags=["User Topics"])
 _TOPIC_TRANSLATION_CACHE: dict[tuple[str, str, str], str] = {}
@@ -53,15 +53,6 @@ def _first_text(*values) -> str:
     return ""
 
 
-def _scene_image_prompt(scene: dict) -> str:
-    return _first_text(
-        scene.get("image_prompt"),
-        scene.get("prompt_en"),
-        scene.get("visual_prompt"),
-        scene.get("visual_description"),
-    )
-
-
 def _scene_video_prompt(scene: dict) -> str:
     return _first_text(
         scene.get("video_prompt"),
@@ -79,9 +70,12 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
         return False
     if structure.get("media_prompt_status") != "ready":
         return False
+    if structure.get("image_grid_prompt_status") != "ready":
+        return False
+    if not normalize_image_grid_prompts(structure.get("image_grid_prompts")):
+        return False
     return all(
         scene.get("media_prompt_status") == "ready"
-        and _scene_image_prompt(scene)
         and _scene_video_prompt(scene)
         for scene in scenes
         if isinstance(scene, dict)
@@ -149,14 +143,13 @@ def _image_prompts_from_pregenerated_structure(structure: dict) -> list[dict]:
             scene.get("description"),
             scene_title,
         )
-        image_prompt = _scene_image_prompt(scene)
         video_prompt = _scene_video_prompt(scene)
         prompts.append({
             "scene_number": scene_number,
             "scene_title": scene_title,
             "scene_text": scene_text,
             "prompt_ko": scene_text,
-            "prompt_en": image_prompt,
+            "prompt_en": "",
             "motion_desc": video_prompt,
             "flow_prompt": video_prompt,
             "visual_style": scene.get("visual_style") or "",
@@ -172,8 +165,7 @@ def _image_grid_prompts_from_pregenerated_structure(structure: dict) -> list[dic
     saved_grids = normalize_image_grid_prompts(structure.get("image_grid_prompts"))
     if saved_grids:
         return saved_grids
-    scenes = structure.get("scenes")
-    return build_image_grid_prompts(scenes if isinstance(scenes, list) else [])
+    return []
 
 
 def _copy_prepared_topic_assets_to_project(project_id: int, topic_data: dict, normalized: dict | None = None) -> None:

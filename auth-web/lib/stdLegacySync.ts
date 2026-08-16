@@ -94,8 +94,8 @@ function buildProjectPayload(project: any, scenes: any[], assets: any[]) {
         const video = sceneAssetsFor(assets, scene.scene_number, 'video')[0]
         return {
             scene_number: scene.scene_number,
-            prompt: scene.image_prompt || '',
-            image_prompt: scene.image_prompt || '',
+            prompt: '',
+            image_prompt: '',
             video_prompt: scene.video_prompt || '',
             image_url: image?.drive_file_id ? driveFileLink(image.drive_file_id) : null,
             video_url: video?.drive_file_id ? driveFileLink(video.drive_file_id) : null,

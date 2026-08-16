@@ -20,7 +20,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 
 import job_store
-from worker_config import STATE_DIR, OUTPUT_DIR
+from worker_config import STATE_DIR, OUTPUT_DIR, PROJECT_ROOT
 import logging
 from services import ai_router
 
@@ -105,6 +105,7 @@ class HermesAutopilotManager:
             "benchmark_channel_discovery_interval_hours": 24,
             "benchmark_channel_discovery_max_search_calls": 1,
             "benchmark_channel_discovery_last_at": {},
+            "target_duration_seconds_by_category": {},
             "force_generate": False,
             "quality_max_attempts": 3,
         }
@@ -216,6 +217,8 @@ class HermesAutopilotManager:
                 self.settings[k] = self._normalize_benchmark_channel_settings(v)
             elif k == "benchmark_channel_discovery_last_at":
                 self.settings[k] = self._normalize_category_timestamp_settings(v)
+            elif k == "target_duration_seconds_by_category":
+                self.settings[k] = self._normalize_category_duration_settings(v)
             else:
                 self.settings[k] = v
 
@@ -227,6 +230,9 @@ class HermesAutopilotManager:
         )
         self.settings["benchmark_channel_discovery_last_at"] = self._normalize_category_timestamp_settings(
             self.settings.get("benchmark_channel_discovery_last_at", {})
+        )
+        self.settings["target_duration_seconds_by_category"] = self._normalize_category_duration_settings(
+            self.settings.get("target_duration_seconds_by_category", {})
         )
         try:
             self.settings["target_limit"] = max(1, min(100, int(self.settings.get("target_limit", 1))))
@@ -298,6 +304,169 @@ class HermesAutopilotManager:
                 normalized[category] = timestamp
         return normalized
 
+    def _normalize_category_duration_settings(self, value) -> dict:
+        if not isinstance(value, dict):
+            return {}
+        normalized = {}
+        for category in CATEGORIES:
+            try:
+                seconds = int(value.get(category) or 0)
+            except (TypeError, ValueError):
+                seconds = 0
+            if seconds > 0:
+                normalized[category] = max(300, min(1800, seconds))
+        return normalized
+
+    def _target_duration_seconds_for_category(self, category: str) -> int:
+        durations = self.settings.get("target_duration_seconds_by_category") or {}
+        try:
+            return int(durations.get(category) or 900)
+        except (TypeError, ValueError):
+            return 900
+
+    def _merge_channel_ids(self, *groups: list[str]) -> list[str]:
+        merged = []
+        for group in groups:
+            for item in group or []:
+                channel_id = str(item or "").strip()
+                if channel_id and channel_id not in merged:
+                    merged.append(channel_id)
+        return merged[:30]
+
+    def _load_local_benchmark_channels(self, category: str) -> list[str]:
+        paths = [
+            PROJECT_ROOT / "data" / "youtube_benchmark_channels.json",
+            PROJECT_ROOT / "worker" / "youtube_benchmark_channels.json",
+        ]
+        keys = [category, str(category or "").casefold(), "default", "*"]
+        for path in paths:
+            if not path.exists():
+                continue
+            try:
+                parsed = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                self.add_log(f"로컬 벤치마크 채널 풀 읽기 실패({path.name}): {exc}")
+                continue
+            if isinstance(parsed, dict):
+                for key in keys:
+                    value = parsed.get(key)
+                    if isinstance(value, list):
+                        channel_ids = self._merge_channel_ids(value)
+                        if channel_ids:
+                            return channel_ids
+                    elif isinstance(value, str):
+                        channel_ids = self._merge_channel_ids(re.split(r"[\s,;]+", value))
+                        if channel_ids:
+                            return channel_ids
+            elif isinstance(parsed, list):
+                channel_ids = self._merge_channel_ids(parsed)
+                if channel_ids:
+                    return channel_ids
+        return []
+
+    async def _fetch_remote_benchmark_channels(self, supabase_url: str, headers: dict, category: str) -> list[str]:
+        if not supabase_url or not headers.get("apikey") or not category:
+            return []
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{supabase_url}/rest/v1/benchmark_channel_pool",
+                    headers=headers,
+                    params={
+                        "select": "channel_id",
+                        "category_name": f"eq.{category}",
+                        "active": "eq.true",
+                        "order": "last_seen_at.desc",
+                        "limit": "30",
+                    },
+                )
+            if response.status_code == 404:
+                self.add_log("Supabase benchmark_channel_pool 테이블이 아직 없습니다. 로컬 채널 캐시를 사용합니다.")
+                return []
+            if response.status_code != 200:
+                self.add_log(f"Supabase 채널 풀 조회 실패(status={response.status_code}): {response.text[:160]}")
+                return []
+            return self._merge_channel_ids([row.get("channel_id") for row in response.json() or []])
+        except Exception as exc:
+            self.add_log(f"Supabase 채널 풀 조회 실패(무시): {exc}")
+            return []
+
+    async def _upsert_remote_benchmark_channels(
+        self,
+        supabase_url: str,
+        headers: dict,
+        category: str,
+        channel_ids: list[str],
+        *,
+        source: str = "auto",
+        discovery_query: str = "",
+    ) -> None:
+        channel_ids = self._merge_channel_ids(channel_ids)
+        if not supabase_url or not headers.get("apikey") or not category or not channel_ids:
+            return
+        now_iso = datetime.utcnow().isoformat() + "Z"
+        allowed_source = source if source in {"auto", "manual", "local_sync", "import"} else "auto"
+        rows = [
+            {
+                "category_name": category,
+                "channel_id": channel_id,
+                "source": allowed_source,
+                "discovery_query": discovery_query or None,
+                "active": True,
+                "last_seen_at": now_iso,
+                "updated_at": now_iso,
+            }
+            for channel_id in channel_ids
+        ]
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{supabase_url}/rest/v1/benchmark_channel_pool",
+                    headers={
+                        **headers,
+                        "Prefer": "resolution=merge-duplicates,return=minimal",
+                    },
+                    params={"on_conflict": "category_name,channel_id"},
+                    json=rows,
+                )
+            if response.status_code == 404:
+                self.add_log("Supabase benchmark_channel_pool 테이블이 없어 채널 풀 원격 저장을 건너뜁니다.")
+                return
+            if response.status_code not in (200, 201, 204):
+                self.add_log(f"Supabase 채널 풀 저장 실패(status={response.status_code}): {response.text[:160]}")
+                return
+            self.add_log(f"Supabase 채널 풀 저장 완료: {category} {len(channel_ids)}개")
+        except Exception as exc:
+            self.add_log(f"Supabase 채널 풀 저장 실패(무시): {exc}")
+
+    async def _mark_remote_benchmark_channels_used(
+        self,
+        supabase_url: str,
+        headers: dict,
+        category: str,
+        channel_ids: list[str],
+    ) -> None:
+        channel_ids = self._merge_channel_ids(channel_ids)
+        if not supabase_url or not headers.get("apikey") or not category or not channel_ids:
+            return
+        quoted_ids = ",".join(channel_ids)
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.patch(
+                    f"{supabase_url}/rest/v1/benchmark_channel_pool",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    params={
+                        "category_name": f"eq.{category}",
+                        "channel_id": f"in.({quoted_ids})",
+                    },
+                    json={
+                        "last_used_at": datetime.utcnow().isoformat() + "Z",
+                        "updated_at": datetime.utcnow().isoformat() + "Z",
+                    },
+                )
+        except Exception:
+            pass
+
     def _should_discover_benchmark_channels(self, category: str, existing_channel_ids: list[str]) -> bool:
         if not self.settings.get("benchmark_channel_auto_discovery_enabled", True):
             return False
@@ -316,7 +485,10 @@ class HermesAutopilotManager:
         category: str,
         benchmark_keywords: list[str],
         existing_channel_ids: list[str],
+        supabase_url: str = "",
+        headers: dict | None = None,
     ) -> list[str]:
+        headers = headers or {}
         existing = list(existing_channel_ids or [])
         if not self._should_discover_benchmark_channels(category, existing):
             return existing
@@ -336,10 +508,12 @@ class HermesAutopilotManager:
             f"(현재 {len(existing)}개, 목표 {self.settings.get('benchmark_channel_discovery_min_channels')}개)"
         )
         discovered = []
+        discovery_query = ""
         attempted = False
         try:
             from services.youtube_data_api import async_youtube_get
             for query in queries:
+                discovery_query = discovery_query or query
                 attempted = True
                 data = await async_youtube_get(
                     "search",
@@ -385,6 +559,14 @@ class HermesAutopilotManager:
         self.settings["benchmark_channel_ids_by_category"] = channel_map
         self._save_state()
         self.add_log(f"채널 풀 자동 업데이트 완료: {category} {len(existing)}개 -> {len(channel_map[category])}개")
+        await self._upsert_remote_benchmark_channels(
+            supabase_url,
+            headers,
+            category,
+            discovered,
+            source="auto",
+            discovery_query=discovery_query,
+        )
         return channel_map[category]
 
     @staticmethod
@@ -400,8 +582,6 @@ class HermesAutopilotManager:
             if not isinstance(scene, dict):
                 return False
             if scene.get("media_prompt_status") != "ready":
-                return False
-            if not str(scene.get("image_prompt") or "").strip():
                 return False
             if not str(scene.get("video_prompt") or "").strip():
                 return False
@@ -503,6 +683,10 @@ class HermesAutopilotManager:
             if not resume:
                 self.session_stats["generated_count"] = 0
                 self.last_completed_result_id = ""
+                self.current_category = ""
+                self.current_topic = ""
+                self.current_topic_queue_id = ""
+                self.current_image_style = ""
             self.last_run_status = "running"
             self.last_error = ""
             self.is_running = True
@@ -594,7 +778,15 @@ class HermesAutopilotManager:
 
     def _clean_title_text(self, value: str) -> str:
         text = re.sub(r"\s+", " ", str(value or "")).strip()
-        text = text.strip("\"'`“”‘’[](){}")
+        wrapping_pairs = [('"', '"'), ("'", "'"), ("`", "`"), ("“", "”"), ("‘", "’"), ("[", "]"), ("(", ")"), ("{", "}")]
+        changed = True
+        while changed and len(text) >= 2:
+            changed = False
+            for opening, closing in wrapping_pairs:
+                if text.startswith(opening) and text.endswith(closing):
+                    text = text[len(opening):-len(closing)].strip()
+                    changed = True
+                    break
         return re.sub(r"^\s*(?:\d+[\).\-\s]+|[-*]+\s*)", "", text).strip()
 
     def _title_similarity(self, left: str, right: str) -> float:
@@ -630,6 +822,23 @@ class HermesAutopilotManager:
         return False
 
     def _is_usable_title_candidate(self, title: str, category: str) -> bool:
+        def has_balanced_quotes(value: str) -> bool:
+            checks = [
+                ('"', '"'),
+                ("'", "'"),
+                ("“", "”"),
+                ("‘", "’"),
+                ("「", "」"),
+                ("『", "』"),
+            ]
+            for opening, closing in checks:
+                if opening == closing:
+                    if value.count(opening) % 2:
+                        return False
+                elif value.count(opening) != value.count(closing):
+                    return False
+            return True
+
         normalized_title = re.sub(r"[\s\W_]+", "", (title or "").lower())
         normalized_category = re.sub(r"[\s\W_]+", "", (category or "").lower())
         hard_meta_terms = [
@@ -657,6 +866,7 @@ class HermesAutopilotManager:
             normalized_title
             and normalized_title != normalized_category
             and 12 <= len(title) <= 90
+            and has_balanced_quotes(title)
             and not self._contains_category_label(title, category)
             and not any(term.lower() in (title or "").lower() for term in hard_meta_terms)
             and not any(term in title for term in forbidden_terms)
@@ -1564,6 +1774,7 @@ Return ONLY a JSON array of strings.
                     resume_category = None
                 category = active_cats[idx % len(active_cats)]
                 idx += 1
+                self._quality_feedback = []
                 
                 # 활성 카테고리 체크
                 active_cats = self.settings.get("active_categories", CATEGORIES)
@@ -1729,13 +1940,37 @@ Return ONLY a JSON array of strings.
             (self.settings.get("benchmark_channel_ids_by_category") or {}).get(category)
             or []
         )
+        local_channel_ids = self._load_local_benchmark_channels(category)
+        if local_channel_ids:
+            benchmark_channel_ids = self._merge_channel_ids(benchmark_channel_ids, local_channel_ids)
+            self.add_log(f"로컬 벤치마크 채널 풀 적용: {category} {len(local_channel_ids)}개")
+        remote_channel_ids = await self._fetch_remote_benchmark_channels(supabase_url, headers, category)
+        if remote_channel_ids:
+            benchmark_channel_ids = self._merge_channel_ids(remote_channel_ids, benchmark_channel_ids)
+            channel_map = self._normalize_benchmark_channel_settings(
+                self.settings.get("benchmark_channel_ids_by_category") or {}
+            )
+            channel_map[category] = benchmark_channel_ids
+            self.settings["benchmark_channel_ids_by_category"] = channel_map
+            self._save_state()
+            self.add_log(f"Supabase 채널 풀 적용: {category} 원격 {len(remote_channel_ids)}개 병합")
         benchmark_channel_ids = await self._auto_discover_benchmark_channels(
             category,
             benchmark_keywords,
             benchmark_channel_ids,
+            supabase_url,
+            headers,
         )
         if benchmark_channel_ids:
             self.add_log(f"벤치마크 채널 RSS 풀 적용: {category} 채널 {len(benchmark_channel_ids)}개")
+            await self._upsert_remote_benchmark_channels(
+                supabase_url,
+                headers,
+                category,
+                benchmark_channel_ids,
+                source="local_sync",
+            )
+            await self._mark_remote_benchmark_channels_used(supabase_url, headers, category, benchmark_channel_ids)
         else:
             self.add_log(
                 f"⚠️ {category} 벤치마크 채널 풀을 확보하지 못했습니다. "
@@ -1958,12 +2193,13 @@ Return ONLY a JSON array of strings.
         self.current_step = "대본 구조 및 씬 기획"
         self.add_log(f"카테고리 '{category}', 제목 '{generated_title}'의 씬 구조(Scene Plan) 생성 시작...")
         
+        target_duration_seconds = self._target_duration_seconds_for_category(category)
         plan_job_id = job_store.submit_job(
             job_type="script_plan_generate",
             payload={
                 "topic_queue_id": topic_queue_id,
                 "topic": generated_title,
-                "target_duration_seconds": 900,
+                "target_duration_seconds": target_duration_seconds,
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
@@ -2019,7 +2255,7 @@ Return ONLY a JSON array of strings.
                 "topic_queue_id": topic_queue_id,
                 "topic": generated_title,
                 "structure": structure,
-                "target_duration_seconds": 900,
+                "target_duration_seconds": target_duration_seconds,
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
