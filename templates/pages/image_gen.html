@@ -519,6 +519,10 @@
                 && Array.isArray(grid.scene_numbers) && grid.scene_numbers.length === 4)
             : [];
     }
+
+    function hasSavedImageGridPrompts() {
+        return Array.isArray(imageGridPrompts) && imageGridPrompts.length > 0;
+    }
     window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
     window.userMembership = "{{ membership }}"; // 'std' | 'pro'
 
@@ -1563,6 +1567,7 @@
             const scriptEnd = p.script_end || '';
             const rawPromptChar = p.prompt_char || '';
             const rawPromptBg = p.prompt_bg || '';
+            const hideSceneImagePromptEditor = hasSavedImageGridPrompts();
 
             const words = rawSceneText.split(/\s+/);
             const firstText = words.slice(0, 10).join(' ') + (words.length > 10 ? '...' : '');
@@ -1760,7 +1765,7 @@
                         </div>
 
                         <!-- 🖼️ 격자용 프롬프트 (DALL-E 3용) -->
-                        <div class="grid grid-cols-12 gap-2 items-start">
+                        <div class="grid grid-cols-12 gap-2 items-start ${hideSceneImagePromptEditor ? 'hidden' : ''}">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                     ${window.currentLang === 'vi' ? '🖼️ Prompt video' : window.currentLang === 'th' ? '🖼️ พรอมต์วิดีโอ' : window.currentLang === 'en' ? '🖼️ Video Prompt' : '🖼️ 영상 프롬프트'}
@@ -2527,7 +2532,7 @@
                 prompt: String(grid.prompt || grid.grid_prompt || '').trim(),
             }));
         }
-        return buildFallbackImageGridPrompts(sceneData);
+        return [];
     }
 
     function showGridPromptsModal() {

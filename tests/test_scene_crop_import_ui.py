@@ -33,6 +33,15 @@ def test_image_page_keeps_the_two_by_two_crop_controls_and_saved_grid_display():
     assert "getImageGridPromptsForDisplay" in source
 
 
+def test_image_page_does_not_fallback_to_scene_image_prompt_composition():
+    source = IMAGE_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "function hasSavedImageGridPrompts()" in source
+    assert "return buildFallbackImageGridPrompts(sceneData);" not in source
+    assert "return [];" in source
+    assert "hideSceneImagePromptEditor ? 'hidden' : ''" in source
+
+
 def test_scene_review_links_to_project_aware_crop_page():
     source = IMAGE_TEMPLATE.read_text(encoding="utf-8")
 
