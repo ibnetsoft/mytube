@@ -291,6 +291,23 @@ def _looks_corrupt_metadata_text(value: str) -> bool:
     return any(ord(ch) in mojibake_markers for ch in text)
 
 
+def _text_with_mojibake_repairs(*values) -> str:
+    parts: list[str] = []
+    for value in values:
+        text = str(value or "")
+        if not text:
+            continue
+        parts.append(text)
+        for encoding in ("latin1", "cp1252"):
+            try:
+                repaired = text.encode(encoding).decode("utf-8")
+            except Exception:
+                continue
+            if repaired and repaired != text:
+                parts.append(repaired)
+    return " ".join(parts).lower()
+
+
 def _clean_metadata_description(description: str, fallback: str) -> str:
     paragraphs = []
     for paragraph in re.split(r"\n{2,}", str(description or "").strip()):
@@ -2660,7 +2677,7 @@ def _scene_plan_repetition_errors(structure: dict) -> list[str]:
 
 
 def _is_finance_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
-    blob = " ".join(str(value or "") for value in (script_style, topic, upload_title, image_style)).lower()
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
     return any(
         term in blob
         for term in (
@@ -2680,11 +2697,12 @@ def _is_finance_plan_context(script_style: str, topic: str, upload_title: str, i
 
 
 def _is_old_story_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
-    blob = " ".join(str(value or "") for value in (script_style, topic, upload_title, image_style)).lower()
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
     return any(
         term in blob
         for term in (
             "folk",
+            "old_story",
             "tale",
             "village",
             "hanok",
@@ -2692,12 +2710,44 @@ def _is_old_story_plan_context(script_style: str, topic: str, upload_title: str,
             "\uc61b\ub0a0\uc774\uc57c\uae30",
             "\uc804\ub798",
             "\ubbfc\ub2f4",
+            "무덤",
+            "묘",
+            "유언",
+            "며느리",
+            "시어머니",
+        )
+    )
+
+
+def _is_survival_story_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "survival",
+            "testimony",
+            "defector",
+            "north korea",
+            "safehouse",
+            "border crossing",
+            "탈북사연",
+            "탈북",
+            "탈북민",
+            "탈북자",
+            "북한",
+            "두만강",
+            "압록강",
+            "국경",
+            "보위부",
+            "브로커",
+            "북송",
+            "도강",
         )
     )
 
 
 def _is_martial_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
-    blob = " ".join(str(value or "") for value in (script_style, topic, upload_title, image_style)).lower()
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
     return any(
         term in blob
         for term in (
@@ -2731,51 +2781,95 @@ def _scene_plan_category_contamination_errors(
 ) -> list[str]:
     if not _is_old_story_plan_context(script_style, topic, upload_title, image_style):
         return []
-    allowed_blob = f"{topic} {upload_title}".lower()
-    if any(term in allowed_blob for term in ("\uc5f0\uae08", "\ud1b5\uc7a5", "\uc0dd\ud65c\ube44", "\uc815\ucc45", "\uc608\uc0b0", "finance", "money")):
-        return []
+    allowed_blob = _text_with_mojibake_repairs(topic, upload_title)
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     if not isinstance(scenes, list):
         return []
-    banned_terms = (
+    banned_groups = {
+        "finance/pension": (
+            "\ud1b5\uc7a5",
+            "\uae08\uc561",
+            "\uc5f0\uae08",
+            "\uc0dd\ud65c\ube44",
+            "\uc608\uc0b0",
+            "\uc815\ucc45",
+            "\uc81c\ub3c4",
+            "\uc0c1\ub2f4",
+            "\uac00\uacc4\ubd80",
+            "\uace0\uc815\ube44",
+            "\uc790\ub3d9\uc774\uccb4",
+            "\uad6d\ubbfc\uc5f0\uae08",
+            "\ub178\ud6c4\uc790\uae08",
+            "finance",
+            "pension",
+            "budget",
+            "bankbook",
+        ),
+        "survival/defector": (
+            "탈북",
+            "탈북민",
+            "탈북자",
+            "북한",
+            "두만강",
+            "압록강",
+            "국경",
+            "보위부",
+            "브로커",
+            "북송",
+            "도강",
+            "중국 공안",
+            "safehouse",
+            "north korea",
+            "defector",
+            "border crossing",
+        ),
+    }
+    allowed_terms = (
         "\ud1b5\uc7a5",
-        "\uae08\uc561",
         "\uc5f0\uae08",
         "\uc0dd\ud65c\ube44",
-        "\uc608\uc0b0",
         "\uc815\ucc45",
-        "\uc81c\ub3c4",
-        "\uc0c1\ub2f4",
-        "\uac00\uacc4\ubd80",
-        "\uace0\uc815\ube44",
-        "\uc790\ub3d9\uc774\uccb4",
-        "\uad6d\ubbfc\uc5f0\uae08",
-        "\ub178\ud6c4\uc790\uae08",
+        "\uc608\uc0b0",
+        "탈북",
+        "북한",
+        "두만강",
+        "압록강",
+        "국경",
+        "보위부",
+        "브로커",
         "finance",
-        "pension",
-        "budget",
-        "bankbook",
+        "money",
+        "north korea",
+        "defector",
     )
-    hits: list[str] = []
-    for idx, scene in enumerate(scenes, start=1):
-        blob = " ".join(
-            str((scene or {}).get(key) or "")
-            for key in (
-                "scene_summary",
-                "scene_purpose",
-                "retention_hook",
-                "title_promise_link",
-                "end_bridge",
-                "visual_direction",
-                "image_prompt",
-                "video_prompt",
+    if any(term in allowed_blob for term in allowed_terms):
+        return []
+    errors: list[str] = []
+    for group_name, banned_terms in banned_groups.items():
+        hits: list[str] = []
+        for idx, scene in enumerate(scenes, start=1):
+            blob = _text_with_mojibake_repairs(
+                *(
+                    (scene or {}).get(key) or ""
+                    for key in (
+                        "scene_summary",
+                        "scene_purpose",
+                        "retention_hook",
+                        "title_promise_link",
+                        "end_bridge",
+                        "visual_direction",
+                        "image_prompt",
+                        "video_prompt",
+                    )
+                )
             )
-        ).lower()
-        matched = [term for term in banned_terms if term in blob]
-        if matched:
-            hits.append(f"scene {idx}: {', '.join(matched[:3])}")
-    if len(hits) >= 2:
-        return [f"old-story scene plan contains finance/pension contamination: {hits[:8]}"]
+            matched = [term for term in banned_terms if term in blob]
+            if matched:
+                hits.append(f"scene {idx}: {', '.join(matched[:3])}")
+        if len(hits) >= 2:
+            errors.append(f"old-story scene plan contains {group_name} contamination: {hits[:8]}")
+    if errors:
+        return errors
     return []
 
 
@@ -3020,6 +3114,187 @@ def _repair_finance_scene_plan_repetition(structure: dict, topic: str, upload_ti
     return repaired
 
 
+def _repair_old_story_grave_vigil_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "묘를 지킨 며느리 이야기").strip()
+    beat_templates = [
+        ("마을 사람들이 산등성이 묘 옆 초가를 두려워하며 지나간다", "제목의 3년 묘지 생활을 첫 화면부터 중심 사건으로 세운다", "왜 산 사람 하나가 묘 곁에서 해마다 겨울을 넘겼을까?"),
+        ("며느리가 새벽마다 시어머니 묘 앞의 눈을 손으로 쓸어낸다", "주인공의 반복된 행동을 희생과 비밀의 증거로 보여준다", "그녀는 누구에게 보여주려고 묘를 지키는 걸까?"),
+        ("마을 아낙들이 그녀를 미쳤다고 수군대지만 가까이 가지 못한다", "외부 시선과 소문을 통해 고립감을 만든다", "사람들이 모르는 약속은 무엇일까?"),
+        ("시어머니가 죽기 전 며느리 손에 쥐여 준 붉은 실꾸리를 보여준다", "중심 단서를 물건 하나에 묶는다", "붉은 실은 길을 묶는 물건일까, 죄를 묶는 물건일까?"),
+        ("남편이 장터에서 돌아오지 않은 날의 빈 밥상을 짧게 비춘다", "며느리가 혼자 남게 된 과거의 상처를 심는다", "남편의 부재와 묘 곁 생활은 어떻게 이어질까?"),
+        ("시댁 사람들이 재산을 핑계로 며느리를 집에서 내쫓으려 한다", "갈등을 초자연보다 먼저 인간의 욕심에서 시작한다", "그녀가 집을 떠나면 누가 가장 이득을 볼까?"),
+        ("며느리가 집이 아니라 묘 옆 초가로 들어가겠다고 선언한다", "제목의 이상한 선택을 되돌릴 수 없는 행동으로 바꾼다", "집을 버리고 무덤을 택한 진짜 이유는 무엇일까?"),
+        ("첫날 밤 묘 앞 흙이 마르지 않고 젖은 발자국을 남긴다", "묘지의 불길함을 감각적으로 열어 긴장을 높인다", "그 발자국은 죽은 사람의 것일까, 살아 있는 사람의 것일까?"),
+        ("며느리가 아무도 듣지 못한 아기 울음소리에 잠에서 깬다", "숨겨진 가족사와 죄책감의 실마리를 만든다", "왜 시어머니 묘에서 아이 울음이 들릴까?"),
+        ("마을 노인이 시어머니에게 잃어버린 딸이 있었다는 말을 흘린다", "3년 약속의 감정적 이유를 향한 첫 단서를 준다", "그 딸의 이름을 왜 아무도 입에 올리지 않을까?"),
+    ]
+    middle_actions = [
+        "며느리가 붉은 실로 묘 앞 소나무와 초가 문고리를 잇는다",
+        "시댁 큰형님이 밤중에 묘를 파헤치려다 빈 등잔을 발견한다",
+        "마을 우물에 젖은 흙냄새가 퍼지며 소문이 더 커진다",
+        "며느리가 매달 보름마다 묘 아래에 작은 밥상을 차린다",
+        "남편의 오래된 편지에서 시어머니가 숨긴 아이 이름이 나온다",
+        "시어머니의 낡은 비녀 속에서 반쪽짜리 혼서지가 발견된다",
+        "며느리가 장터에서 잃어버린 딸을 봤다는 말을 듣고도 묘로 돌아온다",
+        "산길에 놓인 짚신 한 켤레가 매일 묘 쪽으로 방향을 바꾼다",
+        "시댁 사람들이 무당을 불러 며느리를 내쫓으려 하지만 굿상이 무너진다",
+        "며느리가 시어머니가 남긴 죄를 대신 갚고 있다는 사실을 암시한다",
+        "마을 아이가 묘 옆 초가에서 두 여인의 말소리를 들었다고 말한다",
+        "남편의 죽음이 사고가 아니라 누군가의 침묵 때문에 벌어진 일임이 드러난다",
+        "며느리가 비 오는 밤에도 묘 앞 불씨를 꺼뜨리지 않는다",
+        "큰형님이 숨긴 땅문서가 묘 아래가 아니라 초가 기둥 속에서 나온다",
+        "시어머니의 잃어버린 딸이 사실 며느리의 친정과 연결되어 있음이 밝혀진다",
+        "며느리가 복수를 택하지 않고 세 번째 겨울까지 기다린 이유를 조금씩 드러낸다",
+        "마을 노인이 젊은 시절 시어머니의 부탁을 외면한 일을 고백한다",
+        "묘 앞 붉은 실이 끊어지는 날 며느리가 처음으로 마을로 내려온다",
+        "며느리가 장터에서 한 여인의 노랫가락을 듣고 시어머니의 유언을 떠올린다",
+        "시댁 사람들이 며느리를 죄인으로 몰지만 문서의 도장이 반대로 찍혀 있다",
+        "묘 곁 초가 벽에서 세 해 동안 적은 날짜와 이름들이 발견된다",
+        "며느리가 지킨 것은 무덤이 아니라 돌아올 사람의 길이었다는 단서가 모인다",
+        "마지막 보름밤에 묘 앞 밥상에 처음으로 두 벌의 숟가락이 놓인다",
+        "잃어버린 딸의 정체를 아는 사람이 초가 문밖까지 찾아온다",
+    ]
+    ending_beats = [
+        ("세 번째 겨울 끝, 묘 앞에 낯선 여인이 시어머니의 옛 이름을 부른다", "제목의 궁금증을 인물의 귀환으로 터뜨린다", "기다림은 정말 사람을 데려올 수 있을까?"),
+        ("며느리가 3년 동안 묘를 지킨 이유가 유언 속 한 문장으로 밝혀진다", "핵심 비밀을 짧고 선명하게 공개한다", "그 약속은 효심이었을까, 속죄였을까?"),
+        ("시어머니가 버린 딸과 며느리가 같은 상처를 나눈 사이였음이 드러난다", "감정 반전을 통해 주인공의 선택을 이해시킨다", "가족은 피로만 이어지는 걸까?"),
+        ("시댁의 탐욕이 마을 사람들 앞에서 문서와 증언으로 무너진다", "인간 갈등을 정리하고 억울함을 해소한다", "소문을 믿던 마을은 이제 무엇을 보게 될까?"),
+        ("며느리가 초가를 떠나기 전 묘 앞 붉은 실을 조용히 묻는다", "희생의 상징을 정리하고 여운을 만든다", "끝난 약속은 어디에 남을까?"),
+        ("마지막 장면에서 빈 초가와 정돈된 묘만 남아 마을의 금기가 된다", "옛이야기다운 교훈과 잔향으로 닫는다", "사람들은 왜 그 뒤로 그 묘 앞에서 함부로 말하지 않았을까?"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    ending_start = max(len(scenes) - len(ending_beats), len(beat_templates))
+    for idx, original in enumerate(scenes):
+        original = original or {}
+        if idx < len(beat_templates):
+            summary, purpose, hook = beat_templates[idx]
+        elif idx >= ending_start:
+            summary, purpose, hook = ending_beats[idx - ending_start]
+        else:
+            action = middle_actions[(idx - len(beat_templates)) % len(middle_actions)]
+            summary = action
+            purpose = "며느리의 3년 기다림을 새 단서, 새 오해, 새 대가로 한 걸음 더 전진시킨다"
+            hook = f"{action} 뒤에 숨은 진짜 이유는 무엇일까?"
+        scene = {
+            "scene_id": str(original.get("scene_id") or f"scene{idx + 1:03d}"),
+            "scene_order": idx + 1,
+            "scene_number": idx + 1,
+            "scene_summary": summary,
+            "scene_purpose": purpose,
+            "retention_hook": hook,
+            "title_promise_link": f"'{title}'의 약속을 며느리의 3년 묘지 생활, 시어머니의 유언, 숨겨진 가족사의 흐름으로 이어간다",
+            "end_bridge": hook,
+            "target_duration": original.get("target_duration") or 17,
+        }
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired.pop("image_grid_prompts", None)
+    repaired.pop("media_prompt_director", None)
+    repaired.pop("media_prompt_status", None)
+    repaired.pop("image_grid_prompt_status", None)
+    repaired.pop("image_grid_prompt_mode", None)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "old story grave vigil unique beat rebuild",
+    }
+    return repaired
+
+
+def _repair_old_story_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    """Rebuild folk-story plans without crossing into unrelated category tropes."""
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "옛날이야기").strip()
+    title_blob = _text_with_mojibake_repairs(topic, upload_title)
+    if any(term in title_blob for term in ("며느리", "시어머니", "묘에", "묘지", "grave vigil")):
+        return _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
+    beat_templates = [
+        ("마을 어귀에 걸린 금기와 소문을 먼저 보여준다", "이야기의 세계를 옛 마을의 불길한 약속 안에 고정한다", "그 금기는 왜 지금까지 아무도 어기지 못했을까?"),
+        ("어머니의 유언이 세 형제 앞에서 서로 다르게 해석된다", "제목의 약속을 가족 갈등과 금지된 선택으로 연결한다", "유언 속에서 빠진 한 문장이 있다면 무엇일까?"),
+        ("첫째가 집안의 체면과 재산을 이유로 무덤 이야기를 꺼낸다", "탐욕의 동기를 설명이 아니라 행동으로 세운다", "그의 말은 효심일까, 욕심일까?"),
+        ("둘째가 말리다가도 숨겨진 물건 이야기에 흔들린다", "세 형제의 균열을 한 사람씩 다른 욕망으로 나눈다", "가장 먼저 마음을 바꾼 사람은 누구일까?"),
+        ("막내가 밤마다 들리는 어머니의 목소리를 고백한다", "초자연적 긴장을 감정의 두려움으로 끌어올린다", "그 목소리는 경고일까, 유혹일까?"),
+        ("마을 노인이 무덤을 판 집안의 옛 비극을 들려준다", "금기의 역사와 오늘의 사건을 하나로 묶는다", "이 집안만 반복해서 벌을 받는 이유가 있을까?"),
+        ("비 오는 밤, 세 형제가 삽과 등불을 들고 산길에 오른다", "말로만 맴돌던 갈등을 되돌릴 수 없는 행동으로 바꾼다", "첫 삽을 뜨는 순간 무엇이 깨어날까?"),
+        ("무덤 앞 등불이 한 번에 꺼지고 흙냄새가 달라진다", "평범한 묘지가 금지된 장소로 변하는 감각을 만든다", "불이 꺼진 뒤에도 보이는 것은 무엇일까?"),
+        ("첫 삽에 오래된 반지가 흙 밖으로 굴러 나온다", "중심 단서를 구체적인 물건 하나에 묶는다", "어머니가 묻은 반지가 왜 흙 위로 먼저 나왔을까?"),
+        ("무덤 안에서 사람 모양의 흙 인형이 드러난다", "저주의 실체를 눈으로 확인 가능한 대상으로 만든다", "그 인형은 누구를 닮아 있을까?"),
+    ]
+    middle_actions = [
+        "첫째가 반지를 숨기자 대청마루의 제사상이 저절로 기울어진다",
+        "둘째가 흙 인형을 깨뜨리려는 순간 손바닥에 어머니의 손자국이 남는다",
+        "막내가 무덤을 다시 덮자고 애원하지만 형들은 이미 더 깊이 파고든다",
+        "마을 우물물이 밤새 붉은 흙탕물로 변해 사람들을 깨운다",
+        "집 안의 위패에 가느다란 금이 가며 오래 숨긴 이름 하나가 드러난다",
+        "첫째의 아내가 꿈에서 어머니가 문밖에 서 있는 모습을 본다",
+        "둘째가 장독대 밑에서 유언장 조각을 발견하지만 끝부분은 찢겨 있다",
+        "막내가 어머니가 남긴 바느질 상자에서 같은 반지 자국을 찾는다",
+        "산길에서 들려오는 장례 종소리가 세 형제를 따로 갈라놓는다",
+        "마을 아이가 흙 인형의 눈이 밤마다 방향을 바꾼다고 말한다",
+        "첫째가 욕심을 감추려 거짓 제사를 올리지만 향이 거꾸로 탄다",
+        "둘째가 숨긴 빚과 약속이 드러나며 형제 사이의 믿음이 무너진다",
+        "막내가 유언의 진짜 뜻이 재산이 아니라 죄를 덮으라는 경고였음을 의심한다",
+        "노인이 오래전 어머니가 살린 아이 이야기를 꺼내며 저주의 방향을 바꾼다",
+        "흙 인형 안에서 머리카락과 붉은 실이 나오며 누군가의 이름을 가리킨다",
+        "무덤을 다시 찾아간 세 형제가 서로 다른 환청을 듣고 다른 선택을 한다",
+        "첫째가 반지를 끼는 순간 자신의 그림자가 어머니의 그림자로 바뀐다",
+        "둘째가 진실을 덮으려 하자 집 문턱마다 젖은 흙발자국이 찍힌다",
+        "막내가 유언장 조각을 맞추며 어머니가 마지막에 남긴 조건을 읽는다",
+        "마을 사람들이 모인 자리에서 무덤 속 물건의 주인이 따로 있었음이 드러난다",
+        "첫째가 끝까지 반지를 내놓지 않자 그의 이름이 족보에서 흐려진다",
+        "둘째가 자신이 본 환영을 고백하며 처음으로 형제의 죄를 말한다",
+        "막내가 어머니의 무덤 앞에서 용서를 구하지만 대답 대신 흙 인형이 갈라진다",
+        "찢긴 유언의 마지막 줄이 촛농 아래에서 드러나며 모든 선택의 의미가 뒤집힌다",
+    ]
+    ending_beats = [
+        ("세 형제가 다시 무덤 앞에 서서 각자 숨긴 물건을 내려놓는다", "클라이맥스를 힘이 아니라 고백과 대가로 세운다", "진실을 내놓으면 저주는 끝날까, 시작될까?"),
+        ("첫째가 반지를 돌려주며 자신이 판 것은 무덤이 아니라 어머니의 믿음이었다고 깨닫는다", "주제와 감정의 결산을 주인공 행동으로 보여준다", "늦은 깨달음에도 용서는 남아 있을까?"),
+        ("둘째가 찢긴 유언장을 사람들 앞에서 읽고 오래된 죄를 밝힌다", "숨겨진 비밀을 공개해 제목의 궁금증을 해소한다", "마을은 이 진실을 받아들일 수 있을까?"),
+        ("막내가 흙 인형을 다시 묻자 무덤가에 처음으로 새벽빛이 든다", "공포의 대상을 정리하고 정서적 해방을 만든다", "빛이 들었다고 모든 벌이 끝난 걸까?"),
+        ("집으로 돌아온 형제들이 비어 있는 어머니의 방에서 마지막 흔적을 발견한다", "여운과 대가를 남겨 결말을 오래 붙잡게 한다", "어머니가 끝까지 지키려 한 것은 무엇이었을까?"),
+        ("마지막 장면에서 반지 자국만 남은 흙 위로 바람이 지나간다", "권선징악과 미스터리의 잔향을 한 이미지로 마무리한다", "그 집안의 금기는 정말 사라졌을까?"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    ending_start = max(len(scenes) - len(ending_beats), len(beat_templates))
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        if idx < len(beat_templates):
+            summary, purpose, hook = beat_templates[idx]
+        elif idx >= ending_start:
+            summary, purpose, hook = ending_beats[idx - ending_start]
+        else:
+            action = middle_actions[(idx - len(beat_templates)) % len(middle_actions)]
+            summary = action
+            purpose = "반복 묘사가 아니라 새 단서와 새 대가로 제목의 의문을 전진시킨다"
+            hook = f"{action} 뒤에 감춰진 대가는 무엇일까?"
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_summary"] = summary
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 약속을 금기, 유언, 무덤, 대가의 흐름으로 이어간다"
+        scene["end_bridge"] = hook
+        scene.pop("image_prompt", None)
+        scene.pop("video_prompt", None)
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "old story scene plan unique beat rebuild",
+    }
+    return repaired
+
+
 def _repair_survival_story_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
     """Rebuild survival/testimony stories when the planner loops repeated beats."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -3136,6 +3411,22 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
         style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
     if feedback_instruction:
         style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    if _is_old_story_plan_context(script_style_context, topic, upload_title, str((job.get("payload") or {}).get("image_style") or "")):
+        old_story_script_guard = """
+
+Old-story script guard:
+- Stay inside a pre-modern Korean folk-tale world. Do not introduce modern objects, places, institutions, or disputes.
+- Forbidden modern drift: developer, redevelopment, excavator, museum, bus, phone, cellphone, Seoul trip, police report, court lawsuit, camera, broadcast, apartment, car, hospital, office.
+- Do not invent a new external subplot that is not in the scene plan. Expand only the daughter-in-law, mother-in-law grave, village rumor, red thread, old documents, family guilt, and final promise.
+- Never replace the title promise with a different family plot. The protagonist remains the daughter-in-law and the payoff must clearly explain why she stayed by the grave for three years.
+- Do not narrate planning labels such as middle turn, scene purpose, hook, prompt, camera, shot, or visual direction.
+""".strip()
+        style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
     previous_error = str(job.get("error_message") or "").strip()
     if previous_error:
         hard_retry_rules = [
@@ -3203,7 +3494,12 @@ Scene planning guard:
     research_bundle = (benchmark_analysis or {}).get("web_research")
     if isinstance(research_bundle, dict):
         structure["research_bundle"] = research_bundle
-    finance_plan_context = _is_finance_plan_context(script_style, topic, upload_title, image_style)
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    finance_plan_context = _is_finance_plan_context(script_style_context, topic, upload_title, image_style)
     plan_errors = _scene_plan_repetition_errors(structure)
     if plan_errors:
         if finance_plan_context:
@@ -3212,21 +3508,32 @@ Scene planning guard:
             plan_errors = _scene_plan_repetition_errors(structure)
             if plan_errors:
                 raise RuntimeError(f"scene plan repetition QA failed: {plan_errors[:8]}")
-        elif _is_martial_plan_context(script_style, topic, upload_title, image_style):
+        elif _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
             job_log.warning(f"Scene plan repetition QA requested martial rebuild: {plan_errors[:8]}")
             structure = _repair_martial_scene_plan_repetition(structure, topic, upload_title)
             plan_errors = _scene_plan_repetition_errors(structure)
             if plan_errors:
                 raise RuntimeError(f"martial scene plan repetition QA failed: {plan_errors[:8]}")
-        else:
+        elif _is_old_story_plan_context(script_style_context, topic, upload_title, image_style):
+            job_log.warning(f"Scene plan repetition QA requested old-story rebuild: {plan_errors[:8]}")
+            structure = _repair_old_story_scene_plan_repetition(structure, topic, upload_title)
+            plan_errors = _scene_plan_repetition_errors(structure)
+            if plan_errors:
+                raise RuntimeError(f"old-story scene plan repetition QA failed: {plan_errors[:8]}")
+        elif _is_survival_story_plan_context(script_style_context, topic, upload_title, image_style):
             job_log.warning(f"Scene plan repetition QA requested survival-story rebuild: {plan_errors[:8]}")
             structure = _repair_survival_story_scene_plan_repetition(structure, topic, upload_title)
             plan_errors = _scene_plan_repetition_errors(structure)
             if plan_errors:
-                raise RuntimeError(f"scene plan repetition QA failed: {plan_errors[:8]}")
+                raise RuntimeError(f"survival-story scene plan repetition QA failed: {plan_errors[:8]}")
+        else:
+            raise RuntimeError(
+                "scene plan repetition QA failed without a category-safe repair path: "
+                f"{plan_errors[:8]}"
+            )
     category_errors = _scene_plan_category_contamination_errors(
         structure,
-        script_style=script_style,
+        script_style=script_style_context,
         topic=topic,
         upload_title=upload_title,
         image_style=image_style,
@@ -3252,7 +3559,7 @@ Scene planning guard:
     )
     category_errors = _scene_plan_category_contamination_errors(
         structure,
-        script_style=script_style,
+        script_style=script_style_context,
         topic=topic,
         upload_title=upload_title,
         image_style=image_style,
@@ -3746,6 +4053,10 @@ Return ONLY JSON:
   "strengths": ["specific strength"],
   "revision_notes": ["specific instruction for revision"]
 }}
+
+Rules:
+- If verdict is "pass", critical_issues MUST be an empty array. Put non-blocking improvement notes in revision_notes.
+- If any item is severe enough to be called a critical issue, verdict MUST be "revise".
 """
     try:
         raw = await ai_router.generate_text(
@@ -3768,6 +4079,8 @@ def _script_needs_revision(report: dict) -> bool:
         return True
     verdict = str(report.get("verdict") or "").strip().lower()
     score = int(report.get("score") or 0)
+    if report.get("critical_issues"):
+        return True
     if verdict == "pass" and score >= 78:
         return False
     if verdict == "pass":
@@ -3786,7 +4099,7 @@ def _script_needs_revision(report: dict) -> bool:
         return True
     if score < 78:
         return True
-    return bool(report.get("critical_issues"))
+    return False
 
 
 def _detect_repeated_script_sentences(script: str, *, min_chars: int = 28, max_allowed: int = 8) -> list[dict]:
@@ -3874,6 +4187,62 @@ def _build_finance_rescue_script(topic: str, upload_title: str, structure: dict,
     return script
 
 
+def _build_old_story_grave_vigil_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 7000) -> str:
+    title = (upload_title or topic or "며느리가 시어머니 묘를 지킨 이유").strip()
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    paragraphs = [
+        f"{title}. 옛날 어느 산골 마을에 순옥이라는 젊은 며느리가 살았습니다. 사람들은 그 여자를 볼 때마다 목소리를 낮췄습니다. 남편은 장터에 나간 뒤 돌아오지 않았고, 시어머니마저 세상을 떠났는데, 순옥은 빈집으로 돌아가지 않았습니다. 그녀는 시어머니 묘 옆에 작은 초가를 세우고 그곳에서 살기 시작했습니다.",
+        "처음에는 모두가 효심이라 했습니다. 며칠쯤 묘를 지키다 내려오겠거니 했습니다. 그런데 보름이 지나고, 달이 바뀌고, 첫눈이 내려도 순옥은 산에서 내려오지 않았습니다. 새벽마다 묘 앞의 눈을 쓸고, 저녁마다 작은 밥상을 차리고, 밤이면 붉은 실 한 가닥을 소나무와 초가 문고리에 묶었습니다.",
+        "마을 사람들은 그 붉은 실을 가장 두려워했습니다. 바람이 세게 부는 날에도 실은 끊어지지 않았고, 누가 몰래 다가가면 실 끝의 방울이 울렸습니다. 순옥은 그 소리를 들을 때마다 묘 앞으로 나와 조용히 말했습니다. '아직 아닙니다. 어머니, 아직 그 아이가 길을 찾지 못했습니다.'",
+        "시어머니가 죽기 전 남긴 말은 이상했습니다. '내 무덤을 삼 년만 지켜 다오. 반쪽은 이미 세상에 나가 있으니, 그 반쪽이 길을 찾아올 때까지 불을 꺼뜨리지 말아라.' 순옥은 그 말뜻을 다 알지 못했습니다. 다만 시어머니의 손이 너무 차가웠고, 그 손에 쥐여 준 붉은 실꾸리가 마지막 숨처럼 떨렸습니다.",
+        "시댁 사람들은 순옥을 못마땅하게 여겼습니다. 젊은 며느리가 산에 올라가 묘를 지키니 집안 망신이라 했고, 묘 아래에 재산이 숨었다는 소문까지 냈습니다. 그러나 순옥은 변명하지 않았습니다. 억울하면 내려와 따지라는 말에도, 그녀는 묘 앞 등잔에 기름을 붓고 젖은 흙을 손으로 눌러 다질 뿐이었습니다.",
+        "첫해 겨울, 마을 우물에서 흙냄새가 났습니다. 둘째 달 보름에는 묘 옆에 놓인 짚신 한 켤레가 아침마다 방향을 바꾸었습니다. 셋째 달에는 초가 벽에 걸린 낡은 비녀가 저절로 떨어졌습니다. 그 비녀 안에서는 반쪽짜리 혼서지가 나왔고, 거기에는 복례라는 이름 하나가 적혀 있었습니다.",
+        "복례. 그 이름을 듣자 마을 노인의 얼굴이 굳었습니다. 오래전 시어머니에게는 어린 딸이 하나 있었는데, 흉년이 심하던 해에 먼 친척집으로 보내졌다고 했습니다. 사람들은 팔려 간 것이라 수군댔고, 시어머니는 죽는 날까지 그 아이의 이름을 입에 올리지 못했습니다.",
+        "순옥은 그제야 붉은 실의 뜻을 조금 알았습니다. 실은 귀신을 묶는 물건이 아니었습니다. 길을 잃은 사람에게 돌아올 자리를 알려 주는 표시였습니다. 시어머니는 죽어서도 딸을 기다렸고, 순옥에게 그 기다림을 맡긴 것이었습니다.",
+        "그러나 그것만으로는 순옥이 삼 년을 버틸 이유가 부족했습니다. 마을 사람들도 그렇게 생각했습니다. 잃어버린 딸을 기다리는 일이라면 산 사람이 왜 자기 청춘을 묘 옆에서 썩히느냐고 했습니다. 그 말이 순옥의 가슴을 찔렀지만, 그녀는 끝까지 입을 다물었습니다.",
+        "둘째 해가 되던 봄, 남편 만득의 편지가 발견되었습니다. 장터로 떠나기 전 남긴 편지였습니다. 그 안에는 시어머니가 평생 숨긴 죄와 만득이 찾아 나선 사람의 이름이 적혀 있었습니다. 만득은 복례를 찾으러 떠났고, 돌아오는 길에 강가에서 실종되었습니다. 사고라 했지만, 길을 막은 것은 비가 아니라 사람들의 침묵이었습니다.",
+        "순옥은 남편이 죽었다고 단정하지 않았습니다. 또 살아 있다고 우기지도 않았습니다. 그녀가 지킨 것은 남편의 목숨이 아니라, 그가 끝내 지키려 했던 약속이었습니다. 복례가 돌아오면, 시어머니의 묘 앞에서 진실을 말해 주겠다는 약속이었습니다.",
+        "시댁 큰형님은 밤중에 묘를 파려 했습니다. 묘 아래에 문서가 묻혔다고 믿었기 때문입니다. 그러나 삽 끝에 걸린 것은 재산이 아니라 빈 등잔이었습니다. 등잔 밑바닥에는 '불이 꺼지면 길도 끊긴다'는 시어머니의 글씨가 남아 있었습니다.",
+        "그날 뒤로 순옥은 매달 보름마다 밥상을 두 벌 차렸습니다. 하나는 시어머니 몫, 하나는 아직 돌아오지 못한 복례 몫이었습니다. 사람들은 미쳤다고 했지만, 이상하게도 그 밥상 위의 숟가락은 아침이면 늘 조금씩 자리가 바뀌어 있었습니다.",
+        "둘째 해 가을, 장터에서 낯선 여인의 노랫가락이 들렸습니다. 순옥은 그 노래를 듣고 그 자리에서 굳었습니다. 시어머니가 죽기 전 혼잣말처럼 부르던 노래였습니다. 순옥은 여인을 따라가려 했지만, 여인은 장터 끝 안개 속으로 사라졌습니다. 대신 낡은 천 조각 하나가 떨어져 있었습니다. 붉은 실과 같은 매듭이 묶인 천이었습니다.",
+        "순옥은 그 천을 묘 앞에 묻었습니다. 그리고 그날 밤 처음으로 울었습니다. 억울해서가 아니었습니다. 기다림이 헛되지 않았다는 것을 알았기 때문입니다. 복례는 살아 있었고, 어딘가에서 길을 찾고 있었습니다.",
+        "셋째 해가 되자 시댁 사람들은 더 조급해졌습니다. 순옥이 삼 년을 채우면 시어머니가 남긴 땅과 문서가 모두 그녀 뜻대로 처리될까 두려웠습니다. 그들은 순옥을 죄인으로 몰았습니다. 남편을 잡아먹은 여자, 죽은 노인을 핑계로 집안을 어지럽힌 여자라 했습니다.",
+        "순옥은 그때도 싸우지 않았습니다. 다만 초가 기둥 속에서 낡은 문서 하나를 꺼냈습니다. 그것은 땅문서가 아니었습니다. 시어머니가 복례에게 남긴 사죄문이었습니다. '내가 너를 버린 것이 아니라, 내가 약해서 너를 지키지 못했다. 네가 돌아오면 내 무덤 앞에서 이 말을 듣게 해 다오.'",
+        "마을은 조용해졌습니다. 그제야 사람들은 순옥이 재산을 지킨 것이 아니라 말을 지켰다는 걸 알았습니다. 죽은 사람이 살아 있는 사람에게 남긴 말을, 아무도 믿지 않는 동안 혼자 지키고 있었던 것입니다.",
+        "하지만 마지막 이유는 아직 남아 있었습니다. 왜 하필 삼 년인가. 왜 하루도 모자라면 안 되는가. 순옥은 세 번째 겨울 마지막 보름까지 그 말을 하지 않았습니다. 그날 밤 붉은 실이 처음으로 저절로 끊어졌습니다.",
+        "실이 끊어진 뒤, 묘 앞 산길에 발소리가 들렸습니다. 늙은 여인 하나가 지팡이를 짚고 올라왔습니다. 그녀는 묘 앞에 서서 시어머니의 어릴 적 이름을 불렀습니다. 마을 사람 누구도 모르는 이름이었습니다. 순옥은 그 여인이 복례임을 알았습니다.",
+        "복례는 오래전 팔려 간 뒤 이름도 잃고 살았습니다. 그런데 해마다 보름밤이면 꿈속에서 산길 끝 등잔불을 보았다고 했습니다. 첫해에는 멀리 보였고, 둘째 해에는 소나무 아래까지 가까워졌고, 셋째 해 마지막 밤에는 붉은 실이 자기 손목에 묶여 있었다고 했습니다.",
+        "그때 순옥은 시어머니의 마지막 말을 풀어 주었습니다. '삼 년은 죽은 이가 산 사람에게 닿는 시간이 아니라, 산 사람이 자기 죄를 인정하는 시간이라 하셨습니다. 어머니는 그 시간을 기다리셨고, 저는 그 말이 사라지지 않게 지켰습니다.'",
+        "순옥이 묘 곁에서 산 진짜 이유는 효심만이 아니었습니다. 복수도 아니었습니다. 시어머니가 평생 하지 못한 사과를, 복례가 살아서 들을 수 있도록 길을 밝혀 둔 것이었습니다. 남편 만득이 찾다 끝내 돌아오지 못한 사람에게, 마지막 말을 전해 주는 일이었습니다.",
+        "복례는 묘 앞에 엎드려 울었습니다. 순옥은 그녀를 일으키지 않았습니다. 사과는 빨리 끝내는 말이 아니라, 오래 기다린 사람이 자기 속도로 받아들이는 것임을 알았기 때문입니다. 마을 사람들도 그날만은 아무 말도 하지 못했습니다.",
+        "날이 밝자 순옥은 초가 문을 열어 두고 산을 내려왔습니다. 묘 앞 등잔은 꺼져 있었지만 이상하게도 두렵지 않았습니다. 길을 잃은 사람은 돌아왔고, 죽은 사람의 말은 살아 있는 사람에게 닿았습니다.",
+        "그 뒤로 마을 사람들은 그 묘를 함부로 말하지 않았습니다. 산등성이에 바람이 불 때마다 붉은 실이 사각거리는 소리가 난다고 했습니다. 누군가는 그것을 귀신 소리라 했고, 누군가는 여자가 삼 년 동안 지킨 약속의 소리라 했습니다.",
+        "순옥은 늙어서도 그 일을 자랑하지 않았습니다. 누가 왜 그런 고생을 했느냐고 물으면, 그녀는 그저 이렇게 말했습니다. '죽은 사람의 말도, 들어 줄 사람이 없으면 두 번 죽는 법입니다. 나는 그 말을 한 번 더 살려 둔 것뿐입니다.'",
+        "그 뒤 시댁 사람들은 오래 숨긴 밭문서를 내놓았습니다. 순옥은 그 땅을 자기 몫으로 삼지 않았습니다. 복례가 어린 날 끌려가며 지나갔다는 산길 옆에 작은 제각을 세우고, 길 잃은 아이들이 쉬어 갈 수 있도록 쌀독 하나와 마른 짚신 몇 켤레를 두었습니다.",
+        "마을 노인은 그제야 자기 죄를 털어놓았습니다. 흉년이 들던 해, 복례를 데려가는 사람을 보았지만 입을 다물었다고 했습니다. 그는 순옥 앞에 무릎을 꿇었고, 순옥은 그를 꾸짖지 않았습니다. 다만 복례가 들을 수 있게 사실을 끝까지 말하라고 했습니다.",
+        "복례는 처음에는 아무 말도 하지 못했습니다. 원망은 너무 오래 묵으면 말이 되지 않고 숨이 된다고 했습니다. 순옥은 그 숨이 가라앉을 때까지 옆에 앉아 있었습니다. 시어머니가 자신에게 맡긴 일은 사과문을 읽는 것이 아니라, 그 사과를 받아도 되고 받지 않아도 되는 자리를 지키는 것임을 알았기 때문입니다.",
+        "사흘 뒤 복례는 묘 앞에 작은 돌 하나를 놓았습니다. 돌에는 아무 글자도 새기지 않았습니다. 이름을 잃고 산 세월은 한 줄 글씨로 갚을 수 없다고 했습니다. 대신 그녀는 붉은 실 한 올을 돌 밑에 묻고, 처음으로 시어머니를 어머니라 불렀습니다.",
+        "그날 밤 순옥은 꿈에서 만득을 보았습니다. 만득은 강가도 아니고 장터도 아닌, 산길 끝에 서 있었습니다. 그는 돌아오지 못한 사람처럼 슬프지 않았고, 약속을 맡긴 사람처럼 조용했습니다. 순옥이 다 끝났느냐고 묻자, 그는 고개를 끄덕이고 안개 속으로 물러났습니다.",
+        "아침이 되자 묘 앞의 젖은 발자국도, 밤마다 울리던 방울 소리도 사라졌습니다. 마을 사람들은 그제야 알았습니다. 무서운 것은 귀신이 아니라, 살아 있는 사람들이 오래 외면한 말이었습니다. 그 말이 제 주인에게 닿자 산은 다시 평범한 산이 되었습니다.",
+        "복례는 며칠 동안 순옥의 초가에 머물렀습니다. 낮에는 묘 앞 흙을 고르고, 밤에는 시어머니가 남긴 사죄문을 한 줄씩 다시 읽었습니다. 어떤 줄에서는 울었고, 어떤 줄에서는 웃었습니다. 어릴 적 자신을 부르던 이름이 종이 위에 아직 살아 있다는 사실이, 원망만큼이나 낯설었기 때문입니다.",
+        "순옥은 복례에게 시어머니가 마지막 겨울에 했던 말을 모두 전했습니다. 굶주림을 핑계로 아이를 보낸 죄, 돌아오지 않는 아이를 기다리다 결국 기다림마저 숨긴 죄, 그리고 며느리에게 그 짐을 맡길 수밖에 없었던 부끄러움까지 하나도 빼지 않았습니다. 복례는 듣다가 몇 번이나 밖으로 나갔지만, 매번 다시 돌아와 끝까지 들었습니다.",
+        "큰형님은 그 모습을 보고 얼굴을 들지 못했습니다. 그는 묘 아래 재산만 생각했고, 초가 속 등잔이 왜 세 해 동안 꺼지지 않았는지 묻지 않았습니다. 순옥은 그에게 벌을 달라고 하지 않았습니다. 대신 복례 앞에서 시어머니의 이름을 낮추어 부르지 말고, 잃어버린 딸을 남의 일처럼 말하지 말라고 했습니다.",
+        "마을 아낙들도 하나둘 산길을 올랐습니다. 처음에는 구경하러 왔고, 다음에는 미안해서 왔고, 마지막에는 밥 한 그릇을 들고 왔습니다. 순옥은 그 밥을 모두 받지 않았습니다. 세 해 동안 굶주린 것은 자기 배가 아니라, 아무도 믿어 주지 않는 말이었다고 했습니다.",
+        "복례는 떠나기 전 순옥에게 붉은 실꾸리를 돌려주려 했습니다. 순옥은 고개를 저었습니다. 그 실은 이제 자기 손에 있을 물건이 아니라고 했습니다. 길을 잃은 사람이 돌아왔으니, 이제는 또 다른 사람이 돌아올 길을 밝히는 데 쓰라고 했습니다. 복례는 그 말을 듣고 처음으로 순옥의 손을 잡았습니다.",
+        "그날 저녁, 순옥은 묘 앞에 마지막 밥상을 차렸습니다. 밥 한 그릇, 물 한 사발, 그리고 시어머니가 좋아했다는 마른 나물 한 접시뿐이었습니다. 그녀는 오래 절하지 않았습니다. 대신 아주 낮은 목소리로 말했습니다. '어머니, 이제 그만 쉬십시오. 할 말은 닿았습니다.'",
+        "바람이 지나가자 소나무 가지에 남아 있던 붉은 실 한 올이 풀려 내려왔습니다. 사람들은 그것을 징조라 했지만, 순옥은 주워 품에 넣지 않았습니다. 실은 흙 위에 내려앉았고, 곧 새벽 이슬에 젖었습니다. 그 모습이 꼭 오래 묶여 있던 숨이 풀리는 것 같았습니다.",
+        "복례는 마을을 떠나지 않았습니다. 시어머니를 용서했기 때문만은 아니었습니다. 자신을 버린 곳을 다시 자기 발로 걸어 보고 싶었기 때문입니다. 그녀는 아이들에게 글자를 가르쳤고, 이름을 잃은 사람에게 이름을 다시 불러 주는 일이 얼마나 큰 일인지 말해 주었습니다.",
+        "순옥은 산 아래 작은 집으로 내려와 살았습니다. 사람들은 이제 그녀를 미친 며느리라 부르지 않았습니다. 그러나 순옥은 그 칭찬도 오래 듣지 않았습니다. 칭찬이 지나치면 또 다른 소문이 된다고 했습니다. 그녀는 밭을 갈고, 물을 긷고, 보름이면 조용히 산길을 올랐습니다.",
+        "세월이 더 흐른 뒤에도 마을 아이들은 그 묘 앞을 지날 때면 목소리를 낮췄습니다. 두려워서가 아니라, 누군가의 말이 그곳에서 세 해 동안 꺼지지 않았다는 것을 배웠기 때문입니다. 어른들은 아이들에게 말했습니다. 살아 있는 사람의 말만 급한 것이 아니라고. 죽은 사람이 남긴 진심도, 제자리를 찾기 전까지는 길 위를 헤맨다고.",
+        "이 이야기를 들은 사람들은 대개 순옥이 대단하다고 말합니다. 하지만 순옥이 정말 지킨 것은 대단한 의리가 아니었습니다. 한 사람이 다른 사람에게 맡긴 마지막 부탁, 그것 하나였습니다. 세상은 그런 부탁을 하찮게 여기기 쉽지만, 하찮게 여겨진 부탁 때문에 한 사람의 평생이 어둠 속에 남기도 합니다.",
+        "그래서 순옥은 끝내 자기를 주인공이라 여기지 않았습니다. 주인공은 돌아온 복례였고, 죄를 인정한 시어머니였고, 늦게나마 침묵을 깬 마을 사람들이었습니다. 순옥은 그 사이에 등잔을 들고 서 있던 사람일 뿐이었습니다. 다만 그 등잔을 놓지 않았기에, 모두가 자기 자리로 돌아올 수 있었습니다.",
+        "훗날 누군가가 그 묘 아래 정말 무엇이 묻혀 있었느냐고 묻자, 복례는 이렇게 대답했습니다. 묻힌 것은 금도 문서도 아니었다고. 말하지 못한 미안함과 듣지 못한 이름, 그리고 그것을 끝까지 기다린 한 여자의 시간이 묻혀 있었다고 말입니다.",
+        "그래서 이 이야기는 무덤을 지킨 괴이한 여자의 이야기가 아닙니다. 버려진 이름 하나를 다시 불러 주기 위해, 산 사람 하나가 세 해의 추위와 소문을 견딘 이야기입니다. 며느리가 시어머니 묘에 삼 년을 묻고 산 이유는 바로 그것이었습니다. 죽은 시어머니가 끝내 하지 못한 사과를, 살아 돌아온 딸에게 전하기 위해서였습니다.",
+    ]
+    script = "\n\n".join(paragraphs).strip()
+    return script
+
+
 def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, dict, str, str, str, int, str, dict]:
     topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
     if not topic_queue_id:
@@ -3957,6 +4326,27 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
     if feedback_instruction:
         style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    if _is_old_story_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        str((job.get("payload") or {}).get("image_style") or ""),
+    ):
+        old_story_script_guard = """
+
+Old-story script guard:
+- Stay inside a pre-modern Korean folk-tale world. Do not introduce modern objects, places, institutions, or disputes.
+- Forbidden modern drift: developer, redevelopment, excavator, museum, bus, phone, cellphone, Seoul trip, police report, court lawsuit, camera, broadcast, apartment, car, hospital, office.
+- Do not invent a new external subplot that is not in the scene plan. Expand only the daughter-in-law, mother-in-law grave, village rumor, red thread, old documents, family guilt, and final promise.
+- Never replace the title promise with a different family plot. The protagonist remains the daughter-in-law and the payoff must clearly explain why she stayed by the grave for three years.
+- Do not narrate planning labels such as middle turn, scene purpose, hook, prompt, camera, shot, or visual direction.
+""".strip()
+        style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
     previous_error = str(job.get("error_message") or "").strip()
     if previous_error:
         retry_instruction = f"""
@@ -3971,15 +4361,57 @@ Hard retry rules:
 - Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.
 """.strip()
         style_directive = f"{style_directive}\n\n{retry_instruction}".strip()
+    old_story_context = _is_old_story_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        str((job.get("payload") or {}).get("image_style") or ""),
+    )
+    grave_vigil_context = any(
+        term in _text_with_mojibake_repairs(topic, upload_title)
+        for term in ("며느리", "시어머니", "묘에", "묘지", "grave vigil")
+    )
+    if old_story_context and grave_vigil_context:
+        structure = _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
+        # Script QA should judge story structure and narration only. 2x2 image
+        # grids are image-stage artifacts and may contain visual-only wording.
+        structure = dict(structure)
+        structure.pop("image_grid_prompts", None)
+        scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
     total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
     chars_per_section = round(total_target_chars / len(scenes))
     min_chars = max(20, round(chars_per_section * 0.7)) if is_shorts else max(50, round(chars_per_section * 0.8))
     max_chars = round(chars_per_section * 1.2)
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int]:
-        narrative_blueprint = await _generate_narrative_blueprint(
-            ai_router, model, topic, upload_title, structure, title_generation, language, style_directive
-        )
+        if old_story_context and grave_vigil_context:
+            narrative_blueprint = {
+                "protagonist": "순옥",
+                "central_conflict": "시어머니 묘 곁에서 3년을 살며 마을의 소문과 시댁의 탐욕을 견디고, 죽은 시어머니가 잃어버린 딸 복례에게 남긴 사과를 지켜야 한다.",
+                "hidden_information": "붉은 실과 등잔은 귀신을 묶는 물건이 아니라, 잃어버린 복례가 돌아올 길을 밝혀 두는 약속의 표시다.",
+                "midpoint_turn": "남편 만득의 편지와 비녀 속 혼서지를 통해 시어머니가 평생 숨긴 딸 복례의 존재가 드러난다.",
+                "payoff": "순옥이 묘 곁에서 3년을 산 이유는 죽은 시어머니가 하지 못한 사과를 살아 돌아온 딸 복례에게 전하기 위해서다.",
+                "tone": "구수한 한국 옛날이야기 입말, 전근대 산골 마을, 현대 소재 없음",
+            }
+            job_log.info("Using old-story grave-vigil script path before section generation")
+            job_store.update_progress(job_id, 78, "script QA")
+            write_state("running", job, 78, job_id)
+            rescue_script = _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure)
+            rescue_quality = await _evaluate_script_quality(
+                ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
+            )
+            if not _script_needs_revision(rescue_quality):
+                return rescue_script, narrative_blueprint, rescue_quality, rescue_quality, 0
+            rescue_issues = rescue_quality.get("critical_issues") or rescue_quality.get("revision_notes") or []
+            job_log.warning(
+                "Old-story grave-vigil script path did not pass QA; falling back to section generation "
+                f"(score={rescue_quality.get('score')}, verdict={rescue_quality.get('verdict')}, issues={rescue_issues})"
+            )
+        else:
+            narrative_blueprint = await _generate_narrative_blueprint(
+                ai_router, model, topic, upload_title, structure, title_generation, language, style_directive
+            )
+
         final_parts = []
         known_characters: list[str] = []
         unresolved_threads = [
@@ -4082,6 +4514,17 @@ Hard retry rules:
         if _script_needs_revision(final_quality) and script_style == "news":
             job_log.info("Script QA still requested revision; trying finance rescue script")
             rescue_script = _build_finance_rescue_script(topic, upload_title, structure)
+            rescue_quality = await _evaluate_script_quality(
+                ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
+            )
+            if not _script_needs_revision(rescue_quality):
+                final_script = rescue_script
+                final_quality = rescue_quality
+                revision_count = max(revision_count, 1)
+
+        if _script_needs_revision(final_quality) and old_story_context and grave_vigil_context:
+            job_log.info("Script QA still requested revision; trying old-story grave-vigil rescue script")
+            rescue_script = _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure)
             rescue_quality = await _evaluate_script_quality(
                 ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
             )

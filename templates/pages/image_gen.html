@@ -523,6 +523,33 @@
     function hasSavedImageGridPrompts() {
         return Array.isArray(imageGridPrompts) && imageGridPrompts.length > 0;
     }
+
+    function getImageGridPromptForScene(sceneNumber) {
+        const number = Number(sceneNumber);
+        if (!Number.isFinite(number)) return null;
+        return (imageGridPrompts || []).find(grid => {
+            const sceneNumbers = Array.isArray(grid.scene_numbers) ? grid.scene_numbers.map(Number) : [];
+            return sceneNumbers.includes(number) && String(grid.prompt || grid.grid_prompt || '').trim();
+        }) || null;
+    }
+
+    function getImagePromptForScene(index) {
+        const p = prompts[index] || {};
+        const sceneNumber = Number(p.scene_number || index + 1);
+        const grid = getImageGridPromptForScene(sceneNumber);
+        if (grid) return String(grid.prompt || grid.grid_prompt || '').trim();
+        return String(p.prompt_en || p.prompt_content || p.prompt || '').trim();
+    }
+
+    function getImagePromptLabelForScene(index) {
+        const p = prompts[index] || {};
+        const sceneNumber = Number(p.scene_number || index + 1);
+        const grid = getImageGridPromptForScene(sceneNumber);
+        if (!grid) return '';
+        const sceneNumbers = Array.isArray(grid.scene_numbers) ? grid.scene_numbers : [];
+        if (!sceneNumbers.length) return `2x2 Grid ${grid.grid_number || ''}`.trim();
+        return `2x2 Grid Scene ${sceneNumbers[0]}~${sceneNumbers[sceneNumbers.length - 1]}`;
+    }
     window.defaultVideoEngine = 'veo'; // Global default, overridden by settings
     window.userMembership = "{{ membership }}"; // 'std' | 'pro'
 
@@ -1567,7 +1594,11 @@
             const scriptEnd = p.script_end || '';
             const rawPromptChar = p.prompt_char || '';
             const rawPromptBg = p.prompt_bg || '';
-            const hideSceneImagePromptEditor = hasSavedImageGridPrompts();
+            const sceneNumber = Number(p.scene_number || i + 1);
+            const gridPromptData = getImageGridPromptForScene(sceneNumber);
+            const hasGridPrompt = Boolean(gridPromptData);
+            const gridPromptText = hasGridPrompt ? String(gridPromptData.prompt || gridPromptData.grid_prompt || '').trim() : '';
+            const gridPromptLabel = getImagePromptLabelForScene(i);
 
             const words = rawSceneText.split(/\s+/);
             const firstText = words.slice(0, 10).join(' ') + (words.length > 10 ? '...' : '');
@@ -1764,12 +1795,15 @@
                             </div>
                         </div>
 
-                        <!-- 🖼️ 격자용 프롬프트 (DALL-E 3용) -->
-                        <div class="grid grid-cols-12 gap-2 items-start ${hideSceneImagePromptEditor ? 'hidden' : ''}">
+                        <!-- 🖼️ 이미지 생성 프롬프트 -->
+                        <div class="grid grid-cols-12 gap-2 items-start ${hasGridPrompt ? 'bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2' : ''}">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                    ${window.currentLang === 'vi' ? '🖼️ Prompt video' : window.currentLang === 'th' ? '🖼️ พรอมต์วิดีโอ' : window.currentLang === 'en' ? '🖼️ Video Prompt' : '🖼️ 영상 프롬프트'}
+                                    ${hasGridPrompt
+                                        ? (window.currentLang === 'en' ? '🖼️ 2x2 Image Prompt' : '🖼️ 2x2 이미지 프롬프트')
+                                        : (window.currentLang === 'vi' ? '🖼️ Prompt ảnh' : window.currentLang === 'th' ? '🖼️ พรอมต์รูปภาพ' : window.currentLang === 'en' ? '🖼️ Image Prompt' : '🖼️ 이미지 프롬프트')}
                                 </label>
+                                ${hasGridPrompt ? `<span class="text-[9px] text-emerald-400 font-bold">${escapeHtml(gridPromptLabel)}</span>` : ''}
                                 <div class="flex items-center gap-1">
                                     <button onclick="Utils.copyToClipboard(document.getElementById('prompt-en-input-${i}').value); Utils.showToast(window.currentLang === 'vi' ? 'Sao chép thành công!' : window.currentLang === 'th' ? 'คัดลอกสำเร็จ!' : window.currentLang === 'en' ? 'Copied!' : '복사 완료!', 'success')" class="text-emerald-500 hover:text-emerald-600 text-[9px] bg-[#1c2027] px-1.5 py-0.5 rounded border border-white/5 transition-colors font-bold whitespace-nowrap">
                                         ${window.currentLang === 'vi' ? 'Sao chép' : window.currentLang === 'th' ? 'คัดลอก' : window.currentLang === 'en' ? 'Copy' : '복사'}
@@ -1777,7 +1811,8 @@
                                 </div>
                             </div>
                             <div class="col-span-9 relative">
-                                <textarea id="prompt-en-input-${i}" class="w-full h-16 text-[11px] p-2 rounded border border-gray-200 dark:border-gray-700 bg-[#1c2027] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" onchange="updatePromptData(${i}, 'prompt_en', this.value)">${extractPureImagePrompt(p.prompt_en || p.prompt_ko || '')}</textarea>
+                                <textarea id="prompt-en-input-${i}" class="w-full ${hasGridPrompt ? 'h-40 border-emerald-500/30' : 'h-16 border-gray-200 dark:border-gray-700'} text-[11px] p-2 rounded border bg-[#1c2027] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" ${hasGridPrompt ? 'readonly' : `onchange="updatePromptData(${i}, 'prompt_en', this.value)"`}>${hasGridPrompt ? gridPromptText : extractPureImagePrompt(p.prompt_en || p.prompt_ko || '')}</textarea>
+                                ${hasGridPrompt ? `<p class="mt-1 text-[10px] text-emerald-400">이 씬은 개별 이미지 프롬프트가 아니라 위 2x2 묶음 프롬프트로 생성합니다.</p>` : ''}
                             </div>
                         </div>
 
@@ -1901,7 +1936,11 @@
 
         const rows = ordered.map(({ scene, index }) => {
             const number = Number(scene.scene_number || index + 1);
-            const prompt = scene.prompt_en || scene.prompt_ko || scene.scene_text || '';
+            const gridPrompt = getImageGridPromptForScene(number);
+            const gridLabel = gridPrompt ? getImagePromptLabelForScene(index) : '';
+            const prompt = gridPrompt
+                ? `${gridLabel}: ${String(gridPrompt.prompt || gridPrompt.grid_prompt || '').trim()}`
+                : (scene.prompt_en || scene.prompt_ko || scene.scene_text || '');
             const inRequiredZone = requiredVideoZoneScenes.includes(number);
             const missingRequiredVideo = missingRequiredVideoScenes.includes(number);
             return `
@@ -2096,11 +2135,10 @@
         statusDiv.textContent = '⏳ ' + i18n.status_generating;
 
         try {
-            // [Fix] 키 값 호환성 처리
-            let fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+            let fullPrompt = getImagePromptForScene(index);
             
             // [NEW] Dual Frame Logic: Use active frame prompt if applicable
-            if (p.is_dual) {
+            if (!getImageGridPromptForScene(p.scene_number || index + 1) && p.is_dual) {
                 const active = p._active_frame || 'start';
                 if (active === 'start' && p.prompt_en_start) fullPrompt = p.prompt_en_start;
                 else if (active === 'end' && p.prompt_en_end) fullPrompt = p.prompt_en_end;
@@ -2406,14 +2444,23 @@
     }
 
     function copyPrompt(index) {
-        const p = prompts[index];
-        const content = p.prompt_en || p.prompt_content || p.prompt || '';
+        const content = getImagePromptForScene(index);
         Utils.copyToClipboard(content);
         Utils.showToast('Copied', 'success');
     }
 
     function copyAllPrompts() {
-        const text = prompts.map((p, i) => `[장면 ${i + 1}] ${p.scene_text || p.scene || ''}\n${p.prompt_en || p.prompt_content || p.prompt || ''}`).join('\n\n');
+        const displayGridPrompts = getImageGridPromptsForDisplay(prompts);
+        const text = displayGridPrompts.length ? displayGridPrompts.map((grid, index) => {
+            const sceneNumbers = Array.isArray(grid.scene_numbers) ? grid.scene_numbers : [];
+            const label = sceneNumbers.length
+                ? `2x2 Grid Scene ${sceneNumbers[0]}~${sceneNumbers[sceneNumbers.length - 1]}`
+                : `2x2 Grid ${grid.grid_number || index + 1}`;
+            return `[${label}]\n${String(grid.prompt || grid.grid_prompt || '').trim()}`;
+        }).join('\n\n') : prompts.map((p, i) => {
+            const label = getImagePromptLabelForScene(i) || `장면 ${i + 1}`;
+            return `[${label}] ${p.scene_text || p.scene || ''}\n${getImagePromptForScene(i)}`;
+        }).join('\n\n');
         Utils.copyToClipboard(text);
         Utils.showToast('All copied', 'success');
     }
@@ -2683,8 +2730,7 @@
                 }
 
                 // API 호출
-                // [Fix] 키 값 호환성 처리
-                const fullPrompt = p.prompt_en || p.prompt_content || p.prompt || '';
+                const fullPrompt = getImagePromptForScene(i);
                 const aspectRatio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
 
                 const result = await API.image.generate(fullPrompt, projectId, i + 1, document.getElementById('imageStyle').value, aspectRatio, isNoHumanEnabled());
@@ -3660,7 +3706,15 @@
     // 초기 로드 시 DB 및 로컬 스토리지 확인
     function hasCompleteImageAndVideoPrompts(list) {
         return Array.isArray(list) && list.length > 0 && list.every((p) => {
-            const imagePrompt = String(p?.prompt_en || p?.prompt_content || p?.prompt || '').trim();
+            const sceneNumber = Number(p?.scene_number || (list.indexOf(p) + 1));
+            const gridPrompt = getImageGridPromptForScene(sceneNumber);
+            const imagePrompt = String(
+                (gridPrompt && (gridPrompt.prompt || gridPrompt.grid_prompt))
+                || p?.prompt_en
+                || p?.prompt_content
+                || p?.prompt
+                || ''
+            ).trim();
             const videoPrompt = String(p?.motion_desc || p?.flow_prompt || p?.video_prompt || '').trim();
             return imagePrompt && videoPrompt;
         });

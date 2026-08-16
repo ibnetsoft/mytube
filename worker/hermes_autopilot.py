@@ -2198,6 +2198,9 @@ Return ONLY a JSON array of strings.
             job_type="script_plan_generate",
             payload={
                 "topic_queue_id": topic_queue_id,
+                "category": category,
+                "category_name": category,
+                "category_id": category_id,
                 "topic": generated_title,
                 "target_duration_seconds": target_duration_seconds,
                 "script_style": category_script_style,
@@ -2253,6 +2256,9 @@ Return ONLY a JSON array of strings.
             job_type="script_generate",
             payload={
                 "topic_queue_id": topic_queue_id,
+                "category": category,
+                "category_name": category,
+                "category_id": category_id,
                 "topic": generated_title,
                 "structure": structure,
                 "target_duration_seconds": target_duration_seconds,
@@ -2295,6 +2301,9 @@ Return ONLY a JSON array of strings.
             job_type="publish_metadata_generate",
             payload={
                 "topic_queue_id": topic_queue_id,
+                "category": category,
+                "category_name": category,
+                "category_id": category_id,
                 "topic": generated_title,
                 "script": final_script,
                 "structure": structure,

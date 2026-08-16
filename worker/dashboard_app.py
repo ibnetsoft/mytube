@@ -581,6 +581,46 @@ async def api_cancel_job(
     return wait_for_result(submit_command("cancel_job", {"job_id": job_id}), timeout=15)
 
 
+@app.post("/api/jobs/{job_id}/retry")
+async def api_retry_job(
+    job_id: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    job = job_store.get_job(job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    status = str(job.get("status") or "").upper()
+    if status == job_store.FAILED:
+        retried = job_store.transition(
+            job_id,
+            job_store.QUEUED,
+            reason="dashboard retry",
+            progress=0,
+            progress_message="재시작 대기 중",
+            error_code="",
+            error_message="",
+            output_path="",
+        )
+        retry_job_id = retried["job_id"]
+    elif status == job_store.CANCELED:
+        retry_job_id = job_store.submit_job(
+            job_type=job.get("job_type") or "topic_research",
+            payload=job.get("payload") or {},
+            priority=int(job.get("priority") or 100),
+            source=job.get("source") or "dashboard_retry",
+            max_retries=int(job.get("max_retries") or 3),
+        )
+    else:
+        raise HTTPException(400, f"job status {status} cannot be retried")
+
+    if (job.get("job_type") or "").startswith(("topic_", "script_", "publish_", "web_")):
+        from ipc import submit_command, wait_for_result
+        wait_for_result(submit_command("start_process", {"name": "hermes_worker"}), timeout=15)
+    return {"success": True, "job_id": retry_job_id}
+
+
 @app.get("/api/logs")
 async def api_logs(
     process: str = "manager",
@@ -2231,7 +2271,7 @@ function renderProcessCards(status, jobs = []) {
       ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 ?꾨줈洹몃옩 ?쒖옉 ???먮룞 ?ㅽ뻾</div>` : name === 'hermes_worker' ? `
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
         <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="?앹꽦???곸긽 ?? title="?앹꽦???곸긽 ?? style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
-        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 ?쒖옉</button>
+        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${s==='running' ? 'disabled' : ''}>\u25B6 시작</button>
         <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 以묒?</button>
       </div>
       <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">?곸긽 ?? 1媛?= 踰ㅼ튂留덊겕 遺꾩꽍쨌?쒕ぉ ?앹꽦쨌???먮즺 議곗궗쨌??湲고쉷 諛??대?吏쨌?곸긽 ?꾨＼?꾪듃 ?앹꽦쨌?蹂??묒꽦쨌?ㅻ챸 ?앹꽦???ы븿???대? 6?④퀎瑜??꾨즺???곸긽 1媛쒖엯?덈떎.</div>` : `
@@ -2262,24 +2302,22 @@ function isHermesGenerationJob(job) {
 
 async function restartHermesFromCancelled(jobId) {
   try {
-    const current = await api('GET', '/api/autopilot/hermes/status');
-    const currentSettings = current?.settings || {};
-    const settings = {
-      ...currentSettings,
-      mode: currentSettings.mode || 'target_limit',
-      target_limit: Number(currentSettings.target_limit || 1),
-      resume: true,
-    };
-    const result = await api('POST', '/api/autopilot/hermes/start', { settings });
+    const result = await api('POST', `/api/jobs/${encodeURIComponent(jobId)}/retry`);
     if (!result || result.success === false) {
       showToast(`?ъ떆???ㅽ뙣: ${result?.error || '?묐떟 ?놁쓬'}`, 'error');
       return;
     }
-    showToast(`以묐떒???묒뾽 ${String(jobId).substring(0, 8)}遺???댁뼱???쒖옉?덉뒿?덈떎.`, 'success');
+    showToast(`작업 ${String(result.job_id || jobId).substring(0, 8)} 재시작 요청 완료`, 'success');
     setTimeout(refreshAll, 800);
   } catch (e) {
     showToast(`?ъ떆???ㅽ뙣: ${e}`, 'error');
   }
+}
+
+function jobErrorLine(job) {
+  const message = String(job?.error_message || '').trim();
+  if (!message) return '';
+  return `<div class="info" style="color:#f85149;margin-top:6px;white-space:normal;line-height:1.45">\u26A0; 오류: ${escapeHtml(message)}</div>`;
 }
 
 function renderRecentJobs(jobs) {
@@ -2289,9 +2327,9 @@ function renderRecentJobs(jobs) {
   empty.style.display = 'none';
   el.innerHTML = jobs.slice(0, 10).map(j => `<tr>
     <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
-    <td>${statusBadge(j.status)}${j.status === 'CANCELED' && isHermesGenerationJob(j)
-      ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">?ъ떆??/button>`
+    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span>${jobErrorLine(j)}</td>
+    <td>${statusBadge(j.status)}${['CANCELED', 'FAILED'].includes(String(j.status || '').toUpperCase()) && isHermesGenerationJob(j)
+      ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">재시작</button>`
       : ''}</td>
     <td>${displayProgress(j)}%</td>
     <td>${fmtTime(j.created_at)}</td>
@@ -2525,6 +2563,11 @@ async function showGeneratedResult(resultId) {
   const imageGridPrompts = getGeneratedImageGridPrompts(data);
   const sources = Array.isArray(data._sources) ? data._sources : [];
   const errors = Array.isArray(data.errors) ? data.errors : [];
+  const sourceJobTypes = sources.map(source => String(source?.job_type || '')).filter(Boolean);
+  const hasPlanOnly = sourceJobTypes.includes('script_plan_generate') && !String(script || '').trim();
+  const scriptPlaceholder = hasPlanOnly
+    ? '아직 대본 생성 단계 전입니다. 현재 결과는 대본 기획과 2x2 이미지/영상 프롬프트까지 완료된 상태입니다.'
+    : '대본 데이터가 없습니다.';
   const metaHtml = `
     <div class="generated-meta">
       <div class="label">?뚯씪 ID</div><div>${escapeHtml(data._file?.id || resultId)}</div>
@@ -2616,7 +2659,7 @@ async function showGeneratedResult(resultId) {
     </div>
     <div class="generated-section">
       <h4>대본</h4>
-      <div class="result-viewer" style="max-height:420px">${escapeHtml(script || '대본 데이터가 없습니다.')}</div>
+      <div class="result-viewer" style="max-height:420px">${escapeHtml(script || scriptPlaceholder)}</div>
     </div>
     <div class="generated-section">
       <h4>2x2 Image Generation Prompts</h4>
@@ -2647,7 +2690,7 @@ function loadHistory() {
     empty.style.display = 'none';
     el.innerHTML = jobs.map(j => `<tr>
       <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
+      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span>${jobErrorLine(j)}</td>
       <td>${statusBadge(j.status)}</td>
       <td>${displayProgress(j)}%</td>
       <td>${fmtTime(j.created_at)}</td>
