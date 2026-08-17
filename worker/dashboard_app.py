@@ -2334,7 +2334,7 @@ function renderProcessCards(status, jobs = []) {
       ${workerDescription ? `<div class="info" style="margin-top:4px">${workerDescription}</div>` : ''}
       <div class="info" style="margin-top:4px">프로세스 번호: ${info.pid || '-'}</div>
       ${progress > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>` : ''}
-      ${hasError ? `<div class="info" style="color:${isRecentError ? '#f85149' : '#8b949e'};margin-top:4px">${isRecentError ? '\u{26A0} 오류: ' : '\u{2139} 이전 오류 (복구됨): '}${escapeHtml(info.last_error)}</div>` : ''}
+      
       ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : name === 'hermes_worker' ? `
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
         <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="생성할 영상 수" title="생성할 영상 수" style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
@@ -2396,7 +2396,7 @@ function renderRecentJobs(jobs) {
   empty.style.display = 'none';
   el.innerHTML = jobs.slice(0, 10).map(j => `<tr>
     <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
+    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span>${(j.status === 'FAILED' || j.error_message) ? `<div style="color:#f85149;margin-top:4px;font-size:12px;word-break:break-all;background:rgba(248,81,73,0.1);padding:4px 8px;border-radius:4px;border:1px solid rgba(248,81,73,0.25)">⚠️ 오류: ${escapeHtml(j.error_message || '작업 실패')}</div>` : ''}</td>
     <td>${statusBadge(j.status)}${j.status === 'CANCELED' && isHermesGenerationJob(j)
       ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">재시작</button>`
       : ''}</td>
@@ -2745,7 +2745,7 @@ function loadHistory() {
     empty.style.display = 'none';
     el.innerHTML = jobs.map(j => `<tr>
       <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span></td>
+      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span>${(j.status === 'FAILED' || j.error_message) ? `<div style="color:#f85149;margin-top:4px;font-size:12px;word-break:break-all;background:rgba(248,81,73,0.1);padding:4px 8px;border-radius:4px;border:1px solid rgba(248,81,73,0.25)">⚠️ 오류: ${escapeHtml(j.error_message || '작업 실패')}</div>` : ''}</td>
       <td>${statusBadge(j.status)}</td>
       <td>${displayProgress(j)}%</td>
       <td>${fmtTime(j.created_at)}</td>
