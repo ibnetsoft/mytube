@@ -1462,7 +1462,6 @@ Return ONLY JSON:
                 "analysis": candidate.get("analysis", {}),
                 "success_strategies": candidate.get("success_strategies", []),
             })
-
         benchmark_titles = [item.get("title", "") for item in compact_candidates if item.get("title")]
         category_style = self._category_title_style(category)
         learning_profile = learning_profile or {}
@@ -1558,7 +1557,7 @@ Return ONLY valid JSON in this schema:
     ) -> dict:
         """Select one existing visual style for a generated video.
 
-        The model may choose only from the Worker style catalog.  A category
+        The model may choose only from the Worker style catalog. A category
         default remains the fallback so a temporary AI/API failure never
         leaves the topic without a usable visual direction.
         """
@@ -1592,11 +1591,21 @@ Return ONLY valid JSON in this schema:
             }
             for key, item in by_key.items()
         ]
+
+        category_style_hint = ""
+        if category == "옛날이야기":
+            category_style_hint = (
+                "\nSPECIAL RULE FOR '옛날이야기': This is traditional Korean folk/historical tales (Joseon era). "
+                "Strongly prioritize traditional Korean, oriental ink, folk art, historical illustration, or K-webtoon styles "
+                "(e.g., oriental_ink, joseon_historical, k_webtoon, folk_art). Avoid generic Western/modern realism unless specifically indicated."
+            )
+
         prompt = f"""
 You are a visual director for a Korean YouTube longform video.
 Choose exactly one visual style for this specific video from the provided catalog.
 Do not invent a key. Do not default to realistic merely because it is safe.
 Use the category default as a strong prior, but override it only when the title's era, genre, and emotional tone clearly need a different existing style.
+{category_style_hint}
 
 CATEGORY: {category}
 CATEGORY DEFAULT STYLE: {fallback}
@@ -1646,7 +1655,12 @@ Return ONLY JSON:
             "노후금융": ["국민연금", "퇴직연금", "노후 준비", "은퇴 자금", "건강보험료", "고령층 재테크"],
             "해외감동": ["해외 감동 실화", "외국인 한국 경험", "세계 감동 뉴스", "국제 미담"],
             "탈북사연": ["북한 탈북 실화", "탈북민 증언", "북한 생활 실상", "북한 가족 이야기"],
-            "옛날이야기": ["조선시대 실화", "옛날 한국 풍습", "역사 미스터리", "한국 민간 전설"],
+            "옛날이야기": [
+                "조선시대 야담 실화", "옛날 한국 풍습 미스터리", "조선 기이한 이야기",
+                "한국 민간 설화 전설", "조선시대 기담", "조선 양반 평민 사건",
+                "옛날 시골 전설 기담", "고전 설화 명장면", "조선시대 미스터리 실화",
+                "옛날이야기 감동 실화"
+            ],
             "한국사연": ["한국 가족 사연", "실화 반전 이야기", "한국인 인생 사연", "시청자 사연"],
             "황혼19금": ["황혼 이혼", "중년 부부 갈등", "노년의 사랑", "50대 인생 사연"],
             "무협": ["무협 소설 명장면", "강호 복수극", "무림 고수 전설", "무협 몰락한 문파"],

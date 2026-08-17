@@ -64,6 +64,21 @@ _BUILTIN_DEFAULT_DIRECTIVE = (
     "자기소개성 문장을 반복하지 않는다."
 )
 
+_BUILTIN_STYLE_DIRECTIVES = {
+    "joseon_sageuk": (
+        "조선시대 전기수(이야기꾼)가 청중을 쥐락펴락하듯 생생하고 몰입감 넘치는 야담/구연동화 톤으로 집필한다. "
+        "도입부는 '옛날 어느 고을에...', '때는 조선 숙종 시절...'처럼 구체적 배경과 인물의 기이한 행동으로 즉시 호기심을 자극한다. "
+        "사건 전개는 속도감 있게 갈등을 고조시키며, 인물의 감정과 긴박한 상황은 괄호 감정 태그(예: (숨을 죽이며), (놀란 목소리로), (비통하게))로 "
+        "상세히 묘사한다. 결말은 권선징악과 깊은 인간적 여운, 삶의 교훈을 남기며 여운 있게 마무리한다. "
+        "어색한 현대 유행어나 메타 해설(유튜브, 알고리즘, 스토리텔링 등)은 일체 사용하지 않는다."
+    ),
+    "story": (
+        "흡입력 있는 한국 전통 민담 및 기담 스토리텔링 어투를 유지한다. "
+        "1인 나레이터가 시청자에게 전설이나 비화를 직접 들려주는 듯한 친근하면서도 긴장감 있는 어투를 사용한다. "
+        "배경 묘사와 등장인물의 심리 변화를 구체적으로 풀어내며, 반전과 클라이맥스를 극적으로 연출한다."
+    ),
+}
+
 _log_lock = threading.Lock()
 _last_logged_key = None  # 동일 스타일 반복 로그(섹션별 다회 호출) 억제용
 
@@ -191,9 +206,10 @@ def resolve_script_style_directive(script_style: Optional[str]) -> str:
 
     prompt_value = (presets.get(canonical) or "").strip()
     if not prompt_value:
-        # 존재하지 않는 스타일 키이거나, 프리셋은 있으나 내용이 비어있는(=사실상 비활성)
-        # 경우. script_style_presets 테이블에는 별도 is_active 컬럼이 없어 "빈
-        # prompt_value"를 비활성 상태의 대용 지표로 취급한다.
+        builtin_specific = _BUILTIN_STYLE_DIRECTIVES.get(canonical)
+        if builtin_specific:
+            _log(requested, canonical, fallback_used=True, db_error=False)
+            return _wrap_directive(builtin_specific)
         directive, db_error = _resolve_default(db_error=False, presets=presets)
         _log(requested, "default", fallback_used=True, db_error=db_error)
         return directive
