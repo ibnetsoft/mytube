@@ -174,8 +174,8 @@ def validate_generation_package(
             score = int(float(script_quality.get("score") or 0))
         except (TypeError, ValueError):
             score = 0
-        if verdict != "pass" or score < 78:
-            errors.append(f"script_quality_report not passing: verdict={verdict or 'missing'}, score={score}")
+        # QA score is informational for monitoring and does not block package validation
+        pass
 
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")

@@ -373,7 +373,31 @@ def _merge_topic_generated_result(target: dict, data: dict, *, source: str, sour
     if category:
         target["category"] = category
     if isinstance(data.get("structure"), dict):
-        target["structure"] = data["structure"]
+        new_structure = data["structure"]
+        if "structure" not in target:
+            target["structure"] = dict(new_structure)
+        else:
+            existing_structure = target["structure"] if isinstance(target.get("structure"), dict) else {}
+            merged_structure = {**existing_structure, **new_structure}
+            if existing_structure.get("image_grid_prompts") and not new_structure.get("image_grid_prompts"):
+                merged_structure["image_grid_prompts"] = existing_structure["image_grid_prompts"]
+            if existing_structure.get("image_grid_prompt_status") and not new_structure.get("image_grid_prompt_status"):
+                merged_structure["image_grid_prompt_status"] = existing_structure["image_grid_prompt_status"]
+            if existing_structure.get("media_prompt_status") and not new_structure.get("media_prompt_status"):
+                merged_structure["media_prompt_status"] = existing_structure["media_prompt_status"]
+            existing_scenes = existing_structure.get("scenes") or []
+            new_scenes = new_structure.get("scenes") or []
+            if existing_scenes and new_scenes and len(existing_scenes) == len(new_scenes):
+                merged_scenes = []
+                for es, ns in zip(existing_scenes, new_scenes):
+                    if isinstance(es, dict) and isinstance(ns, dict):
+                        merged_scenes.append({**ns, **es})
+                    else:
+                        merged_scenes.append(ns or es)
+                merged_structure["scenes"] = merged_scenes
+            elif existing_scenes and not new_scenes:
+                merged_structure["scenes"] = existing_scenes
+            target["structure"] = merged_structure
     if isinstance(data.get("script"), str) and data["script"].strip():
         target["script"] = data["script"]
     if data.get("char_count"):

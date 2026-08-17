@@ -7,17 +7,39 @@ from typing import Optional, List
 from config import config
 
 
-DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
+DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 CLAUDE_MODEL_OPTIONS = [
+    "claude-haiku-4-5-20251001",
+    "claude-haiku-4-5",
     "claude-sonnet-5",
-    "claude-sonnet-4-6",      # 최신 Sonnet (기본)
-    "claude-4.6",
-
-    "claude-opus-4-8",        # 최신 Opus (고성능)
-    "claude-haiku-4-5-20251001",  # Haiku (빠름)
-    "claude-3-5-sonnet-20241022",  # 이전 버전 Sonnet
-    "claude-3-opus-20240229",      # 이전 버전 Opus
+    "claude-sonnet-4-6",
+    "claude-opus-5",
+    "claude-fable-5",
+    "claude-3-5-haiku-20241022",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-opus-20240229",
 ]
+
+def normalize_claude_model_name(model_name: str) -> str:
+    """Map human/UI names and aliases (e.g. claude-Haiku-4.5) to valid Anthropic API models."""
+    raw = str(model_name or "").strip()
+    lower = raw.lower().replace("_", "-").replace(" ", "-")
+    
+    if "haiku-4" in lower or "haiku-4.5" in lower or "haiku-4-5" in lower or "haiku" in lower:
+        return "claude-haiku-4-5-20251001"
+    if "sonnet-5" in lower:
+        return "claude-sonnet-5"
+    if "sonnet" in lower:
+        return "claude-3-5-sonnet-20241022"
+    if "opus-5" in lower:
+        return "claude-opus-5"
+    if "opus" in lower:
+        return "claude-3-opus-20240229"
+    if raw in CLAUDE_MODEL_OPTIONS:
+        return raw
+    return DEFAULT_CLAUDE_MODEL
+
+
 
 
 class ClaudeService:
@@ -64,9 +86,9 @@ class ClaudeService:
         if not self.api_key:
             raise Exception("Claude API 키가 설정되지 않았습니다. 어드민 웹에서 키를 저장한 후 앱을 재시작하세요.")
 
-        if model not in CLAUDE_MODEL_OPTIONS:
-            self.log_debug(f"⚠️ [Claude] Unknown model: {model}, using default: {DEFAULT_CLAUDE_MODEL}")
-            model = DEFAULT_CLAUDE_MODEL
+        target_model = normalize_claude_model_name(model)
+        self.log_debug(f"💬 [Claude] Requested model: '{model}' -> Using API model: '{target_model}'")
+        model = target_model
 
         url = f"{self.base_url}/messages"
 
