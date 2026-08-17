@@ -1,16 +1,3 @@
 {
-    "crons": [
-        {
-            "path": "/api/admin/cron/rollup-ai-logs",
-            "schedule": "0 19 * * *"
-        },
-        {
-            "path": "/api/admin/cron/trigger-benchmark-analyze",
-            "schedule": "0 3 * * *"
-        },
-        {
-            "path": "/api/admin/cron/youtube-monitoring",
-            "schedule": "0 15 * * *"
-        }
-    ]
+  "framework": "nextjs"
 }
