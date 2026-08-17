@@ -33,7 +33,6 @@ from pathlib import Path
 
 MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024  # 500MB - a render input package should never be larger than this
 ALLOWED_DOWNLOAD_EXTENSIONS = {".zip"}
-# [Voicebox] render_audio 잡의 TTS 결과물(.mp3)도 업로드 대상
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mp3"}
 MAX_RETRIES = 3
 RETRY_BACKOFF_SECONDS = 2.0
@@ -126,7 +125,7 @@ def download_input_package(file_id: str, dest_dir: Path) -> Path:
 
 def upload_output(local_output_path: Path, remote_filename: str) -> str:
     """Uploads a completed render output to the configured Drive working
-    folder - render_video's output.mp4 or render_audio's Voicebox TTS .mp3.
+    folder - render_video's output.mp4.
     Returns the Drive file id (stable reference, cheaper than a webViewLink
     for the central server to store)."""
     if not DRIVE_TOKEN_PATH or not DRIVE_FOLDER_ID:

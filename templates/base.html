@@ -224,13 +224,6 @@
                             <span data-i18n-key="nav_tts">{{ t('nav_tts') }}</span>
                         </a>
                     </li>
-                    <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %} {% if is_std_nav %}order-[4]{% endif %}">
-                        <a href="/voicebox-tts" id="nav-voicebox-tts"
-                            class="sidebar-item {% if page == 'voicebox-tts' %}active{% endif %}">
-                            <span class="sidebar-icon"></span>
-                            <span data-i18n-key="nav_voicebox_tts">{{ t('nav_voicebox_tts') }}</span>
-                        </a>
-                    </li>
 
                     <li class="{% if app_mode in ['commerce', 'longform_music'] %}hidden{% endif %} {% if is_std_nav %}order-[6]{% endif %}">
                         <a href="/subtitle-gen" id="nav-subtitle"
