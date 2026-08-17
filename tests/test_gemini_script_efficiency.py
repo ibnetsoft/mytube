@@ -32,15 +32,117 @@ def test_unavailable_gemini_models_stay_on_gemini_provider(monkeypatch):
     assert ai_router.detect_provider(normalized) == "gemini"
 
 
-def test_script_generation_can_batch_all_standard_scenes_into_one_call():
+def test_script_generation_batches_standard_scenes_into_few_act_chunks():
     scenes = [{"scene_number": idx + 1, "scene_summary": f"scene {idx + 1}"} for idx in range(53)]
-    budgets = [{"min_chars": 80, "max_chars": 160} for _ in scenes]
+    budgets = [{"duration_seconds": 20, "min_chars": 80, "max_chars": 160} for _ in scenes]
 
-    chunks = hermes_worker._chunk_scenes_for_script_generation(scenes, budgets, max_chunks=1)
+    chunks = hermes_worker._chunk_scenes_for_script_generation(scenes, budgets, max_chunks=4)
 
-    assert len(chunks) == 1
+    assert 1 < len(chunks) <= 4
     assert chunks[0][0] == 0
-    assert len(chunks[0][1]) == 53
+    assert sum(len(chunk_scenes) for _, chunk_scenes, _ in chunks) == 53
+
+
+def test_script_chunk_prompt_excludes_scene_meta_and_tts_fields():
+    scene = {
+        "scene_order": 1,
+        "scene_summary": "오프닝 금기 장면에서 '산속 옹기장이가 항아리 하나를 절대 팔지 않은 이유'의 약속을 1단계로 밀어 올리며, 마을 입구의 낡은 금기패가 사건의 시작을 알린다",
+        "scene_situation": "오프닝의 역할은 같은 사건 반복이 아니라 단서를 전진시키는 것이다. 금기 때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다",
+        "scene_purpose": "낡은 금기패를 통해 옹기장이의 비밀을 시작한다",
+        "scene_emotion": "불길함",
+        "tts_direction": "할머니가 옛이야기를 들려주듯 말한다. 설명보다 사건으로 느끼게 하고 여운으로 넘긴다.",
+        "title_promise_link": "제목의 약속을 회수한다",
+        "end_bridge": "다음 단서는 같은 문장으로 이어진다.",
+    }
+    prompt = hermes_worker._build_script_chunk_prompt(
+        "산속 옹기장이가 항아리 하나를 절대 팔지 않은 이유",
+        [scene],
+        [{"scene_order": 1, "duration_seconds": 5, "target_chars": 80, "min_chars": 40, "max_chars": 120}],
+        False,
+        False,
+        [],
+        "900초 분량",
+        "ko",
+        upload_title="산속 옹기장이가 항아리 하나를 절대 팔지 않은 이유",
+        structure_context={"title_promise": "항아리의 비밀을 밝힌다"},
+        narrative_blueprint={},
+        previous_context={},
+    )
+
+    assert "tts_direction" not in prompt
+    assert "end_bridge" not in prompt
+    assert "title_promise_link" not in prompt
+    assert "1단계로 밀어 올리며" not in prompt
+    assert "숨겨진 관계가 한 겹 더 흔들린다" not in prompt
+    assert "story_beat" in prompt
+    assert "낡은 금기패" in prompt
+
+
+def test_old_story_tiger_hunter_plan_rebuilds_template_drift():
+    title = "호랑이 발톱을 뽑아간 사냥꾼, 그 마을에 3년 뒤 일어난 일"
+    structure = {
+        "scenes": [
+            {
+                "scene_number": idx + 1,
+                "scene_summary": f"{idx % 3 + 1}단계 금기패, 우물가 흔적, 노인의 유언, 장롱 속 발톱을 다시 보여준다",
+                "scene_situation": "오프닝의 역할은 같은 사건 반복이 아니라 단서를 전진시키는 것이다. 금기 때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다",
+                "scene_purpose": "같은 사건 반복이 아니라 단서를 통해 인물의 선택과 대가를 새 방향으로 전진시키는 것이다",
+                "retention_hook": "금기 때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다",
+                "visual_direction": "반복되는 개별 장면 이미지 지시",
+                "tts_direction": "반복되는 성우 지시",
+            }
+            for idx in range(53)
+        ]
+    }
+
+    repaired = hermes_worker._repair_old_story_scene_plan_repetition(structure, title, title)
+    scenes = repaired["scenes"]
+    joined = "\n".join(
+        " ".join(str(scene.get(field) or "") for field in ("scene_summary", "scene_situation", "scene_purpose", "retention_hook"))
+        for scene in scenes
+    )
+
+    assert len(scenes) == 53
+    assert len({scene["scene_summary"] for scene in scenes}) == 53
+    assert "호랑이" in joined
+    assert "발톱" in joined
+    assert "사냥꾼" in joined
+    assert "1단계" not in joined
+    assert "2단계" not in joined
+    assert "3단계" not in joined
+    assert "숨겨진 관계가 한 겹 더 흔들린다" not in joined
+    assert all("visual_direction" not in scene for scene in scenes)
+    assert all("tts_direction" not in scene for scene in scenes)
+    assert not hermes_worker._scene_plan_repetition_errors(repaired)
+
+
+def test_generic_old_story_repair_replaces_repeated_scene_situation():
+    title = "죽은 아버지가 꿈에 나타나 논 한 뙈기를 팔지 말라 했다"
+    structure = {
+        "scenes": [
+            {
+                "scene_number": idx + 1,
+                "scene_summary": f"서로 다른 요약 {idx + 1}",
+                "scene_situation": "아들은 노인을 찾아가 같은 논의 비밀을 다시 듣는다",
+                "scene_purpose": "같은 사건을 반복한다",
+                "retention_hook": "같은 질문을 반복한다",
+                "visual_direction": "반복되는 개별 장면 이미지 지시",
+                "tts_direction": "반복되는 성우 지시",
+            }
+            for idx in range(53)
+        ]
+    }
+
+    repaired = hermes_worker._repair_old_story_scene_plan_repetition(structure, title, title)
+
+    assert len({scene["scene_situation"] for scene in repaired["scenes"]}) == 53
+    assert "아들은 노인을 찾아가 같은 논의 비밀을 다시 듣는다" not in "\n".join(
+        scene["scene_situation"] for scene in repaired["scenes"]
+    )
+    assert "\n".join(scene["scene_summary"] for scene in repaired["scenes"]).count(title) == 0
+    assert all("visual_direction" not in scene for scene in repaired["scenes"])
+    assert all("tts_direction" not in scene for scene in repaired["scenes"])
+    assert not hermes_worker._scene_plan_repetition_errors(repaired)
 
 
 def test_gemini_generation_failure_does_not_fallback_to_deepseek(monkeypatch):

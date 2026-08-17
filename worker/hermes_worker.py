@@ -3066,6 +3066,58 @@ def _old_story_title_is_grave_vigil(topic: str, upload_title: str) -> bool:
     return any(term in title_blob for term in ("며느리", "시어머니", "묘에", "묘지", "grave vigil"))
 
 
+def _old_story_title_is_tiger_hunter(topic: str, upload_title: str) -> bool:
+    title_blob = _text_with_mojibake_repairs(topic, upload_title)
+    return "호랑이" in title_blob and any(term in title_blob for term in ("발톱", "사냥꾼", "나무꾼"))
+
+
+def _old_story_scene_has_template_drift(scene: dict) -> bool:
+    blob = " ".join(
+        str((scene or {}).get(field) or "")
+        for field in ("scene_summary", "scene_situation", "scene_purpose", "retention_hook", "end_bridge")
+    )
+    return any(
+        term in blob
+        for term in (
+            "1단계",
+            "2단계",
+            "3단계",
+            "4단계",
+            "오프닝의 역할",
+            "중반의 역할",
+            "후반의 역할",
+            "숨겨진 관계가 한 겹 더 흔들린다",
+            "같은 사건 반복이 아니라",
+            "단서를 통해 인물의 선택과 대가를 새 방향",
+        )
+    )
+
+
+def _korean_ordinal_label(number: int) -> str:
+    if number <= 0:
+        return "처음"
+    special = {
+        1: "첫",
+        2: "둘",
+        3: "셋",
+        4: "넷",
+        5: "다섯",
+        6: "여섯",
+        7: "일곱",
+        8: "여덟",
+        9: "아홉",
+        10: "열",
+    }
+    if number in special:
+        return special[number]
+    units = ["", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱", "여덟", "아홉"]
+    tens = {1: "열", 2: "스물", 3: "서른", 4: "마흔", 5: "쉰"}
+    ten, unit = divmod(number, 10)
+    if ten in tens:
+        return f"{tens[ten]}{units[unit]}"
+    return f"{number}번"
+
+
 def _clean_planned_scene_situation(scene: dict) -> str:
     text = str((scene or {}).get("scene_situation") or "").strip()
     if not text:
@@ -3082,29 +3134,64 @@ def _clean_planned_scene_situation(scene: dict) -> str:
 def _generic_old_story_unique_beats(title: str, count: int) -> list[tuple[str, str, str]]:
     """Build non-repeating folk-tale beats when model plans collapse into loops."""
     clean_title = str(title or "숨겨진 약속").strip()
-    anchors = [
-        ("금기", "마을 입구의 낡은 금기패가 사건의 시작을 알린다", "왜 이 마을은 그 말을 대대로 숨겼을까?"),
-        ("목격", "새벽 우물가에서 주인공이 아무도 보지 못한 흔적을 발견한다", "그 흔적은 사람의 것일까, 오래된 약속의 것일까?"),
-        ("유언", "죽음을 앞둔 노인이 제목 속 비밀과 이어지는 짧은 말을 남긴다", "노인은 왜 살아서는 끝내 말하지 못했을까?"),
-        ("물건", "장롱 밑에서 붉은 실로 묶인 작은 물건이 나온다", "그 물건은 누구의 죄를 붙들고 있었을까?"),
-        ("소문", "마을 사람들은 서로 다른 소문을 말하며 진실을 더 흐린다", "소문 속에서 빠진 이름 하나는 누구일까?"),
-        ("가족", "가족들은 체면을 지키려 하지만 주인공은 침묵을 의심한다", "가족이 감추는 것은 부끄러움일까, 두려움일까?"),
-        ("길", "비가 그친 산길에 오래된 발자국이 다시 드러난다", "사라졌던 길은 왜 오늘 밤 다시 열렸을까?"),
-        ("증언", "말을 아끼던 노파가 과거의 첫 증언을 조심스레 꺼낸다", "그 증언은 누구를 살리고 누구를 무너뜨릴까?"),
-        ("문서", "찢어진 문서 조각이 서로 맞물리며 감춰진 거래를 보여준다", "문서에 없는 마지막 줄은 어디에 있을까?"),
-        ("대립", "큰집 사람들과 가난한 집 사람들이 마당에서 정면으로 부딪힌다", "누가 진실보다 체면을 더 두려워할까?"),
-        ("밤", "등불이 꺼진 밤, 닫힌 문 너머에서 낮은 울음이 들린다", "그 울음은 원망일까, 용서를 구하는 소리일까?"),
-        ("선택", "주인공은 마을 편에 설지, 죽은 이의 억울함을 밝힐지 선택해야 한다", "진실을 밝히면 누구의 삶이 먼저 깨질까?"),
-        ("추적", "낡은 장부와 발자국을 따라 오래 버려진 초가로 향한다", "그 초가에는 왜 아직 따뜻한 재가 남아 있을까?"),
-        ("반전", "모두가 죄인이라 믿은 사람이 사실 누군가를 대신 지켰음이 드러난다", "대신 죄를 짊어진 사람은 무엇을 지키려 했을까?"),
-        ("희생", "숨겨진 선택이 한 사람의 욕심이 아니라 긴 희생이었음이 밝혀진다", "희생은 왜 원망의 얼굴을 하고 남았을까?"),
-        ("고백", "마침내 침묵하던 사람이 사람들 앞에서 자기 죄를 고백한다", "고백 하나로 오래된 벌이 끝날 수 있을까?"),
-        ("회복", "빼앗긴 이름과 물건이 제자리로 돌아가며 마을의 공기가 바뀐다", "돌아온 이름은 누구의 마음을 먼저 울릴까?"),
-        ("여운", "새벽빛 속에 마지막 흔적만 남고 이야기는 조용히 닫힌다", "진심은 늦어도 사라지지 않는다는 말을 남긴다"),
+    actions = [
+        "마을 사람들이 제목 속 사건을 입에 올리지 못하는 금기를 보여준다",
+        "주인공이 그 금기를 어기게 되는 개인적인 사정을 드러낸다",
+        "첫 번째 목격자가 사라지기 직전 남긴 이상한 행동을 보여준다",
+        "사건이 벌어진 장소에 남은 냄새, 흙, 소리 같은 감각 단서를 잡는다",
+        "마을 어른들이 서로 다른 이유로 같은 질문을 피하는 장면을 둔다",
+        "주인공의 가족이 과거에 그 사건과 엮였다는 첫 흔적을 발견한다",
+        "낡은 물건 하나가 현재 사건과 오래된 빚을 연결한다",
+        "밤길에서 보이면 안 되는 사람이나 짐승의 그림자를 스치게 한다",
+        "주인공이 처음에는 이익이나 체면 때문에 진실을 외면하게 한다",
+        "가장 약한 인물이 모두가 숨긴 말을 뜻밖에 먼저 꺼낸다",
+        "사건을 이용하려는 사람이 등장해 갈등의 방향을 흔든다",
+        "첫 번째 선택의 결과로 작은 벌이나 불길한 변화가 생긴다",
+        "과거 회상에서 사건이 시작된 계절과 첫 희생자를 보여준다",
+        "젊은 시절의 약속이나 거래가 선의처럼 보였음을 밝힌다",
+        "그 약속을 깬 사람이 누구인지 아직 말하지 않고 흔적만 남긴다",
+        "주인공이 마을 밖 사람에게 도움을 청하지만 더 큰 경고를 듣는다",
+        "두 번째 물건이나 문장이 첫 단서와 모순된 사실을 드러낸다",
+        "가족 중 한 사람이 자기만 살기 위해 거짓말했다는 의심을 심는다",
+        "마을 공동체가 피해자보다 집안 체면을 먼저 지켰음을 보여준다",
+        "주인공이 진실을 좇다가 누군가의 억울한 이름을 처음 듣는다",
+        "중심 장소가 단순한 배경이 아니라 약속이 묻힌 자리였음을 밝힌다",
+        "주인공이 되돌릴 수 없는 행동으로 금기의 중심에 들어선다",
+        "죽은 사람이나 사라진 존재가 원망보다 부탁을 남겼음을 암시한다",
+        "가해자로 보였던 사람이 실제로는 더 큰 죄를 막으려 했음을 보여준다",
+        "중간 반전으로 제목의 이유가 두려움이 아니라 보호였을 가능성을 연다",
+        "그 보호가 누군가에게는 또 다른 상처가 되었음을 드러낸다",
+        "주인공이 처음으로 자기 가족의 책임을 인정하지 못하고 흔들린다",
+        "숨겨진 증인이 나타나 과거의 결정적 장면을 구체적으로 말한다",
+        "증언과 물건이 맞물리며 거짓으로 덮인 날짜가 바로잡힌다",
+        "마을 사람들이 주인공을 막으려 모이고, 진실은 더 공개적인 싸움이 된다",
+        "가장 존경받던 인물이 침묵의 대가로 이익을 얻었음이 드러난다",
+        "주인공이 그 인물에게 맞서며 이야기의 주도권을 잡는다",
+        "세 번째 단서가 제목 속 의문을 거의 풀지만 마지막 이유만 남긴다",
+        "과거의 희생자가 왜 끝까지 자기 이름을 숨겼는지 밝혀진다",
+        "그 선택이 사랑인지 벌인지 헷갈리게 만드는 감정 장면을 둔다",
+        "주인공이 잃을 것을 알면서도 숨긴 문서나 물건을 사람들 앞에 꺼낸다",
+        "가족은 무너지고 마을은 처음으로 피해자의 관점에서 사건을 듣는다",
+        "가짜 원인이 무너지고 진짜 원인이 한 사람의 욕심이었음이 드러난다",
+        "욕심을 부린 인물이 뒤늦게 변명하지만 이미 증거가 맞물린다",
+        "주인공이 복수보다 바로잡기를 선택하며 결말의 감정 방향을 정한다",
+        "오래된 장소를 다시 찾아가 묻힌 이름이나 약속을 꺼낸다",
+        "희생자의 마지막 부탁이 원망이 아니라 남은 사람을 살리려는 말이었음을 밝힌다",
+        "주인공이 자신도 그 침묵의 혜택을 받았다는 사실을 받아들인다",
+        "마을 사람들이 처음으로 피해자 앞에서 체면 없이 사과한다",
+        "제목 속 행동이나 금기의 진짜 이유가 명확한 한 문장으로 정리된다",
+        "대가를 치러야 할 사람이 재산, 명예, 자리 중 하나를 내려놓는다",
+        "주인공은 잃은 것을 되찾기보다 다시는 반복하지 않을 규칙을 세운다",
+        "가족 안의 마지막 오해가 풀리지만 완전한 용서는 쉽게 오지 않는다",
+        "공동체가 숨겼던 기록을 새로 쓰거나 비석, 장부, 제단을 바로잡는다",
+        "사건의 물건이 제자리로 돌아가며 불길한 징조가 사라진다",
+        "남은 사람 한 명이 조용히 울거나 웃으며 감정의 결을 회수한다",
+        "다음 세대가 같은 금기를 두려움이 아니라 기억으로 받아들인다",
+        "마지막 장면에서 제목의 질문에 대한 답을 짧고 선명하게 남긴다",
     ]
     beats: list[tuple[str, str, str]] = []
     for idx in range(max(0, count)):
-        anchor, action, question = anchors[idx % len(anchors)]
+        action = actions[idx % len(actions)]
         phase = (
             "오프닝"
             if idx < 12
@@ -3114,10 +3201,10 @@ def _generic_old_story_unique_beats(title: str, count: int) -> list[tuple[str, s
             if idx < 44
             else "결말 회수"
         )
-        turn = idx // len(anchors) + 1
-        summary = f"{phase} {anchor} 장면에서 '{clean_title}'의 약속을 {turn}단계로 밀어 올리며, {action}"
-        purpose = f"{phase}의 역할은 같은 사건 반복이 아니라 {anchor} 단서를 통해 인물의 선택과 대가를 새 방향으로 전진시키는 것이다"
-        hook = f"{question} {anchor} 때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다"
+        label = _korean_ordinal_label(idx + 1)
+        summary = f"{phase} {label} 장면: {action}"
+        purpose = f"{phase}에서 새 사건 하나로 인물의 선택, 마을의 침묵, 마지막 대가를 전진시킨다"
+        hook = f"{label} 번째 장면 뒤에는 아직 말하지 않은 다음 이유가 남아 있다"
         beats.append((summary, purpose, hook))
     return beats
 
@@ -3210,12 +3297,13 @@ def _repair_generic_old_story_scene_plan_repetition(structure: dict, topic: str,
         scene["scene_order"] = idx + 1
         scene["scene_number"] = idx + 1
         scene["scene_summary"] = summary
+        scene["scene_situation"] = summary
         scene["scene_purpose"] = purpose
         scene["retention_hook"] = hook
         scene["title_promise_link"] = f"'{title}'의 숨겨진 약속, 금기, 단서, 고백, 대가를 순서대로 회수한다"
         scene["end_bridge"] = hook
-        scene.pop("image_prompt", None)
-        scene.pop("video_prompt", None)
+        for field in ("image_prompt", "video_prompt", "visual_direction", "tts_direction", "prompt_en", "prompt_content", "prompt"):
+            scene.pop(field, None)
         repaired_scenes.append(scene)
     repaired["scenes"] = repaired_scenes
     repaired["scene_count"] = len(repaired_scenes)
@@ -3348,6 +3436,100 @@ def _old_story_tiger_woodcutter_beats(title: str) -> list[tuple[str, str, str]]:
     ]
 
 
+def _old_story_tiger_claw_hunter_beats(title: str) -> list[tuple[str, str, str]]:
+    actions = [
+        "산 아래 마을에 호랑이 발톱을 건드리면 삼 년 안에 재앙이 온다는 금기패가 서 있다",
+        "젊은 사냥꾼 장돌은 병든 어머니 약값 때문에 산신령 굴까지 들어가겠다고 말한다",
+        "장터 약장수는 살아 있는 호랑이 발톱을 달여 먹으면 어떤 병도 낫는다고 속삭인다",
+        "마을 노인은 그 발톱은 약이 아니라 산의 맹세라며 절대 뽑지 말라고 경고한다",
+        "장돌은 노인의 말을 비웃고 밤길에 덫, 밧줄, 녹슨 칼을 챙겨 산으로 오른다",
+        "첫눈이 내린 산길에서 장돌은 사람 발자국과 호랑이 발자국이 겹친 흔적을 본다",
+        "바위굴 앞에서 호랑이는 새끼를 감싸고 있었고 한쪽 앞발에 오래된 상처가 있다",
+        "장돌은 어미 호랑이를 죽이지 않고 연기에 취하게 한 뒤 앞발을 묶는다",
+        "호랑이가 눈을 뜨고 사람처럼 눈물을 흘리지만 장돌은 발톱 하나를 뽑아 달아난다",
+        "산 전체가 숨을 멈춘 듯 조용해지고 장돌의 손에는 검은 피가 묻는다",
+        "장돌은 마을로 내려와 발톱을 팔지 않고 어머니 약탕기에 몰래 넣는다",
+        "어머니는 열이 내려가지만 꿈속에서 호랑이 울음이 들린다며 밤새 떤다",
+        "사흘 뒤 마을 우물물에 짐승 털 같은 검은 실이 떠오른다",
+        "장돌의 덫에 걸린 산짐승들이 모두 앞발 하나씩 피 흘린 채 발견된다",
+        "마을 아이가 장돌 집 문턱에서 작은 호랑이 발자국을 보고 울음을 터뜨린다",
+        "노인은 삼 년 동안 산에 빚을 갚지 않으면 발톱의 주인이 사람을 찾아온다고 말한다",
+        "장돌은 발톱을 돌려놓으러 산에 오르지만 굴 입구를 찾지 못한다",
+        "돌아오는 길에 장돌은 자기 손톱 하나가 검게 변한 것을 숨긴다",
+        "첫해 봄, 마을 논두렁마다 발톱으로 긁은 듯한 긴 자국이 생긴다",
+        "장돌은 약값 빚을 갚겠다며 더 많은 짐승을 잡지만 덫은 번번이 비어 있다",
+        "어머니는 네가 가져온 약에서 살아 있는 숨소리가 난다며 약탕기를 깨뜨린다",
+        "깨진 약탕기 바닥에서 뽑힌 발톱이 아직도 따뜻한 채 드러난다",
+        "장터 약장수는 사라지고 그가 쓰던 천막 안에는 호랑이 가죽 그림자만 남는다",
+        "장돌은 발톱을 묻으려 하지만 흙이 닿는 자리마다 검은 풀이 돋는다",
+        "둘째 해 여름, 마을 소들이 밤마다 산을 향해 무릎을 꿇는다",
+        "사냥꾼 동무들은 장돌이 산신 물건을 훔쳤다며 그를 따돌린다",
+        "장돌은 죄를 감추려고 노인의 금기패를 몰래 베어 불태운다",
+        "금기패가 탄 자리에서 호랑이 새끼 울음 같은 소리가 새어 나온다",
+        "노인은 발톱을 뽑은 벌은 죽음보다 먼저 사람의 마음을 짐승으로 만든다고 말한다",
+        "장돌은 밤마다 어머니 방 앞에서 자신도 모르게 앞발로 문을 긁는다",
+        "어머니는 아들의 손을 붙잡고 발톱을 돌려주지 않으면 내가 먼저 산으로 가겠다고 한다",
+        "장돌은 어머니를 지키려 발톱을 들고 산길에 오르지만 발자국이 모두 마을 쪽으로 돌아선다",
+        "산비탈에서 장돌은 삼 년 전 묶었던 밧줄 조각이 나무뿌리에 감겨 있는 것을 찾는다",
+        "그 밧줄 끝에는 호랑이 피가 아니라 사람의 머리카락이 엉겨 있다",
+        "장돌은 약장수가 사실 산의 복수를 부르는 무당이었다는 소문을 듣는다",
+        "마을 굿판에서 무당의 북소리가 나자 장돌의 검은 손톱이 하나씩 떨어진다",
+        "떨어진 손톱은 땅에 닿자 작은 발톱으로 변해 산 쪽으로 기어간다",
+        "셋째 해 첫눈이 오던 밤, 장돌 집 마당에 거대한 발자국 세 개가 찍힌다",
+        "어머니는 아들을 살리려 발톱을 품고 혼자 산으로 올라간다",
+        "장돌은 뒤늦게 어머니를 따라가며 처음으로 자신이 훔친 것이 약이 아니라 목숨이었다고 깨닫는다",
+        "바위굴 앞에서 늙은 호랑이가 나타나 어머니 대신 장돌을 바라본다",
+        "장돌은 무릎을 꿇고 발톱을 돌려주려 하지만 빠진 자리는 이미 새살로 닫혀 있다",
+        "호랑이는 발톱을 받지 않고 장돌의 검게 변한 손을 앞발로 누른다",
+        "장돌은 자신이 삼 년 동안 마을의 두려움을 먹고 살았다는 사실을 고백한다",
+        "어머니는 병이 나은 것이 아니라 아들의 죄를 대신 앓고 있었다고 말한다",
+        "장돌은 발톱을 산신 바위 아래 묻고 자신이 놓은 덫을 모두 풀겠다고 맹세한다",
+        "호랑이는 장돌을 물지 않고 그의 칼을 앞발로 눌러 두 동강 낸다",
+        "마을로 돌아온 장돌은 사냥을 그만두고 금기패를 새로 세운다",
+        "새 금기패에는 호랑이를 두려워하라는 말 대신 욕심으로 산의 것을 뽑지 말라고 새긴다",
+        "어머니는 마지막 숨을 거두며 네 손이 사람 손으로 돌아왔으니 됐다고 말한다",
+        "장돌은 어머니 무덤 옆에 발톱 모양 돌 하나를 세우고 매년 첫눈을 기다린다",
+        "마을 사람들은 첫눈 밤에 산에서 울음이 들리면 불을 끄고 빚진 이름을 떠올린다",
+        "이야기는 호랑이가 복수해서가 아니라 사람이 훔친 생명의 자리를 끝내 갚아야 했기 때문에 벌어졌다고 끝난다",
+    ]
+    purposes = [
+        "호랑이 발톱 금기와 삼 년 뒤 재앙의 약속을 즉시 세운다",
+        "사냥꾼의 절박한 동기를 만들되 욕심으로 변할 여지를 남긴다",
+        "발톱을 훔치게 만드는 거짓 정보를 심는다",
+        "민담의 경고를 분명히 배치한다",
+        "돌이킬 수 없는 첫 행동으로 이야기를 움직인다",
+        "사람과 짐승의 경계가 흐려질 복선을 심는다",
+        "호랑이를 괴물이 아니라 지켜야 할 존재로 보이게 한다",
+        "살해가 아닌 훼손이라는 죄의 형태를 구체화한다",
+        "발톱을 뽑는 중심 사건을 감정적으로 각인한다",
+        "산이 침묵하는 반응으로 저주의 시작을 알린다",
+        "훔친 물건이 가족 안으로 들어오게 한다",
+        "치유처럼 보이는 결과 뒤에 대가를 붙인다",
+    ]
+    hooks = [
+        "그 금기는 왜 삼 년이라는 시간을 말했을까?",
+        "약값이 사람의 죄를 덮어 줄 수 있을까?",
+        "살아 있는 발톱이라는 말은 왜 그렇게 달콤했을까?",
+        "노인은 과거에 어떤 벌을 보았을까?",
+        "그 밤 산은 누구를 기다리고 있었을까?",
+        "사람 발자국은 왜 호랑이 발자국과 겹쳤을까?",
+        "새끼를 지키던 호랑이의 눈은 무엇을 부탁했을까?",
+        "죽이지 않았다는 말로 죄가 가벼워질까?",
+        "뽑힌 발톱은 누구의 몸에서 먼저 피를 불렀을까?",
+        "조용해진 산은 용서였을까, 판결이었을까?",
+        "약탕기 안에 들어간 것은 약이었을까, 빚이었을까?",
+        "어머니가 들은 울음은 밖에서 난 소리였을까?",
+    ]
+    beats: list[tuple[str, str, str]] = []
+    for idx, action in enumerate(actions):
+        purpose = purposes[idx] if idx < len(purposes) else f"'{title}'의 삼 년 뒤 결과를 향해 죄, 침묵, 속죄를 새 사건으로 전진시킨다"
+        hook = hooks[idx % len(hooks)]
+        if idx >= 44:
+            hook = "훔친 발톱의 대가는 어떻게 사람의 손으로 돌아올까?"
+        beats.append((action, purpose, f"{hook} 다음 단서는 {action[:28]}에서 이어진다"))
+    return beats
+
+
 def _old_story_nameless_grave_grandmother_beats(title: str) -> list[tuple[str, str, str]]:
     actions = [
         "새벽 안개 속 이름 없는 무덤 앞에 홀로 절하는 할머니를 보여준다",
@@ -3456,6 +3638,7 @@ def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_
         if "호랑이" in title_blob and "나무꾼" in title_blob
         else []
     )
+    tiger_hunter_beats = _old_story_tiger_claw_hunter_beats(title) if _old_story_title_is_tiger_hunter(topic, upload_title) else []
     nameless_grave_beats = (
         _old_story_nameless_grave_grandmother_beats(title)
         if "무덤" in title_blob and "할머니" in title_blob
@@ -3466,18 +3649,24 @@ def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_
         if all(term in title_blob for term in ("첫째", "둘째", "어머니")) and any(term in title_blob for term in ("울지", "울지 않은", "눈물"))
         else []
     )
+    plan_has_template_drift = any(_old_story_scene_has_template_drift(scene) for scene in scenes)
+    generic_beats = _generic_old_story_unique_beats(title, len(scenes)) if plan_has_template_drift else []
     repaired = dict(structure)
     repaired_scenes = []
     for idx, original in enumerate(scenes):
         scene = dict(original or {})
         if wedding_beats and idx < len(wedding_beats):
             situation_beat, purpose, hook = wedding_beats[idx]
+        elif tiger_hunter_beats and idx < len(tiger_hunter_beats):
+            situation_beat, purpose, hook = tiger_hunter_beats[idx]
         elif tiger_beats and idx < len(tiger_beats):
             situation_beat, purpose, hook = tiger_beats[idx]
         elif nameless_grave_beats and idx < len(nameless_grave_beats):
             situation_beat, purpose, hook = nameless_grave_beats[idx]
         elif exam_sons_beats and idx < len(exam_sons_beats):
             situation_beat, purpose, hook = exam_sons_beats[idx]
+        elif generic_beats and idx < len(generic_beats):
+            situation_beat, purpose, hook = generic_beats[idx]
         else:
             situation_beat = _clean_planned_scene_situation(scene)
             purpose = f"'{title}'의 이유와 감정선을 새 행동 또는 단서로 한 단계 전진시킨다"
@@ -3493,8 +3682,8 @@ def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_
         scene["end_bridge"] = hook
         scene["scene_order"] = idx + 1
         scene["scene_number"] = idx + 1
-        scene.pop("image_prompt", None)
-        scene.pop("video_prompt", None)
+        for field in ("image_prompt", "video_prompt", "visual_direction", "tts_direction", "prompt_en", "prompt_content", "prompt"):
+            scene.pop(field, None)
         repaired_scenes.append(scene)
     repaired["scenes"] = repaired_scenes
     repaired["scene_count"] = len(repaired_scenes)
@@ -4155,9 +4344,11 @@ def _repair_old_story_scene_plan_repetition(structure: dict, topic: str, upload_
     title = (upload_title or topic or "옛날이야기").strip()
     if _old_story_title_is_grave_vigil(topic, upload_title):
         repaired = _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
+    elif _old_story_title_is_tiger_hunter(topic, upload_title):
+        repaired = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
     else:
         repaired = _repair_generic_old_story_scene_plan_repetition(structure, topic, upload_title)
-    return _refresh_old_story_scene_visual_fields(repaired, topic, upload_title)
+    return repaired
     beat_templates = [
         ("마을 어귀에 걸린 금기와 소문을 먼저 보여준다", "이야기의 세계를 옛 마을의 불길한 약속 안에 고정한다", "그 금기는 왜 지금까지 아무도 어기지 못했을까?"),
         ("어머니의 유언이 세 형제 앞에서 서로 다르게 해석된다", "제목의 약속을 가족 갈등과 금지된 선택으로 연결한다", "유언 속에서 빠진 한 문장이 있다면 무엇일까?"),
@@ -4744,6 +4935,49 @@ def _select_script_draft_model(config, final_model: str) -> str:
     return selected
 
 
+def _clean_script_scene_text(value: str, upload_title: str = "") -> str:
+    """Remove planner/UI meta wording before it reaches narration generation."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return ""
+    if upload_title:
+        text = text.replace(str(upload_title).strip(), "").strip()
+    text = re.sub(r"'[^']{8,}'", "", text)
+    text = re.sub(r'"[^"]{8,}"', "", text)
+    text = re.sub(r"\b\d+\s*단계로\s*[^,，.。]*[,，.。]?\s*", "", text)
+    text = re.sub(r"\b\d+번(?:째)?\s*장면(?:은|에서)?\s*", "", text)
+    text = re.sub(r"(?:오프닝|중반|후반|결말)의 역할은[^.。]*[.。]?", "", text)
+    text = re.sub(r"다음 단서는[^.。]*[.。]?", "", text)
+    text = re.sub(r"[^.。]{0,40}때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다[.。]?", "", text)
+    text = re.sub(r"설명보다 사건으로 느끼게 하고[^.。]*[.。]?", "", text)
+    text = re.sub(r"여운으로 넘긴다[.。]?", "", text)
+    text = re.sub(r"제목의 약속을[^,，.。]*[,，.。]?\s*", "", text)
+    text = re.sub(r"클릭(?:한|된)? 제목[^.。]*[.。]?", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" -—,，.。")
+    return text[:320].strip()
+
+
+def _scene_payload_for_script(scene: dict, budget: dict, upload_title: str = "") -> dict:
+    scene_order = scene.get("scene_order") or scene.get("order") or scene.get("scene_number")
+    situation = _clean_script_scene_text(scene.get("scene_situation") or "", upload_title)
+    summary = _clean_script_scene_text(scene.get("scene_summary") or "", upload_title)
+    purpose = _clean_script_scene_text(scene.get("scene_purpose") or "", upload_title)
+    hook = _clean_script_scene_text(scene.get("retention_hook") or "", upload_title)
+    if not situation:
+        situation = summary or purpose or hook
+    return {
+        "scene_order": scene_order,
+        "target_duration_seconds": budget.get("duration_seconds"),
+        "target_chars": budget.get("target_chars"),
+        "min_chars": budget.get("min_chars"),
+        "max_chars": budget.get("max_chars"),
+        "story_beat": situation,
+        "purpose": purpose,
+        "emotion": _clean_script_scene_text(scene.get("scene_emotion") or "", upload_title),
+        "turn_or_question": hook,
+    }
+
+
 def _prefer_gemini_text_model(config, selected: str = "") -> str:
     """Use Gemini for worker planning/script text when a Gemini key exists."""
     if (getattr(config, "GEMINI_API_KEY", "") or "").strip():
@@ -4973,21 +5207,9 @@ def _build_script_chunk_prompt(
     for idx, scene in enumerate(chunk_scenes):
         scene_order = scene.get("scene_order") or scene.get("order") or idx + 1
         budget = budget_by_order.get(str(scene_order)) or chunk_budgets[idx]
-        scene_payload.append({
-            "scene_order": scene_order,
-            "target_duration_seconds": budget.get("duration_seconds"),
-            "target_chars": budget.get("target_chars"),
-            "min_chars": budget.get("min_chars"),
-            "max_chars": budget.get("max_chars"),
-            "scene_summary": scene.get("scene_summary"),
-            "scene_situation": scene.get("scene_situation"),
-            "scene_purpose": scene.get("scene_purpose"),
-            "scene_emotion": scene.get("scene_emotion"),
-            "tts_direction": scene.get("tts_direction"),
-            "retention_hook": scene.get("retention_hook"),
-            "title_promise_link": scene.get("title_promise_link"),
-            "end_bridge": scene.get("end_bridge"),
-        })
+        clean_scene = dict(scene)
+        clean_scene["scene_order"] = scene_order
+        scene_payload.append(_scene_payload_for_script(clean_scene, budget, upload_title))
 
     research_bundle = structure_context.get("research_bundle") or {}
     research_section = ""
@@ -5029,11 +5251,14 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 {mode_instruction}
 4. {language_instruction}
 5. Output Korean narration body only inside JSON. No scene titles, headings, markdown, timecodes, camera directions, subtitle notes, or sound-effect labels.
-6. Use scene_situation and scene_purpose as authoritative. If scene_summary conflicts with them, ignore scene_summary.
+6. Use story_beat and purpose as the only scene instructions. Ignore any planning, visual, TTS, camera, or UI wording from prior stages.
 7. Every scene must add new action, information, decision, or consequence. Do not repeat the same sentence, fact, image, worry, or emotional beat.
 8. Preserve continuity across the scenes in this chunk and from previous_context.
-9. End each scene with its end_bridge only when it sounds natural; otherwise make the final sentence pull into the next beat.
+9. Use turn_or_question only as a guide. Do not copy it verbatim if it sounds repetitive or templated.
 10. For each output item, keep text between min_chars and max_chars as closely as possible. Never pad with repetition.
+11. Do not summarize the scene plan. Dramatize each beat as spoken narration with sensory detail, a concrete action, and a visible emotional reaction.
+12. Do not repeat the upload title or scene summary phrase inside each section. The title promise should be fulfilled through events, not copied as wording.
+13. Give the protagonist active choices. At least every 3-4 scenes, the main character must decide, hide, reveal, confront, refuse, or sacrifice something.
 
 Return ONLY JSON in this exact shape:
 {{
@@ -5564,7 +5789,7 @@ Hard retry rules:
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
     total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts)
-    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=1)
+    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int]:
         if old_story_context and grave_vigil_context:

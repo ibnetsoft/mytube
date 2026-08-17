@@ -2335,7 +2335,8 @@ Return ONLY a JSON array of strings.
                 "quality_feedback": getattr(self, "_quality_feedback", []),
             },
             priority=100,
-            source="autopilot"
+            source="autopilot",
+            max_retries=0,
         )
         self.add_log(f"-> script_generate 작업 제출 완료 (Job ID: {script_job_id})")
         
