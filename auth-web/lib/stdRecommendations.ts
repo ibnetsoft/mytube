@@ -220,8 +220,8 @@ export async function getStdRecommendedTopics(options: {
         .limit(200)
     if (error) throw error
 
-    const scored = (data || [])
-        .filter(isPreparedStdTopic)
+    const preparedTopics = (data || []).filter(isPreparedStdTopic)
+    let selectedTopics = preparedTopics
         .map((topic: any) => ({
             topic,
             score: calculateTopicScore(topic, options.profile, options.email, options.filters),
@@ -231,10 +231,17 @@ export async function getStdRecommendedTopics(options: {
         .slice(0, options.limit)
         .map((row: any) => row.topic)
 
-    await saveRecommendationCache(options.email, scored, policy, boosts)
+    // Fallback: If filtered score produced not enough topics, fill from prepared topics
+    if (selectedTopics.length < options.limit) {
+        const existingIds = new Set(selectedTopics.map((t: any) => t.id))
+        const remaining = preparedTopics.filter((t: any) => !existingIds.has(t.id)).slice(0, options.limit - selectedTopics.length)
+        selectedTopics = [...selectedTopics, ...remaining]
+    }
+
+    await saveRecommendationCache(options.email, selectedTopics, policy, boosts)
 
     return {
-        topics: scored.map((topic: any) => normalizeTopicForStd(topic, policy, boosts.get(String(topic.category_id)) || 1)),
+        topics: selectedTopics.map((topic: any) => normalizeTopicForStd(topic, policy, boosts.get(String(topic.category_id)) || 1)),
         cached: false,
     }
 }

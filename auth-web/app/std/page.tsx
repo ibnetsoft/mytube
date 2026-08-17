@@ -6,12 +6,9 @@ import {
     Clock,
     Copy,
     ExternalLink,
-    FileText,
     FolderKanban,
-    Grid,
     HelpCircle,
     Image as ImageIcon,
-    Layers,
     LayoutTemplate,
     LogOut,
     Mic,
@@ -22,6 +19,7 @@ import {
     Sparkles,
     Type,
     Upload,
+    UserPlus,
     Video,
     Volume2
 } from 'lucide-react'
@@ -73,8 +71,16 @@ function assetLink(asset: any): string {
 }
 
 export default function StdPortalPage() {
+    // 인증 및 폼 상태
+    const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [passwordConfirm, setPasswordConfirm] = useState('')
+    const [fullName, setFullName] = useState('')
+    const [nationality, setNationality] = useState('KR')
+    const [contact, setContact] = useState('')
+    const [referrer, setReferrer] = useState('')
+
     const [token, setToken] = useState('')
     const [user, setUser] = useState<any>(null)
     const [topics, setTopics] = useState<Topic[]>([])
@@ -87,9 +93,9 @@ export default function StdPortalPage() {
     const [generatingTts, setGeneratingTts] = useState(false)
     const [message, setMessage] = useState('')
 
-    // [유저앱 STD 모드 8대 전용 메뉴 순서와 100% 일치]
-    // 1. topics -> 2. script_plan -> 3. tts -> 4. image_gen -> 5. subtitle_gen -> 6. thumbnail -> 7. projects -> 8. settings
-    type StdNavKey = 'topics' | 'script_plan' | 'tts' | 'image_gen' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'settings'
+    // [유저앱 STD 모드 실제 노출 메뉴 1:1 완벽 일치]
+    // 롱폼 STD에서는 '대본 기획안' 숨김 -> 1. 주제, 2. TTS, 3. 이미지, 4. 자막/제출, 5. 썸네일, 6. 프로젝트, 7. 설정
+    type StdNavKey = 'topics' | 'tts' | 'image_gen' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'settings'
     const [currentNav, setCurrentNav] = useState<StdNavKey>('topics')
 
     const authedJsonHeaders = useMemo(() => ({
@@ -102,13 +108,14 @@ export default function StdPortalPage() {
         try {
             return JSON.parse(text)
         } catch {
-            if (res.status === 401) throw new Error('로그인 세션이 만료되었습니다. 다시 로그인해주세요.')
-            if (res.status === 403) throw new Error('STD 작업자 승인 대기 중인 계정입니다. 관리자 승인을 기다려주세요.')
+            if (res.status === 401) throw new Error('로그인이 필요하거나 세션이 만료되었습니다. 다시 로그인해주세요.')
+            if (res.status === 403) throw new Error('STD 작업자 권한 승인 대기 중인 계정입니다. 관리자의 STD 승인 후 이용 가능합니다.')
             throw new Error(fallbackErrMsg || `서버 에러 (${res.status})`)
         }
     }
 
     const loadStdData = async (accessToken: string, options: { showLoading?: boolean } = {}) => {
+        if (!accessToken) return
         const showLoading = options.showLoading !== false
         if (showLoading) setLoading(true)
         setMessage('')
@@ -120,7 +127,7 @@ export default function StdPortalPage() {
                 fetch('/api/std/projects', { headers }),
             ])
 
-            const me = await safeParseJson(meRes, 'STD 계정 프로필 조회 실패')
+            const me = await safeParseJson(meRes, 'STD 작업자 프로필 확인 실패')
             const topicPayload = await safeParseJson(topicsRes, '주제 목록 조회 실패')
             const projectPayload = await safeParseJson(projectsRes, '작업 목록 조회 실패')
 
@@ -164,7 +171,46 @@ export default function StdPortalPage() {
             setToken(accessToken)
             await loadStdData(accessToken)
         } catch (error: any) {
-            setMessage(error.message || '로그인 실패')
+            setMessage(error.message || '로그인 실패: 이메일 또는 비밀번호를 확인해주세요.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const signUp = async () => {
+        setLoading(true)
+        setMessage('')
+        try {
+            if (password !== passwordConfirm) {
+                throw new Error('비밀번호가 서로 일치하지 않습니다.')
+            }
+            if (!fullName || !contact) {
+                throw new Error('이름과 연락처를 모두 입력해주세요.')
+            }
+
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        full_name: fullName,
+                        nationality: nationality,
+                        contact: contact,
+                        referrer: referrer.trim().toUpperCase(),
+                        referral_code: referrer.trim().toUpperCase(),
+                        country_code: nationality.trim().slice(0, 2).toUpperCase() || 'KR',
+                        preferred_languages: ['ko'],
+                        membership: 'std',
+                        membership_tier: 'std',
+                    },
+                },
+            })
+            if (error) throw error
+            alert('회원가입이 완료되었습니다! 가입하신 계정으로 로그인해주세요.')
+            setAuthMode('login')
+            setPasswordConfirm('')
+        } catch (error: any) {
+            setMessage(error.message || '회원가입 실패')
         } finally {
             setLoading(false)
         }
@@ -189,8 +235,8 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
             if (!res.ok) throw new Error(payload.error || '주제 선택 실패')
-            setMessage('새 작업이 성공적으로 생성되었습니다!')
-            setCurrentNav('script_plan')
+            setMessage('새 작업이 생성되었습니다!')
+            setCurrentNav('tts')
             await loadStdData(token)
         } catch (error: any) {
             setMessage(error.message || '주제 선택 실패')
@@ -354,7 +400,6 @@ export default function StdPortalPage() {
             .filter((grid: any) => grid.prompt && grid.scene_numbers.length === 4)
     }, [selectedProject])
 
-    // 인증 확인 중 스피너
     if (authChecking) {
         return (
             <main className="min-h-screen bg-[#1c2027] text-gray-100 flex items-center justify-center">
@@ -366,10 +411,10 @@ export default function StdPortalPage() {
         )
     }
 
-    // 로그인 화면 (유저앱 login.html 다크 테마 일치)
-    if (!token) {
+    // [로그인 및 회원가입 화면 - 유저앱 login.html 100% 동일]
+    if (!token || !user) {
         return (
-            <main className="min-h-screen bg-[#1c2027] text-gray-100 flex items-center justify-center px-4">
+            <main className="min-h-screen bg-[#1c2027] text-gray-100 flex items-center justify-center px-4 py-8">
                 <section className="w-full max-w-md bg-[#13171e] border border-white/10 p-8 rounded-2xl shadow-2xl flex flex-col gap-6">
                     <div className="flex flex-col items-center text-center gap-2">
                         <div className="flex items-center gap-2">
@@ -377,55 +422,176 @@ export default function StdPortalPage() {
                             <h1 className="text-2xl font-black tracking-wider text-blue-400">AIR STUDIO</h1>
                         </div>
                         <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            STD WORKER MODE
+                            STD WORKER WEB PORTAL
                         </span>
                         <p className="text-xs text-gray-400 mt-1">
-                            설치형 유저앱의 STD 모드와 동일한 작업 환경입니다.
+                            {authMode === 'login' ? 'STD 작업자 전용 로그인' : '새로운 STD 작업자 회원가입'}
                         </p>
                     </div>
 
-                    <form onSubmit={(e) => { e.preventDefault(); signIn() }} className="flex flex-col gap-4">
-                        <div>
-                            <label className="text-[11px] font-bold text-gray-400 mb-1 block">이메일 계정</label>
-                            <input
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
-                                placeholder="name@example.com"
-                                autoFocus
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호</label>
-                            <input
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                                type="password"
-                                className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
-                                placeholder="••••••••"
-                            />
-                        </div>
-
-                        {message && (
-                            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 leading-relaxed">
-                                {message}
-                            </div>
-                        )}
-
+                    {/* 로그인 / 회원가입 탭 전환 */}
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-[#1c2027] border border-white/5 rounded-xl text-xs font-bold">
                         <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 mt-2 text-sm"
+                            type="button"
+                            onClick={() => { setAuthMode('login'); setMessage('') }}
+                            className={`py-2 rounded-lg transition-all ${
+                                authMode === 'login' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                            }`}
                         >
-                            {loading ? '로그인 확인 중...' : 'STD 작업 로그인'}
+                            로그인 (Sign In)
                         </button>
-                    </form>
+                        <button
+                            type="button"
+                            onClick={() => { setAuthMode('signup'); setMessage('') }}
+                            className={`py-2 rounded-lg transition-all ${
+                                authMode === 'signup' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            회원가입 (Sign Up)
+                        </button>
+                    </div>
+
+                    {authMode === 'login' ? (
+                        <form onSubmit={(e) => { e.preventDefault(); signIn() }} className="flex flex-col gap-4">
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">이메일 계정</label>
+                                <input
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
+                                    placeholder="name@example.com"
+                                    autoFocus
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호</label>
+                                <input
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                    type="password"
+                                    className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
+                                    placeholder="••••••••"
+                                    required
+                                />
+                            </div>
+
+                            {message && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 leading-relaxed">
+                                    {message}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 mt-1 text-sm"
+                            >
+                                {loading ? '로그인 확인 중...' : 'STD 작업 로그인'}
+                            </button>
+                        </form>
+                    ) : (
+                        <form onSubmit={(e) => { e.preventDefault(); signUp() }} className="flex flex-col gap-3.5">
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">이메일 계정</label>
+                                <input
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    type="email"
+                                    className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="name@example.com"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호</label>
+                                    <input
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                        type="password"
+                                        className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호 확인</label>
+                                    <input
+                                        value={passwordConfirm}
+                                        onChange={e => setPasswordConfirm(e.target.value)}
+                                        type="password"
+                                        className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">이름 (실명)</label>
+                                <input
+                                    value={fullName}
+                                    onChange={e => setFullName(e.target.value)}
+                                    className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="홍길동"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">국적</label>
+                                    <select
+                                        value={nationality}
+                                        onChange={e => setNationality(e.target.value)}
+                                        className="w-full bg-[#1c2027] border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none"
+                                    >
+                                        <option value="KR">대한민국 (KR)</option>
+                                        <option value="VN">베트남 (VN)</option>
+                                        <option value="TH">태국 (TH)</option>
+                                        <option value="US">미국 (US)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">연락처</label>
+                                    <input
+                                        value={contact}
+                                        onChange={e => setContact(e.target.value)}
+                                        className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none"
+                                        placeholder="010-1234-5678"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">추천인 코드 (선택)</label>
+                                <input
+                                    value={referrer}
+                                    onChange={e => setReferrer(e.target.value)}
+                                    className="w-full bg-[#1c2027] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none uppercase"
+                                    placeholder="REFERRAL CODE"
+                                />
+                            </div>
+
+                            {message && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 leading-relaxed">
+                                    {message}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 mt-1 text-xs"
+                            >
+                                {loading ? '가입 처리 중...' : 'STD 작업자 회원가입 완료'}
+                            </button>
+                        </form>
+                    )}
                 </section>
             </main>
         )
     }
 
-    // 메인 작업 인터페이스 (설치형 유저앱의 base.html + STD 전용 메뉴 100% 동일)
     return (
         <div className="min-h-screen bg-[#1c2027] text-gray-100 flex flex-col font-sans">
             {/* 1. 상단 글로벌 헤더 */}
@@ -468,18 +634,17 @@ export default function StdPortalPage() {
                 </div>
             </header>
 
-            {/* 2. 유저앱 base.html 상단 고정 활성 프로젝트 헤더 (Project Progress Stepper) */}
+            {/* 2. 유저앱 STD 전용 5단계 스텝퍼 바 (기획안 숨김 반영) */}
             <div className="bg-[#13171e]/90 border-b border-white/5 px-6 py-2 flex items-center justify-between shrink-0 overflow-x-auto no-scrollbar">
                 <div className="flex items-center gap-2 min-w-max text-xs">
                     <span className="text-[10px] font-black text-gray-500 uppercase mr-1">STD 제작 스텝:</span>
                     {[
                         { id: 'topics', label: '주제 (Topics)' },
-                        { id: 'script_plan', label: '대본 기획안 (Plan)' },
                         { id: 'tts', label: 'TTS (Audio)' },
-                        { id: 'image_gen', label: '이미지/영상 (Assets)' },
+                        { id: 'image_gen', label: '이미지 (Assets)' },
                         { id: 'subtitle_gen', label: '자막/제출 (Subtitles)' },
                         { id: 'thumbnail', label: '썸네일 (Cover)' },
-                    ].map((step, idx) => {
+                    ].map((step) => {
                         const active = currentNav === step.id
                         return (
                             <button
@@ -512,11 +677,10 @@ export default function StdPortalPage() {
                 )}
             </div>
 
-            {/* 3. 메인 2열 레이아웃 (좌측: 유저앱 STD 사이드바 / 우측: 작업실) */}
+            {/* 3. 메인 2열 레이아웃 */}
             <div className="flex-1 flex overflow-hidden">
-                {/* 좌측 사이드바 (유저앱 STD 모드 메뉴 1:1 완벽 일치: 주제, 대본기획안, TTS, 이미지, 자막/제출, 썸네일, 프로젝트, 설정) */}
+                {/* 좌측 사이드바 (유저앱 STD 모드 실제 노출 메뉴 100% 동일: 주제, TTS, 이미지, 자막/제출, 썸네일, 프로젝트, 설정) */}
                 <aside className="w-64 bg-[#13171e] border-r border-white/10 flex flex-col shrink-0">
-                    {/* 활성 프로젝트 선택 드롭다운 */}
                     <div className="p-3 border-b border-white/5 bg-[#0e1218]">
                         <div className="text-[10px] font-bold text-gray-400 mb-1 flex items-center justify-between">
                             <span>현재 작업 프로젝트</span>
@@ -538,9 +702,8 @@ export default function StdPortalPage() {
                         </select>
                     </div>
 
-                    {/* 유저앱 base.html의 is_std_nav 순서와 완벽히 동일한 메뉴 리스트 */}
                     <nav className="flex-1 p-2 space-y-1 overflow-y-auto custom-scrollbar text-xs font-bold">
-                        {/* 1. 주제 (order-1) */}
+                        {/* 1. 주제 */}
                         <button
                             onClick={() => setCurrentNav('topics')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -552,18 +715,7 @@ export default function StdPortalPage() {
                             <span className="ml-auto text-[10px] opacity-60">{topics.length}</span>
                         </button>
 
-                        {/* 2. 대본 기획안 (order-2) */}
-                        <button
-                            onClick={() => setCurrentNav('script_plan')}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
-                                currentNav === 'script_plan' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                            }`}
-                        >
-                            <FileText className="h-4 w-4 text-emerald-400" />
-                            <span>대본 기획안 (Plan)</span>
-                        </button>
-
-                        {/* 3. TTS (order-4) */}
+                        {/* 2. TTS */}
                         <button
                             onClick={() => setCurrentNav('tts')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -574,7 +726,7 @@ export default function StdPortalPage() {
                             <span>TTS 음성 (Audio)</span>
                         </button>
 
-                        {/* 4. 이미지 (order-5) */}
+                        {/* 3. 이미지 */}
                         <button
                             onClick={() => setCurrentNav('image_gen')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -585,7 +737,7 @@ export default function StdPortalPage() {
                             <span>이미지 (Image)</span>
                         </button>
 
-                        {/* 5. 자막/제출 (order-6) */}
+                        {/* 4. 자막/제출 */}
                         <button
                             onClick={() => setCurrentNav('subtitle_gen')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -596,7 +748,7 @@ export default function StdPortalPage() {
                             <span>자막 / 제출 (Subtitles)</span>
                         </button>
 
-                        {/* 6. 썸네일 (order-8) */}
+                        {/* 5. 썸네일 */}
                         <button
                             onClick={() => setCurrentNav('thumbnail')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -607,7 +759,7 @@ export default function StdPortalPage() {
                             <span>썸네일 (Thumbnail)</span>
                         </button>
 
-                        {/* 7. 프로젝트 (order-9) */}
+                        {/* 6. 프로젝트 */}
                         <button
                             onClick={() => setCurrentNav('projects')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -623,7 +775,7 @@ export default function StdPortalPage() {
                             설정
                         </div>
 
-                        {/* 8. 설정 (order-12) */}
+                        {/* 7. 설정 */}
                         <button
                             onClick={() => setCurrentNav('settings')}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
@@ -636,18 +788,18 @@ export default function StdPortalPage() {
                     </nav>
                 </aside>
 
-                {/* 우측 메인 뷰어 (유저앱 해당 페이지와 100% 동일한 화면) */}
+                {/* 우측 메인 뷰어 */}
                 <main className="flex-1 flex flex-col overflow-hidden bg-[#181c24]">
-                    {/* 1. 주제 (projects.html?view=topics 100% 동일) */}
+                    {/* 1. 주제 */}
                     {currentNav === 'topics' && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-4 max-w-6xl mx-auto w-full">
                             <div className="flex items-center justify-between pb-3 border-b border-white/10">
                                 <div>
                                     <h2 className="text-lg font-black text-white flex items-center gap-2">
                                         <Sparkles className="h-5 w-5 text-blue-400" />
-                                        주제 탐색 (Topics)
+                                        선택 가능한 주제 (Topics Queue)
                                     </h2>
-                                    <p className="text-xs text-gray-400 mt-1">Hermes Autopilot이 분석/발굴 완료한 고성과 롱폼 영상 주제 풀입니다.</p>
+                                    <p className="text-xs text-gray-400 mt-1">워커(Hermes)가 실시간으로 발굴 및 기획 완료한 롱폼 영상 주제 풀입니다.</p>
                                 </div>
                                 <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-3 py-1.5 rounded-xl border border-blue-500/20">
                                     총 {topics.length}개 준비됨
@@ -688,43 +840,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* 2. 대본 기획안 (script_plan.html 100% 동일) */}
-                    {currentNav === 'script_plan' && selectedProject && (
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-5xl mx-auto w-full">
-                            <div className="bg-[#13171e] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
-                                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                    <div>
-                                        <h3 className="font-black text-base text-white">{selectedProject.project.title}</h3>
-                                        <p className="text-xs text-gray-400 mt-1">총 {selectedProject.scenes.length}개 씬 구성 대본 기획안</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setCurrentNav('tts')}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/30"
-                                    >
-                                        다음 단계 (TTS) ➔
-                                    </button>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-bold text-gray-300">씬별 나레이션 대본</h4>
-                                    <div className="space-y-3">
-                                        {selectedProject.scenes.map(s => (
-                                            <div key={s.id} className="p-4 bg-[#1c2027] border border-white/5 rounded-xl space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[11px] font-black text-blue-400">
-                                                        SCENE {String(s.scene_number).padStart(3, '0')} · {s.scene_title}
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs text-gray-200 leading-relaxed whitespace-pre-wrap">{s.scene_text}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 3. TTS (tts.html 100% 동일) */}
+                    {/* 2. TTS */}
                     {currentNav === 'tts' && selectedProject && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-4xl mx-auto w-full">
                             <div className="bg-[#13171e] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
@@ -781,10 +897,9 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* 4. 이미지 (image_gen.html 100% 동일) */}
+                    {/* 3. 이미지 */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-6xl mx-auto w-full">
-                            {/* 2x2 분할 프롬프트 박스 */}
                             {imageGridPrompts.length > 0 && (
                                 <div className="space-y-3">
                                     <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">Midjourney 2x2 분할 이미지 생성 프롬프트</h3>
@@ -816,9 +931,8 @@ export default function StdPortalPage() {
                                 </div>
                             )}
 
-                            {/* 씬별 에셋 등록 카드 */}
                             <div className="space-y-3">
-                                <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">씬별 이미지 및 영상 파일 배치</h3>
+                                <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider">씬별 이미지 및 영상 파일 배치 (1~{STD_REQUIRED_VIDEO_SCENE_COUNT}번 영상 필수)</h3>
                                 <div className="space-y-4">
                                     {selectedProject.scenes.map((scene: any) => {
                                         const sceneAssets = assetsByScene.get(String(scene.scene_number)) || []
@@ -919,7 +1033,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* 5. 자막/제출 (subtitle_gen.html 100% 동일) */}
+                    {/* 4. 자막/제출 */}
                     {currentNav === 'subtitle_gen' && selectedProject && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-5xl mx-auto w-full">
                             <div className="bg-[#13171e] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
@@ -927,9 +1041,9 @@ export default function StdPortalPage() {
                                     <div>
                                         <h3 className="font-black text-base text-white flex items-center gap-2">
                                             <Type className="h-5 w-5 text-pink-400" />
-                                            자막 싱크 및 원격 렌더 큐 제출 (Subtitles & Submit)
+                                            자막 싱크 확인 및 렌더 큐 제출 (Subtitles & Submit)
                                         </h3>
-                                        <p className="text-xs text-gray-400 mt-1">에셋 업로드 완료 후 최종 렌더 큐에 제출합니다.</p>
+                                        <p className="text-xs text-gray-400 mt-1">에셋 업로드 완료 후 최종 원격 렌더 큐에 제출합니다.</p>
                                     </div>
                                     <button
                                         onClick={submitProject}
@@ -960,7 +1074,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* 6. 썸네일 (thumbnail.html 100% 동일) */}
+                    {/* 5. 썸네일 */}
                     {currentNav === 'thumbnail' && selectedProject && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-4xl mx-auto w-full">
                             <div className="bg-[#13171e] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
@@ -987,7 +1101,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* 7. 프로젝트 (projects.html?view=projects 100% 동일) */}
+                    {/* 6. 프로젝트 */}
                     {currentNav === 'projects' && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-4 max-w-6xl mx-auto w-full">
                             <div className="flex items-center justify-between pb-3 border-b border-white/10">
@@ -1027,7 +1141,7 @@ export default function StdPortalPage() {
                                             <button
                                                 onClick={() => {
                                                     openProject(proj.id)
-                                                    setCurrentNav('script_plan')
+                                                    setCurrentNav('tts')
                                                 }}
                                                 className="w-full bg-[#1c2027] hover:bg-blue-600 hover:text-white border border-white/10 rounded-xl py-2 text-xs font-bold text-gray-300 transition-all"
                                             >
@@ -1040,7 +1154,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* 8. 설정 (settings.html 100% 동일) */}
+                    {/* 7. 설정 */}
                     {currentNav === 'settings' && (
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-3xl mx-auto w-full">
                             <div className="bg-[#13171e] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
