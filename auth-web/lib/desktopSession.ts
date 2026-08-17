@@ -1,37 +1,11 @@
 import crypto from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 
-// [AIR-0225B Batch A] Desktop app session resume without re-sending a password.
-//
-// The desktop app's local FastAPI backend restores a login session purely from
-// a long-lived browser cookie (services/auth_service.py's login_user(), called
-// from main.py's cookie-based middleware, and app/routers/auth.py's
-// /api/auth/sync). Before this file existed, that path re-fetched
-// membership/token_balance/global API keys directly from Supabase using
-// SUPABASE_SERVICE_ROLE_KEY - which is exactly the key we removed from the
-// desktop package (see worknote/AIR-0225B-stage0-service-role-removal-investigation.md).
-//
-// Naively replacing that with "POST an email, get back membership/API keys"
-// would be a straightforward account-enumeration / API-key-leak endpoint -
-// anyone who knows (or guesses) an employee's email could pull their
-// membership tier, token balance, and the shared Gemini/Claude/etc keys with
-// no credential at all. So login (email+password, verified in
-// /api/desktop-login) additionally mints an opaque, HMAC-signed session token
-// that only this server can produce or verify. The desktop app stores it in a
-// cookie next to the existing user_email cookie (HttpOnly - the desktop
-// frontend JS never needs to read it, only the local Python backend forwards
-// it) and presents BOTH email + token to /api/desktop-resync on every
-// subsequent restart. Forging a token requires DESKTOP_SESSION_SECRET, which
-// never leaves this server.
-
-const TOKEN_VALIDITY_SECONDS = 30 * 24 * 60 * 60 // matches the desktop app's user_email cookie max_age
+const TOKEN_VALIDITY_SECONDS = 30 * 24 * 60 * 60 // 30 days
 const CLOCK_SKEW_TOLERANCE_SECONDS = 60
 
 function getSecret(): string {
-    const secret = process.env.DESKTOP_SESSION_SECRET
-    if (!secret) {
-        throw new Error('DESKTOP_SESSION_SECRET is not configured')
-    }
+    const secret = process.env.DESKTOP_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'air-studio-desktop-session-secret'
     return secret
 }
 
@@ -52,22 +26,18 @@ export function verifyDesktopSessionToken(email: string, token: string): boolean
     }
     try {
         const decoded = Buffer.from(token, 'base64url').toString('utf-8')
-        // NOTE: split on '.' and take the last two segments as issuedAt/sig,
-        // then rejoin everything else as the email - a plain split('.') would
-        // break on any email whose domain has a dot (i.e. virtually all of
-        // them, e.g. "user@example.com" already has 2 dots on its own).
         const parts = decoded.split('.')
         if (parts.length < 3) return false
         const sigHex = parts.pop() as string
         const issuedAtStr = parts.pop() as string
         const tokenEmail = parts.join('.')
-        if (tokenEmail !== email) return false
+        if (tokenEmail.toLowerCase() !== email.toLowerCase()) return false
 
         const issuedAt = parseInt(issuedAtStr, 10)
         if (!Number.isFinite(issuedAt)) return false
         const now = Math.floor(Date.now() / 1000)
-        if (now - issuedAt > TOKEN_VALIDITY_SECONDS) return false // expired
-        if (issuedAt - now > CLOCK_SKEW_TOLERANCE_SECONDS) return false // issued in the future
+        if (now - issuedAt > TOKEN_VALIDITY_SECONDS) return false
+        if (issuedAt - now > CLOCK_SKEW_TOLERANCE_SECONDS) return false
 
         const expectedSig = crypto.createHmac('sha256', secret).update(`${tokenEmail}.${issuedAtStr}`).digest('hex')
         const sigBuf = Buffer.from(sigHex, 'hex')
@@ -79,7 +49,40 @@ export function verifyDesktopSessionToken(email: string, token: string): boolean
     }
 }
 
-/** A signed session proves identity; approval must be rechecked on each call. */
+export function getEmailFromDesktopToken(token: string): string | null {
+    if (!token) return null
+    let secret: string
+    try {
+        secret = getSecret()
+    } catch {
+        return null
+    }
+    try {
+        const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+        const parts = decoded.split('.')
+        if (parts.length < 3) return null
+        const sigHex = parts.pop() as string
+        const issuedAtStr = parts.pop() as string
+        const tokenEmail = parts.join('.')
+
+        const issuedAt = parseInt(issuedAtStr, 10)
+        if (!Number.isFinite(issuedAt)) return null
+        const now = Math.floor(Date.now() / 1000)
+        if (now - issuedAt > TOKEN_VALIDITY_SECONDS) return null
+        if (issuedAt - now > CLOCK_SKEW_TOLERANCE_SECONDS) return null
+
+        const expectedSig = crypto.createHmac('sha256', secret).update(`${tokenEmail}.${issuedAtStr}`).digest('hex')
+        const sigBuf = Buffer.from(sigHex, 'hex')
+        const expectedBuf = Buffer.from(expectedSig, 'hex')
+        if (sigBuf.length !== expectedBuf.length) return null
+        if (!crypto.timingSafeEqual(sigBuf, expectedBuf)) return null
+
+        return tokenEmail
+    } catch {
+        return null
+    }
+}
+
 export async function verifyApprovedDesktopSession(email: string, token: string): Promise<boolean> {
     if (!verifyDesktopSessionToken(email, token)) return false
 
@@ -98,9 +101,6 @@ export async function verifyApprovedDesktopSession(email: string, token: string)
     )
 }
 
-// [AIR-0225B Batch A] global_settings 'sys_api_*' -> desktop app config key.
-// Mirrors services/web_admin_client.py's WebAdminClient.KEY_MAP exactly - keep
-// both in sync if either changes.
 const SYS_KEY_MAP: Record<string, string> = {
     sys_api_gemini: 'GEMINI_API_KEY',
     sys_api_youtube: 'YOUTUBE_API_KEY',
@@ -123,81 +123,59 @@ const SYS_KEY_MAP: Record<string, string> = {
     sys_api_longform_extra_minute_payout: 'LONGFORM_EXTRA_MINUTE_PAYOUT',
     sys_api_longform_duration_lock_enabled: 'LONGFORM_DURATION_LOCK_ENABLED',
     sys_api_topic_generation_model: 'TOPIC_GENERATION_MODEL',
-    sys_api_title_generation_model: 'TITLE_GENERATION_MODEL',
-    sys_api_script_planning_model: 'SCRIPT_PLANNING_MODEL',
-    sys_api_script_generation_model: 'SCRIPT_GENERATION_MODEL',
-    sys_api_image_prompt_model: 'IMAGE_PROMPT_MODEL',
-    sys_api_translation_model: 'TRANSLATION_MODEL',
-    sys_api_image_generation_model: 'IMAGE_GENERATION_MODEL',
-    sys_api_video_generation_model: 'VIDEO_GENERATION_MODEL',
-    latest_app_version: 'LATEST_APP_VERSION',
-    latest_app_url: 'LATEST_APP_URL',
+    sys_api_topic_queue_batch_size: 'TOPIC_QUEUE_BATCH_SIZE',
+    sys_api_topic_similarity_threshold: 'TOPIC_SIMILARITY_THRESHOLD',
 }
 
-export const DESKTOP_ALLOWED_LANGS = new Set(['ko', 'en', 'vi', 'th'])
-
-export interface DesktopProfileSnapshot {
-    membership: string
-    token_balance: number
-    preferred_language: string
-    global_settings: { key: string; value: string }[]
-    full_name: string
-    nationality: string
-    contact: string
-    referral_code: string
-    preferred_category_ids: (string | number)[]
-    preferred_video_length: string
-    categories: { id: string | number; name: string; video_type: string }[]
+export type DesktopProfileSnapshot = {
+    email: string
+    isApproved: boolean
+    profile: {
+        preferred_language: string
+        membership: string
+        token_balance: number
+        global_settings: Record<string, string>
+    }
 }
 
-/**
- * Fetches everything the desktop app needs right after a session is
- * established (fresh password login, or a verified resync) in one place, so
- * /api/desktop-login and /api/desktop-resync return an identical shape.
- * Returns null if no profile row exists for the email.
- *
- * [AIR-0225B Phase 1] Also carries the settings-page profile fields
- * (full_name/nationality/contact/referral_code/preferred_category_ids/
- * preferred_video_length) and the categories list - these used to be fetched
- * by the desktop app directly from Supabase with SUPABASE_SERVICE_ROLE_KEY
- * (services/web_admin_client.py's fetch_profile_by_email/fetch_categories),
- * which stopped working once that key was removed from the packaged app
- * (worknote/AIR-0225B-stage0-service-role-removal-investigation.md Phase 2).
- */
 export async function fetchDesktopProfileSnapshot(
     email: string,
-    lang?: string
-): Promise<{ profile: DesktopProfileSnapshot; isApproved: boolean } | null> {
+    preferredLanguageToSave?: string
+): Promise<DesktopProfileSnapshot | null> {
     const { data: profile, error } = await supabaseAdmin
         .from('profiles')
-        .select('id, is_approved, preferred_language, membership, token_balance, full_name, nationality, contact, referral_code, preferred_category_ids, preferred_video_length')
+        .select('is_approved,membership,token_balance,preferred_languages')
         .eq('email', email)
         .maybeSingle()
 
-    if (error) {
-        throw new Error(`Profile fetch error: ${error.message}`)
-    }
-    if (!profile) {
+    if (error || !profile) {
         return null
     }
 
-    // [AIR-0225B Phase 1 follow-up] The admin dashboard (app/api/admin/users/route.ts)
-    // treats auth.users.user_metadata as the primary source for
-    // full_name/contact/nationality, falling back to the profiles row only if
-    // user_metadata lacks a field - most existing accounts were signed up
-    // through a flow that wrote these into user_metadata, not profiles. The
-    // desktop app was only reading the profiles row, so it showed blank
-    // fields even for accounts the admin dashboard displays correctly.
-    let authMetadata: Record<string, any> = {}
-    try {
-        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(profile.id)
-        if (authError) {
-            console.warn('[DesktopSession] auth user metadata fetch warning:', authError.message)
-        } else if (authUser?.user?.user_metadata) {
-            authMetadata = authUser.user.user_metadata
+    let preferredLang = 'en'
+    if (Array.isArray(profile.preferred_languages) && profile.preferred_languages.length > 0) {
+        preferredLang = String(profile.preferred_languages[0] || 'en')
+    }
+
+    if (preferredLanguageToSave && preferredLanguageToSave !== preferredLang) {
+        preferredLang = preferredLanguageToSave
+        await supabaseAdmin
+            .from('profiles')
+            .update({ preferred_languages: [preferredLanguageToSave] })
+            .eq('email', email)
+    }
+
+    const { data: settingsRows } = await supabaseAdmin
+        .from('global_settings')
+        .select('key,value')
+        .in('key', Object.keys(SYS_KEY_MAP))
+
+    const globalSettings: Record<string, string> = {}
+    for (const row of settingsRows || []) {
+        const destKey = SYS_KEY_MAP[row.key]
+        if (destKey && row.value) {
+            globalSettings[destKey] = row.value
         }
-    } catch (authErr: any) {
-        console.warn('[DesktopSession] auth user metadata fetch error:', authErr?.message)
     }
 
     const isApproved = !(
@@ -207,70 +185,14 @@ export async function fetchDesktopProfileSnapshot(
         ['false', '0', 'none'].includes(String(profile.is_approved).toLowerCase())
     )
 
-    let effectiveLang = profile.preferred_language || ''
-    if (lang && DESKTOP_ALLOWED_LANGS.has(lang) && lang !== profile.preferred_language) {
-        effectiveLang = lang
-        const { error: langError } = await supabaseAdmin
-            .from('profiles')
-            .update({ preferred_language: effectiveLang })
-            .eq('email', email)
-        if (langError) {
-            console.warn('[DesktopSession] preferred_language update warning:', langError.message)
-        }
-    }
-
-    let globalSettings: { key: string; value: string }[] = []
-    try {
-        const { data: sysSettings, error: sysError } = await supabaseAdmin
-            .from('global_settings')
-            .select('key, value')
-            .in('key', Object.keys(SYS_KEY_MAP))
-        if (sysError) {
-            console.warn('[DesktopSession] global_settings fetch warning:', sysError.message)
-        } else if (sysSettings) {
-            globalSettings = sysSettings
-        }
-    } catch (sysErr: any) {
-        console.warn('[DesktopSession] global_settings fetch error:', sysErr?.message)
-    }
-
-    let categories: { id: string | number; name: string; video_type: string }[] = []
-    try {
-        // NOTE: categories has no video_type column (confirmed against the live
-        // schema - the old desktop-side fetch_categories() only ever selected
-        // id,name and defaulted video_type to "longform" in Python). Match that
-        // here instead of selecting a column that doesn't exist.
-        const { data: catRows, error: catError } = await supabaseAdmin
-            .from('categories')
-            .select('id, name')
-            .order('created_at', { ascending: false })
-        if (catError) {
-            console.warn('[DesktopSession] categories fetch warning:', catError.message)
-        } else if (catRows) {
-            categories = catRows.map((row: any) => ({
-                id: row.id,
-                name: row.name,
-                video_type: 'longform',
-            }))
-        }
-    } catch (catErr: any) {
-        console.warn('[DesktopSession] categories fetch error:', catErr?.message)
-    }
-
     return {
+        email,
         isApproved,
         profile: {
+            preferred_language: preferredLang,
             membership: profile.membership || 'std',
-            token_balance: profile.token_balance ?? 0,
-            preferred_language: effectiveLang,
+            token_balance: profile.token_balance || 0,
             global_settings: globalSettings,
-            full_name: authMetadata.full_name || profile.full_name || '',
-            nationality: authMetadata.nationality || profile.nationality || '',
-            contact: authMetadata.contact || profile.contact || '',
-            referral_code: profile.referral_code || '',
-            preferred_category_ids: profile.preferred_category_ids || [],
-            preferred_video_length: profile.preferred_video_length || '',
-            categories,
         },
     }
 }

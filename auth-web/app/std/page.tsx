@@ -172,6 +172,15 @@ export default function StdPortalPage() {
     }
 
     useEffect(() => {
+        // 1. Check local session token first
+        const savedToken = localStorage.getItem('std_session_token')
+        if (savedToken) {
+            setToken(savedToken)
+            loadStdData(savedToken).finally(() => setAuthChecking(false))
+            return
+        }
+
+        // 2. Check Supabase auth session
         supabase.auth.getSession()
             .then(async ({ data }) => {
                 const accessToken = data.session?.access_token
@@ -188,11 +197,32 @@ export default function StdPortalPage() {
         setLoading(true)
         setMessage('')
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-            if (error) throw error
+            // 1. Try STD Desktop Login API first (matches desktop app pin_code auth 100%)
+            const res = await fetch('/api/std/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+            })
+            const result = await res.json().catch(() => ({}))
+
+            if (res.ok && result.success && result.session_token) {
+                const accessToken = result.session_token
+                setToken(accessToken)
+                localStorage.setItem('std_session_token', accessToken)
+                setUser(result.user)
+                await loadStdData(accessToken)
+                return
+            }
+
+            // 2. Fallback to Supabase GoTrue Auth
+            const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+            if (error) {
+                throw new Error(result.error || error.message || '로그인 실패: 이메일 또는 비밀번호를 확인해주세요.')
+            }
             const accessToken = data.session?.access_token
             if (!accessToken) throw new Error('세션을 생성하지 못했습니다.')
             setToken(accessToken)
+            localStorage.setItem('std_session_token', accessToken)
             await loadStdData(accessToken)
         } catch (error: any) {
             setMessage(error.message || '로그인 실패: 이메일 또는 비밀번호를 확인해주세요.')

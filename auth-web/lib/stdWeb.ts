@@ -29,17 +29,47 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
         : ''
     if (!token) return { ok: false, response: jsonError('Authentication required', 401) }
 
-    const { data, error } = await getAuthClient().auth.getUser(token)
-    const user = data.user
-    if (error || !user?.email) return { ok: false, response: jsonError('Invalid session', 401) }
+    // 1. Try Desktop Session Token first (for existing AIR Studio users)
+    const { getEmailFromDesktopToken } = await import('./desktopSession')
+    const desktopEmail = getEmailFromDesktopToken(token)
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .select('id,email,membership,membership_tier,is_approved,preferred_languages,preferred_video_length,preferred_category_ids,full_name')
-        .eq('id', user.id)
-        .maybeSingle()
+    let profile: any = null
+    let userEmail: string = ''
+    let userId: string = ''
 
-    if (profileError || !profile) return { ok: false, response: jsonError('Profile not found', 404) }
+    if (desktopEmail) {
+        const { data, error } = await supabaseAdmin
+            .from('profiles')
+            .select('id,email,membership,membership_tier,is_approved,preferred_languages,preferred_video_length,preferred_category_ids,full_name')
+            .eq('email', desktopEmail)
+            .maybeSingle()
+
+        if (!error && data) {
+            profile = data
+            userEmail = String(data.email || desktopEmail)
+            userId = String(data.id || desktopEmail)
+        }
+    }
+
+    // 2. Fallback to Supabase GoTrue Auth Token
+    if (!profile) {
+        const { data, error } = await getAuthClient().auth.getUser(token)
+        const user = data?.user
+        if (!error && user?.email) {
+            userEmail = user.email
+            userId = user.id
+            const { data: pData } = await supabaseAdmin
+                .from('profiles')
+                .select('id,email,membership,membership_tier,is_approved,preferred_languages,preferred_video_length,preferred_category_ids,full_name')
+                .or(`id.eq.${user.id},email.eq.${user.email}`)
+                .maybeSingle()
+            if (pData) {
+                profile = pData
+            }
+        }
+    }
+
+    if (!profile) return { ok: false, response: jsonError('Profile not found', 404) }
     if (profile.is_approved !== true) return { ok: false, response: jsonError('Account is not approved', 403) }
 
     const membership = String(profile.membership_tier || profile.membership || 'std').toLowerCase()
@@ -50,9 +80,9 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
     return {
         ok: true,
         requester: {
-            user,
+            user: { id: userId, email: userEmail } as any,
             profile,
-            email: String(profile.email || user.email),
+            email: userEmail,
         },
     }
 }
