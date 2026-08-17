@@ -13,10 +13,10 @@ export async function POST(req: Request) {
         }
         const normalizedEmail = String(email).trim().toLowerCase()
 
-        // profiles 테이블에서 pin_code 조회
+        // profiles 테이블에서 pin_code 및 계정 정보 조회
         const { data: profile, error } = await supabaseAdmin
             .from('profiles')
-            .select('id,email,pin_code,is_approved,membership,membership_tier,full_name')
+            .select('*')
             .eq('email', normalizedEmail)
             .maybeSingle()
 

@@ -40,7 +40,7 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
     if (desktopEmail) {
         const { data, error } = await supabaseAdmin
             .from('profiles')
-            .select('id,email,membership,membership_tier,is_approved,preferred_languages,preferred_video_length,preferred_category_ids,full_name')
+            .select('*')
             .eq('email', desktopEmail)
             .maybeSingle()
 
@@ -60,7 +60,7 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
             userId = user.id
             const { data: pData } = await supabaseAdmin
                 .from('profiles')
-                .select('id,email,membership,membership_tier,is_approved,preferred_languages,preferred_video_length,preferred_category_ids,full_name')
+                .select('*')
                 .or(`id.eq.${user.id},email.eq.${user.email}`)
                 .maybeSingle()
             if (pData) {
