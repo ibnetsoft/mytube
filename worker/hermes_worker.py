@@ -2886,6 +2886,159 @@ def _clean_planned_scene_situation(scene: dict) -> str:
     return text or str((scene or {}).get("scene_summary") or "").strip()
 
 
+def _generic_old_story_unique_beats(title: str, count: int) -> list[tuple[str, str, str]]:
+    """Build non-repeating folk-tale beats when model plans collapse into loops."""
+    clean_title = str(title or "숨겨진 약속").strip()
+    anchors = [
+        ("금기", "마을 입구의 낡은 금기패가 사건의 시작을 알린다", "왜 이 마을은 그 말을 대대로 숨겼을까?"),
+        ("목격", "새벽 우물가에서 주인공이 아무도 보지 못한 흔적을 발견한다", "그 흔적은 사람의 것일까, 오래된 약속의 것일까?"),
+        ("유언", "죽음을 앞둔 노인이 제목 속 비밀과 이어지는 짧은 말을 남긴다", "노인은 왜 살아서는 끝내 말하지 못했을까?"),
+        ("물건", "장롱 밑에서 붉은 실로 묶인 작은 물건이 나온다", "그 물건은 누구의 죄를 붙들고 있었을까?"),
+        ("소문", "마을 사람들은 서로 다른 소문을 말하며 진실을 더 흐린다", "소문 속에서 빠진 이름 하나는 누구일까?"),
+        ("가족", "가족들은 체면을 지키려 하지만 주인공은 침묵을 의심한다", "가족이 감추는 것은 부끄러움일까, 두려움일까?"),
+        ("길", "비가 그친 산길에 오래된 발자국이 다시 드러난다", "사라졌던 길은 왜 오늘 밤 다시 열렸을까?"),
+        ("증언", "말을 아끼던 노파가 과거의 첫 증언을 조심스레 꺼낸다", "그 증언은 누구를 살리고 누구를 무너뜨릴까?"),
+        ("문서", "찢어진 문서 조각이 서로 맞물리며 감춰진 거래를 보여준다", "문서에 없는 마지막 줄은 어디에 있을까?"),
+        ("대립", "큰집 사람들과 가난한 집 사람들이 마당에서 정면으로 부딪힌다", "누가 진실보다 체면을 더 두려워할까?"),
+        ("밤", "등불이 꺼진 밤, 닫힌 문 너머에서 낮은 울음이 들린다", "그 울음은 원망일까, 용서를 구하는 소리일까?"),
+        ("선택", "주인공은 마을 편에 설지, 죽은 이의 억울함을 밝힐지 선택해야 한다", "진실을 밝히면 누구의 삶이 먼저 깨질까?"),
+        ("추적", "낡은 장부와 발자국을 따라 오래 버려진 초가로 향한다", "그 초가에는 왜 아직 따뜻한 재가 남아 있을까?"),
+        ("반전", "모두가 죄인이라 믿은 사람이 사실 누군가를 대신 지켰음이 드러난다", "대신 죄를 짊어진 사람은 무엇을 지키려 했을까?"),
+        ("희생", "숨겨진 선택이 한 사람의 욕심이 아니라 긴 희생이었음이 밝혀진다", "희생은 왜 원망의 얼굴을 하고 남았을까?"),
+        ("고백", "마침내 침묵하던 사람이 사람들 앞에서 자기 죄를 고백한다", "고백 하나로 오래된 벌이 끝날 수 있을까?"),
+        ("회복", "빼앗긴 이름과 물건이 제자리로 돌아가며 마을의 공기가 바뀐다", "돌아온 이름은 누구의 마음을 먼저 울릴까?"),
+        ("여운", "새벽빛 속에 마지막 흔적만 남고 이야기는 조용히 닫힌다", "진심은 늦어도 사라지지 않는다는 말을 남긴다"),
+    ]
+    beats: list[tuple[str, str, str]] = []
+    for idx in range(max(0, count)):
+        anchor, action, question = anchors[idx % len(anchors)]
+        phase = (
+            "오프닝"
+            if idx < 12
+            else "단서 추적"
+            if idx < 28
+            else "진실 접근"
+            if idx < 44
+            else "결말 회수"
+        )
+        turn = idx // len(anchors) + 1
+        summary = f"{phase} {anchor} 장면에서 '{clean_title}'의 약속을 {turn}단계로 밀어 올리며, {action}"
+        purpose = f"{phase}의 역할은 같은 사건 반복이 아니라 {anchor} 단서를 통해 인물의 선택과 대가를 새 방향으로 전진시키는 것이다"
+        hook = f"{question} {anchor} 때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다"
+        beats.append((summary, purpose, hook))
+    return beats
+
+
+def _old_story_exam_sons_mother_beats(title: str) -> list[tuple[str, str, str]]:
+    actions = [
+        "장원 급제 소식이 온 마을에 울리지만 어머니만 눈물 한 방울 흘리지 않는다",
+        "상여가 지나간 같은 날 둘째 아들의 빈 신발이 대문 앞에 놓인다",
+        "첫째는 붉은 관복을 입고 돌아오지만 어머니의 방문은 굳게 닫혀 있다",
+        "마을 사람들은 어머니가 큰아들 출세에 정신이 팔렸다고 수군거린다",
+        "막내딸이 둘째의 죽음을 알리자 어머니는 밥상을 두 벌 차리라고 말한다",
+        "둘째의 방에서 과거 시험 답안지와 피 묻은 붓대가 함께 발견된다",
+        "첫째는 답안지를 보자 얼굴이 굳지만 아무 말 없이 불씨를 찾는다",
+        "어머니는 불씨를 빼앗고 둘째가 남긴 글씨를 끝까지 읽으라 명한다",
+        "글 첫머리에는 첫째의 이름과 둘째의 필체가 나란히 적혀 있다",
+        "마을 훈장은 두 형제가 시험 전날 함께 서당을 떠났다고 증언한다",
+        "첫째는 길에서 산적을 만났다고 둘러대지만 짚신의 흙빛이 다르다",
+        "어머니는 울지 않고 둘째의 관 앞에 낡은 노리개 하나를 올려놓는다",
+        "과거길 첫날 둘째가 병든 첫째를 업고 고개를 넘던 과거가 드러난다",
+        "첫째는 열병으로 정신을 잃고 둘째는 형의 이름으로 답안을 써 준다",
+        "둘째는 형이 집안을 살려야 한다며 자기 이름을 끝내 숨긴다",
+        "시험장 밖에서 부정 응시를 본 관리가 둘째를 협박한다",
+        "둘째는 형을 살리기 위해 자신이 답안을 훔쳤다는 거짓 자백을 한다",
+        "관리는 돈을 요구하고 첫째는 두려움에 둘째를 외면한다",
+        "둘째는 옥에 끌려가기 전 어머니에게 보내는 짧은 편지를 맡긴다",
+        "편지를 전해야 할 하인이 첫째 집안의 돈을 받고 침묵한다",
+        "어머니는 이미 편지의 존재를 알았지만 일부러 모른 척 기다렸다",
+        "첫째가 장원 급제했다는 방이 붙자 둘째는 옥중에서 피를 토한다",
+        "둘째는 죽기 전 어머니에게 절대 울지 말라는 마지막 말을 남긴다",
+        "그 말의 뜻을 아는 어머니는 눈물을 삼키고 큰아들을 기다린다",
+        "현재로 돌아와 첫째는 관복을 벗지 못한 채 둘째 관 앞에 선다",
+        "어머니는 첫째에게 네가 받은 벼슬이 누구의 목숨값인지 묻는다",
+        "첫째는 자기 이름으로 된 답안지가 둘째 손에서 나온 사실을 부인한다",
+        "훈장은 답안지의 마지막 획이 둘째의 버릇과 같다고 밝힌다",
+        "하인은 뒤늦게 편지를 꺼내며 돈을 받고 숨겼다고 고백한다",
+        "편지에는 둘째가 형을 원망하지 말라고 적은 문장이 있다",
+        "첫째는 무너져 울지만 어머니는 아직도 울지 않는다",
+        "마을 사람들은 차가운 어머니라 손가락질하지만 그녀는 장독대로 간다",
+        "장독 안에는 둘째가 어릴 때 모은 작은 나무패들이 숨겨져 있다",
+        "나무패마다 첫째를 도와 집안을 일으키겠다는 둘째의 소원이 적혀 있다",
+        "어머니는 첫째에게 그 소원 때문에 네 죄가 사라지지는 않는다고 말한다",
+        "첫째는 벼슬길을 포기하고 관아에 자수하겠다고 결심한다",
+        "어머니는 이제야 둘째의 관 뚜껑을 열고 마지막 얼굴을 바라본다",
+        "둘째의 손에는 어머니 눈물을 닦던 낡은 손수건이 쥐어져 있다",
+        "어머니는 그 손수건을 보고도 울지 말라는 약속을 떠올리며 입술을 깨문다",
+        "첫째가 관아로 떠나려 하자 마을 사람들은 집안 망신이라 막아선다",
+        "어머니는 사람들 앞에서 둘째의 편지를 큰소리로 읽는다",
+        "편지 끝에는 어머니가 울면 형이 평생 죄인이 되어 살 거라는 말이 있다",
+        "어머니가 울지 않은 이유는 큰아들을 용서해서가 아니라 둘째의 마지막 부탁 때문임이 드러난다",
+        "첫째는 장원 급제 방을 찢고 둘째 이름을 자기 이름 위에 쓴다",
+        "관아에서는 첫째의 벼슬을 거두지만 둘째의 억울한 누명도 풀린다",
+        "마을 사람들은 둘째 관 앞에 처음으로 무릎을 꿇는다",
+        "어머니는 둘째가 좋아하던 팥죽을 끓여 관 앞에 놓는다",
+        "첫째는 평생 서당에서 가난한 아이들에게 글을 가르치겠다고 맹세한다",
+        "어머니는 둘째의 손수건을 첫째에게 주며 네가 흘릴 눈물을 닦으라 한다",
+        "장례 행렬이 떠나는 순간 하늘에서 비가 내리기 시작한다",
+        "비를 맞던 어머니는 사람들 몰래 소매 안에서 손수건을 꽉 쥔다",
+        "마지막 봉분 앞에서 어머니는 울지 않고 둘째의 이름을 세 번 부른다",
+        "세 번째 이름을 부르자 첫째가 대신 무너져 울고 마을은 조용히 고개를 숙인다",
+    ]
+    beats = []
+    for idx, action in enumerate(actions, start=1):
+        if idx <= 12:
+            purpose = "초반 훅으로 장원 급제와 죽음, 그리고 울지 않는 어머니의 모순을 세운다"
+        elif idx <= 24:
+            purpose = "과거길의 진실과 둘째의 희생을 단계적으로 드러낸다"
+        elif idx <= 43:
+            purpose = "첫째의 죄책감과 어머니의 침묵이 부딪히며 제목의 이유를 압박한다"
+        else:
+            purpose = "어머니가 울지 않은 이유를 결말에서 감정적으로 회수한다"
+        hook = "어머니의 침묵 뒤에 숨은 다음 진실이 더 무겁게 다가온다"
+        if idx >= 43:
+            hook = "울지 않은 이유가 용서가 아니라 마지막 약속이었다는 사실이 선명해진다"
+        beats.append((action, purpose, hook))
+    return beats
+
+
+def _repair_generic_old_story_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "옛날이야기").strip()
+    beats = _generic_old_story_unique_beats(title, len(scenes))
+    repaired = dict(structure)
+    repaired_scenes = []
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        summary, purpose, hook = beats[idx]
+        scene["scene_id"] = str(scene.get("scene_id") or f"scene{idx + 1:03d}")
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_summary"] = summary
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 숨겨진 약속, 금기, 단서, 고백, 대가를 순서대로 회수한다"
+        scene["end_bridge"] = hook
+        scene.pop("image_prompt", None)
+        scene.pop("video_prompt", None)
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired.pop("image_grid_prompts", None)
+    repaired.pop("media_prompt_director", None)
+    repaired.pop("media_prompt_status", None)
+    repaired.pop("image_grid_prompt_status", None)
+    repaired.pop("image_grid_prompt_mode", None)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "generic old-story unique beat rebuild",
+    }
+    return repaired
+
+
 def _old_story_wedding_bride_beats(title: str) -> list[tuple[str, str, str]]:
     return [
         ("혼례 마당에 등불이 켜지고 신부의 빈 가마가 먼저 보인다", "사라진 신부라는 핵심 사건을 즉시 세운다", "가마는 비었는데 왜 신부의 신발만 남았을까?"),
@@ -3115,6 +3268,11 @@ def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_
         if "무덤" in title_blob and "할머니" in title_blob
         else []
     )
+    exam_sons_beats = (
+        _old_story_exam_sons_mother_beats(title)
+        if all(term in title_blob for term in ("첫째", "둘째", "어머니")) and any(term in title_blob for term in ("울지", "울지 않은", "눈물"))
+        else []
+    )
     repaired = dict(structure)
     repaired_scenes = []
     for idx, original in enumerate(scenes):
@@ -3125,6 +3283,8 @@ def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_
             situation_beat, purpose, hook = tiger_beats[idx]
         elif nameless_grave_beats and idx < len(nameless_grave_beats):
             situation_beat, purpose, hook = nameless_grave_beats[idx]
+        elif exam_sons_beats and idx < len(exam_sons_beats):
+            situation_beat, purpose, hook = exam_sons_beats[idx]
         else:
             situation_beat = _clean_planned_scene_situation(scene)
             purpose = f"'{title}'의 이유와 감정선을 새 행동 또는 단서로 한 단계 전진시킨다"
@@ -3596,7 +3756,7 @@ def _repair_old_story_scene_plan_repetition(structure: dict, topic: str, upload_
     title = (upload_title or topic or "옛날이야기").strip()
     if _old_story_title_is_grave_vigil(topic, upload_title):
         return _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
-    return _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
+    return _repair_generic_old_story_scene_plan_repetition(structure, topic, upload_title)
     beat_templates = [
         ("마을 어귀에 걸린 금기와 소문을 먼저 보여준다", "이야기의 세계를 옛 마을의 불길한 약속 안에 고정한다", "그 금기는 왜 지금까지 아무도 어기지 못했을까?"),
         ("어머니의 유언이 세 형제 앞에서 서로 다르게 해석된다", "제목의 약속을 가족 갈등과 금지된 선택으로 연결한다", "유언 속에서 빠진 한 문장이 있다면 무엇일까?"),
