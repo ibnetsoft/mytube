@@ -3071,6 +3071,208 @@ def _old_story_title_is_tiger_hunter(topic: str, upload_title: str) -> bool:
     return "호랑이" in title_blob and any(term in title_blob for term in ("발톱", "사냥꾼", "나무꾼"))
 
 
+def _old_story_title_has_any(topic: str, upload_title: str, *terms: str) -> bool:
+    blob = _text_with_mojibake_repairs(topic, upload_title)
+    return any(term and term in blob for term in terms)
+
+
+def _build_old_story_story_core(topic: str, upload_title: str, structure: dict | None = None) -> dict:
+    """Create the dramatic spine that old-story plans must follow."""
+    title = (upload_title or topic or "옛날이야기").strip()
+    if _old_story_title_has_any(topic, upload_title, "호랑이", "범"):
+        protagonist = "사냥꾼 만복"
+        desire = "사라진 사람들의 흔적을 따라가 호랑이 소문의 진짜 원인을 밝힌다"
+        opening_incident = "첫 장면에서 만복이 산길의 피 묻은 발자국과 부러진 나무꾼의 도끼를 동시에 발견한다"
+        personal_stake = "실종된 사람 중 하나가 만복에게 은혜를 입힌 은인이라 외면할 수 없다"
+        midpoint_reversal = "호랑이의 발톱 자국으로 보였던 흔적이 사람이 일부러 만든 가짜 표식이었다는 사실이 드러난다"
+        final_payoff = "만복이 범의 공포를 이용한 사람의 죄를 밝혀 제목의 소문을 사건으로 풀어낸다"
+    elif _old_story_title_has_any(topic, upload_title, "무덤", "묘", "시어머니", "며느리", "어머니"):
+        protagonist = "맏아들 덕수"
+        desire = "어머니의 무덤에서 시작된 이상한 일을 끝까지 확인해 집안을 지킨다"
+        opening_incident = "첫 장면에서 덕수가 새벽 무덤가에서 젖은 흙 위에 새로 찍힌 맨발 자국을 본다"
+        personal_stake = "어머니의 마지막 유언을 지키지 못했다는 죄책감 때문에 물러설 수 없다"
+        midpoint_reversal = "저주처럼 보였던 흔적이 어머니가 숨겨 둔 약속과 집안의 죄를 가리키고 있음이 드러난다"
+        final_payoff = "덕수가 무덤 앞에서 숨긴 진실을 직접 고백하게 만들며 어머니의 유언을 사건으로 완성한다"
+    elif _old_story_title_has_any(topic, upload_title, "형제", "아들", "삼형제", "세 형제"):
+        protagonist = "맏형 덕수"
+        desire = "동생들을 지키며 집안에 내려온 금기를 깨야 하는 이유를 알아낸다"
+        opening_incident = "첫 장면에서 덕수가 집 마당 한복판에 놓인 낯선 제물과 흙 묻은 손자국을 발견한다"
+        personal_stake = "가난한 집안을 혼자 떠받쳐 온 덕수는 동생들을 잃을지 모른다는 두려움을 숨기고 있다"
+        midpoint_reversal = "금기는 복을 막는 말이 아니라 누군가의 죄를 숨기기 위한 장치였음이 드러난다"
+        final_payoff = "덕수가 동생들 앞에서 금기의 진짜 주인을 밝혀 집안의 공포를 끝낸다"
+    else:
+        protagonist = "농부 돌쇠"
+        desire = "마을에 떠도는 금기와 소문의 근원을 직접 확인한다"
+        opening_incident = "첫 장면에서 돌쇠가 모두가 피하던 장소에서 제목 속 사건의 첫 증거를 손에 쥔다"
+        personal_stake = "그 증거가 돌쇠 가족의 오래된 침묵과 이어져 있어 모른 척할 수 없다"
+        midpoint_reversal = "마을 사람들이 두려워한 대상보다 숨겨 온 거짓말이 더 위험했다는 사실이 드러난다"
+        final_payoff = "돌쇠가 마을 앞에서 침묵의 이유를 드러내며 제목의 의문을 행동으로 풀어낸다"
+
+    return {
+        "logline": f"{title}의 소문이 한 사람의 선택과 집안의 비밀로 밝혀지는 옛날이야기",
+        "protagonist": protagonist,
+        "desire": desire,
+        "opening_incident": opening_incident,
+        "personal_stake": personal_stake,
+        "central_conflict": f"{title}에 담긴 금기와 진실을 밝히려는 {protagonist}의 싸움",
+        "stakes": personal_stake,
+        "hidden_information": "처음에는 소문과 금기로 보이지만, 중반 이후 사람의 선택과 오래된 죄가 드러난다",
+        "turning_point": midpoint_reversal,
+        "midpoint_reversal": midpoint_reversal,
+        "final_payoff": final_payoff,
+        "acts": [
+            {"act": 1, "scene_range": "1-12", "goal": "첫 30초 안에 실제 사건을 보여주고 주인공의 개인적 이유를 세운다"},
+            {"act": 2, "scene_range": "13-28", "goal": "단서를 따라가며 주인공이 선택과 손실을 겪게 한다"},
+            {"act": 3, "scene_range": "29-44", "goal": "중반 반전 이후 숨겨진 죄와 대가를 구체적 장면으로 밀어붙인다"},
+            {"act": 4, "scene_range": "45-53", "goal": "설교가 아니라 사건의 결말로 제목의 약속을 갚는다"},
+        ],
+    }
+
+
+def _old_story_dramatic_function(scene_order: int, scene_count: int) -> str:
+    if scene_order <= 4:
+        return "opening incident and personal stake"
+    if scene_order <= 12:
+        return "hook escalation"
+    if scene_order <= max(13, int(scene_count * 0.52)):
+        return "investigation and active choice"
+    if scene_order <= max(14, int(scene_count * 0.62)):
+        return "midpoint reversal"
+    if scene_order <= max(15, int(scene_count * 0.84)):
+        return "cost and confrontation"
+    return "final payoff"
+
+
+def _apply_old_story_story_core_to_structure(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    repaired = dict(structure)
+    core = _build_old_story_story_core(topic, upload_title, repaired)
+    scene_count = len(scenes)
+    protagonist = core["protagonist"]
+    title = (upload_title or topic or "옛날이야기").strip()
+    repaired["story_core"] = core
+    repaired["title_promise"] = repaired.get("title_promise") or core["central_conflict"]
+    repaired["opening_hook"] = core["opening_incident"]
+    repaired["payoff"] = core["final_payoff"]
+
+    rewritten: list[dict] = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        scene["scene_order"] = scene.get("scene_order") or scene.get("order") or scene.get("scene_number") or idx
+        scene["scene_number"] = scene["scene_order"]
+        scene["act"] = 1 if idx <= 12 else 2 if idx <= 28 else 3 if idx <= 44 else 4
+        scene["dramatic_function"] = _old_story_dramatic_function(idx, scene_count)
+
+        if idx == 1:
+            scene["scene_summary"] = core["opening_incident"]
+            scene["scene_situation"] = f"{protagonist}이 {core['opening_incident']}."
+            scene["scene_purpose"] = "설명보다 사건을 먼저 보여주며 제목의 의문을 눈앞에 세운다"
+            scene["retention_hook"] = "이 흔적은 정말 금기의 시작일까, 누군가가 남긴 경고일까?"
+            scene["character_choice"] = f"{protagonist}이 도망가지 않고 흔적을 손에 쥔다"
+            scene["emotional_shift"] = "불길한 호기심에서 피할 수 없는 책임감으로 바뀐다"
+            scene["reveal_or_question"] = core["opening_incident"]
+        elif idx == 2:
+            scene["scene_summary"] = f"{protagonist}이 물러설 수 없는 개인적 이유가 드러난다"
+            scene["scene_situation"] = core["personal_stake"]
+            scene["scene_purpose"] = "주인공의 동기를 소문이 아니라 개인적 상처와 책임으로 고정한다"
+            scene["retention_hook"] = f"{protagonist}은 왜 이 일을 남에게 맡길 수 없을까?"
+            scene["character_choice"] = f"{protagonist}이 가족이나 마을의 만류를 거절한다"
+            scene["emotional_shift"] = "두려움을 숨긴 결심으로 좁혀진다"
+            scene["reveal_or_question"] = core["personal_stake"]
+        elif idx == 3:
+            scene["character_choice"] = f"{protagonist}이 첫 증거를 숨기지 않고 확인하러 나선다"
+            scene["emotional_shift"] = "의심이 구체적 불안으로 커진다"
+            scene["reveal_or_question"] = "첫 단서가 제목의 소문과 직접 이어진다"
+        elif idx == 4:
+            scene["character_choice"] = f"{protagonist}이 침묵하는 어른에게 직접 묻는다"
+            scene["emotional_shift"] = "혼자만의 의심에서 마을 전체의 침묵으로 확장된다"
+            scene["reveal_or_question"] = "마을 사람들이 같은 사실을 서로 다르게 숨긴다"
+        elif 24 <= idx <= 30:
+            scene["dramatic_function"] = "midpoint reversal"
+            scene["scene_purpose"] = scene.get("scene_purpose") or "중반 반전으로 제목의 의미를 뒤집는다"
+            scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 안전한 해석을 버리고 위험한 진실 쪽으로 걸어간다"
+            scene["emotional_shift"] = scene.get("emotional_shift") or "공포가 분노와 죄책감으로 바뀐다"
+            scene["reveal_or_question"] = scene.get("reveal_or_question") or core["midpoint_reversal"]
+            if idx == 26:
+                scene["scene_summary"] = core["midpoint_reversal"]
+                scene["scene_situation"] = core["midpoint_reversal"]
+                scene["retention_hook"] = "그렇다면 지금까지 모두가 두려워한 것은 무엇을 감추기 위한 것이었을까?"
+        elif idx >= max(45, scene_count - 8):
+            scene["dramatic_function"] = "final payoff"
+            scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 침묵 대신 공개적인 고백과 대면을 선택한다"
+            scene["emotional_shift"] = scene.get("emotional_shift") or "공포가 결심과 해소로 바뀐다"
+            scene["reveal_or_question"] = scene.get("reveal_or_question") or core["final_payoff"]
+            if idx == scene_count:
+                scene["scene_summary"] = core["final_payoff"]
+                scene["scene_situation"] = f"{title}의 의문이 {protagonist}의 선택으로 끝난다"
+                scene["scene_purpose"] = "교훈 설명이 아니라 마지막 행동과 결과로 결말을 맺는다"
+                scene["retention_hook"] = "마지막 장면이 제목의 의문을 감정적으로 닫는다"
+        else:
+            scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 단서 하나를 확인하고 다음 위험을 감수한다"
+            scene["emotional_shift"] = scene.get("emotional_shift") or "새 단서가 나오며 감정의 방향이 한 단계 변한다"
+            scene["reveal_or_question"] = scene.get("reveal_or_question") or (
+                scene.get("retention_hook") or scene.get("scene_purpose") or "새로운 의문이 남는다"
+            )
+
+        scene.pop("visual_direction", None)
+        scene.pop("tts_direction", None)
+        rewritten.append(scene)
+
+    repaired["scenes"] = rewritten
+    repaired["scene_count"] = len(rewritten)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "old_story_story_core_applied": True,
+    }
+    return repaired
+
+
+def _old_story_drama_plan_errors(structure: dict, topic: str, upload_title: str) -> list[str]:
+    errors: list[str] = []
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    core = structure.get("story_core") if isinstance(structure, dict) and isinstance(structure.get("story_core"), dict) else {}
+    if not isinstance(scenes, list) or not scenes:
+        return ["old-story drama plan missing scenes"]
+    generic_names = {"", "주인공", "the person at the center of the clicked story"}
+    if str(core.get("protagonist") or "").strip() in generic_names:
+        errors.append("old-story story_core missing concrete protagonist")
+    for key in ("opening_incident", "personal_stake", "central_conflict", "midpoint_reversal", "final_payoff"):
+        if len(str(core.get(key) or "").strip()) < 12:
+            errors.append(f"old-story story_core missing {key}")
+    first_blob = " ".join(
+        str((scene or {}).get(field) or "")
+        for scene in scenes[:4]
+        for field in ("scene_summary", "scene_situation", "scene_purpose", "character_choice")
+    )
+    if str(core.get("protagonist") or "") and str(core.get("protagonist")) not in first_blob:
+        errors.append("old-story first scenes do not establish protagonist")
+    action_terms = ("발견", "묻", "거절", "숨기", "확인", "잡", "찾", "고백", "대면", "쥔다", "나선다")
+    if not any(term in first_blob for term in action_terms):
+        errors.append("old-story opening lacks visible action")
+    first_twelve_choices = sum(1 for scene in scenes[:12] if str((scene or {}).get("character_choice") or "").strip())
+    if first_twelve_choices < 4:
+        errors.append("old-story first act lacks active protagonist choices")
+    midpoint_blob = " ".join(
+        str((scene or {}).get(field) or "")
+        for scene in scenes[22:34]
+        for field in ("dramatic_function", "scene_summary", "scene_situation", "reveal_or_question")
+    )
+    if "midpoint" not in midpoint_blob and str(core.get("midpoint_reversal") or "")[:16] not in midpoint_blob:
+        errors.append("old-story plan missing midpoint reversal")
+    ending_blob = " ".join(
+        str((scene or {}).get(field) or "")
+        for scene in scenes[-9:]
+        for field in ("dramatic_function", "scene_summary", "scene_situation", "reveal_or_question")
+    )
+    if "final payoff" not in ending_blob and str(core.get("final_payoff") or "")[:16] not in ending_blob:
+        errors.append("old-story plan missing final payoff")
+    if any(term in ending_blob for term in ("교훈은", "이야기의 교훈", "시청자 여러분", "콘텐츠")):
+        errors.append("old-story ending is preachy/meta instead of dramatic payoff")
+    return errors
+
+
 def _old_story_scene_has_template_drift(scene: dict) -> bool:
     blob = " ".join(
         str((scene or {}).get(field) or "")
@@ -3839,6 +4041,8 @@ def _validate_script_plan_stage(
             image_style=image_style,
         )
     )
+    if _is_old_story_plan_context(script_style, topic, upload_title, image_style):
+        errors.extend(_old_story_drama_plan_errors(structure, topic, upload_title))
     return _raise_on_quality_stage_failure("script_plan", errors)
 
 
@@ -4645,8 +4849,11 @@ Scene planning guard:
     ).strip()
     script_style_context = f"{script_style} {category_context}".strip()
     finance_plan_context = _is_finance_plan_context(script_style_context, topic, upload_title, image_style)
-    if _is_old_story_plan_context(script_style_context, topic, upload_title, image_style) and not _old_story_title_is_grave_vigil(topic, upload_title):
+    old_story_plan_context = _is_old_story_plan_context(script_style_context, topic, upload_title, image_style)
+    if old_story_plan_context and not _old_story_title_is_grave_vigil(topic, upload_title):
         structure = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
+    if old_story_plan_context:
+        structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
     plan_errors = _scene_plan_repetition_errors(structure)
     if plan_errors:
         if finance_plan_context:
@@ -4661,9 +4868,10 @@ Scene planning guard:
             plan_errors = _scene_plan_repetition_errors(structure)
             if plan_errors:
                 raise RuntimeError(f"martial scene plan repetition QA failed: {plan_errors[:8]}")
-        elif _is_old_story_plan_context(script_style_context, topic, upload_title, image_style):
+        elif old_story_plan_context:
             job_log.warning(f"Scene plan repetition QA requested old-story rebuild: {plan_errors[:8]}")
             structure = _repair_old_story_scene_plan_repetition(structure, topic, upload_title)
+            structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
             plan_errors = _scene_plan_repetition_errors(structure)
             if plan_errors:
                 raise RuntimeError(f"old-story scene plan repetition QA failed: {plan_errors[:8]}")
@@ -4975,6 +5183,10 @@ def _scene_payload_for_script(scene: dict, budget: dict, upload_title: str = "")
         "purpose": purpose,
         "emotion": _clean_script_scene_text(scene.get("scene_emotion") or "", upload_title),
         "turn_or_question": hook,
+        "dramatic_function": _clean_script_scene_text(scene.get("dramatic_function") or "", upload_title),
+        "character_choice": _clean_script_scene_text(scene.get("character_choice") or "", upload_title),
+        "emotional_shift": _clean_script_scene_text(scene.get("emotional_shift") or "", upload_title),
+        "reveal_or_question": _clean_script_scene_text(scene.get("reveal_or_question") or "", upload_title),
     }
 
 
@@ -5235,6 +5447,9 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 
 [STORY BLUEPRINT]
 {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+- Use opening_incident before backstory in the first chunk.
+- Use personal_stake to make the protagonist's motive clear before the first act ends.
+- Use midpoint_reversal and final_payoff as hard story anchors, not optional suggestions.
 
 {research_section}
 
@@ -5259,6 +5474,8 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 11. Do not summarize the scene plan. Dramatize each beat as spoken narration with sensory detail, a concrete action, and a visible emotional reaction.
 12. Do not repeat the upload title or scene summary phrase inside each section. The title promise should be fulfilled through events, not copied as wording.
 13. Give the protagonist active choices. At least every 3-4 scenes, the main character must decide, hide, reveal, confront, refuse, or sacrifice something.
+14. If dramatic_function, character_choice, emotional_shift, or reveal_or_question are present, dramatize them in the scene text without printing those labels.
+15. Do not open with a lesson, summary, or village rumor if opening_incident is available. Start with a visible event, object, body movement, or discovery.
 
 Return ONLY JSON in this exact shape:
 {{
@@ -5306,23 +5523,33 @@ def _short_script_excerpt(text: str, max_chars: int = 1400) -> str:
 
 def _fallback_narrative_blueprint(topic: str, upload_title: str, structure: dict) -> dict:
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    story_core = structure.get("story_core") if isinstance(structure, dict) and isinstance(structure.get("story_core"), dict) else {}
     scene_beats = []
     for idx, scene in enumerate(scenes or [], start=1):
         scene_beats.append({
             "scene_order": scene.get("scene_order") or idx,
+            "act": scene.get("act"),
+            "dramatic_function": scene.get("dramatic_function") or "",
             "beat": scene.get("scene_summary") or f"Scene {idx}",
             "tension": scene.get("retention_hook") or scene.get("scene_purpose") or "",
             "turn": scene.get("end_bridge") or "",
+            "character_choice": scene.get("character_choice") or "",
+            "emotional_shift": scene.get("emotional_shift") or "",
+            "reveal_or_question": scene.get("reveal_or_question") or "",
         })
     return {
-        "logline": upload_title or topic,
-        "protagonist": "the person at the center of the clicked story",
-        "desire": "resolve the promise raised by the title",
-        "central_conflict": structure.get("title_promise") or topic,
-        "stakes": structure.get("opening_hook") or "viewer curiosity must keep rising",
-        "hidden_information": "reveal new information gradually instead of explaining everything upfront",
-        "turning_point": "a late middle reversal that changes what the viewer believes",
-        "final_payoff": structure.get("payoff") or "emotionally resolve the title promise",
+        "logline": story_core.get("logline") or upload_title or topic,
+        "protagonist": story_core.get("protagonist") or "the person at the center of the clicked story",
+        "desire": story_core.get("desire") or "resolve the promise raised by the title",
+        "opening_incident": story_core.get("opening_incident") or structure.get("opening_hook") or "",
+        "personal_stake": story_core.get("personal_stake") or "",
+        "central_conflict": story_core.get("central_conflict") or structure.get("title_promise") or topic,
+        "stakes": story_core.get("stakes") or structure.get("opening_hook") or "viewer curiosity must keep rising",
+        "hidden_information": story_core.get("hidden_information") or "reveal new information gradually instead of explaining everything upfront",
+        "turning_point": story_core.get("turning_point") or story_core.get("midpoint_reversal") or "a late middle reversal that changes what the viewer believes",
+        "midpoint_reversal": story_core.get("midpoint_reversal") or "",
+        "final_payoff": story_core.get("final_payoff") or structure.get("payoff") or "emotionally resolve the title promise",
+        "act_structure": story_core.get("acts") or [],
         "scene_beats": scene_beats,
         "fallback": True,
     }
@@ -5777,6 +6004,7 @@ Hard retry rules:
     )
     if old_story_context and grave_vigil_context:
         structure = _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
+        structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
         # Script QA should judge story structure and narration only. 2x2 image
         # grids are image-stage artifacts and may contain visual-only wording.
         structure = dict(structure)
@@ -5784,6 +6012,7 @@ Hard retry rules:
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
     elif old_story_context:
         structure = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
+        structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
         structure = dict(structure)
         structure.pop("image_grid_prompts", None)
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
@@ -5801,6 +6030,8 @@ Hard retry rules:
                 "payoff": "순옥이 묘 곁에서 3년을 산 이유는 죽은 시어머니가 하지 못한 사과를 살아 돌아온 딸 복례에게 전하기 위해서다.",
                 "tone": "구수한 한국 옛날이야기 입말, 전근대 산골 마을, 현대 소재 없음",
             }
+            narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
+            narrative_blueprint["tone"] = "구수한 한국 옛날이야기 입말, 전근대 산골 마을, 현대 소재 없음"
             job_log.info("Using old-story grave-vigil script path before section generation")
             job_store.update_progress(job_id, 78, "script QA")
             write_state("running", job, 78, job_id)

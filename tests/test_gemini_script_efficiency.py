@@ -172,3 +172,84 @@ def test_autopilot_forces_single_quality_attempt_for_cost_control():
     manager._apply_settings({})
 
     assert manager.settings["quality_max_attempts"] == 1
+
+
+def test_old_story_story_core_structures_plan_before_script_generation():
+    title = "어머니 무덤에 세 형제가 모인 밤, 아무도 몰랐던 약속이 드러났다"
+    structure = {
+        "scenes": [
+            {
+                "scene_number": idx + 1,
+                "scene_summary": f"반복 설명 장면 {idx + 1}",
+                "scene_situation": "마을 사람들이 이상한 소문을 말하지 못한다",
+                "scene_purpose": "분위기를 설명한다",
+                "retention_hook": "왜 그랬을까?",
+                "visual_direction": "unused image prompt",
+                "tts_direction": "unused tts prompt",
+            }
+            for idx in range(53)
+        ]
+    }
+
+    structured = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
+    scenes = structured["scenes"]
+    core = structured["story_core"]
+
+    assert core["protagonist"] != "주인공"
+    assert core["opening_incident"] in scenes[0]["scene_summary"]
+    assert core["personal_stake"] in scenes[1]["scene_situation"]
+    assert scenes[25]["dramatic_function"] == "midpoint reversal"
+    assert core["midpoint_reversal"] in scenes[25]["scene_summary"]
+    assert scenes[-1]["dramatic_function"] == "final payoff"
+    assert core["final_payoff"] in scenes[-1]["scene_summary"]
+    assert sum(1 for scene in scenes[:12] if scene.get("character_choice")) >= 4
+    assert all("visual_direction" not in scene for scene in scenes)
+    assert all("tts_direction" not in scene for scene in scenes)
+    assert hermes_worker._old_story_drama_plan_errors(structured, title, title) == []
+
+
+def test_old_story_blueprint_uses_story_core_instead_of_generic_fallback():
+    title = "호랑이 발톱을 숨긴 나무꾼이 사라진 이유"
+    structure = {
+        "scenes": [{"scene_number": idx + 1, "scene_summary": f"장면 {idx + 1}"} for idx in range(53)]
+    }
+    structured = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
+
+    blueprint = hermes_worker._fallback_narrative_blueprint(title, title, structured)
+
+    assert blueprint["protagonist"] == structured["story_core"]["protagonist"]
+    assert blueprint["opening_incident"] == structured["story_core"]["opening_incident"]
+    assert blueprint["personal_stake"] == structured["story_core"]["personal_stake"]
+    assert blueprint["midpoint_reversal"] == structured["story_core"]["midpoint_reversal"]
+    assert blueprint["final_payoff"] == structured["story_core"]["final_payoff"]
+    assert blueprint["act_structure"]
+    assert blueprint["scene_beats"][0]["character_choice"]
+    assert blueprint["scene_beats"][25]["dramatic_function"] == "midpoint reversal"
+
+
+def test_script_scene_payload_carries_drama_fields_without_visual_tts():
+    scene = {
+        "scene_order": 1,
+        "scene_summary": "돌쇠가 금기의 첫 증거를 발견한다",
+        "scene_purpose": "사건을 먼저 보여준다",
+        "retention_hook": "이 증거는 누구의 것일까?",
+        "dramatic_function": "opening incident and personal stake",
+        "character_choice": "돌쇠가 증거를 숨기지 않고 확인하러 간다",
+        "emotional_shift": "호기심이 책임감으로 바뀐다",
+        "reveal_or_question": "마을의 침묵이 거짓일 수 있다",
+        "visual_direction": "must not leak",
+        "tts_direction": "must not leak",
+    }
+
+    payload = hermes_worker._scene_payload_for_script(
+        scene,
+        {"duration_seconds": 5, "target_chars": 80, "min_chars": 40, "max_chars": 120},
+        "",
+    )
+
+    assert payload["dramatic_function"] == "opening incident and personal stake"
+    assert payload["character_choice"] == "돌쇠가 증거를 숨기지 않고 확인하러 간다"
+    assert payload["emotional_shift"] == "호기심이 책임감으로 바뀐다"
+    assert payload["reveal_or_question"] == "마을의 침묵이 거짓일 수 있다"
+    assert "visual_direction" not in payload
+    assert "tts_direction" not in payload
