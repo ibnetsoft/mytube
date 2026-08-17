@@ -39,7 +39,8 @@ def test_image_page_does_not_fallback_to_scene_image_prompt_composition():
     assert "function hasSavedImageGridPrompts()" in source
     assert "return buildFallbackImageGridPrompts(sceneData);" not in source
     assert "return [];" in source
-    assert "hideSceneImagePromptEditor ? 'hidden' : ''" in source
+    assert "hasGridPrompt ? gridPromptText : ''" in source
+    assert "const prompt = gridPrompt" in source
 
 
 def test_scene_review_links_to_project_aware_crop_page():

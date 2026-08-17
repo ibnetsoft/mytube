@@ -60,7 +60,7 @@ def _load_image_grid_prompts(project_id: int, prompts: list[dict]) -> list[dict]
             saved_grids = []
         if saved_grids:
             return saved_grids
-    return build_image_grid_prompts(prompts)
+    return []
 
 
 class ImageGenerateRequest(BaseModel):

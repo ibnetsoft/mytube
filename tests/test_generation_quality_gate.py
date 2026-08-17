@@ -105,6 +105,15 @@ def test_generation_quality_gate_rejects_missing_video_and_grid_prompts():
     assert any("image_grid_prompts" in error for error in errors)
 
 
+def test_generation_quality_gate_rejects_per_scene_image_prompts():
+    payload = _valid_payload()
+    payload["structure"]["scenes"][0]["image_prompt"] = "legacy per-scene image prompt"
+
+    errors = validate_generation_package(payload, category="?쏅궇?댁빞湲?")
+
+    assert any("deprecated per-scene image prompt" in error for error in errors)
+
+
 def test_generation_quality_gate_rejects_bad_script_and_metadata():
     payload = _valid_payload()
     payload["script"] = "Auto-generated longform intro scene in English."

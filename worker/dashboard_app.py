@@ -181,14 +181,22 @@ def _scene_has_image_prompt(scene: dict) -> bool:
 
 def _structure_has_image_grid_prompts(structure: dict) -> bool:
     prompts = structure.get("image_grid_prompts") if isinstance(structure, dict) else None
-    if not isinstance(prompts, list):
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
         return False
-    for prompt in prompts:
-        if not isinstance(prompt, dict):
-            continue
-        if str(prompt.get("prompt") or prompt.get("grid_prompt") or "").strip():
-            return True
-    return False
+    try:
+        from services.image_grid_prompts import validate_image_grid_prompt_readiness
+
+        validate_image_grid_prompt_readiness(
+            scenes,
+            prompts,
+            status=structure.get("image_grid_prompt_status"),
+            require_status="ready",
+            require_compact_template=True,
+        )
+    except Exception:
+        return False
+    return True
 
 
 def _scene_has_video_prompt(scene: dict) -> bool:
@@ -205,11 +213,18 @@ def _scene_has_video_prompt(scene: dict) -> bool:
 
 def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
     raw_status = str(structure.get("media_prompt_status") or "").strip()
-    if raw_status in {"ready", "fallback_ready"}:
-        return raw_status
     valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
-    if valid_scenes and _structure_has_image_grid_prompts(structure) and all(_scene_has_video_prompt(scene) for scene in valid_scenes):
+    has_deprecated_scene_image_prompts = any(_scene_has_image_prompt(scene) for scene in valid_scenes)
+    if (
+        raw_status == "ready"
+        and valid_scenes
+        and not has_deprecated_scene_image_prompts
+        and _structure_has_image_grid_prompts(structure)
+        and all(_scene_has_video_prompt(scene) for scene in valid_scenes)
+    ):
         return "ready"
+    if raw_status == "fallback_ready":
+        return "fallback_ready"
     return raw_status or "missing"
 
 
@@ -340,6 +355,8 @@ def _merge_topic_generated_result(target: dict, data: dict, *, source: str, sour
         target["char_count"] = data.get("char_count")
     if data.get("error") or data.get("error_message"):
         target.setdefault("errors", []).append(data.get("error") or data.get("error_message"))
+    elif status == "COMPLETED" and job_type in {"script_generate", "publish_metadata_generate"}:
+        target["errors"] = []
     target["status"] = status or target.get("status") or "PARTIAL"
 
 
@@ -1312,7 +1329,8 @@ a:hover { text-decoration: underline; }
 .badge-uploading { background: #a371f722; color: #a371f7; }
 .badge-completed { background: #23863622; color: #3fb950; }
 .badge-review { background: #d2992222; color: #d29922; }
-.badge-failed { background: #f8514922; color: #f85149; }
+.badge-failed { background: #f0883e22; color: #f0883e; }
+.prompt-box-error { border-color: #f0883e66; color: #f0883e; }
 .badge-canceled { background: #f8514922; color: #f85149; }
 .badge-abandoned { background: #f8514922; color: #f85149; }
 
@@ -2382,12 +2400,13 @@ function sceneVideoPrompt(scene) {
 
 function hasGeneratedMediaPrompts(structure, scenes) {
   const status = String(structure?.media_prompt_status || '').trim();
-  if (status === 'ready' || status === 'fallback_ready') return true;
+  if (status !== 'ready') return false;
   const imageGridPrompts = getGeneratedImageGridPrompts({ structure });
   return Array.isArray(scenes)
     && scenes.length > 0
     && imageGridPrompts.length > 0
-    && scenes.every(scene => sceneVideoPrompt(scene));
+    && scenes.every(scene => sceneVideoPrompt(scene))
+    && !scenes.some(scene => String(scene?.image_prompt || scene?.prompt_en || scene?.prompt || '').trim());
 }
 
 function generatedQualityGate(data) {
@@ -2403,7 +2422,7 @@ function generatedQualityGate(data) {
   if (!(data?.research_bundle || structure?.research_bundle || data?.material_statuses?.web_research === 'ready')) missing.push('web_research');
   if (!scenes.length && !data?.scene_count) missing.push('scenes');
   if (mediaStatus === 'fallback_ready' || data?.material_statuses?.plan_prompts === 'review') review.push('media_prompts_fallback');
-  else if (!(mediaStatus === 'ready' || data?.material_statuses?.plan_prompts === 'ready')) missing.push('media_prompts');
+  else if (!(mediaStatus === 'ready' && hasGeneratedMediaPrompts(structure, scenes))) missing.push('media_prompts');
   if (!(String(data?.script || '').trim() || data?.has_script || data?.material_statuses?.script === 'ready')) missing.push('script');
   if (!(Object.keys(getGeneratedPublishMetadata(data)).length || data?.material_statuses?.publish_metadata === 'ready')) missing.push('publish_metadata');
   const status = missing.length ? 'fail' : (review.length ? 'review' : 'pass');
@@ -2557,7 +2576,7 @@ async function showGeneratedResult(resultId) {
   const mediaReady = hasGeneratedMediaPrompts(structure, scenes);
   const mediaStatusLabel = String(structure.media_prompt_status || (mediaReady ? 'ready' : 'missing'));
   const mediaStatus = mediaReady
-    ? `<span class="badge ${mediaStatusLabel === 'fallback_ready' ? 'badge-review' : 'badge-completed'}">${escapeHtml(mediaStatusLabel)}</span>${mediaStatusLabel === 'fallback_ready' ? ' <span class="info">AI 디렉터 프롬프트가 검증을 통과하지 못해 fallback 프롬프트가 사용되었습니다.</span>' : ''}`
+    ? `<span class="badge badge-completed">${escapeHtml(mediaStatusLabel)}</span>`
     : '<span class="badge badge-failed">missing</span> <span class="info">이 결과에는 2x2 이미지 프롬프트 또는 영상 프롬프트가 부족합니다.</span>';
   const gridHtml = imageGridPrompts.length ? imageGridPrompts.map((grid, idx) => {
     const sceneNumbers = Array.isArray(grid.scene_numbers) ? grid.scene_numbers.join(', ') : '-';
@@ -2582,7 +2601,7 @@ async function showGeneratedResult(resultId) {
     </div>
   `).join('') : '<div class="info">장면 데이터가 없습니다.</div>';
   const errorsHtml = errors.length
-    ? `<div class="generated-section"><h4>오류 / 중단 사유</h4><div class="prompt-box">${escapeHtml(errors.join('\n\n'))}</div></div>`
+    ? `<div class="generated-section"><h4>오류 / 중단 사유</h4><div class="prompt-box prompt-box-error">${escapeHtml(errors.join('\n\n'))}</div></div>`
     : '';
   const sourceHtml = sources.length
     ? `<div class="generated-section"><h4>저장 소스</h4><div class="prompt-box">${escapeHtml(JSON.stringify(sources, null, 2))}</div></div>`

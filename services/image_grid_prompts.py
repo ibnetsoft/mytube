@@ -262,6 +262,7 @@ def validate_image_grid_prompt_readiness(
     *,
     require_status: str | None = None,
     status: Any = None,
+    require_compact_template: bool = False,
 ) -> None:
     """Raise ValueError unless persisted 2x2 prompts cover every promptable scene."""
     if require_status is not None and str(status or "").strip() != require_status:
@@ -288,6 +289,10 @@ def validate_image_grid_prompt_readiness(
 
     for grid in grids:
         prompt = str(grid.get("prompt") or "").strip()
+        if require_compact_template and grid.get("template") != COMPACT_GRID_PROMPT_TEMPLATE:
+            raise ValueError(
+                f"image_grid_prompt must use {COMPACT_GRID_PROMPT_TEMPLATE} for grid {grid.get('grid_number')}"
+            )
         if len(prompt) < 420:
             raise ValueError(f"image_grid_prompt too short for grid {grid.get('grid_number')}")
         for position in GRID_PANEL_POSITIONS:

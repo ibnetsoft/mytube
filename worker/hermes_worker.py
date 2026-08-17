@@ -3921,6 +3921,11 @@ def _repair_survival_story_scene_plan_repetition(structure: dict, topic: str, up
     return repaired
 
 
+def _requires_strict_scene_planner_success(job: dict) -> bool:
+    payload = job.get("payload") or {}
+    return job.get("source") == "autopilot" or bool(payload.get("defer_ready_until_quality_gate"))
+
+
 def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     """[AIR-0230 §2d] Pre-bakes a scene structure for one topics_queue row
     ahead of any user claiming it - reuses app/services/scene_planner.py's
@@ -4024,6 +4029,8 @@ Scene planning guard:
     if planner_notes.get("error"):
         planner_error = planner_notes.get("error_message") or "scene_planner_service.plan_scenes() failed"
         job_log.warning(f"Scene planner fallback activated: {planner_error}")
+        if _requires_strict_scene_planner_success(job):
+            raise RuntimeError(f"scene planner failed before fallback: {planner_error}")
         structure = _build_fallback_scene_plan(
             topic=topic,
             upload_title=upload_title,

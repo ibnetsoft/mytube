@@ -666,6 +666,33 @@ class HermesAutopilotManager:
             "session_stats": self.session_stats
         }
 
+    def _target_limit_reached(self) -> bool:
+        if self.settings.get("mode") != "target_limit":
+            return False
+        try:
+            generated = int(self.session_stats.get("generated_count", 0))
+        except (TypeError, ValueError):
+            generated = 0
+        try:
+            limit = int(self.settings.get("target_limit", 1))
+        except (TypeError, ValueError):
+            limit = 1
+        return generated >= max(1, limit)
+
+    def _stop_after_target_limit_failure(self, error: Exception) -> bool:
+        if self.settings.get("mode") != "target_limit":
+            return False
+        self.last_run_status = "failed"
+        self.last_error = str(error)
+        self.current_step = "failed"
+        self.is_running = False
+        self.add_log(
+            "Target-limit generation failed quality checks. "
+            "Autopilot stopped without starting another title."
+        )
+        self._save_state()
+        return True
+
     async def start(self, custom_settings: dict = None):
         async with self._lock:
             resume = bool((custom_settings or {}).get("resume"))
@@ -1754,10 +1781,7 @@ Return ONLY a JSON array of strings.
             self._resume_requested = False
             
             while self.is_running:
-                if (
-                    self.settings.get("mode") == "target_limit"
-                    and self.session_stats.get("generated_count", 0) >= self.settings.get("target_limit", 1)
-                ):
+                if self._target_limit_reached():
                     self.add_log("Target limit already reached. Autopilot stopped.")
                     break
 
@@ -1807,9 +1831,13 @@ Return ONLY a JSON array of strings.
                             )
                             await self._mark_current_topic_failed(quality_error)
                             self.current_topic_queue_id = ""
+                            if self._stop_after_target_limit_failure(quality_error):
+                                break
                             if quality_attempt >= max_quality_attempts:
                                 raise
                             await asyncio.sleep(2.0)
+                    if not self.is_running:
+                        break
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
@@ -1841,6 +1869,10 @@ Return ONLY a JSON array of strings.
                     await asyncio.sleep(5.0)  # 에러 발생 시 잠시 대기
                 
                 # 다음 카테고리 시작 전 짧은 간격
+                if self._target_limit_reached():
+                    self.add_log("Target limit reached after completed generation. Autopilot stopped.")
+                    break
+
                 await asyncio.sleep(3.0)
 
         except asyncio.CancelledError:
@@ -2437,7 +2469,8 @@ Return ONLY a JSON array of strings.
         if mode == "target_limit" and generated >= limit:
             self.add_log(f"🏁 설정된 목표 생성 총량({limit}개)에 도달했습니다. (현재 생성량: {generated}개)")
             self.is_running = False
-            self.current_step = "stopped"
+            self.last_run_status = "completed"
+            self.current_step = "completed"
             self._save_state()
 
     async def _wait_for_job(self, job_id: str):

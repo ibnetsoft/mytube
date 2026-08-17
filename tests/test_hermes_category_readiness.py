@@ -23,6 +23,43 @@ def test_worker_start_categories_are_normalized_for_dashboard_start_path():
     assert manager._normalize_active_categories(TARGET_CATEGORIES) == TARGET_CATEGORIES
 
 
+def test_target_limit_reached_uses_numeric_limit_and_count():
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.settings = {"mode": "target_limit", "target_limit": "1"}
+    manager.session_stats = {"generated_count": 1}
+
+    assert manager._target_limit_reached()
+
+
+def test_target_limit_quality_failure_stops_without_retrying_new_title():
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.settings = {"mode": "target_limit", "target_limit": 1}
+    manager.session_stats = {"generated_count": 0}
+    manager.logs = []
+    manager.add_log = lambda message: manager.logs.append(message)
+    manager._save_state = lambda: None
+    manager.is_running = True
+    manager.current_step = "running"
+    manager.last_run_status = "running"
+    manager.last_error = ""
+
+    stopped = manager._stop_after_target_limit_failure(RuntimeError("quality failed"))
+
+    assert stopped is True
+    assert manager.is_running is False
+    assert manager.last_run_status == "failed"
+    assert manager.current_step == "failed"
+    assert "another title" in manager.logs[-1]
+
+
+def test_autopilot_plan_jobs_require_strict_scene_planner_success():
+    assert hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
+    assert hermes_worker._requires_strict_scene_planner_success(
+        {"source": "manual", "payload": {"defer_ready_until_quality_gate": True}}
+    )
+    assert not hermes_worker._requires_strict_scene_planner_success({"source": "manual", "payload": {}})
+
+
 def test_target_categories_have_title_styles_and_safe_fallbacks():
     manager = hermes_autopilot.HermesAutopilotManager()
 

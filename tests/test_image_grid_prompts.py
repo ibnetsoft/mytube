@@ -88,6 +88,24 @@ def test_validate_grid_prompts_requires_tail_coverage():
     validate_image_grid_prompt_readiness(scenes, build_image_grid_prompts(scenes), status="ready", require_status="ready")
 
 
+def test_validate_grid_prompts_can_require_direct_compact_template():
+    scenes = _scenes(4)
+    legacy_grid = build_image_grid_prompts(scenes)
+
+    try:
+        validate_image_grid_prompt_readiness(
+            scenes,
+            legacy_grid,
+            status="ready",
+            require_status="ready",
+            require_compact_template=True,
+        )
+    except ValueError as exc:
+        assert "strict_2x2_compact_v1" in str(exc)
+    else:
+        raise AssertionError("legacy scene-composed grid prompts should be rejected when compact template is required")
+
+
 def test_normalize_grid_prompts_discards_partial_or_invalid_records():
     valid = build_image_grid_prompts(_scenes(4))[0]
     invalid = {
@@ -100,7 +118,26 @@ def test_normalize_grid_prompts_discards_partial_or_invalid_records():
 
 
 def test_prepared_topic_copy_preserves_worker_grid_prompts(monkeypatch):
-    worker_grids = build_image_grid_prompts(_scenes(4))
+    worker_grids = build_compact_image_grid_prompts([
+        {
+            "grid_number": 1,
+            "scene_numbers": [1, 2, 3, 4],
+            "scene_ids": [f"scene{index:03d}" for index in range(1, 5)],
+            "shared_style": "Consistent character design, wardrobe, lighting, palette, and camera language.",
+            "panels": [
+                {
+                    "scene_number": number,
+                    "scene_id": f"scene{number:03d}",
+                    "position": position,
+                    "panel_prompt": f"Scene {number}: a concise unique action beat with subject, setting, emotion, and one prop.",
+                }
+                for number, position in zip(
+                    range(1, 5),
+                    ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                )
+            ],
+        }
+    ])
     stored_settings: dict[str, str] = {}
 
     monkeypatch.setattr(
@@ -117,15 +154,17 @@ def test_prepared_topic_copy_preserves_worker_grid_prompts(monkeypatch):
         {
             "pregenerated_structure": {
                 "media_prompt_status": "ready",
+                "image_grid_prompt_status": "ready",
                 "scenes": _scenes(4),
                 "image_grid_prompts": worker_grids,
             },
         },
     )
 
-    assert json.loads(stored_settings["image_grid_prompts_json"]) == worker_grids
+    normalized_worker_grids = normalize_image_grid_prompts(worker_grids)
+    assert json.loads(stored_settings["image_grid_prompts_json"]) == normalized_worker_grids
     structure = json.loads(stored_settings["pregenerated_structure_json"])
-    assert structure["image_grid_prompts"] == worker_grids
+    assert structure["image_grid_prompts"] == normalized_worker_grids
 
 
 def test_image_api_persists_rebuilt_grid_prompts(monkeypatch):
@@ -141,3 +180,9 @@ def test_image_api_persists_rebuilt_grid_prompts(monkeypatch):
 
     assert json.loads(stored_settings["image_grid_prompts_json"]) == grids
     assert grids[0]["scene_numbers"] == [1, 2, 3, 4]
+
+
+def test_image_api_does_not_rebuild_grid_prompts_when_loading_without_saved_grids(monkeypatch):
+    monkeypatch.setattr(image.db, "get_project_settings", lambda _project_id: {})
+
+    assert image._load_image_grid_prompts(33, _scenes(4)) == []

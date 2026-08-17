@@ -538,7 +538,7 @@
         const sceneNumber = Number(p.scene_number || index + 1);
         const grid = getImageGridPromptForScene(sceneNumber);
         if (grid) return String(grid.prompt || grid.grid_prompt || '').trim();
-        return String(p.prompt_en || p.prompt_content || p.prompt || '').trim();
+        return '';
     }
 
     function getImagePromptLabelForScene(index) {
@@ -1811,7 +1811,7 @@
                                 </div>
                             </div>
                             <div class="col-span-9 relative">
-                                <textarea id="prompt-en-input-${i}" class="w-full ${hasGridPrompt ? 'h-40 border-emerald-500/30' : 'h-16 border-gray-200 dark:border-gray-700'} text-[11px] p-2 rounded border bg-[#1c2027] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" ${hasGridPrompt ? 'readonly' : `onchange="updatePromptData(${i}, 'prompt_en', this.value)"`}>${hasGridPrompt ? gridPromptText : extractPureImagePrompt(p.prompt_en || p.prompt_ko || '')}</textarea>
+                                <textarea id="prompt-en-input-${i}" class="w-full ${hasGridPrompt ? 'h-40 border-emerald-500/30' : 'h-16 border-gray-200 dark:border-gray-700'} text-[11px] p-2 rounded border bg-[#1c2027] text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 font-mono scrollbar-thin" ${hasGridPrompt ? 'readonly' : 'readonly'}>${hasGridPrompt ? gridPromptText : ''}</textarea>
                                 ${hasGridPrompt ? `<p class="mt-1 text-[10px] text-emerald-400">이 씬은 개별 이미지 프롬프트가 아니라 위 2x2 묶음 프롬프트로 생성합니다.</p>` : ''}
                             </div>
                         </div>
@@ -1940,7 +1940,7 @@
             const gridLabel = gridPrompt ? getImagePromptLabelForScene(index) : '';
             const prompt = gridPrompt
                 ? `${gridLabel}: ${String(gridPrompt.prompt || gridPrompt.grid_prompt || '').trim()}`
-                : (scene.prompt_en || scene.prompt_ko || scene.scene_text || '');
+                : '';
             const inRequiredZone = requiredVideoZoneScenes.includes(number);
             const missingRequiredVideo = missingRequiredVideoScenes.includes(number);
             return `
@@ -2540,31 +2540,6 @@
         }
 
         return text;
-    }
-
-    function buildFallbackImageGridPrompts(sceneData) {
-        const scenes = (sceneData || []).filter(scene => String(
-            scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || ''
-        ).trim());
-        const ratio = document.querySelector('input[name="aspectRatio"]:checked')?.value || '16:9';
-        const grids = [];
-
-        for (let index = 0; index + 3 < scenes.length; index += 4) {
-            const chunk = scenes.slice(index, index + 4);
-            let prompt = `Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Each of the 4 panels must have a widescreen ${ratio} aspect ratio. There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. The panels must touch seamlessly. Each panel must represent one scene:\n`;
-            chunk.forEach((scene, panelIndex) => {
-                const rawSceneText = scene.prompt_en || scene.prompt_content || scene.prompt || scene.prompt_ko || '';
-                prompt += `- Panel ${panelIndex + 1} (Position: ${['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'][panelIndex]}): ${extractPureImagePrompt(rawSceneText)}\n`;
-            });
-            prompt += `\nCRITICAL: You must generate EXACTLY 4 panels in a perfect 2x2 grid with absolutely NO black borders, NO outlines, NO white borders, and NO dividing lines/crosses. Every panel must seamlessly connect to the edge with a ${ratio} aspect ratio. No more, no less. Maintain consistent characters across all panels.`;
-            grids.push({
-                grid_number: grids.length + 1,
-                scene_numbers: chunk.map((scene, panelIndex) => scene.scene_number || index + panelIndex + 1),
-                panel_count: 4,
-                prompt,
-            });
-        }
-        return grids;
     }
 
     function getImageGridPromptsForDisplay(sceneData) {
@@ -3710,9 +3685,6 @@
             const gridPrompt = getImageGridPromptForScene(sceneNumber);
             const imagePrompt = String(
                 (gridPrompt && (gridPrompt.prompt || gridPrompt.grid_prompt))
-                || p?.prompt_en
-                || p?.prompt_content
-                || p?.prompt
                 || ''
             ).trim();
             const videoPrompt = String(p?.motion_desc || p?.flow_prompt || p?.video_prompt || '').trim();
