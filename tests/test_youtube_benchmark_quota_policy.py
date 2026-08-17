@@ -85,6 +85,51 @@ def test_search_fallback_is_disabled_by_default(monkeypatch):
         asyncio.run(hermes_worker._search_candidate_videos("옛날이야기", "ko", "longform", 5, ["민담"]))
 
 
+def test_old_story_rss_relevance_rejects_modern_and_economy_contamination():
+    payload = {
+        "category": "옛날이야기",
+        "category_name": "옛날이야기",
+        "search_keywords": ["조선시대 실화", "한국 민간 전설"],
+    }
+
+    assert not hermes_worker._is_relevant_rss_candidate(
+        {
+            "title": "국정원이 키운 전학생, 학교에 나타나다",
+            "description": "흥미로운 이야기",
+            "channel_title": "시간실록",
+        },
+        payload,
+        "옛날이야기",
+    )
+    assert not hermes_worker._is_relevant_rss_candidate(
+        {
+            "title": "삼성전자 주가 8만원 전망과 코스피 흐름",
+            "description": "경제 이야기",
+            "channel_title": "경제채널",
+        },
+        payload,
+        "옛날이야기",
+    )
+    assert hermes_worker._is_relevant_rss_candidate(
+        {
+            "title": "저승사자가 데려가려던 아이, 이름이 없어 돌아왔다",
+            "description": "한국 민간 전설을 바탕으로 한 옛날 이야기",
+            "channel_title": "옛이야기",
+        },
+        payload,
+        "옛날이야기",
+    )
+    assert hermes_worker._is_relevant_rss_candidate(
+        {
+            "title": "조선시대 나무꾼이 어사또 판결을 뒤집은 날",
+            "description": "조선 민담",
+            "channel_title": "역사 이야기",
+        },
+        payload,
+        "옛날이야기",
+    )
+
+
 def test_stats_enrichment_uses_batched_list_endpoints(monkeypatch):
     calls = []
 
@@ -143,6 +188,37 @@ def test_autopilot_auto_discovery_only_when_enabled_and_needed():
     manager.settings["benchmark_channel_auto_discovery_enabled"] = True
     manager.settings["benchmark_channel_discovery_max_search_calls"] = 0
     assert not manager._should_discover_benchmark_channels("옛날이야기", [])
+
+
+def test_old_story_benchmark_keywords_do_not_call_ai_or_use_economy_terms(monkeypatch):
+    manager = object.__new__(HermesAutopilotManager)
+
+    async def fail_generate_text(*args, **kwargs):
+        raise AssertionError("old-story benchmark keyword discovery must use fixed category seeds")
+
+    monkeypatch.setattr("hermes_autopilot.ai_router.generate_text", fail_generate_text)
+
+    keywords = asyncio.run(manager._discover_benchmark_keywords("옛날이야기"))
+
+    assert keywords == ["조선시대 실화", "옛날 한국 풍습", "역사 미스터리", "한국 민간 전설"]
+    assert not any(term in " ".join(keywords) for term in ["금값", "코스피", "환율", "주가", "부동산", "경제"])
+
+
+def test_economy_keyword_hint_is_category_scoped(monkeypatch):
+    manager = object.__new__(HermesAutopilotManager)
+    prompts = []
+
+    async def fake_generate_text(prompt, **kwargs):
+        prompts.append(prompt)
+        return "[]"
+
+    monkeypatch.setattr("hermes_autopilot.ai_router.generate_text", fake_generate_text)
+
+    asyncio.run(manager._discover_benchmark_keywords("한국사연"))
+    asyncio.run(manager._discover_benchmark_keywords("경제"))
+
+    assert "gold, oil, stocks" not in prompts[0]
+    assert "gold, oil, stocks" in prompts[1]
 
 
 def test_learning_profile_instruction_includes_script_and_performance_memory():

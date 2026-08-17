@@ -68,7 +68,7 @@ class Config:
     GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
     # AI Model Settings
-    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "claude-sonnet-4-6")  # 대본 생성 모델
+    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3-flash-preview")  # 대본 생성 모델
     # Keep local/offline defaults on a broadly available text model. The
     # web-admin settings override these values in production.
     TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3-flash-preview")
@@ -268,10 +268,6 @@ class Config:
     @classmethod
     def normalize_generation_models(cls):
         """Normalize text-generation model ids before a worker starts a job."""
-        deepseek_text_model = "deepseek-chat"
-        glm_text_model = "glm-5.2"
-        prefer_deepseek = bool(str(cls.DEEPSEEK_API_KEY or "").strip())
-        prefer_glm = bool(str(cls.GLM_API_KEY or "").strip())
         replacements = {
             "gemini-2.5-pro": "gemini-3-flash-preview",
             "gemini-2.5-flash": "gemini-3-flash-preview",
@@ -286,10 +282,7 @@ class Config:
             "TRANSLATION_MODEL",
         ):
             current = str(getattr(cls, key_name, "") or "").strip()
-            if (not current or current.lower().startswith("gemini")) and (prefer_deepseek or prefer_glm):
-                replacement = deepseek_text_model if prefer_deepseek else glm_text_model
-            else:
-                replacement = replacements.get(current.lower())
+            replacement = replacements.get(current.lower())
             if replacement:
                 setattr(cls, key_name, replacement)
                 os.environ[key_name] = replacement

@@ -28,7 +28,7 @@ Instructions:
    - image -> flux
    - video -> kling
    - reuse -> none
-4. Build a structured `prompt` for each item containing: `positive`, `negative`, `camera`, `lighting`, and `style`. Draw from the scene's `image_prompt` or `video_prompt` and its `shot_hints`.
+4. Build a structured `prompt` for each item containing: `positive`, `negative`, `camera`, `lighting`, and `style`. Draw only from the scene's `video_prompt`, `visual_style`, `lighting_hint`, and `shot_hints`.
 5. Return the result strictly as a valid JSON object without markdown formatting.
 
 JSON SCHEMA:

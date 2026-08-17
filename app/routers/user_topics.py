@@ -85,7 +85,6 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
     return all(
         scene.get("media_prompt_status") == "ready"
         and _scene_video_prompt(scene)
-        and not str(scene.get("image_prompt") or scene.get("prompt_en") or scene.get("prompt") or "").strip()
         for scene in scenes
         if isinstance(scene, dict)
     ) and all(isinstance(scene, dict) for scene in scenes)

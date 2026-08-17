@@ -8,7 +8,7 @@ class PromptDirectorService:
     async def enhance_scenes(self, planning_schema: dict) -> dict:
         prompt = f"""
 You are an expert Prompt Director and AI video production enhancer.
-Analyze the provided Scene Planning Schema and ENHANCE each scene with detailed visual prompts and shot hints.
+Analyze the provided Scene Planning Schema and ENHANCE each scene with video prompts and shot hints.
 
 SCENE SCHEMA JSON:
 {json.dumps(planning_schema, ensure_ascii=False, indent=2)}
@@ -16,10 +16,11 @@ SCENE SCHEMA JSON:
 Instructions:
 1. Iterate over every scene in the `scenes` array.
 2. DO NOT change the number of scenes, their `id`, `order`, or `estimated_seconds`. The scene boundaries are fixed.
-3. For each scene, generate a highly detailed `image_prompt` (2x2 grid style or single highly detailed image) and a `video_prompt`.
-4. Provide a `lighting_hint` and `visual_style` for the scene.
-5. Generate an array of `shot_hints` for the scene. These are merely internal camera/composition guidelines and DO NOT split the scene timeline.
-6. Return the result strictly as a valid JSON object without markdown formatting.
+3. For each scene, generate a highly detailed `video_prompt` only.
+4. Return only the fields shown in the JSON schema below; do not add extra scene fields.
+5. Provide a `lighting_hint` and `visual_style` for the scene.
+6. Generate an array of `shot_hints` for the scene. These are merely internal camera/composition guidelines and DO NOT split the scene timeline.
+7. Return the result strictly as a valid JSON object without markdown formatting.
 
 JSON SCHEMA:
 {{
@@ -34,7 +35,6 @@ JSON SCHEMA:
       "id": "scene001",
       "order": 1,
       "estimated_seconds": 20,
-      "image_prompt": "Highly detailed visual description for image generation.",
       "video_prompt": "Highly detailed visual and motion description for video generation.",
       "lighting_hint": "cinematic lighting, golden hour...",
       "visual_style": "photorealistic, cinematic...",

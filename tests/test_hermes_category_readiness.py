@@ -111,6 +111,23 @@ def test_old_story_plan_repair_does_not_use_survival_story_beats():
         assert forbidden not in blob
 
 
+def test_scene_plan_repetition_detects_same_summary_with_different_hooks():
+    structure = {
+        "scenes": [
+            {
+                "scene_summary": "The woodcutter walks back up the mountain at sunset.",
+                "scene_purpose": f"purpose {idx}",
+                "retention_hook": f"hook {idx}",
+            }
+            for idx in range(4)
+        ]
+    }
+
+    errors = hermes_worker._scene_plan_repetition_errors(structure)
+
+    assert any("repeats one summary" in error for error in errors)
+
+
 def test_old_story_grave_vigil_repair_matches_daughter_in_law_title():
     structure = {
         "scenes": [

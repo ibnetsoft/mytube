@@ -78,6 +78,45 @@ AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research", "publish_metadata_generate"}
+_OFFLINE_HARNESS_CACHE: dict = {"checked_at": 0.0, "report": None}
+_OFFLINE_HARNESS_CACHE_SECONDS = 30.0
+
+
+def _run_hermes_offline_harness(*, force: bool = False) -> dict:
+    now = time.time()
+    cached = _OFFLINE_HARNESS_CACHE.get("report")
+    if not force and cached and now - float(_OFFLINE_HARNESS_CACHE.get("checked_at") or 0) < _OFFLINE_HARNESS_CACHE_SECONDS:
+        report = dict(cached)
+        report["cached"] = True
+        return report
+
+    from worker_config import ensure_project_root_on_path
+
+    ensure_project_root_on_path()
+    from services.hermes_offline_harness import run_offline_harness
+
+    try:
+        report = run_offline_harness()
+    except Exception as exc:
+        logger.exception("Hermes offline harness failed unexpectedly")
+        report = {
+            "status": "fail",
+            "api_calls": 0,
+            "categories": [],
+            "check_count": 0,
+            "failed_count": 1,
+            "checks": [
+                {
+                    "name": "offline harness runtime error",
+                    "passed": False,
+                    "detail": str(exc),
+                    "category": "common",
+                }
+            ],
+        }
+    _OFFLINE_HARNESS_CACHE["checked_at"] = now
+    _OFFLINE_HARNESS_CACHE["report"] = report
+    return report
 
 
 def _safe_result_id(result_id: str) -> str:
@@ -167,18 +206,6 @@ def _result_category(data: dict) -> str:
     return ""
 
 
-def _scene_has_image_prompt(scene: dict) -> bool:
-    return bool(
-        str(
-            scene.get("image_prompt")
-            or scene.get("prompt_en")
-            or scene.get("visual_prompt")
-            or scene.get("visual_description")
-            or ""
-        ).strip()
-    )
-
-
 def _structure_has_image_grid_prompts(structure: dict) -> bool:
     prompts = structure.get("image_grid_prompts") if isinstance(structure, dict) else None
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -214,11 +241,9 @@ def _scene_has_video_prompt(scene: dict) -> bool:
 def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
     raw_status = str(structure.get("media_prompt_status") or "").strip()
     valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
-    has_deprecated_scene_image_prompts = any(_scene_has_image_prompt(scene) for scene in valid_scenes)
     if (
         raw_status == "ready"
         and valid_scenes
-        and not has_deprecated_scene_image_prompts
         and _structure_has_image_grid_prompts(structure)
         and all(_scene_has_video_prompt(scene) for scene in valid_scenes)
     ):
@@ -1058,6 +1083,16 @@ async def api_autopilot_status(
     return autopilot_manager.get_status()
 
 
+@app.get("/api/autopilot/hermes/offline-harness")
+async def api_autopilot_offline_harness(
+    force: bool = False,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    return _run_hermes_offline_harness(force=force)
+
+
 @app.post("/api/autopilot/hermes/start")
 async def api_autopilot_start(
     body: dict = None,
@@ -1066,6 +1101,23 @@ async def api_autopilot_start(
 ):
     require_auth(authorization, cookie)
     custom_settings = body.get("settings") if body else None
+    harness_report = _run_hermes_offline_harness(force=True)
+    if harness_report.get("status") != "pass":
+        failed_checks = [
+            check
+            for check in harness_report.get("checks", [])
+            if isinstance(check, dict) and not check.get("passed")
+        ]
+        summary = "; ".join(
+            str(check.get("name") or "unknown check") + (f": {check.get('detail')}" if check.get("detail") else "")
+            for check in failed_checks[:5]
+        )
+        return {
+            "success": False,
+            "error": "Hermes offline preflight failed. 자동 생성 시작이 차단되었습니다.",
+            "detail": summary,
+            "offline_harness": harness_report,
+        }
     from ipc import submit_command, wait_for_result
 
     worker_result = wait_for_result(submit_command("start_process", {"name": "hermes_worker"}))
@@ -1076,7 +1128,7 @@ async def api_autopilot_start(
         }
 
     autopilot_result = await autopilot_manager.start(custom_settings)
-    return {**autopilot_result, "worker_started": True}
+    return {**autopilot_result, "worker_started": True, "offline_harness": harness_report}
 
 
 @app.post("/api/autopilot/hermes/save_settings")
@@ -1948,6 +2000,20 @@ tr:hover { background: #161b22; }
             <button class="btn btn-danger" id="auto-btn-stop" onclick="stopAutopilot()" disabled>■ 자동 생성 중지</button>
             <span id="auto-status-text" class="badge badge-stopped">중지됨</span>
           </div>
+          <div class="status-card" style="margin-bottom:16px;border-color:rgba(240,136,62,0.35);">
+            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+              <div>
+                <div class="name">오프라인 사전검증</div>
+                <div class="info">API 호출 없이 8개 카테고리 공통 게이트를 먼저 검사합니다.</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span id="auto-harness-badge" class="badge badge-starting">확인 전</span>
+                <button class="btn btn-secondary btn-sm" type="button" onclick="runOfflineHarness()">검증 실행</button>
+              </div>
+            </div>
+            <div id="auto-harness-summary" class="info" style="margin-top:10px;">자동 생성 시작 전 서버에서 다시 실행됩니다.</div>
+            <div id="auto-harness-failures" style="display:none;margin-top:10px;color:#f0883e;font-size:12px;line-height:1.5;"></div>
+          </div>
           
           <div class="status-grid" style="grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:16px;">
             <div class="status-card">
@@ -2405,8 +2471,7 @@ function hasGeneratedMediaPrompts(structure, scenes) {
   return Array.isArray(scenes)
     && scenes.length > 0
     && imageGridPrompts.length > 0
-    && scenes.every(scene => sceneVideoPrompt(scene))
-    && !scenes.some(scene => String(scene?.image_prompt || scene?.prompt_en || scene?.prompt || '').trim());
+    && scenes.every(scene => sceneVideoPrompt(scene));
 }
 
 function generatedQualityGate(data) {
@@ -3803,6 +3868,59 @@ async function saveAutopilotSettings() {
   }
 }
 
+function renderOfflineHarness(report) {
+  const badge = document.getElementById('auto-harness-badge');
+  const summary = document.getElementById('auto-harness-summary');
+  const failures = document.getElementById('auto-harness-failures');
+  if (!badge || !summary || !failures) return;
+  const failedChecks = (report?.checks || []).filter(check => !check.passed);
+  if (report?.status === 'pass') {
+    badge.className = 'badge badge-completed';
+    badge.textContent = '통과';
+    summary.textContent = `API 호출 ${report.api_calls || 0}회, ${report.check_count || 0}개 검증 통과`;
+    failures.style.display = 'none';
+    failures.innerHTML = '';
+    return;
+  }
+  badge.className = 'badge badge-failed';
+  badge.textContent = '실패';
+  summary.textContent = `자동 생성 차단: ${failedChecks.length || report?.failed_count || 1}개 사전검증 실패`;
+  failures.style.display = 'block';
+  failures.innerHTML = failedChecks.slice(0, 8).map(check => {
+    const name = escapeHtml(check.name || 'unknown check');
+    const category = check.category ? ` [${escapeHtml(check.category)}]` : '';
+    const detail = check.detail ? `<div style="color:#c9d1d9;margin-top:2px;">${escapeHtml(check.detail)}</div>` : '';
+    return `<div style="margin-bottom:6px;">⚠ ${name}${category}${detail}</div>`;
+  }).join('') || '<div>⚠ 사전검증 실패 상세를 확인할 수 없습니다.</div>';
+}
+
+async function runOfflineHarness({silent=false} = {}) {
+  const badge = document.getElementById('auto-harness-badge');
+  const summary = document.getElementById('auto-harness-summary');
+  if (badge) {
+    badge.className = 'badge badge-starting';
+    badge.textContent = '검증 중';
+  }
+  if (summary) summary.textContent = '오프라인 사전검증을 실행 중입니다...';
+  try {
+    const report = await api('GET', '/api/autopilot/hermes/offline-harness' + (silent ? '' : '?force=true'));
+    if (!report) return null;
+    renderOfflineHarness(report);
+    if (!silent) {
+      showToast(report.status === 'pass' ? '오프라인 사전검증 통과' : '오프라인 사전검증 실패: 자동 생성이 차단됩니다.', report.status === 'pass' ? 'success' : 'warning');
+    }
+    return report;
+  } catch(e) {
+    renderOfflineHarness({
+      status: 'fail',
+      failed_count: 1,
+      checks: [{ name: 'offline harness request failed', passed: false, detail: e.message || String(e), category: 'dashboard' }],
+    });
+    if (!silent) showToast('오프라인 사전검증 요청 실패', 'error');
+    return null;
+  }
+}
+
 async function loadAutopilotStatus() {
   try {
     const data = await api('GET', '/api/autopilot/hermes/status');
@@ -3854,6 +3972,7 @@ async function loadAutopilotStatus() {
     } else {
       renderActiveCategoryBadges(null);
     }
+    runOfflineHarness({silent:true});
     updateCategoryRunControls(data);
     
     // UI 초기화 (최초 1회만 설정 채워넣음)
@@ -3915,12 +4034,18 @@ async function startCategoryAutopilot(category, index) {
   document.getElementById('auto-setting-buffer').value = 1;
   toggleLimitInput();
   try {
+    const harness = await runOfflineHarness({silent:true});
+    if (!harness || harness.status !== 'pass') {
+      showToast('오프라인 사전검증 실패로 자동 생성 시작을 중단했습니다.', 'warning');
+      return;
+    }
     const res = await api('POST', '/api/autopilot/hermes/start', { settings });
     if (res && res.success) {
       showToast(`${category}: ${limit}개 생성 시작`, 'success');
       loadAutopilotStatus();
     } else {
-      showToast(`${category} 생성 시작 실패: ` + (res?.error || '알 수 없음'), 'error');
+      if (res?.offline_harness) renderOfflineHarness(res.offline_harness);
+      showToast(`${category} 생성 시작 실패: ` + (res?.detail || res?.error || '알 수 없음'), 'error');
     }
   } catch(e) {
     showToast(`${category} 생성 시작 통신 실패`, 'error');
@@ -3952,12 +4077,18 @@ async function startAutopilot() {
   document.getElementById('auto-setting-limit').value = startLimit;
   toggleLimitInput();
   try {
+    const harness = await runOfflineHarness({silent:true});
+    if (!harness || harness.status !== 'pass') {
+      showToast('오프라인 사전검증 실패로 자동 생성 시작을 중단했습니다.', 'warning');
+      return;
+    }
     const res = await api('POST', '/api/autopilot/hermes/start', { settings });
     if (res && res.success) {
       showToast(`Hermes가 ${startLimit}개 생성 후 자동 정지합니다.`, 'success');
       loadAutopilotStatus();
     } else {
-      showToast('자동 생성기 시작 실패: ' + (res?.error || '알 수 없음'), 'error');
+      if (res?.offline_harness) renderOfflineHarness(res.offline_harness);
+      showToast('자동 생성기 시작 실패: ' + (res?.detail || res?.error || '알 수 없음'), 'error');
     }
   } catch(e) {
     showToast('자동 생성기 시작 통신 실패', 'error');

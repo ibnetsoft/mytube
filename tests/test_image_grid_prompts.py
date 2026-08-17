@@ -1,4 +1,6 @@
 import json
+import sys
+from pathlib import Path
 
 from app.routers import image, user_topics
 from services.image_grid_prompts import (
@@ -8,13 +10,17 @@ from services.image_grid_prompts import (
     validate_image_grid_prompt_readiness,
 )
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+from worker import hermes_worker
+
 
 def _scenes(count: int) -> list[dict]:
     return [
         {
             "scene_id": f"scene{number:03d}",
             "scene_order": number,
-            "image_prompt": f"Detailed image prompt for scene {number}.",
+            "scene_situation": f"Detailed story beat for scene {number}.",
+            "scene_summary": f"Scene {number} summary.",
         }
         for number in range(1, count + 1)
     ]
@@ -44,7 +50,7 @@ def test_grid_prompts_cover_scene_53_with_final_last_four_window():
 def test_compact_grid_prompts_use_panel_briefs_instead_of_full_scene_prompts():
     scenes = _scenes(4)
     for scene in scenes:
-        scene["image_prompt"] = scene["image_prompt"] + " " + ("full scene detail " * 80)
+        scene["scene_situation"] = scene["scene_situation"] + " " + ("full scene detail " * 80)
     composed = build_image_grid_prompts(scenes)[0]["prompt"]
     compact = build_compact_image_grid_prompts([
         {
@@ -186,3 +192,65 @@ def test_image_api_does_not_rebuild_grid_prompts_when_loading_without_saved_grid
     monkeypatch.setattr(image.db, "get_project_settings", lambda _project_id: {})
 
     assert image._load_image_grid_prompts(33, _scenes(4)) == []
+
+
+def test_worker_rebuilds_missing_ai_grid_prompt_windows():
+    class FakeRouter:
+        async def generate_text(self, *_args, **_kwargs):
+            return json.dumps({
+                "grids": [
+                    {
+                        "grid_number": 1,
+                        "scene_numbers": [1, 2, 3, 4],
+                        "scene_ids": [f"scene{number:03d}" for number in range(1, 5)],
+                        "shared_style": "consistent style",
+                        "panels": [
+                            {
+                                "scene_number": number,
+                                "scene_id": f"scene{number:03d}",
+                                "position": position,
+                                "panel_prompt": f"Scene {number} visual beat.",
+                            }
+                            for number, position in zip(
+                                range(1, 5),
+                                ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                            )
+                        ],
+                    }
+                ]
+            })
+
+    class FakeLog:
+        def info(self, *_args, **_kwargs):
+            pass
+
+        def warning(self, *_args, **_kwargs):
+            pass
+
+    scenes = [
+        {
+            "scene_id": f"scene{number:03d}",
+            "scene_order": number,
+            "scene_summary": f"Summary {number}",
+            "scene_situation": f"Situation {number}",
+            "scene_emotion": "tense",
+            "script_excerpt": f"Narration excerpt {number}",
+        }
+        for number in range(1, 9)
+    ]
+
+    grids = hermes_worker._generate_direct_image_grid_prompts(
+        FakeRouter(),
+        "fake-model",
+        "topic",
+        "upload title",
+        scenes,
+        {},
+        "3d_render",
+        "cinematic Korean period style",
+        FakeLog(),
+    )
+
+    assert len(grids) == 2
+    assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
+    assert all(grid["template"] == "strict_2x2_compact_v1" for grid in grids)

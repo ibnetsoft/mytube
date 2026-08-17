@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -10,36 +9,6 @@ from typing import Any
 GRID_PROMPT_TEMPLATE = "strict_2x2_v1"
 COMPACT_GRID_PROMPT_TEMPLATE = "strict_2x2_compact_v1"
 GRID_PANEL_POSITIONS = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
-_DYNAMIC_PROMPT_MARKERS = (
-    "Dynamic elements:",
-    "동적인 요소:",
-    "[대본 기반 동적 변경 - 가장 중요]",
-    "[Dynamic Scene Detail]",
-)
-
-
-def extract_pure_image_prompt(value: Any) -> str:
-    """Match the legacy image-page cleanup before composing a grid prompt."""
-    if isinstance(value, Mapping):
-        value = value.get("prompt_en") or value.get("image_prompt") or ""
-
-    text = str(value or "").strip()
-    if not text:
-        return ""
-
-    if text.startswith("{"):
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, Mapping):
-                text = str(parsed.get("prompt_en") or parsed.get("image_prompt") or text).strip()
-        except (TypeError, ValueError):
-            pass
-
-    for marker in _DYNAMIC_PROMPT_MARKERS:
-        marker_index = text.find(marker)
-        if marker_index >= 0:
-            return text[:marker_index].strip()
-    return text
 
 
 def _scene_number(scene: Mapping[str, Any], fallback: int) -> int | str:
@@ -50,14 +19,23 @@ def _scene_number(scene: Mapping[str, Any], fallback: int) -> int | str:
         return str(value)
 
 
-def _scene_image_prompt(scene: Mapping[str, Any]) -> str:
-    return extract_pure_image_prompt(
-        scene.get("image_prompt")
-        or scene.get("prompt_en")
-        or scene.get("prompt_content")
-        or scene.get("prompt")
-        or scene.get("prompt_ko")
-    )
+def _scene_panel_brief(scene: Mapping[str, Any]) -> str:
+    """Return a visual brief from story/planning fields, not image prompts."""
+    for key in (
+        "panel_prompt",
+        "scene_situation",
+        "scene_summary",
+        "visual_direction",
+        "scene_text",
+        "narration",
+        "description",
+        "scene_title",
+        "title",
+    ):
+        text = str(scene.get(key) or "").strip()
+        if text:
+            return text
+    return ""
 
 
 def _grid_windows(scene_count: int) -> list[tuple[int, int]]:
@@ -176,25 +154,28 @@ def build_compact_image_grid_prompts(
 
 
 def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Create persisted strict 2x2 prompts from chronological scene prompts.
+    """Create persisted strict 2x2 prompts from chronological scene briefs.
 
     Every grid prompt describes exactly four panels. When the total scene count
     leaves a trailing one-to-three scenes, the final 2x2 prompt overlaps the
     previous block and uses the last four scenes so the tail is still visible in
     the user app without inventing blank or fake panels.
+
+    This function deliberately ignores per-scene image prompt fields. The 2x2
+    prompt is derived from planning/story context only.
     """
     ordered_scenes: list[dict[str, Any]] = []
     for fallback_number, scene in enumerate(scenes, start=1):
         if not isinstance(scene, Mapping):
             continue
-        prompt = _scene_image_prompt(scene)
-        if not prompt:
+        brief = _scene_panel_brief(scene)
+        if not brief:
             continue
         ordered_scenes.append(
             {
                 "scene_number": _scene_number(scene, fallback_number),
                 "scene_id": str(scene.get("scene_id") or "").strip(),
-                "prompt": prompt,
+                "prompt": brief,
             }
         )
 

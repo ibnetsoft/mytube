@@ -14,12 +14,6 @@ DEFAULT_MIN_SCRIPT_HANGUL = 1000
 DEFAULT_MAX_LATIN_RATIO = 0.05
 DEFAULT_MIN_IMAGE_PROMPT_CHARS = 220
 DEFAULT_MIN_VIDEO_PROMPT_CHARS = 260
-DISALLOWED_SCENE_IMAGE_PROMPT_FIELDS = (
-    "image_prompt",
-    "prompt_en",
-    "prompt_content",
-    "prompt",
-)
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
     "slow push-in",
     "slow pull-back",
@@ -218,11 +212,6 @@ def validate_generation_package(
             errors.append(f"scene {fallback_number} is not an object")
             continue
         label = str(_scene_number(scene, fallback_number))
-        for field in DISALLOWED_SCENE_IMAGE_PROMPT_FIELDS:
-            if _text(scene.get(field)):
-                errors.append(
-                    f"scene {label} contains deprecated per-scene image prompt field: {field}"
-                )
         video_prompt = _text(scene.get("video_prompt"))
         video_prompts.append((label, video_prompt))
 

@@ -783,6 +783,73 @@ RSS_RELEVANCE_TERMS_BY_CATEGORY = {
 }
 
 
+RSS_STRONG_RELEVANCE_TERMS_BY_CATEGORY = {}
+
+
+RSS_HARD_NEGATIVE_TERMS_BY_CATEGORY = {}
+
+
+def _literal_category(value: str) -> str:
+    """Keep Korean category checks readable even in legacy mojibake files."""
+    return value
+
+
+RSS_STRONG_RELEVANCE_TERMS_BY_CATEGORY[_literal_category("옛날이야기")] = [
+    "옛날",
+    "전래",
+    "민담",
+    "설화",
+    "전설",
+    "고전",
+    "역사",
+    "조선",
+    "조선시대",
+    "고려",
+    "한양",
+    "유배",
+    "단종",
+    "왕비",
+    "선비",
+    "어사",
+    "사또",
+    "나무꾼",
+    "호랑이",
+    "저승",
+    "저승사자",
+    "도깨비",
+    "장승",
+    "스님",
+    "며느리",
+    "시어머니",
+    "보따리",
+    "마을",
+]
+
+
+RSS_HARD_NEGATIVE_TERMS_BY_CATEGORY[_literal_category("옛날이야기")] = [
+    "국정원",
+    "학교",
+    "전학생",
+    "권투",
+    "챔피언",
+    "회사",
+    "직장",
+    "아파트",
+    "재건축",
+    "삼성전자",
+    "코스피",
+    "주가",
+    "주식",
+    "금리",
+    "환율",
+    "국민연금",
+    "실버타운",
+    "부동산",
+    "분양",
+    "NIS",
+]
+
+
 def _normalize_relevance_text(value: str) -> str:
     return re.sub(r"\s+", "", str(value or "").casefold())
 
@@ -807,16 +874,51 @@ def _rss_relevance_terms(payload: dict, keyword: str) -> list[str]:
     return normalized
 
 
+def _rss_strong_relevance_terms(payload: dict, keyword: str) -> list[str]:
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    terms = RSS_STRONG_RELEVANCE_TERMS_BY_CATEGORY.get(category, [])
+    normalized = []
+    seen = set()
+    for term in terms:
+        value = _normalize_relevance_text(term)
+        if len(value) < 2 or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _rss_hard_negative_terms(payload: dict, keyword: str) -> list[str]:
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    terms = RSS_HARD_NEGATIVE_TERMS_BY_CATEGORY.get(category, [])
+    normalized = []
+    seen = set()
+    for term in terms:
+        value = _normalize_relevance_text(term)
+        if len(value) < 2 or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
 def _is_relevant_rss_candidate(item: dict, payload: dict, keyword: str) -> bool:
     terms = _rss_relevance_terms(payload, keyword)
-    if not terms:
-        return True
+    strong_terms = _rss_strong_relevance_terms(payload, keyword)
+    negative_terms = _rss_hard_negative_terms(payload, keyword)
     haystack = _normalize_relevance_text(
         " ".join(
             str(item.get(field) or "")
             for field in ("title", "description", "channel_title")
         )
     )
+    title_haystack = _normalize_relevance_text(str(item.get("title") or ""))
+    if any(term in haystack for term in negative_terms):
+        return False
+    if strong_terms:
+        return any(term in title_haystack for term in strong_terms)
+    if not terms:
+        return True
     return any(term in haystack for term in terms)
 
 
@@ -2213,7 +2315,7 @@ def _generate_direct_image_grid_prompts(
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
 
-Create one compact prompt per strict 2x2 image grid. Do NOT concatenate or reconstruct per-scene image prompts.
+Create one compact prompt per strict 2x2 image grid from the provided grid window fields.
 Each grid prompt must use a shared style block once, then four short panel briefs.
 
 TOPIC: {topic}
@@ -2266,7 +2368,48 @@ Schema:
     generated = _extract_json(raw)
     grids = generated.get("grids") if isinstance(generated, dict) else None
     if not isinstance(grids, list) or len(grids) != len(grid_inputs):
-        raise ValueError(f"image grid prompt count mismatch: expected {len(grid_inputs)}, got {len(grids or [])}")
+        got_count = len(grids) if isinstance(grids, list) else 0
+        job_log.warning(
+            "Image grid prompt count mismatch from AI; rebuilding compact 2x2 prompts "
+            f"from grid inputs. expected={len(grid_inputs)}, got={got_count}"
+        )
+        grids = []
+        for grid_input in grid_inputs:
+            panels = []
+            for panel in grid_input["panels"]:
+                scene_number = panel.get("scene_number")
+                scene_id = panel.get("scene_id")
+                position = panel.get("position")
+                excerpt = str(panel.get("script_excerpt") or "").strip()
+                situation = str(panel.get("scene_situation") or panel.get("scene_summary") or "").strip()
+                emotion = str(panel.get("scene_emotion") or "").strip()
+                anchor = str(panel.get("keyframe_subject") or panel.get("continuity_identity") or "").strip()
+                panel_prompt = (
+                    f"Scene {scene_number}: visualize the final narration beat. "
+                    f"Story excerpt: {excerpt[:360] or situation[:360]}. "
+                    f"Emotion: {emotion or 'quiet dramatic tension'}. "
+                    f"Unique visual anchor: {anchor or situation[:160] or 'period location and character action'}."
+                )
+                panels.append({
+                    "scene_number": scene_number,
+                    "scene_id": scene_id,
+                    "position": position,
+                    "panel_prompt": panel_prompt,
+                })
+            grids.append({
+                "grid_number": grid_input["grid_number"],
+                "scene_numbers": grid_input["scene_numbers"],
+                "scene_ids": grid_input["scene_ids"],
+                "shared_style": (
+                    f"{image_style_key}: {image_style_directive} "
+                    "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
+                ),
+                "negative_prompt": (
+                    "no text, no words, no letters, no labels, no captions, no watermarks, "
+                    "No borders, NO grid lines, no dividers, correct anatomy, no extra limbs"
+                ),
+                "panels": panels,
+            })
 
     by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
     for grid in grids:
@@ -2360,13 +2503,12 @@ Rules:
 2. Do not change scene boundaries, duration, story facts, or character identity.
 3. Treat script_excerpt as the most authoritative source for what appears in the scene. Use scene_summary/scene_situation only to clarify context; never contradict the final narration.
 4. Treat the admin-selected image style as the visual language for the whole video. Integrate it naturally into the continuity notes; do not mix incompatible art styles.
-5. Do NOT generate per-scene image prompts. Image generation is handled only by strict 2x2 image_grid_prompts later.
-6. keyframe_subject must describe the opening keyframe in one concise English sentence: primary subject, pose/action, location, lighting, and continuity anchors.
-7. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them.
-8. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot. Never write the generic phrase "camera moves"; name the exact approved movement instead.
-9. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
-10. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
-11. video_prompt must include these exact negative phrases: "no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio". It must describe visual motion only.
+5. keyframe_subject must describe the opening keyframe in one concise English sentence: primary subject, pose/action, location, lighting, and continuity anchors.
+6. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them.
+7. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot. Never write the generic phrase "camera moves"; name the exact approved movement instead.
+8. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
+9. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
+10. video_prompt must include these exact negative phrases: "no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio". It must describe visual motion only.
 12. Make each prompt specific to its scene. Vary shot size, composition, subject action, and approved camera movement from neighboring scenes. Do not use generic phrases such as "cinematic scene" without concrete visual details. Do not invent text, logos, brands, or historically impossible objects.
 13. Write video_prompt and continuity notes in English for generator compatibility. Keep administrative rationale out.
 14. Minimum length: video_prompt 260+ characters.
@@ -2479,6 +2621,10 @@ Return ONLY valid JSON in this shape:
                     merged[field] = media[field]
             merged.pop("image_prompt", None)
             merged.pop("prompt_en", None)
+            merged.pop("prompt_content", None)
+            merged.pop("prompt", None)
+            merged.pop("prompt_ko", None)
+            merged.pop("visual_prompt", None)
             merged["image_style"] = image_style_key
             merged["media_prompt_status"] = "ready"
             enriched_scenes.append(merged)
@@ -2682,7 +2828,6 @@ def _fallback_narration_section(
             "scene_situation",
             "scene_purpose",
             "visual_direction",
-            "image_prompt",
             "video_prompt",
         )
     ).lower()
@@ -2735,7 +2880,33 @@ def _scene_plan_repetition_errors(structure: dict) -> list[str]:
     run_start = 0
     run_count = 0
     duplicate_counts: Counter[str] = Counter()
+    duplicate_summary_counts: Counter[str] = Counter()
+    duplicate_field_counts: dict[str, Counter[str]] = {
+        "scene_situation": Counter(),
+        "visual_direction": Counter(),
+        "tts_direction": Counter(),
+        "end_bridge": Counter(),
+    }
     ordinal_middle_template_hits: list[int] = []
+    leaked_template_hits: list[str] = []
+
+    def _scene_plan_key(value: str) -> str:
+        value = re.sub(
+            r"\b(?:Opening\s+5-second\s+beat|First-minute\s+micro\s+beat|Development\s+beat|Timed\s+visual\s+beat|Scene)\s*\d+(?:/\d+)?\s*:?",
+            "",
+            value,
+            flags=re.IGNORECASE,
+        )
+        value = re.sub(
+            r"\b(?:Mandatory\s+\d+-second\s+(?:opening|development|climax|resolution)?\s*(?:phase\s+)?cut|Keep it separate(?: and advance the story)?|Use a distinct composition(?:, action, or camera beat)?|advance(?:s)? the story)\b",
+            "",
+            value,
+            flags=re.IGNORECASE,
+        )
+        value = re.sub(r"\([^)]*\d+\s*-\s*\d+s[^)]*\)", "", value, flags=re.IGNORECASE)
+        value = re.sub(r"\d+", "#", value)
+        return re.sub(r"\s+", " ", value).strip().lower()
+
     for idx, scene in enumerate(scenes, start=1):
         summary = str((scene or {}).get("scene_summary") or "").strip()
         purpose = str((scene or {}).get("scene_purpose") or "").strip()
@@ -2743,12 +2914,25 @@ def _scene_plan_repetition_errors(structure: dict) -> list[str]:
         if re.search(r"\d+\s*번째\s*중반\s*전환", summary):
             ordinal_middle_template_hits.append(idx)
         key = " ".join([summary, purpose, hook])
-        key = re.sub(r"\b(?:Opening\s+5-second\s+beat|Development\s+beat|Scene)\s*\d+\s*:?", "", key, flags=re.IGNORECASE)
-        key = re.sub(r"\d+", "#", key)
-        key = re.sub(r"\s+", " ", key).strip().lower()
+        key = _scene_plan_key(key)
         if not key:
             errors.append(f"scene {idx} has no summary/purpose/hook")
             continue
+        summary_key = _scene_plan_key(summary)
+        summary_key = re.sub(r"^\s*\d+\s*(?:번|踰)\s*(?:장면|scene)?\s*:?\s*", "", summary_key, flags=re.IGNORECASE)
+        if summary_key:
+            duplicate_summary_counts[summary_key] += 1
+        for field, counts in duplicate_field_counts.items():
+            raw_value = str((scene or {}).get(field) or "").strip()
+            field_key = _scene_plan_key(raw_value)
+            if field_key:
+                counts[field_key] += 1
+            if re.search(
+                r"\b(?:Timed visual beat|Mandatory \d+-second|Keep it separate|Use a distinct composition|opening keyframe|development phase cut)\b",
+                raw_value,
+                flags=re.IGNORECASE,
+            ):
+                leaked_template_hits.append(f"scene {idx} {field}")
         duplicate_counts[key] += 1
         if key == previous_key:
             run_count += 1
@@ -2770,6 +2954,15 @@ def _scene_plan_repetition_errors(structure: dict) -> list[str]:
     for key, count in duplicate_counts.items():
         if count >= 3:
             errors.append(f"scene plan repeats one beat {count} times: {key[:120]}")
+    for key, count in duplicate_summary_counts.items():
+        if count >= 3:
+            errors.append(f"scene plan repeats one summary {count} times: {key[:120]}")
+    for field, counts in duplicate_field_counts.items():
+        for key, count in counts.items():
+            if count >= 3:
+                errors.append(f"scene plan repeats {field} {count} times: {key[:120]}")
+    if leaked_template_hits:
+        errors.append(f"scene plan leaked internal template text: {leaked_template_hits[:12]}")
     return errors
 
 
@@ -3400,7 +3593,6 @@ def _scene_plan_category_contamination_errors(
                         "title_promise_link",
                         "end_bridge",
                         "visual_direction",
-                        "image_prompt",
                         "video_prompt",
                     )
                 )
@@ -3413,6 +3605,144 @@ def _scene_plan_category_contamination_errors(
     if errors:
         return errors
     return []
+
+
+def _quality_stage_report(stage: str, errors: list[str]) -> dict:
+    return {
+        "stage": stage,
+        "status": "fail" if errors else "pass",
+        "errors": errors,
+        "checked_at": time.time(),
+    }
+
+
+def _raise_on_quality_stage_failure(stage: str, errors: list[str]) -> dict:
+    report = _quality_stage_report(stage, errors)
+    if errors:
+        raise RuntimeError(f"{stage} quality gate failed: {errors[:12]}")
+    return report
+
+
+def _validate_script_plan_stage(
+    structure: dict,
+    *,
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str,
+) -> dict:
+    errors: list[str] = []
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        errors.append("script_plan missing structure.scenes")
+    else:
+        for fallback_number, scene in enumerate(scenes, start=1):
+            if not isinstance(scene, dict):
+                errors.append(f"scene {fallback_number} is not an object")
+                continue
+    errors.extend(_scene_plan_repetition_errors(structure))
+    errors.extend(
+        _scene_plan_category_contamination_errors(
+            structure,
+            script_style=script_style,
+            topic=topic,
+            upload_title=upload_title,
+            image_style=image_style,
+        )
+    )
+    return _raise_on_quality_stage_failure("script_plan", errors)
+
+
+def _validate_script_generate_stage(
+    payload: dict,
+    *,
+    category: str,
+    require_korean_script: bool = True,
+) -> dict:
+    errors: list[str] = []
+    structure = payload.get("structure") if isinstance(payload.get("structure"), dict) else {}
+    scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    script = str(payload.get("script") or "").strip()
+    script_quality = payload.get("script_quality_report") if isinstance(payload.get("script_quality_report"), dict) else {}
+
+    try:
+        score = int(float(script_quality.get("score") or 0))
+    except (TypeError, ValueError):
+        score = 0
+    verdict = str(script_quality.get("verdict") or "").strip().lower()
+    if verdict != "pass" or score < 78:
+        errors.append(f"script_quality_report not passing: verdict={verdict or 'missing'}, score={score}")
+
+    if require_korean_script:
+        hangul = len(re.findall(r"[\uac00-\ud7a3]", script))
+        latin = len(re.findall(r"[A-Za-z]", script))
+        if hangul < 1000:
+            errors.append(f"script too short or not Korean enough: hangul={hangul}, chars={len(script)}")
+        if latin > max(80, int(hangul * 0.05)):
+            errors.append(f"script has too much Latin text: latin={latin}")
+
+    if any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
+        errors.append("script contains fallback/scratch English template text")
+    repeated_sentences = _detect_repeated_script_sentences(script)
+    if repeated_sentences:
+        errors.append(
+            "script contains excessive repeated sentences: "
+            f"{json.dumps(repeated_sentences[:8], ensure_ascii=False)}"
+        )
+
+    for fallback_number, scene in enumerate(scenes, start=1):
+        if not isinstance(scene, dict):
+            errors.append(f"scene {fallback_number} is not an object")
+            continue
+    try:
+        from services.image_grid_prompts import validate_image_grid_prompt_readiness
+
+        validate_image_grid_prompt_readiness(
+            scenes,
+            structure.get("image_grid_prompts"),
+            status=structure.get("image_grid_prompt_status"),
+            require_status="ready",
+            require_compact_template=True,
+        )
+    except Exception as exc:
+        errors.append(f"image_grid_prompts invalid: {exc}")
+
+    errors.extend(
+        _scene_plan_category_contamination_errors(
+            structure,
+            script_style=str(category or payload.get("script_style") or ""),
+            topic=str(payload.get("topic") or ""),
+            upload_title=str(payload.get("upload_title") or payload.get("generated_title") or ""),
+            image_style=str(payload.get("image_style") or ""),
+        )
+    )
+    return _raise_on_quality_stage_failure("script_generate", errors)
+
+
+def _validate_publish_metadata_stage(payload: dict, *, category: str) -> dict:
+    errors: list[str] = []
+    try:
+        _validate_publish_metadata_quality(
+            payload.get("publish_metadata") if isinstance(payload.get("publish_metadata"), dict) else {},
+            str(payload.get("topic") or ""),
+            str(payload.get("upload_title") or payload.get("generated_title") or ""),
+            str(payload.get("script") or ""),
+            str(payload.get("language") or "ko"),
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+
+    if isinstance(payload.get("script_quality_report"), dict):
+        try:
+            from services.generation_quality_gate import validate_generation_package
+
+            errors.extend(validate_generation_package(payload, category=category))
+        except Exception as exc:
+            errors.append(f"final package validation failed: {exc}")
+    elif payload.get("defer_ready_until_quality_gate"):
+        errors.append("missing script_quality_report for quality-gated publish metadata job")
+
+    return _raise_on_quality_stage_failure("publish_metadata", errors)
 
 
 def _repair_martial_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
@@ -3748,6 +4078,75 @@ def _repair_old_story_grave_vigil_scene_plan_repetition(structure: dict, topic: 
     return repaired
 
 
+def _refresh_old_story_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "옛날이야기").strip()
+    shot_motifs = [
+        "마을 입구의 금줄과 젖은 흙길",
+        "초가 마당의 등잔불과 닫힌 문",
+        "우물가에 모인 사람들의 낮은 수군거림",
+        "달빛 아래 흔들리는 한복 소매",
+        "장독대 뒤로 사라지는 발자국",
+        "낡은 족자와 접힌 편지",
+        "비어 있는 혼례상과 꺼진 촛불",
+        "안개 낀 산길과 오래된 소나무",
+        "사당 앞에 놓인 붉은 실",
+        "새벽 논둑 위로 번지는 푸른 빛",
+        "마을 어른의 굳은 얼굴과 떨리는 손",
+        "문틈 사이로 비치는 희미한 등불",
+        "흙 묻은 신발과 젖은 치맛자락",
+        "바람에 흔들리는 대문 고리",
+        "빈 방 한가운데 남은 작은 보자기",
+        "흐린 창호지에 비친 사람 그림자",
+    ]
+    camera_beats = [
+        "낮은 시점에서 천천히 다가간다",
+        "정면 고정 구도로 숨 막히는 침묵을 잡는다",
+        "손과 물건을 가까이 잡아 단서를 강조한다",
+        "인물 뒤편에서 따라가며 불안을 만든다",
+        "넓은 마을 풍경에서 인물의 고립을 드러낸다",
+        "촛불 흔들림을 전경에 두고 얼굴을 흐리게 둔다",
+        "문이 열리는 순간을 느리게 보여준다",
+        "발자국과 시선의 방향을 이어 붙인다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 단서").strip()
+        purpose = str(scene.get("scene_purpose") or "제목의 비밀을 한 걸음 더 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 장면에서 감춰진 이유가 조금 더 드러난다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        if idx <= 12:
+            phase = "첫 1분 빠른 훅 컷"
+        elif idx <= 32:
+            phase = "중반 단서 추적 컷"
+        elif idx <= 45:
+            phase = "후반 진실 접근 컷"
+        else:
+            phase = "결말 회수 컷"
+        unique_bridge = f"{hook} 다음 단서는 '{summary}' 장면에서 이어진다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 이미지로 삼고, "
+            f"{camera}. 화면 안의 인물, 소품, 장소가 '{summary}'의 사건을 직접 보여주게 한다."
+        )
+        scene["tts_direction"] = (
+            f"할머니가 옛이야기를 들려주듯 낮고 선명하게 말한다. "
+            f"이 장면에서는 '{summary}'를 설명보다 사건으로 느끼게 하고, 끝은 '{unique_bridge}'의 여운으로 넘긴다."
+        )
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
 def _repair_old_story_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
     """Rebuild folk-story plans without crossing into unrelated category tropes."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -3755,8 +4154,10 @@ def _repair_old_story_scene_plan_repetition(structure: dict, topic: str, upload_
         return structure
     title = (upload_title or topic or "옛날이야기").strip()
     if _old_story_title_is_grave_vigil(topic, upload_title):
-        return _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
-    return _repair_generic_old_story_scene_plan_repetition(structure, topic, upload_title)
+        repaired = _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
+    else:
+        repaired = _repair_generic_old_story_scene_plan_repetition(structure, topic, upload_title)
+    return _refresh_old_story_scene_visual_fields(repaired, topic, upload_title)
     beat_templates = [
         ("마을 어귀에 걸린 금기와 소문을 먼저 보여준다", "이야기의 세계를 옛 마을의 불길한 약속 안에 고정한다", "그 금기는 왜 지금까지 아무도 어기지 못했을까?"),
         ("어머니의 유언이 세 형제 앞에서 서로 다르게 해석된다", "제목의 약속을 가족 갈등과 금지된 선택으로 연결한다", "유언 속에서 빠진 한 문장이 있다면 무엇일까?"),
@@ -3944,9 +4345,13 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     job_log.info(f"-> RENDERING (planning scenes for topic_queue_id={topic_queue_id})")
 
     ensure_project_root_on_path()
+    from config import Config, config
     from services.script_style_resolver import resolve_script_style_directive
     from app.services.scene_planner import scene_planner_service
     import asyncio
+
+    config.SCRIPT_PLANNING_MODEL = _prefer_gemini_text_model(config, config.SCRIPT_PLANNING_MODEL)
+    Config.SCRIPT_PLANNING_MODEL = config.SCRIPT_PLANNING_MODEL
 
     # Relies on this worker PC's local script_style_presets being in sync
     # with the web-admin (same assumption every other desktop install
@@ -4091,6 +4496,13 @@ Scene planning guard:
     )
     if category_errors:
         raise RuntimeError(f"scene plan category QA failed: {category_errors[:8]}")
+    plan_quality_report = _validate_script_plan_stage(
+        structure,
+        script_style=script_style_context,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+    )
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
     write_state("running", job, 90, job_id)
@@ -4109,6 +4521,7 @@ Scene planning guard:
         "image_style": image_style,
         "image_style_selection": image_style_selection or {},
         "structure": structure,
+        "stage_quality_report": plan_quality_report,
         "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
@@ -4328,9 +4741,17 @@ def _chunk_scenes_for_script_generation(
 
 def _select_script_draft_model(config, final_model: str) -> str:
     selected = (final_model or "").strip()
-    if selected.lower().startswith("claude") and (getattr(config, "DEEPSEEK_API_KEY", "") or "").strip():
-        return "deepseek-chat"
     return selected
+
+
+def _prefer_gemini_text_model(config, selected: str = "") -> str:
+    """Use Gemini for worker planning/script text when a Gemini key exists."""
+    if (getattr(config, "GEMINI_API_KEY", "") or "").strip():
+        current = str(selected or "").strip()
+        if current.lower().startswith("gemini"):
+            return current
+        return "gemini-3-flash-preview"
+    return str(selected or "gemini-3-flash-preview").strip()
 
 
 def _script_gen_mode_instruction(is_multi: bool, known_characters: list[str], is_dramatic_single: bool = False) -> str:
@@ -5025,7 +5446,7 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, duration_seconds, upload_title, title_generation
 
 
-def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, str, dict, dict, str]:
+def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, str, dict, dict, str, dict]:
     topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
     if not topic_queue_id:
         raise ValueError("payload.topic_queue_id is required for publish_metadata_generate")
@@ -5039,8 +5460,9 @@ def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, st
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
     structure = payload.get("structure") if isinstance(payload.get("structure"), dict) else {}
     narrative_blueprint = payload.get("narrative_blueprint") if isinstance(payload.get("narrative_blueprint"), dict) else {}
+    script_quality_report = payload.get("script_quality_report") if isinstance(payload.get("script_quality_report"), dict) else {}
     language = str(payload.get("language") or "ko").strip()
-    return topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language
+    return topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language, script_quality_report
 
 
 def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
@@ -5063,11 +5485,14 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     import asyncio
 
     Config.refresh_remote_keys_if_stale()
+    config.SCRIPT_GENERATION_MODEL = _prefer_gemini_text_model(config, config.SCRIPT_GENERATION_MODEL)
+    Config.SCRIPT_GENERATION_MODEL = config.SCRIPT_GENERATION_MODEL
 
     # Mirrors /api/script/generate's own model selection
     # (app/routers/gemini.py::script_generate) so pre-baked and live-generated
     # narration use the same model choice.
     model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    model = _prefer_gemini_text_model(config, model)
     draft_model = _select_script_draft_model(config, model)
     if draft_model != model:
         job_log.info(
@@ -5096,8 +5521,8 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
 Old-story script guard:
 - Stay inside a pre-modern Korean folk-tale world. Do not introduce modern objects, places, institutions, or disputes.
 - Forbidden modern drift: developer, redevelopment, excavator, museum, bus, phone, cellphone, Seoul trip, police report, court lawsuit, camera, broadcast, apartment, car, hospital, office.
-- Do not invent a new external subplot that is not in the scene plan. Expand only the daughter-in-law, mother-in-law grave, village rumor, red thread, old documents, family guilt, and final promise.
-- Never replace the title promise with a different family plot. The protagonist remains the daughter-in-law and the payoff must clearly explain why she stayed by the grave for three years.
+- Do not invent a new external subplot that is not in the scene plan. Expand only the characters, place, object, secret, conflict, and promise already present in the upload title and scene_situation fields.
+- Never replace the title promise with a different family plot. The protagonist, central mystery, and payoff must stay anchored to the upload title.
 - Do not narrate planning labels such as middle turn, scene purpose, hook, prompt, camera, shot, or visual direction.
 """.strip()
         style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
@@ -5139,7 +5564,7 @@ Hard retry rules:
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
     total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts)
-    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=5)
+    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=1)
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int]:
         if old_story_context and grave_vigil_context:
@@ -5166,9 +5591,7 @@ Hard retry rules:
                 f"(score={rescue_quality.get('score')}, verdict={rescue_quality.get('verdict')}, issues={rescue_issues})"
             )
         else:
-            narrative_blueprint = await _generate_narrative_blueprint(
-                ai_router, draft_model, topic, upload_title, structure, title_generation, language, style_directive
-            )
+            narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
 
         final_parts = []
         known_characters: list[str] = []
@@ -5204,7 +5627,7 @@ Hard retry rules:
 
             try:
                 raw_text = await ai_router.generate_text(
-                    prompt, draft_model, temperature=0.7, max_tokens=8192,
+                    prompt, draft_model, temperature=0.65, max_tokens=16384,
                     task_type="hermes_script_generate",
                 )
                 chunk_parts = _parse_script_chunk_sections(
@@ -5373,6 +5796,23 @@ Hard retry rules:
     )
     if category_errors:
         raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
+    category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    script_stage_payload = {
+        "topic_queue_id": topic_queue_id,
+        "category": category_for_gate,
+        "topic": topic,
+        "generated_title": upload_title,
+        "upload_title": upload_title,
+        "script": final_script,
+        "structure": structure,
+        "script_quality_report": final_quality,
+        "script_style": script_style_context,
+        "image_style": image_style,
+    }
+    script_stage_report = _validate_script_generate_stage(
+        script_stage_payload,
+        category=category_for_gate,
+    )
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
     write_state("running", job, 95, job_id)
@@ -5398,6 +5838,7 @@ Hard retry rules:
         "narrative_blueprint": narrative_blueprint,
         "initial_script_quality_report": initial_quality,
         "script_quality_report": final_quality,
+        "stage_quality_report": script_stage_report,
         "revision_count": revision_count,
         "char_count": char_count,
         "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
@@ -5419,7 +5860,7 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
     write_state("preparing", job, 0, job_id)
     job_log.info("-> PREPARING (validating publish metadata payload)")
 
-    topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language = _validate_publish_metadata_payload(job["payload"])
+    topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language, script_quality_report = _validate_publish_metadata_payload(job["payload"])
 
     job_store.transition(job_id, job_store.RENDERING, reason="generating publish metadata")
     write_state("running", job, 30, job_id)
@@ -5445,6 +5886,25 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         )
     )
     _validate_publish_metadata_quality(publish_metadata, topic, upload_title, script, language)
+    category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    metadata_stage_payload = {
+        "topic_queue_id": topic_queue_id,
+        "category": category_for_gate,
+        "topic": topic,
+        "generated_title": upload_title,
+        "upload_title": upload_title,
+        "script": script,
+        "structure": structure,
+        "narrative_blueprint": narrative_blueprint,
+        "script_quality_report": script_quality_report,
+        "publish_metadata": publish_metadata,
+        "language": language,
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
+    }
+    metadata_stage_report = _validate_publish_metadata_stage(
+        metadata_stage_payload,
+        category=category_for_gate,
+    )
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving publish metadata")
     write_state("running", job, 90, job_id)
@@ -5460,6 +5920,8 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "topic": topic,
         "upload_title": upload_title,
         "publish_metadata": publish_metadata,
+        "script_quality_report": script_quality_report,
+        "stage_quality_report": metadata_stage_report,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
         "error": None,

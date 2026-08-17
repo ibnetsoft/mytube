@@ -107,7 +107,7 @@ class HermesAutopilotManager:
             "benchmark_channel_discovery_last_at": {},
             "target_duration_seconds_by_category": {},
             "force_generate": False,
-            "quality_max_attempts": 3,
+            "quality_max_attempts": 1,
         }
         self.session_stats = {
             "generated_count": 0
@@ -242,10 +242,7 @@ class HermesAutopilotManager:
             self.settings["min_buffer_per_category"] = max(0, int(self.settings.get("min_buffer_per_category", 5)))
         except (TypeError, ValueError):
             self.settings["min_buffer_per_category"] = 5
-        try:
-            self.settings["quality_max_attempts"] = max(1, min(5, int(self.settings.get("quality_max_attempts", 3))))
-        except (TypeError, ValueError):
-            self.settings["quality_max_attempts"] = 3
+        self.settings["quality_max_attempts"] = 1
         try:
             self.settings["benchmark_channel_discovery_min_channels"] = max(
                 1, min(30, int(self.settings.get("benchmark_channel_discovery_min_channels", 8)))
@@ -535,6 +532,30 @@ class HermesAutopilotManager:
                     snippet = item.get("snippet") or {}
                     channel_id = str(snippet.get("channelId") or "").strip()
                     if not channel_id or channel_id in existing or channel_id in discovered:
+                        continue
+                    try:
+                        import hermes_worker
+
+                        is_relevant = hermes_worker._is_relevant_rss_candidate(
+                            {
+                                "title": snippet.get("title") or "",
+                                "description": snippet.get("description") or "",
+                                "channel_title": snippet.get("channelTitle") or "",
+                            },
+                            {
+                                "category": category,
+                                "category_name": category,
+                                "search_keywords": benchmark_keywords or [],
+                            },
+                            category,
+                        )
+                    except Exception:
+                        is_relevant = True
+                    if not is_relevant:
+                        self.add_log(
+                            f"Discarded off-category discovered channel for '{category}': "
+                            f"{snippet.get('channelTitle') or channel_id} / {snippet.get('title') or ''}"
+                        )
                         continue
                     discovered.append(channel_id)
                     self.add_log(
@@ -1631,14 +1652,22 @@ Return ONLY JSON:
             "무협": ["무협 소설 명장면", "강호 복수극", "무림 고수 전설", "무협 몰락한 문파"],
         }
         seeds = seed_map.get(category, [category])
+        if category == "옛날이야기":
+            return seeds[:10]
+        category_hint = ""
+        if category == "경제":
+            category_hint = (
+                "\nFor the economy category only, use concrete subjects such as gold, oil, stocks, "
+                "interest rates, inflation, exchange rates, housing, companies, and policy rather "
+                "than the word 경제 alone."
+            )
         prompt = f"""
 You are a Korean YouTube trend researcher.
 The internal genre label is: {category}
 Generate 8 concrete Korean YouTube search phrases that people would actually search for now.
 Do not return the genre label itself or generic phrases such as the genre followed by 이야기.
 Prefer named issues, events, people, places, numbers, conflicts, or questions.
-For economic content, use concrete subjects such as gold, oil, stocks, interest rates, inflation,
-exchange rates, housing, companies, and policy rather than the word 경제 alone.
+{category_hint}
 Return ONLY a JSON array of strings.
 """
         discovered: list[str] = []
@@ -1813,7 +1842,7 @@ Return ONLY a JSON array of strings.
                 self.add_log(f"카테고리 '{category}'의 생성 루프 시작")
                 
                 try:
-                    max_quality_attempts = int(self.settings.get("quality_max_attempts", 3))
+                    max_quality_attempts = int(self.settings.get("quality_max_attempts", 1))
                     for quality_attempt in range(1, max_quality_attempts + 1):
                         try:
                             if quality_attempt > 1:
@@ -2344,6 +2373,7 @@ Return ONLY a JSON array of strings.
                 "upload_title": generated_title,
                 "title_generation": title_plan,
                 "narrative_blueprint": narrative_blueprint or {},
+                "script_quality_report": script_quality_report or {},
                 "language": "ko",
                 "defer_ready_until_quality_gate": True,
                 "quality_feedback": getattr(self, "_quality_feedback", []),
