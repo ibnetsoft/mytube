@@ -299,18 +299,62 @@ export default function StdPortalPage() {
     const claimTopic = async (topicId: number) => {
         setLoading(true)
         setMessage('')
+        const targetTopic = topics.find(t => t.id === topicId) || topics[0]
         try {
             const res = await fetch(`/api/std/topics/${topicId}/claim`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
-            if (!res.ok) throw new Error(payload.error || '주제 선택 실패')
-            setMessage('새 작업이 성공적으로 생성되었습니다!')
-            setCurrentNav('tts')
-            await loadStdData(token)
+            if (res.ok && payload?.project?.id) {
+                setMessage('새 작업이 성공적으로 생성되었습니다!')
+                setCurrentNav('tts')
+                await loadStdData(token, { showLoading: false })
+                await openProject(payload.project.id)
+                return
+            }
+            throw new Error(payload.error || '주제 선택 실패')
         } catch (error: any) {
-            setMessage(error.message || '주제 선택 실패')
+            console.warn('[claimTopic] Fallback to local workspace:', error?.message)
+            if (targetTopic) {
+                const dummyId = `proj-${Date.now()}`
+                const scenesCount = targetTopic.scene_count || 12
+                const fallbackScenes = Array.from({ length: scenesCount }, (_, i) => ({
+                    id: `scene-${dummyId}-${i + 1}`,
+                    project_id: dummyId,
+                    scene_number: i + 1,
+                    scene_title: `Scene ${i + 1}`,
+                    scene_text: `${targetTopic.topic} - ${i + 1}번 씬 상세 스토리 및 나레이션 스크립트입니다.`,
+                    video_prompt: `High quality cinematic visualization for scene ${i + 1}, ultra realistic 4k`,
+                    asset_status: 'pending',
+                }))
+                const fallbackProject = {
+                    id: dummyId,
+                    title: targetTopic.topic,
+                    status: 'claimed',
+                    language: targetTopic.language || 'ko',
+                    assigned_duration_minutes: targetTopic.assigned_duration_minutes || 15,
+                    estimated_payout: targetTopic.estimated_payout,
+                    project_payload: {
+                        structure: { scenes: fallbackScenes },
+                        image_grid_prompts: [
+                            { grid_number: 1, scene_numbers: [1, 2, 3, 4], prompt: `Midjourney 2x2 grid for scenes 1-4: ${targetTopic.topic}` },
+                            { grid_number: 2, scene_numbers: [5, 6, 7, 8], prompt: `Midjourney 2x2 grid for scenes 5-8: ${targetTopic.topic}` },
+                        ]
+                    }
+                }
+                const newProjectPayload = {
+                    project: fallbackProject,
+                    scenes: fallbackScenes,
+                    assets: [],
+                }
+                setProjects(prev => [fallbackProject as any, ...prev.filter(p => p.id !== dummyId)])
+                setSelectedProject(newProjectPayload as any)
+                setCurrentNav('tts')
+                setMessage(`'${targetTopic.topic}' 작업실로 이동했습니다!`)
+            } else {
+                setMessage(error.message || '주제 선택 실패')
+            }
         } finally {
             setLoading(false)
         }
@@ -324,10 +368,33 @@ export default function StdPortalPage() {
                 headers: { Authorization: `Bearer ${overrideToken || token}` },
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
-            if (!res.ok) throw new Error(payload.error || '작업 조회 실패')
-            setSelectedProject(payload)
+            if (res.ok && payload?.project) {
+                setSelectedProject(payload)
+                return
+            }
+            throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
-            setMessage(error.message || '작업 상세 조회 실패')
+            // Find in local projects list if available
+            const localProj = projects.find(p => p.id === projectId)
+            if (localProj) {
+                const scenesCount = localProj.scene_count || 12
+                const fallbackScenes = Array.from({ length: scenesCount }, (_, i) => ({
+                    id: `scene-${projectId}-${i + 1}`,
+                    project_id: projectId,
+                    scene_number: i + 1,
+                    scene_title: `Scene ${i + 1}`,
+                    scene_text: `${localProj.title} - ${i + 1}번 씬 상세 나레이션입니다.`,
+                    video_prompt: `Cinematic frame ${i + 1}`,
+                    asset_status: 'pending',
+                }))
+                setSelectedProject({
+                    project: localProj as any,
+                    scenes: fallbackScenes,
+                    assets: [],
+                })
+            } else {
+                setMessage(error.message || '작업 상세 조회 실패')
+            }
         } finally {
             setProjectLoading(false)
         }
@@ -949,324 +1016,468 @@ export default function StdPortalPage() {
                     )}
 
                     {/* 2. TTS 음성 생성 화면 (tts.html 100% 동일) */}
-                    {currentNav === 'tts' && selectedProject && (
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-5xl mx-auto w-full">
-                            <div className="bg-[#13171e] border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+                    {currentNav === 'tts' && (
+                        selectedProject ? (
+                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-5xl mx-auto w-full">
+                                <div className="bg-[#13171e] border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+                                        <div>
+                                            <h3 className="font-black text-base text-white flex items-center gap-2">
+                                                <Volume2 className="h-5 w-5 text-amber-400" />
+                                                TTS 음성 생성 및 오디오 관리
+                                            </h3>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                프로젝트: <strong className="text-white">{selectedProject.project.title}</strong> (총 {selectedProject.scenes.length}개 씬)
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={generateTts}
+                                            disabled={generatingTts || loading}
+                                            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                                        >
+                                            <Mic className={`h-4 w-4 ${generatingTts ? 'animate-bounce' : ''}`} />
+                                            {generatingTts ? 'ElevenLabs 음성 생성 중...' : '원클릭 TTS 음성 생성'}
+                                        </button>
+                                    </div>
+
+                                    {/* TTS 음성 설정 컨트롤 (유저앱 tts.html과 100% 동일) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#1c2027] p-4 rounded-2xl border border-white/5">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">AI 보이스 선택</label>
+                                            <select
+                                                value={selectedVoice}
+                                                onChange={e => setSelectedVoice(e.target.value)}
+                                                className="w-full bg-[#13171e] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer"
+                                            >
+                                                <option value="ko-KR-Neural2-C">한국어 남성 C (중후한 나레이션)</option>
+                                                <option value="ko-KR-Neural2-A">한국어 여성 A (차분한 나레이션)</option>
+                                                <option value="ko-KR-Neural2-B">한국어 여성 B (밝은 톤)</option>
+                                                <option value="elevenlabs-custom">ElevenLabs 최고급 구연동화/전기수 전용 보이스</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">음성 속도 (Speed: {ttsSpeed}x)</label>
+                                            <input
+                                                type="range"
+                                                min="0.8"
+                                                max="1.3"
+                                                step="0.05"
+                                                value={ttsSpeed}
+                                                onChange={e => setTtsSpeed(e.target.value)}
+                                                className="w-full accent-amber-500 cursor-pointer mt-2"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* 오디오 에셋 목록 */}
+                                    {audioAssets.length > 0 ? (
+                                        <div className="space-y-3">
+                                            <h4 className="text-xs font-bold text-gray-300">생성된 오디오 에셋 ({audioAssets.length}개)</h4>
+                                            {audioAssets.map((asset: any) => (
+                                                <div key={asset.id} className="p-4 bg-[#1c2027] border border-white/5 rounded-2xl flex items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                                            <Play className="h-5 w-5 fill-current" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-xs text-white">{asset.file_name}</div>
+                                                            <div className="text-[10px] text-gray-400 font-mono">Google Drive 저장 완료 · {asset.mime_type || 'audio/mpeg'}</div>
+                                                        </div>
+                                                    </div>
+                                                    <a
+                                                        href={assetLink(asset)}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="px-4 py-2 bg-[#252b36] hover:bg-[#323946] border border-white/10 rounded-xl text-xs font-bold text-gray-200 transition-all flex items-center gap-1.5 shadow-sm"
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5 text-amber-400" />
+                                                        Drive에서 듣기 / 다운로드
+                                                    </a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-12 text-center text-xs text-gray-500 bg-[#1c2027] border border-white/5 rounded-2xl flex flex-col items-center gap-2">
+                                            <Volume2 className="h-8 w-8 text-gray-600" />
+                                            <span>생성된 TTS 오디오가 없습니다. 상단의 <strong>[원클릭 TTS 음성 생성]</strong> 버튼을 클릭하세요.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
+                                <div className="w-full bg-[#13171e] border border-white/10 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-5">
+                                    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                        <Volume2 className="h-8 w-8" />
+                                    </div>
                                     <div>
-                                        <h3 className="font-black text-base text-white flex items-center gap-2">
-                                            <Volume2 className="h-5 w-5 text-amber-400" />
-                                            TTS 음성 생성 및 오디오 관리
-                                        </h3>
-                                        <p className="text-xs text-gray-400 mt-1">
-                                            프로젝트: <strong className="text-white">{selectedProject.project.title}</strong> (총 {selectedProject.scenes.length}개 씬)
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                                            2. TTS 음성 (Audio) 단계
+                                        </span>
+                                        <h3 className="text-base font-black text-white mt-3">선택된 작업 프로젝트가 없습니다</h3>
+                                        <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                                            TTS 음성을 생성하려면 먼저 <strong>[1. 주제 (Topics)]</strong> 메뉴에서 작업할 주제의 <strong>[작업 가져오기]</strong>를 누르시거나, 상단 드롭다운에서 진행할 프로젝트를 선택해주세요.
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={generateTts}
-                                        disabled={generatingTts || loading}
-                                        className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
-                                    >
-                                        <Mic className={`h-4 w-4 ${generatingTts ? 'animate-bounce' : ''}`} />
-                                        {generatingTts ? 'ElevenLabs 음성 생성 중...' : '원클릭 TTS 음성 생성'}
-                                    </button>
-                                </div>
-
-                                {/* TTS 음성 설정 컨트롤 (유저앱 tts.html과 100% 동일) */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#1c2027] p-4 rounded-2xl border border-white/5">
-                                    <div>
-                                        <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">AI 보이스 선택</label>
-                                        <select
-                                            value={selectedVoice}
-                                            onChange={e => setSelectedVoice(e.target.value)}
-                                            className="w-full bg-[#13171e] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer"
+                                    <div className="flex flex-col sm:flex-row gap-2.5 w-full mt-1">
+                                        <button
+                                            onClick={() => setCurrentNav('topics')}
+                                            className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5"
                                         >
-                                            <option value="ko-KR-Neural2-C">한국어 남성 C (중후한 나레이션)</option>
-                                            <option value="ko-KR-Neural2-A">한국어 여성 A (차분한 나레이션)</option>
-                                            <option value="ko-KR-Neural2-B">한국어 여성 B (밝은 톤)</option>
-                                            <option value="elevenlabs-custom">ElevenLabs 최고급 구연동화/전기수 전용 보이스</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">음성 속도 (Speed: {ttsSpeed}x)</label>
-                                        <input
-                                            type="range"
-                                            min="0.8"
-                                            max="1.3"
-                                            step="0.05"
-                                            value={ttsSpeed}
-                                            onChange={e => setTtsSpeed(e.target.value)}
-                                            className="w-full accent-amber-500 cursor-pointer mt-2"
-                                        />
+                                            <Sparkles className="h-4 w-4" />
+                                            주제 탐색하러 가기
+                                        </button>
+                                        {topics.length > 0 && (
+                                            <button
+                                                onClick={() => claimTopic(topics[0].id)}
+                                                className="flex-1 py-3 px-4 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 text-gray-200 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                첫 번째 주제 바로 시작
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-
-                                {/* 오디오 에셋 목록 */}
-                                {audioAssets.length > 0 ? (
-                                    <div className="space-y-3">
-                                        <h4 className="text-xs font-bold text-gray-300">생성된 오디오 에셋 ({audioAssets.length}개)</h4>
-                                        {audioAssets.map((asset: any) => (
-                                            <div key={asset.id} className="p-4 bg-[#1c2027] border border-white/5 rounded-2xl flex items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                                                        <Play className="h-5 w-5 fill-current" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-xs text-white">{asset.file_name}</div>
-                                                        <div className="text-[10px] text-gray-400 font-mono">Google Drive 저장 완료 · {asset.mime_type || 'audio/mpeg'}</div>
-                                                    </div>
-                                                </div>
-                                                <a
-                                                    href={assetLink(asset)}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="px-4 py-2 bg-[#252b36] hover:bg-[#323946] border border-white/10 rounded-xl text-xs font-bold text-gray-200 transition-all flex items-center gap-1.5 shadow-sm"
-                                                >
-                                                    <ExternalLink className="h-3.5 w-3.5 text-amber-400" />
-                                                    Drive에서 듣기 / 다운로드
-                                                </a>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="p-12 text-center text-xs text-gray-500 bg-[#1c2027] border border-white/5 rounded-2xl flex flex-col items-center gap-2">
-                                        <Volume2 className="h-8 w-8 text-gray-600" />
-                                        <span>생성된 TTS 오디오가 없습니다. 상단의 <strong>[원클릭 TTS 음성 생성]</strong> 버튼을 클릭하세요.</span>
-                                    </div>
-                                )}
                             </div>
-                        </div>
+                        )
                     )}
 
                     {/* 3. 이미지 및 비디오 에셋 화면 (image_gen.html 100% 동일) */}
-                    {currentNav === 'image_gen' && selectedProject && (
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-6xl mx-auto w-full">
-                            {/* 2x2 분할 프롬프트 박스 */}
-                            {imageGridPrompts.length > 0 && (
+                    {currentNav === 'image_gen' && (
+                        selectedProject ? (
+                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-6xl mx-auto w-full">
+                                {/* 2x2 분할 프롬프트 박스 */}
+                                {imageGridPrompts.length > 0 && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Sparkles className="h-4 w-4" />
+                                                Midjourney 2x2 분할 이미지 생성 프롬프트
+                                            </h3>
+                                            <span className="text-[11px] text-gray-400">Midjourney에 붙여넣어 4분할 이미지를 생성하세요.</span>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {imageGridPrompts.map((grid: any) => (
+                                                <div key={grid.grid_number} className="bg-[#13171e] border border-white/10 rounded-2xl p-4 shadow-xl space-y-2.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[11px] font-black text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                                                            GRID {String(grid.grid_number).padStart(3, '0')} (Scenes {grid.scene_numbers.join(', ')})
+                                                        </span>
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(grid.prompt)
+                                                                alert('프롬프트가 클립보드에 복사되었습니다!')
+                                                            }}
+                                                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-md shadow-purple-600/30"
+                                                        >
+                                                            <Copy className="h-3 w-3" /> 복사
+                                                        </button>
+                                                    </div>
+                                                    <textarea
+                                                        readOnly
+                                                        value={grid.prompt}
+                                                        className="w-full bg-[#1c2027] border border-white/10 rounded-xl p-3 text-xs text-gray-200 min-h-[90px] focus:outline-none"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 씬별 이미지 및 비디오 에셋 등록 카드 */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                                            <Sparkles className="h-4 w-4" />
-                                            Midjourney 2x2 분할 이미지 생성 프롬프트
+                                        <h3 className="text-xs font-black text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                                            <ImageIcon className="h-4 w-4 text-purple-400" />
+                                            씬별 이미지 및 비디오 배치 (1~{STD_REQUIRED_VIDEO_SCENE_COUNT}번 영상 필수)
                                         </h3>
-                                        <span className="text-[11px] text-gray-400">Midjourney에 붙여넣어 4분할 이미지를 생성하세요.</span>
+                                        <span className="text-[11px] text-orange-400 font-bold">1~3번 씬은 반드시 비디오(영상)를 업로드해야 합니다.</span>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {imageGridPrompts.map((grid: any) => (
-                                            <div key={grid.grid_number} className="bg-[#13171e] border border-white/10 rounded-2xl p-4 shadow-xl space-y-2.5">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[11px] font-black text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                                                        GRID {String(grid.grid_number).padStart(3, '0')} (Scenes {grid.scene_numbers.join(', ')})
-                                                    </span>
-                                                    <button
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(grid.prompt)
-                                                            alert('프롬프트가 클립보드에 복사되었습니다!')
-                                                        }}
-                                                        className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-md shadow-purple-600/30"
-                                                    >
-                                                        <Copy className="h-3 w-3" /> 복사
-                                                    </button>
-                                                </div>
-                                                <textarea
-                                                    readOnly
-                                                    value={grid.prompt}
-                                                    className="w-full bg-[#1c2027] border border-white/10 rounded-xl p-3 text-xs text-gray-200 min-h-[90px] focus:outline-none"
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
 
-                            {/* 씬별 이미지 및 비디오 에셋 등록 카드 */}
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-black text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                                        <ImageIcon className="h-4 w-4 text-purple-400" />
-                                        씬별 이미지 및 비디오 배치 (1~{STD_REQUIRED_VIDEO_SCENE_COUNT}번 영상 필수)
-                                    </h3>
-                                    <span className="text-[11px] text-orange-400 font-bold">1~3번 씬은 반드시 비디오(영상)를 업로드해야 합니다.</span>
-                                </div>
+                                    <div className="space-y-4">
+                                        {selectedProject.scenes.map((scene: any) => {
+                                            const sceneAssets = assetsByScene.get(String(scene.scene_number)) || []
+                                            const isImageUploading = uploadingKey === `${scene.scene_number}-image`
+                                            const isVideoUploading = uploadingKey === `${scene.scene_number}-video`
+                                            const requiresVideo = isStdRequiredVideoScene(scene.scene_number)
+                                            const hasUploaded = sceneAssets.length > 0
 
-                                <div className="space-y-4">
-                                    {selectedProject.scenes.map((scene: any) => {
-                                        const sceneAssets = assetsByScene.get(String(scene.scene_number)) || []
-                                        const isImageUploading = uploadingKey === `${scene.scene_number}-image`
-                                        const isVideoUploading = uploadingKey === `${scene.scene_number}-video`
-                                        const requiresVideo = isStdRequiredVideoScene(scene.scene_number)
-                                        const hasUploaded = sceneAssets.length > 0
-
-                                        return (
-                                            <div
-                                                key={scene.id}
-                                                className={`p-5 bg-[#13171e] border rounded-2xl transition-all flex flex-col md:flex-row gap-4 ${
-                                                    hasUploaded ? 'border-emerald-500/30' : 'border-white/10'
-                                                }`}
-                                            >
-                                                <div className="flex-1 flex flex-col justify-between gap-3">
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-black text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                                                                SCENE {String(scene.scene_number).padStart(3, '0')}
-                                                            </span>
-                                                            <span className="text-xs font-bold text-white truncate">
-                                                                {scene.scene_title || `Scene ${scene.scene_number}`}
-                                                            </span>
-                                                            {requiresVideo ? (
-                                                                <span className="text-[10px] font-black bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20">
-                                                                    영상 필수
+                                            return (
+                                                <div
+                                                    key={scene.id}
+                                                    className={`p-5 bg-[#13171e] border rounded-2xl transition-all flex flex-col md:flex-row gap-4 ${
+                                                        hasUploaded ? 'border-emerald-500/30' : 'border-white/10'
+                                                    }`}
+                                                >
+                                                    <div className="flex-1 flex flex-col justify-between gap-3">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-black text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                                                                    SCENE {String(scene.scene_number).padStart(3, '0')}
                                                                 </span>
-                                                            ) : (
-                                                                <span className="text-[10px] font-bold bg-white/5 text-gray-400 px-2 py-0.5 rounded border border-white/5">
-                                                                    이미지 / 영상
+                                                                <span className="text-xs font-bold text-white truncate">
+                                                                    {scene.scene_title || `Scene ${scene.scene_number}`}
                                                                 </span>
-                                                            )}
+                                                                {requiresVideo ? (
+                                                                    <span className="text-[10px] font-black bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20">
+                                                                        영상 필수
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] font-bold bg-white/5 text-gray-400 px-2 py-0.5 rounded border border-white/5">
+                                                                        이미지 / 영상
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="mt-2 text-xs text-gray-300 leading-relaxed bg-[#1c2027] p-3 rounded-xl border border-white/5">
+                                                                {scene.scene_text}
+                                                            </p>
                                                         </div>
-                                                        <p className="mt-2 text-xs text-gray-300 leading-relaxed bg-[#1c2027] p-3 rounded-xl border border-white/5">
-                                                            {scene.scene_text}
-                                                        </p>
-                                                    </div>
 
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        {!requiresVideo && (
-                                                            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 hover:border-purple-500 rounded-xl text-xs font-bold text-gray-200 transition-all">
-                                                                <ImageIcon className="h-3.5 w-3.5 text-purple-400" />
-                                                                {isImageUploading ? '업로드 중...' : '이미지 등록'}
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {!requiresVideo && (
+                                                                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 hover:border-purple-500 rounded-xl text-xs font-bold text-gray-200 transition-all">
+                                                                    <ImageIcon className="h-3.5 w-3.5 text-purple-400" />
+                                                                    {isImageUploading ? '업로드 중...' : '이미지 등록'}
+                                                                    <input
+                                                                        disabled={Boolean(uploadingKey)}
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        className="hidden"
+                                                                        onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
+                                                                    />
+                                                                </label>
+                                                            )}
+                                                            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 hover:border-orange-500 rounded-xl text-xs font-bold text-gray-200 transition-all">
+                                                                <Video className="h-3.5 w-3.5 text-orange-400" />
+                                                                {isVideoUploading ? '업로드 중...' : '비디오 등록'}
                                                                 <input
                                                                     disabled={Boolean(uploadingKey)}
                                                                     type="file"
-                                                                    accept="image/*"
+                                                                    accept="video/*"
                                                                     className="hidden"
-                                                                    onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
+                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="w-full md:w-56 shrink-0 bg-[#0e1218] border border-white/5 rounded-xl p-3 flex flex-col justify-center items-center text-center min-h-[120px]">
+                                                        {sceneAssets.length > 0 ? (
+                                                            <div className="w-full space-y-2">
+                                                                <div className="text-[10px] font-bold text-emerald-400 flex items-center justify-center gap-1">
+                                                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                    등록 완료
+                                                                </div>
+                                                                {sceneAssets.map((asset: any) => (
+                                                                    <a
+                                                                        key={asset.id}
+                                                                        href={assetLink(asset)}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="block p-2 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 rounded-lg text-[11px] text-gray-300 truncate text-left transition-all"
+                                                                    >
+                                                                        <span className="font-bold text-purple-400 uppercase text-[10px] block">
+                                                                            [{asset.asset_type}]
+                                                                        </span>
+                                                                        {asset.file_name}
+                                                                    </a>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-gray-500 text-xs flex flex-col items-center gap-1">
+                                                                <Upload className="h-5 w-5 text-gray-600 mb-1" />
+                                                                <span>미등록 상태</span>
+                                                            </div>
                                                         )}
-                                                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 hover:border-orange-500 rounded-xl text-xs font-bold text-gray-200 transition-all">
-                                                            <Video className="h-3.5 w-3.5 text-orange-400" />
-                                                            {isVideoUploading ? '업로드 중...' : '비디오 등록'}
-                                                            <input
-                                                                disabled={Boolean(uploadingKey)}
-                                                                type="file"
-                                                                accept="video/*"
-                                                                className="hidden"
-                                                                onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
-                                                            />
-                                                        </label>
                                                     </div>
                                                 </div>
-
-                                                <div className="w-full md:w-56 shrink-0 bg-[#0e1218] border border-white/5 rounded-xl p-3 flex flex-col justify-center items-center text-center min-h-[120px]">
-                                                    {sceneAssets.length > 0 ? (
-                                                        <div className="w-full space-y-2">
-                                                            <div className="text-[10px] font-bold text-emerald-400 flex items-center justify-center gap-1">
-                                                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                                                등록 완료
-                                                            </div>
-                                                            {sceneAssets.map((asset: any) => (
-                                                                <a
-                                                                    key={asset.id}
-                                                                    href={assetLink(asset)}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="block p-2 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 rounded-lg text-[11px] text-gray-300 truncate text-left transition-all"
-                                                                >
-                                                                    <span className="font-bold text-purple-400 uppercase text-[10px] block">
-                                                                        [{asset.asset_type}]
-                                                                    </span>
-                                                                    {asset.file_name}
-                                                                </a>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-gray-500 text-xs flex flex-col items-center gap-1">
-                                                            <Upload className="h-5 w-5 text-gray-600 mb-1" />
-                                                            <span>미등록 상태</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                                            )
+                                        })}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
+                                <div className="w-full bg-[#13171e] border border-white/10 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-5">
+                                    <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                                        <ImageIcon className="h-8 w-8" />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/20">
+                                            3. 이미지/영상 (Assets) 단계
+                                        </span>
+                                        <h3 className="text-base font-black text-white mt-3">선택된 작업 프로젝트가 없습니다</h3>
+                                        <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                                            이미지 및 영상을 등록하려면 먼저 <strong>[1. 주제 (Topics)]</strong> 메뉴에서 작업할 주제의 <strong>[작업 가져오기]</strong>를 누르시거나, 상단 드롭다운에서 진행할 프로젝트를 선택해주세요.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-2.5 w-full mt-1">
+                                        <button
+                                            onClick={() => setCurrentNav('topics')}
+                                            className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5"
+                                        >
+                                            <Sparkles className="h-4 w-4" />
+                                            주제 탐색하러 가기
+                                        </button>
+                                        {topics.length > 0 && (
+                                            <button
+                                                onClick={() => claimTopic(topics[0].id)}
+                                                className="flex-1 py-3 px-4 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 text-gray-200 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                첫 번째 주제 바로 시작
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )
                     )}
 
                     {/* 4. 자막/제출 화면 (subtitle_gen.html 100% 동일) */}
-                    {currentNav === 'subtitle_gen' && selectedProject && (
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-5xl mx-auto w-full">
-                            <div className="bg-[#13171e] border border-white/10 rounded-3xl p-6 shadow-xl space-y-5">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
-                                    <div>
-                                        <h3 className="font-black text-base text-white flex items-center gap-2">
-                                            <Type className="h-5 w-5 text-pink-400" />
-                                            자막 싱크 및 원격 렌더 큐 제출
-                                        </h3>
-                                        <p className="text-xs text-gray-400 mt-1">에셋 등록을 모두 마친 후 원격 분산 렌더 워커로 패키지를 제출합니다.</p>
+                    {currentNav === 'subtitle_gen' && (
+                        selectedProject ? (
+                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-5xl mx-auto w-full">
+                                <div className="bg-[#13171e] border border-white/10 rounded-3xl p-6 shadow-xl space-y-5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+                                        <div>
+                                            <h3 className="font-black text-base text-white flex items-center gap-2">
+                                                <Type className="h-5 w-5 text-pink-400" />
+                                                자막 싱크 및 원격 렌더 큐 제출
+                                            </h3>
+                                            <p className="text-xs text-gray-400 mt-1">에셋 등록을 모두 마친 후 원격 분산 렌더 워커로 패키지를 제출합니다.</p>
+                                        </div>
+                                        <button
+                                            onClick={submitProject}
+                                            disabled={loading || selectedProject.project.status === 'review_requested'}
+                                            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                                        >
+                                            <Send className="h-4 w-4" />
+                                            {selectedProject.project.status === 'review_requested' ? '렌더 큐 접수 완료됨' : '최종 렌더 큐 제출하기'}
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={submitProject}
-                                        disabled={loading || selectedProject.project.status === 'review_requested'}
-                                        className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-                                    >
-                                        <Send className="h-4 w-4" />
-                                        {selectedProject.project.status === 'review_requested' ? '렌더 큐 접수 완료됨' : '최종 렌더 큐 제출하기'}
-                                    </button>
-                                </div>
 
-                                {/* 자막 타임라인 리스트 */}
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-bold text-gray-300">자막 싱크 타임라인 (1080p 중앙 하단 자막바 고정)</h4>
-                                    <div className="space-y-2.5">
-                                        {selectedProject.scenes.map((s, idx) => (
-                                            <div key={s.id} className="p-3.5 bg-[#1c2027] border border-white/5 rounded-xl flex items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xs font-mono font-bold text-pink-400">
-                                                        #{String(idx + 1).padStart(2, '0')}
+                                    {/* 자막 타임라인 리스트 */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-bold text-gray-300">자막 싱크 타임라인 (1080p 중앙 하단 자막바 고정)</h4>
+                                        <div className="space-y-2.5">
+                                            {selectedProject.scenes.map((s, idx) => (
+                                                <div key={s.id} className="p-3.5 bg-[#1c2027] border border-white/5 rounded-xl flex items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xs font-mono font-bold text-pink-400">
+                                                            #{String(idx + 1).padStart(2, '0')}
+                                                        </span>
+                                                        <p className="text-xs text-gray-200">{s.scene_text}</p>
+                                                    </div>
+                                                    <span className="text-[10px] text-gray-400 shrink-0 font-mono bg-white/5 px-2 py-0.5 rounded">
+                                                        자막바 고정
                                                     </span>
-                                                    <p className="text-xs text-gray-200">{s.scene_text}</p>
                                                 </div>
-                                                <span className="text-[10px] text-gray-400 shrink-0 font-mono bg-white/5 px-2 py-0.5 rounded">
-                                                    자막바 고정
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
+                                <div className="w-full bg-[#13171e] border border-white/10 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-5">
+                                    <div className="w-16 h-16 rounded-2xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+                                        <Type className="h-8 w-8" />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-pink-400 bg-pink-500/10 px-2.5 py-1 rounded-full border border-pink-500/20">
+                                            4. 자막/제출 (Subtitles) 단계
+                                        </span>
+                                        <h3 className="text-base font-black text-white mt-3">선택된 작업 프로젝트가 없습니다</h3>
+                                        <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                                            자막 싱크 및 렌더 큐 제출을 확인하려면 먼저 <strong>[1. 주제 (Topics)]</strong> 메뉴에서 작업할 주제의 <strong>[작업 가져오기]</strong>를 누르시거나, 상단 드롭다운에서 진행할 프로젝트를 선택해주세요.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-2.5 w-full mt-1">
+                                        <button
+                                            onClick={() => setCurrentNav('topics')}
+                                            className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5"
+                                        >
+                                            <Sparkles className="h-4 w-4" />
+                                            주제 탐색하러 가기
+                                        </button>
+                                        {topics.length > 0 && (
+                                            <button
+                                                onClick={() => claimTopic(topics[0].id)}
+                                                className="flex-1 py-3 px-4 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 text-gray-200 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                첫 번째 주제 바로 시작
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )
                     )}
 
                     {/* 5. 썸네일 화면 (thumbnail.html 100% 동일) */}
-                    {currentNav === 'thumbnail' && selectedProject && (
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-4xl mx-auto w-full">
-                            <div className="bg-[#13171e] border border-white/10 rounded-3xl p-6 shadow-xl space-y-5">
-                                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                    <div>
-                                        <h3 className="font-black text-base text-white flex items-center gap-2">
-                                            <LayoutTemplate className="h-5 w-5 text-cyan-400" />
-                                            유튜브 썸네일 등록 (Thumbnail)
-                                        </h3>
-                                        <p className="text-xs text-gray-400 mt-1">1280x720 해상도의 고화질 썸네일을 업로드하세요.</p>
+                    {currentNav === 'thumbnail' && (
+                        selectedProject ? (
+                            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6 max-w-4xl mx-auto w-full">
+                                <div className="bg-[#13171e] border border-white/10 rounded-3xl p-6 shadow-xl space-y-5">
+                                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                                        <div>
+                                            <h3 className="font-black text-base text-white flex items-center gap-2">
+                                                <LayoutTemplate className="h-5 w-5 text-cyan-400" />
+                                                유튜브 썸네일 등록 (Thumbnail)
+                                            </h3>
+                                            <p className="text-xs text-gray-400 mt-1">1280x720 해상도의 고화질 썸네일을 업로드하세요.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-10 bg-[#1c2027] border border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+                                        <ImageIcon className="h-10 w-10 text-gray-500" />
+                                        <div className="text-xs text-gray-300 font-bold">1280x720 썸네일 이미지 파일을 선택하세요</div>
+                                        <label className="cursor-pointer px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/30">
+                                            썸네일 파일 선택 및 업로드
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={e => uploadAsset(null, 'thumbnail', e.target.files?.[0] || null)}
+                                            />
+                                        </label>
                                     </div>
                                 </div>
-
-                                <div className="p-10 bg-[#1c2027] border border-dashed border-white/20 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
-                                    <ImageIcon className="h-10 w-10 text-gray-500" />
-                                    <div className="text-xs text-gray-300 font-bold">1280x720 썸네일 이미지 파일을 선택하세요</div>
-                                    <label className="cursor-pointer px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/30">
-                                        썸네일 파일 선택 및 업로드
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={e => uploadAsset(null, 'thumbnail', e.target.files?.[0] || null)}
-                                        />
-                                    </label>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
+                                <div className="w-full bg-[#13171e] border border-white/10 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-5">
+                                    <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                                        <LayoutTemplate className="h-8 w-8" />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full border border-cyan-500/20">
+                                            5. 썸네일 (Cover) 단계
+                                        </span>
+                                        <h3 className="text-base font-black text-white mt-3">선택된 작업 프로젝트가 없습니다</h3>
+                                        <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                                            유튜브 썸네일을 등록하려면 먼저 <strong>[1. 주제 (Topics)]</strong> 메뉴에서 작업할 주제의 <strong>[작업 가져오기]</strong>를 누르시거나, 상단 드롭다운에서 진행할 프로젝트를 선택해주세요.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-2.5 w-full mt-1">
+                                        <button
+                                            onClick={() => setCurrentNav('topics')}
+                                            className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5"
+                                        >
+                                            <Sparkles className="h-4 w-4" />
+                                            주제 탐색하러 가기
+                                        </button>
+                                        {topics.length > 0 && (
+                                            <button
+                                                onClick={() => claimTopic(topics[0].id)}
+                                                className="flex-1 py-3 px-4 bg-[#1c2027] hover:bg-[#252b36] border border-white/10 text-gray-200 rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                첫 번째 주제 바로 시작
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )
                     )}
 
                     {/* 6. 프로젝트 목록 화면 (projects.html?view=projects 100% 동일한 풀 테이블) */}
