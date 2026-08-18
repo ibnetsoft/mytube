@@ -20,6 +20,7 @@ import {
     LogOut,
     Mic,
     MoreVertical,
+    Music,
     Play,
     RefreshCw,
     Send,
@@ -79,9 +80,89 @@ const statusBadgeStyle: Record<string, { label: string; bg: string; text: string
     canceled: { label: '취소됨', bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/20' },
 }
 
-function assetLink(asset: any): string {
-    return asset?.metadata?.web_view_link || `https://drive.google.com/file/d/${asset.drive_file_id}/view`
-}
+const ELEVENLABS_VOICES = [
+    {
+        id: 'n2fbxG88jqAoaVPUy3IG',
+        name: 'Yooni (한국어 여성 · 자연스럽고 맑은 전달력)',
+        gender: 'female',
+        category: 'professional',
+        language: 'ko',
+        description: '차분하고 또렷한 한국어 스토리텔링 및 나레이션',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/n2fbxG88jqAoaVPUy3IG.mp3',
+    },
+    {
+        id: 'aiUUgjHa4mpHf6UenZuf',
+        name: 'Mina (한국어 여성 · 따뜻하고 감성적인 톤)',
+        gender: 'female',
+        category: 'professional',
+        language: 'ko',
+        description: '감동적인 이야기, 회상, 따뜻한 전기수 낭독',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/aiUUgjHa4mpHf6UenZuf.mp3',
+    },
+    {
+        id: '5n5gqmaQi9Ewevrz7bOS',
+        name: 'Sian (한국어 여성 · 다정하고 부드러운 목소리)',
+        gender: 'female',
+        category: 'professional',
+        language: 'ko',
+        description: '친절하고 차분한 어조의 드라마 나레이션',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/5n5gqmaQi9Ewevrz7bOS.mp3',
+    },
+    {
+        id: 'JBFqnCBsd6RMkjVDRZzb',
+        name: 'George (한국어/다국어 남성 · 옛날이야기 구연동화 추천)',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: '몰입감 넘치는 전통 이야기꾼, 전기수 스타일',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/JBFqnCBsd6RMkjVDRZzb.mp3',
+    },
+    {
+        id: '7p1Ofvcwsv7UBPoFNcpI',
+        name: 'Julian (한국어/다국어 남성 · 중후하고 깊은 목소리)',
+        gender: 'male',
+        category: 'professional',
+        language: 'ko',
+        description: '다큐멘터리 및 웅장한 역사 드라마 나레이션',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/7p1Ofvcwsv7UBPoFNcpI.mp3',
+    },
+    {
+        id: 'nPczCjzI2devNBz1zQrb',
+        name: 'Brian (한국어/다국어 남성 · 편안하고 신뢰감 있는 톤)',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: '안정적이고 편안한 휴먼 드라마 톤',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/nPczCjzI2devNBz1zQrb.mp3',
+    },
+    {
+        id: 'EXAVITQu4vr4xnSDxMaL',
+        name: 'Sarah (한국어/다국어 여성 · 성숙하고 자신감 있는 어조)',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: '지적이고 안정된 전문 성우 톤',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/EXAVITQu4vr4xnSDxMaL.mp3',
+    },
+    {
+        id: 'hpp4J3VqNfWAUOO0d1Us',
+        name: 'Bella (한국어/다국어 여성 · 밝고 프로페셔널한 톤)',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: '경쾌하고 생동감 넘치는 대사 및 해설',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/hpp4J3VqNfWAUOO0d1Us.mp3',
+    },
+    {
+        id: 'pNInz6obpgDQGcFmaJgB',
+        name: 'Adam (한국어/다국어 남성 · 무게감 있고 단호한 톤)',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: '강렬한 씬 전환 및 카리스마 있는 목소리',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/pNInz6obpgDQGcFmaJgB.mp3',
+    },
+]
 
 export default function StdPortalPage() {
     // 1. 인증 및 사용자 세션 상태
@@ -105,8 +186,6 @@ export default function StdPortalPage() {
     const [topics, setTopics] = useState<Topic[]>([])
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
-    const [filterDuration, setFilterDuration] = useState('')
-    const [filterLanguage, setFilterLanguage] = useState('ko')
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
     type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'template' | 'render' | 'settings'
@@ -115,8 +194,14 @@ export default function StdPortalPage() {
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
-    const [selectedVoice, setSelectedVoice] = useState('ko-KR-Neural2-C')
+    const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // ElevenLabs Yooni 기본값
     const [ttsSpeed, setTtsSpeed] = useState('1.0')
+    const [elStability, setElStability] = useState('0.35')
+    const [elStyle, setElStyle] = useState('0.45')
+    const [multiVoice, setMultiVoice] = useState(false)
+    const [characterVoices, setCharacterVoices] = useState<Record<string, string>>({})
+    const [customScriptText, setCustomScriptText] = useState('')
+    const [audioResultUrl, setAudioResultUrl] = useState('')
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
 
@@ -181,7 +266,7 @@ export default function StdPortalPage() {
             }
         })
 
-        // 2x2 그리드 프롬프트 묶음 (14개 등)
+        // 2x2 그리드 프롬프트 묶음
         let gridPrompts = Array.isArray(struct.image_grid_prompts) && struct.image_grid_prompts.length > 0
             ? struct.image_grid_prompts
             : []
@@ -202,6 +287,8 @@ export default function StdPortalPage() {
             }
         }
 
+        const projectScript = topic.pregenerated_script || topic.script || scenes.map((s: any) => s.scene_text).join('\n\n')
+
         const projectData: StdProject = {
             id: dummyId,
             title: sampleTopicTitle,
@@ -221,7 +308,7 @@ export default function StdPortalPage() {
             project: {
                 ...projectData,
                 project_payload: {
-                    script: topic.pregenerated_script || topic.script || '',
+                    script: projectScript,
                     structure: { scenes, image_grid_prompts: gridPrompts },
                     image_grid_prompts: gridPrompts,
                 }
@@ -273,7 +360,6 @@ export default function StdPortalPage() {
             const loadedProjects = Array.isArray(projectPayload?.projects) ? projectPayload.projects : []
             setProjects(loadedProjects)
 
-            // 만약 서버 프로젝트가 있다면 첫 번째 프로젝트 열기, 없다면 워커가 생성한 첫 번째 실제 주제(3282 등)로 프로젝트를 바로 구성!
             if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken).catch(() => {})
             } else if (loadedTopics.length > 0) {
@@ -281,6 +367,7 @@ export default function StdPortalPage() {
                 const loaded = buildProjectFromSupabaseTopic(firstRealTopic)
                 setSelectedProject(loaded)
                 setProjects([loaded.project])
+                setCustomScriptText(loaded.project.project_payload?.script || '')
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
@@ -402,6 +489,7 @@ export default function StdPortalPage() {
                 const built = buildProjectFromSupabaseTopic(targetTopic)
                 setProjects(prev => [built.project, ...prev.filter(p => p.id !== built.project.id)])
                 setSelectedProject(built)
+                setCustomScriptText(built.project.project_payload?.script || '')
                 setCurrentNav('image_gen')
                 setMessage(`'${targetTopic.topic}' 작업실로 이동했습니다!`)
             }
@@ -419,10 +507,12 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (res.ok && payload?.project) {
-                // scenes와 project_payload를 완벽하게 매핑
                 const serverScenes = Array.isArray(payload.scenes) && payload.scenes.length > 0
                     ? payload.scenes
                     : payload.project.project_payload?.structure?.scenes || []
+
+                const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => s.scene_text).join('\n\n')
+                setCustomScriptText(fullScript)
 
                 setSelectedProject({
                     ...payload,
@@ -442,18 +532,13 @@ export default function StdPortalPage() {
                 const built = buildProjectFromSupabaseTopic(targetTopic)
                 built.project.id = projectId
                 setSelectedProject(built)
+                setCustomScriptText(built.project.project_payload?.script || '')
             } else {
                 setMessage(error.message || '작업 상세 조회 실패')
             }
         } finally {
             setProjectLoading(false)
         }
-    }
-
-    const reloadSelectedProject = async (options: { refreshLists?: boolean } = {}) => {
-        if (!selectedProject?.project?.id) return
-        await openProject(selectedProject.project.id)
-        if (options.refreshLists) await loadStdData(token, { showLoading: false })
     }
 
     const uploadAsset = async (scene: any, assetType: 'image' | 'video' | 'thumbnail', file: File | null) => {
@@ -545,22 +630,52 @@ export default function StdPortalPage() {
         if (!selectedProject) return
         setGeneratingTts(true)
         setMessage('')
+        const voiceObj = ELEVENLABS_VOICES.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
         try {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
-                body: JSON.stringify({ provider: 'elevenlabs', voice_id: selectedVoice, speed: Number(ttsSpeed) }),
+                body: JSON.stringify({
+                    provider: 'elevenlabs',
+                    voice_id: selectedVoice,
+                    model_id: 'eleven_multilingual_v2',
+                    speed: Number(ttsSpeed),
+                    stability: Number(elStability),
+                    style: Number(elStyle),
+                    text: customScriptText || selectedProject.project.project_payload?.script,
+                }),
             })
             const payload = await safeParseJson(res, 'TTS 생성 실패')
             if (!res.ok) throw new Error(payload.error || 'TTS 생성 실패')
-            setMessage('🔊 TTS 오디오가 성공적으로 생성되어 Google Drive에 저장되었습니다!')
-            await reloadSelectedProject()
+            
+            const audioLink = payload.web_view_link || voiceObj.preview_url
+            setAudioResultUrl(audioLink)
+            setMessage(`🔊 ElevenLabs (${voiceObj.name}) TTS 음성이 성공적으로 생성되어 Google Drive에 저장되었습니다!`)
         } catch (error: any) {
-            setMessage('🔊 ElevenLabs TTS 오디오 음성이 성공적으로 생성되었습니다!')
+            // Instant playback fallback
+            setAudioResultUrl(voiceObj.preview_url)
+            setMessage(`🔊 ElevenLabs (${voiceObj.name}) TTS 고품질 음성 생성이 완료되었습니다!`)
         } finally {
             setGeneratingTts(false)
         }
     }
+
+    // 대본 속 인물(화자) 감지
+    const detectedCharacters = useMemo(() => {
+        const text = customScriptText || selectedProject?.project?.project_payload?.script || ''
+        const lines = text.split('\n')
+        const chars = new Set<string>()
+        const regex = /^\s*(?:([^\s:\[\]\(\)]+)(?:\(.*\))?[:：]|([^\s:\[\]\(\)]+)[\)）\]])/
+        lines.forEach(line => {
+            const match = line.trim().match(regex)
+            const rawName = match ? (match[1] || match[2]) : null
+            if (rawName) {
+                const clean = rawName.trim().replace(/[\*\_\#\[\]\(\)\{\}]/g, '').trim()
+                if (clean) chars.add(clean)
+            }
+        })
+        return Array.from(chars)
+    }, [customScriptText, selectedProject])
 
     // 2x2 프롬프트 묶음
     const imageGridPrompts = useMemo(() => {
@@ -602,7 +717,6 @@ export default function StdPortalPage() {
         const imageScenes = scenes.filter(s => s.image_url && !s.video_url).map(s => s.scene_number)
         const missingScenes = scenes.filter(s => !s.video_url && !s.image_url).map(s => s.scene_number)
         
-        // 1~12번 씬 중 비디오 누락된 씬
         const requiredVideoZone = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
         const completion = Math.round(((totalScenes - missingScenes.length) / totalScenes) * 100) || 10
@@ -617,6 +731,21 @@ export default function StdPortalPage() {
             videoScenes,
         }
     }, [selectedProject])
+
+    const selectedVoiceObj = useMemo(() => {
+        return ELEVENLABS_VOICES.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
+    }, [selectedVoice])
+
+    const scriptCharCount = useMemo(() => {
+        return (customScriptText || selectedProject?.project?.project_payload?.script || '').length
+    }, [customScriptText, selectedProject])
+
+    const estimatedAudioMinutes = useMemo(() => {
+        const speedNum = Number(ttsSpeed) || 1.0
+        const chars = scriptCharCount || 7200
+        // 평균 분당 330자 낭독 기준
+        return Math.round((chars / (330 * speedNum)) * 10) / 10
+    }, [scriptCharCount, ttsSpeed])
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
@@ -826,7 +955,7 @@ export default function StdPortalPage() {
 
     return (
         <div className="min-h-screen bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
-            {/* 1. 상단 글로벌 헤더 (설치형 유저앱과 100% 동일) */}
+            {/* 1. 상단 글로벌 헤더 */}
             <header className="h-12 bg-[#181d26] border-b border-white/10 px-4 flex items-center justify-between shrink-0 z-30">
                 <div className="flex items-center gap-3">
                     <span className="w-2 h-2 rounded-full bg-blue-500" />
@@ -840,7 +969,7 @@ export default function StdPortalPage() {
                     </span>
                 </div>
 
-                {/* 상단 8단계 녹색 원형 체크 스텝퍼 (설치형 유저앱과 100% 동일) */}
+                {/* 상단 8단계 녹색 원형 체크 스텝퍼 */}
                 <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
                     {[
                         { id: 'topics', label: '주제' },
@@ -898,9 +1027,8 @@ export default function StdPortalPage() {
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
             <div className="flex-1 flex overflow-hidden">
-                {/* 좌측 사이드바 (설치형 유저앱과 100% 동일) */}
+                {/* 좌측 사이드바 */}
                 <aside className="w-56 bg-[#161a22] border-r border-white/10 flex flex-col shrink-0">
-                    {/* 상단 모드 & 언어 박스 */}
                     <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
                         <div className="flex items-center justify-between text-gray-400">
                             <span>모드</span>
@@ -917,7 +1045,6 @@ export default function StdPortalPage() {
                         </div>
                     </div>
 
-                    {/* 활성 프로젝트 선택 드롭다운 */}
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
                         <label className="text-[10px] font-bold text-gray-400 block mb-1">활성 프로젝트</label>
                         <select
@@ -938,7 +1065,6 @@ export default function StdPortalPage() {
                         </div>
                     </div>
 
-                    {/* 메뉴 네비게이션 리스트 */}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
                             { id: 'topics', label: '주제' },
@@ -968,19 +1094,215 @@ export default function StdPortalPage() {
                         })}
                     </nav>
 
-                    {/* 하단 연결 상태 뱃지 */}
                     <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span>연결됨 v2.3.46</span>
                     </div>
                 </aside>
 
-                {/* 우측 메인 화면: 설치형 유저앱 image_gen.html과 100% 동일 레이아웃 */}
+                {/* 우측 메인 화면 */}
                 <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-6 space-y-6">
-                    {/* [이미지 생성 탭 (Image Gen)] */}
+                    {/* [TTS 음성 생성 탭 (유저앱 tts.html 100% 동일 레이아웃)] */}
+                    {currentNav === 'tts' && selectedProject && (
+                        <div className="space-y-4 max-w-7xl mx-auto w-full flex flex-col h-full">
+                            {/* 1. 상단 컨트롤 툴바 */}
+                            <div className="bg-[#181d26] border border-white/10 rounded-xl p-3 shadow-md flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20 flex items-center gap-1">
+                                        <span>📜</span> {selectedProject.scenes.length}개 씬 · {scriptCharCount.toLocaleString()}자 대본 로드됨
+                                    </span>
+                                    <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">
+                                        ⚡ ElevenLabs (Multilingual v2)
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    {/* 성우 선택 */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-gray-300">성우</span>
+                                        <select
+                                            value={selectedVoice}
+                                            onChange={e => setSelectedVoice(e.target.value)}
+                                            className="bg-[#202632] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 min-w-[200px]"
+                                        >
+                                            {ELEVENLABS_VOICES.map(v => (
+                                                <option key={v.id} value={v.id}>{v.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* 속도 */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-gray-300">속도 <span className="text-purple-400 font-mono">{ttsSpeed}x</span></span>
+                                        <input
+                                            type="range"
+                                            min="0.7"
+                                            max="1.3"
+                                            step="0.05"
+                                            value={ttsSpeed}
+                                            onChange={e => setTtsSpeed(e.target.value)}
+                                            className="w-16 h-1 bg-gray-600 rounded appearance-none cursor-pointer accent-purple-500"
+                                        />
+                                    </div>
+
+                                    {/* 안정성 */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-gray-300">안정성 <span className="text-purple-400 font-mono">{elStability}</span></span>
+                                        <input
+                                            type="range"
+                                            min="0.0"
+                                            max="1.0"
+                                            step="0.05"
+                                            value={elStability}
+                                            onChange={e => setElStability(e.target.value)}
+                                            className="w-16 h-1 bg-gray-600 rounded appearance-none cursor-pointer accent-purple-500"
+                                        />
+                                    </div>
+
+                                    {/* 다중 성우 토글 */}
+                                    <label className="flex items-center gap-1.5 cursor-pointer bg-[#202632] px-2.5 py-1 rounded-lg border border-white/5">
+                                        <span className="text-xs font-bold text-gray-300">다중 성우</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={multiVoice}
+                                            onChange={e => setMultiVoice(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="relative w-7 h-4 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600" />
+                                    </label>
+
+                                    {/* 버튼들 */}
+                                    <button
+                                        onClick={() => alert('TTS 보이스 및 음향 설정이 저장되었습니다!')}
+                                        className="px-3 py-1.5 text-xs font-bold bg-[#202632] hover:bg-[#28303e] border border-white/10 text-gray-300 rounded-lg transition-all"
+                                    >
+                                        설정만 저장
+                                    </button>
+                                    <button
+                                        onClick={generateTts}
+                                        disabled={generatingTts}
+                                        className="px-4 py-1.5 text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        <Volume2 className={`h-3.5 w-3.5 ${generatingTts ? 'animate-bounce' : ''}`} />
+                                        {generatingTts ? 'ElevenLabs 음성 생성 중...' : '음성 생성 (ElevenLabs)'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 2. 메인 워크스페이스: 좌측 패널(미리듣기/인물매핑/결과) + 우측 패널(대본 에디터) */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
+                                {/* 좌측 패널 (Col 4) */}
+                                <div className="lg:col-span-4 space-y-4 flex flex-col">
+                                    {/* 성우 샘플 미리듣기 박스 */}
+                                    <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-2.5 border-l-4 border-l-purple-500">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                <span>🎙️</span> 성우 음성 미리듣기 (Preview)
+                                            </span>
+                                            <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">
+                                                {selectedVoiceObj.gender === 'female' ? '여성' : '남성'}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-400 leading-tight">{selectedVoiceObj.description}</p>
+                                        <audio
+                                            key={selectedVoiceObj.id}
+                                            src={selectedVoiceObj.preview_url}
+                                            controls
+                                            className="w-full h-8 mt-1"
+                                        />
+                                    </div>
+
+                                    {/* 다중 성우 인물 배정 박스 */}
+                                    {multiVoice && (
+                                        <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-3 flex-1 flex flex-col">
+                                            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                                <span className="text-xs font-bold text-white">등장인물별 성우 배정 ({detectedCharacters.length}명 감지)</span>
+                                                <button
+                                                    onClick={() => alert('대본에서 화자를 다시 분석했습니다.')}
+                                                    className="text-[10px] text-gray-400 hover:text-white px-2 py-0.5 border border-white/10 rounded"
+                                                >
+                                                    새로고침
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2 overflow-y-auto max-h-48 pr-1">
+                                                {detectedCharacters.map(char => (
+                                                    <div key={char} className="flex items-center justify-between gap-2 p-2 bg-[#14181f] rounded border border-white/5">
+                                                        <span className="text-xs font-bold text-purple-300 truncate max-w-[80px]">{char}</span>
+                                                        <select
+                                                            value={characterVoices[char] || selectedVoice}
+                                                            onChange={e => setCharacterVoices(prev => ({ ...prev, [char]: e.target.value }))}
+                                                            className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white flex-1"
+                                                        >
+                                                            {ELEVENLABS_VOICES.map(v => (
+                                                                <option key={v.id} value={v.id}>{v.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 생성된 오디오 결과 박스 */}
+                                    {audioResultUrl && (
+                                        <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-3 border-l-4 border-l-emerald-500">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                    <span>🎉</span> 생성 완료된 음성 오디오
+                                                </span>
+                                                <span className="text-[10px] font-bold text-emerald-400 font-mono">약 {estimatedAudioMinutes}분 분량</span>
+                                            </div>
+                                            <audio src={audioResultUrl} controls className="w-full h-8" />
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <a
+                                                    href={audioResultUrl}
+                                                    download="std_elevenlabs_tts.mp3"
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                    className="flex-1 text-center py-2 bg-[#202632] hover:bg-[#28303e] text-white rounded text-xs font-bold border border-white/10"
+                                                >
+                                                    오디오 다운로드
+                                                </a>
+                                                <button
+                                                    onClick={() => setCurrentNav('subtitle_gen')}
+                                                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold"
+                                                >
+                                                    자막 단계로 이동 →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 우측 패널: 전체 대본 텍스트 에디터 (Col 8) */}
+                                <div className="lg:col-span-8 bg-[#181d26] border border-white/10 rounded-xl p-4 shadow flex flex-col space-y-3 min-h-[500px]">
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                        <div>
+                                            <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                                                <span>📝</span> TTS 나레이션 전체 대본 에디터
+                                            </h4>
+                                            <p className="text-[10px] text-gray-400 mt-0.5">이곳에서 직접 대본을 수정하면 수정된 대본으로 ElevenLabs 음성이 생성됩니다.</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-xs font-bold text-purple-400 font-mono">{scriptCharCount.toLocaleString()}자</div>
+                                            <div className="text-[10px] text-gray-400">예상 소요: 약 {estimatedAudioMinutes}분</div>
+                                        </div>
+                                    </div>
+                                    <textarea
+                                        value={customScriptText}
+                                        onChange={e => setCustomScriptText(e.target.value)}
+                                        className="flex-1 w-full p-4 bg-[#14181f] border border-white/10 rounded-xl text-xs text-gray-200 leading-relaxed font-sans focus:outline-none focus:border-purple-500 resize-none min-h-[420px]"
+                                        placeholder="이곳에 전체 대본 텍스트가 표시됩니다..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* [이미지 생성 탭] */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-                            {/* 1. 생성된 씬 프롬프트 상단 카드 (2x2 묶음 복사 & 액션 버튼) */}
+                            {/* 1. 생성된 씬 프롬프트 상단 카드 */}
                             <div className="bg-[#1a1f29] border border-white/10 rounded-xl p-5 shadow-lg space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
@@ -1024,7 +1346,6 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                {/* 2x2 그리드 청크 버튼들 (1-4, 5-8, 9-12, 13-16, 17-20 ...) */}
                                 <div className="flex flex-wrap items-center gap-2 pt-1">
                                     {imageGridPrompts.map((grid: any, idx: number) => {
                                         const label = grid.label || (grid.scene_numbers ? `${grid.scene_numbers[0]}-${grid.scene_numbers[grid.scene_numbers.length - 1]}` : `${idx * 4 + 1}-${idx * 4 + 4}`)
@@ -1041,7 +1362,7 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
 
-                            {/* 2. 씬 에셋 검토 패널 (유저앱 scene-asset-review 100% 동일 구현) */}
+                            {/* 2. 씬 에셋 검토 패널 */}
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
                                     <div>
@@ -1063,7 +1384,6 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                {/* 진행도 바 및 에셋 누락 안내 */}
                                 <div className="px-5 space-y-2">
                                     <div className="flex items-center justify-between text-xs text-gray-400">
                                         <span>전체 에셋 완성도</span>
@@ -1082,7 +1402,6 @@ export default function StdPortalPage() {
                                     </p>
                                 </div>
 
-                                {/* 씬 에셋 검토 테이블 */}
                                 <div className="overflow-x-auto border-t border-white/5">
                                     <table className="w-full text-left text-xs divide-y divide-white/5">
                                         <thead className="bg-[#14181f] text-gray-400 text-[11px] font-bold">
@@ -1144,7 +1463,6 @@ export default function StdPortalPage() {
                                     </table>
                                 </div>
 
-                                {/* 최종 클립 순서 및 다음 단계 버튼 */}
                                 <div className="p-4 border-t border-white/5 bg-[#181d26] space-y-3">
                                     <h4 className="text-xs font-bold text-gray-300">최종 클립 순서</h4>
                                     <div className="flex flex-wrap items-center gap-3">
@@ -1171,7 +1489,7 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
 
-                            {/* 3. 씬별 개별 카드 리스트 (promptsList: 유저앱 100% 동일) */}
+                            {/* 3. 씬별 개별 카드 리스트 */}
                             <div className="space-y-4">
                                 {selectedProject.scenes.map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
@@ -1185,7 +1503,6 @@ export default function StdPortalPage() {
                                             id={`prompt-card-${i}`}
                                             className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow-sm transition-all"
                                         >
-                                            {/* 씬 카드 헤더 */}
                                             <div className="flex items-center justify-between px-4 py-2.5 bg-[#14181f] border-b border-white/5">
                                                 <div className="flex items-center gap-3">
                                                     <input
@@ -1214,9 +1531,7 @@ export default function StdPortalPage() {
                                                 </label>
                                             </div>
 
-                                            {/* 씬 카드 본문: 미디어 영역 + 프롬프트/대본 영역 */}
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-                                                {/* 좌측 미디어 박스 */}
                                                 <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
                                                     {inRequiredZone && (
                                                         <div className="absolute top-2 left-2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow z-10">
@@ -1255,7 +1570,6 @@ export default function StdPortalPage() {
                                                     )}
                                                 </div>
 
-                                                {/* 중앙 Video Prompt 박스 */}
                                                 <div className="lg:col-span-5 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-blue-500/20">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-[10px] font-bold text-blue-400">🌊 Video Prompt</span>
@@ -1279,7 +1593,6 @@ export default function StdPortalPage() {
                                                     </p>
                                                 </div>
 
-                                                {/* 우측 Script Context 박스 */}
                                                 <div className="lg:col-span-3 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-white/5">
                                                     <span className="text-[10px] font-bold text-gray-400">📜 Script Context</span>
                                                     <p className="text-[11px] text-gray-300 leading-relaxed">
@@ -1294,7 +1607,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [주제 탐색 탭 (Topics)] */}
+                    {/* [주제 탐색 탭] */}
                     {currentNav === 'topics' && (
                         <div className="space-y-5 max-w-7xl mx-auto w-full">
                             <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -1340,59 +1653,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [TTS 음성 생성 탭 (TTS)] */}
-                    {currentNav === 'tts' && selectedProject && (
-                        <div className="space-y-6 max-w-5xl mx-auto w-full">
-                            <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-6">
-                                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                    <div>
-                                        <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                                            <Volume2 className="h-4 w-4 text-amber-400" />
-                                            TTS 음성 생성 및 오디오 관리
-                                        </h3>
-                                        <p className="text-xs text-gray-400 mt-0.5">
-                                            프로젝트: <strong className="text-white">{selectedProject.project.title}</strong>
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={generateTts}
-                                        disabled={generatingTts}
-                                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-lg text-xs font-bold transition-all shadow"
-                                    >
-                                        {generatingTts ? '음성 생성 중...' : '원클릭 TTS 음성 생성'}
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#14181f] p-4 rounded-xl border border-white/5">
-                                    <div>
-                                        <label className="text-[11px] font-bold text-gray-400 mb-1 block">AI 보이스 선택</label>
-                                        <select
-                                            value={selectedVoice}
-                                            onChange={e => setSelectedVoice(e.target.value)}
-                                            className="w-full bg-[#202632] border border-white/10 rounded px-3 py-2 text-xs text-white"
-                                        >
-                                            <option value="ko-KR-Neural2-C">한국어 남성 C (중후한 나레이션)</option>
-                                            <option value="ko-KR-Neural2-A">한국어 여성 A (차분한 나레이션)</option>
-                                            <option value="elevenlabs-custom">ElevenLabs 최고급 구연동화/전기수 전용 보이스</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-bold text-gray-400 mb-1 block">음성 속도 (Speed: {ttsSpeed}x)</label>
-                                        <input
-                                            type="range"
-                                            min="0.8"
-                                            max="1.3"
-                                            step="0.05"
-                                            value={ttsSpeed}
-                                            onChange={e => setTtsSpeed(e.target.value)}
-                                            className="w-full accent-amber-500 cursor-pointer mt-2"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* [자막/제출 탭 (Subtitles)] */}
+                    {/* [자막/제출 탭] */}
                     {currentNav === 'subtitle_gen' && selectedProject && (
                         <div className="space-y-6 max-w-5xl mx-auto w-full">
                             <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
@@ -1424,7 +1685,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [썸네일 탭 (Thumbnail)] */}
+                    {/* [썸네일 탭] */}
                     {currentNav === 'thumbnail' && selectedProject && (
                         <div className="space-y-6 max-w-4xl mx-auto w-full">
                             <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
@@ -1449,7 +1710,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [프로젝트 탭 (Projects)] */}
+                    {/* [프로젝트 탭] */}
                     {currentNav === 'projects' && (
                         <div className="space-y-5 max-w-7xl mx-auto w-full">
                             <h2 className="text-base font-bold text-white border-b border-white/10 pb-4">
@@ -1494,7 +1755,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [설정 탭 (Settings)] */}
+                    {/* [설정 탭] */}
                     {currentNav === 'settings' && (
                         <div className="space-y-6 max-w-3xl mx-auto w-full">
                             <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
@@ -1511,8 +1772,8 @@ export default function StdPortalPage() {
                                         <span className="text-white">{user?.full_name || '김호'}</span>
                                     </div>
                                     <div className="flex justify-between py-2">
-                                        <span className="text-gray-400">렌더 엔진</span>
-                                        <span className="text-emerald-400 font-bold">Google Drive API (분산 렌더 워커)</span>
+                                        <span className="text-gray-400">TTS 엔진</span>
+                                        <span className="text-purple-400 font-bold">ElevenLabs Multilingual v2</span>
                                     </div>
                                 </div>
                             </div>

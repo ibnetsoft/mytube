@@ -156,9 +156,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
 
     try {
-        const apiKey = await getGlobalSetting('sys_api_elevenlabs')
+        let apiKey = ''
+        try {
+            apiKey = await getGlobalSetting('sys_api_elevenlabs')
+        } catch {
+            apiKey = ''
+        }
         if (!apiKey) {
-            return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured in web admin settings' }, { status: 500 })
+            apiKey = process.env.ELEVENLABS_API_KEY || 'sk_d86b5fe40c6a6f7012affbc13135fa4adfc171eaf9c58332'
+        }
+        if (!apiKey) {
+            return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
         }
 
         const text = buildTtsText(project, scenes || [], body?.text)
