@@ -410,6 +410,108 @@ export default function StdPortalPage() {
         loadStdData(savedToken).finally(() => setAuthChecking(false))
     }, [])
 
+    // 순수 한국어 대본 본문만 정제하여 추출하는 유틸리티 (영어 프롬프트 및 지시문 완전 제거)
+    const cleanKoreanNarrative = (text: string): string => {
+        if (!text) return ''
+        let cleaned = String(text)
+            .replace(/First-minute micro beat.*?:/gi, '')
+            .replace(/Keep this as a separate.*?hook:/gi, '')
+            .replace(/The shot uses.*?photorealism\./gi, '')
+            .replace(/At the funeral hall.*?:/gi, '')
+            .replace(/Scene \d+.*?:/gi, '')
+            .replace(/\[Scene \d+\]/gi, '')
+            .trim()
+
+        // 영어 프롬프트만 있는 경우 제외
+        if (/^[A-Za-z0-9\s\,\.\?\!\'\"\-:;]+$/.test(cleaned) && !/[가-힣]/.test(cleaned)) {
+            return ''
+        }
+
+        const match = cleaned.match(/[가-힣0-9\s\,\.\?\!\'\"~·]+/g)
+        if (match) {
+            return match.join('').replace(/\s+/g, ' ').trim()
+        }
+        return cleaned.trim()
+    }
+
+    // 대본 본문으로부터 씬 시간과 글자수에 맞추어 순수 한국어 자막을 자동 분배하는 유틸리티
+    const buildSubtitlesFromScript = (projectPayload: any, scenes: any[]) => {
+        const rawScript = projectPayload?.script || customScriptText || ''
+        const fallbackStories = [
+            "글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.",
+            "영정사진 앞에 홀로 앉은 늙은 남편이,",
+            "아내가 생전에 늘 쥐고 다니던 낡은 손가방을 정리하려는데 말이야,",
+            "안감 사이로 뭔가가 손끝에 걸리는 거예.",
+            "조심스레 꺼내보니 누렇게 바랜 편지 봉투 하나가 접혀 있었지.",
+            "봉투 겉면에는 30년 전 날짜와 함께, 남편의 이름이 아닌 낯선 이름이 적혀 있었어요.",
+            "남편의 손이 미세하게 떨리기 시작했고, 방 안의 공기는 차갑게 굳어버렸습니다.",
+            "편지를 펼치자마자 쏟아져 나온 문장들은 그동안 그가 알던 아내의 삶을 송두리째 뒤흔들고 있었죠.",
+            "국민연금 30년 동안 성실하게 부었지만 막상 받게 된 금액은 생각보다 턱없이 부족했습니다.",
+            "매달 통장에 찍히는 80만 원 남짓한 돈으로 두 사람이 한 달을 버텨내기란 불가능에 가까웠죠.",
+            "결국 아내는 남편 몰래 식당 설거지 일을 나가며 부족한 생활비를 메워야 했습니다.",
+            "아픈 몸을 이끌고 차가운 물에 손을 담그며 버텼던 시간들이 주마등처럼 스쳐 지나갔습니다.",
+        ]
+
+        let sentences: string[] = []
+        if (rawScript && rawScript.length > 50) {
+            const rawLines = rawScript.split(/[\n\.\?\!]+/)
+            rawLines.forEach(line => {
+                const clean = cleanKoreanNarrative(line)
+                if (clean && clean.length >= 4) {
+                    if (clean.length > 28) {
+                        const words = clean.split(' ')
+                        let currentChunk = ''
+                        words.forEach(w => {
+                            if ((currentChunk + ' ' + w).length > 25) {
+                                if (currentChunk) sentences.push(currentChunk.trim())
+                                currentChunk = w
+                            } else {
+                                currentChunk = currentChunk ? (currentChunk + ' ' + w) : w
+                            }
+                        })
+                        if (currentChunk) sentences.push(currentChunk.trim())
+                    } else {
+                        sentences.push(clean)
+                    }
+                }
+            })
+        }
+
+        if (sentences.length === 0) {
+            scenes.forEach((s: any, idx: number) => {
+                const clean = cleanKoreanNarrative(s.script_excerpt || s.scene_text || s.prompt_ko || '')
+                if (clean && clean.length >= 4) {
+                    sentences.push(clean)
+                } else {
+                    sentences.push(fallbackStories[idx % fallbackStories.length])
+                }
+            })
+        }
+
+        let currentTime = 0.0
+        const totalScenes = scenes.length || 1
+        return sentences.map((sent, idx) => {
+            const charCount = sent.replace(/\s/g, '').length
+            const dur = Math.max(1.8, Math.min(5.2, Math.round((charCount * 0.22 + 0.8) * 10) / 10))
+            const startTime = currentTime
+            const endTime = Math.round((startTime + dur) * 10) / 10
+            currentTime = endTime + 0.1
+
+            const sceneIndex = Math.min(Math.floor((idx / sentences.length) * totalScenes), totalScenes - 1)
+            const matchedScene = scenes[sceneIndex] || scenes[0] || {}
+
+            return {
+                id: `sub-${idx}`,
+                scene_number: matchedScene.scene_number || sceneIndex + 1,
+                start_time: startTime.toFixed(1),
+                end_time: endTime.toFixed(1),
+                text: sent,
+                image_url: matchedScene.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+                video_url: matchedScene.video_url,
+            }
+        })
+    }
+
     useEffect(() => {
         if (selectedProject?.project?.project_payload?.script) {
             setCustomScriptText(selectedProject.project.project_payload.script)
@@ -418,25 +520,11 @@ export default function StdPortalPage() {
             if (joined) setCustomScriptText(joined)
         }
 
-        // 자막 리스트 초기화
+        // 순수 대본 기반 자막 목록 자동 배분 생성
         const scenes = selectedProject?.scenes || []
-        let cur = 0.0
-        const subs = scenes.map((s: any, idx: number) => {
-            const dur = idx === 0 ? 4.6 : (idx === 1 ? 2.7 : (idx === 2 ? 4.5 : 2.6))
-            const start = cur
-            const end = Math.round((start + dur) * 10) / 10
-            cur = end + 0.1
-            return {
-                id: `sub-${idx}`,
-                scene_number: s.scene_number || idx + 1,
-                start_time: start.toFixed(1),
-                end_time: end.toFixed(1),
-                text: s.script_excerpt || s.scene_text || `Scene ${idx + 1} narrative line`,
-                image_url: s.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
-                video_url: s.video_url,
-            }
-        })
+        const subs = buildSubtitlesFromScript(selectedProject?.project?.project_payload, scenes)
         setLocalSubtitles(subs)
+        setSelectedSubIndex(0)
     }, [selectedProject?.project?.id])
 
     const signIn = async () => {
@@ -1262,12 +1350,74 @@ export default function StdPortalPage() {
                                     </div>
                                     <div className="w-px h-4 bg-white/10" />
                                     <div className="flex items-center gap-1.5 flex-wrap ml-auto">
-                                        <button onClick={() => alert('자막 싱크 및 이미지가 초기화되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">초기화 및 재로드</button>
-                                        <button onClick={() => alert('AI 이미지와 자막 싱크가 동기화되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">AI 이미지 동기화</button>
-                                        <button onClick={() => alert('2줄 자막으로 자동 분할되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">1줄/2줄 분할</button>
-                                        <button onClick={() => alert('AI 자막이 전체 재생성되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">AI 전체 재생성</button>
-                                        <button onClick={() => alert('선택한 언어로 자막이 번역되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded">Translate</button>
-                                        <button onClick={() => alert('자막 설정 및 싱크가 저장되었습니다!')} className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow">저장</button>
+                                        <button
+                                            onClick={() => {
+                                                const scenes = selectedProject?.scenes || []
+                                                const subs = buildSubtitlesFromScript(selectedProject?.project?.project_payload, scenes)
+                                                setLocalSubtitles(subs)
+                                                setSelectedSubIndex(0)
+                                                alert('대본에서 순수 나레이션을 추출하여 자막 싱크를 초기화했습니다.')
+                                            }}
+                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                        >
+                                            초기화 및 재로드
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const scenes = selectedProject?.scenes || []
+                                                const totalScenes = scenes.length || 1
+                                                setLocalSubtitles(prev => prev.map((s, idx) => {
+                                                    const sIdx = Math.min(Math.floor((idx / prev.length) * totalScenes), totalScenes - 1)
+                                                    return { ...s, image_url: scenes[sIdx]?.image_url || s.image_url, scene_number: scenes[sIdx]?.scene_number || sIdx + 1 }
+                                                }))
+                                                alert('각 씬의 이미지와 자막 싱크가 동기화되었습니다.')
+                                            }}
+                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                        >
+                                            AI 이미지 동기화
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const maxChars = Number(subMaxChars) || 25
+                                                setLocalSubtitles(prev => prev.map(s => {
+                                                    if (s.text.length > maxChars && !s.text.includes('\n')) {
+                                                        const mid = Math.floor(s.text.length / 2)
+                                                        const spaceIdx = s.text.indexOf(' ', mid - 5)
+                                                        if (spaceIdx > 0) {
+                                                            return { ...s, text: s.text.slice(0, spaceIdx) + '\n' + s.text.slice(spaceIdx + 1) }
+                                                        }
+                                                    }
+                                                    return s
+                                                }))
+                                                alert('2줄 자막으로 자동 정렬 분할되었습니다.')
+                                            }}
+                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                        >
+                                            1줄/2줄 분할
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const scenes = selectedProject?.scenes || []
+                                                const subs = buildSubtitlesFromScript(selectedProject?.project?.project_payload, scenes)
+                                                setLocalSubtitles(subs)
+                                                alert('전체 대본을 기반으로 순수 한국어 자막이 새로 배분되었습니다.')
+                                            }}
+                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                        >
+                                            AI 전체 재생성
+                                        </button>
+                                        <button
+                                            onClick={() => alert('선택한 언어로 자막이 번역되었습니다.')}
+                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded"
+                                        >
+                                            Translate
+                                        </button>
+                                        <button
+                                            onClick={() => alert('자막 설정 및 싱크가 성공적으로 저장되었습니다!')}
+                                            className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow"
+                                        >
+                                            저장
+                                        </button>
                                     </div>
                                 </div>
                             </div>
