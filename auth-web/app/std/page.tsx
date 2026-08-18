@@ -1507,28 +1507,34 @@ export default function StdPortalPage() {
                                                 alt="Preview"
                                                 className="w-full h-full object-cover"
                                             />
-                                            {/* 실시간 폰트/스타일 자막 오버레이 */}
+                                            {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             <div
-                                                className="absolute inset-x-4 text-center select-none"
+                                                className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
                                                 style={{
                                                     bottom: `${subPosY}%`,
-                                                    fontFamily: subFontFamily,
-                                                    color: subTextColor,
-                                                    fontSize: `${Number(subFontSize) * 3.5}px`,
-                                                    fontWeight: 'bold',
-                                                    textShadow: `
-                                                        -${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
-                                                        ${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
-                                                        -${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
-                                                        ${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
-                                                        0 0 10px rgba(0,0,0,0.8)
-                                                    `,
-                                                    backgroundColor: subBgStrip ? `rgba(0,0,0,${subBgOpacity})` : 'transparent',
-                                                    padding: subBgStrip ? '4px 10px' : '0',
-                                                    borderRadius: '4px',
                                                 }}
                                             >
-                                                {currentSub.text}
+                                                <div
+                                                    className="inline-block max-w-full truncate px-4 py-1.5 rounded-lg transition-all"
+                                                    style={{
+                                                        fontFamily: subFontFamily,
+                                                        color: subTextColor,
+                                                        fontSize: `${Number(subFontSize) * 3.5}px`,
+                                                        fontWeight: 'bold',
+                                                        whiteSpace: 'nowrap',
+                                                        lineHeight: '1.3',
+                                                        textShadow: `
+                                                            -${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
+                                                            ${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
+                                                            -${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
+                                                            ${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
+                                                            0 0 10px rgba(0,0,0,0.8)
+                                                        `,
+                                                        backgroundColor: subBgStrip ? `rgba(0,0,0,${subBgOpacity})` : 'transparent',
+                                                    }}
+                                                >
+                                                    {currentSub.text}
+                                                </div>
                                             </div>
                                         </div>
 
