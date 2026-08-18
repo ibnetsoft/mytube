@@ -84,20 +84,34 @@ export async function POST(req: Request) {
             signup_status: 'approved',
         }
 
-        const { data: authData, error: authError } = await getAuthClient().auth.signInWithPassword({
-            email: normalizedEmail,
-            password: inputPassword,
-        }).catch(() => ({ data: { session: null, user: null }, error: null }))
+        let authData: any = { session: null, user: null }
+        let authError: any = null
+        try {
+            const authResult = await getAuthClient().auth.signInWithPassword({
+                email: normalizedEmail,
+                password: inputPassword,
+            })
+            authData = authResult.data
+            authError = authResult.error
+        } catch {
+            authData = { session: null, user: null }
+            authError = null
+        }
 
         if (!authError && authData?.session?.access_token && authData?.user?.email) {
             let resolvedProfile = profile
             if (!resolvedProfile) {
-                const { data } = await supabaseAdmin
-                    .from('profiles')
-                    .select('*')
-                    .or(`id.eq.${authData.user.id},email.eq.${normalizedEmail}`)
-                    .maybeSingle()
-                    .catch(() => ({ data: null }))
+                let data = null
+                try {
+                    const profileResult = await supabaseAdmin
+                        .from('profiles')
+                        .select('*')
+                        .or(`id.eq.${authData.user.id},email.eq.${normalizedEmail}`)
+                        .maybeSingle()
+                    data = profileResult.data
+                } catch {
+                    data = null
+                }
                 resolvedProfile = data
             }
 

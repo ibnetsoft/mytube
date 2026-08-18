@@ -702,6 +702,9 @@ async def sync_auth(request: Request):
             profile = {
                 "membership": resync_result.get("membership"),
                 "token_balance": resync_result.get("token_balance"),
+                "full_name": resync_result.get("full_name"),
+                "nationality": resync_result.get("nationality"),
+                "contact": resync_result.get("contact"),
             }
                     # [AIR-0225B 자동 복구] 공용 AI 키(global_settings)는 원래
                     # login_user()의 최초 1회 resync에서만 로드된다. 그 한 번이
@@ -725,6 +728,9 @@ async def sync_auth(request: Request):
             if profile:
                 auth_service._membership = profile.get("membership", "std")
                 auth_service._token_balance = profile.get("token_balance", 0)
+                auth_service._user_name = profile.get("full_name") or ""
+                auth_service._user_nationality = profile.get("nationality") or ""
+                auth_service._user_contact = profile.get("contact") or ""
 
                 templates = get_templates()
                 if templates:

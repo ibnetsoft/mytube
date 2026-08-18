@@ -68,6 +68,13 @@ export async function POST(req: Request) {
             membership: snapshot.profile.membership,
             token_balance: snapshot.profile.token_balance,
             global_settings: snapshot.profile.global_settings,
+            full_name: snapshot.profile.full_name,
+            nationality: snapshot.profile.nationality,
+            contact: snapshot.profile.contact,
+            referral_code: snapshot.profile.referral_code,
+            preferred_category_ids: snapshot.profile.preferred_category_ids,
+            preferred_video_length: snapshot.profile.preferred_video_length,
+            categories: snapshot.profile.categories,
             // [AIR-0225B Batch A] Opaque, HMAC-signed - lets the desktop app
             // resume a session later (app relaunch, cookie-restored login)
             // without resending the password or the local backend needing

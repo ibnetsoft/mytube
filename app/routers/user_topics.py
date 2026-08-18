@@ -1034,6 +1034,23 @@ async def get_recommended_topics(
     scored_topics.sort(key=lambda x: x['_score'], reverse=True)
     result_topics = scored_topics[:limit]
 
+    # Preference score ranks prepared topics; it should not hide the whole
+    # queue when a profile is sparse or no prepared topic matches the user's
+    # current preferred buckets. Keep desktop behavior aligned with STD web.
+    if len(result_topics) < limit:
+        selected_ids = {str(topic.get("id")) for topic in result_topics}
+        for topic in available_topics:
+            if len(result_topics) >= limit:
+                break
+            if str(topic.get("id")) in selected_ids or not _is_recommendable_topic(topic):
+                continue
+            result_topics.append({
+                **topic,
+                "_score": 0,
+                "payout_multiplier": _calculate_payout_multiplier(topic, rebalancing_settings),
+            })
+            selected_ids.add(str(topic.get("id")))
+
     # recommendation cache
     if result_topics:
         recommendations = [

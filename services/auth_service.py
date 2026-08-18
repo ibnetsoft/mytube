@@ -350,6 +350,9 @@ class AuthService:
             try:
                 self._membership = presynced.get("membership") or "std"
                 self._token_balance = presynced.get("token_balance") or 0
+                self._user_name = presynced.get("full_name") or ""
+                self._user_nationality = presynced.get("nationality") or ""
+                self._user_contact = presynced.get("contact") or ""
                 if presynced.get("session_token"):
                     self._session_token = presynced.get("session_token")
                 print(f"[Auth] Logged in user {email} (presynced). Membership: {self._membership}, Balance: {self._token_balance}")

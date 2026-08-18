@@ -68,6 +68,12 @@ function hasReadySceneMediaPrompts(topic: any): boolean {
         const prompt = String(grid?.prompt || grid?.grid_prompt || '').trim()
         const sceneNumbers = Array.isArray(grid?.scene_numbers) ? grid.scene_numbers : []
         if (!prompt || sceneNumbers.length !== 4) return false
+        const template = String(grid?.template || '')
+        if (template && !['strict_2x2_v1', 'strict_2x2_compact_v1'].includes(template)) return false
+        if (prompt.length < 420) return false
+        for (const position of ['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right']) {
+            if (!prompt.includes(`Position: ${position}`)) return false
+        }
         if (seenGridPrompts.has(prompt)) return false
         seenGridPrompts.add(prompt)
         for (const sceneNumber of sceneNumbers) coveredSceneNumbers.add(String(sceneNumber))

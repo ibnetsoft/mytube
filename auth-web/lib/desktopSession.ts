@@ -135,6 +135,13 @@ export type DesktopProfileSnapshot = {
         membership: string
         token_balance: number
         global_settings: Record<string, string>
+        full_name: string
+        nationality: string
+        contact: string
+        referral_code: string
+        preferred_category_ids: any[]
+        preferred_video_length: string
+        categories: any[]
     }
 }
 
@@ -144,7 +151,7 @@ export async function fetchDesktopProfileSnapshot(
 ): Promise<DesktopProfileSnapshot | null> {
     const { data: profile, error } = await supabaseAdmin
         .from('profiles')
-        .select('is_approved,membership,token_balance,preferred_languages')
+        .select('is_approved,membership,token_balance,preferred_languages,full_name,nationality,contact,referral_code,preferred_category_ids,preferred_video_length')
         .eq('email', email)
         .maybeSingle()
 
@@ -170,6 +177,11 @@ export async function fetchDesktopProfileSnapshot(
         .select('key,value')
         .in('key', Object.keys(SYS_KEY_MAP))
 
+    const { data: categoriesRows } = await supabaseAdmin
+        .from('categories')
+        .select('id,name,video_type')
+        .order('name', { ascending: true })
+
     const globalSettings: Record<string, string> = {}
     for (const row of settingsRows || []) {
         const destKey = SYS_KEY_MAP[row.key]
@@ -193,6 +205,13 @@ export async function fetchDesktopProfileSnapshot(
             membership: profile.membership || 'std',
             token_balance: profile.token_balance || 0,
             global_settings: globalSettings,
+            full_name: profile.full_name || '',
+            nationality: profile.nationality || '',
+            contact: profile.contact || '',
+            referral_code: profile.referral_code || '',
+            preferred_category_ids: Array.isArray(profile.preferred_category_ids) ? profile.preferred_category_ids : [],
+            preferred_video_length: profile.preferred_video_length || '',
+            categories: categoriesRows || [],
         },
     }
 }
