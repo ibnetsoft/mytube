@@ -179,7 +179,7 @@ export async function fetchDesktopProfileSnapshot(
 
     const { data: categoriesRows } = await supabaseAdmin
         .from('categories')
-        .select('id,name,video_type')
+        .select('id,name')
         .order('name', { ascending: true })
 
     const globalSettings: Record<string, string> = {}
@@ -211,7 +211,10 @@ export async function fetchDesktopProfileSnapshot(
             referral_code: profile.referral_code || '',
             preferred_category_ids: Array.isArray(profile.preferred_category_ids) ? profile.preferred_category_ids : [],
             preferred_video_length: profile.preferred_video_length || '',
-            categories: categoriesRows || [],
+            categories: (categoriesRows || []).map((row: any) => ({
+                ...row,
+                video_type: row.video_type || 'longform',
+            })),
         },
     }
 }
