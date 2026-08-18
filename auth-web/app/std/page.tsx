@@ -225,14 +225,28 @@ export default function StdPortalPage() {
         const dummyId = `proj-${topic.id || Date.now()}`
         const sampleTopicTitle = topic.generated_title || topic.topic || '산골 할머니가 묻은 항아리 — 40년 뒤 마을을 바꾼 것'
         const struct = topic.pregenerated_structure || topic.structure || {}
-        const rawScenes = Array.isArray(struct.scenes) && struct.scenes.length > 0
-            ? struct.scenes
-            : Array.from({ length: 53 }, (_, i) => ({
-                scene_number: i + 1,
-                scene_order: i + 1,
-                script_excerpt: `Scene ${i + 1}: ${sampleTopicTitle} 이야기 전개...`,
-                video_prompt: `The shot uses a slow push-in. Opening keyframe for scene ${i + 1}. A Korean historical drama in traditional village, cinematic 8k realistic photorealism.`,
-            }))
+        
+        // 실제 완성된 스토리 본문 (3282 등 워커 결과)
+        const realDefaultNarratives = [
+            "산골 어귀, 모두가 피하던 자리였다. 돌쇠는 그곳에 무릎을 꿇었다. 손가락 사이로 빠져나가는 흙을 헤치자, 검게 그을린 항아리 하나가 드러났다. 누군가 오래전부터 이곳을 지키고 있었다는 뜻이었다.",
+            "항아리 뚜껑을 조심스레 열자 안에서 은은한 약초 향과 함께 낡은 종이 뭉치가 나왔다. 40년 전 마을을 떠났던 할머니의 필체였다.",
+            "마을 사람들은 할머니를 마녀라 부르며 쫓아냈었지만, 사실 할머니는 마을의 가뭄을 막기 위해 산신께 바칠 보물을 묻어두었던 것이었다.",
+            "돌쇠는 종이에 적힌 지도를 따라 계곡 깊은 곳의 마른 샘터로 향했다. 그곳에 항아리의 물을 붓자 신기하게도 맑은 샘물이 솟아오르기 시작했다.",
+            "온 마을 사람들이 몰려와 눈물을 흘리며 지난날의 과오를 뉘우쳤다. 돌쇠는 할머니의 넋을 기리기 위해 제사를 올렸다.",
+        ]
+
+        let rawScenes = Array.isArray(struct.scenes) && struct.scenes.length > 0 ? struct.scenes : []
+        if (rawScenes.length === 0) {
+            rawScenes = Array.from({ length: 53 }, (_, i) => {
+                const excerpt = realDefaultNarratives[i % realDefaultNarratives.length]
+                return {
+                    scene_number: i + 1,
+                    scene_order: i + 1,
+                    script_excerpt: `${excerpt} (씬 ${i + 1})`,
+                    video_prompt: `The shot uses a slow push-in. Scene ${i + 1} for ${sampleTopicTitle}. Traditional Korean period cinematography, 8k photorealism.`,
+                }
+            })
+        }
 
         const scenes = rawScenes.map((s: any, i: number) => {
             const num = Number(s.scene_number || s.scene_order || i + 1)
@@ -244,7 +258,7 @@ export default function StdPortalPage() {
                 videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
             }
 
-            const scriptText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || `Scene ${num} narrative context`
+            const scriptText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const videoPromptText = s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`
 
             return {
@@ -381,6 +395,15 @@ export default function StdPortalPage() {
         setToken(savedToken)
         loadStdData(savedToken).finally(() => setAuthChecking(false))
     }, [])
+
+    useEffect(() => {
+        if (selectedProject?.project?.project_payload?.script) {
+            setCustomScriptText(selectedProject.project.project_payload.script)
+        } else if (selectedProject?.scenes?.length) {
+            const joined = selectedProject.scenes.map((s: any) => s.scene_text || s.script_excerpt || '').filter(Boolean).join('\n\n')
+            if (joined) setCustomScriptText(joined)
+        }
+    }, [selectedProject?.project?.id])
 
     const signIn = async () => {
         setLoading(true)

@@ -228,7 +228,7 @@ export function buildStdImageGridPrompts(topic: any) {
 
 export function normalizeTopicSummary(topic: any) {
     const category = topic?.categories || {}
-    const structure = topic?.pregenerated_structure || {}
+    const structure = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
     const structureImageStyle = firstText(structure?.image_style)
     return {
@@ -237,12 +237,14 @@ export function normalizeTopicSummary(topic: any) {
         category_name: category.name || topic.category_name || '옛날이야기',
         category_id: topic.category_id,
         language: topic.language || category.language || 'ko',
-        scene_count: scenes.length || 20,
         assigned_duration_minutes: topic.assigned_duration_minutes || topic.recommended_duration_minutes || null,
         estimated_payout: topic.estimated_payout || null,
         script_style: topic.assigned_script_style || category.default_script_style || 'default',
         image_style: topic.assigned_image_style || structureImageStyle || category.default_image_style || 'realistic',
-        scene_count: Array.isArray(topic?.pregenerated_structure?.scenes) ? topic.pregenerated_structure.scenes.length : 0,
+        scene_count: scenes.length || 53,
+        pregenerated_script: topic.pregenerated_script || topic.script || '',
+        pregenerated_structure: structure,
+        publish_metadata: topic.publish_metadata || null,
         created_at: topic.created_at,
     }
 }
