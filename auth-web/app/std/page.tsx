@@ -216,8 +216,56 @@ export default function StdPortalPage() {
     const [subBgVOffset, setSubBgVOffset] = useState('0')
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
-    const [previewCurrentTime, setPreviewCurrentTime] = useState('00:00')
+    const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+
+    const totalDuration = useMemo(() => {
+        if (!localSubtitles || localSubtitles.length === 0) return 60.0
+        const last = localSubtitles[localSubtitles.length - 1]
+        return Math.max(60.0, last.end_num || Number(last.end_time) || 60.0)
+    }, [localSubtitles])
+
+    const formatTime = (sec: number): string => {
+        if (isNaN(sec) || !isFinite(sec)) return "00:00"
+        const m = Math.floor(sec / 60)
+        const s = Math.floor(sec % 60)
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    }
+
+    // 실시간 재생 루프
+    useEffect(() => {
+        let interval: any = null
+        if (isPlayingPreview) {
+            interval = setInterval(() => {
+                setPlaybackTime(prev => {
+                    const nextTime = Math.round((prev + 0.1) * 10) / 10
+                    if (nextTime >= totalDuration) {
+                        setIsPlayingPreview(false)
+                        return 0.0
+                    }
+                    return nextTime
+                })
+            }, 100)
+        } else if (interval) {
+            clearInterval(interval)
+        }
+        return () => {
+            if (interval) clearInterval(interval)
+        }
+    }, [isPlayingPreview, totalDuration])
+
+    // playbackTime에 맞춰 현재 자막 인덱스 동기화
+    useEffect(() => {
+        if (!localSubtitles || localSubtitles.length === 0) return
+        const activeIdx = localSubtitles.findIndex(s => {
+            const start = s.start_num ?? Number(s.start_time) ?? 0
+            const end = s.end_num ?? Number(s.end_time) ?? (start + 3.0)
+            return playbackTime >= start && playbackTime < end
+        })
+        if (activeIdx >= 0 && activeIdx !== selectedSubIndex) {
+            setSelectedSubIndex(activeIdx)
+        }
+    }, [playbackTime, localSubtitles])
 
     const authedJsonHeaders = useMemo(() => ({
         Authorization: `Bearer ${token}`,
