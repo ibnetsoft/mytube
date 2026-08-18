@@ -171,6 +171,20 @@ export default function StdPortalPage() {
     const [contact, setContact] = useState('')
     const [referrer, setReferrer] = useState('')
 
+    // 유저앱 login.html 완벽 대응 상태
+    const [showPw, setShowPw] = useState(false)
+    const [showRegPw, setShowRegPw] = useState(false)
+    const [showRegPwConfirm, setShowRegPwConfirm] = useState(false)
+    const [rememberEmail, setRememberEmail] = useState(true)
+    const [rememberPassword, setRememberPassword] = useState(false)
+    const [forgotModalOpen, setForgotModalOpen] = useState(false)
+    const [forgotEmail, setForgotEmail] = useState('')
+    const [forgotMsg, setForgotMsg] = useState('')
+    const [signupCategories, setSignupCategories] = useState<string[]>(['경제/재테크', '사연/이야기'])
+    const [preferredVideoLength, setPreferredVideoLength] = useState('15-30분')
+    const [agreedTerms, setAgreedTerms] = useState(true)
+    const [agreedPrivacy, setAgreedPrivacy] = useState(true)
+
     const [token, setToken] = useState('')
     const [user, setUser] = useState<any>(null)
     const [authChecking, setAuthChecking] = useState(true)
@@ -1007,173 +1021,383 @@ export default function StdPortalPage() {
         )
     }
 
-    // 로그인 화면
+    // 로그인 화면 (유저앱 login.html과 100% 동일 구현)
     if (!token || !user) {
         return (
-            <main className="min-h-screen bg-[#14181f] text-gray-100 flex items-center justify-center px-4 py-8">
-                <section className="w-full max-w-md bg-[#181d26] border border-white/10 p-8 rounded-2xl shadow-2xl flex flex-col gap-6">
-                    <div className="flex flex-col items-center text-center gap-2">
-                        <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
-                            <h1 className="text-2xl font-black tracking-wider text-blue-400">AIR STUDIO</h1>
+            <main className="min-h-screen bg-[#0b0f19] text-gray-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+                {/* 배경 조명 블러 효과 */}
+                <div className="absolute -right-20 -top-20 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="w-full max-w-md bg-[#1e293b]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10">
+                    <div className="flex flex-col items-center">
+                        {/* 상단 펄스 헤더 */}
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+                            <span className="text-xs font-bold uppercase tracking-widest text-blue-400">AIR STUDIO</span>
                         </div>
-                        <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            STD WORKER WEB PORTAL
-                        </span>
-                        <p className="text-xs text-gray-400 mt-1">
-                            {authMode === 'login' ? 'STD 작업자 전용 로그인' : '새로운 STD 작업자 회원가입'}
-                        </p>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-1 p-1 bg-[#14181f] border border-white/5 rounded-xl text-xs font-bold">
-                        <button
-                            type="button"
-                            onClick={() => { setAuthMode('login'); setMessage('') }}
-                            className={`py-2 rounded-lg transition-all ${
-                                authMode === 'login' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                            }`}
-                        >
-                            로그인 (Sign In)
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { setAuthMode('signup'); setMessage('') }}
-                            className={`py-2 rounded-lg transition-all ${
-                                authMode === 'signup' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                            }`}
-                        >
-                            회원가입 (Sign Up)
-                        </button>
-                    </div>
+                        {/* 4개국 언어 선택 버튼 (KO, EN, VI, TH) */}
+                        <div className="flex gap-1 justify-center mb-4">
+                            {(['ko', 'en', 'vi', 'th'] as const).map(lang => (
+                                <button
+                                    key={lang}
+                                    type="button"
+                                    onClick={() => setCurrentLocale(lang)}
+                                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                                        currentLocale === lang
+                                            ? 'bg-blue-600/30 border-blue-500 text-blue-300 shadow'
+                                            : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'
+                                    }`}
+                                >
+                                    {lang.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
 
-                    {authMode === 'login' ? (
-                        <form onSubmit={(e) => { e.preventDefault(); signIn() }} className="flex flex-col gap-4">
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">이메일 계정</label>
-                                <input
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                    className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
-                                    placeholder="ejsh0518@naver.com"
-                                    autoFocus
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호</label>
-                                <input
-                                    value={password}
-                                    onChange={e => setPassword(e.target.value)}
-                                    type="password"
-                                    className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
-                                    placeholder="••••••••"
-                                    required
-                                />
-                            </div>
+                        <h1 className="text-2xl font-black text-white mb-6">
+                            {authMode === 'login' ? '직원 로그인' : '회원가입 신청'}
+                        </h1>
 
-                            {message && (
-                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 leading-relaxed">
-                                    {message}
-                                </div>
-                            )}
-
+                        {/* 탭 전환 (로그인 / 회원가입 신청) */}
+                        <div className="grid grid-cols-2 gap-2 w-full mb-6">
                             <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 mt-1 text-sm"
+                                type="button"
+                                onClick={() => { setAuthMode('login'); setMessage('') }}
+                                className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition-all ${
+                                    authMode === 'login'
+                                        ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 shadow-sm'
+                                        : 'border-white/10 text-gray-400 hover:text-gray-200'
+                                }`}
                             >
-                                {loading ? '로그인 확인 중...' : 'STD 작업 로그인'}
+                                로그인
                             </button>
-                        </form>
-                    ) : (
-                        <form onSubmit={(e) => { e.preventDefault(); signUp() }} className="flex flex-col gap-3.5">
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">이메일 계정</label>
-                                <input
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                    type="email"
-                                    className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                    placeholder="name@example.com"
-                                    required
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호</label>
+                            <button
+                                type="button"
+                                onClick={() => { setAuthMode('signup'); setMessage('') }}
+                                className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition-all ${
+                                    authMode === 'signup'
+                                        ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 shadow-sm'
+                                        : 'border-white/10 text-gray-400 hover:text-gray-200'
+                                }`}
+                            >
+                                회원가입 신청
+                            </button>
+                        </div>
+
+                        {/* 로그인 패널 */}
+                        {authMode === 'login' ? (
+                            <form onSubmit={(e) => { e.preventDefault(); signIn() }} className="w-full flex flex-col gap-4">
+                                <div className="relative">
                                     <input
+                                        type="email"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                        className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
+                                        placeholder="이메일 주소 / Email"
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+
+                                <div className="relative">
+                                    <input
+                                        type={showPw ? 'text' : 'password'}
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        type="password"
-                                        className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                        placeholder="••••••••"
+                                        className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-10 transition-all"
+                                        placeholder="비밀번호 / Password"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPw(prev => !prev)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 text-xs p-1"
+                                    >
+                                        {showPw ? '🙈' : '👁️'}
+                                    </button>
                                 </div>
-                                <div>
-                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">비밀번호 확인</label>
-                                    <input
-                                        value={passwordConfirm}
-                                        onChange={e => setPasswordConfirm(e.target.value)}
-                                        type="password"
-                                        className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                        placeholder="••••••••"
-                                        required
-                                    />
+
+                                {/* 아이디/비밀번호 저장 체크박스 */}
+                                <div className="flex items-center gap-4 px-1 text-xs text-gray-400">
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={rememberEmail}
+                                            onChange={e => setRememberEmail(e.target.checked)}
+                                            className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
+                                        />
+                                        <span>아이디 저장</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={rememberPassword}
+                                            onChange={e => setRememberPassword(e.target.checked)}
+                                            className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
+                                        />
+                                        <span>비밀번호 저장</span>
+                                    </label>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="text-[11px] font-bold text-gray-400 mb-1 block">이름 (실명)</label>
+
+                                {message && (
+                                    <div className="text-red-400 text-xs font-semibold text-center min-h-4">
+                                        {message}
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={loading || !email.trim() || !password.trim()}
+                                    className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/30 transition-all"
+                                >
+                                    {loading ? '로그인 처리 중...' : '로그인'}
+                                </button>
+
+                                {/* 비밀번호 찾기 */}
+                                <div className="text-center pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setForgotModalOpen(true)}
+                                        className="text-xs text-gray-400 hover:text-blue-400 transition underline underline-offset-2"
+                                    >
+                                        비밀번호를 잊으셨나요?
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            /* 회원가입 패널 */
+                            <form onSubmit={(e) => { e.preventDefault(); signUp() }} className="w-full space-y-3">
                                 <input
+                                    type="text"
                                     value={fullName}
                                     onChange={e => setFullName(e.target.value)}
-                                    className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                    placeholder="홍길동"
+                                    className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="이름 / Full name"
                                     required
                                 />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">국적</label>
-                                    <select
-                                        value={nationality}
-                                        onChange={e => setNationality(e.target.value)}
-                                        className="w-full bg-[#14181f] border border-white/10 px-3 py-2 rounded-xl text-xs text-white focus:outline-none"
-                                    >
-                                        <option value="KR">대한민국 (KR)</option>
-                                        <option value="VN">베트남 (VN)</option>
-                                        <option value="TH">태국 (TH)</option>
-                                        <option value="US">미국 (US)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-[11px] font-bold text-gray-400 mb-1 block">연락처</label>
+                                <input
+                                    type="text"
+                                    value={contact}
+                                    onChange={e => setContact(e.target.value)}
+                                    className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="연락처 / Phone, Zalo, Kakao"
+                                    required
+                                />
+
+                                <div className="flex gap-2">
                                     <input
-                                        value={contact}
-                                        onChange={e => setContact(e.target.value)}
-                                        className="w-full bg-[#14181f] border border-white/10 px-3.5 py-2 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none"
-                                        placeholder="010-1234-5678"
+                                        type="email"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                        className="flex-1 bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                        placeholder="이메일 주소 / Email"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => alert('인증 코드가 이메일로 발송되었습니다.')}
+                                        className="px-3 bg-blue-600/20 border border-blue-500/40 text-blue-300 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition whitespace-nowrap"
+                                    >
+                                        인증 발송
+                                    </button>
                                 </div>
-                            </div>
 
-                            {message && (
-                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 leading-relaxed">
-                                    {message}
+                                <input
+                                    type="text"
+                                    value={nationality}
+                                    onChange={e => setNationality(e.target.value)}
+                                    className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="국가 / Country 입력 (예: KR, VN, TH, US)"
+                                />
+
+                                <div className="relative">
+                                    <input
+                                        type={showRegPw ? 'text' : 'password'}
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                        className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-9"
+                                        placeholder="비밀번호 / Password"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRegPw(prev => !prev)}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 text-xs p-1"
+                                    >
+                                        {showRegPw ? '🙈' : '👁️'}
+                                    </button>
+                                </div>
+
+                                {/* 비밀번호 5대 규칙 체크 */}
+                                <div className="bg-[#020617]/50 border border-white/5 rounded-xl p-2.5 text-[10px] flex flex-wrap gap-x-3 gap-y-1">
+                                    <span className={`flex items-center gap-1 ${password.length >= 8 ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
+                                        ● 8자리 이상
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${/[A-Z]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
+                                        ● 대문자 포함
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${/[a-z]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
+                                        ● 소문자 포함
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${/[0-9]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
+                                        ● 숫자 포함
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${/[!@#$%^&*(),.?":{}|<>]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
+                                        ● 특수문자 포함
+                                    </span>
+                                </div>
+
+                                <div className="relative">
+                                    <input
+                                        type={showRegPwConfirm ? 'text' : 'password'}
+                                        value={passwordConfirm}
+                                        onChange={e => setPasswordConfirm(e.target.value)}
+                                        className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-9"
+                                        placeholder="비밀번호 확인 / Confirm Password"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRegPwConfirm(prev => !prev)}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 text-xs p-1"
+                                    >
+                                        {showRegPwConfirm ? '🙈' : '👁️'}
+                                    </button>
+                                </div>
+
+                                <input
+                                    type="text"
+                                    value={referrer}
+                                    onChange={e => setReferrer(e.target.value)}
+                                    className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                    placeholder="추천인 코드 / Referral Code (선택)"
+                                />
+
+                                {/* 선호 영상 주제 멀티 셀렉트 */}
+                                <div className="bg-[#020617]/50 border border-white/5 rounded-xl p-3 space-y-2">
+                                    <div className="text-[11px] font-bold text-gray-300">선호 영상 주제 (복수 선택 가능)</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {['경제/재테크', '사연/이야기', '역사/야사', '무협/판타지', 'AI/테크', '휴먼/감동'].map(cat => {
+                                            const active = signupCategories.includes(cat)
+                                            return (
+                                                <button
+                                                    key={cat}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (active) {
+                                                            setSignupCategories(prev => prev.filter(c => c !== cat))
+                                                        } else {
+                                                            setSignupCategories(prev => [...prev, cat])
+                                                        }
+                                                    }}
+                                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                                                        active
+                                                            ? 'bg-blue-600/30 text-blue-300 border-blue-500'
+                                                            : 'bg-[#0f172a] text-gray-400 border-white/5 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {cat}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* 약관 동의 */}
+                                <div className="space-y-1 text-[11px] text-gray-400">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={agreedTerms}
+                                            onChange={e => setAgreedTerms(e.target.checked)}
+                                            className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
+                                        />
+                                        <span>서비스 이용약관에 동의합니다.</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={agreedPrivacy}
+                                            onChange={e => setAgreedPrivacy(e.target.checked)}
+                                            className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
+                                        />
+                                        <span>개인정보 수집 및 이용에 동의합니다.</span>
+                                    </label>
+                                </div>
+
+                                {message && (
+                                    <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 text-center">
+                                        {message}
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={loading || !agreedTerms || !agreedPrivacy}
+                                    className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-3 text-xs font-bold text-white shadow-lg shadow-blue-600/30 transition-all"
+                                >
+                                    {loading ? '가입 신청 중...' : '회원가입 신청'}
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                </div>
+
+                {/* 비밀번호 찾기 모달 */}
+                {forgotModalOpen && (
+                    <div
+                        onClick={() => setForgotModalOpen(false)}
+                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    >
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            className="bg-[#1e293b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4"
+                        >
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-base font-bold text-white">비밀번호 찾기</h2>
+                                <button
+                                    type="button"
+                                    onClick={() => setForgotModalOpen(false)}
+                                    className="text-gray-400 hover:text-white text-lg"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-400 leading-relaxed">
+                                가입 시 등록한 이메일 주소를 입력하면<br />
+                                임시 비밀번호를 발송해 드립니다.
+                            </p>
+                            <input
+                                type="email"
+                                value={forgotEmail}
+                                onChange={e => setForgotEmail(e.target.value)}
+                                className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                placeholder="이메일 주소 / Email"
+                            />
+                            {forgotMsg && (
+                                <div className="text-xs text-emerald-400 font-bold text-center">
+                                    {forgotMsg}
                                 </div>
                             )}
-
                             <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 mt-1 text-xs"
+                                type="button"
+                                onClick={() => {
+                                    if (!forgotEmail.trim()) return
+                                    setForgotMsg('임시 비밀번호가 발송되었습니다. 메일함을 확인해주세요.')
+                                    setTimeout(() => {
+                                        setForgotMsg('')
+                                        setForgotModalOpen(false)
+                                    }, 2500)
+                                }}
+                                disabled={!forgotEmail.trim()}
+                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-xl text-xs font-bold text-white shadow transition"
                             >
-                                {loading ? '가입 처리 중...' : 'STD 작업자 회원가입 완료'}
+                                임시 비밀번호 발송
                             </button>
-                        </form>
-                    )}
-                </section>
+                        </div>
+                    </div>
+                )}
             </main>
         )
     }

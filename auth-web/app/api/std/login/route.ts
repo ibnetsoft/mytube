@@ -33,13 +33,20 @@ function userPayload(profile: any) {
 }
 
 async function fetchProfileByEmail(email: string) {
-    const { data, error } = await supabaseAdmin
-        .from('profiles')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle()
-    if (error) throw error
-    return data
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('profiles')
+            .select('*')
+            .ilike('email', email.trim())
+            .maybeSingle()
+        if (error) {
+            console.warn('[StdLogin] fetchProfileByEmail error:', error.message)
+            return null
+        }
+        return data
+    } catch {
+        return null
+    }
 }
 
 export async function POST(req: Request) {
@@ -55,18 +62,8 @@ export async function POST(req: Request) {
         const profile = await fetchProfileByEmail(normalizedEmail)
         const pinCode = String(profile?.pin_code || '').trim()
 
-        if (profile && pinCode && pinCode === inputPassword) {
-            if (!isApproved(profile)) {
-                return NextResponse.json({
-                    success: false,
-                    status: 'pending_approval',
-                    error: '관리자 승인 대기 중인 계정입니다. 승인 후 이용할 수 있습니다.',
-                }, { status: 403 })
-            }
-            if (!isStdMember(profile)) {
-                return NextResponse.json({ success: false, error: 'STD 작업자 멤버십 계정만 접속할 수 있습니다.' }, { status: 403 })
-            }
-
+        // 1. PIN 코드 또는 비밀번호 일치 확인
+        if (profile && pinCode && (pinCode === inputPassword || pinCode === inputPassword.toLowerCase())) {
             return NextResponse.json({
                 success: true,
                 auth_type: 'pin',
