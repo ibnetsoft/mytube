@@ -78,7 +78,6 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
             structure.get("image_grid_prompts"),
             status=structure.get("image_grid_prompt_status"),
             require_status="ready",
-            require_compact_template=True,
         )
     except Exception:
         return False
