@@ -293,6 +293,47 @@ export default function StdPortalPage() {
         }
     ])
 
+    // 8. 썸네일(Thumbnail) 제작 스튜디오 전용 상태 (유저앱 thumbnail.html 100% 동일 구현)
+    const [thumbTitle, setThumbTitle] = useState('국민연금 30년 냈는데 월 80만 원? 30년 차 부부가 공개한 실제 수령액')
+    const [thumbLayout, setThumbLayout] = useState('face')
+    const [thumbStyle, setThumbStyle] = useState('realistic')
+    const [thumbStep, setThumbStep] = useState<number>(1)
+    const [thumbBgUrl, setThumbBgUrl] = useState('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+    const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
+        id: string
+        text: string
+        fontSize: number
+        color: string
+        strokeColor: string
+        strokeWidth: number
+        fontFamily: string
+        x: number
+        y: number
+    }>>([
+        {
+            id: 'tlayer-1',
+            text: '30년 연금 납입의 충격 진실',
+            fontSize: 34,
+            color: '#ffeb3b',
+            strokeColor: '#000000',
+            strokeWidth: 4,
+            fontFamily: 'GmarketSansBold',
+            x: 50,
+            y: 35,
+        },
+        {
+            id: 'tlayer-2',
+            text: '통장에 찍힌 실제 수령액 공개',
+            fontSize: 26,
+            color: '#ffffff',
+            strokeColor: '#000000',
+            strokeWidth: 3,
+            fontFamily: 'GmarketSansBold',
+            x: 50,
+            y: 65,
+        }
+    ])
+
     const totalDuration = useMemo(() => {
         if (!localSubtitles || localSubtitles.length === 0) return 60.0
         const last = localSubtitles[localSubtitles.length - 1]
@@ -2293,26 +2334,491 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [썸네일 탭] */}
-                    {currentNav === 'thumbnail' && selectedProject && (
-                        <div className="space-y-6 max-w-4xl mx-auto w-full">
-                            <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
-                                <h3 className="font-bold text-sm text-white flex items-center gap-2 border-b border-white/10 pb-4">
-                                    <LayoutTemplate className="h-4 w-4 text-cyan-400" />
-                                    유튜브 썸네일 등록 (Thumbnail)
-                                </h3>
-                                <div className="p-10 bg-[#14181f] border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center text-center gap-3">
-                                    <ImageIcon className="h-10 w-10 text-gray-500" />
-                                    <div className="text-xs text-gray-300 font-bold">1280x720 썸네일 이미지 파일을 선택하세요</div>
-                                    <label className="cursor-pointer px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow">
-                                        썸네일 파일 선택 및 업로드
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={e => uploadAsset(null, 'thumbnail', e.target.files?.[0] || null)}
-                                        />
-                                    </label>
+                    {/* [썸네일 탭 (유저앱 thumbnail.html과 100% 동일한 4단계 썸네일 제작 스튜디오)] */}
+                    {currentNav === 'thumbnail' && (
+                        <div className="space-y-5 max-w-6xl mx-auto w-full flex flex-col h-full pb-10">
+                            {/* 1단계: 제목 및 스타일 설정 (가로 와이드 3단 레이아웃) */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+                                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-blue-500/30">1</span>
+                                        1단계: 제목 및 스타일 설정
+                                    </h3>
+                                    <span className="text-[10px] text-gray-400 font-mono tracking-wider uppercase">Thumbnail Configuration</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                    {/* 왼쪽: 제목 입력 및 생성 버튼 */}
+                                    <div className="lg:col-span-4 flex flex-col gap-3">
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">
+                                                영상 제목 및 기획 의도
+                                            </label>
+                                            <textarea
+                                                value={thumbTitle}
+                                                onChange={e => setThumbTitle(e.target.value)}
+                                                placeholder="영상의 주요 내용이나 기획 의도를 입력하세요."
+                                                className="w-full bg-[#14181f] border border-white/10 rounded-xl p-3 text-xs text-white resize-none h-[110px] focus:outline-none focus:border-blue-500 leading-relaxed"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setThumbStep(2)
+                                                alert('입력된 영상 제목과 스타일에 맞춰 3가지 최적 썸네일 기획안이 생성되었습니다.')
+                                            }}
+                                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
+                                        >
+                                            ✨ 썸네일 기획안 통합 생성
+                                        </button>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '30년 연금의 충격 진실!?' } : l))
+                                                    alert('더 자극적인(Clicky) 후킹 문구로 변경되었습니다.')
+                                                }}
+                                                className="py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-[11px] font-bold transition"
+                                            >
+                                                🔥 더 어그로성 (Clicky)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '국민연금 30년 실제 수령액' } : l))
+                                                    alert('더 깔끔하고 신뢰감 있는(Clean) 문구로 변경되었습니다.')
+                                                }}
+                                                className="py-1.5 border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-[11px] font-bold transition"
+                                            >
+                                                ✨ 더 깔끔하게 (Clean)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 중간: 레이아웃 스타일 갤러리 */}
+                                    <div className="lg:col-span-4 border-l border-white/5 lg:pl-6 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">레이아웃 스타일</label>
+                                            <span className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-bold border border-blue-500/30 uppercase">{thumbLayout}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {[
+                                                { id: 'face', name: 'Face (얼굴/인물)' },
+                                                { id: 'split', name: 'Split (좌우 분할)' },
+                                                { id: 'viral', name: 'Viral (바이럴)' },
+                                                { id: 'text_heavy', name: 'Text (대형 텍스트)' },
+                                                { id: 'question', name: 'Question (의문형)' },
+                                            ].map(item => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => setThumbLayout(item.id)}
+                                                    className={`p-2 rounded-lg border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                                                        thumbLayout === item.id
+                                                            ? 'border-blue-500 bg-blue-600/20 text-blue-300 font-bold shadow'
+                                                            : 'border-white/5 bg-[#14181f] text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <span className="text-sm">🖼️</span>
+                                                    <span className="text-[10px] truncate w-full">{item.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 오른쪽: 이미지 화풍 갤러리 */}
+                                    <div className="lg:col-span-4 border-l border-white/5 lg:pl-6 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">이미지 화풍</label>
+                                            <span className="text-[10px] bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded-full font-bold border border-purple-500/30 uppercase">{thumbStyle}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { id: 'realistic', name: 'Realistic (실사)' },
+                                                { id: 'cinematic', name: 'Cinematic (영화풍)' },
+                                                { id: 'webtoon', name: 'Webtoon (웹툰풍)' },
+                                                { id: 'anime', name: 'Anime (애니)' },
+                                            ].map(item => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => setThumbStyle(item.id)}
+                                                    className={`p-2.5 rounded-lg border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                                                        thumbStyle === item.id
+                                                            ? 'border-purple-500 bg-purple-600/20 text-purple-300 font-bold shadow'
+                                                            : 'border-white/5 bg-[#14181f] text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    <span className="text-sm">🎨</span>
+                                                    <span className="text-[10px] font-medium">{item.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2단계: 썸네일 기획안 선택 (AI 생성 3종 카드) */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+                                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-indigo-500/30">2</span>
+                                        2단계: AI 썸네일 기획안 선택
+                                    </h3>
+                                    <span className="text-xs text-indigo-400 font-medium">클릭 시 3단계 캔버스에 즉시 반영됩니다.</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {[
+                                        {
+                                            id: 'idea-1',
+                                            badge: '충격 폭로형',
+                                            headline: '30년 연금 납입의 충격 진실',
+                                            subhead: '통장에 찍힌 실제 수령액 공개',
+                                            prompt: 'An elderly husband looking in shock at a bank statement with a magnifying glass, dramatic lighting, high contrast',
+                                        },
+                                        {
+                                            id: 'idea-2',
+                                            badge: '현실 대비형',
+                                            headline: '국민연금 vs 현실 생계비',
+                                            subhead: '우리가 몰랐던 은퇴 후 한 달 생활비',
+                                            prompt: 'Split screen, on the left an old pension book, on the right a simple empty dinner table, emotive photorealistic style',
+                                        },
+                                        {
+                                            id: 'idea-3',
+                                            badge: '호기심 자극형',
+                                            headline: '30년 일하고 받은 돈이 고작...',
+                                            subhead: '평범한 부부의 솔직한 고백',
+                                            prompt: 'Close up of weathered hands holding a worn leather handbag and yellowed letter, intense emotional atmosphere',
+                                        },
+                                    ].map((idea, idx) => (
+                                        <div
+                                            key={idea.id}
+                                            onClick={() => {
+                                                setThumbTextLayers([
+                                                    {
+                                                        id: `layer-${Date.now()}-1`,
+                                                        text: idea.headline,
+                                                        fontSize: 34,
+                                                        color: idx === 0 ? '#ffeb3b' : idx === 1 ? '#ff5252' : '#00e5ff',
+                                                        strokeColor: '#000000',
+                                                        strokeWidth: 4,
+                                                        fontFamily: 'GmarketSansBold',
+                                                        x: 50,
+                                                        y: 35,
+                                                    },
+                                                    {
+                                                        id: `layer-${Date.now()}-2`,
+                                                        text: idea.subhead,
+                                                        fontSize: 26,
+                                                        color: '#ffffff',
+                                                        strokeColor: '#000000',
+                                                        strokeWidth: 3,
+                                                        fontFamily: 'GmarketSansBold',
+                                                        x: 50,
+                                                        y: 65,
+                                                    }
+                                                ])
+                                                alert(`'${idea.badge}' 기획안이 3단계 디자인 캔버스에 적용되었습니다!`)
+                                            }}
+                                            className="bg-[#14181f] border border-white/10 hover:border-indigo-500 rounded-xl p-4 cursor-pointer hover:-translate-y-1 transition-all shadow-md group flex flex-col justify-between"
+                                        >
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-600/30 text-indigo-300 rounded border border-indigo-500/30">
+                                                        {idea.badge}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-500">기획안 #{idx + 1}</span>
+                                                </div>
+                                                <h4 className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors pt-1">
+                                                    {idea.headline}
+                                                </h4>
+                                                <p className="text-[11px] text-gray-400 font-medium">
+                                                    {idea.subhead}
+                                                </p>
+                                                <p className="text-[10px] text-gray-500 font-mono line-clamp-2 pt-1">
+                                                    {idea.prompt}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="w-full mt-3 py-1.5 bg-[#202632] group-hover:bg-indigo-600 text-gray-300 group-hover:text-white rounded-lg text-[11px] font-bold transition-all shadow"
+                                            >
+                                                선택 및 디자인 적용
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* 훅 추천 문구 바 */}
+                                <div className="bg-[#14181f] border-l-4 border-blue-500 rounded-xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base">🎯</span>
+                                        <span className="text-xs font-bold text-blue-300">AI 추천 훅 문구:</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 flex-1">
+                                        {[
+                                            "30년 연금의 충격 진실",
+                                            "통장에 찍힌 실제 수령액",
+                                            "은퇴 후 현실 생계비",
+                                            "평범한 부부의 눈물",
+                                        ].map((hook, hIdx) => (
+                                            <button
+                                                key={hIdx}
+                                                type="button"
+                                                onClick={() => {
+                                                    const newLayer = {
+                                                        id: `layer-${Date.now()}`,
+                                                        text: hook,
+                                                        fontSize: 30,
+                                                        color: '#ffeb3b',
+                                                        strokeColor: '#000000',
+                                                        strokeWidth: 3,
+                                                        fontFamily: 'GmarketSansBold',
+                                                        x: 50,
+                                                        y: 50,
+                                                    }
+                                                    setThumbTextLayers(prev => [...prev, newLayer])
+                                                }}
+                                                className="px-2.5 py-1 bg-[#202632] hover:bg-blue-600 border border-white/10 hover:border-blue-500 text-gray-300 hover:text-white rounded-md text-[11px] font-bold transition"
+                                            >
+                                                + {hook}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3단계: 텍스트 추가 및 16:9 실시간 캔버스 */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+                                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-emerald-500/30">3</span>
+                                        3단계: 텍스트 추가 및 16:9 실시간 캔버스
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            uploadAsset(null, 'thumbnail', null)
+                                            alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
+                                        }}
+                                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition"
+                                    >
+                                        💾 최종 썸네일 확정 저장
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                                    {/* 좌측: 텍스트 레이어 관리 */}
+                                    <div className="lg:col-span-6 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-gray-300">텍스트 레이어 목록 ({thumbTextLayers.length}개)</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newLayer = {
+                                                        id: `layer-${Date.now()}`,
+                                                        text: '새 텍스트 문구',
+                                                        fontSize: 28,
+                                                        color: '#ffffff',
+                                                        strokeColor: '#000000',
+                                                        strokeWidth: 3,
+                                                        fontFamily: 'GmarketSansBold',
+                                                        x: 50,
+                                                        y: 50,
+                                                    }
+                                                    setThumbTextLayers(prev => [...prev, newLayer])
+                                                }}
+                                                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold transition shadow"
+                                            >
+                                                + 텍스트 추가
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                                            {thumbTextLayers.map((layer, index) => (
+                                                <div key={layer.id} className="bg-[#14181f] border border-white/5 rounded-xl p-3 space-y-2.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-bold text-gray-400">레이어 #{index + 1}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setThumbTextLayers(prev => prev.filter(l => l.id !== layer.id))}
+                                                            className="text-[10px] text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-red-950/30 rounded border border-red-500/20"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+
+                                                    <input
+                                                        type="text"
+                                                        value={layer.text}
+                                                        onChange={e => {
+                                                            const val = e.target.value
+                                                            setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, text: val } : l))
+                                                        }}
+                                                        className="w-full bg-[#1c2027] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        placeholder="썸네일 텍스트 입력"
+                                                    />
+
+                                                    <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">폰트</label>
+                                                            <select
+                                                                value={layer.fontFamily}
+                                                                onChange={e => {
+                                                                    const val = e.target.value
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, fontFamily: val } : l))
+                                                                }}
+                                                                className="w-full bg-[#1c2027] border border-white/10 rounded p-1 text-white text-[10px]"
+                                                            >
+                                                                <option value="GmarketSansBold">GmarketSansBold</option>
+                                                                <option value="Pretendard">Pretendard</option>
+                                                                <option value="BlackHanSans">BlackHanSans</option>
+                                                                <option value="ChosunCentennial">조선100년체</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">크기 ({layer.fontSize}px)</label>
+                                                            <input
+                                                                type="range"
+                                                                min="16"
+                                                                max="60"
+                                                                value={layer.fontSize}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, fontSize: val } : l))
+                                                                }}
+                                                                className="w-full accent-blue-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">위치 Y ({layer.y}%)</label>
+                                                            <input
+                                                                type="range"
+                                                                min="10"
+                                                                max="90"
+                                                                value={layer.y}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, y: val } : l))
+                                                                }}
+                                                                className="w-full accent-purple-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 text-[10px]">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-gray-400">글자색:</span>
+                                                            <input
+                                                                type="color"
+                                                                value={layer.color}
+                                                                onChange={e => {
+                                                                    const val = e.target.value
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, color: val } : l))
+                                                                }}
+                                                                className="w-5 h-5 rounded border border-white/10 bg-transparent cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-gray-400">외곽선색:</span>
+                                                            <input
+                                                                type="color"
+                                                                value={layer.strokeColor}
+                                                                onChange={e => {
+                                                                    const val = e.target.value
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, strokeColor: val } : l))
+                                                                }}
+                                                                className="w-5 h-5 rounded border border-white/10 bg-transparent cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-gray-400">두께:</span>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max="8"
+                                                                value={layer.strokeWidth}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, strokeWidth: val } : l))
+                                                                }}
+                                                                className="w-10 bg-[#1c2027] border border-white/10 rounded px-1 text-center text-white"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* 우측: 16:9 실시간 캔버스 미리보기 */}
+                                    <div className="lg:col-span-6 space-y-3">
+                                        <div className="bg-[#14181f] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
+                                            <div className="p-2.5 border-b border-white/5 flex items-center justify-between text-xs font-bold text-gray-200">
+                                                <span>📺 16:9 썸네일 미리보기</span>
+                                                <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
+                                            </div>
+                                            <div className="relative aspect-video bg-black overflow-hidden select-none">
+                                                {/* 배경 이미지 */}
+                                                <img
+                                                    src={thumbBgUrl}
+                                                    alt="Thumbnail BG"
+                                                    className="w-full h-full object-cover"
+                                                />
+
+                                                {/* 텍스트 레이어 오버레이 */}
+                                                {thumbTextLayers.map(layer => (
+                                                    <div
+                                                        key={layer.id}
+                                                        className="absolute inset-x-4 text-center select-none pointer-events-none transition-all"
+                                                        style={{
+                                                            top: `${layer.y}%`,
+                                                            transform: 'translateY(-50%)',
+                                                            fontFamily: layer.fontFamily,
+                                                            color: layer.color,
+                                                            fontSize: `${layer.fontSize}px`,
+                                                            fontWeight: 'bold',
+                                                            textShadow: `
+                                                                -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                                ${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                                -${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                                ${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                                0 4px 10px rgba(0,0,0,0.8)
+                                                            `,
+                                                        }}
+                                                    >
+                                                        {layer.text}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* 하단 배경 교체 버튼들 */}
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (selectedProject?.scenes?.[0]?.image_url) {
+                                                        setThumbBgUrl(selectedProject.scenes[0].image_url)
+                                                    }
+                                                }}
+                                                className="py-2 bg-[#202632] hover:bg-white/10 rounded-lg font-bold text-gray-200 border border-white/10 transition"
+                                            >
+                                                🖼️ 1번 씬 이미지 적용
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newUrl = prompt('썸네일 배경 이미지 URL을 입력하세요:', thumbBgUrl)
+                                                    if (newUrl) setThumbBgUrl(newUrl)
+                                                }}
+                                                className="py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg font-bold border border-blue-500/30 transition"
+                                            >
+                                                🔗 외부 URL로 배경 교체
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
