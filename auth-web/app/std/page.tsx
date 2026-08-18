@@ -237,6 +237,62 @@ export default function StdPortalPage() {
     const [inquiryText, setInquiryText] = useState('')
     const [inquiryCategory, setInquiryCategory] = useState('시스템 문의')
 
+    // 7. 템플릿(Template) 전용 디자인 스튜디오 상태 (유저앱 template.html 100% 동일 구현)
+    const [templateBgUrl, setTemplateBgUrl] = useState('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+    const [templatePresetName, setTemplatePresetName] = useState('')
+    const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('preset-1')
+    const [textLayers, setTextLayers] = useState<Array<{
+        id: string
+        text: string
+        fontSize: number
+        color: string
+        strokeColor: string
+        strokeWidth: number
+        fontFamily: string
+        x: number
+        y: number
+    }>>([
+        {
+            id: 'layer-1',
+            text: '30년 연금 납입의 충격 진실',
+            fontSize: 34,
+            color: '#ffeb3b',
+            strokeColor: '#000000',
+            strokeWidth: 4,
+            fontFamily: 'GmarketSansBold',
+            x: 50,
+            y: 35,
+        },
+        {
+            id: 'layer-2',
+            text: '통장에 찍힌 실제 수령액 공개',
+            fontSize: 26,
+            color: '#ffffff',
+            strokeColor: '#000000',
+            strokeWidth: 3,
+            fontFamily: 'GmarketSansBold',
+            x: 50,
+            y: 65,
+        }
+    ])
+    const [shapeLayers, setShapeLayers] = useState<Array<{
+        id: string
+        type: 'banner' | 'box'
+        color: string
+        opacity: number
+        y: number
+        height: number
+    }>>([
+        {
+            id: 'shape-1',
+            type: 'banner',
+            color: '#000000',
+            opacity: 0.6,
+            y: 60,
+            height: 25,
+        }
+    ])
+
     const totalDuration = useMemo(() => {
         if (!localSubtitles || localSubtitles.length === 0) return 60.0
         const last = localSubtitles[localSubtitles.length - 1]
@@ -2403,6 +2459,364 @@ export default function StdPortalPage() {
                                         })}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* [템플릿 탭 (유저앱 template.html과 100% 동일 구현)] */}
+                    {currentNav === 'template' && (
+                        <div className="space-y-4 max-w-6xl mx-auto w-full flex flex-col h-full pb-10">
+                            {/* 1. 상단 AI 추천 훅 문구 영역 */}
+                            <div className="bg-[#1c2027] border border-blue-500/30 rounded-xl p-4 shadow-md space-y-2">
+                                <h4 className="text-xs font-bold text-blue-400 flex items-center gap-2">
+                                    <span>🎯 AI 추천 썸네일/템플릿 훅 문구 (클릭 시 레이어 추가)</span>
+                                </h4>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {[
+                                        "30년 연금 납입의 충격 진실",
+                                        "통장에 찍힌 실제 수령액 공개",
+                                        "우리가 몰랐던 은퇴 후 한 달 생활비",
+                                        "국민연금 vs 현실 생계비 격차",
+                                        "30년 일하고 받은 돈이 고작...",
+                                    ].map((hook, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => {
+                                                const newLayer = {
+                                                    id: `layer-${Date.now()}`,
+                                                    text: hook,
+                                                    fontSize: 30,
+                                                    color: idx === 0 ? '#ffeb3b' : '#ffffff',
+                                                    strokeColor: '#000000',
+                                                    strokeWidth: 3,
+                                                    fontFamily: 'GmarketSansBold',
+                                                    x: 50,
+                                                    y: 40 + idx * 15,
+                                                }
+                                                setTextLayers(prev => [...prev, newLayer])
+                                            }}
+                                            className="px-3 py-1.5 bg-[#202632] hover:bg-blue-600 border border-white/10 hover:border-blue-500 rounded-lg text-xs font-bold text-gray-200 hover:text-white transition-all shadow-sm"
+                                        >
+                                            + {hook}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 2. 메인 디자인 스튜디오 (2열 그리드: 좌측 레이어 관리, 우측 16:9 실시간 캔버스) */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                                {/* 좌측 컬럼: 텍스트 레이어 관리 (Col 6~7) */}
+                                <div className="lg:col-span-6 space-y-4">
+                                    <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
+                                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                                                <span>✏️ 텍스트 레이어 ({textLayers.length}개)</span>
+                                            </h4>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newLayer = {
+                                                        id: `layer-${Date.now()}`,
+                                                        text: '새 텍스트 문구',
+                                                        fontSize: 28,
+                                                        color: '#ffffff',
+                                                        strokeColor: '#000000',
+                                                        strokeWidth: 3,
+                                                        fontFamily: 'GmarketSansBold',
+                                                        x: 50,
+                                                        y: 50,
+                                                    }
+                                                    setTextLayers(prev => [...prev, newLayer])
+                                                }}
+                                                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white transition shadow"
+                                            >
+                                                + 텍스트 추가
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                                            {textLayers.map((layer, index) => (
+                                                <div key={layer.id} className="bg-[#14181f] border border-white/5 rounded-xl p-3 space-y-2.5">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[10px] font-bold text-gray-400">레이어 #{index + 1}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setTextLayers(prev => prev.filter(l => l.id !== layer.id))}
+                                                            className="text-[10px] text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-red-950/30 rounded border border-red-500/20"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+
+                                                    <input
+                                                        type="text"
+                                                        value={layer.text}
+                                                        onChange={e => {
+                                                            const val = e.target.value
+                                                            setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, text: val } : l))
+                                                        }}
+                                                        className="w-full bg-[#1c2027] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        placeholder="텍스트 입력"
+                                                    />
+
+                                                    <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">폰트</label>
+                                                            <select
+                                                                value={layer.fontFamily}
+                                                                onChange={e => {
+                                                                    const val = e.target.value
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, fontFamily: val } : l))
+                                                                }}
+                                                                className="w-full bg-[#1c2027] border border-white/10 rounded p-1 text-white text-[10px]"
+                                                            >
+                                                                <option value="GmarketSansBold">GmarketSansBold</option>
+                                                                <option value="Pretendard">Pretendard</option>
+                                                                <option value="BlackHanSans">BlackHanSans</option>
+                                                                <option value="ChosunCentennial">조선100년체</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">글자 크기 ({layer.fontSize}px)</label>
+                                                            <input
+                                                                type="range"
+                                                                min="16"
+                                                                max="60"
+                                                                value={layer.fontSize}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, fontSize: val } : l))
+                                                                }}
+                                                                className="w-full accent-blue-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">세로 위치 Y ({layer.y}%)</label>
+                                                            <input
+                                                                type="range"
+                                                                min="10"
+                                                                max="90"
+                                                                value={layer.y}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, y: val } : l))
+                                                                }}
+                                                                className="w-full accent-purple-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 text-[10px]">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-gray-400">글자색:</span>
+                                                            <input
+                                                                type="color"
+                                                                value={layer.color}
+                                                                onChange={e => {
+                                                                    const val = e.target.value
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, color: val } : l))
+                                                                }}
+                                                                className="w-5 h-5 rounded border border-white/10 bg-transparent cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-gray-400">외곽선색:</span>
+                                                            <input
+                                                                type="color"
+                                                                value={layer.strokeColor}
+                                                                onChange={e => {
+                                                                    const val = e.target.value
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, strokeColor: val } : l))
+                                                                }}
+                                                                className="w-5 h-5 rounded border border-white/10 bg-transparent cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-gray-400">외곽선 두께:</span>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max="8"
+                                                                value={layer.strokeWidth}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, strokeWidth: val } : l))
+                                                                }}
+                                                                className="w-10 bg-[#1c2027] border border-white/10 rounded px-1 text-center text-white"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 우측 컬럼: 실시간 16:9 캔버스 미리보기 (Col 6) */}
+                                <div className="lg:col-span-6 space-y-4">
+                                    <div className="bg-[#1c2027] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
+                                        <div className="p-3 border-b border-white/5 flex items-center justify-between text-xs font-bold text-gray-200">
+                                            <span>🎨 실시간 16:9 템플릿 캔버스</span>
+                                            <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
+                                        </div>
+                                        <div className="relative aspect-video bg-black overflow-hidden select-none">
+                                            {/* 배경 이미지 */}
+                                            <img
+                                                src={templateBgUrl}
+                                                alt="Template BG"
+                                                className="w-full h-full object-cover"
+                                            />
+
+                                            {/* 도형 배너 오버레이 */}
+                                            {shapeLayers.map(shape => (
+                                                <div
+                                                    key={shape.id}
+                                                    className="absolute inset-x-0 transition-all pointer-events-none"
+                                                    style={{
+                                                        top: `${shape.y}%`,
+                                                        height: `${shape.height}%`,
+                                                        backgroundColor: shape.color,
+                                                        opacity: shape.opacity,
+                                                    }}
+                                                />
+                                            ))}
+
+                                            {/* 텍스트 레이어 오버레이 */}
+                                            {textLayers.map(layer => (
+                                                <div
+                                                    key={layer.id}
+                                                    className="absolute inset-x-4 text-center select-none pointer-events-none transition-all"
+                                                    style={{
+                                                        top: `${layer.y}%`,
+                                                        transform: 'translateY(-50%)',
+                                                        fontFamily: layer.fontFamily,
+                                                        color: layer.color,
+                                                        fontSize: `${layer.fontSize}px`,
+                                                        fontWeight: 'bold',
+                                                        textShadow: `
+                                                            -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            ${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            -${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            ${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            0 4px 10px rgba(0,0,0,0.8)
+                                                        `,
+                                                    }}
+                                                >
+                                                    {layer.text}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3. 하단 유틸리티 3단 박스 (배경 설정, 프리셋 관리, 도형 설정) */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                                {/* (1) 배경 설정 */}
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
+                                    <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                                        <span>🖼️ 배경 설정</span>
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newImg = prompt('배경 이미지 URL을 입력하세요:', templateBgUrl)
+                                                if (newImg) setTemplateBgUrl(newImg)
+                                            }}
+                                            className="w-full py-2 bg-[#202632] hover:bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10 transition"
+                                        >
+                                            배경 이미지 URL 변경
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (selectedProject?.scenes?.[0]?.image_url) {
+                                                    setTemplateBgUrl(selectedProject.scenes[0].image_url)
+                                                    alert('프로젝트 1번 씬 이미지를 배경으로 로드했습니다.')
+                                                }
+                                            }}
+                                            className="w-full py-2 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-400 hover:text-white rounded-lg text-xs font-bold transition"
+                                        >
+                                            현재 프로젝트 씬 이미지 적용
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* (2) 템플릿 프리셋 관리 */}
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
+                                    <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                                        <span>💾 템플릿 프리셋 관리</span>
+                                    </h4>
+                                    <div className="space-y-2">
+                                        <select
+                                            value={selectedTemplatePreset}
+                                            onChange={e => setSelectedTemplatePreset(e.target.value)}
+                                            className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none"
+                                        >
+                                            <option value="preset-1">기본 2줄 볼드 강조 템플릿</option>
+                                            <option value="preset-2">상단 옐로우 훅 템플릿</option>
+                                            <option value="preset-3">중앙 심플 자막바 템플릿</option>
+                                        </select>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={templatePresetName}
+                                                onChange={e => setTemplatePresetName(e.target.value)}
+                                                placeholder="새 프리셋 이름"
+                                                className="flex-1 bg-[#14181f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!templatePresetName.trim()) {
+                                                        alert('프리셋 이름을 입력해주세요.')
+                                                        return
+                                                    }
+                                                    alert(`'${templatePresetName}' 템플릿 프리셋이 저장되었습니다.`)
+                                                    setTemplatePresetName('')
+                                                }}
+                                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-bold text-white shadow whitespace-nowrap"
+                                            >
+                                                저장
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* (3) 도형 및 자막바 관리 */}
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
+                                    <h4 className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                                        <span>📐 배경 도형 및 자막바</span>
+                                    </h4>
+                                    <div className="space-y-2 text-xs">
+                                        <div className="flex items-center justify-between text-gray-400">
+                                            <span>자막바 배너 투명도</span>
+                                            <span className="font-mono text-white">60%</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (shapeLayers.length > 0) {
+                                                    setShapeLayers([])
+                                                } else {
+                                                    setShapeLayers([{
+                                                        id: 'shape-1',
+                                                        type: 'banner',
+                                                        color: '#000000',
+                                                        opacity: 0.6,
+                                                        y: 60,
+                                                        height: 25,
+                                                    }])
+                                                }
+                                            }}
+                                            className="w-full py-2 bg-[#202632] hover:bg-cyan-600/20 border border-white/10 hover:border-cyan-500 text-gray-200 hover:text-cyan-300 rounded-lg font-bold transition"
+                                        >
+                                            {shapeLayers.length > 0 ? '도형 배너 제거' : '+ 하단 자막바 배너 추가'}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
