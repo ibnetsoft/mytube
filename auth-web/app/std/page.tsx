@@ -1061,7 +1061,7 @@ export default function StdPortalPage() {
                         </div>
 
                         <h1 className="text-2xl font-black text-white mb-6">
-                            {authMode === 'login' ? '직원 로그인' : '회원가입 신청'}
+                            {authMode === 'login' ? t('auth_login_title') : t('auth_signup_title')}
                         </h1>
 
                         {/* 탭 전환 (로그인 / 회원가입 신청) */}
@@ -1075,7 +1075,7 @@ export default function StdPortalPage() {
                                         : 'border-white/10 text-gray-400 hover:text-gray-200'
                                 }`}
                             >
-                                로그인
+                                {t('auth_tab_login')}
                             </button>
                             <button
                                 type="button"
@@ -1086,7 +1086,7 @@ export default function StdPortalPage() {
                                         : 'border-white/10 text-gray-400 hover:text-gray-200'
                                 }`}
                             >
-                                회원가입 신청
+                                {t('auth_tab_signup')}
                             </button>
                         </div>
 
@@ -1099,7 +1099,7 @@ export default function StdPortalPage() {
                                         value={email}
                                         onChange={e => setEmail(e.target.value)}
                                         className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
-                                        placeholder="이메일 주소 / Email"
+                                        placeholder={t('auth_ph_email')}
                                         required
                                         autoFocus
                                     />
@@ -1111,7 +1111,7 @@ export default function StdPortalPage() {
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
                                         className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-10 transition-all"
-                                        placeholder="비밀번호 / Password"
+                                        placeholder={t('auth_ph_password')}
                                         required
                                     />
                                     <button
@@ -1132,7 +1132,7 @@ export default function StdPortalPage() {
                                             onChange={e => setRememberEmail(e.target.checked)}
                                             className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
                                         />
-                                        <span>아이디 저장</span>
+                                        <span>{t('auth_remember_id')}</span>
                                     </label>
                                     <label className="flex items-center gap-1.5 cursor-pointer select-none">
                                         <input
@@ -1141,7 +1141,7 @@ export default function StdPortalPage() {
                                             onChange={e => setRememberPassword(e.target.checked)}
                                             className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
                                         />
-                                        <span>비밀번호 저장</span>
+                                        <span>{t('auth_remember_pw')}</span>
                                     </label>
                                 </div>
 
@@ -1156,7 +1156,7 @@ export default function StdPortalPage() {
                                     disabled={loading || !email.trim() || !password.trim()}
                                     className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/30 transition-all"
                                 >
-                                    {loading ? '로그인 처리 중...' : '로그인'}
+                                    {loading ? t('auth_btn_logging_in') : t('auth_btn_login')}
                                 </button>
 
                                 {/* 비밀번호 찾기 */}
@@ -1166,7 +1166,7 @@ export default function StdPortalPage() {
                                         onClick={() => setForgotModalOpen(true)}
                                         className="text-xs text-gray-400 hover:text-blue-400 transition underline underline-offset-2"
                                     >
-                                        비밀번호를 잊으셨나요?
+                                        {t('auth_btn_forgot')}
                                     </button>
                                 </div>
                             </form>
@@ -1178,7 +1178,7 @@ export default function StdPortalPage() {
                                     value={fullName}
                                     onChange={e => setFullName(e.target.value)}
                                     className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                    placeholder="이름 / Full name"
+                                    placeholder={t('auth_ph_name')}
                                     required
                                 />
                                 <input
@@ -1186,7 +1186,7 @@ export default function StdPortalPage() {
                                     value={contact}
                                     onChange={e => setContact(e.target.value)}
                                     className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                    placeholder="연락처 / Phone, Zalo, Kakao"
+                                    placeholder={t('auth_ph_contact')}
                                     required
                                 />
 
@@ -1196,7 +1196,7 @@ export default function StdPortalPage() {
                                         value={email}
                                         onChange={e => setEmail(e.target.value)}
                                         className="flex-1 bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                        placeholder="이메일 주소 / Email"
+                                        placeholder={t('auth_ph_email')}
                                         required
                                     />
                                     <button
@@ -1204,7 +1204,7 @@ export default function StdPortalPage() {
                                         onClick={() => alert('인증 코드가 이메일로 발송되었습니다.')}
                                         className="px-3 bg-blue-600/20 border border-blue-500/40 text-blue-300 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition whitespace-nowrap"
                                     >
-                                        인증 발송
+                                        {t('auth_btn_send_verify')}
                                     </button>
                                 </div>
 
@@ -1213,7 +1213,7 @@ export default function StdPortalPage() {
                                     value={nationality}
                                     onChange={e => setNationality(e.target.value)}
                                     className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                    placeholder="국가 / Country 입력 (예: KR, VN, TH, US)"
+                                    placeholder={t('auth_ph_country')}
                                 />
 
                                 <div className="relative">
@@ -1222,7 +1222,7 @@ export default function StdPortalPage() {
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
                                         className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-9"
-                                        placeholder="비밀번호 / Password"
+                                        placeholder={t('auth_ph_password')}
                                         required
                                     />
                                     <button
@@ -1237,19 +1237,19 @@ export default function StdPortalPage() {
                                 {/* 비밀번호 5대 규칙 체크 */}
                                 <div className="bg-[#020617]/50 border border-white/5 rounded-xl p-2.5 text-[10px] flex flex-wrap gap-x-3 gap-y-1">
                                     <span className={`flex items-center gap-1 ${password.length >= 8 ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
-                                        ● 8자리 이상
+                                        {t('auth_rule_8chars')}
                                     </span>
                                     <span className={`flex items-center gap-1 ${/[A-Z]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
-                                        ● 대문자 포함
+                                        {t('auth_rule_upper')}
                                     </span>
                                     <span className={`flex items-center gap-1 ${/[a-z]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
-                                        ● 소문자 포함
+                                        {t('auth_rule_lower')}
                                     </span>
                                     <span className={`flex items-center gap-1 ${/[0-9]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
-                                        ● 숫자 포함
+                                        {t('auth_rule_number')}
                                     </span>
                                     <span className={`flex items-center gap-1 ${/[!@#$%^&*(),.?":{}|<>]/.test(password) ? 'text-emerald-400 font-bold' : 'text-gray-500'}`}>
-                                        ● 특수문자 포함
+                                        {t('auth_rule_special')}
                                     </span>
                                 </div>
 
@@ -1259,7 +1259,7 @@ export default function StdPortalPage() {
                                         value={passwordConfirm}
                                         onChange={e => setPasswordConfirm(e.target.value)}
                                         className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-9"
-                                        placeholder="비밀번호 확인 / Confirm Password"
+                                        placeholder={t('auth_ph_pw_confirm')}
                                         required
                                     />
                                     <button
@@ -1276,24 +1276,31 @@ export default function StdPortalPage() {
                                     value={referrer}
                                     onChange={e => setReferrer(e.target.value)}
                                     className="w-full bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                    placeholder="추천인 코드 / Referral Code (선택)"
+                                    placeholder={t('auth_ph_referral')}
                                 />
 
                                 {/* 선호 영상 주제 멀티 셀렉트 */}
                                 <div className="bg-[#020617]/50 border border-white/5 rounded-xl p-3 space-y-2">
-                                    <div className="text-[11px] font-bold text-gray-300">선호 영상 주제 (복수 선택 가능)</div>
+                                    <div className="text-[11px] font-bold text-gray-300">{t('auth_label_topics')}</div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {['경제/재테크', '사연/이야기', '역사/야사', '무협/판타지', 'AI/테크', '휴먼/감동'].map(cat => {
-                                            const active = signupCategories.includes(cat)
+                                        {[
+                                            { key: 'cat_finance', defaultLabel: '경제/재테크' },
+                                            { key: 'cat_stories', defaultLabel: '사연/이야기' },
+                                            { key: 'cat_history', defaultLabel: '역사/야사' },
+                                            { key: 'cat_wuxia', defaultLabel: '무협/판타지' },
+                                            { key: 'cat_aitech', defaultLabel: 'AI/테크' },
+                                            { key: 'cat_drama', defaultLabel: '휴먼/감동' },
+                                        ].map(item => {
+                                            const active = signupCategories.includes(item.defaultLabel)
                                             return (
                                                 <button
-                                                    key={cat}
+                                                    key={item.key}
                                                     type="button"
                                                     onClick={() => {
                                                         if (active) {
-                                                            setSignupCategories(prev => prev.filter(c => c !== cat))
+                                                            setSignupCategories(prev => prev.filter(c => c !== item.defaultLabel))
                                                         } else {
-                                                            setSignupCategories(prev => [...prev, cat])
+                                                            setSignupCategories(prev => [...prev, item.defaultLabel])
                                                         }
                                                     }}
                                                     className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
@@ -1302,7 +1309,7 @@ export default function StdPortalPage() {
                                                             : 'bg-[#0f172a] text-gray-400 border-white/5 hover:text-white'
                                                     }`}
                                                 >
-                                                    {cat}
+                                                    {t(item.key, item.defaultLabel)}
                                                 </button>
                                             )
                                         })}
@@ -1318,7 +1325,7 @@ export default function StdPortalPage() {
                                             onChange={e => setAgreedTerms(e.target.checked)}
                                             className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
                                         />
-                                        <span>서비스 이용약관에 동의합니다.</span>
+                                        <span>{t('auth_agree_terms')}</span>
                                     </label>
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input
@@ -1327,7 +1334,7 @@ export default function StdPortalPage() {
                                             onChange={e => setAgreedPrivacy(e.target.checked)}
                                             className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
                                         />
-                                        <span>개인정보 수집 및 이용에 동의합니다.</span>
+                                        <span>{t('auth_agree_privacy')}</span>
                                     </label>
                                 </div>
 
@@ -1342,7 +1349,7 @@ export default function StdPortalPage() {
                                     disabled={loading || !agreedTerms || !agreedPrivacy}
                                     className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-3 text-xs font-bold text-white shadow-lg shadow-blue-600/30 transition-all"
                                 >
-                                    {loading ? '가입 신청 중...' : '회원가입 신청'}
+                                    {loading ? t('auth_btn_signing_up') : t('auth_btn_signup')}
                                 </button>
                             </form>
                         )}
@@ -1360,7 +1367,7 @@ export default function StdPortalPage() {
                             className="bg-[#1e293b] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4"
                         >
                             <div className="flex items-center justify-between">
-                                <h2 className="text-base font-bold text-white">비밀번호 찾기</h2>
+                                <h2 className="text-base font-bold text-white">{t('auth_forgot_title')}</h2>
                                 <button
                                     type="button"
                                     onClick={() => setForgotModalOpen(false)}
@@ -1369,16 +1376,15 @@ export default function StdPortalPage() {
                                     ✕
                                 </button>
                             </div>
-                            <p className="text-xs text-gray-400 leading-relaxed">
-                                가입 시 등록한 이메일 주소를 입력하면<br />
-                                임시 비밀번호를 발송해 드립니다.
+                            <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-line">
+                                {t('auth_forgot_desc')}
                             </p>
                             <input
                                 type="email"
                                 value={forgotEmail}
                                 onChange={e => setForgotEmail(e.target.value)}
                                 className="w-full bg-[#0f172a] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                placeholder="이메일 주소 / Email"
+                                placeholder={t('auth_ph_email')}
                             />
                             {forgotMsg && (
                                 <div className="text-xs text-emerald-400 font-bold text-center">
@@ -1398,7 +1404,7 @@ export default function StdPortalPage() {
                                 disabled={!forgotEmail.trim()}
                                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-xl text-xs font-bold text-white shadow transition"
                             >
-                                임시 비밀번호 발송
+                                {t('auth_btn_send_temp_pw')}
                             </button>
                         </div>
                     </div>

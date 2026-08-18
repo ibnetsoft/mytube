@@ -8,6 +8,45 @@ export interface LocaleStrings {
 
 export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
     ko: {
+        // Auth (Login / Register / Forgot Password)
+        auth_login_title: '직원 로그인',
+        auth_signup_title: '회원가입 신청',
+        auth_tab_login: '로그인',
+        auth_tab_signup: '회원가입 신청',
+        auth_ph_email: '이메일 주소 / Email',
+        auth_ph_password: '비밀번호 / Password',
+        auth_remember_id: '아이디 저장',
+        auth_remember_pw: '비밀번호 저장',
+        auth_btn_login: '로그인',
+        auth_btn_logging_in: '로그인 처리 중...',
+        auth_btn_forgot: '비밀번호를 잊으셨나요?',
+        auth_ph_name: '이름 / Full name',
+        auth_ph_contact: '연락처 / Phone, Zalo, Kakao',
+        auth_btn_send_verify: '인증 발송',
+        auth_ph_country: '국가 / Country 입력 (예: KR, VN, TH, US)',
+        auth_rule_8chars: '● 8자리 이상',
+        auth_rule_upper: '● 대문자 포함',
+        auth_rule_lower: '● 소문자 포함',
+        auth_rule_number: '● 숫자 포함',
+        auth_rule_special: '● 특수문자 포함',
+        auth_ph_pw_confirm: '비밀번호 확인 / Confirm Password',
+        auth_ph_referral: '추천인 코드 / Referral Code (선택)',
+        auth_label_topics: '선호 영상 주제 (복수 선택 가능)',
+        auth_agree_terms: '서비스 이용약관에 동의합니다.',
+        auth_agree_privacy: '개인정보 수집 및 이용에 동의합니다.',
+        auth_btn_signup: '회원가입 신청',
+        auth_btn_signing_up: '가입 신청 중...',
+        auth_forgot_title: '비밀번호 찾기',
+        auth_forgot_desc: '가입 시 등록한 이메일 주소를 입력하면\n임시 비밀번호를 발송해 드립니다.',
+        auth_btn_send_temp_pw: '임시 비밀번호 발송',
+        cat_finance: '경제/재테크',
+        cat_stories: '사연/이야기',
+        cat_history: '역사/야사',
+        cat_wuxia: '무협/판타지',
+        cat_aitech: 'AI/테크',
+        cat_drama: '휴먼/감동',
+
+        // Navigation Menus
         nav_topics: '주제',
         nav_projects: '프로젝트',
         nav_plan: '기획',
@@ -19,6 +58,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         nav_thumbnail: '썸네일',
         nav_settings: '설정',
 
+        // Common Buttons & Actions
         btn_save: '저장',
         btn_submit: '제출',
         btn_copy: '복사',
@@ -32,12 +72,14 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         btn_finalize_save: '최종 확정 및 저장',
         btn_apply: '적용',
 
+        // Header / Project Bar
         active_project: '활성 프로젝트',
         badge_hook_scenes: '1~12씬: 5초 훅 구간',
         badge_story_scenes: '13~53씬: 메인 스토리 구간',
         btn_submit_remote: '원격 렌더 제출',
         btn_submitting: '제출 진행 중...',
 
+        // Subtitles Page
         sub_title: '자막 편집 및 싱크 프리뷰',
         sub_desc: '한국어 호흡(14~18자) 단위로 자동 분할된 1줄 자막을 실시간 캔버스에서 확인하세요.',
         sub_count: '총 자막 블록 수',
@@ -49,6 +91,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         sub_y_pos: '자막 위치 (Y축)',
         sub_auto_rechunk: '⚡ 1줄 스마트 자막 자동 재분할',
 
+        // Template Page
         tmpl_title: '템플릿 디자인 스튜디오',
         tmpl_ai_hooks: '🎯 AI 추천 썸네일/템플릿 훅 문구 (클릭 시 레이어 추가)',
         tmpl_layers: '텍스트 레이어',
@@ -57,6 +100,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         tmpl_preset_mgmt: '💾 템플릿 프리셋 관리',
         tmpl_shape_mgmt: '📐 배경 도형 및 자막바',
 
+        // Thumbnail Page
         thumb_stage_1: '1단계: 제목 및 스타일 설정',
         thumb_stage_2: '2단계: AI 썸네일 기획안 선택',
         thumb_stage_3: '3단계: 텍스트 추가 및 16:9 실시간 캔버스',
@@ -67,6 +111,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         thumb_style: '이미지 화풍',
         thumb_apply: '선택 및 디자인 적용',
 
+        // Settings Page
         set_title: '⚙️ 세팅',
         set_save_changes: '💾 변경사항 저장',
         set_tab_basic: '■■ 기본 설정',
@@ -91,6 +136,45 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         set_withdraw_req: '출금 신청하기',
     },
     en: {
+        // Auth (Login / Register / Forgot Password)
+        auth_login_title: 'Staff Sign In',
+        auth_signup_title: 'Worker Registration',
+        auth_tab_login: 'Sign In',
+        auth_tab_signup: 'Registration',
+        auth_ph_email: 'Email Address',
+        auth_ph_password: 'Password',
+        auth_remember_id: 'Remember Email',
+        auth_remember_pw: 'Remember Password',
+        auth_btn_login: 'Sign In',
+        auth_btn_logging_in: 'Signing in...',
+        auth_btn_forgot: 'Forgot your password?',
+        auth_ph_name: 'Full Name',
+        auth_ph_contact: 'Phone / Zalo / Telegram',
+        auth_btn_send_verify: 'Send Code',
+        auth_ph_country: 'Country (e.g. US, KR, VN, TH)',
+        auth_rule_8chars: '● 8+ Characters',
+        auth_rule_upper: '● Uppercase',
+        auth_rule_lower: '● Lowercase',
+        auth_rule_number: '● Numbers',
+        auth_rule_special: '● Special chars',
+        auth_ph_pw_confirm: 'Confirm Password',
+        auth_ph_referral: 'Referral Code (Optional)',
+        auth_label_topics: 'Preferred Video Topics (Multi-select)',
+        auth_agree_terms: 'I agree to the Terms of Service.',
+        auth_agree_privacy: 'I agree to the Privacy Policy.',
+        auth_btn_signup: 'Submit Registration',
+        auth_btn_signing_up: 'Submitting...',
+        auth_forgot_title: 'Reset Password',
+        auth_forgot_desc: 'Enter your registered email address\nto receive a temporary password.',
+        auth_btn_send_temp_pw: 'Send Temporary Password',
+        cat_finance: 'Finance / Wealth',
+        cat_stories: 'Life Stories',
+        cat_history: 'History / Mystery',
+        cat_wuxia: 'Fantasy / Wuxia',
+        cat_aitech: 'AI & Tech',
+        cat_drama: 'Human Drama',
+
+        // Navigation Menus
         nav_topics: 'Topics',
         nav_projects: 'Projects',
         nav_plan: 'Plan',
@@ -102,6 +186,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         nav_thumbnail: 'Thumbnail',
         nav_settings: 'Settings',
 
+        // Common Buttons & Actions
         btn_save: 'Save',
         btn_submit: 'Submit',
         btn_copy: 'Copy',
@@ -115,12 +200,14 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         btn_finalize_save: 'Finalize & Save',
         btn_apply: 'Apply',
 
+        // Header / Project Bar
         active_project: 'Active Project',
         badge_hook_scenes: 'Scenes 1~12: 5s Hook Phase',
         badge_story_scenes: 'Scenes 13~53: Main Story Phase',
         btn_submit_remote: 'Submit for Render',
         btn_submitting: 'Submitting...',
 
+        // Subtitles Page
         sub_title: 'Subtitle Editor & Sync Preview',
         sub_desc: 'Preview natural 1-line synchronized subtitles chunked to natural reading speeds.',
         sub_count: 'Total Subtitle Chunks',
@@ -132,6 +219,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         sub_y_pos: 'Position (Y)',
         sub_auto_rechunk: '⚡ Smart 1-Line Re-Chunking',
 
+        // Template Page
         tmpl_title: 'Template Design Studio',
         tmpl_ai_hooks: '🎯 AI Recommended Hook Lines (Click to Add Layer)',
         tmpl_layers: 'Text Layers',
@@ -140,6 +228,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         tmpl_preset_mgmt: '💾 Template Presets',
         tmpl_shape_mgmt: '📐 Shapes & Banner Bars',
 
+        // Thumbnail Page
         thumb_stage_1: 'Stage 1: Title & Style Config',
         thumb_stage_2: 'Stage 2: Select AI Thumbnail Idea',
         thumb_stage_3: 'Stage 3: Text Editing & 16:9 Canvas',
@@ -150,6 +239,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         thumb_style: 'Image Art Style',
         thumb_apply: 'Select & Apply Design',
 
+        // Settings Page
         set_title: '⚙️ Settings',
         set_save_changes: '💾 Save Changes',
         set_tab_basic: '■■ General',
@@ -174,6 +264,45 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         set_withdraw_req: 'Request Withdrawal',
     },
     vi: {
+        // Auth (Login / Register / Forgot Password)
+        auth_login_title: 'Đăng nhập nhân viên',
+        auth_signup_title: 'Đăng ký tài khoản',
+        auth_tab_login: 'Đăng nhập',
+        auth_tab_signup: 'Đăng ký tài khoản',
+        auth_ph_email: 'Địa chỉ Email',
+        auth_ph_password: 'Mật khẩu',
+        auth_remember_id: 'Lưu tài khoản',
+        auth_remember_pw: 'Lưu mật khẩu',
+        auth_btn_login: 'Đăng nhập',
+        auth_btn_logging_in: 'Đang đăng nhập...',
+        auth_btn_forgot: 'Quên mật khẩu?',
+        auth_ph_name: 'Họ và tên',
+        auth_ph_contact: 'Số điện thoại / Zalo',
+        auth_btn_send_verify: 'Gửi mã xác thực',
+        auth_ph_country: 'Quốc gia (VD: VN, KR, US)',
+        auth_rule_8chars: '● Từ 8 ký tự trở lên',
+        auth_rule_upper: '● Chữ in hoa',
+        auth_rule_lower: '● Chữ thường',
+        auth_rule_number: '● Chữ số',
+        auth_rule_special: '● Ký tự đặc biệt',
+        auth_ph_pw_confirm: 'Xác nhận mật khẩu',
+        auth_ph_referral: 'Mã giới thiệu (Tùy chọn)',
+        auth_label_topics: 'Chủ đề video ưa thích (Chọn nhiều)',
+        auth_agree_terms: 'Tôi đồng ý với Điều khoản dịch vụ.',
+        auth_agree_privacy: 'Tôi đồng ý với Chính sách bảo mật.',
+        auth_btn_signup: 'Đăng ký tài khoản',
+        auth_btn_signing_up: 'Đang xử lý...',
+        auth_forgot_title: 'Đặt lại mật khẩu',
+        auth_forgot_desc: 'Nhập email đã đăng ký để nhận\nmật khẩu tạm thời.',
+        auth_btn_send_temp_pw: 'Gửi mật khẩu tạm thời',
+        cat_finance: 'Kinh tế / Tài chính',
+        cat_stories: 'Chuyện đời thực',
+        cat_history: 'Lịch sử / Bí ẩn',
+        cat_wuxia: 'Kiếm hiệp / Giả tưởng',
+        cat_aitech: 'AI & Công nghệ',
+        cat_drama: 'Cảm động / Nhân văn',
+
+        // Navigation Menus
         nav_topics: 'Chủ đề',
         nav_projects: 'Dự án',
         nav_plan: 'Kế hoạch',
@@ -185,6 +314,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         nav_thumbnail: 'Ảnh thu nhỏ',
         nav_settings: 'Cài đặt',
 
+        // Common Buttons & Actions
         btn_save: 'Lưu',
         btn_submit: 'Gửi đi',
         btn_copy: 'Sao chép',
@@ -198,12 +328,14 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         btn_finalize_save: 'Xác nhận & Lưu',
         btn_apply: 'Áp dụng',
 
+        // Header / Project Bar
         active_project: 'Dự án đang làm',
         badge_hook_scenes: 'Cảnh 1~12: Giai đoạn móc câu 5s',
         badge_story_scenes: 'Cảnh 13~53: Câu chuyện chính',
         btn_submit_remote: 'Gửi kết xuất video',
         btn_submitting: 'Đang gửi...',
 
+        // Subtitles Page
         sub_title: 'Chỉnh sửa phụ đề & Xem trước đồng bộ',
         sub_desc: 'Xem trước phụ đề 1 dòng tự nhiên được chia nhỏ phù hợp với tốc độ đọc thực tế.',
         sub_count: 'Tổng số khối phụ đề',
@@ -215,6 +347,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         sub_y_pos: 'Vị trí Y',
         sub_auto_rechunk: '⚡ Tự động chia lại 1 dòng thông minh',
 
+        // Template Page
         tmpl_title: 'Xưởng thiết kế mẫu',
         tmpl_ai_hooks: '🎯 Câu móc gợi ý từ AI (Nhấp để thêm lớp)',
         tmpl_layers: 'Các lớp văn bản',
@@ -223,6 +356,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         tmpl_preset_mgmt: '💾 Quản lý mẫu dựng sẵn',
         tmpl_shape_mgmt: '📐 Hình khối & Thanh nền phụ đề',
 
+        // Thumbnail Page
         thumb_stage_1: 'Bước 1: Tiêu đề & Cấu hình phong cách',
         thumb_stage_2: 'Bước 2: Chọn ý tưởng ảnh bìa AI',
         thumb_stage_3: 'Bước 3: Thêm văn bản & Khung vẽ 16:9',
@@ -233,6 +367,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         thumb_style: 'Phong cách nghệ thuật',
         thumb_apply: 'Chọn & Áp dụng thiết kế',
 
+        // Settings Page
         set_title: '⚙️ Cài đặt',
         set_save_changes: '💾 Lưu thay đổi',
         set_tab_basic: '■■ Cài đặt chung',
@@ -257,6 +392,45 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         set_withdraw_req: 'Gửi yêu cầu rút tiền',
     },
     th: {
+        // Auth (Login / Register / Forgot Password)
+        auth_login_title: 'เข้าสู่ระบบพนักงาน',
+        auth_signup_title: 'สมัครสมาชิก',
+        auth_tab_login: 'เข้าสู่ระบบ',
+        auth_tab_signup: 'สมัครสมาชิก',
+        auth_ph_email: 'ที่อยู่อีเมล',
+        auth_ph_password: 'รหัสผ่าน',
+        auth_remember_id: 'จดจำอีเมล',
+        auth_remember_pw: 'จดจำรหัสผ่าน',
+        auth_btn_login: 'เข้าสู่ระบบ',
+        auth_btn_logging_in: 'กำลังเข้าสู่ระบบ...',
+        auth_btn_forgot: 'ลืมรหัสผ่าน?',
+        auth_ph_name: 'ชื่อ-นามสกุล',
+        auth_ph_contact: 'เบอร์ติดต่อ / LINE',
+        auth_btn_send_verify: 'ส่งรหัสยืนยัน',
+        auth_ph_country: 'ประเทศ (เช่น TH, KR, US)',
+        auth_rule_8chars: '● 8 ตัวอักษรขึ้นไป',
+        auth_rule_upper: '● ตัวพิมพ์ใหญ่',
+        auth_rule_lower: '● ตัวพิมพ์เล็ก',
+        auth_rule_number: '● ตัวเลข',
+        auth_rule_special: '● อักขระพิเศษ',
+        auth_ph_pw_confirm: 'ยืนยันรหัสผ่าน',
+        auth_ph_referral: 'รหัสแนะนำ (ไม่บังคับ)',
+        auth_label_topics: 'หมวดหมู่วิดีโอที่สนใจ (เลือกได้หลายข้อ)',
+        auth_agree_terms: 'ฉันยอมรับข้อกำหนดในการให้บริการ',
+        auth_agree_privacy: 'ฉันยอมรับนโยบายความเป็นส่วนตัว',
+        auth_btn_signup: 'สมัครสมาชิก',
+        auth_btn_signing_up: 'กำลังประมวลผล...',
+        auth_forgot_title: 'รีเซ็ตรหัสผ่าน',
+        auth_forgot_desc: 'ป้อนอีเมลที่ลงทะเบียนไว้\nเพื่อรับรหัสผ่านชั่วคราว',
+        auth_btn_send_temp_pw: 'ส่งรหัสผ่านชั่วคราว',
+        cat_finance: 'การเงิน / ลงทุน',
+        cat_stories: 'เรื่องเล่าชีวิต',
+        cat_history: 'ประวัติศาสตร์ / ลี้ลับ',
+        cat_wuxia: 'กำลังภายใน / แฟนตาซี',
+        cat_aitech: 'AI และเทคโนโลยี',
+        cat_drama: 'ดราม่า / ซาบซึ้ง',
+
+        // Navigation Menus
         nav_topics: 'หัวข้อ',
         nav_projects: 'โปรเจกต์',
         nav_plan: 'การวางแผน',
@@ -268,6 +442,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         nav_thumbnail: 'ภาพขนาดย่อ',
         nav_settings: 'การตั้งค่า',
 
+        // Common Buttons & Actions
         btn_save: 'บันทึก',
         btn_submit: 'ส่งงาน',
         btn_copy: 'คัดลอก',
@@ -281,12 +456,14 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         btn_finalize_save: 'ยืนยันและบันทึก',
         btn_apply: 'นำไปใช้',
 
+        // Header / Project Bar
         active_project: 'โปรเจกต์ที่ใช้งานอยู่',
         badge_hook_scenes: 'ฉาก 1~12: ช่วงฮุกดึงดูด 5 วินาที',
         badge_story_scenes: 'ฉาก 13~53: ช่วงเนื้อเรื่องหลัก',
         btn_submit_remote: 'ส่งประมวลผลวิดีโอ',
         btn_submitting: 'กำลังส่ง...',
 
+        // Subtitles Page
         sub_title: 'ตัวแก้ไขคำบรรยาย & ตัวอย่างซิงค์สด',
         sub_desc: 'แสดงตัวอย่างคำบรรยาย 1 บรรทัดที่เป็นธรรมชาติและซิงค์กับความเร็วเสียง',
         sub_count: 'จำนวนบล็อกคำบรรยายทั้งหมด',
@@ -298,6 +475,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         sub_y_pos: 'ตำแหน่งแนวตั้ง (Y)',
         sub_auto_rechunk: '⚡ ซอยย่อยคำบรรยาย 1 บรรทัดอัจฉริยะ',
 
+        // Template Page
         tmpl_title: 'สตูดิโอออกแบบเทมเพลต',
         tmpl_ai_hooks: '🎯 ข้อความฮุกแนะนำโดย AI (คลิกเพื่อเพิ่มเลเยอร์)',
         tmpl_layers: 'เลเยอร์ข้อความ',
@@ -306,6 +484,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         tmpl_preset_mgmt: '💾 จัดการพรีเซ็ตเทมเพลต',
         tmpl_shape_mgmt: '📐 รูปร่างและแถบพื้นหลังคำบรรยาย',
 
+        // Thumbnail Page
         thumb_stage_1: 'ขั้นตอนที่ 1: ตั้งชื่อและกำหนดสไตล์',
         thumb_stage_2: 'ขั้นตอนที่ 2: เลือกไอเดียภาพหน้าปก AI',
         thumb_stage_3: 'ขั้นตอนที่ 3: เพิ่มข้อความ & แคนวาส 16:9',
@@ -316,6 +495,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         thumb_style: 'สไตล์ภาพวาด',
         thumb_apply: 'เลือกและปรับใช้การออกแบบ',
 
+        // Settings Page
         set_title: '⚙️ การตั้งค่า',
         set_save_changes: '💾 บันทึกการเปลี่ยนแปลง',
         set_tab_basic: '■■ การตั้งค่าทั่วไป',
