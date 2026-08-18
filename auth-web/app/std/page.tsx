@@ -1515,11 +1515,11 @@ export default function StdPortalPage() {
                                                 }}
                                             >
                                                 <div
-                                                    className="inline-block max-w-full truncate px-4 py-1.5 rounded-lg transition-all"
+                                                    className="inline-block max-w-[92%] px-4 py-1.5 rounded-lg transition-all"
                                                     style={{
                                                         fontFamily: subFontFamily,
                                                         color: subTextColor,
-                                                        fontSize: `${Number(subFontSize) * 3.5}px`,
+                                                        fontSize: `${Math.min(22, Math.max(13, Number(subFontSize) * 2.8))}px`,
                                                         fontWeight: 'bold',
                                                         whiteSpace: 'nowrap',
                                                         lineHeight: '1.3',

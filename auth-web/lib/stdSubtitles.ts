@@ -88,34 +88,67 @@ export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
     return timings
 }
 
-// 3. 순수 대본 문장들을 항상 '1줄 자막'으로 분할하여 씬별 타임라인에 스냅 정렬
+// 3. 한국어 어절 및 조사, 구두점 기반 지능형 1줄 청크 분할 유틸리티 (14~18자 내외)
+export function splitTextToSingleLineChunks(text: string, maxChars: number = 18): string[] {
+    if (!text || !text.trim()) return []
+    const cleaned = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
+    if (cleaned.length <= maxChars) return [cleaned]
+
+    const words = cleaned.split(' ')
+    const chunks: string[] = []
+    let current = ''
+
+    for (let i = 0; i < words.length; i++) {
+        const word = words[i]
+        const candidate = current ? `${current} ${word}` : word
+
+        if (candidate.length > maxChars) {
+            if (current) {
+                chunks.push(current.trim())
+                current = word
+            } else {
+                // 단어 자체가 너무 긴 경우 강제 분할
+                chunks.push(word.slice(0, maxChars))
+                current = word.slice(maxChars)
+            }
+        } else {
+            current = candidate
+        }
+    }
+    if (current.trim()) {
+        chunks.push(current.trim())
+    }
+
+    return chunks
+}
+
+// 4. 전체 대본을 잘게 나누어 씬별 타임라인과 1:1로 매칭되는 1줄 자막 목록 생성
 export function generateSynchronizedSubtitles(
     rawScriptText: string,
     scenes: any[],
-    maxCharsPerSub: number = 20
+    maxCharsPerSub: number = 18
 ): StdSubtitleItem[] {
     const sceneTimings = calculateLongformSceneTimings(scenes)
     const totalScenes = sceneTimings.length
 
-    // 기본 대체 스토리 문장들 (대본이 비어있을 때 사용)
     const fallbackStories = [
-        "서른 해 동안 한 번도 거르지 않고",
-        "국민연금을 성실히 납입해온 부부가 있습니다",
-        "그리고 오늘, 그들이 마주한 통장 한 장",
-        "검은 잉크로 또렷하게 인쇄된 국민연금 항목",
-        "그 옆에 적힌 숫자에 부부는 침묵합니다",
-        "30년 차 부부의 실제 국민연금 수령액",
-        "우리가 꿈꾸던 노후와 현실의 큰 간극",
-        "은퇴한 한 가장의 솔직한 고백 이야기",
-        "월급에서 꼬박꼬박 떼어가던 연금 보험료",
-        "국가가 약속한 든든한 노후를 믿었습니다",
-        "하지만 통장에 찍힌 금액은 턱없이 부족했습니다",
-        "대한민국 평범한 30년 차 부부의 숨김없는 현실",
+        "서른 해 동안",
+        "한 번도 거르지 않고",
+        "국민연금을 성실히 납입해온",
+        "평범한 부부가 있습니다.",
+        "그리고 오늘, 그들이 마주한",
+        "통장 한 장이 있습니다.",
+        "검은 잉크로 인쇄된",
+        "'국민연금' 항목 옆에",
+        "적힌 숫자를 보며",
+        "부부는 아무 말도 못 합니다.",
+        "30년 차 부부의 실제 수령액,",
+        "과연 얼마였을까요?",
     ]
 
     const subtitles: StdSubtitleItem[] = []
 
-    // 씬 1~12: 5.0초 고정 훅 구간 처리 (1줄 자막으로 분할)
+    // 씬 1~12: 5.0초 고정 훅 구간 처리 (씬당 2~3개의 1줄 자막으로 잘게 분할)
     for (let sNum = 1; sNum <= 12; sNum++) {
         const timing = sceneTimings[sNum - 1]
         const sceneData = scenes[sNum - 1] || {}
@@ -124,117 +157,64 @@ export function generateSynchronizedSubtitles(
             pureText = fallbackStories[(sNum - 1) % fallbackStories.length]
         }
 
-        // 1줄 최적 길이(20자) 초과 시 단일 줄 자막 2개로 분할
-        if (pureText.length > maxCharsPerSub) {
-            const mid = Math.floor(pureText.length / 2)
-            let splitIdx = pureText.indexOf(' ', mid - 3)
-            if (splitIdx === -1) splitIdx = mid
+        const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)
+        const chunkCount = Math.max(1, chunks.length)
+        const chunkDuration = Math.round((5.0 / chunkCount) * 10) / 10
 
-            const sub1 = pureText.slice(0, splitIdx).replace(/[\r\n]+/g, ' ').trim()
-            const sub2 = pureText.slice(splitIdx).replace(/[\r\n]+/g, ' ').trim()
+        chunks.forEach((chunkText, cIdx) => {
+            const subStart = Math.round((timing.start_time + cIdx * chunkDuration) * 10) / 10
+            const subEnd = cIdx === chunks.length - 1
+                ? timing.end_time
+                : Math.round((subStart + chunkDuration) * 10) / 10
 
             subtitles.push({
-                id: `sub-${sNum}-1`,
+                id: `sub-${sNum}-${cIdx + 1}`,
                 scene_number: sNum,
-                start_time: timing.start_time.toFixed(1),
-                end_time: (timing.start_time + 2.5).toFixed(1),
-                start_num: timing.start_time,
-                end_num: timing.start_time + 2.5,
-                text: sub1,
+                start_time: subStart.toFixed(1),
+                end_time: subEnd.toFixed(1),
+                start_num: subStart,
+                end_num: subEnd,
+                text: chunkText,
                 image_url: sceneData.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
                 video_url: sceneData.video_url,
                 is_hook_zone: true,
             })
-
-            subtitles.push({
-                id: `sub-${sNum}-2`,
-                scene_number: sNum,
-                start_time: (timing.start_time + 2.5).toFixed(1),
-                end_time: timing.end_time.toFixed(1),
-                start_num: timing.start_time + 2.5,
-                end_num: timing.end_time,
-                text: sub2,
-                image_url: sceneData.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
-                video_url: sceneData.video_url,
-                is_hook_zone: true,
-            })
-        } else {
-            subtitles.push({
-                id: `sub-${sNum}`,
-                scene_number: sNum,
-                start_time: timing.start_time.toFixed(1),
-                end_time: timing.end_time.toFixed(1),
-                start_num: timing.start_time,
-                end_num: timing.end_time,
-                text: pureText.replace(/[\r\n]+/g, ' ').trim(),
-                image_url: sceneData.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
-                video_url: sceneData.video_url,
-                is_hook_zone: true,
-            })
-        }
+        })
     }
 
-    // 씬 13~53: 본문 스토리 동적 런닝타임 구간 처리 (항상 1줄 자막으로 분할)
+    // 씬 13~53: 본문 스토리 동적 런닝타임 구간 처리 (씬당 3~6개의 1줄 자막으로 잘게 분할)
     for (let sNum = 13; sNum <= totalScenes; sNum++) {
         const timing = sceneTimings[sNum - 1]
         const sceneData = scenes[sNum - 1] || {}
         let pureText = cleanKoreanScriptLine(sceneData.script_excerpt || sceneData.scene_text || '')
         if (!pureText || pureText.length < 3) {
-            pureText = `씬 ${sNum}의 본문 스토리 나레이션이 이어집니다`
+            pureText = `씬 ${sNum}의 본문 스토리 나레이션이 자연스럽게 이어집니다.`
         }
 
+        const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)
+        const chunkCount = Math.max(1, chunks.length)
         const sceneDuration = timing.duration
-        const subCount = Math.max(1, Math.ceil(pureText.length / maxCharsPerSub))
+        const chunkDuration = Math.round((sceneDuration / chunkCount) * 10) / 10
 
-        if (subCount > 1) {
-            const partDuration = Math.round((sceneDuration / subCount) * 10) / 10
-            const words = pureText.split(' ')
-            let chunks: string[] = []
-            let curr = ''
+        chunks.forEach((chunkText, cIdx) => {
+            const subStart = Math.round((timing.start_time + cIdx * chunkDuration) * 10) / 10
+            const subEnd = cIdx === chunks.length - 1
+                ? timing.end_time
+                : Math.round((subStart + chunkDuration) * 10) / 10
 
-            words.forEach(w => {
-                if ((curr + ' ' + w).length > maxCharsPerSub) {
-                    if (curr) chunks.push(curr.trim())
-                    curr = w
-                } else {
-                    curr = curr ? `${curr} ${w}` : w
-                }
-            })
-            if (curr) chunks.push(curr.trim())
-
-            chunks.forEach((chunkText, cIdx) => {
-                const subStart = Math.round((timing.start_time + cIdx * partDuration) * 10) / 10
-                const subEnd = cIdx === chunks.length - 1
-                    ? timing.end_time
-                    : Math.round((subStart + partDuration) * 10) / 10
-
-                subtitles.push({
-                    id: `sub-${sNum}-${cIdx + 1}`,
-                    scene_number: sNum,
-                    start_time: subStart.toFixed(1),
-                    end_time: subEnd.toFixed(1),
-                    start_num: subStart,
-                    end_num: subEnd,
-                    text: chunkText.replace(/[\r\n]+/g, ' ').trim(),
-                    image_url: sceneData.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
-                    video_url: sceneData.video_url,
-                    is_hook_zone: false,
-                })
-            })
-        } else {
             subtitles.push({
-                id: `sub-${sNum}`,
+                id: `sub-${sNum}-${cIdx + 1}`,
                 scene_number: sNum,
-                start_time: timing.start_time.toFixed(1),
-                end_time: timing.end_time.toFixed(1),
-                start_num: timing.start_time,
-                end_num: timing.end_time,
-                text: pureText.replace(/[\r\n]+/g, ' ').trim(),
+                start_time: subStart.toFixed(1),
+                end_time: subEnd.toFixed(1),
+                start_num: subStart,
+                end_num: subEnd,
+                text: chunkText,
                 image_url: sceneData.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
                 video_url: sceneData.video_url,
                 is_hook_zone: false,
             })
-        }
+        })
     }
 
     return subtitles
