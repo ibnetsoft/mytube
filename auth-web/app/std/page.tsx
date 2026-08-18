@@ -620,17 +620,22 @@ export default function StdPortalPage() {
     const signIn = async () => {
         setLoading(true)
         setMessage('')
-        const targetEmail = email.trim().toLowerCase() || 'ejsh0518@naver.com'
+        const targetEmail = email.trim().toLowerCase() || 'ejsh0519@naver.com'
         localStorage.setItem('std_last_email', targetEmail)
 
         try {
             const res = await fetch('/api/std/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: targetEmail, password: password || '123456' }),
+                body: JSON.stringify({ email: targetEmail, password: password || '1234' }),
             })
             const result = await res.json().catch(() => ({}))
             
+            if (result.error && !result.success) {
+                setMessage(result.error)
+                return
+            }
+
             const accessToken = result.session_token || `std_dev_token_${Date.now()}`
             const loggedInUser = result.user || {
                 id: 'worker-' + Date.now(),
@@ -1476,7 +1481,7 @@ export default function StdPortalPage() {
                     <div className="h-3.5 w-px bg-white/10" />
                     <div className="text-right hidden sm:block">
                         <div className="text-xs font-bold text-white leading-none">{user?.full_name || '김호'}</div>
-                        <div className="text-[10px] text-gray-400 truncate max-w-[140px] leading-tight">{user?.email || 'ejsh0518@naver.com'}</div>
+                        <div className="text-[10px] text-gray-400 truncate max-w-[140px] leading-tight">{user?.email || 'ejsh0519@naver.com'}</div>
                     </div>
                     <button
                         onClick={signOut}
