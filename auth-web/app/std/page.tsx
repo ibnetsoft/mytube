@@ -42,6 +42,7 @@ import {
     cleanKoreanScriptLine,
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
+import { SupportedLocale, getTranslation } from '@/lib/i18n'
 
 type Topic = {
     id: number
@@ -176,6 +177,10 @@ export default function StdPortalPage() {
     const [loading, setLoading] = useState(false)
     const [projectLoading, setProjectLoading] = useState(false)
     const [message, setMessage] = useState('')
+
+    // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
+    const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
+    const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
 
     // 2. 작업 데이터 상태
     const [topics, setTopics] = useState<Topic[]>([])
@@ -1185,21 +1190,21 @@ export default function StdPortalPage() {
                     </span>
                     <span className="text-gray-500 text-xs hidden md:inline">|</span>
                     <span className="text-xs text-gray-300 font-medium hidden md:inline">
-                        <strong className="text-blue-400">활성 프로젝트:</strong> {selectedProject?.project?.title || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
+                        <strong className="text-blue-400">{t('active_project')}:</strong> {selectedProject?.project?.title || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
                     </span>
                 </div>
 
                 {/* 상단 8단계 녹색 원형 체크 스텝퍼 */}
                 <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
                     {[
-                        { id: 'topics', label: '주제' },
-                        { id: 'script_plan', label: '기획' },
-                        { id: 'script_gen', label: '대본' },
-                        { id: 'image_gen', label: '이미지' },
-                        { id: 'tts', label: 'TTS' },
-                        { id: 'subtitle_gen', label: '자막' },
-                        { id: 'thumbnail', label: '썸네일' },
-                        { id: 'settings', label: '설정' },
+                        { id: 'topics', label: t('nav_topics') },
+                        { id: 'script_plan', label: t('nav_plan') },
+                        { id: 'script_gen', label: t('nav_script') },
+                        { id: 'image_gen', label: t('nav_image') },
+                        { id: 'tts', label: t('nav_tts') },
+                        { id: 'subtitle_gen', label: t('nav_subtitles') },
+                        { id: 'thumbnail', label: t('nav_thumbnail') },
+                        { id: 'settings', label: t('nav_settings') },
                     ].map((step) => {
                         const isCurrent = currentNav === step.id
                         return (
@@ -1222,13 +1227,27 @@ export default function StdPortalPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {/* 언어 선택 드롭다운 (KO, EN, VI, TH) */}
+                    <div className="flex items-center bg-[#14181f] border border-white/10 rounded-lg px-2 py-1">
+                        <select
+                            value={currentLocale}
+                            onChange={(e) => setCurrentLocale(e.target.value as SupportedLocale)}
+                            className="bg-transparent text-xs text-white focus:outline-none cursor-pointer"
+                        >
+                            <option value="ko" className="bg-[#1c2027] text-white">🇰🇷 한국어 (KO)</option>
+                            <option value="en" className="bg-[#1c2027] text-white">🇺🇸 English (EN)</option>
+                            <option value="vi" className="bg-[#1c2027] text-white">🇻🇳 Tiếng Việt (VI)</option>
+                            <option value="th" className="bg-[#1c2027] text-white">🇹🇭 ภาษาไทย (TH)</option>
+                        </select>
+                    </div>
+
                     <button
                         onClick={() => loadStdData(token)}
                         disabled={loading}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-medium text-gray-300 transition-all"
                     >
                         <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-                        서버 동기화
+                        {t('btn_refresh')}
                     </button>
                     <div className="h-3.5 w-px bg-white/10" />
                     <div className="text-right hidden sm:block">
@@ -1256,17 +1275,45 @@ export default function StdPortalPage() {
                         </div>
                         <div className="flex items-center justify-between text-gray-400">
                             <span>언어</span>
-                            <div className="flex items-center gap-1">
-                                <span className="cursor-pointer hover:scale-110 transition-transform">🇰🇷</span>
-                                <span className="cursor-pointer hover:scale-110 transition-transform opacity-60">🇬🇧</span>
-                                <span className="cursor-pointer hover:scale-110 transition-transform opacity-60">🇻🇳</span>
-                                <span className="cursor-pointer hover:scale-110 transition-transform opacity-60">🇹🇭</span>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentLocale('ko')}
+                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'ko' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    title="한국어"
+                                >
+                                    🇰🇷
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentLocale('en')}
+                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'en' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    title="English"
+                                >
+                                    🇺🇸
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentLocale('vi')}
+                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'vi' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    title="Tiếng Việt"
+                                >
+                                    🇻🇳
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentLocale('th')}
+                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'th' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    title="ภาษาไทย"
+                                >
+                                    🇹🇭
+                                </button>
                             </div>
                         </div>
                     </div>
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
-                        <label className="text-[10px] font-bold text-gray-400 block mb-1">활성 프로젝트</label>
+                        <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
                         <select
                             value={selectedProject?.project?.id || ''}
                             onChange={(e) => {
@@ -1287,15 +1334,15 @@ export default function StdPortalPage() {
 
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
-                            { id: 'topics', label: '주제' },
-                            { id: 'tts', label: 'TTS 생성' },
-                            { id: 'image_gen', label: '이미지 생성' },
-                            { id: 'subtitle_gen', label: '자막' },
-                            { id: 'thumbnail', label: '썸네일 생성' },
-                            { id: 'projects', label: '프로젝트' },
-                            { id: 'template', label: '템플릿' },
-                            { id: 'render', label: '렌더로 생성' },
-                            { id: 'settings', label: '설정' },
+                            { id: 'topics', label: t('nav_topics') },
+                            { id: 'tts', label: t('nav_tts') },
+                            { id: 'image_gen', label: t('nav_image') },
+                            { id: 'subtitle_gen', label: t('nav_subtitles') },
+                            { id: 'thumbnail', label: t('nav_thumbnail') },
+                            { id: 'projects', label: t('nav_projects') },
+                            { id: 'template', label: t('nav_template') },
+                            { id: 'render', label: t('nav_render', '렌더로 생성') },
+                            { id: 'settings', label: t('nav_settings') },
                         ].map((item) => {
                             const active = currentNav === item.id
                             return (
