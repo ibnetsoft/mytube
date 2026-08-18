@@ -370,6 +370,9 @@
             </div>
         </div>
 
+        <section id="imageGridCopyPanel" class="hidden mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <div class="flex flex-wrap items-center gap-2" id="imageGridCopyButtons"></div>
+        </section>
         <section id="scene-asset-review" class="hidden mb-6"></section>
         <div id="promptsList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
 
@@ -1534,6 +1537,8 @@
         const displayGridPrompts = getImageGridPromptsForDisplay(data);
         window.gridPromptChunks = [];
         const step2GridButtonsEl = document.getElementById('wf_step2_grid_copy_buttons');
+        const imageGridCopyPanel = document.getElementById('imageGridCopyPanel');
+        const imageGridCopyButtonsEl = document.getElementById('imageGridCopyButtons');
         if (displayGridPrompts.length > 0) {
             let copyText = "복사";
             let gridText = "씬 격자";
@@ -1557,18 +1562,20 @@
                 window.gridPromptChunks.push({ text: gridPromptData.prompt, toast: copyToastText });
 
                 gridButtonsHtml += `
-                    <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-2 rounded-lg border border-white/5">
-                        <span class="text-xs text-gray-300 font-bold">${gridText} ${sceneLabel}</span>
-                        <button type="button" onclick="copyGridPromptChunk(${chunkIndex})"
-                                class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded transition-colors">
-                            ${copyText}
-                        </button>
-                    </div>
+                    <button type="button" onclick="copyGridPromptChunk(${chunkIndex})"
+                            title="${gridText} ${sceneLabel} ${copyText}"
+                            class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded transition-colors">
+                        ${sceneLabel}
+                    </button>
                 `;
             });
             if (step2GridButtonsEl) step2GridButtonsEl.innerHTML = gridButtonsHtml;
+            if (imageGridCopyButtonsEl) imageGridCopyButtonsEl.innerHTML = gridButtonsHtml;
+            if (imageGridCopyPanel) imageGridCopyPanel.classList.remove('hidden');
         } else if (step2GridButtonsEl) {
             step2GridButtonsEl.innerHTML = '';
+            if (imageGridCopyButtonsEl) imageGridCopyButtonsEl.innerHTML = '';
+            if (imageGridCopyPanel) imageGridCopyPanel.classList.add('hidden');
         }
 
         // Change to vertical list layout
@@ -1648,7 +1655,7 @@
                     </div>
                 </div>
                 <div class="p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    <div class="${getImageColClass()} flex flex-col gap-2">
+                    <div class="${getImageColClass()} grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
                         ${(() => {
                             const sceneNumber = (p.scene_number || (i + 1));
                             const inRequiredZone = _getRequiredVideoZoneScenes().includes(sceneNumber);
@@ -1691,10 +1698,22 @@
                             ` : ''}
                         </div>`;
                         })()}
+
+                        <div class="min-h-full flex flex-col gap-2 rounded-lg border border-blue-500/20 bg-[#1c2027] p-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Video Prompt</label>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="copyFlowPrompt(${i})" class="text-[8px] bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 transition-colors">📋 Copy</button>
+                                    <button onclick="toggleFlowEditor(${i})" class="text-[8px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Edit</button>
+                                    ${window.userMembership !== 'std' ? `<button onclick="regenFlowPrompt(${i})" id="regen-flow-btn-${i}" class="text-[8px] text-blue-500 hover:text-blue-700 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded bg-[#1c2027] dark:bg-[#1c2027] transition-colors whitespace-nowrap">AI</button>` : ''}
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-gray-700 dark:text-gray-200 leading-relaxed line-clamp-6 overflow-hidden" id="flow-prompt-view-${i}">${p.flow_prompt || p.motion_desc || p.video_prompt || i18n.status_generating}</p>
+                            <textarea id="flow-prompt-edit-${i}" class="hidden w-full min-h-[120px] text-[11px] p-2 rounded border border-blue-200 dark:border-blue-900 bg-[#1c2027] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-y" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || p.motion_desc || p.video_prompt || ''}</textarea>
                         </div>
 
                         <!-- [NEW] Dual Keyframe Controls (Expanded) -->
-                        <div id="dual-controls-${i}" class="${isDual ? '' : 'hidden'} mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                        <div id="dual-controls-${i}" class="${isDual ? '' : 'hidden'} xl:col-span-2 mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
                             <div class="tabs flex gap-1 p-1 bg-gray-100 dark:bg-[#1c2128] rounded-lg border border-gray-200 dark:border-gray-700">
                                 <button id="tab-start-${i}" onclick="switchDualTab(${i}, 'start')" class="tab flex-1 text-[9px] font-bold py-1 rounded-md transition-all ${isDual ? 'active' : ''}">Start Frame</button>
                                 <button id="tab-end-${i}" onclick="switchDualTab(${i}, 'end')" class="tab flex-1 text-[9px] font-bold py-1 rounded-md transition-all">End Frame</button>
@@ -1796,7 +1815,7 @@
                         </div>
 
                         <!-- 🖼️ 이미지 생성 프롬프트 -->
-                        <div class="grid grid-cols-12 gap-2 items-start ${hasGridPrompt ? 'bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2' : ''}">
+                        <div class="hidden grid grid-cols-12 gap-2 items-start ${hasGridPrompt ? 'bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2' : ''}">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                     ${hasGridPrompt
@@ -1817,7 +1836,7 @@
                         </div>
 
                         <!-- 🌊 Google Flow Optimized Prompt -->
-                        <div class="grid grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-blue-500/20">
+                        <div class="hidden grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-blue-500/20">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Google Flow</label>
                                 <div class="flex items-center gap-1">
@@ -3673,10 +3692,10 @@
 
     // 이미지 컬럼 클래스 반환 (모드에 따라 크기 조정)
     function getImageColClass() {
-        return window._appMode === 'shorts' ? 'lg:col-span-2' : 'lg:col-span-3';
+        return window._appMode === 'shorts' ? 'lg:col-span-5' : 'lg:col-span-6';
     }
     function getContentColClass() {
-        return window._appMode === 'shorts' ? 'lg:col-span-10' : 'lg:col-span-9';
+        return window._appMode === 'shorts' ? 'lg:col-span-7' : 'lg:col-span-6';
     }
 
     // 초기 로드 시 DB 및 로컬 스토리지 확인
