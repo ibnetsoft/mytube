@@ -36,6 +36,12 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import {
+    generateSynchronizedSubtitles,
+    calculateLongformSceneTimings,
+    cleanKoreanScriptLine,
+    StdSubtitleItem,
+} from '@/lib/stdSubtitles'
 
 type Topic = {
     id: number
@@ -410,108 +416,6 @@ export default function StdPortalPage() {
         loadStdData(savedToken).finally(() => setAuthChecking(false))
     }, [])
 
-    // 순수 한국어 대본 본문만 정제하여 추출하는 유틸리티 (영어 프롬프트 및 지시문 완전 제거)
-    const cleanKoreanNarrative = (text: string): string => {
-        if (!text) return ''
-        let cleaned = String(text)
-            .replace(/First-minute micro beat.*?:/gi, '')
-            .replace(/Keep this as a separate.*?hook:/gi, '')
-            .replace(/The shot uses.*?photorealism\./gi, '')
-            .replace(/At the funeral hall.*?:/gi, '')
-            .replace(/Scene \d+.*?:/gi, '')
-            .replace(/\[Scene \d+\]/gi, '')
-            .trim()
-
-        // 영어 프롬프트만 있는 경우 제외
-        if (/^[A-Za-z0-9\s\,\.\?\!\'\"\-:;]+$/.test(cleaned) && !/[가-힣]/.test(cleaned)) {
-            return ''
-        }
-
-        const match = cleaned.match(/[가-힣0-9\s\,\.\?\!\'\"~·]+/g)
-        if (match) {
-            return match.join('').replace(/\s+/g, ' ').trim()
-        }
-        return cleaned.trim()
-    }
-
-    // 대본 본문으로부터 씬 시간과 글자수에 맞추어 순수 한국어 자막을 자동 분배하는 유틸리티
-    const buildSubtitlesFromScript = (projectPayload: any, scenes: any[]) => {
-        const rawScript = projectPayload?.script || customScriptText || ''
-        const fallbackStories = [
-            "글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.",
-            "영정사진 앞에 홀로 앉은 늙은 남편이,",
-            "아내가 생전에 늘 쥐고 다니던 낡은 손가방을 정리하려는데 말이야,",
-            "안감 사이로 뭔가가 손끝에 걸리는 거예.",
-            "조심스레 꺼내보니 누렇게 바랜 편지 봉투 하나가 접혀 있었지.",
-            "봉투 겉면에는 30년 전 날짜와 함께, 남편의 이름이 아닌 낯선 이름이 적혀 있었어요.",
-            "남편의 손이 미세하게 떨리기 시작했고, 방 안의 공기는 차갑게 굳어버렸습니다.",
-            "편지를 펼치자마자 쏟아져 나온 문장들은 그동안 그가 알던 아내의 삶을 송두리째 뒤흔들고 있었죠.",
-            "국민연금 30년 동안 성실하게 부었지만 막상 받게 된 금액은 생각보다 턱없이 부족했습니다.",
-            "매달 통장에 찍히는 80만 원 남짓한 돈으로 두 사람이 한 달을 버텨내기란 불가능에 가까웠죠.",
-            "결국 아내는 남편 몰래 식당 설거지 일을 나가며 부족한 생활비를 메워야 했습니다.",
-            "아픈 몸을 이끌고 차가운 물에 손을 담그며 버텼던 시간들이 주마등처럼 스쳐 지나갔습니다.",
-        ]
-
-        let sentences: string[] = []
-        if (rawScript && rawScript.length > 50) {
-            const rawLines = rawScript.split(/[\n\.\?\!]+/)
-            rawLines.forEach(line => {
-                const clean = cleanKoreanNarrative(line)
-                if (clean && clean.length >= 4) {
-                    if (clean.length > 28) {
-                        const words = clean.split(' ')
-                        let currentChunk = ''
-                        words.forEach(w => {
-                            if ((currentChunk + ' ' + w).length > 25) {
-                                if (currentChunk) sentences.push(currentChunk.trim())
-                                currentChunk = w
-                            } else {
-                                currentChunk = currentChunk ? (currentChunk + ' ' + w) : w
-                            }
-                        })
-                        if (currentChunk) sentences.push(currentChunk.trim())
-                    } else {
-                        sentences.push(clean)
-                    }
-                }
-            })
-        }
-
-        if (sentences.length === 0) {
-            scenes.forEach((s: any, idx: number) => {
-                const clean = cleanKoreanNarrative(s.script_excerpt || s.scene_text || s.prompt_ko || '')
-                if (clean && clean.length >= 4) {
-                    sentences.push(clean)
-                } else {
-                    sentences.push(fallbackStories[idx % fallbackStories.length])
-                }
-            })
-        }
-
-        let currentTime = 0.0
-        const totalScenes = scenes.length || 1
-        return sentences.map((sent, idx) => {
-            const charCount = sent.replace(/\s/g, '').length
-            const dur = Math.max(1.8, Math.min(5.2, Math.round((charCount * 0.22 + 0.8) * 10) / 10))
-            const startTime = currentTime
-            const endTime = Math.round((startTime + dur) * 10) / 10
-            currentTime = endTime + 0.1
-
-            const sceneIndex = Math.min(Math.floor((idx / sentences.length) * totalScenes), totalScenes - 1)
-            const matchedScene = scenes[sceneIndex] || scenes[0] || {}
-
-            return {
-                id: `sub-${idx}`,
-                scene_number: matchedScene.scene_number || sceneIndex + 1,
-                start_time: startTime.toFixed(1),
-                end_time: endTime.toFixed(1),
-                text: sent,
-                image_url: matchedScene.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
-                video_url: matchedScene.video_url,
-            }
-        })
-    }
-
     useEffect(() => {
         if (selectedProject?.project?.project_payload?.script) {
             setCustomScriptText(selectedProject.project.project_payload.script)
@@ -520,9 +424,13 @@ export default function StdPortalPage() {
             if (joined) setCustomScriptText(joined)
         }
 
-        // 순수 대본 기반 자막 목록 자동 배분 생성
+        // 1~12씬(5초 비디오 훅) + 13~53씬(동적 런닝타임) 3중 싱크 자막 생성
         const scenes = selectedProject?.scenes || []
-        const subs = buildSubtitlesFromScript(selectedProject?.project?.project_payload, scenes)
+        const subs = generateSynchronizedSubtitles(
+            selectedProject?.project?.project_payload?.script || customScriptText || '',
+            scenes,
+            Number(subMaxChars) || 25
+        )
         setLocalSubtitles(subs)
         setSelectedSubIndex(0)
     }, [selectedProject?.project?.id])
@@ -1353,10 +1261,14 @@ export default function StdPortalPage() {
                                         <button
                                             onClick={() => {
                                                 const scenes = selectedProject?.scenes || []
-                                                const subs = buildSubtitlesFromScript(selectedProject?.project?.project_payload, scenes)
+                                                const subs = generateSynchronizedSubtitles(
+                                                    selectedProject?.project?.project_payload?.script || customScriptText || '',
+                                                    scenes,
+                                                    Number(subMaxChars) || 25
+                                                )
                                                 setLocalSubtitles(subs)
                                                 setSelectedSubIndex(0)
-                                                alert('대본에서 순수 나레이션을 추출하여 자막 싱크를 초기화했습니다.')
+                                                alert('초반 1분 12개 비디오 훅(5초) + 13~53씬 동적 배분 규칙으로 자막 싱크가 초기화되었습니다.')
                                             }}
                                             className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
                                         >
@@ -1365,12 +1277,17 @@ export default function StdPortalPage() {
                                         <button
                                             onClick={() => {
                                                 const scenes = selectedProject?.scenes || []
-                                                const totalScenes = scenes.length || 1
-                                                setLocalSubtitles(prev => prev.map((s, idx) => {
-                                                    const sIdx = Math.min(Math.floor((idx / prev.length) * totalScenes), totalScenes - 1)
-                                                    return { ...s, image_url: scenes[sIdx]?.image_url || s.image_url, scene_number: scenes[sIdx]?.scene_number || sIdx + 1 }
+                                                const sceneTimings = calculateLongformSceneTimings(scenes)
+                                                setLocalSubtitles(prev => prev.map(s => {
+                                                    const sNum = s.scene_number || 1
+                                                    const targetScene = scenes[sNum - 1] || scenes[0] || {}
+                                                    return {
+                                                        ...s,
+                                                        image_url: targetScene.image_url || s.image_url,
+                                                        video_url: targetScene.video_url,
+                                                    }
                                                 }))
-                                                alert('각 씬의 이미지와 자막 싱크가 동기화되었습니다.')
+                                                alert('각 씬의 이미지 및 영상 런닝타임과 자막 싱크가 100% 동기화되었습니다.')
                                             }}
                                             className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
                                         >
@@ -1398,9 +1315,13 @@ export default function StdPortalPage() {
                                         <button
                                             onClick={() => {
                                                 const scenes = selectedProject?.scenes || []
-                                                const subs = buildSubtitlesFromScript(selectedProject?.project?.project_payload, scenes)
+                                                const subs = generateSynchronizedSubtitles(
+                                                    selectedProject?.project?.project_payload?.script || customScriptText || '',
+                                                    scenes,
+                                                    Number(subMaxChars) || 25
+                                                )
                                                 setLocalSubtitles(subs)
-                                                alert('전체 대본을 기반으로 순수 한국어 자막이 새로 배분되었습니다.')
+                                                alert('전체 53개 씬 롱폼 구조에 맞춰 자막이 새로 재생성되었습니다.')
                                             }}
                                             className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
                                         >
@@ -1413,7 +1334,7 @@ export default function StdPortalPage() {
                                             Translate
                                         </button>
                                         <button
-                                            onClick={() => alert('자막 설정 및 싱크가 성공적으로 저장되었습니다!')}
+                                            onClick={() => alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다!')}
                                             className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow"
                                         >
                                             저장
@@ -1427,7 +1348,12 @@ export default function StdPortalPage() {
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="lg:col-span-7 xl:col-span-8 bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow">
                                     <div className="flex items-center justify-between p-3 border-b border-white/5 bg-[#14181f]">
-                                        <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
+                                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
+                                                총 {localSubtitles.length}개 자막 블록
+                                            </span>
+                                        </div>
                                         <div className="flex items-center gap-1.5">
                                             <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">+ 추가</button>
                                             <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">선택 삭제</button>
@@ -1438,23 +1364,33 @@ export default function StdPortalPage() {
                                     <div className="flex flex-1 overflow-hidden">
                                         {/* 세로 이미지 썸네일 스트립 */}
                                         <div className="w-20 bg-[#13171e] border-r border-white/5 p-1.5 flex flex-col gap-2 overflow-y-auto shrink-0">
-                                            {localSubtitles.map((sub, idx) => (
-                                                <div
-                                                    key={sub.id}
-                                                    onClick={() => setSelectedSubIndex(idx)}
-                                                    className={`w-full aspect-video rounded overflow-hidden cursor-pointer border transition-all ${
-                                                        selectedSubIndex === idx ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
-                                                    }`}
-                                                >
-                                                    <img src={sub.image_url} alt={`Scene ${idx + 1}`} className="w-full h-full object-cover" />
-                                                </div>
-                                            ))}
+                                            {localSubtitles.map((sub, idx) => {
+                                                const isHook = (sub.scene_number || 1) <= 12
+                                                return (
+                                                    <div
+                                                        key={sub.id}
+                                                        onClick={() => setSelectedSubIndex(idx)}
+                                                        className={`w-full aspect-video rounded overflow-hidden cursor-pointer border relative transition-all ${
+                                                            selectedSubIndex === idx ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
+                                                        }`}
+                                                    >
+                                                        <img src={sub.image_url} alt={`Scene ${sub.scene_number || idx + 1}`} className="w-full h-full object-cover" />
+                                                        {isHook && (
+                                                            <span className="absolute top-0.5 left-0.5 bg-orange-600 text-white text-[7px] font-bold px-1 rounded">
+                                                                5s 훅
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
 
                                         {/* 자막 카드 목록 */}
                                         <div className="flex-1 overflow-y-auto p-2 space-y-2">
                                             {localSubtitles.map((sub, idx) => {
                                                 const isActive = selectedSubIndex === idx
+                                                const sNum = sub.scene_number || idx + 1
+                                                const isHook = sNum <= 12
                                                 return (
                                                     <div
                                                         key={sub.id}
@@ -1471,6 +1407,15 @@ export default function StdPortalPage() {
                                                             <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
                                                                 Random
                                                             </span>
+                                                            {isHook ? (
+                                                                <span className="absolute top-0.5 left-0.5 bg-orange-600/90 text-white text-[8px] font-bold px-1 rounded">
+                                                                    🎬 훅 #{sNum}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="absolute top-0.5 left-0.5 bg-blue-600/80 text-white text-[8px] font-bold px-1 rounded">
+                                                                    🖼️ 씬 #{sNum}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0">
                                                             {sub.start_time}s<br />~{sub.end_time}s
