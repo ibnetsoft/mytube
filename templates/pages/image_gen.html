@@ -1816,8 +1816,8 @@
                             </div>
                         </div>
 
-                        <!-- 🌊 Google Flow Optimized Prompt (Hidden) -->
-                        <div class="grid grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-white/5 hidden">
+                        <!-- 🌊 Google Flow Optimized Prompt -->
+                        <div class="grid grid-cols-12 gap-2 items-start bg-[#1c2027] p-2 rounded border border-blue-500/20">
                             <div class="col-span-3 flex flex-col gap-1">
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Google Flow</label>
                                 <div class="flex items-center gap-1">
@@ -1827,8 +1827,8 @@
                                 </div>
                             </div>
                             <div class="col-span-9 flex flex-col gap-0.5">
-                                <p class="text-[11px] text-gray-700 dark:text-gray-200 line-clamp-1 h-8 flex items-center overflow-hidden" id="flow-prompt-view-${i}">${p.flow_prompt || i18n.status_generating}</p>
-                                <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-8 text-[11px] p-1.5 rounded border border-blue-200 dark:border-blue-900 bg-[#1c2027] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-none" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || ''}</textarea>
+                                <p class="text-[11px] text-gray-700 dark:text-gray-200 line-clamp-2 min-h-8 flex items-center overflow-hidden" id="flow-prompt-view-${i}">${p.flow_prompt || p.motion_desc || p.video_prompt || i18n.status_generating}</p>
+                                <textarea id="flow-prompt-edit-${i}" class="hidden w-full h-20 text-[11px] p-1.5 rounded border border-blue-200 dark:border-blue-900 bg-[#1c2027] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-y" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || p.motion_desc || p.video_prompt || ''}</textarea>
                             </div>
                         </div>
 
@@ -2931,11 +2931,12 @@
     }
 
     function copyFlowPrompt(index) {
-        if (!prompts[index] || !prompts[index].flow_prompt) {
+        const promptText = prompts[index]?.flow_prompt || prompts[index]?.motion_desc || prompts[index]?.video_prompt || '';
+        if (!promptText) {
             Toast.show(i18n.err_no_prompt_to_copy, 'error');
             return;
         }
-        navigator.clipboard.writeText(prompts[index].flow_prompt).then(() => {
+        navigator.clipboard.writeText(promptText).then(() => {
             Toast.show(i18n.msg_flow_prompt_copied.replace('{n}', index + 1), 'success');
         });
     }

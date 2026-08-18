@@ -1557,7 +1557,7 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 if (data.has_update && data.can_apply_update !== false) {
-                    showUpdateModal(data.latest_version);
+                    showUpdateModal(data.latest_version, data.download_url, data.release_url);
                 }
             } catch (e) {
                 console.error("Update check failed:", e);
@@ -1656,7 +1656,14 @@
             }
         }
 
-        function showUpdateModal(newVersion) {
+        function revealManualUpdateLink(url) {
+            const link = document.getElementById('manualUpdateLink');
+            if (!link || !url) return;
+            link.href = url;
+            link.classList.remove('hidden');
+        }
+
+        function showUpdateModal(newVersion, downloadUrl = '', releaseUrl = '') {
             const existing = document.getElementById('updateModalOverlay');
             if (existing) existing.remove();
             const lang = getUpdateModalLang();
@@ -1664,6 +1671,8 @@
             const overlay = document.createElement('div');
             overlay.id = 'updateModalOverlay';
             overlay.dataset.version = newVersion;
+            overlay.dataset.downloadUrl = downloadUrl || '';
+            overlay.dataset.releaseUrl = releaseUrl || '';
             overlay.className = "fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center backdrop-blur-sm";
             overlay.innerHTML = `
                 <div class="bg-[#1c2027] rounded-2xl shadow-2xl p-8 max-w-md w-full border border-gray-700 text-center mx-4">
@@ -1685,20 +1694,27 @@
                             <div id="updateProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                         </div>
                     </div>
-                    <button id="btnStartUpdate" onclick="startUpdate()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
+                    <button id="btnStartUpdate" type="button" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
                         <span id="btnStartUpdateLabel">${L.button}</span>
                     </button>
+                    <a id="manualUpdateLink" href="${downloadUrl || releaseUrl || '#'}" target="_blank" rel="noopener" class="hidden mt-4 text-xs text-blue-300 hover:text-blue-200 underline">
+                        Manual download
+                    </a>
                 </div>
             `;
             document.body.appendChild(overlay);
+            const startButton = document.getElementById('btnStartUpdate');
+            if (startButton) startButton.addEventListener('click', startUpdate);
             updateUpdateModalText(lang);
         }
 
         async function startUpdate() {
             const btn = document.getElementById('btnStartUpdate');
+            if (!btn) return;
             const progressContainer = document.getElementById('updateProgressContainer');
             const progressText = document.getElementById('updateProgressText');
             const progressBar = document.getElementById('updateProgressBar');
+            const overlay = document.getElementById('updateModalOverlay');
             const L = UPDATE_MODAL_I18N[getUpdateModalLang()];
             const resetButton = () => {
                 btn.disabled = false;
@@ -1717,6 +1733,15 @@
                 const checkRes = await fetch('/api/update/check');
                 if (!checkRes.ok) throw new Error("Update check failed");
                 const checkData = await checkRes.json();
+                if (checkData.download_url) {
+                    revealManualUpdateLink(checkData.download_url);
+                } else if (checkData.release_url) {
+                    revealManualUpdateLink(checkData.release_url);
+                } else if (overlay?.dataset.downloadUrl) {
+                    revealManualUpdateLink(overlay.dataset.downloadUrl);
+                } else if (overlay?.dataset.releaseUrl) {
+                    revealManualUpdateLink(overlay.dataset.releaseUrl);
+                }
                 if (!checkData.has_update || checkData.can_apply_update === false || !checkData.download_url) {
                     throw new Error("No applicable update is available.");
                 }
@@ -1768,6 +1793,11 @@
                     } catch (error) {
                         clearInterval(interval);
                         console.error(error);
+                        if (overlay?.dataset.downloadUrl) {
+                            revealManualUpdateLink(overlay.dataset.downloadUrl);
+                        } else if (overlay?.dataset.releaseUrl) {
+                            revealManualUpdateLink(overlay.dataset.releaseUrl);
+                        }
                         alert(L.errorPrefix + (error.message || L.startFailed));
                         resetButton();
                     }
@@ -1775,10 +1805,16 @@
 
             } catch(e) {
                 console.error(e);
+                if (overlay?.dataset.downloadUrl) {
+                    revealManualUpdateLink(overlay.dataset.downloadUrl);
+                } else if (overlay?.dataset.releaseUrl) {
+                    revealManualUpdateLink(overlay.dataset.releaseUrl);
+                }
                 alert(L.errorPrefix + (e.message || L.startFailed));
                 resetButton();
             }
         }
+        window.startUpdate = startUpdate;
     </script>
     <script>
         // 사이드바 토큰 잔액 및 멤버십 실시간 동기화 (서버사이드 캐시가 0일 경우 보정)
