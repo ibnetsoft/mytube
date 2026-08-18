@@ -1160,7 +1160,20 @@ export default function StdPortalPage() {
                 {/* 우측 메인 화면 */}
                 <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-6 space-y-6">
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
-                    {currentNav === 'subtitle_gen' && selectedProject && (
+                    {currentNav === 'subtitle_gen' && selectedProject && (() => {
+                        const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
+                            id: 'sub-0',
+                            scene_number: 1,
+                            start_time: '0.0',
+                            end_time: '5.0',
+                            start_num: 0.0,
+                            end_num: 5.0,
+                            text: '서른 해, 정확히 30년 동안 한 번도 거르지 않고 국민연금을 납입해온 부부가 있습니다.',
+                            image_url: selectedProject?.scenes?.[0]?.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+                            video_url: selectedProject?.scenes?.[0]?.video_url || null,
+                            is_hook_zone: true,
+                        }
+                        return (
                         <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full">
                             {/* 1. 상단 2줄 스타일 툴바 */}
                             <div className="bg-[#1c2027] border border-white/10 rounded-xl p-3 shadow-md flex flex-col gap-2 shrink-0">
@@ -1597,7 +1610,8 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
                         </div>
-                    )}
+                        )
+                    })()}
 
                     {/* [TTS 음성 생성 탭] */}
                     {currentNav === 'tts' && selectedProject && (
