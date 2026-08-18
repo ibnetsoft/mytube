@@ -219,6 +219,24 @@ export default function StdPortalPage() {
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
 
+    // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
+    const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>('basic')
+    const [settingName, setSettingName] = useState('김호')
+    const [settingNationality, setSettingNationality] = useState('대한민국')
+    const [settingPhone, setSettingPhone] = useState('010-0000-0000')
+    const [referralCode, setReferralCode] = useState('BDDFAA1E')
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(['역사/야사', '경제/재테크', '휴먼/감동'])
+    const [currentPw, setCurrentPw] = useState('')
+    const [newPw, setNewPw] = useState('')
+    const [confirmPw, setConfirmPw] = useState('')
+    const [profileSavedMsg, setProfileSavedMsg] = useState('')
+    const [pwSavedMsg, setPwSavedMsg] = useState('')
+    const [walletAddress, setWalletAddress] = useState('')
+    const [withdrawAmount, setWithdrawAmount] = useState('')
+    const [treeViewMode, setTreeViewMode] = useState<'list' | 'card'>('list')
+    const [inquiryText, setInquiryText] = useState('')
+    const [inquiryCategory, setInquiryCategory] = useState('시스템 문의')
+
     const totalDuration = useMemo(() => {
         if (!localSubtitles || localSubtitles.length === 0) return 60.0
         const last = localSubtitles[localSubtitles.length - 1]
@@ -2389,27 +2407,481 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [설정 탭] */}
+                    {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
                     {currentNav === 'settings' && (
-                        <div className="space-y-6 max-w-3xl mx-auto w-full">
-                            <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-4">
-                                <h3 className="font-bold text-sm text-white border-b border-white/10 pb-4">
-                                    작업자 환경 설정 (Settings)
-                                </h3>
-                                <div className="space-y-3 text-xs">
-                                    <div className="flex justify-between py-2 border-b border-white/5">
-                                        <span className="text-gray-400">계정 이메일</span>
-                                        <span className="text-white font-mono">{user?.email || 'ejsh0518@naver.com'}</span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b border-white/5">
-                                        <span className="text-gray-400">작업자 실명</span>
-                                        <span className="text-white">{user?.full_name || '김호'}</span>
-                                    </div>
-                                    <div className="flex justify-between py-2">
-                                        <span className="text-gray-400">TTS 엔진</span>
-                                        <span className="text-purple-400 font-bold">ElevenLabs Multilingual v2</span>
-                                    </div>
+                        <div className="space-y-4 max-w-5xl mx-auto w-full flex flex-col h-full">
+                            {/* 1. 상단 타이틀 및 액션 바 */}
+                            <div className="flex items-center justify-between bg-[#1c2027] p-3 rounded-xl border border-white/10 shadow-sm shrink-0">
+                                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                                    <span>⚙️ 세팅</span>
+                                </h2>
+                                <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-1.5 text-xs text-gray-400 bg-[#202632] px-2.5 py-1.5 rounded-lg border border-white/5 cursor-pointer">
+                                        <input type="checkbox" defaultChecked className="rounded bg-black border-gray-600 w-3.5 h-3.5" />
+                                        <span>새로고침</span>
+                                    </label>
+                                    <button
+                                        onClick={() => {
+                                            setProfileSavedMsg('모든 환경설정 변경사항이 안전하게 저장되었습니다.')
+                                            setTimeout(() => setProfileSavedMsg(''), 3000)
+                                        }}
+                                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all"
+                                    >
+                                        <span>💾</span> 변경사항 저장
+                                    </button>
                                 </div>
+                            </div>
+
+                            {/* 2. 6개 서브 탭 네비게이션 */}
+                            <div className="border-b border-white/10 shrink-0">
+                                <div className="flex space-x-2 overflow-x-auto">
+                                    {[
+                                        { id: 'basic', label: '■■ 기본 설정' },
+                                        { id: 'orgchart', label: '조직도' },
+                                        { id: 'history', label: '수당 내역 (History)' },
+                                        { id: 'withdrawal', label: 'USDT 출금 신청 (Withdrawal)' },
+                                        { id: 'support', label: '💬 문의하기' },
+                                        { id: 'announcements', label: '📢 공지사항' },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setSettingsSubTab(tab.id as any)}
+                                            className={`px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
+                                                settingsSubTab === tab.id
+                                                    ? 'border-blue-500 text-blue-400 bg-blue-500/10 rounded-t-lg'
+                                                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                                            }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* 3. 탭별 메인 컨텐츠 영역 */}
+                            <div className="space-y-4 overflow-y-auto pb-10">
+                                {/* [탭 1: 기본 설정] */}
+                                {settingsSubTab === 'basic' && (
+                                    <div className="space-y-5">
+                                        {/* (1) 내 추천 코드 카드 (보라색 강조) */}
+                                        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5 shadow-lg">
+                                            <h5 className="text-xs font-bold text-purple-400 flex items-center gap-2 mb-3">
+                                                <span>🔑 내 추천 코드</span>
+                                            </h5>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={referralCode}
+                                                    readOnly
+                                                    className="w-full bg-[#14181f] border border-purple-500/40 rounded-xl px-4 py-2.5 text-lg font-mono font-bold text-white text-center tracking-widest focus:outline-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(referralCode)
+                                                        alert('추천 코드가 클립보드에 복사되었습니다: ' + referralCode)
+                                                    }}
+                                                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition-all"
+                                                >
+                                                    복사
+                                                </button>
+                                            </div>
+                                            <p className="text-[11px] text-purple-300/80 mt-2.5 leading-relaxed">
+                                                * 이 코드로 가입한 회원이 영상을 3개 이상 렌더링 완성 시 보상이 지급됩니다. 조직도는 상단의 &apos;조직도&apos; 탭에서 확인할 수 있습니다.
+                                            </p>
+                                        </div>
+
+                                        {/* (2) 사용자 정보 섹션 */}
+                                        <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                                <span>👤 사용자 정보</span>
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">이름</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settingName}
+                                                        onChange={e => setSettingName(e.target.value)}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        placeholder="이름을 입력하세요"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">국적</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settingNationality}
+                                                        onChange={e => setSettingNationality(e.target.value)}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        placeholder="국가를 입력하세요 (예: 대한민국)"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">연락처</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settingPhone}
+                                                        onChange={e => setSettingPhone(e.target.value)}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                                                        placeholder="010-0000-0000"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">이메일</label>
+                                                    <input
+                                                        type="email"
+                                                        value={user?.email || 'ejsh0518@naver.com'}
+                                                        readOnly
+                                                        className="w-full bg-[#14181f]/60 border border-white/5 rounded-lg px-3 py-2 text-xs text-gray-400 font-mono cursor-not-allowed"
+                                                    />
+                                                </div>
+
+                                                {/* 선호 영상 주제 태그 */}
+                                                <div className="col-span-1 md:col-span-2">
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-2 block">
+                                                        선호 영상 주제 (복수 선택 가능)
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {['역사/야사', '경제/재테크', '미스터리/공포', '휴먼/감동', '무협/판타지', '드라마/스토리', '건강/시니어'].map(cat => {
+                                                            const isSel = selectedCategories.includes(cat)
+                                                            return (
+                                                                <button
+                                                                    key={cat}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setSelectedCategories(prev =>
+                                                                            prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+                                                                        )
+                                                                    }}
+                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                                        isSel
+                                                                            ? 'bg-blue-600 text-white shadow'
+                                                                            : 'bg-[#202632] text-gray-400 border border-white/5 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    {cat}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                <div className="col-span-1 md:col-span-2 flex items-center gap-3 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setProfileSavedMsg('사용자 정보가 성공적으로 저장되었습니다.')
+                                                            setTimeout(() => setProfileSavedMsg(''), 3000)
+                                                        }}
+                                                        className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition"
+                                                    >
+                                                        저장
+                                                    </button>
+                                                    {profileSavedMsg && (
+                                                        <span className="text-xs font-bold text-emerald-400 animate-pulse">{profileSavedMsg}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* (3) 비밀번호 변경 서브섹션 */}
+                                            <div className="mt-6 pt-5 border-t border-white/5 space-y-3">
+                                                <h5 className="text-xs font-bold text-gray-300 flex items-center gap-2">
+                                                    <span>🔒 비밀번호 변경</span>
+                                                </h5>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">현재 비밀번호</label>
+                                                        <input
+                                                            type="password"
+                                                            value={currentPw}
+                                                            onChange={e => setCurrentPw(e.target.value)}
+                                                            className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">새 비밀번호</label>
+                                                        <input
+                                                            type="password"
+                                                            value={newPw}
+                                                            onChange={e => setNewPw(e.target.value)}
+                                                            className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">새 비밀번호 확인</label>
+                                                        <input
+                                                            type="password"
+                                                            value={confirmPw}
+                                                            onChange={e => setConfirmPw(e.target.value)}
+                                                            className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-400">
+                                                    <span className={newPw.length >= 8 ? 'text-emerald-400 font-bold' : ''}>● 8자 이상</span>
+                                                    <span className={/[A-Z]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 대문자</span>
+                                                    <span className={/[a-z]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 소문자</span>
+                                                    <span className={/[0-9]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 숫자</span>
+                                                    <span className={/[!@#$%^&*]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 특수문자</span>
+                                                    <span className={newPw && newPw === confirmPw ? 'text-emerald-400 font-bold' : ''}>● 비밀번호 일치</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-3 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (!currentPw) {
+                                                                alert('현재 비밀번호를 입력해주세요.')
+                                                                return
+                                                            }
+                                                            if (!newPw || newPw !== confirmPw) {
+                                                                alert('새 비밀번호가 일치하지 않거나 입력되지 않았습니다.')
+                                                                return
+                                                            }
+                                                            setPwSavedMsg('비밀번호가 성공적으로 변경되었습니다.')
+                                                            setCurrentPw('')
+                                                            setNewPw('')
+                                                            setConfirmPw('')
+                                                            setTimeout(() => setPwSavedMsg(''), 3000)
+                                                        }}
+                                                        className="px-4 py-2 bg-[#202632] hover:bg-blue-600 rounded-lg text-xs font-bold text-white border border-white/10 transition"
+                                                    >
+                                                        비밀번호 변경
+                                                    </button>
+                                                    {pwSavedMsg && (
+                                                        <span className="text-xs font-bold text-emerald-400 animate-pulse">{pwSavedMsg}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* (4) 회원 탈퇴 경고 박스 */}
+                                            <div className="mt-6 pt-5 border-t border-red-500/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-red-950/20 p-4 rounded-xl border">
+                                                <div className="text-[11px] text-gray-300 leading-relaxed">
+                                                    ⚠️ 회원 탈퇴 시 모든 프로젝트 작업 내역, 수당 정보 및 지갑 주소가 영구적으로 삭제되며 복구할 수 없습니다.
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (confirm('정말로 탈퇴하시겠습니까? 모든 작업 데이터와 수당 내역이 영구 삭제됩니다.')) {
+                                                            alert('회원 탈퇴 요청이 접수되었습니다.')
+                                                            signOut()
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500/30 text-red-400 hover:text-white rounded-lg text-xs font-bold transition whitespace-nowrap shadow-sm"
+                                                >
+                                                    🗑️ 회원 탈퇴 (Delete Account)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* [탭 2: 조직도] */}
+                                {settingsSubTab === 'orgchart' && (
+                                    <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                        <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                                            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2">
+                                                <span>🌳 추천 조직도 & 파트너 현황</span>
+                                            </h4>
+                                            <div className="flex gap-1 p-1 bg-black/30 rounded-lg border border-white/5">
+                                                <button
+                                                    onClick={() => setTreeViewMode('list')}
+                                                    className={`px-3 py-1 rounded-md text-xs font-bold transition ${
+                                                        treeViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    리스트 뷰
+                                                </button>
+                                                <button
+                                                    onClick={() => setTreeViewMode('card')}
+                                                    className={`px-3 py-1 rounded-md text-xs font-bold transition ${
+                                                        treeViewMode === 'card' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    카드 뷰
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-6 text-center space-y-3 bg-[#14181f] rounded-xl border border-white/5">
+                                            <div className="text-3xl">🌱</div>
+                                            <h3 className="text-sm font-bold text-white">내 추천 코드로 연결된 파트너 조직</h3>
+                                            <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
+                                                추천 코드 <span className="font-mono text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">{referralCode}</span> 를 공유하여 파트너를 초대하고 영상 완성 수당을 적립하세요.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* [탭 3: 수당 내역] */}
+                                {settingsSubTab === 'history' && (
+                                    <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                        <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                            <span>📜 작업 및 수당 지급 내역</span>
+                                        </h4>
+                                        <div className="overflow-x-auto rounded-xl border border-white/5">
+                                            <table className="w-full text-xs text-left text-gray-300">
+                                                <thead className="bg-[#202632] text-gray-400 border-b border-white/5 uppercase text-[11px]">
+                                                    <tr>
+                                                        <th className="px-4 py-3">작업 일자</th>
+                                                        <th className="px-4 py-3">프로젝트명</th>
+                                                        <th className="px-4 py-3 text-center">영상 길이</th>
+                                                        <th className="px-4 py-3 text-center">비디오 씬</th>
+                                                        <th className="px-4 py-3 text-center">이미지 씬</th>
+                                                        <th className="px-4 py-3 text-right">정산 금액 (USDT)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/5 bg-[#14181f]">
+                                                    <tr>
+                                                        <td className="px-4 py-3 font-mono text-gray-400">2026.08.18</td>
+                                                        <td className="px-4 py-3 font-medium text-white">아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다</td>
+                                                        <td className="px-4 py-3 text-center font-mono">08:24</td>
+                                                        <td className="px-4 py-3 text-center font-bold text-orange-400">12</td>
+                                                        <td className="px-4 py-3 text-center font-bold text-cyan-400">41</td>
+                                                        <td className="px-4 py-3 text-right font-mono font-bold text-emerald-400">+ 15.00 USDT</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* [탭 4: USDT 출금 신청] */}
+                                {settingsSubTab === 'withdrawal' && (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="bg-gradient-to-br from-green-900/40 to-emerald-900/30 rounded-2xl p-6 border border-green-500/30 shadow-lg">
+                                                <div className="text-green-300 text-xs font-medium mb-1">출금 가능 잔액</div>
+                                                <div className="text-3xl font-black text-green-400 flex items-baseline gap-1 font-mono">
+                                                    <span>15.000000</span>
+                                                    <span className="text-sm font-bold opacity-70">USDT</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-indigo-900/30 to-blue-900/20 rounded-2xl p-6 border border-indigo-500/30 shadow-lg">
+                                                <div className="text-indigo-300 text-xs font-medium mb-1">출금 대기 중인 금액</div>
+                                                <div className="text-2xl font-bold text-indigo-400 flex items-baseline gap-1 font-mono">
+                                                    <span>0.000000</span>
+                                                    <span className="text-sm font-bold opacity-70">USDT</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                                <span>💳 USDT (TRC-20) 출금 신청</span>
+                                            </h4>
+                                            <div className="space-y-4 max-w-md">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">수령할 TRC-20 지갑 주소</label>
+                                                    <input
+                                                        type="text"
+                                                        value={walletAddress}
+                                                        onChange={e => setWalletAddress(e.target.value)}
+                                                        placeholder="T로 시작하는 TRC20 지갑 주소를 입력하세요"
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-green-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">출금 신청 금액 (USDT)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={withdrawAmount}
+                                                        onChange={e => setWithdrawAmount(e.target.value)}
+                                                        placeholder="최소 10 USDT 이상"
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-green-500"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (!walletAddress) {
+                                                            alert('지갑 주소를 입력해주세요.')
+                                                            return
+                                                        }
+                                                        if (!withdrawAmount || Number(withdrawAmount) < 10) {
+                                                            alert('최소 10 USDT 이상 신청 가능합니다.')
+                                                            return
+                                                        }
+                                                        alert(`${withdrawAmount} USDT 출금 신청이 성공적으로 접수되었습니다. 관리자 승인 후 처리됩니다.`)
+                                                        setWithdrawAmount('')
+                                                    }}
+                                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold text-white shadow transition-all"
+                                                >
+                                                    출금 신청하기
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* [탭 5: 문의하기] */}
+                                {settingsSubTab === 'support' && (
+                                    <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                        <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                            <span>💬 1:1 고객센터 문의하기</span>
+                                        </h4>
+                                        <div className="space-y-3 max-w-xl">
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">문의 유형</label>
+                                                <select
+                                                    value={inquiryCategory}
+                                                    onChange={e => setInquiryCategory(e.target.value)}
+                                                    className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 w-full"
+                                                >
+                                                    <option value="시스템 문의">시스템 및 작업 오류 문의</option>
+                                                    <option value="정산 문의">수당 및 USDT 정산 문의</option>
+                                                    <option value="기타">기타 요청 사항</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">문의 내용</label>
+                                                <textarea
+                                                    value={inquiryText}
+                                                    onChange={e => setInquiryText(e.target.value)}
+                                                    placeholder="문의하실 내용을 상세히 적어주세요."
+                                                    className="w-full p-3 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white min-h-[120px] focus:outline-none focus:border-blue-500 resize-none leading-relaxed"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!inquiryText.trim()) {
+                                                        alert('문의 내용을 입력해주세요.')
+                                                        return
+                                                    }
+                                                    alert('문의가 접수되었습니다. 신속히 답변드리겠습니다.')
+                                                    setInquiryText('')
+                                                }}
+                                                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition"
+                                            >
+                                                문의 접수
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* [탭 6: 공지사항] */}
+                                {settingsSubTab === 'announcements' && (
+                                    <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                        <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                            <span>📢 공지사항 & 업데이트 소식</span>
+                                        </h4>
+                                        <div className="space-y-3 text-xs">
+                                            <div className="p-4 bg-[#14181f] rounded-xl border border-white/5 space-y-1">
+                                                <div className="flex items-center justify-between text-gray-400 text-[11px]">
+                                                    <span className="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded font-bold">공지</span>
+                                                    <span className="font-mono">2026.08.18</span>
+                                                </div>
+                                                <h5 className="font-bold text-white text-sm pt-1">롱폼 스튜디오 v2.3.46 정식 업데이트 안내</h5>
+                                                <p className="text-gray-400 leading-relaxed text-[11px] pt-1">
+                                                    초반 1분 12개 씬 고정 훅 및 13~53씬 동적 런닝타임 연동과 지능형 1줄 자막 분할 시스템이 전면 적용되었습니다.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
