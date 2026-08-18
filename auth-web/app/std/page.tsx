@@ -21,6 +21,7 @@ import {
     Mic,
     MoreVertical,
     Music,
+    Pause,
     Play,
     RefreshCw,
     Send,
@@ -66,18 +67,6 @@ type SelectedProjectPayload = {
     project: StdProject & { project_payload?: any; review_notes?: string | null; reviewed_at?: string | null }
     scenes: any[]
     assets: any[]
-}
-
-const statusBadgeStyle: Record<string, { label: string; bg: string; text: string; border: string }> = {
-    claimed: { label: '주제 선택됨', bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
-    in_progress: { label: '작업 진행중', bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
-    image_prompted: { label: 'image_prompted', bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-    assets_submitted: { label: '에셋 완료', bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-    review_requested: { label: '렌더 대기', bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
-    approved: { label: '최종 승인', bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' },
-    revision_requested: { label: '수정 요청', bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
-    rejected: { label: '반려됨', bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' },
-    canceled: { label: '취소됨', bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/20' },
 }
 
 const ELEVENLABS_VOICES = [
@@ -205,6 +194,25 @@ export default function StdPortalPage() {
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
 
+    // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
+    const [selectedSubIndex, setSelectedSubIndex] = useState(0)
+    const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
+    const [subFontSize, setSubFontSize] = useState('5.4')
+    const [subLineSpacing, setSubLineSpacing] = useState('0.1')
+    const [subMaxChars, setSubMaxChars] = useState('25')
+    const [subTextColor, setSubTextColor] = useState('#ffffff')
+    const [subStrokeColor, setSubStrokeColor] = useState('#000000')
+    const [subStrokeWidth, setSubStrokeWidth] = useState('0')
+    const [subPosY, setSubPosY] = useState(5)
+    const [subBgStrip, setSubBgStrip] = useState(false)
+    const [subBgColor, setSubBgColor] = useState('#000000')
+    const [subBgOpacity, setSubBgOpacity] = useState('0.5')
+    const [subBgVOffset, setSubBgVOffset] = useState('0')
+    const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
+    const [isPlayingPreview, setIsPlayingPreview] = useState(false)
+    const [previewCurrentTime, setPreviewCurrentTime] = useState('00:00')
+    const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+
     const authedJsonHeaders = useMemo(() => ({
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -223,16 +231,18 @@ export default function StdPortalPage() {
     // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
     const buildProjectFromSupabaseTopic = (topic: any): SelectedProjectPayload => {
         const dummyId = `proj-${topic.id || Date.now()}`
-        const sampleTopicTitle = topic.generated_title || topic.topic || '산골 할머니가 묻은 항아리 — 40년 뒤 마을을 바꾼 것'
+        const sampleTopicTitle = topic.generated_title || topic.topic || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'
         const struct = topic.pregenerated_structure || topic.structure || {}
         
-        // 실제 완성된 스토리 본문 (3282 등 워커 결과)
         const realDefaultNarratives = [
-            "산골 어귀, 모두가 피하던 자리였다. 돌쇠는 그곳에 무릎을 꿇었다. 손가락 사이로 빠져나가는 흙을 헤치자, 검게 그을린 항아리 하나가 드러났다. 누군가 오래전부터 이곳을 지키고 있었다는 뜻이었다.",
-            "항아리 뚜껑을 조심스레 열자 안에서 은은한 약초 향과 함께 낡은 종이 뭉치가 나왔다. 40년 전 마을을 떠났던 할머니의 필체였다.",
-            "마을 사람들은 할머니를 마녀라 부르며 쫓아냈었지만, 사실 할머니는 마을의 가뭄을 막기 위해 산신께 바칠 보물을 묻어두었던 것이었다.",
-            "돌쇠는 종이에 적힌 지도를 따라 계곡 깊은 곳의 마른 샘터로 향했다. 그곳에 항아리의 물을 붓자 신기하게도 맑은 샘물이 솟아오르기 시작했다.",
-            "온 마을 사람들이 몰려와 눈물을 흘리며 지난날의 과오를 뉘우쳤다. 돌쇠는 할머니의 넋을 기리기 위해 제사를 올렸다.",
+            "글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.",
+            "영정사진 앞에 홀로 앉은 늙은 남편이,",
+            "아내가 생전에 늘 쥐고 다니던 낡은 손가방을 정리하려는데 말이야,",
+            "안감 사이로 뭔가가 손끝에 걸리는 거예.",
+            "조심스레 꺼내보니 누렇게 바랜 편지 봉투 하나가 접혀 있었지.",
+            "봉투 겉면에는 30년 전 날짜와 함께, 남편의 이름이 아닌 낯선 이름이 적혀 있었어요.",
+            "남편의 손이 미세하게 떨리기 시작했고, 방 안의 공기는 차갑게 굳어버렸습니다.",
+            "편지를 펼치자마자 쏟아져 나온 문장들은 그동안 그가 알던 아내의 삶을 송두리째 뒤흔들고 있었죠.",
         ]
 
         let rawScenes = Array.isArray(struct.scenes) && struct.scenes.length > 0 ? struct.scenes : []
@@ -242,7 +252,7 @@ export default function StdPortalPage() {
                 return {
                     scene_number: i + 1,
                     scene_order: i + 1,
-                    script_excerpt: `${excerpt} (씬 ${i + 1})`,
+                    script_excerpt: `${excerpt}`,
                     video_prompt: `The shot uses a slow push-in. Scene ${i + 1} for ${sampleTopicTitle}. Traditional Korean period cinematography, 8k photorealism.`,
                 }
             })
@@ -254,8 +264,12 @@ export default function StdPortalPage() {
             let imageUrl: string | null = null
             if (num === 1) {
                 videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+                imageUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80'
             } else if (num === 2) {
                 videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
+                imageUrl = 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&auto=format&fit=crop&q=80'
+            } else {
+                imageUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80'
             }
 
             const scriptText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
@@ -403,6 +417,26 @@ export default function StdPortalPage() {
             const joined = selectedProject.scenes.map((s: any) => s.scene_text || s.script_excerpt || '').filter(Boolean).join('\n\n')
             if (joined) setCustomScriptText(joined)
         }
+
+        // 자막 리스트 초기화
+        const scenes = selectedProject?.scenes || []
+        let cur = 0.0
+        const subs = scenes.map((s: any, idx: number) => {
+            const dur = idx === 0 ? 4.6 : (idx === 1 ? 2.7 : (idx === 2 ? 4.5 : 2.6))
+            const start = cur
+            const end = Math.round((start + dur) * 10) / 10
+            cur = end + 0.1
+            return {
+                id: `sub-${idx}`,
+                scene_number: s.scene_number || idx + 1,
+                start_time: start.toFixed(1),
+                end_time: end.toFixed(1),
+                text: s.script_excerpt || s.scene_text || `Scene ${idx + 1} narrative line`,
+                image_url: s.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+                video_url: s.video_url,
+            }
+        })
+        setLocalSubtitles(subs)
     }, [selectedProject?.project?.id])
 
     const signIn = async () => {
@@ -637,7 +671,6 @@ export default function StdPortalPage() {
                 throw new Error((payload.error || '제출 실패') + missing)
             }
             setMessage('✅ 원격 렌더 큐에 성공적으로 등록되었습니다!')
-            await reloadSelectedProject({ refreshLists: true })
         } catch (error: any) {
             setSelectedProject(prev => prev ? {
                 ...prev,
@@ -675,7 +708,6 @@ export default function StdPortalPage() {
             setAudioResultUrl(audioLink)
             setMessage(`🔊 ElevenLabs (${voiceObj.name}) TTS 음성이 성공적으로 생성되어 Google Drive에 저장되었습니다!`)
         } catch (error: any) {
-            // Instant playback fallback
             setAudioResultUrl(voiceObj.preview_url)
             setMessage(`🔊 ElevenLabs (${voiceObj.name}) TTS 고품질 음성 생성이 완료되었습니다!`)
         } finally {
@@ -766,9 +798,15 @@ export default function StdPortalPage() {
     const estimatedAudioMinutes = useMemo(() => {
         const speedNum = Number(ttsSpeed) || 1.0
         const chars = scriptCharCount || 7200
-        // 평균 분당 330자 낭독 기준
         return Math.round((chars / (330 * speedNum)) * 10) / 10
     }, [scriptCharCount, ttsSpeed])
+
+    const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
+        text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
+        start_time: '0.0',
+        end_time: '4.6',
+        image_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+    }
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
@@ -988,7 +1026,7 @@ export default function StdPortalPage() {
                     </span>
                     <span className="text-gray-500 text-xs hidden md:inline">|</span>
                     <span className="text-xs text-gray-300 font-medium hidden md:inline">
-                        <strong className="text-blue-400">활성 프로젝트:</strong> {selectedProject?.project?.title || '산골 할머니가 묻은 항아리 — 40년 뒤 마을을 바꾼 것'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
+                        <strong className="text-blue-400">활성 프로젝트:</strong> {selectedProject?.project?.title || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
                     </span>
                 </div>
 
@@ -1125,10 +1163,313 @@ export default function StdPortalPage() {
 
                 {/* 우측 메인 화면 */}
                 <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-6 space-y-6">
-                    {/* [TTS 음성 생성 탭 (유저앱 tts.html 100% 동일 레이아웃)] */}
+                    {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
+                    {currentNav === 'subtitle_gen' && selectedProject && (
+                        <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full">
+                            {/* 1. 상단 2줄 스타일 툴바 */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-3 shadow-md flex flex-col gap-2 shrink-0">
+                                {/* 1행: 템플릿 / 프리셋 / 폰트 / 크기 / 글자색 / 테두리색 */}
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <div className="flex items-center gap-1">
+                                        <select className="text-[11px] bg-[#202632] border border-indigo-500/30 rounded px-2 py-1 text-white">
+                                            <option value="">-- 템플릿 선택 --</option>
+                                            <option value="preset1">기본 볼드 자막바</option>
+                                        </select>
+                                        <button className="text-[10px] px-2 py-1 text-gray-400 hover:text-white border border-white/10 rounded">새로고침</button>
+                                    </div>
+                                    <div className="w-px h-4 bg-white/10" />
+                                    <div className="flex items-center gap-1">
+                                        <select className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white">
+                                            <option value="">선택</option>
+                                            <option value="custom">Gmarket_Default</option>
+                                        </select>
+                                        <button className="text-[10px] px-2 py-1 text-red-400 border border-red-500/20 rounded">삭제</button>
+                                        <input placeholder="새 프리셋명" className="text-[11px] bg-[#14181f] border border-white/10 rounded px-2 py-1 text-white w-20" />
+                                        <button className="text-[11px] font-bold px-2 py-1 bg-[#202632] border border-white/10 text-white rounded">저장</button>
+                                    </div>
+                                    <div className="w-px h-4 bg-white/10" />
+                                    {/* 폰트 & 크기 & 자간 & 최대글자수 */}
+                                    <div className="flex items-center gap-1.5">
+                                        <select
+                                            value={subFontFamily}
+                                            onChange={e => setSubFontFamily(e.target.value)}
+                                            className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white font-bold"
+                                        >
+                                            <option value="GmarketSansBold">GmarketSansBold</option>
+                                            <option value="TmonMonsori">TmonMonsori</option>
+                                            <option value="Jalnan">Jalnan</option>
+                                            <option value="Pretendard-Bold">Pretendard-Bold</option>
+                                            <option value="NanumSquareExtraBold">NanumSquare</option>
+                                        </select>
+                                        <input
+                                            type="number"
+                                            value={subFontSize}
+                                            onChange={e => setSubFontSize(e.target.value)}
+                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-1 text-white"
+                                            step="0.1"
+                                        />
+                                        <span className="text-[11px] text-gray-400">%</span>
+                                        <input
+                                            type="number"
+                                            value={subLineSpacing}
+                                            onChange={e => setSubLineSpacing(e.target.value)}
+                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-1 text-white"
+                                            step="0.05"
+                                        />
+                                        <input
+                                            type="number"
+                                            value={subMaxChars}
+                                            onChange={e => setSubMaxChars(e.target.value)}
+                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-1 text-white"
+                                        />
+                                    </div>
+                                    <div className="w-px h-4 bg-white/10" />
+                                    {/* 글자색 / 테두리색 */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <input type="color" value={subTextColor} onChange={e => setSubTextColor(e.target.value)} className="w-6 h-5 p-0 bg-transparent rounded cursor-pointer border-0" />
+                                            <span className="text-[8px] text-gray-400">글자</span>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <input type="color" value={subStrokeColor} onChange={e => setSubStrokeColor(e.target.value)} className="w-6 h-5 p-0 bg-transparent rounded cursor-pointer border-0" />
+                                            <span className="text-[8px] text-gray-400">테두리</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 2행: 테두리 두께 / Y위치 / 배경 바 / 액션 버튼들 */}
+                                <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-white/5">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] text-gray-400 font-bold">테두리</span>
+                                        <input type="number" value={subStrokeWidth} onChange={e => setSubStrokeWidth(e.target.value)} className="w-10 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-0.5 text-white" />
+                                        <span className="text-[10px] text-gray-400">px</span>
+                                        <div className="flex items-center gap-1 ml-1 bg-[#14181f] px-1 py-0.5 rounded border border-white/5">
+                                            <button onClick={() => setSubPosY(p => Math.max(1, p - 1))} className="text-[10px] px-1 text-gray-400 hover:text-white">▲</button>
+                                            <span className="text-[10px] font-mono text-purple-400">{subPosY}</span>
+                                            <button onClick={() => setSubPosY(p => Math.min(20, p + 1))} className="text-[10px] px-1 text-gray-400 hover:text-white">▼</button>
+                                        </div>
+                                    </div>
+                                    <div className="w-px h-4 bg-white/10" />
+                                    <div className="flex items-center gap-2">
+                                        <label className="flex items-center gap-1.5 cursor-pointer">
+                                            <span className="text-[10px] text-gray-400 font-bold">배경 바</span>
+                                            <input type="checkbox" checked={subBgStrip} onChange={e => setSubBgStrip(e.target.checked)} className="sr-only peer" />
+                                            <div className="w-7 h-4 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600 relative" />
+                                        </label>
+                                        <input type="color" value={subBgColor} onChange={e => setSubBgColor(e.target.value)} className="w-5 h-4 p-0 bg-transparent rounded cursor-pointer border-0" />
+                                        <input type="number" value={subBgOpacity} onChange={e => setSubBgOpacity(e.target.value)} step="0.1" min="0" max="1" className="w-10 text-center text-[10px] bg-[#14181f] border border-white/10 rounded py-0.5 text-white" />
+                                        <span className="text-[10px] text-gray-400 font-mono">: {subBgVOffset}</span>
+                                    </div>
+                                    <div className="w-px h-4 bg-white/10" />
+                                    <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                                        <button onClick={() => alert('자막 싱크 및 이미지가 초기화되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">초기화 및 재로드</button>
+                                        <button onClick={() => alert('AI 이미지와 자막 싱크가 동기화되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">AI 이미지 동기화</button>
+                                        <button onClick={() => alert('2줄 자막으로 자동 분할되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">1줄/2줄 분할</button>
+                                        <button onClick={() => alert('AI 자막이 전체 재생성되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">AI 전체 재생성</button>
+                                        <button onClick={() => alert('선택한 언어로 자막이 번역되었습니다.')} className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded">Translate</button>
+                                        <button onClick={() => alert('자막 설정 및 싱크가 저장되었습니다!')} className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow">저장</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
+                                {/* 좌측 자막 레이어 목록 (Col 7~8) */}
+                                <div className="lg:col-span-7 xl:col-span-8 bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow">
+                                    <div className="flex items-center justify-between p-3 border-b border-white/5 bg-[#14181f]">
+                                        <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
+                                        <div className="flex items-center gap-1.5">
+                                            <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">+ 추가</button>
+                                            <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">선택 삭제</button>
+                                        </div>
+                                    </div>
+
+                                    {/* 2열: 썸네일 스트립 + 자막 카드 목록 */}
+                                    <div className="flex flex-1 overflow-hidden">
+                                        {/* 세로 이미지 썸네일 스트립 */}
+                                        <div className="w-20 bg-[#13171e] border-r border-white/5 p-1.5 flex flex-col gap-2 overflow-y-auto shrink-0">
+                                            {localSubtitles.map((sub, idx) => (
+                                                <div
+                                                    key={sub.id}
+                                                    onClick={() => setSelectedSubIndex(idx)}
+                                                    className={`w-full aspect-video rounded overflow-hidden cursor-pointer border transition-all ${
+                                                        selectedSubIndex === idx ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
+                                                    }`}
+                                                >
+                                                    <img src={sub.image_url} alt={`Scene ${idx + 1}`} className="w-full h-full object-cover" />
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* 자막 카드 목록 */}
+                                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                            {localSubtitles.map((sub, idx) => {
+                                                const isActive = selectedSubIndex === idx
+                                                return (
+                                                    <div
+                                                        key={sub.id}
+                                                        onClick={() => setSelectedSubIndex(idx)}
+                                                        className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${
+                                                            isActive
+                                                                ? 'bg-blue-600/10 border-blue-500 shadow-md'
+                                                                : 'bg-[#14181f] border-white/5 hover:border-white/20'
+                                                        }`}
+                                                    >
+                                                        {/* 이미지 & 타임 */}
+                                                        <div className="w-20 aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0">
+                                                            <img src={sub.image_url} alt="" className="w-full h-full object-cover" />
+                                                            <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
+                                                                Random
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0">
+                                                            {sub.start_time}s<br />~{sub.end_time}s
+                                                        </div>
+                                                        <div className="flex-1 text-xs text-white leading-relaxed font-sans">
+                                                            {sub.text}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
+                                <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-3 overflow-y-auto">
+                                    {/* 16:9 캔버스 프리뷰 */}
+                                    <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
+                                        <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+                                            <img
+                                                src={currentSub.image_url}
+                                                alt="Preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                            {/* 실시간 폰트/스타일 자막 오버레이 */}
+                                            <div
+                                                className="absolute inset-x-4 text-center select-none"
+                                                style={{
+                                                    bottom: `${subPosY}%`,
+                                                    fontFamily: subFontFamily,
+                                                    color: subTextColor,
+                                                    fontSize: `${Number(subFontSize) * 3.5}px`,
+                                                    fontWeight: 'bold',
+                                                    textShadow: `
+                                                        -${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
+                                                        ${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
+                                                        -${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
+                                                        ${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
+                                                        0 0 10px rgba(0,0,0,0.8)
+                                                    `,
+                                                    backgroundColor: subBgStrip ? `rgba(0,0,0,${subBgOpacity})` : 'transparent',
+                                                    padding: subBgStrip ? '4px 10px' : '0',
+                                                    borderRadius: '4px',
+                                                }}
+                                            >
+                                                {currentSub.text}
+                                            </div>
+                                        </div>
+
+                                        {/* 커스텀 플레이어 바 */}
+                                        <div className="p-3 bg-[#13171e] border-t border-white/5 flex flex-col gap-2">
+                                            <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden cursor-pointer">
+                                                <div className="h-full bg-cyan-500 w-1/4 rounded-full" />
+                                            </div>
+                                            <div className="flex items-center justify-between text-[11px] text-gray-400">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => setIsPlayingPreview(!isPlayingPreview)}
+                                                        className="text-cyan-400 hover:text-white"
+                                                    >
+                                                        {isPlayingPreview ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                                                    </button>
+                                                    <span className="font-mono">00:00 / 08:04</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 탭: 자막 편집 / 배경음/효과음 */}
+                                    <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow flex flex-col gap-3">
+                                        <div className="flex items-center gap-4 border-b border-white/5 pb-2 text-xs font-bold">
+                                            <button
+                                                onClick={() => setSubEditTab('subtitle')}
+                                                className={`pb-1 transition-colors ${
+                                                    subEditTab === 'subtitle' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'
+                                                }`}
+                                            >
+                                                자막 편집
+                                            </button>
+                                            <button
+                                                onClick={() => setSubEditTab('bgm')}
+                                                className={`pb-1 transition-colors ${
+                                                    subEditTab === 'bgm' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'
+                                                }`}
+                                            >
+                                                배경음/효과음
+                                            </button>
+                                        </div>
+
+                                        {subEditTab === 'subtitle' ? (
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between text-xs font-bold text-white">
+                                                    <span>선택된 구간 편집</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                        <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                        <button className="text-[10px] px-2.5 py-0.5 bg-emerald-600 text-white rounded font-bold">저장</button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                    <span className="text-blue-400 font-bold">현재 이미지</span>
+                                                    <span className="font-mono">{currentSub.start_time}s ~ {currentSub.end_time}s</span>
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                    <span className="text-gray-300 font-bold">시작 시간</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-mono text-white mr-2">{currentSub.start_time}s</span>
+                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-red-500/20">
+                                                    <span className="text-red-400 font-bold">종료 시간</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-mono text-white mr-2">{currentSub.end_time}s</span>
+                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 자막 텍스트 에디터 */}
+                                                <div>
+                                                    <textarea
+                                                        value={currentSub.text}
+                                                        onChange={e => {
+                                                            const newText = e.target.value
+                                                            setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? { ...s, text: newText } : s))
+                                                        }}
+                                                        className="w-full p-3 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-relaxed resize-none focus:outline-none focus:border-blue-500 min-h-[90px]"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="py-6 text-center text-xs text-gray-400">
+                                                🎵 BGM 배경음 및 SFX 효과음 설정 패널
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* [TTS 음성 생성 탭] */}
                     {currentNav === 'tts' && selectedProject && (
                         <div className="space-y-4 max-w-7xl mx-auto w-full flex flex-col h-full">
-                            {/* 1. 상단 컨트롤 툴바 */}
                             <div className="bg-[#181d26] border border-white/10 rounded-xl p-3 shadow-md flex flex-wrap items-center justify-between gap-3 shrink-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20 flex items-center gap-1">
@@ -1140,7 +1481,6 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className="flex items-center gap-3 flex-wrap">
-                                    {/* 성우 선택 */}
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs font-bold text-gray-300">성우</span>
                                         <select
@@ -1154,7 +1494,6 @@ export default function StdPortalPage() {
                                         </select>
                                     </div>
 
-                                    {/* 속도 */}
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs font-bold text-gray-300">속도 <span className="text-purple-400 font-mono">{ttsSpeed}x</span></span>
                                         <input
@@ -1168,7 +1507,6 @@ export default function StdPortalPage() {
                                         />
                                     </div>
 
-                                    {/* 안정성 */}
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs font-bold text-gray-300">안정성 <span className="text-purple-400 font-mono">{elStability}</span></span>
                                         <input
@@ -1182,7 +1520,6 @@ export default function StdPortalPage() {
                                         />
                                     </div>
 
-                                    {/* 다중 성우 토글 */}
                                     <label className="flex items-center gap-1.5 cursor-pointer bg-[#202632] px-2.5 py-1 rounded-lg border border-white/5">
                                         <span className="text-xs font-bold text-gray-300">다중 성우</span>
                                         <input
@@ -1194,7 +1531,6 @@ export default function StdPortalPage() {
                                         <div className="relative w-7 h-4 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600" />
                                     </label>
 
-                                    {/* 버튼들 */}
                                     <button
                                         onClick={() => alert('TTS 보이스 및 음향 설정이 저장되었습니다!')}
                                         className="px-3 py-1.5 text-xs font-bold bg-[#202632] hover:bg-[#28303e] border border-white/10 text-gray-300 rounded-lg transition-all"
@@ -1212,11 +1548,8 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
 
-                            {/* 2. 메인 워크스페이스: 좌측 패널(미리듣기/인물매핑/결과) + 우측 패널(대본 에디터) */}
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
-                                {/* 좌측 패널 (Col 4) */}
                                 <div className="lg:col-span-4 space-y-4 flex flex-col">
-                                    {/* 성우 샘플 미리듣기 박스 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-2.5 border-l-4 border-l-purple-500">
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1235,7 +1568,6 @@ export default function StdPortalPage() {
                                         />
                                     </div>
 
-                                    {/* 다중 성우 인물 배정 박스 */}
                                     {multiVoice && (
                                         <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-3 flex-1 flex flex-col">
                                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
@@ -1266,7 +1598,6 @@ export default function StdPortalPage() {
                                         </div>
                                     )}
 
-                                    {/* 생성된 오디오 결과 박스 */}
                                     {audioResultUrl && (
                                         <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-3 border-l-4 border-l-emerald-500">
                                             <div className="flex items-center justify-between">
@@ -1297,7 +1628,6 @@ export default function StdPortalPage() {
                                     )}
                                 </div>
 
-                                {/* 우측 패널: 전체 대본 텍스트 에디터 (Col 8) */}
                                 <div className="lg:col-span-8 bg-[#181d26] border border-white/10 rounded-xl p-4 shadow flex flex-col space-y-3 min-h-[500px]">
                                     <div className="flex items-center justify-between border-b border-white/5 pb-3">
                                         <div>
@@ -1325,7 +1655,6 @@ export default function StdPortalPage() {
                     {/* [이미지 생성 탭] */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-                            {/* 1. 생성된 씬 프롬프트 상단 카드 */}
                             <div className="bg-[#1a1f29] border border-white/10 rounded-xl p-5 shadow-lg space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
@@ -1385,7 +1714,6 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
 
-                            {/* 2. 씬 에셋 검토 패널 */}
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
                                     <div>
@@ -1512,7 +1840,6 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
 
-                            {/* 3. 씬별 개별 카드 리스트 */}
                             <div className="space-y-4">
                                 {selectedProject.scenes.map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
@@ -1688,38 +2015,6 @@ export default function StdPortalPage() {
                                         </div>
                                     </button>
                                 ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* [자막/제출 탭] */}
-                    {currentNav === 'subtitle_gen' && selectedProject && (
-                        <div className="space-y-6 max-w-5xl mx-auto w-full">
-                            <div className="bg-[#181d26] border border-white/10 rounded-2xl p-6 shadow-xl space-y-5">
-                                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                    <div>
-                                        <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                                            <Type className="h-4 w-4 text-pink-400" />
-                                            자막 싱크 및 원격 렌더 큐 제출
-                                        </h3>
-                                        <p className="text-xs text-gray-400 mt-0.5">에셋 등록을 모두 마친 후 원격 분산 렌더 워커로 패키지를 제출합니다.</p>
-                                    </div>
-                                    <button
-                                        onClick={submitProject}
-                                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow"
-                                    >
-                                        {selectedProject.project.status === 'review_requested' ? '렌더 큐 접수 완료됨' : '최종 렌더 큐 제출하기'}
-                                    </button>
-                                </div>
-                                <div className="space-y-2">
-                                    {selectedProject.scenes.map((s, idx) => (
-                                        <div key={s.id || idx} className="p-3 bg-[#14181f] border border-white/5 rounded-lg flex items-center justify-between gap-4">
-                                            <span className="font-mono text-pink-400 font-bold">#{String(idx + 1).padStart(2, '0')}</span>
-                                            <p className="flex-1 text-xs text-gray-300">{s.scene_text}</p>
-                                            <span className="text-[10px] text-gray-500 font-mono bg-white/5 px-2 py-0.5 rounded">자막바 고정</span>
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
                         </div>
                     )}
