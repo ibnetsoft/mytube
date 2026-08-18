@@ -160,9 +160,10 @@ export function topicHasPublishDescription(topic: any): boolean {
 
 export function isPreparedStdTopic(topic: any): boolean {
     const hasTitle = Boolean(firstText(topic?.generated_title, topic?.topic))
-    const struct = topic?.pregenerated_structure || {}
+    const struct = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    return Boolean(hasTitle && (scenes.length > 0 || topic?.pregenerated_script || topic?.status === 'pending'))
+    // 유저앱과 동일하게 50씬 이상 기획 및 프롬프트가 완료된 주제만 선별
+    return Boolean(hasTitle && (scenes.length >= 20 || topic?.pregenerated_script))
 }
 
 export function buildStdScenes(topic: any) {

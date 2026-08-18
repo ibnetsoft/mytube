@@ -1630,47 +1630,63 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [주제 탐색 탭] */}
+                    {/* [주제 탐색 탭 (Check AI-analyzed personalized topics)] */}
                     {currentNav === 'topics' && (
-                        <div className="space-y-5 max-w-7xl mx-auto w-full">
-                            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                <div>
-                                    <h2 className="text-base font-bold text-white flex items-center gap-2">
-                                        <Sparkles className="h-4 w-4 text-blue-400" />
-                                        AI 분석 맞춤 주제 탐색 (Topics Queue)
-                                    </h2>
-                                    <p className="text-xs text-gray-400 mt-0.5">Hermes Autopilot이 발굴/분석 완료한 고성과 영상 주제 풀입니다.</p>
+                        <div className="space-y-4 max-w-7xl mx-auto w-full">
+                            <div className="flex items-center justify-between mb-2">
+                                <h2 className="text-lg font-bold text-white">Check AI-analyzed personalized topics</h2>
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        className="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer"
+                                        defaultValue=""
+                                    >
+                                        <option value="">영상길이</option>
+                                        <option value="short">짧은 영상 (15분 미만)</option>
+                                        <option value="medium">중간 영상 (15-30분)</option>
+                                        <option value="long">긴 영상 (30분 이상)</option>
+                                        <option value="ignore">무시</option>
+                                    </select>
+                                    <select
+                                        className="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer"
+                                        defaultValue="ko"
+                                    >
+                                        <option value="ko">한국어</option>
+                                        <option value="ja">日本語</option>
+                                        <option value="en">English</option>
+                                    </select>
+                                    <button
+                                        onClick={() => loadStdData(token)}
+                                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-all font-medium"
+                                    >
+                                        새로고침
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => loadStdData(token)}
-                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold transition-all flex items-center gap-1"
-                                >
-                                    <RefreshCw className="h-3 w-3" /> 새로고침
-                                </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {topics.map(topic => (
-                                    <div key={topic.id} className="bg-[#181d26] border border-white/10 rounded-xl p-5 flex flex-col justify-between gap-4 shadow-lg">
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                                {topics.slice(0, 5).map(topic => (
+                                    <button
+                                        key={topic.id}
+                                        type="button"
+                                        onClick={() => claimTopic(topic.id)}
+                                        className="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl px-4 pt-4 pb-3 hover:border-indigo-500/50 transition-all group relative cursor-pointer flex flex-col justify-between"
+                                    >
                                         <div>
-                                            <div className="flex items-center justify-between gap-2 mb-2">
-                                                <span className="text-[10px] font-bold uppercase bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
+                                            <div className="mb-2">
+                                                <span className="float-left text-xs leading-4 font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded mr-2 max-w-[55%] truncate">
                                                     {topic.category_name || '옛날이야기'}
                                                 </span>
-                                                <span className="text-[10px] text-gray-400 font-mono">
-                                                    {topic.scene_count || 53}개 씬 · {topic.assigned_duration_minutes || 15}분
-                                                </span>
+                                                <h3 className="text-sm leading-5 font-medium text-white group-hover:text-indigo-300 transition-colors">
+                                                    {topic.topic}
+                                                </h3>
+                                                <div className="clear-both" />
                                             </div>
-                                            <h3 className="font-bold text-sm text-white leading-relaxed line-clamp-3">
-                                                {topic.topic}
-                                            </h3>
+                                            <div className="mb-3 min-h-[1.5rem]" />
                                         </div>
-                                        <button
-                                            onClick={() => claimTopic(topic.id)}
-                                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-xs transition-all shadow-md"
-                                        >
-                                            ✨ 작업 가져오기 (Claim)
-                                        </button>
-                                    </div>
+                                        <div className="text-xs text-gray-300 truncate font-mono">
+                                            <span>{topic.assigned_duration_minutes || 15}m</span>, <span className="text-yellow-400 font-semibold">$4</span>, <span>ghibli</span>, <span>story</span>
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
                         </div>
