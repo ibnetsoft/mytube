@@ -43,6 +43,8 @@ type Topic = {
     assigned_duration_minutes: number | null
     estimated_payout: number | null
     scene_count: number
+    pregenerated_structure?: any
+    pregenerated_script?: string
     created_at?: string
 }
 
@@ -133,14 +135,22 @@ export default function StdPortalPage() {
         }
     }
 
-    // 기본 샘플/Fallback 프로젝트 생성 유틸리티
-    const createFallbackProjectFromTopic = (topic: Topic | { topic: string; language?: string; scene_count?: number }): SelectedProjectPayload => {
-        const dummyId = `proj-${Date.now()}`
-        const scenesCount = 20
-        const sampleTopicTitle = topic.topic || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'
+    // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
+    const buildProjectFromSupabaseTopic = (topic: any): SelectedProjectPayload => {
+        const dummyId = `proj-${topic.id || Date.now()}`
+        const sampleTopicTitle = topic.generated_title || topic.topic || '산골 할머니가 묻은 항아리 — 40년 뒤 마을을 바꾼 것'
+        const struct = topic.pregenerated_structure || topic.structure || {}
+        const rawScenes = Array.isArray(struct.scenes) && struct.scenes.length > 0
+            ? struct.scenes
+            : Array.from({ length: 53 }, (_, i) => ({
+                scene_number: i + 1,
+                scene_order: i + 1,
+                script_excerpt: `Scene ${i + 1}: ${sampleTopicTitle} 이야기 전개...`,
+                video_prompt: `The shot uses a slow push-in. Opening keyframe for scene ${i + 1}. A Korean historical drama in traditional village, cinematic 8k realistic photorealism.`,
+            }))
 
-        const fallbackScenes = Array.from({ length: scenesCount }, (_, i) => {
-            const num = i + 1
+        const scenes = rawScenes.map((s: any, i: number) => {
+            const num = Number(s.scene_number || s.scene_order || i + 1)
             let videoUrl: string | null = null
             let imageUrl: string | null = null
             if (num === 1) {
@@ -149,45 +159,59 @@ export default function StdPortalPage() {
                 videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
             }
 
+            const scriptText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || `Scene ${num} narrative context`
+            const videoPromptText = s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`
+
             return {
                 id: `scene-${dummyId}-${num}`,
                 project_id: dummyId,
                 scene_number: num,
-                scene_title: `Scene ${num}`,
-                scene_text: num === 1
-                    ? 'At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife\'s old handbag.'
-                    : num === 2
-                        ? 'The first line of the letter reveals a secret that has been kept for thirty long years.'
-                        : `Scene ${num} narrative context: ${sampleTopicTitle}`,
-                prompt_ko: `Scene ${num} 씬 연출 및 상황 설명`,
-                prompt_en: `Start from the exact image keyframe for scene ${num}. At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag. Keep the same people, clothing, location, and props throughout. Use a gentle push-in or slow lateral move while the subject performs one small believable action such as opening a letter, lowering their gaze with deep emotional weight. Cinematic 4k, ultra detailed, 8k realistic.`,
-                video_prompt: `Start from the exact image keyframe for scene ${num}. At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag. Keep the same people, clothing, location, and props throughout. Use a gentle push-in or slow lateral move while the subject performs one small believable action such as opening a letter, lowering their gaze with deep emotional weight. Cinematic 4k, ultra detailed.`,
+                scene_title: s.scene_title || `Scene ${num}`,
+                scene_text: scriptText,
+                script_excerpt: scriptText,
+                prompt_ko: s.prompt_ko || scriptText,
+                prompt_en: videoPromptText,
+                video_prompt: videoPromptText,
+                image_prompt: s.image_prompt || videoPromptText,
                 video_url: videoUrl,
                 image_url: imageUrl,
                 asset_status: videoUrl ? 'ready' : 'pending',
                 video_prompt_required: true,
+                metadata: s,
             }
         })
 
-        // 2x2 그리드 프롬프트 묶음 (1~4, 5~8, 9~12, 13~16, 17~20)
-        const gridPrompts = [
-            { grid_number: 1, scene_numbers: [1, 2, 3, 4], prompt: `2x2 Grid Scene 1~4: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins, NO text, NO watermarks. Panel 1: At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag. Panel 2: The first line of the letter reveals a 30-year-old confession. Panel 3: In trembling hands, he reads the aged ink of memories. Panel 4: Tear drops slowly falling onto the worn envelope. Cinematic realistic photorealism 8k.` },
-            { grid_number: 2, scene_numbers: [5, 6, 7, 8], prompt: `2x2 Grid Scene 5~8: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins. Panel 1: Flashback to a rainy train station in the 1980s. Panel 2: A young woman holding an umbrella looking back. Panel 3: A young man waving with sorrowful eyes. Panel 4: An unsent letter tucked inside a wooden desk drawer. Nostalgic 80s film tone, 35mm photograph, ultra realistic.` },
-            { grid_number: 3, scene_numbers: [9, 12], prompt: `2x2 Grid Scene 9~12: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins. Panel 1: The husband sitting alone in the empty funeral parlor at midnight. Panel 2: Incense smoke curling in the dimly lit room. Panel 3: Close-up of the wife's portrait framed in black ribbon. Panel 4: A gentle whisper of wind rustling the curtains. Melancholic cinematic realism.` },
-            { grid_number: 4, scene_numbers: [13, 16], prompt: `2x2 Grid Scene 13~16: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders. Panel 1: Walking through the old quiet neighborhood alley. Panel 2: An old bookstore where they first crossed paths. Panel 3: A cup of warm tea sitting on the wooden counter. Panel 4: Gentle afternoon sunlight spilling across the floor. Warm nostalgic tone.` },
-            { grid_number: 5, scene_numbers: [17, 20], prompt: `2x2 Grid Scene 17~20: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders. Panel 1: The elderly man looking up at the evening sunset sky. Panel 2: A quiet smile of forgiveness and peaceful acceptance. Panel 3: Holding both wedding rings together in his palm. Panel 4: Final serene silhouette against the twilight. High-end cinematic drama masterpiece.` },
-        ]
+        // 2x2 그리드 프롬프트 묶음 (14개 등)
+        let gridPrompts = Array.isArray(struct.image_grid_prompts) && struct.image_grid_prompts.length > 0
+            ? struct.image_grid_prompts
+            : []
 
-        const fallbackProject: StdProject = {
+        if (gridPrompts.length === 0) {
+            const chunkSize = 4
+            for (let i = 0; i < scenes.length; i += chunkSize) {
+                const chunk = scenes.slice(i, i + chunkSize)
+                const start = i + 1
+                const end = Math.min(i + chunkSize, scenes.length)
+                const panelText = chunk.map((c: any, idx: number) => `Panel ${idx + 1}: ${c.scene_text.slice(0, 50)}...`).join(' ')
+                gridPrompts.push({
+                    grid_number: Math.floor(i / chunkSize) + 1,
+                    label: `${start}-${end}`,
+                    scene_numbers: chunk.map((c: any) => c.scene_number),
+                    prompt: `2x2 Grid Scene ${start}~${end}: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins, NO text. ${panelText} Cinematic realistic photorealism 8k.`
+                })
+            }
+        }
+
+        const projectData: StdProject = {
             id: dummyId,
             title: sampleTopicTitle,
             status: 'image_prompted',
-            language: 'ko',
-            assigned_duration_minutes: 15,
-            estimated_payout: 45000,
-            scene_count: scenesCount,
+            language: topic.language || 'ko',
+            assigned_duration_minutes: topic.assigned_duration_minutes || 15,
+            estimated_payout: topic.estimated_payout || 45000,
+            scene_count: scenes.length,
             progress_payload: {
-                scene_count: scenesCount,
+                scene_count: scenes.length,
                 image_grid_prompt_count: gridPrompts.length,
                 ready_scene_count: 2,
             }
@@ -195,13 +219,14 @@ export default function StdPortalPage() {
 
         return {
             project: {
-                ...fallbackProject,
+                ...projectData,
                 project_payload: {
-                    structure: { scenes: fallbackScenes },
+                    script: topic.pregenerated_script || topic.script || '',
+                    structure: { scenes, image_grid_prompts: gridPrompts },
                     image_grid_prompts: gridPrompts,
                 }
             },
-            scenes: fallbackScenes,
+            scenes,
             assets: [
                 { id: 'asset-1', scene_number: 1, asset_type: 'video', file_name: 'manual_vid_p276_s1_1786710213.mp4', status: 'uploaded', drive_file_id: 'sample-1' },
                 { id: 'asset-2', scene_number: 2, asset_type: 'video', file_name: 'manual_vid_p276_s2_1786710246.mp4', status: 'uploaded', drive_file_id: 'sample-2' },
@@ -218,7 +243,7 @@ export default function StdPortalPage() {
             const headers = { Authorization: `Bearer ${accessToken}` }
             const [meRes, topicsRes, projectsRes] = await Promise.allSettled([
                 fetch('/api/std/me', { headers }),
-                fetch(`/api/std/topics?refresh=1`, { headers }),
+                fetch(`/api/std/topics?refresh=1&limit=50`, { headers }),
                 fetch('/api/std/projects', { headers }),
             ])
 
@@ -248,14 +273,14 @@ export default function StdPortalPage() {
             const loadedProjects = Array.isArray(projectPayload?.projects) ? projectPayload.projects : []
             setProjects(loadedProjects)
 
-            // 만약 서버 프로젝트가 있다면 첫 번째 프로젝트 열기, 없다면 첫 번째 주제로 가상 프로젝트를 열어 텅 빈 화면 방지
+            // 만약 서버 프로젝트가 있다면 첫 번째 프로젝트 열기, 없다면 워커가 생성한 첫 번째 실제 주제(3282 등)로 프로젝트를 바로 구성!
             if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken).catch(() => {})
-            } else if (!selectedProject) {
-                const targetTopic = loadedTopics[0] || { topic: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다' }
-                const fallback = createFallbackProjectFromTopic(targetTopic)
-                setSelectedProject(fallback)
-                setProjects([fallback.project])
+            } else if (loadedTopics.length > 0) {
+                const firstRealTopic = loadedTopics[0]
+                const loaded = buildProjectFromSupabaseTopic(firstRealTopic)
+                setSelectedProject(loaded)
+                setProjects([loaded.project])
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
@@ -356,7 +381,7 @@ export default function StdPortalPage() {
     const claimTopic = async (topicId: number) => {
         setLoading(true)
         setMessage('')
-        const targetTopic = topics.find(t => t.id === topicId) || topics[0] || { topic: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다' }
+        const targetTopic = topics.find(t => t.id === topicId) || topics[0]
         try {
             const res = await fetch(`/api/std/topics/${topicId}/claim`, {
                 method: 'POST',
@@ -364,7 +389,7 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
             if (res.ok && payload?.project?.id) {
-                setMessage('새 작업이 성공적으로 생성되었습니다!')
+                setMessage(`'${payload.project.title}' 새 작업실로 이동했습니다!`)
                 setCurrentNav('image_gen')
                 await loadStdData(token, { showLoading: false })
                 await openProject(payload.project.id)
@@ -373,11 +398,13 @@ export default function StdPortalPage() {
             throw new Error(payload.error || '주제 선택 실패')
         } catch (error: any) {
             console.warn('[claimTopic] Fallback to local workspace:', error?.message)
-            const fallback = createFallbackProjectFromTopic(targetTopic)
-            setProjects(prev => [fallback.project, ...prev.filter(p => p.id !== fallback.project.id)])
-            setSelectedProject(fallback)
-            setCurrentNav('image_gen')
-            setMessage(`'${targetTopic.topic}' 작업실로 이동했습니다!`)
+            if (targetTopic) {
+                const built = buildProjectFromSupabaseTopic(targetTopic)
+                setProjects(prev => [built.project, ...prev.filter(p => p.id !== built.project.id)])
+                setSelectedProject(built)
+                setCurrentNav('image_gen')
+                setMessage(`'${targetTopic.topic}' 작업실로 이동했습니다!`)
+            }
         } finally {
             setLoading(false)
         }
@@ -392,16 +419,29 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (res.ok && payload?.project) {
-                setSelectedProject(payload)
+                // scenes와 project_payload를 완벽하게 매핑
+                const serverScenes = Array.isArray(payload.scenes) && payload.scenes.length > 0
+                    ? payload.scenes
+                    : payload.project.project_payload?.structure?.scenes || []
+
+                setSelectedProject({
+                    ...payload,
+                    scenes: serverScenes.map((s: any, idx: number) => ({
+                        ...s,
+                        scene_text: s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`,
+                        video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
+                    }))
+                })
                 return
             }
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
             const localProj = projects.find(p => p.id === projectId)
             if (localProj) {
-                const fallback = createFallbackProjectFromTopic({ topic: localProj.title })
-                fallback.project.id = projectId
-                setSelectedProject(fallback)
+                const targetTopic = topics.find(t => t.topic === localProj.title) || { topic: localProj.title }
+                const built = buildProjectFromSupabaseTopic(targetTopic)
+                built.project.id = projectId
+                setSelectedProject(built)
             } else {
                 setMessage(error.message || '작업 상세 조회 실패')
             }
@@ -423,7 +463,6 @@ export default function StdPortalPage() {
         setUploadingKey(key)
         setMessage('')
         try {
-            // Local preview update immediately for instant user feedback
             const objectUrl = URL.createObjectURL(file)
             setSelectedProject(prev => {
                 if (!prev) return prev
@@ -492,7 +531,6 @@ export default function StdPortalPage() {
             setMessage('✅ 원격 렌더 큐에 성공적으로 등록되었습니다!')
             await reloadSelectedProject({ refreshLists: true })
         } catch (error: any) {
-            // Local fallback simulation
             setSelectedProject(prev => prev ? {
                 ...prev,
                 project: { ...prev.project, status: 'review_requested' }
@@ -528,26 +566,38 @@ export default function StdPortalPage() {
     const imageGridPrompts = useMemo(() => {
         const payload = selectedProject?.project?.project_payload || {}
         const structure = payload.structure || {}
-        const grids = Array.isArray(payload.image_grid_prompts)
+        const grids = Array.isArray(payload.image_grid_prompts) && payload.image_grid_prompts.length > 0
             ? payload.image_grid_prompts
-            : Array.isArray(structure.image_grid_prompts)
+            : Array.isArray(structure.image_grid_prompts) && structure.image_grid_prompts.length > 0
                 ? structure.image_grid_prompts
                 : []
+
         if (grids.length > 0) return grids
-        // Default 5 chunks (1~4, 5~8, 9~12, 13~16, 17~20)
-        return [
-            { grid_number: 1, label: '1-4', scene_numbers: [1, 2, 3, 4], prompt: '2x2 Grid Scene 1~4: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins. Scene 1-4 storytelling cinematic realistic photorealism 8k.' },
-            { grid_number: 2, label: '5-8', scene_numbers: [5, 6, 7, 8], prompt: '2x2 Grid Scene 5~8: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Nostalgic cinematic film photograph, ultra realistic.' },
-            { grid_number: 3, label: '9-12', scene_numbers: [9, 10, 11, 12], prompt: '2x2 Grid Scene 9~12: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Melancholic cinematic realism.' },
-            { grid_number: 4, label: '13-16', scene_numbers: [13, 14, 15, 16], prompt: '2x2 Grid Scene 13~16: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Warm afternoon nostalgia.' },
-            { grid_number: 5, label: '17-20', scene_numbers: [17, 18, 19, 20], prompt: '2x2 Grid Scene 17~20: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Twilight silhouette dramatic resolution.' },
-        ]
+
+        const scenes = selectedProject?.scenes || []
+        if (scenes.length === 0) return []
+
+        const dynamicGrids = []
+        const chunkSize = 4
+        for (let i = 0; i < scenes.length; i += chunkSize) {
+            const chunk = scenes.slice(i, i + chunkSize)
+            const start = i + 1
+            const end = Math.min(i + chunkSize, scenes.length)
+            const panelText = chunk.map((c: any, idx: number) => `Panel ${idx + 1}: ${(c.scene_text || '').slice(0, 60)}...`).join(' ')
+            dynamicGrids.push({
+                grid_number: Math.floor(i / chunkSize) + 1,
+                label: `${start}-${end}`,
+                scene_numbers: chunk.map((c: any) => c.scene_number),
+                prompt: `2x2 Grid Scene ${start}~${end}: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins, NO text. ${panelText} Cinematic realistic 8k photorealism.`
+            })
+        }
+        return dynamicGrids
     }, [selectedProject])
 
     // 에셋 완성도 및 통계 계산
     const assetStats = useMemo(() => {
         const scenes = selectedProject?.scenes || []
-        const totalScenes = scenes.length || 20
+        const totalScenes = scenes.length || 53
         const videoScenes = scenes.filter(s => s.video_url).map(s => s.scene_number)
         const imageScenes = scenes.filter(s => s.image_url && !s.video_url).map(s => s.scene_number)
         const missingScenes = scenes.filter(s => !s.video_url && !s.image_url).map(s => s.scene_number)
@@ -567,10 +617,6 @@ export default function StdPortalPage() {
             videoScenes,
         }
     }, [selectedProject])
-
-    const audioAssets = useMemo(() => (
-        (selectedProject?.assets || []).filter((asset: any) => asset.asset_type === 'audio' && ['uploaded', 'assigned'].includes(asset.status))
-    ), [selectedProject])
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
@@ -790,7 +836,7 @@ export default function StdPortalPage() {
                     </span>
                     <span className="text-gray-500 text-xs hidden md:inline">|</span>
                     <span className="text-xs text-gray-300 font-medium hidden md:inline">
-                        <strong className="text-blue-400">활성 프로젝트:</strong> {selectedProject?.project?.title || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
+                        <strong className="text-blue-400">활성 프로젝트:</strong> {selectedProject?.project?.title || '산골 할머니가 묻은 항아리 — 40년 뒤 마을을 바꾼 것'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
                     </span>
                 </div>
 
@@ -978,7 +1024,7 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                {/* 2x2 그리드 청크 버튼들 (1-4, 5-8, 9-12, 13-16, 17-20) */}
+                                {/* 2x2 그리드 청크 버튼들 (1-4, 5-8, 9-12, 13-16, 17-20 ...) */}
                                 <div className="flex flex-wrap items-center gap-2 pt-1">
                                     {imageGridPrompts.map((grid: any, idx: number) => {
                                         const label = grid.label || (grid.scene_numbers ? `${grid.scene_numbers[0]}-${grid.scene_numbers[grid.scene_numbers.length - 1]}` : `${idx * 4 + 1}-${idx * 4 + 4}`)
@@ -1113,7 +1159,7 @@ export default function StdPortalPage() {
                                     </div>
                                     <div className="flex items-center justify-between pt-2">
                                         <p className="text-xs text-amber-400 font-mono">
-                                            영상 누락: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+                                            영상 누락: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20...
                                         </p>
                                         <button
                                             onClick={() => setCurrentNav('tts')}
@@ -1229,7 +1275,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                     </div>
                                                     <p className="text-[11px] text-gray-300 leading-relaxed overflow-hidden line-clamp-5 font-mono">
-                                                        {scene.video_prompt || scene.prompt_en || `Start from the exact image keyframe for scene ${sceneNum}. At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag. Keep the same people, clothing, location, and props throughout. Use a gentle push-in or slow lateral move while the subject performs one small believable action such as opening a letter, lowering their gaze...`}
+                                                        {scene.video_prompt || scene.prompt_en || `Start from the exact image keyframe for scene ${sceneNum}. At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag...`}
                                                     </p>
                                                 </div>
 
@@ -1275,7 +1321,7 @@ export default function StdPortalPage() {
                                                     {topic.category_name || '옛날이야기'}
                                                 </span>
                                                 <span className="text-[10px] text-gray-400 font-mono">
-                                                    {topic.scene_count || 20}개 씬 · {topic.assigned_duration_minutes || 15}분
+                                                    {topic.scene_count || 53}개 씬 · {topic.assigned_duration_minutes || 15}분
                                                 </span>
                                             </div>
                                             <h3 className="font-bold text-sm text-white leading-relaxed line-clamp-3">

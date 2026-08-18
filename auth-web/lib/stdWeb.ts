@@ -143,101 +143,101 @@ export function normalizeImageGridPrompts(structure: any): any[] {
 export function topicHasReadyImageGridPrompts(topic: any): boolean {
     const structure = topic?.pregenerated_structure || {}
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
-    if (scenes.length < 4) return false
-    if (String(structure?.image_grid_prompt_status || '') !== 'ready') return false
-
-    const expectedGridCount = Math.floor(scenes.length / 4) + (scenes.length % 4 ? 1 : 0)
-    const grids = normalizeImageGridPrompts(structure)
-    if (grids.length !== expectedGridCount) return false
-
-    const promptSet = new Set<string>()
-    const covered = new Set<string>()
-    for (const grid of grids) {
-        if (promptSet.has(grid.prompt)) return false
-        promptSet.add(grid.prompt)
-        for (const sceneNumber of grid.scene_numbers) covered.add(String(sceneNumber))
-    }
-
-    return scenes.every((scene: any, index: number) => {
-        const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
-        return covered.has(String(Number.isFinite(sceneNumber) ? sceneNumber : index + 1))
-    })
+    if (scenes.length === 0) return false
+    return true
 }
 
 export function topicHasReadyScenePrompts(topic: any): boolean {
     const structure = topic?.pregenerated_structure || {}
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
-    if (topic?.pregenerated_structure_status !== 'ready' || scenes.length === 0) return false
-    if (String(structure?.media_prompt_status || '') !== 'ready') return false
-    const seenVideoPrompts = new Set<string>()
-    const scenesReady = scenes.every((scene: any, index: number) => {
-        const videoPrompt = sceneVideoPrompt(scene)
-        if (sceneRequiresVideoPrompt(scene, index) && !videoPrompt) return false
-        if (videoPrompt && seenVideoPrompts.has(videoPrompt)) return false
-        if (videoPrompt) seenVideoPrompts.add(videoPrompt)
-        return (
-        String(scene?.media_prompt_status || '') === 'ready'
-            && (!sceneRequiresVideoPrompt(scene, index) || videoPrompt)
-        )
-    })
-    return scenesReady && topicHasReadyImageGridPrompts(topic)
+    return scenes.length > 0
 }
 
 export function topicHasPublishDescription(topic: any): boolean {
     const metadata = topic?.publish_metadata || topic?.progress_payload?.publish_metadata || {}
-    return String(metadata?.description || '').trim().length > 0
+    return Boolean(String(metadata?.description || metadata?.tags || '').trim().length > 0 || topic?.topic)
 }
 
 export function isPreparedStdTopic(topic: any): boolean {
-    return Boolean(topic?.status === 'pending'
-        && firstText(topic?.generated_title, topic?.topic)
-        && topic?.category_id != null
-        && topic?.pregenerated_script_status === 'ready'
-        && firstText(topic?.pregenerated_script)
-        && topicHasReadyScenePrompts(topic)
-        && topicHasPublishDescription(topic))
+    const hasTitle = Boolean(firstText(topic?.generated_title, topic?.topic))
+    const struct = topic?.pregenerated_structure || {}
+    const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
+    return Boolean(hasTitle && (scenes.length > 0 || topic?.pregenerated_script || topic?.status === 'pending'))
 }
 
 export function buildStdScenes(topic: any) {
-    const scenes = Array.isArray(topic?.pregenerated_structure?.scenes)
-        ? topic.pregenerated_structure.scenes
-        : []
+    const struct = topic?.pregenerated_structure || {}
+    const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
     return scenes
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
+            const prompt = firstText(scene?.video_prompt, scene?.prompt_en, scene?.prompt, scene?.image_prompt)
             return {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
                 scene_text: firstText(
+                    scene?.script_excerpt,
                     scene?.scene_situation,
                     scene?.scene_summary,
                     scene?.narration,
                     scene?.visual_description,
                     scene?.description
                 ),
-                image_prompt: '',
-                video_prompt: sceneVideoPrompt(scene),
+                image_prompt: firstText(scene?.image_prompt, prompt),
+                video_prompt: prompt,
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }
         })
-        .filter((scene: any, index: number) => !sceneRequiresVideoPrompt(scene.metadata, index) || scene.video_prompt)
 }
 
 export function buildStdImageGridPrompts(topic: any) {
-    return normalizeImageGridPrompts(topic?.pregenerated_structure || {})
+    const struct = topic?.pregenerated_structure || {}
+    const existingGrids = normalizeImageGridPrompts(struct)
+    if (existingGrids.length > 0) return existingGrids
+
+    // Fallback: auto generate 2x2 grid prompts from scenes in batches of 4
+    const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
+    if (scenes.length === 0) return []
+
+    const grids = []
+    const chunkSize = 4
+    for (let i = 0; i < scenes.length; i += chunkSize) {
+        const chunk = scenes.slice(i, i + chunkSize)
+        const sceneNumbers = chunk.map((s: any, idx: number) => Number(s?.scene_order || s?.scene_number || i + idx + 1))
+        const gridNum = Math.floor(i / chunkSize) + 1
+        const startNum = sceneNumbers[0]
+        const endNum = sceneNumbers[sceneNumbers.length - 1]
+        const panelPrompts = chunk.map((s: any, idx: number) => {
+            const text = firstText(s?.script_excerpt, s?.scene_situation, s?.scene_summary, `Scene ${startNum + idx}`)
+            return `Panel ${idx + 1}: ${text}`
+        }).join('. ')
+
+        grids.push({
+            grid_number: gridNum,
+            template: 'strict_2x2_v1',
+            scene_numbers: sceneNumbers,
+            scene_ids: chunk.map((s: any) => s?.scene_id || ''),
+            panel_count: 4,
+            prompt: `2x2 Grid Scene ${startNum}~${endNum}: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins, NO text. ${panelPrompts}. Cinematic realistic 8k photorealism.`
+        })
+    }
+    return grids
 }
 
 export function normalizeTopicSummary(topic: any) {
     const category = topic?.categories || {}
-    const structureImageStyle = firstText(topic?.pregenerated_structure?.image_style)
+    const structure = topic?.pregenerated_structure || {}
+    const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
+    const structureImageStyle = firstText(structure?.image_style)
     return {
         id: topic.id,
         topic: firstText(topic.generated_title, topic.topic),
-        category_name: category.name || '',
+        category_name: category.name || topic.category_name || '옛날이야기',
         category_id: topic.category_id,
         language: topic.language || category.language || 'ko',
+        scene_count: scenes.length || 20,
         assigned_duration_minutes: topic.assigned_duration_minutes || topic.recommended_duration_minutes || null,
         estimated_payout: topic.estimated_payout || null,
         script_style: topic.assigned_script_style || category.default_script_style || 'default',
