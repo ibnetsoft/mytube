@@ -1369,7 +1369,10 @@ export default function StdPortalPage() {
                                                 return (
                                                     <div
                                                         key={sub.id}
-                                                        onClick={() => setSelectedSubIndex(idx)}
+                                                        onClick={() => {
+                                                            setSelectedSubIndex(idx)
+                                                            setPlaybackTime(sub.start_num ?? Number(sub.start_time) ?? 0)
+                                                        }}
                                                         className={`w-full aspect-video rounded overflow-hidden cursor-pointer border relative transition-all ${
                                                             selectedSubIndex === idx ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
                                                         }`}
@@ -1394,7 +1397,10 @@ export default function StdPortalPage() {
                                                 return (
                                                     <div
                                                         key={sub.id}
-                                                        onClick={() => setSelectedSubIndex(idx)}
+                                                        onClick={() => {
+                                                            setSelectedSubIndex(idx)
+                                                            setPlaybackTime(sub.start_num ?? Number(sub.start_time) ?? 0)
+                                                        }}
                                                         className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${
                                                             isActive
                                                                 ? 'bg-blue-600/10 border-blue-500 shadow-md'
@@ -1467,18 +1473,49 @@ export default function StdPortalPage() {
 
                                         {/* 커스텀 플레이어 바 */}
                                         <div className="p-3 bg-[#13171e] border-t border-white/5 flex flex-col gap-2">
-                                            <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden cursor-pointer">
-                                                <div className="h-full bg-cyan-500 w-1/4 rounded-full" />
+                                            <div
+                                                onClick={(e) => {
+                                                    const rect = e.currentTarget.getBoundingClientRect()
+                                                    const clickX = e.clientX - rect.left
+                                                    const pct = Math.max(0, Math.min(1, clickX / rect.width))
+                                                    const targetTime = Math.round(pct * totalDuration * 10) / 10
+                                                    setPlaybackTime(targetTime)
+                                                }}
+                                                className="w-full h-1.5 bg-gray-700 hover:h-2.5 rounded-full overflow-hidden cursor-pointer transition-all relative group"
+                                            >
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
+                                                    style={{ width: `${Math.min(100, (playbackTime / totalDuration) * 100)}%` }}
+                                                />
                                             </div>
                                             <div className="flex items-center justify-between text-[11px] text-gray-400">
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => setIsPlayingPreview(!isPlayingPreview)}
-                                                        className="text-cyan-400 hover:text-white"
+                                                        className="p-1 rounded-full bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-white transition-all"
+                                                        title={isPlayingPreview ? "일시정지" : "재생"}
                                                     >
-                                                        {isPlayingPreview ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                                                        {isPlayingPreview ? <Pause className="h-4 w-4 fill-cyan-400" /> : <Play className="h-4 w-4 fill-cyan-400" />}
                                                     </button>
-                                                    <span className="font-mono">00:00 / 08:04</span>
+                                                    <span className="font-mono text-white font-bold">
+                                                        {formatTime(playbackTime)} <span className="text-gray-500">/</span> {formatTime(totalDuration)}
+                                                    </span>
+                                                    {currentSub.is_hook_zone && (
+                                                        <span className="text-[9px] bg-orange-600/30 text-orange-400 px-1.5 py-0.5 rounded font-bold border border-orange-500/30">
+                                                            🎬 5초 훅 씬 #{currentSub.scene_number}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px]">
+                                                    <button
+                                                        onClick={() => setPlaybackTime(0)}
+                                                        className="text-gray-400 hover:text-white px-1.5 py-0.5 bg-[#202632] rounded"
+                                                    >
+                                                        처음으로
+                                                    </button>
+                                                    <span className="text-gray-500 font-mono">
+                                                        {(playbackTime).toFixed(1)}s
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
