@@ -2003,6 +2003,7 @@ MEDIA_CAMERA_MOVEMENTS = (
     "subtle crane movement",
     "slow drift",
 )
+MAX_VIDEO_PROMPT_SCENES = 12
 
 
 def _category_visual_grammar(topic: str, upload_title: str, structure: dict | None = None) -> str:
@@ -2245,6 +2246,8 @@ def _validate_unique_video_prompts(scenes: list[dict]) -> None:
     for index, scene in enumerate(scenes, start=1):
         label = str(scene.get("scene_id") or scene.get("scene_order") or index)
         video_prompt = str(scene.get("video_prompt") or "").strip()
+        if not video_prompt:
+            continue
         if video_prompt in seen_video_prompts:
             raise ValueError(f"duplicate video_prompt for scenes {seen_video_prompts[video_prompt]} and {label}")
         seen_video_prompts[video_prompt] = label
@@ -2565,10 +2568,11 @@ Return ONLY valid JSON in this shape:
         import asyncio
         generated_scenes = []
         director_notes = {"overall_vision": "chunked media prompt generation", "error": False, "chunks": []}
+        prompt_scenes = scenes[:MAX_VIDEO_PROMPT_SCENES]
         chunk_size = 8
-        for offset in range(0, len(scenes), chunk_size):
-            chunk = scenes[offset:offset + chunk_size]
-            chunk_label = f"{offset + 1}-{offset + len(chunk)} of {len(scenes)}"
+        for offset in range(0, len(prompt_scenes), chunk_size):
+            chunk = prompt_scenes[offset:offset + chunk_size]
+            chunk_label = f"{offset + 1}-{offset + len(chunk)} of {len(prompt_scenes)}"
             last_chunk_error = None
             for attempt in range(2):
                 try:
@@ -2630,6 +2634,21 @@ Return ONLY valid JSON in this shape:
         for index, scene in enumerate(scenes, start=1):
             key = (str(scene.get("scene_id") or ""), str(scene.get("scene_order") or index))
             media = by_key.get(key)
+            if index > MAX_VIDEO_PROMPT_SCENES:
+                merged = dict(scene)
+                for field in ("video_prompt", "motion_desc", "flow_prompt", "camera_motion"):
+                    merged.pop(field, None)
+                merged.pop("image_prompt", None)
+                merged.pop("prompt_en", None)
+                merged.pop("prompt_content", None)
+                merged.pop("prompt", None)
+                merged.pop("prompt_ko", None)
+                merged.pop("visual_prompt", None)
+                merged["image_style"] = image_style_key
+                merged["video_prompt_required"] = False
+                merged["media_prompt_status"] = "ready"
+                enriched_scenes.append(merged)
+                continue
             if not media:
                 raise ValueError(f"media prompt missing for scene {key[0] or key[1]}")
             if not str(media.get("video_prompt") or "").strip():
@@ -2653,6 +2672,7 @@ Return ONLY valid JSON in this shape:
             merged.pop("prompt_ko", None)
             merged.pop("visual_prompt", None)
             merged["image_style"] = image_style_key
+            merged["video_prompt_required"] = True
             merged["media_prompt_status"] = "ready"
             enriched_scenes.append(merged)
 

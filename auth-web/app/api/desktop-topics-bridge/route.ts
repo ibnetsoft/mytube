@@ -31,6 +31,7 @@ const LONGFORM_POLICY_KEYS = [
 ]
 
 const TRANSLATABLE_LANGS = new Set(['en', 'vi', 'th'])
+const MAX_VIDEO_PROMPT_SCENES = 12
 
 function unauthorized(detail: string) {
     return NextResponse.json({ status: 'error', detail }, { status: 401 })
@@ -47,13 +48,17 @@ function hasReadySceneMediaPrompts(topic: any): boolean {
     if (String(structure.media_prompt_status || '') !== 'ready') return false
     const seenImagePrompts = new Set<string>()
     const seenVideoPrompts = new Set<string>()
-    const scenesReady = scenes.every((scene: any) => {
+    const scenesReady = scenes.every((scene: any, index: number) => {
+        const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
+        const requiresVideoPrompt = scene?.video_prompt_required === false
+            ? false
+            : (Number.isFinite(sceneNumber) ? sceneNumber : index + 1) <= MAX_VIDEO_PROMPT_SCENES
         const imagePrompt = String(scene?.image_prompt || scene?.prompt_en || scene?.visual_prompt || scene?.visual_description || '').trim()
         const videoPrompt = String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim()
-        if (!imagePrompt || !videoPrompt) return false
-        if (seenImagePrompts.has(imagePrompt) || seenVideoPrompts.has(videoPrompt)) return false
+        if (!imagePrompt || (requiresVideoPrompt && !videoPrompt)) return false
+        if (seenImagePrompts.has(imagePrompt) || (videoPrompt && seenVideoPrompts.has(videoPrompt))) return false
         seenImagePrompts.add(imagePrompt)
-        seenVideoPrompts.add(videoPrompt)
+        if (videoPrompt) seenVideoPrompts.add(videoPrompt)
         return String(scene?.media_prompt_status || '') === 'ready'
     })
     if (!scenesReady) return false

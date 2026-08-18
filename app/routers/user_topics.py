@@ -20,6 +20,7 @@ from services.auth_service import auth_service
 from services.image_grid_prompts import normalize_image_grid_prompts, validate_image_grid_prompt_readiness
 
 router = APIRouter(tags=["User Topics"])
+MAX_VIDEO_PROMPT_SCENES = 12
 _TOPIC_TRANSLATION_CACHE: dict[tuple[str, str, str], str] = {}
 
 
@@ -62,6 +63,19 @@ def _scene_video_prompt(scene: dict) -> str:
     )
 
 
+def _scene_number(scene: dict, index: int) -> int:
+    try:
+        return int(scene.get("scene_order") or scene.get("scene_number") or index)
+    except (TypeError, ValueError):
+        return index
+
+
+def _scene_requires_video_prompt(scene: dict, index: int) -> bool:
+    if scene.get("video_prompt_required") is False:
+        return False
+    return _scene_number(scene, index) <= MAX_VIDEO_PROMPT_SCENES
+
+
 def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
     if not isinstance(structure, dict):
         return False
@@ -81,12 +95,13 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
         )
     except Exception:
         return False
+    if not all(isinstance(scene, dict) for scene in scenes):
+        return False
     return all(
         scene.get("media_prompt_status") == "ready"
-        and _scene_video_prompt(scene)
-        for scene in scenes
-        if isinstance(scene, dict)
-    ) and all(isinstance(scene, dict) for scene in scenes)
+        and (not _scene_requires_video_prompt(scene, index) or _scene_video_prompt(scene))
+        for index, scene in enumerate(scenes, start=1)
+    )
 
 
 def _topic_has_publish_description(topic: dict) -> bool:
@@ -150,7 +165,7 @@ def _image_prompts_from_pregenerated_structure(structure: dict) -> list[dict]:
             scene.get("description"),
             scene_title,
         )
-        video_prompt = _scene_video_prompt(scene)
+        video_prompt = _scene_video_prompt(scene) if _scene_requires_video_prompt(scene, index) else ""
         prompts.append({
             "scene_number": scene_number,
             "scene_title": scene_title,

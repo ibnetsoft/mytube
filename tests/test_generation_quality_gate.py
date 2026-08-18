@@ -62,6 +62,38 @@ def _grid_prompts() -> list[dict]:
     )
 
 
+def _grid_prompts_for_count(scene_count: int) -> list[dict]:
+    grids = []
+    for grid_number, start in enumerate(range(1, scene_count + 1, 4), start=1):
+        scene_numbers = list(range(start, min(start + 4, scene_count + 1)))
+        if len(scene_numbers) < 4:
+            break
+        grids.append(
+            {
+                "grid_number": grid_number,
+                "scene_numbers": scene_numbers,
+                "scene_ids": [f"scene{index:03d}" for index in scene_numbers],
+                "shared_style": "Consistent old Korean folk tale, warm hand-painted texture, dusk hanok courtyard.",
+                "panels": [
+                    {
+                        "scene_number": index,
+                        "scene_id": f"scene{index:03d}",
+                        "position": position,
+                        "panel_prompt": (
+                            f"Scene {index}: unique folk-tale action beat with the daughter-in-law, "
+                            "cloth bundle, villagers, hanok courtyard, and emotional body language."
+                        ),
+                    }
+                    for index, position in zip(
+                        scene_numbers,
+                        ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                    )
+                ],
+            }
+        )
+    return build_compact_image_grid_prompts(grids)
+
+
 def _valid_payload() -> dict:
     scenes = [_scene(index, f"unique visual clue {index}") for index in range(1, 5)]
     return {
@@ -103,6 +135,21 @@ def test_generation_quality_gate_rejects_missing_video_and_grid_prompts():
 
     assert any("video_prompt too short" in error for error in errors)
     assert any("image_grid_prompts" in error for error in errors)
+
+
+def test_generation_quality_gate_allows_video_prompts_only_for_first_12_scenes():
+    payload = _valid_payload()
+    scenes = [_scene(index, f"unique visual clue {index}") for index in range(1, 17)]
+    for scene in scenes[12:]:
+        scene["video_prompt"] = ""
+        scene["video_prompt_required"] = False
+    payload["structure"]["scenes"] = scenes
+    payload["structure"]["image_grid_prompts"] = _grid_prompts_for_count(16)
+
+    errors = validate_generation_package(payload, category="old-story")
+
+    assert not any("scene 13 video_prompt" in error for error in errors)
+    assert not any("scene 16 video_prompt" in error for error in errors)
 
 
 def test_generation_quality_gate_rejects_bad_script_and_metadata():

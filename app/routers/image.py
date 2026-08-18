@@ -38,6 +38,7 @@ from services.longform_asset_readiness import sync_project_asset_readiness
 from services.image_grid_prompts import build_image_grid_prompts, normalize_image_grid_prompts
 
 router = APIRouter(tags=["Image"])
+MAX_VIDEO_PROMPT_SCENES = 12
 
 
 def _persist_image_grid_prompts(project_id: int, prompts: list[dict]) -> list[dict]:
@@ -910,9 +911,13 @@ async def generate_motion_from_image(
         if not scene_prompts:
             return {"status": "error", "error": "프롬프트가 없습니다."}
 
-        targets = [p for p in scene_prompts if p.get('scene_number') in scene_numbers]
+        targets = [
+            p for p in scene_prompts
+            if p.get('scene_number') in scene_numbers
+            and int(p.get('scene_number') or 0) <= MAX_VIDEO_PROMPT_SCENES
+        ]
         if not targets:
-            return {"status": "error", "error": "선택된 씬을 찾을 수 없습니다."}
+            return {"status": "error", "error": f"영상 프롬프트는 Scene 1~{MAX_VIDEO_PROMPT_SCENES}까지만 생성합니다."}
 
         results = []
         errors = []
@@ -983,6 +988,11 @@ async def generate_flow_prompt_api(
 ):
     """단일 씬의 flow_prompt를 5-Layer Cinematic Framework로 재생성"""
     try:
+        if int(scene_number or 0) > MAX_VIDEO_PROMPT_SCENES:
+            return {
+                "status": "skipped",
+                "error": f"영상 프롬프트는 Scene 1~{MAX_VIDEO_PROMPT_SCENES}까지만 생성합니다.",
+            }
         result = await gemini_service.generate_flow_prompt(
             scene_text=scene_text,
             prompt_en=prompt_en,
@@ -1040,13 +1050,18 @@ async def bulk_generate_motion(
             return {"status": "error", "error": "프롬프트가 없습니다. 먼저 이미지 프롬프트를 생성해주세요."}
 
         # 대상 씬 결정
+        capped_max_scene = min(int(max_scene or 0) or MAX_VIDEO_PROMPT_SCENES, MAX_VIDEO_PROMPT_SCENES)
         if scene_numbers:
-            targets = [p for p in scene_prompts if p.get('scene_number') in scene_numbers]
+            targets = [
+                p for p in scene_prompts
+                if p.get('scene_number') in scene_numbers
+                and int(p.get('scene_number') or 0) <= MAX_VIDEO_PROMPT_SCENES
+            ]
         else:
-            targets = [p for p in scene_prompts if p.get('scene_number', 0) <= max_scene]
+            targets = [p for p in scene_prompts if int(p.get('scene_number', 0) or 0) <= capped_max_scene]
 
         if not targets:
-            return {"status": "error", "error": f"씬 1~{max_scene} 범위에 데이터가 없습니다."}
+            return {"status": "error", "error": f"영상 프롬프트는 Scene 1~{MAX_VIDEO_PROMPT_SCENES}까지만 생성합니다."}
 
         results = []
         errors = []

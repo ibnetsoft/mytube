@@ -238,6 +238,22 @@ def _scene_has_video_prompt(scene: dict) -> bool:
     )
 
 
+MAX_VIDEO_PROMPT_SCENES = 12
+
+
+def _scene_number(scene: dict, index: int) -> int:
+    try:
+        return int(scene.get("scene_order") or scene.get("scene_number") or index)
+    except (TypeError, ValueError):
+        return index
+
+
+def _scene_requires_video_prompt(scene: dict, index: int) -> bool:
+    if scene.get("video_prompt_required") is False:
+        return False
+    return _scene_number(scene, index) <= MAX_VIDEO_PROMPT_SCENES
+
+
 def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
     raw_status = str(structure.get("media_prompt_status") or "").strip()
     valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
@@ -245,7 +261,10 @@ def _structure_media_prompt_status(structure: dict, scenes: list) -> str:
         raw_status == "ready"
         and valid_scenes
         and _structure_has_image_grid_prompts(structure)
-        and all(_scene_has_video_prompt(scene) for scene in valid_scenes)
+        and all(
+            not _scene_requires_video_prompt(scene, index) or _scene_has_video_prompt(scene)
+            for index, scene in enumerate(valid_scenes, start=1)
+        )
     ):
         return "ready"
     if raw_status == "fallback_ready":
@@ -2488,6 +2507,18 @@ function sceneVideoPrompt(scene) {
   return String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim();
 }
 
+const MAX_VIDEO_PROMPT_SCENES = 12;
+
+function sceneNumber(scene, index) {
+  const value = Number(scene?.scene_order || scene?.scene_number || index + 1);
+  return Number.isFinite(value) ? value : index + 1;
+}
+
+function sceneRequiresVideoPrompt(scene, index) {
+  if (scene?.video_prompt_required === false) return false;
+  return sceneNumber(scene, index) <= MAX_VIDEO_PROMPT_SCENES;
+}
+
 function hasGeneratedMediaPrompts(structure, scenes) {
   const status = String(structure?.media_prompt_status || '').trim();
   if (status !== 'ready') return false;
@@ -2495,7 +2526,7 @@ function hasGeneratedMediaPrompts(structure, scenes) {
   return Array.isArray(scenes)
     && scenes.length > 0
     && imageGridPrompts.length > 0
-    && scenes.every(scene => sceneVideoPrompt(scene));
+    && scenes.every((scene, index) => !sceneRequiresVideoPrompt(scene, index) || sceneVideoPrompt(scene));
 }
 
 function generatedQualityGate(data) {

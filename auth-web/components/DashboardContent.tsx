@@ -131,6 +131,16 @@ const normalizeContentLanguage = (value: any) => CONTENT_LANGUAGE_OPTIONS.some(o
 const contentLanguageLabel = (value: any) => CONTENT_LANGUAGE_OPTIONS.find(option => option.value === normalizeContentLanguage(value))?.label || '한국어'
 
 const firstNonEmpty = (...values: any[]) => values.map(v => String(v || '').trim()).find(Boolean) || ''
+const MAX_VIDEO_PROMPT_SCENES = 12
+
+const sceneNumber = (scene: any, index: number) => {
+    const value = Number(scene?.scene_order || scene?.scene_number || index + 1)
+    return Number.isFinite(value) ? value : index + 1
+}
+
+const sceneRequiresVideoPrompt = (scene: any, index: number) => (
+    scene?.video_prompt_required === false ? false : sceneNumber(scene, index) <= MAX_VIDEO_PROMPT_SCENES
+)
 
 const getTopicPreparation = (item: any) => {
     const structure = item?.pregenerated_structure || {}
@@ -142,10 +152,13 @@ const getTopicPreparation = (item: any) => {
         && firstNonEmpty(item?.pregenerated_script).length > 0
     const hasMediaPrompts = hasStructure
         && String(structure?.media_prompt_status || '') === 'ready'
-        && scenes.every((scene: any) => (
+        && scenes.every((scene: any, index: number) => (
             String(scene?.media_prompt_status || '') === 'ready'
             && firstNonEmpty(scene?.image_prompt, scene?.prompt_en, scene?.visual_prompt, scene?.visual_description)
-            && firstNonEmpty(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
+            && (
+                !sceneRequiresVideoPrompt(scene, index)
+                || firstNonEmpty(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
+            )
         ))
     const hasDescription = firstNonEmpty(publishMetadata?.description).length > 0
     const missing = [

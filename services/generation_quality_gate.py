@@ -14,6 +14,7 @@ DEFAULT_MIN_SCRIPT_HANGUL = 1000
 DEFAULT_MAX_LATIN_RATIO = 0.05
 DEFAULT_MIN_IMAGE_PROMPT_CHARS = 220
 DEFAULT_MIN_VIDEO_PROMPT_CHARS = 260
+MAX_VIDEO_PROMPT_SCENES = 12
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
     "slow push-in",
     "slow pull-back",
@@ -91,6 +92,13 @@ def _scene_number(scene: Mapping[str, Any], fallback: int) -> int | str:
         return int(value)
     except (TypeError, ValueError):
         return str(value)
+
+
+def _scene_requires_video_prompt(scene: Mapping[str, Any], fallback: int) -> bool:
+    if scene.get("video_prompt_required") is False:
+        return False
+    scene_number = _scene_number(scene, fallback)
+    return isinstance(scene_number, int) and scene_number <= MAX_VIDEO_PROMPT_SCENES
 
 
 def _similarity(left: str, right: str) -> float:
@@ -213,10 +221,14 @@ def validate_generation_package(
             continue
         label = str(_scene_number(scene, fallback_number))
         video_prompt = _text(scene.get("video_prompt"))
-        video_prompts.append((label, video_prompt))
+        requires_video_prompt = _scene_requires_video_prompt(scene, fallback_number)
+        if video_prompt:
+            video_prompts.append((label, video_prompt))
 
         if scene.get("media_prompt_status") != "ready":
             errors.append(f"scene {label} media_prompt_status is not ready")
+        if not requires_video_prompt:
+            continue
         if len(video_prompt) < DEFAULT_MIN_VIDEO_PROMPT_CHARS:
             errors.append(f"scene {label} video_prompt too short/missing")
         video_lower = video_prompt.lower()

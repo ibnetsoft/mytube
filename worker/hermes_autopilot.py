@@ -599,12 +599,21 @@ class HermesAutopilotManager:
             return False
         if structure.get("media_prompt_status") != "ready":
             return False
-        for scene in scenes:
+        max_video_prompt_scenes = 12
+        for index, scene in enumerate(scenes, start=1):
             if not isinstance(scene, dict):
                 return False
             if scene.get("media_prompt_status") != "ready":
                 return False
-            if not str(scene.get("video_prompt") or "").strip():
+            try:
+                scene_number = int(scene.get("scene_order") or scene.get("scene_number") or index)
+            except (TypeError, ValueError):
+                scene_number = index
+            requires_video_prompt = (
+                scene.get("video_prompt_required") is not False
+                and scene_number <= max_video_prompt_scenes
+            )
+            if requires_video_prompt and not str(scene.get("video_prompt") or "").strip():
                 return False
         try:
             from services.image_grid_prompts import validate_image_grid_prompt_readiness

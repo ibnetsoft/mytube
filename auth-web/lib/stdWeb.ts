@@ -110,6 +110,18 @@ export function sceneVideoPrompt(scene: any): string {
     return firstText(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
 }
 
+export const MAX_VIDEO_PROMPT_SCENES = 12
+
+export function sceneNumber(scene: any, index: number): number {
+    const value = Number(scene?.scene_order || scene?.scene_number || index + 1)
+    return Number.isFinite(value) ? value : index + 1
+}
+
+export function sceneRequiresVideoPrompt(scene: any, index: number): boolean {
+    if (scene?.video_prompt_required === false) return false
+    return sceneNumber(scene, index) <= MAX_VIDEO_PROMPT_SCENES
+}
+
 export function normalizeImageGridPrompts(structure: any): any[] {
     const grids = Array.isArray(structure?.image_grid_prompts) ? structure.image_grid_prompts : []
     return grids
@@ -158,14 +170,14 @@ export function topicHasReadyScenePrompts(topic: any): boolean {
     if (topic?.pregenerated_structure_status !== 'ready' || scenes.length === 0) return false
     if (String(structure?.media_prompt_status || '') !== 'ready') return false
     const seenVideoPrompts = new Set<string>()
-    const scenesReady = scenes.every((scene: any) => {
+    const scenesReady = scenes.every((scene: any, index: number) => {
         const videoPrompt = sceneVideoPrompt(scene)
-        if (!videoPrompt) return false
-        if (seenVideoPrompts.has(videoPrompt)) return false
-        seenVideoPrompts.add(videoPrompt)
+        if (sceneRequiresVideoPrompt(scene, index) && !videoPrompt) return false
+        if (videoPrompt && seenVideoPrompts.has(videoPrompt)) return false
+        if (videoPrompt) seenVideoPrompts.add(videoPrompt)
         return (
         String(scene?.media_prompt_status || '') === 'ready'
-            && videoPrompt
+            && (!sceneRequiresVideoPrompt(scene, index) || videoPrompt)
         )
     })
     return scenesReady && topicHasReadyImageGridPrompts(topic)
@@ -193,8 +205,9 @@ export function buildStdScenes(topic: any) {
     return scenes
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
+            const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
             return {
-                scene_number: Number.isFinite(sceneNumber) ? sceneNumber : index + 1,
+                scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
                 scene_text: firstText(
                     scene?.scene_situation,
@@ -209,7 +222,7 @@ export function buildStdScenes(topic: any) {
                 metadata: scene || {},
             }
         })
-        .filter((scene: any) => scene.video_prompt)
+        .filter((scene: any, index: number) => !sceneRequiresVideoPrompt(scene.metadata, index) || scene.video_prompt)
 }
 
 export function buildStdImageGridPrompts(topic: any) {

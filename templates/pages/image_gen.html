@@ -507,6 +507,17 @@
     let prompts = [];
     let imageGridPrompts = [];
     let assetReadiness = null;
+    const MAX_VIDEO_PROMPT_SCENES = 12;
+
+    function getSceneNumber(prompt, index) {
+        const value = Number(prompt?.scene_number || prompt?.scene_order || index + 1);
+        return Number.isFinite(value) ? value : index + 1;
+    }
+
+    function shouldShowVideoPrompt(prompt, index) {
+        if (prompt?.video_prompt_required === false) return false;
+        return getSceneNumber(prompt, index) <= MAX_VIDEO_PROMPT_SCENES;
+    }
 
     function setImageGridPrompts(value) {
         let parsed = value;
@@ -1699,7 +1710,7 @@
                         </div>`;
                         })()}
 
-                        <div class="min-h-full flex flex-col gap-2 rounded-lg border border-blue-500/20 bg-[#1c2027] p-3">
+                        ${shouldShowVideoPrompt(p, i) ? `<div class="min-h-full flex flex-col gap-2 rounded-lg border border-blue-500/20 bg-[#1c2027] p-3">
                             <div class="flex items-center justify-between gap-2">
                                 <label class="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">🌊 Video Prompt</label>
                                 <div class="flex items-center gap-1">
@@ -1710,7 +1721,7 @@
                             </div>
                             <p class="text-[11px] text-gray-700 dark:text-gray-200 leading-relaxed line-clamp-6 overflow-hidden" id="flow-prompt-view-${i}">${p.flow_prompt || p.motion_desc || p.video_prompt || i18n.status_generating}</p>
                             <textarea id="flow-prompt-edit-${i}" class="hidden w-full min-h-[120px] text-[11px] p-2 rounded border border-blue-200 dark:border-blue-900 bg-[#1c2027] text-gray-700 dark:text-gray-300 scrollbar-thin overflow-y-auto resize-y" onchange="updateFlowPrompt(${i}, this.value)">${p.flow_prompt || p.motion_desc || p.video_prompt || ''}</textarea>
-                        </div>
+                        </div>` : ''}
 
                         <!-- [NEW] Dual Keyframe Controls (Expanded) -->
                         <div id="dual-controls-${i}" class="${isDual ? '' : 'hidden'} xl:col-span-2 mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
@@ -2950,6 +2961,10 @@
     }
 
     function copyFlowPrompt(index) {
+        if (!shouldShowVideoPrompt(prompts[index], index)) {
+            Toast.show(`Video prompts are available for Scene 1~${MAX_VIDEO_PROMPT_SCENES} only.`, 'warning');
+            return;
+        }
         const promptText = prompts[index]?.flow_prompt || prompts[index]?.motion_desc || prompts[index]?.video_prompt || '';
         if (!promptText) {
             Toast.show(i18n.err_no_prompt_to_copy, 'error');
@@ -2963,6 +2978,10 @@
     async function regenFlowPrompt(index) {
         const p = prompts[index];
         if (!p) return;
+        if (!shouldShowVideoPrompt(p, index)) {
+            Toast.show(`Video prompts are generated only for Scene 1~${MAX_VIDEO_PROMPT_SCENES}.`, 'warning');
+            return;
+        }
         const projectId = getCurrentProject();
         if (!projectId) { Toast.show('프로젝트를 먼저 선택하세요.', 'error'); return; }
 
@@ -3016,14 +3035,15 @@
             .filter(i => !isNaN(i))
             .map(i => prompts[i]?.scene_number)
             .filter(n => n != null);
+        const cappedChecked = checked.filter(n => Number(n) <= MAX_VIDEO_PROMPT_SCENES);
 
-        if (checked.length === 0) {
+        if (cappedChecked.length === 0) {
             Utils.showToast(i18n.err_select_scene_first, 'warning');
             return;
         }
 
         // 이미지가 없는 씬 확인
-        const noImage = checked.filter(n => {
+        const noImage = cappedChecked.filter(n => {
             const p = prompts.find(p => p.scene_number === n);
             return !p?.image_url;
         });
@@ -3035,15 +3055,15 @@
         const btn = document.getElementById('imageMotionBtn');
         const originalText = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = `<span class="animate-spin inline-block">🔍</span> 분석 중... (${checked.length}개)`;
+        btn.innerHTML = `<span class="animate-spin inline-block">🔍</span> 분석 중... (${cappedChecked.length}개)`;
 
         try {
-            Utils.showToast(i18n.msg_analyzing_scene_images.replace('{n}', checked.length), 'info');
+            Utils.showToast(i18n.msg_analyzing_scene_images.replace('{n}', cappedChecked.length), 'info');
 
             const res = await fetch('/api/image/generate-motion-from-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: parseInt(projectId), scene_numbers: checked })
+                body: JSON.stringify({ project_id: parseInt(projectId), scene_numbers: cappedChecked })
             });
             const data = await res.json();
 
@@ -3078,7 +3098,10 @@
     function showMotionGenModal() {
         // 현재 씬 수를 최대값으로 설정
         const maxInput = document.getElementById('motionGenMaxScene');
-        if (maxInput) maxInput.max = prompts.length;
+        if (maxInput) {
+            maxInput.max = Math.min(prompts.length, MAX_VIDEO_PROMPT_SCENES);
+            maxInput.value = Math.min(parseInt(maxInput.value) || 5, Number(maxInput.max) || MAX_VIDEO_PROMPT_SCENES);
+        }
         document.getElementById('motionGenModal').classList.remove('hidden');
     }
 
@@ -3092,7 +3115,7 @@
         const projectId = getCurrentProject();
         if (!projectId) { Utils.showToast(i18n.status_select_project_first, 'error'); return; }
 
-        const maxScene = parseInt(document.getElementById('motionGenMaxScene').value) || 5;
+        const maxScene = Math.min(parseInt(document.getElementById('motionGenMaxScene').value) || 5, MAX_VIDEO_PROMPT_SCENES);
         const confirmBtn = document.getElementById('motionGenConfirmBtn');
         const progress = document.getElementById('motionGenProgress');
 
