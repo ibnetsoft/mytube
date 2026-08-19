@@ -75,16 +75,36 @@
             <div class="max-w-4xl mx-auto space-y-6 py-4">
                 <div class="card p-6 shadow-lg border border-gray-200 dark:border-white/5 bg-[#1c2027]">
 
-                    <!-- My Referral Code (moved here from the former Nav Referral page) -->
+                    <!-- My Referral Code & Link (moved here from the former Nav Referral page) -->
                     <div class="mb-8 pb-8 border-b border-gray-700">
-                        <div class="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-4">
-                            <h5 class="text-xs font-bold text-purple-400 flex items-center gap-2 mb-2">
-                                <span>🔑 {{ t('label_my_code_title') }}</span>
-                            </h5>
-                            <div class="flex items-center gap-2">
-                                <input type="text" id="stReferralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="{{ t('placeholder_no_code') }}">
-                                <button type="button" onclick="const c = document.getElementById('stReferralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert(i18n.msg_copied); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_copy_short') }}</button>
+                        <div class="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-4">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-500/20 pb-2">
+                                <h5 class="text-xs font-bold text-purple-400 flex items-center gap-2">
+                                    <span>🔑 {{ t('label_my_code_title') }}</span>
+                                </h5>
+                                <span class="text-[11px] text-purple-300/70">SNS로 공유 시 링크를 클릭하면 추천 코드가 자동 적용됩니다.</span>
                             </div>
+
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                <!-- Referral Code -->
+                                <div class="space-y-1">
+                                    <label class="block text-[10px] font-bold text-gray-400">추천 코드</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" id="stReferralMyCode" class="input-field w-full text-base font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="{{ t('placeholder_no_code') }}">
+                                        <button type="button" onclick="const c = document.getElementById('stReferralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert(i18n.msg_copied || '복사되었습니다.'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{{ t('btn_copy_short') }}</button>
+                                    </div>
+                                </div>
+
+                                <!-- Referral Link -->
+                                <div class="lg:col-span-2 space-y-1">
+                                    <label class="block text-[10px] font-bold text-gray-400">추천 가입 링크 (SNS 전달용)</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" id="stReferralMyLink" class="input-field w-full text-xs font-mono text-purple-200 bg-[#14181f]" readonly placeholder="링크 생성 중...">
+                                        <button type="button" onclick="const l = document.getElementById('stReferralMyLink').value; if(l) { navigator.clipboard.writeText(l); alert('추천 링크가 복사되었습니다:\n' + l); }" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-blue-500/50 rounded text-xs font-bold text-white whitespace-nowrap transition">링크 복사</button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <p class="text-[10px] text-gray-400 mt-2">* {{ t('desc_my_code_hint') }}</p>
                         </div>
                     </div>
@@ -568,14 +588,26 @@
             </div>
             <div class="card p-6 shadow-lg border border-gray-200 dark:border-gray-700 bg-[#1c2027]">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <!-- My Referral Code -->
-                    <div class="space-y-2 p-4 rounded-xl border border-purple-500/30 bg-purple-500/5">
+                    <!-- My Referral Code & Link -->
+                    <div class="space-y-3 p-4 rounded-xl border border-purple-500/30 bg-purple-500/5">
                         <h5 class="text-xs font-bold text-purple-400 flex items-center gap-2">
-                            <span>🔑 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mã giới thiệu của tôi{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_my_code') }}{% else %}내 추천 코드{% endif %}</span>
+                            <span>🔑 {% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Mã giới thiệu & Liên kết của tôi{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_my_code') }}{% else %}내 추천 코드 및 가입 링크{% endif %}</span>
                         </h5>
-                        <div class="flex items-center gap-2">
-                            <input type="text" id="referralMyCode" class="input-field w-full text-lg font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sẽ được cấp khi render video đầu tiên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_code_placeholder') }}{% else %}첫 영상을 렌더링하면 발급됩니다{% endif %}">
-                            <button type="button" onclick="const c = document.getElementById('referralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert('{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đã sao chép{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_code_copied') }}{% else %}복사되었습니다.{% endif %}'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao chép{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('paste_button_text') }}{% else %}복사{% endif %}</button>
+                        <div class="space-y-2">
+                            <div>
+                                <label class="block text-[10px] text-gray-400 font-bold mb-1">추천 코드</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="text" id="referralMyCode" class="input-field w-full text-base font-mono font-bold text-white text-center tracking-widest" value="{{ my_referral_code }}" readonly placeholder="{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sẽ được cấp khi render video đầu tiên{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_code_placeholder') }}{% else %}첫 영상을 렌더링하면 발급됩니다{% endif %}">
+                                    <button type="button" onclick="const c = document.getElementById('referralMyCode').value; if(c) { navigator.clipboard.writeText(c); alert('{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Đã sao chép{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_code_copied') }}{% else %}복사되었습니다.{% endif %}'); }" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded text-xs font-bold text-white whitespace-nowrap transition">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}Sao chép{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('paste_button_text') }}{% else %}코드 복사{% endif %}</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-gray-400 font-bold mb-1">추천 링크 (SNS 공유용)</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="text" id="referralMyLinkTab" class="input-field w-full text-xs font-mono text-purple-200 bg-[#14181f]" readonly placeholder="링크 생성 중...">
+                                    <button type="button" onclick="const l = document.getElementById('referralMyLinkTab').value; if(l) { navigator.clipboard.writeText(l); alert('추천 링크가 복사되었습니다:\n' + l); }" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-blue-500/50 rounded text-xs font-bold text-white whitespace-nowrap transition">링크 복사</button>
+                                </div>
+                            </div>
                         </div>
                         <p class="text-[10px] text-gray-400 mt-2">{% if window_lang == 'vi' or (current_lang | default('', true)) == 'vi' %}* Phần thưởng sẽ được trao khi thành viên đăng ký bằng mã này hoàn thành render 2 video.{% elif window_lang == 'th' or (current_lang | default('', true)) == 'th' %}{{ t('referral_reward_desc') }}{% else %}* 이 코드로 가입한 회원이 영상을 2개 이상 렌더링 완성 시 보상이 지급됩니다.{% endif %}</p>
                     </div>
@@ -2225,6 +2257,19 @@
             alert(lang === 'vi' ? 'Lỗi kết nối.' : (lang === 'th' ? i18n.withdrawal_connection_error : (lang === 'en' ? 'Connection error.' : '서버와의 통신에 실패했습니다.')));
         }
     }
+
+    function updateReferralLinks() {
+        const code = (document.getElementById('stReferralMyCode')?.value || document.getElementById('referralMyCode')?.value || '{{ my_referral_code }}').trim();
+        if (code) {
+            const link = window.location.origin + '/?ref=' + encodeURIComponent(code);
+            const stLinkEl = document.getElementById('stReferralMyLink');
+            if (stLinkEl) stLinkEl.value = link;
+            const tabLinkEl = document.getElementById('referralMyLinkTab');
+            if (tabLinkEl) tabLinkEl.value = link;
+        }
+    }
+    window.addEventListener('DOMContentLoaded', updateReferralLinks);
+    setTimeout(updateReferralLinks, 200);
 
 </script>
 <script src="/static/js/settings_page.js?v={{ range(1, 100000) | random }}"></script>

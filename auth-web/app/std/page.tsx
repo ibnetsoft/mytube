@@ -1,6 +1,6 @@
 'use client'
 
-export const STD_OFFICIAL_CATEGORIES = [
+const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', key: 'cat_folktales' },
     { id: 3, name: '경제', key: 'cat_economy' },
     { id: 4, name: '탈북사연', key: 'cat_defector' },
@@ -417,6 +417,7 @@ export default function StdPortalPage() {
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+    const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
     
@@ -436,7 +437,7 @@ export default function StdPortalPage() {
     const [settingNationality, setSettingNationality] = useState('대한민국')
     const [settingPhone, setSettingPhone] = useState('010-0000-0000')
     const [referralCode, setReferralCode] = useState('BDDFAA1E')
-    const [selectedCategories, setSelectedCategories] = useState<string[]>(['역사/야사', '경제/재테크', '휴먼/감동'])
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(STD_OFFICIAL_CATEGORIES.map(c => c.name))
     const [currentPw, setCurrentPw] = useState('')
     const [newPw, setNewPw] = useState('')
     const [confirmPw, setConfirmPw] = useState('')
@@ -769,6 +770,14 @@ export default function StdPortalPage() {
                 if (meData.user.nationality) setSettingNationality(meData.user.nationality)
                 if (meData.user.contact) setSettingPhone(meData.user.contact)
                 if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
+                if (Array.isArray(meData.user.preferred_category_names) && meData.user.preferred_category_names.length > 0) {
+                    setSelectedCategories(meData.user.preferred_category_names)
+                } else if (Array.isArray(meData.user.preferred_category_ids) && meData.user.preferred_category_ids.length > 0) {
+                    const mapped = STD_OFFICIAL_CATEGORIES
+                        .filter(c => meData.user.preferred_category_ids.includes(c.id) || meData.user.preferred_category_ids.includes(String(c.id)))
+                        .map(c => c.name)
+                    if (mapped.length > 0) setSelectedCategories(mapped)
+                }
             } else {
                 if (!isImpersonating) {
                     setUser(null)
@@ -887,6 +896,14 @@ export default function StdPortalPage() {
                         if (meData.user.nationality) setSettingNationality(meData.user.nationality)
                         if (meData.user.contact) setSettingPhone(meData.user.contact)
                         if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
+                        if (Array.isArray(meData.user.preferred_category_names) && meData.user.preferred_category_names.length > 0) {
+                            setSelectedCategories(meData.user.preferred_category_names)
+                        } else if (Array.isArray(meData.user.preferred_category_ids) && meData.user.preferred_category_ids.length > 0) {
+                            const mapped = STD_OFFICIAL_CATEGORIES
+                                .filter(c => meData.user.preferred_category_ids.includes(c.id) || meData.user.preferred_category_ids.includes(String(c.id)))
+                                .map(c => c.name)
+                            if (mapped.length > 0) setSelectedCategories(mapped)
+                        }
                     }
 
                     const loadedProjects = Array.isArray(pData?.projects) ? pData.projects : []
@@ -957,6 +974,13 @@ export default function StdPortalPage() {
         )
         setLocalSubtitles(subs)
         setSelectedSubIndex(0)
+
+        const isSaved = Boolean(
+            selectedProject?.project?.progress_payload?.subtitles_saved ||
+            selectedProject?.project?.progress_payload?.subtitles_completed ||
+            selectedProject?.project?.project_payload?.subtitles_saved
+        )
+        setIsSubtitleSaved(isSaved)
     }, [selectedProject?.project?.id])
 
     const signIn = async () => {
@@ -1093,6 +1117,13 @@ export default function StdPortalPage() {
             if (password !== passwordConfirm) throw new Error('비밀번호가 일치하지 않습니다.')
             if (!fullName || !contact) throw new Error('이름과 연락처를 입력해주세요.')
 
+            const selectedCategoryIds = STD_OFFICIAL_CATEGORIES
+                .filter(c => signupCategories.includes(c.name))
+                .map(c => c.id)
+            const selectedCategoryNames = STD_OFFICIAL_CATEGORIES
+                .filter(c => signupCategories.includes(c.name))
+                .map(c => c.name)
+
             const res = await fetch('/api/std/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1103,6 +1134,8 @@ export default function StdPortalPage() {
                     nationality,
                     contact,
                     referrer: referrer.trim().toUpperCase(),
+                    preferred_category_ids: selectedCategoryIds,
+                    preferred_category_names: selectedCategoryNames,
                 }),
             })
             const result = await res.json().catch(() => ({}))
@@ -1184,27 +1217,59 @@ export default function StdPortalPage() {
         if (!targetEmail) return
         setLoading(true)
         try {
-            const resolvedIds = user?.preferred_category_ids || [2, 3, 4, 5, 6, 7, 8, 9]
-            const resolvedNames = user?.preferred_category_names || STD_OFFICIAL_CATEGORIES.map(c => c.name)
+            const resolvedIds = STD_OFFICIAL_CATEGORIES
+                .filter(c => selectedCategories.includes(c.name))
+                .map(c => c.id)
+            const resolvedNames = STD_OFFICIAL_CATEGORIES
+                .filter(c => selectedCategories.includes(c.name))
+                .map(c => c.name)
 
-            const res = await fetch('/api/desktop-profile-update', {
+            const reqHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            }
+            if (isImpersonating && impersonateEmail) {
+                reqHeaders['x-impersonate-email'] = impersonateEmail
+            }
+
+            const res = await fetch('/api/std/update-profile', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: reqHeaders,
                 body: JSON.stringify({
-                    email: targetEmail,
-                    session_token: token,
                     full_name: settingName,
                     nationality: settingNationality,
                     contact: settingPhone,
                     preferred_category_ids: resolvedIds,
+                    preferred_category_names: resolvedNames,
                 }),
             })
             const data = await res.json().catch(() => ({}))
             if (data.success || res.ok) {
-                setProfileSavedMsg('모든 환경설정 및 선호 카테고리가 안전하게 저장되었습니다.')
+                setUser(prev => prev ? {
+                    ...prev,
+                    full_name: settingName,
+                    nationality: settingNationality,
+                    contact: settingPhone,
+                    preferred_category_ids: resolvedIds,
+                    preferred_category_names: resolvedNames,
+                } : prev)
+                setProfileSavedMsg('사용자 정보와 선호 카테고리가 안전하게 저장되었습니다.')
                 setTimeout(() => setProfileSavedMsg(''), 3000)
             } else {
-                setProfileSavedMsg('환경설정이 로컬에 적용되었습니다.')
+                // Fallback to desktop-profile-update if needed
+                await fetch('/api/desktop-profile-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: targetEmail,
+                        session_token: token,
+                        full_name: settingName,
+                        nationality: settingNationality,
+                        contact: settingPhone,
+                        preferred_category_ids: resolvedIds,
+                    }),
+                })
+                setProfileSavedMsg('사용자 정보가 저장되었습니다.')
                 setTimeout(() => setProfileSavedMsg(''), 3000)
             }
         } catch (err) {
@@ -1221,6 +1286,36 @@ export default function StdPortalPage() {
         const fakeUrl = URL.createObjectURL(file)
         setAudioResultUrl(fakeUrl)
         alert(`외부 오디오 파일 '${file.name}'이(가) 업로드되었습니다.`)
+    }
+
+    const handleSaveSubtitles = () => {
+        setIsSubtitleSaved(true)
+        setSelectedProject((prev: any) => {
+            if (!prev) return prev
+            const updatedProject = {
+                ...prev.project,
+                progress_payload: {
+                    ...(prev.project.project_payload || {}),
+                    ...(prev.project.progress_payload || {}),
+                    subtitles_saved: true,
+                    subtitles_completed: true,
+                },
+                project_payload: {
+                    ...(prev.project.project_payload || {}),
+                    subtitles: localSubtitles,
+                    subtitles_saved: true,
+                }
+            }
+            const updatedFull = {
+                ...prev,
+                project: updatedProject,
+            }
+            try {
+                localStorage.setItem('std_active_project_state', JSON.stringify(updatedFull))
+            } catch (e) {}
+            return updatedFull
+        })
+        alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다! (상단 헤더 자막 단계 완료)')
     }
 
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string) => {
@@ -1584,7 +1679,12 @@ export default function StdPortalPage() {
         const isImageDone = scenes.length > 0 && (uploadedAssetsCount >= scenes.length || (scenes.length >= 50 && uploadedAssetsCount >= 50))
 
         const isTtsDone = Boolean(currentAudio || payload.audio_url || payload.tts_url || p.audio_url || (p.progress_payload?.tts_completed))
-        const isSubtitlesDone = Boolean((currentSubs && currentSubs.length > 0) || payload.subtitles || p.progress_payload?.subtitles_completed)
+        const isSubtitlesDone = Boolean(
+            isSubtitleSaved ||
+            p.progress_payload?.subtitles_saved ||
+            p.progress_payload?.subtitles_completed ||
+            payload.subtitles_saved
+        )
         const isThumbnailDone = Boolean(currentThumb || payload.thumbnail_url || p.thumbnail_url || p.progress_payload?.thumbnail_completed)
         const isSettingsDone = Boolean(p.id)
 
@@ -2717,8 +2817,9 @@ export default function StdPortalPage() {
                                             Translate
                                         </button>
                                         <button
-                                            onClick={() => alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다!')}
-                                            className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow"
+                                            type="button"
+                                            onClick={handleSaveSubtitles}
+                                            className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow transition-all active:scale-95 flex items-center gap-1"
                                         >
                                             저장
                                         </button>
@@ -2945,7 +3046,13 @@ export default function StdPortalPage() {
                                                     <div className="flex items-center gap-1">
                                                         <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
                                                         <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
-                                                        <button className="text-[10px] px-2.5 py-0.5 bg-emerald-600 text-white rounded font-bold">저장</button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => alert('선택된 구간의 자막 및 싱크 수정사항이 반영되었습니다. 상단 파란색 [저장] 버튼을 누르면 프로젝트에 최종 완료 저장됩니다.')}
+                                                            className="text-[10px] px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition-all active:scale-95"
+                                                        >
+                                                            저장
+                                                        </button>
                                                     </div>
                                                 </div>
 
@@ -5321,7 +5428,7 @@ export default function StdPortalPage() {
                                     {/* 실시간 렌더 콘솔 로그 */}
                                     <div className="bg-[#14181f] rounded-xl border border-white/10 p-4 flex-1 flex flex-col font-mono text-xs text-green-400 min-h-[300px] shadow-inner">
                                         <div className="flex justify-between border-b border-white/10 pb-2 mb-3 text-gray-400 font-bold">
-                                            <span>>_ 렌더링 콘솔 로그 (Terminal)</span>
+                                            <span>&gt;_ 렌더링 콘솔 로그 (Terminal)</span>
                                             <span className="text-yellow-400 font-mono">진행률: {renderProgress}%</span>
                                         </div>
                                         <div className="flex-1 overflow-y-auto space-y-1.5 text-[11px] leading-relaxed pr-1 custom-scrollbar">
@@ -5437,30 +5544,71 @@ export default function StdPortalPage() {
                                 {/* [탭 1: 기본 설정] */}
                                 {settingsSubTab === 'basic' && (
                                     <div className="space-y-5">
-                                        {/* (1) 내 추천 코드 카드 (보라색 강조) */}
-                                        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5 shadow-lg">
-                                            <h5 className="text-xs font-bold text-purple-400 flex items-center gap-2 mb-3">
-                                                <span>🔑 내 추천 코드</span>
-                                            </h5>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={referralCode}
-                                                    readOnly
-                                                    className="w-full bg-[#14181f] border border-purple-500/40 rounded-xl px-4 py-2.5 text-lg font-mono font-bold text-white text-center tracking-widest focus:outline-none"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(referralCode)
-                                                        alert('추천 코드가 클립보드에 복사되었습니다: ' + referralCode)
-                                                    }}
-                                                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition-all"
-                                                >
-                                                    복사
-                                                </button>
+                                        {/* (1) 내 추천 코드 & 추천 링크 카드 (보라색 강조) */}
+                                        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5 shadow-lg space-y-4">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-500/20 pb-3">
+                                                <h5 className="text-xs font-bold text-purple-300 flex items-center gap-2">
+                                                    <span>🔑 내 추천 코드 및 초대 링크</span>
+                                                </h5>
+                                                <span className="text-[11px] text-purple-200/80 font-medium">
+                                                    SNS 공유 링크 클릭 시 추천 코드가 자동 입력된 가입화면으로 이동합니다.
+                                                </span>
                                             </div>
-                                            <p className="text-[11px] text-purple-300/80 mt-2.5 leading-relaxed">
+
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                                {/* 추천 코드 */}
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[11px] font-bold text-purple-300 block">
+                                                        추천 코드
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={referralCode}
+                                                            readOnly
+                                                            className="w-full bg-[#14181f] border border-purple-500/40 rounded-xl px-3 py-2 text-base font-mono font-bold text-white text-center tracking-widest focus:outline-none"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(referralCode)
+                                                                alert('추천 코드가 클립보드에 복사되었습니다: ' + referralCode)
+                                                            }}
+                                                            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition-all active:scale-95"
+                                                        >
+                                                            코드 복사
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 추천 링크 (SNS 전달용) */}
+                                                <div className="lg:col-span-2 space-y-1.5">
+                                                    <label className="text-[11px] font-bold text-purple-300 block">
+                                                        추천 가입 링크 (SNS 전달용)
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={typeof window !== 'undefined' ? `${window.location.origin}/?ref=${referralCode}` : `https://studio.airing.work/?ref=${referralCode}`}
+                                                            readOnly
+                                                            className="w-full bg-[#14181f] border border-purple-500/40 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 focus:outline-none truncate"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const link = typeof window !== 'undefined' ? `${window.location.origin}/?ref=${referralCode}` : `https://studio.airing.work/?ref=${referralCode}`
+                                                                navigator.clipboard.writeText(link)
+                                                                alert('추천 가입 링크가 클립보드에 복사되었습니다!\nSNS로 전달하시면 상대방이 링크 클릭 시 추천 코드가 자동 적용된 가입 페이지가 열립니다:\n\n' + link)
+                                                            }}
+                                                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-blue-500/50 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition-all active:scale-95"
+                                                        >
+                                                            링크 복사
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-[11px] text-purple-300/80 mt-1 leading-relaxed">
                                                 * 이 코드로 가입한 회원이 영상을 3개 이상 렌더링 완성 시 보상이 지급됩니다. 조직도는 상단의 &apos;조직도&apos; 탭에서 확인할 수 있습니다.
                                             </p>
                                         </div>
@@ -5511,21 +5659,21 @@ export default function StdPortalPage() {
                                                     />
                                                 </div>
 
-                                                {/* 선호 영상 주제 태그 */}
+                                                {/* 선호 영상 주제 태그 (공식 8개 카테고리) */}
                                                 <div className="col-span-1 md:col-span-2">
                                                     <label className="text-[11px] font-bold text-gray-400 mb-2 block">
                                                         선호 영상 주제 (복수 선택 가능)
                                                     </label>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {['역사/야사', '경제/재테크', '미스터리/공포', '휴먼/감동', '무협/판타지', '드라마/스토리', '건강/시니어'].map(cat => {
-                                                            const isSel = selectedCategories.includes(cat)
+                                                        {STD_OFFICIAL_CATEGORIES.map(catItem => {
+                                                            const isSel = selectedCategories.includes(catItem.name)
                                                             return (
                                                                 <button
-                                                                    key={cat}
+                                                                    key={catItem.id}
                                                                     type="button"
                                                                     onClick={() => {
                                                                         setSelectedCategories(prev =>
-                                                                            prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+                                                                            prev.includes(catItem.name) ? prev.filter(c => c !== catItem.name) : [...prev, catItem.name]
                                                                         )
                                                                     }}
                                                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -5534,7 +5682,7 @@ export default function StdPortalPage() {
                                                                             : 'bg-[#202632] text-gray-400 border border-white/5 hover:text-white'
                                                                     }`}
                                                                 >
-                                                                    {cat}
+                                                                    {t(catItem.key, catItem.name)}
                                                                 </button>
                                                             )
                                                         })}
@@ -5544,13 +5692,11 @@ export default function StdPortalPage() {
                                                 <div className="col-span-1 md:col-span-2 flex items-center gap-3 pt-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => {
-                                                            setProfileSavedMsg('사용자 정보가 성공적으로 저장되었습니다.')
-                                                            setTimeout(() => setProfileSavedMsg(''), 3000)
-                                                        }}
-                                                        className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition"
+                                                        disabled={loading}
+                                                        onClick={saveProfileSettings}
+                                                        className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg text-xs font-bold text-white shadow transition flex items-center gap-1.5"
                                                     >
-                                                        저장
+                                                        {loading ? '저장 중...' : '저장'}
                                                     </button>
                                                     {profileSavedMsg && (
                                                         <span className="text-xs font-bold text-emerald-400 animate-pulse">{profileSavedMsg}</span>

@@ -22,20 +22,44 @@
 
     <!-- Tab Contents -->
     <div id="tab-overview" class="tab-content block">
-        <!-- My Referral Code Section -->
-        <div class="bg-gradient-to-r from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/30 mb-8 flex flex-col md:flex-row items-center gap-6 justify-between">
-            <div>
-                <h3 class="text-lg font-bold text-white mb-2" data-i18n="my_code_title"></h3>
-                <p class="text-indigo-200/60 text-sm" data-i18n="my_code_desc"></p>
+        <!-- My Referral Code & Link Section -->
+        <div class="bg-gradient-to-r from-indigo-900/40 to-purple-900/40 rounded-2xl p-6 border border-indigo-500/30 mb-8 space-y-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-indigo-500/20 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-white" data-i18n="my_code_title"></h3>
+                    <p class="text-indigo-200/60 text-xs mt-0.5" data-i18n="my_code_desc"></p>
+                </div>
+                <span class="text-xs text-purple-300/80 font-medium">SNS 추천 링크 클릭 시 추천 코드가 자동 적용됩니다.</span>
             </div>
-            <div class="flex items-center gap-3 w-full md:w-auto">
-                <input type="text" id="referral-code-input" readonly 
-                       class="w-full md:w-48 bg-black/50 border border-white/20 rounded-xl py-3 px-4 text-white font-mono text-center text-lg focus:outline-none focus:border-indigo-500 transition-colors"
-                       value="">
-                <button id="copy-btn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center justify-center gap-2 whitespace-nowrap">
-                    <span id="copy-icon">📋</span>
-                    <span id="copy-text" data-i18n="copy_btn"></span>
-                </button>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Referral Code -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-indigo-300">추천 코드</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="referral-code-input" readonly 
+                               class="w-full bg-black/50 border border-white/20 rounded-xl py-2.5 px-3 text-white font-mono text-center text-base focus:outline-none focus:border-indigo-500 transition-colors"
+                               value="">
+                        <button id="copy-btn" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs">
+                            <span id="copy-icon">📋</span>
+                            <span id="copy-text" data-i18n="copy_btn"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Referral Link -->
+                <div class="lg:col-span-2 space-y-1">
+                    <label class="block text-xs font-bold text-indigo-300">추천 가입 링크 (SNS 전달용)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="referral-link-input" readonly 
+                               class="w-full bg-black/50 border border-white/20 rounded-xl py-2.5 px-3 text-purple-200 font-mono text-xs focus:outline-none focus:border-indigo-500 transition-colors truncate"
+                               value="">
+                        <button id="copy-link-btn" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-105 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs">
+                            <span id="copy-link-icon">🔗</span>
+                            <span id="copy-link-text">링크 복사</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -427,6 +451,10 @@
 
                 myReferralCode = data.referralCode || '';
                 document.getElementById('referral-code-input').value = myReferralCode;
+                const linkInput = document.getElementById('referral-link-input');
+                if (linkInput && myReferralCode) {
+                    linkInput.value = `${window.location.origin}/?ref=${encodeURIComponent(myReferralCode)}`;
+                }
 
                 const personUnit = t.person_unit ? ` ${t.person_unit}` : '';
 
@@ -724,6 +752,33 @@
                 setTimeout(() => toast.remove(), 300);
             }, 2000);
         });
+
+        const copyLinkBtn = document.getElementById('copy-link-btn');
+        const copyLinkIcon = document.getElementById('copy-link-icon');
+        const copyLinkText = document.getElementById('copy-link-text');
+        if (copyLinkBtn) {
+            copyLinkBtn.addEventListener('click', () => {
+                const linkVal = document.getElementById('referral-link-input')?.value;
+                if (!linkVal) return;
+                navigator.clipboard.writeText(linkVal);
+
+                const toast = document.createElement('div');
+                toast.className = 'fixed top-10 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold text-sm z-[100] animate-[slideIn_0.3s_ease-out]';
+                toast.innerText = '추천 링크가 복사되었습니다!';
+                document.body.appendChild(toast);
+
+                if (copyLinkIcon) copyLinkIcon.innerText = '✅';
+                if (copyLinkText) copyLinkText.innerText = '복사됨';
+
+                setTimeout(() => {
+                    if (copyLinkIcon) copyLinkIcon.innerText = '🔗';
+                    if (copyLinkText) copyLinkText.innerText = '링크 복사';
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 2000);
+            });
+        }
 
         document.getElementById('btn-max').addEventListener('click', () => {
             document.getElementById('withdrawal-amount-input').value = maxWithdrawable;

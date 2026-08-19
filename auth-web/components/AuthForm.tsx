@@ -33,8 +33,15 @@ export default function AuthForm() {
 
     useEffect(() => {
         setMounted(true);
-        const refCode = new URLSearchParams(window.location.search).get('ref');
-        if (refCode) setReferrer(refCode.toUpperCase());
+        const params = new URLSearchParams(window.location.search);
+        const refCode = params.get('ref') || params.get('code') || params.get('referral');
+        if (refCode) {
+            setReferrer(refCode.trim().toUpperCase());
+            setIsSignUp(true);
+        }
+        if (params.get('mode') === 'signup' || params.get('mode') === 'register' || params.get('tab') === 'register') {
+            setIsSignUp(true);
+        }
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_IN') {
                 router.replace('/dashboard');

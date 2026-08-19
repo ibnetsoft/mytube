@@ -730,6 +730,20 @@
         loadSignupOptions();
         loadLegalTexts();
         applyLang();
+
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const refCode = params.get('ref') || params.get('code') || params.get('referral');
+            if (refCode) {
+                const regRef = document.getElementById('reg-referral');
+                if (regRef) regRef.value = refCode.trim().toUpperCase();
+                showAuthMode('register');
+            } else if (params.get('mode') === 'register' || params.get('mode') === 'signup' || params.get('tab') === 'register') {
+                showAuthMode('register');
+            }
+        } catch (e) {
+            console.error('Failed to parse URL params:', e);
+        }
     });
 
 
