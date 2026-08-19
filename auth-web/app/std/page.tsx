@@ -426,10 +426,32 @@ export default function StdPortalPage() {
         }
     }
 
+    // 스크립트 컨텍스트에서 AI 생성 메타 지시문(First-minute micro beat 1/12... 등)을 제거하고 순수 대본만 정제하는 함수
+    const cleanScriptContextText = (text: string | null | undefined): string => {
+        if (!text) return ''
+        let cleaned = String(text).trim()
+        // First-minute micro beat 1/12 (0-5s). Keep this as a separate fast visual cut that advances the hook: 패턴 제거
+        cleaned = cleaned.replace(/^First-minute micro beat\s*\d+\/\d+\s*\([^)]*\)\.?\s*(Keep this as a separate fast visual cut that advances the hook:?)?\s*/i, '')
+        cleaned = cleaned.replace(/^First-minute micro beat\s*[:\-\d\(\)\w\s\.]*?:\s*/i, '')
+        cleaned = cleaned.replace(/^Scene\s*\d+\s*(?:\([^)]*\))?\s*:\s*/i, '')
+        cleaned = cleaned.replace(/^Hook Scene\s*\d+\s*:\s*/i, '')
+        cleaned = cleaned.replace(/^Panel\s*\d+\s*:\s*/i, '')
+        return cleaned.trim() || String(text).trim()
+    }
+
+    const sanitizeAssetUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null
+        const str = String(url).trim()
+        if (str.includes('images.unsplash.com') || str.includes('commondatastorage.googleapis.com')) {
+            return null
+        }
+        return str
+    }
+
     // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
     const buildProjectFromSupabaseTopic = (topic: any): SelectedProjectPayload => {
         const dummyId = `proj-${topic.id || Date.now()}`
-        const sampleTopicTitle = topic.generated_title || topic.topic || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'
+        const sampleTopicTitle = topic.generated_title || topic.topic || '새로운 영상 프로젝트'
         const struct = topic.pregenerated_structure || topic.structure || {}
         
         const realDefaultNarratives = [
@@ -458,19 +480,12 @@ export default function StdPortalPage() {
 
         const scenes = rawScenes.map((s: any, i: number) => {
             const num = Number(s.scene_number || s.scene_order || i + 1)
-            let videoUrl: string | null = null
-            let imageUrl: string | null = null
-            if (num === 1) {
-                videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-                imageUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80'
-            } else if (num === 2) {
-                videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4'
-                imageUrl = 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&auto=format&fit=crop&q=80'
-            } else {
-                imageUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80'
-            }
+            // 신규 생성 시 실제 업로드/생성 에셋이 없으면 null (가짜 더미 이미지/비디오 제거)
+            const videoUrl: string | null = sanitizeAssetUrl(s.video_url || s.video)
+            const imageUrl: string | null = sanitizeAssetUrl(s.image_url || s.image)
 
-            const scriptText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
+            const rawScript = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
+            const scriptText = cleanScriptContextText(rawScript)
             const videoPromptText = s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`
 
             return {
@@ -486,7 +501,7 @@ export default function StdPortalPage() {
                 image_prompt: s.image_prompt || videoPromptText,
                 video_url: videoUrl,
                 image_url: imageUrl,
-                asset_status: videoUrl ? 'ready' : 'pending',
+                asset_status: videoUrl ? 'ready' : (imageUrl ? 'ready' : 'pending'),
                 video_prompt_required: true,
                 metadata: s,
             }
@@ -526,7 +541,7 @@ export default function StdPortalPage() {
             progress_payload: {
                 scene_count: scenes.length,
                 image_grid_prompt_count: gridPrompts.length,
-                ready_scene_count: 2,
+                ready_scene_count: scenes.filter(s => s.video_url || s.image_url).length,
             }
         }
 
@@ -540,10 +555,7 @@ export default function StdPortalPage() {
                 }
             },
             scenes,
-            assets: [
-                { id: 'asset-1', scene_number: 1, asset_type: 'video', file_name: 'manual_vid_p276_s1_1786710213.mp4', status: 'uploaded', drive_file_id: 'sample-1' },
-                { id: 'asset-2', scene_number: 2, asset_type: 'video', file_name: 'manual_vid_p276_s2_1786710246.mp4', status: 'uploaded', drive_file_id: 'sample-2' },
-            ],
+            assets: [],
         }
     }
 
@@ -594,12 +606,25 @@ export default function StdPortalPage() {
                 try {
                     const parsed = JSON.parse(savedProjectStateRaw)
                     if (parsed?.project?.id) {
-                        setSelectedProject(parsed)
+                        const cleanedProject = {
+                            ...parsed,
+                            scenes: (parsed.scenes || []).map((s: any) => {
+                                const cleanText = cleanScriptContextText(s.scene_text || s.script_excerpt)
+                                return {
+                                    ...s,
+                                    scene_text: cleanText,
+                                    script_excerpt: cleanText,
+                                    image_url: sanitizeAssetUrl(s.image_url),
+                                    video_url: sanitizeAssetUrl(s.video_url),
+                                }
+                            })
+                        }
+                        setSelectedProject(cleanedProject)
                         setProjects(prev => {
-                            const exists = prev.some(p => p.id === parsed.project.id)
-                            return exists ? prev : [parsed.project, ...prev]
+                            const exists = prev.some(p => p.id === cleanedProject.project.id)
+                            return exists ? prev : [cleanedProject.project, ...prev]
                         })
-                        setCustomScriptText(parsed.project.project_payload?.script || '')
+                        setCustomScriptText(cleanedProject.project.project_payload?.script || '')
                     }
                 } catch {
                     // Fallback to loadedProjects
@@ -800,16 +825,23 @@ export default function StdPortalPage() {
                     ? payload.scenes
                     : payload.project.project_payload?.structure?.scenes || []
 
-                const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => s.scene_text).join('\n\n')
+                const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => cleanScriptContextText(s.scene_text || s.script_excerpt)).join('\n\n')
                 setCustomScriptText(fullScript)
 
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
-                    scenes: serverScenes.map((s: any, idx: number) => ({
-                        ...s,
-                        scene_text: s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`,
-                        video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
-                    }))
+                    scenes: serverScenes.map((s: any, idx: number) => {
+                        const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
+                        const cleanedText = cleanScriptContextText(rawText)
+                        return {
+                            ...s,
+                            scene_text: cleanedText,
+                            script_excerpt: cleanedText,
+                            video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
+                            video_url: s.video_url || s.video || null,
+                            image_url: s.image_url || s.image || null,
+                        }
+                    })
                 }
 
                 setSelectedProject(fullProjectPayload)
@@ -1006,13 +1038,13 @@ export default function StdPortalPage() {
     const assetStats = useMemo(() => {
         const scenes = selectedProject?.scenes || []
         const totalScenes = scenes.length || 53
-        const videoScenes = scenes.filter(s => s.video_url).map(s => s.scene_number)
-        const imageScenes = scenes.filter(s => s.image_url && !s.video_url).map(s => s.scene_number)
+        const videoScenes = scenes.filter(s => Boolean(s.video_url)).map(s => s.scene_number)
+        const imageScenes = scenes.filter(s => Boolean(s.image_url) && !s.video_url).map(s => s.scene_number)
         const missingScenes = scenes.filter(s => !s.video_url && !s.image_url).map(s => s.scene_number)
         
         const requiredVideoZone = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
-        const completion = Math.round(((totalScenes - missingScenes.length) / totalScenes) * 100) || 10
+        const completion = totalScenes > 0 ? Math.round(((totalScenes - missingScenes.length) / totalScenes) * 100) : 0
 
         return {
             totalScenes,
@@ -2518,7 +2550,7 @@ export default function StdPortalPage() {
                                                     </span>
                                                     <span className="font-bold text-white text-xs">Scene {sceneNum}</span>
                                                     <span className="text-xs text-gray-400 truncate max-w-sm">
-                                                        📋 {scene.scene_text || 'At the funeral hall, an elderly husband finds a sealed letter hidden...'}
+                                                        📋 {cleanScriptContextText(scene.scene_text || scene.script_excerpt || '') || `Scene ${sceneNum}`}
                                                     </span>
                                                 </div>
                                                 <label className="flex items-center gap-2 cursor-pointer bg-[#202632] px-2 py-1 rounded border border-white/5">
