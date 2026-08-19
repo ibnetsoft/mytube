@@ -1652,8 +1652,9 @@ tr:hover { background: #161b22; }
         <span class="icon">&#x1F4CA;</span> 대시보드
       </div>
       <div class="nav-item" data-tab="rendering" onclick="switchTab('rendering')">
-        <span class="icon">&#x1F3AC;</span> 렌더링 상황
-        <span id="render-nav-badge" class="badge" style="display:none;margin-left:auto;background:#e74c3c;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;">0</span>
+        <span class="icon">&#x1F3AC;</span>
+        <span>렌더링 상황</span>
+        <span id="render-nav-badge" style="display:none;background:#ef4444;color:#ffffff;font-size:10px;font-weight:900;min-width:18px;height:18px;line-height:18px;border-radius:50%;text-align:center;padding:0 3px;margin-left:6px;box-shadow:0 0 6px rgba(239,68,68,0.8);">0</span>
       </div>
       <div class="nav-item" data-tab="topic-search" onclick="switchTab('topic-search')">
         <span class="icon">&#x1F50D;</span> 주제 찾기
@@ -2562,7 +2563,9 @@ function checkNewRenderJobs(jobs, pendingCount) {
   if (badge) {
     if (pendingCount > 0) {
       badge.textContent = pendingCount;
-      badge.style.display = 'inline-block';
+      badge.style.display = 'inline-flex';
+      badge.style.alignItems = 'center';
+      badge.style.justifyContent = 'center';
     } else {
       badge.style.display = 'none';
     }
@@ -4370,6 +4373,15 @@ async function stopAutopilot() {
 
 /* ── Init ── */
 refreshAll();
+
+// 3초마다 렌더링 상황 배지 실시간 동기화
+setInterval(() => {
+  api('GET', '/api/rendering-jobs?limit=10').then(data => {
+    if (data) {
+      checkNewRenderJobs(data.jobs || [], data.pending_count || 0);
+    }
+  }).catch(() => {});
+}, 3000);
 </script>
 </body>
 </html>"""
