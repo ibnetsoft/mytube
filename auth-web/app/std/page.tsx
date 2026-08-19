@@ -283,6 +283,15 @@ export default function StdPortalPage() {
 
     useEffect(() => {
         // Load voices from API
+                // Fetch legal texts (Terms of service & Privacy policy from admin global_settings)
+        fetch('/api/std/legal')
+            .then(res => res.json())
+            .then(data => {
+                if (data?.terms && data?.privacy) {
+                    setLegalTexts({ terms: data.terms, privacy: data.privacy })
+                }
+            })
+            .catch(() => {})
         fetch('/api/std/voices')
             .then(res => res.json())
             .then(data => {
@@ -316,6 +325,11 @@ export default function StdPortalPage() {
     const [preferredVideoLength, setPreferredVideoLength] = useState('15-30분')
     const [agreedTerms, setAgreedTerms] = useState(false)
     const [agreedPrivacy, setAgreedPrivacy] = useState(false)
+    const [legalModalType, setLegalModalType] = useState<'terms' | 'privacy' | null>(null)
+    const [legalTexts, setLegalTexts] = useState<{ terms: Record<string, string>; privacy: Record<string, string> }>({
+        terms: {},
+        privacy: {},
+    })
     const [isImpersonating, setIsImpersonating] = useState(false)
     const [impersonateEmail, setImpersonateEmail] = useState('')
     const [impersonateUserId, setImpersonateUserId] = useState('')
@@ -1532,6 +1546,63 @@ export default function StdPortalPage() {
                     <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
                     <p className="text-xs font-black tracking-widest text-blue-400 uppercase">AIR STUDIO STD Loading...</p>
                 </div>
+            
+                {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
+                {legalModalType && (
+                    <div
+                        onClick={() => setLegalModalType(null)}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+                    >
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            className="bg-[#1e293b] border border-white/15 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
+                        >
+                            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                <h3 className="text-base font-black text-white flex items-center gap-2">
+                                    <span>{legalModalType === 'terms' ? '📜' : '🔒'}</span>
+                                    <span>
+                                        {legalModalType === 'terms' ? '서비스 이용약관' : '개인정보 수집 및 이용 동의'}
+                                    </span>
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegalModalType(null)}
+                                    className="text-gray-400 hover:text-white text-lg font-bold p-1"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto bg-[#0f172a] border border-white/5 rounded-2xl p-4 text-xs text-gray-300 leading-relaxed font-sans whitespace-pre-wrap select-text">
+                                {legalModalType === 'terms'
+                                    ? (legalTexts.terms[currentLocale] || legalTexts.terms.ko || '이용약관을 불러오는 중입니다...')
+                                    : (legalTexts.privacy[currentLocale] || legalTexts.privacy.ko || '개인정보 처리방침을 불러오는 중입니다...')}
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (legalModalType === 'terms') setAgreedTerms(true)
+                                        if (legalModalType === 'privacy') setAgreedPrivacy(true)
+                                        setLegalModalType(null)
+                                    }}
+                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md transition"
+                                >
+                                    확인 및 동의하기
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegalModalType(null)}
+                                    className="px-4 py-2.5 bg-[#334155] hover:bg-[#475569] text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
+                                >
+                                    닫기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </main>
         )
     }
@@ -1845,26 +1916,44 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                {/* 약관 동의 */}
-                                <div className="space-y-1 text-[11px] text-gray-400">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={agreedTerms}
-                                            onChange={e => setAgreedTerms(e.target.checked)}
-                                            className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
-                                        />
-                                        <span>{t('auth_agree_terms')}</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={agreedPrivacy}
-                                            onChange={e => setAgreedPrivacy(e.target.checked)}
-                                            className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
-                                        />
-                                        <span>{t('auth_agree_privacy')}</span>
-                                    </label>
+                                {/* 약관 동의 & 전문 보기 팝업 */}
+                                <div className="space-y-2 text-[11px] text-gray-400 pt-1">
+                                    <div className="flex items-center justify-between">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={agreedTerms}
+                                                onChange={e => setAgreedTerms(e.target.checked)}
+                                                className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
+                                            />
+                                            <span className={agreedTerms ? 'text-blue-300 font-bold' : ''}>{t('auth_agree_terms')}</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setLegalModalType('terms')}
+                                            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                        >
+                                            [전문 보기]
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={agreedPrivacy}
+                                                onChange={e => setAgreedPrivacy(e.target.checked)}
+                                                className="rounded bg-black/40 border-white/20 text-blue-500 w-3.5 h-3.5"
+                                            />
+                                            <span className={agreedPrivacy ? 'text-blue-300 font-bold' : ''}>{t('auth_agree_privacy')}</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setLegalModalType('privacy')}
+                                            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                        >
+                                            [전문 보기]
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {message && (
@@ -1949,6 +2038,63 @@ export default function StdPortalPage() {
                         </div>
                     </div>
                 )}
+            
+                {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
+                {legalModalType && (
+                    <div
+                        onClick={() => setLegalModalType(null)}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+                    >
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            className="bg-[#1e293b] border border-white/15 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
+                        >
+                            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                <h3 className="text-base font-black text-white flex items-center gap-2">
+                                    <span>{legalModalType === 'terms' ? '📜' : '🔒'}</span>
+                                    <span>
+                                        {legalModalType === 'terms' ? '서비스 이용약관' : '개인정보 수집 및 이용 동의'}
+                                    </span>
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegalModalType(null)}
+                                    className="text-gray-400 hover:text-white text-lg font-bold p-1"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto bg-[#0f172a] border border-white/5 rounded-2xl p-4 text-xs text-gray-300 leading-relaxed font-sans whitespace-pre-wrap select-text">
+                                {legalModalType === 'terms'
+                                    ? (legalTexts.terms[currentLocale] || legalTexts.terms.ko || '이용약관을 불러오는 중입니다...')
+                                    : (legalTexts.privacy[currentLocale] || legalTexts.privacy.ko || '개인정보 처리방침을 불러오는 중입니다...')}
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (legalModalType === 'terms') setAgreedTerms(true)
+                                        if (legalModalType === 'privacy') setAgreedPrivacy(true)
+                                        setLegalModalType(null)
+                                    }}
+                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md transition"
+                                >
+                                    확인 및 동의하기
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegalModalType(null)}
+                                    className="px-4 py-2.5 bg-[#334155] hover:bg-[#475569] text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
+                                >
+                                    닫기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </main>
         )
     }
@@ -5391,7 +5537,64 @@ export default function StdPortalPage() {
                             </div>
                         </div>
                     )}
-                </main>
+                
+                {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
+                {legalModalType && (
+                    <div
+                        onClick={() => setLegalModalType(null)}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+                    >
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            className="bg-[#1e293b] border border-white/15 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150"
+                        >
+                            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                <h3 className="text-base font-black text-white flex items-center gap-2">
+                                    <span>{legalModalType === 'terms' ? '📜' : '🔒'}</span>
+                                    <span>
+                                        {legalModalType === 'terms' ? '서비스 이용약관' : '개인정보 수집 및 이용 동의'}
+                                    </span>
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegalModalType(null)}
+                                    className="text-gray-400 hover:text-white text-lg font-bold p-1"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto bg-[#0f172a] border border-white/5 rounded-2xl p-4 text-xs text-gray-300 leading-relaxed font-sans whitespace-pre-wrap select-text">
+                                {legalModalType === 'terms'
+                                    ? (legalTexts.terms[currentLocale] || legalTexts.terms.ko || '이용약관을 불러오는 중입니다...')
+                                    : (legalTexts.privacy[currentLocale] || legalTexts.privacy.ko || '개인정보 처리방침을 불러오는 중입니다...')}
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (legalModalType === 'terms') setAgreedTerms(true)
+                                        if (legalModalType === 'privacy') setAgreedPrivacy(true)
+                                        setLegalModalType(null)
+                                    }}
+                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md transition"
+                                >
+                                    확인 및 동의하기
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegalModalType(null)}
+                                    className="px-4 py-2.5 bg-[#334155] hover:bg-[#475569] text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
+                                >
+                                    닫기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+            </main>
             </div>
         </div>
     )
