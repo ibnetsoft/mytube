@@ -303,6 +303,8 @@ export default function StdPortalPage() {
     const [forgotMsg, setForgotMsg] = useState('')
     const [signupCategories, setSignupCategories] = useState<string[]>(['경제/재테크', '사연/이야기'])
     const [preferredVideoLength, setPreferredVideoLength] = useState('15-30분')
+    const [agreedTerms, setAgreedTerms] = useState(false)
+    const [agreedPrivacy, setAgreedPrivacy] = useState(false)
     const [isImpersonating, setIsImpersonating] = useState(false)
     const [impersonateEmail, setImpersonateEmail] = useState('')
     const [impersonateUserId, setImpersonateUserId] = useState('')
