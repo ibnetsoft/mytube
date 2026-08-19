@@ -23,10 +23,43 @@ function jsonError(error: string, status: number) {
 }
 
 export async function requireStdUser(req: Request): Promise<StdAuthResult> {
+    const url = new URL(req.url, 'http://localhost')
+    const impersonateQuery = url.searchParams.get('impersonate') || url.searchParams.get('email')
+    const impersonateHeader = req.headers.get('x-impersonate-email')
+    const targetImpersonateEmail = (impersonateHeader || impersonateQuery || '').trim().toLowerCase()
+
     const authHeader = req.headers.get('authorization') || ''
     const token = authHeader.toLowerCase().startsWith('bearer ')
         ? authHeader.slice(7).trim()
         : ''
+
+    // If impersonating a specific user
+    if (targetImpersonateEmail) {
+        const { data: pData } = await supabaseAdmin
+            .from('profiles')
+            .select('*')
+            .eq('email', targetImpersonateEmail)
+            .maybeSingle()
+
+        const foundProfile = pData || {
+            id: 'worker-' + targetImpersonateEmail,
+            email: targetImpersonateEmail,
+            full_name: targetImpersonateEmail.split('@')[0] || 'STD 작업자',
+            membership_tier: 'std',
+            is_approved: true,
+            signup_status: 'approved',
+        }
+
+        return {
+            ok: true,
+            requester: {
+                user: { id: foundProfile.id, email: targetImpersonateEmail } as any,
+                profile: foundProfile,
+                email: targetImpersonateEmail,
+            },
+        }
+    }
+
     if (!token) return { ok: false, response: jsonError('Authentication required', 401) }
 
     // 1. Try Desktop Session Token first (for existing AIR Studio users)

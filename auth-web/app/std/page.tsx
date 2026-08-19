@@ -741,9 +741,9 @@ export default function StdPortalPage() {
             const loadedProjects = Array.isArray(projectPayload?.projects) ? projectPayload.projects : []
             setProjects(loadedProjects)
 
-            // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도
-            const savedProjectStateRaw = localStorage.getItem('std_active_project_state')
-            const savedActiveProjectId = localStorage.getItem('std_active_project_id')
+            // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도 (임퍼소네이트 모드가 아닐 때만)
+            const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
+            const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
 
             if (savedProjectStateRaw) {
                 try {
@@ -814,7 +814,43 @@ export default function StdPortalPage() {
             }
             setToken(impToken)
             setUser(impUser)
-            loadStdData(impToken).finally(() => setAuthChecking(false))
+
+            // Direct fetch for impersonated user without reading local cache
+            const fetchImpersonated = async () => {
+                try {
+                    const headers = {
+                        Authorization: `Bearer ${impToken}`,
+                        'x-impersonate-email': cleanEmail,
+                    }
+                    const [pRes, tRes] = await Promise.allSettled([
+                        fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
+                        fetch(`/api/std/topics?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
+                    ])
+                    const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
+                    const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
+
+                    const loadedProjects = Array.isArray(pData?.projects) ? pData.projects : []
+                    const loadedTopics = Array.isArray(tData?.topics) ? tData.topics : []
+
+                    setProjects(loadedProjects)
+                    setTopics(loadedTopics)
+
+                    if (loadedProjects.length > 0) {
+                        await openProject(loadedProjects[0].id, impToken, cleanEmail)
+                    } else if (loadedTopics.length > 0) {
+                        const built = buildProjectFromSupabaseTopic(loadedTopics[0])
+                        built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
+                        setSelectedProject(built)
+                        setProjects([built.project])
+                        setCustomScriptText(built.project.project_payload?.script || '')
+                    }
+                } catch (err) {
+                    console.error('Failed to load impersonated user data:', err)
+                } finally {
+                    setAuthChecking(false)
+                }
+            }
+            fetchImpersonated()
             return
         }
 
@@ -980,12 +1016,27 @@ export default function StdPortalPage() {
         }
     }
 
-    const openProject = async (projectId: string, overrideToken?: string) => {
+    
+    const handleUploadExternalAudio = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const fakeUrl = URL.createObjectURL(file)
+        setAudioResultUrl(fakeUrl)
+        alert(`외부 오디오 파일 '${file.name}'이(가) 업로드되었습니다.`)
+    }
+
+    const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string) => {
         setProjectLoading(true)
         setMessage('')
         try {
-            const res = await fetch(`/api/std/projects/${projectId}`, {
-                headers: { Authorization: `Bearer ${overrideToken || token}` },
+            const targetToken = overrideToken || token
+            const activeImpEmail = overrideImpEmail || (isImpersonating ? impersonateEmail : '')
+            const impQuery = activeImpEmail ? `?impersonate=${encodeURIComponent(activeImpEmail)}` : ''
+            const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
+            if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
+
+            const res = await fetch(`/api/std/projects/${projectId}${impQuery}`, {
+                headers: fetchHeaders,
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (res.ok && payload?.project) {

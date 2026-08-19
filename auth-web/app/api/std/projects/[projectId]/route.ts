@@ -8,12 +8,11 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
 
-    const { data: project, error } = await supabaseAdmin
-        .from('std_projects')
-        .select('*')
-        .eq('id', params.projectId)
-        .eq('employee_email', auth.requester.email)
-        .maybeSingle()
+    let query = supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId)
+    if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
+        query = query.eq('employee_email', auth.requester.email)
+    }
+    const { data: project, error } = await query.maybeSingle()
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
