@@ -107,30 +107,30 @@ export default function AuthForm() {
 
     return (
         <div className="max-w-md w-full mx-auto relative group">
-            <div className="p-8 bg-black/40 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border border-white/10 relative overflow-hidden transition-all duration-500">
+            <div className="p-5 sm:p-8 bg-black/50 backdrop-blur-2xl rounded-2xl sm:rounded-[2.5rem] shadow-2xl border border-white/10 relative overflow-hidden transition-all duration-500">
                 {/* Decorative gradients */}
-                <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[100px] rounded-full" />
-                <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[100px] rounded-full" />
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-500/10 blur-[100px] rounded-full pointer-events-none" />
+                <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[100px] rounded-full pointer-events-none" />
 
-                <h1 className="text-4xl font-black text-center mb-8 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
+                <h1 className="text-3xl sm:text-4xl font-black text-center mb-6 sm:mb-8 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent italic tracking-tighter">
                     {t('auth.title')}
                 </h1>
                 {isSignUp && (
-                    <h2 className="text-lg font-medium text-center text-white/60 mb-8 tracking-wide uppercase text-[10px]">
+                    <h2 className="text-xs sm:text-sm font-semibold text-center text-blue-300/80 -mt-4 mb-6 tracking-wider uppercase">
                         {t('auth.signup')}
                     </h2>
                 )}
 
-                <form onSubmit={handleAuth} className="space-y-4">
+                <form onSubmit={handleAuth} className="space-y-3.5 sm:space-y-4">
                     <div>
-                        <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                        <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                             {t('auth.label.email')}
                         </label>
                         <input
                             type="email"
                             required
                             placeholder={t('auth.placeholder.email')}
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
+                            className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                         />
@@ -138,29 +138,29 @@ export default function AuthForm() {
 
                     {isSignUp && (
                         <>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                                    <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                                         {t('auth.full_name')}
                                     </label>
                                     <input
                                         type="text"
                                         required={isSignUp}
-                                        placeholder="Name"
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none text-sm"
+                                        placeholder="이름"
+                                        className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                                         value={fullName}
                                         onChange={(e) => setFullName(e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                                    <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                                         {t('auth.nationality')}
                                     </label>
                                     <input
                                         type="text"
                                         required={isSignUp}
-                                        placeholder="Country"
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none text-sm"
+                                        placeholder="국적 (예: KR)"
+                                        className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                                         value={nationality}
                                         onChange={(e) => setNationality(e.target.value)}
                                     />
@@ -168,28 +168,29 @@ export default function AuthForm() {
                             </div>
 
                             <div>
-                                <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                                <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                                     {t('auth.contact')}
                                 </label>
                                 <input
                                     type="text"
                                     required={isSignUp}
-                                    placeholder="Phone number"
-                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none text-sm"
+                                    placeholder="010-0000-0000"
+                                    className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                                     value={contact}
                                     onChange={(e) => setContact(e.target.value)}
                                 />
                             </div>
 
                             <div>
-                                <label className="text-xs font-bold text-gray-400 mb-2 ml-1 block uppercase tracking-wider">
+                                <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
                                     {t('auth.label.available_lang')}
                                 </label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     {contentLanguageOptions.map(option => (
-                                        <label key={`signup-language-${option.value}`} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-bold text-gray-300 cursor-pointer hover:bg-white/10">
+                                        <label key={`signup-language-${option.value}`} className="flex items-center justify-center sm:justify-start gap-1.5 px-2.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-bold text-gray-300 cursor-pointer hover:bg-white/10 transition-colors">
                                             <input
                                                 type="checkbox"
+                                                className="w-3.5 h-3.5 rounded text-blue-500 bg-black/40 border-white/20"
                                                 checked={preferredLanguages.includes(option.value)}
                                                 onChange={(e) => setPreferredLanguages(current => {
                                                     const next = e.target.checked
@@ -206,30 +207,30 @@ export default function AuthForm() {
                         </>
                     )}
 
-                    <div className={isSignUp ? "grid grid-cols-2 gap-4" : "space-y-4"}>
+                    <div className={isSignUp ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4" : "space-y-3 sm:space-y-4"}>
                         <div>
-                            <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                            <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                                 {isSignUp ? t('auth.password') : t('auth.password')}
                             </label>
                             <input
                                 type="password"
                                 required
-                                placeholder="Your password"
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
+                                placeholder="비밀번호 입력"
+                                className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
                         {isSignUp && (
                             <div>
-                                <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                                <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                                     {t('auth.password_confirm')}
                                 </label>
                                 <input
                                     type="password"
                                     required={isSignUp}
-                                    placeholder="Confirm"
-                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none text-sm"
+                                    placeholder="비밀번호 확인"
+                                    className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                                     value={passwordConfirm}
                                     onChange={(e) => setPasswordConfirm(e.target.value)}
                                 />
@@ -239,13 +240,13 @@ export default function AuthForm() {
 
                     {isSignUp && (
                         <div>
-                            <label className="text-xs font-bold text-gray-400 mb-1.5 ml-1 block uppercase tracking-wider">
+                            <label className="text-[11px] sm:text-xs font-bold text-gray-400 mb-1 ml-1 block uppercase tracking-wider">
                                 {t('auth.referrer')}
                             </label>
                             <input
                                 type="text"
-                                placeholder="Optional"
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none text-sm"
+                                placeholder="추천인 코드 (선택사항)"
+                                className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 outline-none"
                                 value={referrer}
                                 onChange={(e) => setReferrer(e.target.value)}
                             />
@@ -255,7 +256,7 @@ export default function AuthForm() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-900/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+                        className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all font-bold text-sm sm:text-base shadow-lg shadow-blue-900/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-4"
                     >
                         {loading ? t('common.loading') : (isSignUp ? t('auth.signup') : t('auth.signin'))}
                     </button>
@@ -271,10 +272,10 @@ export default function AuthForm() {
                     </div>
                 )}
 
-                <div className="mt-8 text-center text-sm">
+                <div className="mt-6 sm:mt-8 text-center text-xs sm:text-sm">
                     <button
                         onClick={() => setIsSignUp(!isSignUp)}
-                        className="text-gray-500 hover:text-blue-400 transition-colors"
+                        className="text-gray-400 hover:text-blue-400 transition-colors py-1 px-2"
                     >
                         {isSignUp ? t('auth.already_have_account') : t('auth.dont_have_account')}
                     </button>

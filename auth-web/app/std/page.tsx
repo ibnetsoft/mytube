@@ -383,6 +383,7 @@ export default function StdPortalPage() {
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
     type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'template' | 'render' | 'settings'
     const [currentNav, setCurrentNav] = useState<StdNavKey>('topics')
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
@@ -2418,20 +2419,29 @@ export default function StdPortalPage() {
                 </div>
             )}
             {/* 1. 상단 글로벌 헤더 */}
-            <header className="h-12 bg-[#181d26] border-b border-white/10 px-4 flex items-center justify-between shrink-0 z-30">
-                <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span className="font-bold text-sm tracking-wide text-blue-400">AIR STUDIO</span>
-                    <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <header className="h-12 bg-[#181d26] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between shrink-0 z-30">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    {/* 모바일 햄버거 메뉴 버튼 */}
+                    <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(prev => !prev)}
+                        className="md:hidden p-1 text-gray-300 hover:text-white rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-sm font-bold w-8 h-8 shrink-0 active:scale-95 transition-transform"
+                        title="메뉴 열기"
+                    >
+                        {mobileMenuOpen ? '✕' : '☰'}
+                    </button>
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    <span className="font-bold text-xs sm:text-sm tracking-wide text-blue-400 shrink-0">AIR STUDIO</span>
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
                         STD
                     </span>
-                    <span className="text-gray-500 text-xs hidden md:inline">|</span>
-                    <span className="text-xs text-gray-300 font-medium hidden md:inline">
+                    <span className="text-gray-500 text-xs hidden lg:inline">|</span>
+                    <span className="text-xs text-gray-300 font-medium hidden lg:inline truncate max-w-[280px]">
                         <strong className="text-blue-400">{t('active_project')}:</strong> {selectedProject?.project?.title || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
                     </span>
                 </div>
 
-                {/* 상단 단계별 상태 체크 스텝퍼 (실제 완성 여부에 따라 초록불/회색불 동적 바인딩) */}
+                {/* 상단 단계별 상태 체크 스텝퍼 (데스크톱/태블릿) */}
                 {(() => {
                     const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                     const steps = [
@@ -2443,7 +2453,7 @@ export default function StdPortalPage() {
                         { id: 'settings', label: t('nav_settings'), isDone: status.isSettingsDone },
                     ]
                     return (
-                        <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
+                        <div className="hidden md:flex items-center gap-2 lg:gap-3 text-[10px] lg:text-[11px] text-gray-400 font-medium">
                             {steps.map((step) => {
                                 const isCurrent = currentNav === step.id
                                 return (
@@ -2454,14 +2464,14 @@ export default function StdPortalPage() {
                                             isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
                                         }`}
                                     >
-                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                                        <div className={`w-3.5 h-3.5 lg:w-4 lg:h-4 rounded-full flex items-center justify-center text-[8px] lg:text-[9px] font-bold ${
                                             step.isDone
                                                 ? 'bg-emerald-500 text-black shadow-sm'
                                                 : 'bg-white/10 text-gray-500 border border-white/20'
                                         }`}>
                                             {step.isDone ? '✓' : '○'}
                                         </div>
-                                        <span className={`text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
+                                        <span className={`text-[9px] lg:text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
                                     </button>
                                 )
                             })}
@@ -2469,33 +2479,34 @@ export default function StdPortalPage() {
                     )
                 })()}
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                     {/* 언어 선택 드롭다운 (KO, EN, VI, TH) */}
-                    <div className="flex items-center bg-[#14181f] border border-white/10 rounded-lg px-2 py-1">
+                    <div className="flex items-center bg-[#14181f] border border-white/10 rounded-lg px-1.5 sm:px-2 py-1">
                         <select
                             value={currentLocale}
                             onChange={(e) => setCurrentLocale(e.target.value as SupportedLocale)}
-                            className="bg-transparent text-xs text-white focus:outline-none cursor-pointer"
+                            className="bg-transparent text-[11px] sm:text-xs text-white focus:outline-none cursor-pointer"
                         >
-                            <option value="ko" className="bg-[#1c2027] text-white">🇰🇷 한국어 (KO)</option>
-                            <option value="en" className="bg-[#1c2027] text-white">🇺🇸 English (EN)</option>
-                            <option value="vi" className="bg-[#1c2027] text-white">🇻🇳 Tiếng Việt (VI)</option>
-                            <option value="th" className="bg-[#1c2027] text-white">🇹🇭 ภาษาไทย (TH)</option>
+                            <option value="ko" className="bg-[#1c2027] text-white">🇰🇷 KO</option>
+                            <option value="en" className="bg-[#1c2027] text-white">🇺🇸 EN</option>
+                            <option value="vi" className="bg-[#1c2027] text-white">🇻🇳 VI</option>
+                            <option value="th" className="bg-[#1c2027] text-white">🇹🇭 TH</option>
                         </select>
                     </div>
 
                     <button
                         onClick={() => loadStdData(token)}
                         disabled={loading}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-medium text-gray-300 transition-all"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-[11px] sm:text-xs font-medium text-gray-300 transition-all"
+                        title={t('btn_refresh')}
                     >
                         <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-                        {t('btn_refresh')}
+                        <span className="hidden sm:inline">{t('btn_refresh')}</span>
                     </button>
-                    <div className="h-3.5 w-px bg-white/10" />
+                    <div className="h-3.5 w-px bg-white/10 hidden sm:block" />
                     <div className="text-right hidden sm:block">
                         <div className="text-xs font-bold text-white leading-none">{user?.full_name || '김호'}</div>
-                        <div className="text-[10px] text-gray-400 truncate max-w-[140px] leading-tight">{user?.email || 'ejsh0519@naver.com'}</div>
+                        <div className="text-[10px] text-gray-400 truncate max-w-[120px] leading-tight">{user?.email || 'ejsh0519@naver.com'}</div>
                     </div>
                     <button
                         onClick={signOut}
@@ -2507,10 +2518,136 @@ export default function StdPortalPage() {
                 </div>
             </header>
 
+            {/* 모바일 전용 가로 스크롤 스텝퍼 바 */}
+            {(() => {
+                const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                const steps = [
+                    { id: 'topics', label: t('nav_topics'), isDone: status.isPlanningDone },
+                    { id: 'image_gen', label: t('nav_image'), isDone: status.isImageDone },
+                    { id: 'tts', label: t('nav_tts'), isDone: status.isTtsDone },
+                    { id: 'subtitle_gen', label: t('nav_subtitles'), isDone: status.isSubtitlesDone },
+                    { id: 'thumbnail', label: t('nav_thumbnail'), isDone: status.isThumbnailDone },
+                    { id: 'settings', label: t('nav_settings'), isDone: status.isSettingsDone },
+                ]
+                return (
+                    <div className="md:hidden bg-[#14181f] border-b border-white/10 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+                        {steps.map(step => (
+                            <button
+                                key={step.id}
+                                onClick={() => { setCurrentNav(step.id as any); setMobileMenuOpen(false); }}
+                                className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${
+                                    currentNav === step.id
+                                        ? 'bg-blue-600/30 text-blue-300 border-blue-500/50'
+                                        : 'bg-[#1c222c] text-gray-400 border-white/5'
+                                }`}
+                            >
+                                <span className={`w-1.5 h-1.5 rounded-full ${step.isDone ? 'bg-emerald-400 shadow-sm' : 'bg-gray-600'}`} />
+                                <span>{step.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                )
+            })()}
+
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* 좌측 사이드바 */}
-                <aside className="w-56 bg-[#161a22] border-r border-white/10 flex flex-col shrink-0">
+            <div className="flex-1 flex overflow-hidden relative">
+                {/* 모바일 드로어 사이드바 (모바일 햄버거 메뉴 열림 시) */}
+                {mobileMenuOpen && (
+                    <div
+                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 md:hidden flex animate-in fade-in duration-200"
+                        onClick={() => setMobileMenuOpen(false)}
+                    >
+                        <aside
+                            className="w-64 max-w-[80vw] h-full bg-[#161a22] border-r border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-3 border-b border-white/10 flex items-center justify-between">
+                                <span className="font-bold text-sm text-blue-400">AIR STUDIO STD</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="p-1.5 text-gray-400 hover:text-white rounded-lg text-sm font-bold bg-white/5"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
+                                <div className="flex items-center justify-between text-gray-400">
+                                    <span>모드</span>
+                                    <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">롱폼</span>
+                                </div>
+                                <div className="flex items-center justify-between text-gray-400">
+                                    <span>사용자</span>
+                                    <span className="text-gray-200 font-bold truncate max-w-[120px]">{user?.full_name || '김호'}</span>
+                                </div>
+                            </div>
+
+                            <div className="p-3 border-b border-white/5 bg-[#13171e]">
+                                <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
+                                <select
+                                    value={selectedProject?.project?.id || ''}
+                                    onChange={(e) => {
+                                        if (e.target.value) openProject(e.target.value)
+                                        setMobileMenuOpen(false)
+                                    }}
+                                    className="w-full bg-[#202632] border border-white/10 rounded p-1.5 text-xs text-white cursor-pointer focus:outline-none focus:border-blue-500 truncate"
+                                >
+                                    {projects.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.title}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
+                                {[
+                                    { id: 'topics', label: t('nav_topics') },
+                                    { id: 'tts', label: t('nav_tts') },
+                                    { id: 'image_gen', label: t('nav_image') },
+                                    { id: 'subtitle_gen', label: t('nav_subtitles') },
+                                    { id: 'thumbnail', label: t('nav_thumbnail') },
+                                    { id: 'projects', label: t('nav_projects') },
+                                    { id: 'template', label: t('nav_template') },
+                                    { id: 'settings', label: t('nav_settings') },
+                                ].map((item) => {
+                                    const active = currentNav === item.id
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => {
+                                                setCurrentNav(item.id as any)
+                                                setMobileMenuOpen(false)
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded text-left transition-all font-medium ${
+                                                active
+                                                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-bold shadow-sm'
+                                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                                            }`}
+                                        >
+                                            <span>{item.label}</span>
+                                        </button>
+                                    )
+                                })}
+                            </nav>
+
+                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center justify-between">
+                                <button
+                                    onClick={signOut}
+                                    className="text-red-400 hover:text-red-300 font-bold text-xs flex items-center gap-1"
+                                >
+                                    <LogOut className="h-3.5 w-3.5" />
+                                    <span>로그아웃</span>
+                                </button>
+                                <span className="text-[10px] text-gray-500 font-mono">v2.3.46</span>
+                            </div>
+                        </aside>
+                    </div>
+                )}
+
+                {/* 데스크톱 좌측 고정 사이드바 (md 이상에서만 표시) */}
+                <aside className="hidden md:flex w-56 bg-[#161a22] border-r border-white/10 flex-col shrink-0">
                     <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
                         <div className="flex items-center justify-between text-gray-400">
                             <span>모드</span>
@@ -2609,8 +2746,8 @@ export default function StdPortalPage() {
                     </div>
                 </aside>
 
-                {/* 우측 메인 화면 */}
-                <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-6 space-y-6">
+                {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
+                <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6">
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_gen' && selectedProject && (() => {
                         const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
