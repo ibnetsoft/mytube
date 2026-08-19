@@ -5,22 +5,27 @@ import { requireStdUser } from '@/lib/stdWeb'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
-const NOTEBOOKLM_PROMPT = `당신은 구글 노트북LM(NotebookLM)의 핵심 지능이자, 유튜브 100만 조회수 전문 롱폼 다큐멘터리/토크쇼 총괄 디렉터입니다.
-사용자가 제공한 [참고 자료]를 심층 분석하여, 철저하게 사실에 근거하면서도 시청자가 15~20분 동안 한순간도 눈을 뗄 수 없는 최고 품질의 유튜브 롱폼 대본과 53개 씬(Scene) 구성을 작성하세요.
+const SCRIPT_WRITER_PROMPT = `당신은 최고 시청률의 유튜브 롱폼 다큐멘터리 및 토크쇼 메인 작가(Anthropic Claude)입니다.
+구글 노트북LM(Gemini)이 심층 조사하여 정리한 [팩트 연구 브리프]를 바탕으로, 한국어 특유의 흡입력과 몰입감을 극대화한 최고 품질의 유튜브 롱폼 대본과 53개 씬(Scene) 구성을 작성하세요.
 
 [요청 설정]
 - 카테고리: {{category}}
 - 목표 영상 분량: {{duration_minutes}}분 (약 4,000자~6,000자 대본 분량)
 - 대본 포맷 모드: {{mode_instruction}}
 
-[참고 자료 (Reference Material)]
+[팩트 연구 브리프 (Gemini NotebookLM Grounding Research)]
+"""
+{{research_summary}}
+"""
+
+[원문 참고 자료 발췌]
 """
 {{source_text}}
 """
 
 [작성 지침]
 1. {{mode_specific_rules}}
-2. 팩트 기반(Grounded): 참고 자료에 있는 핵심 정보, 흥미로운 일화, 통계, 맥락을 정확하게 반영하되 구어체로 흥미진진하게 풀어내세요.
+2. 문장력 및 흡입력: 시청자가 15~20분 동안 이탈하지 않도록 문장 끝맺음, 감정의 완급 조절, 생생한 구어체를 적용하세요.
 3. 씬 구성(Scenes): 유튜브 롱폼 영상에 맞게 총 50개~53개의 씬으로 분할하세요.
    - 각 씬마다:
      * scene_number: 1, 2, ...
@@ -68,21 +73,62 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: '참고 자료(텍스트)를 입력해주세요.' }, { status: 400 })
         }
 
-        // Gemini API Key 확보 (환경변수 또는 global_settings)
+        // Gemini & Claude API Keys 확보 (환경변수 또는 global_settings)
         let geminiKey = process.env.GEMINI_API_KEY
-        if (!geminiKey) {
-            const { data: gSetting } = await supabaseAdmin
+        let claudeKey = process.env.CLAUDE_API_KEY
+
+        if (!geminiKey || !claudeKey) {
+            const { data: gSettings } = await supabaseAdmin
                 .from('global_settings')
-                .select('value')
-                .eq('key', 'gemini')
-                .maybeSingle()
-            if (gSetting?.value) geminiKey = String(gSetting.value).trim()
+                .select('key, value')
+                .in('key', ['gemini', 'claude'])
+            
+            gSettings?.forEach((item: any) => {
+                if (item.key === 'gemini' && !geminiKey) geminiKey = String(item.value).trim()
+                if (item.key === 'claude' && !claudeKey) claudeKey = String(item.value).trim()
+            })
         }
 
         if (!geminiKey) {
             return NextResponse.json({ success: false, error: '시스템에 Gemini API Key가 설정되어 있지 않습니다.' }, { status: 500 })
         }
 
+        // ──────────────────────────────────────────────────────────
+        // 🚀 STEP 1: Google Gemini 1.5 - 심층 자료 분석 및 팩트 추출 (RAG / Research)
+        // ──────────────────────────────────────────────────────────
+        const researchPrompt = `당신은 구글 노트북LM(NotebookLM)의 핵심 연구 분석관입니다.
+제공된 [참고 자료]를 꼼꼼히 정독하고, 유튜브 롱폼(${duration_minutes}분) 대본 집필에 필요한 핵심 팩트, 인물 관계, 타임라인, 가장 흥미로운 갈등/사연 포인트, 통계/인용구를 팩트 위주로 완벽하게 요약 정리(Research Brief)하세요.
+
+[참고 자료]
+"""
+${String(source_text).slice(0, 30000)}
+"""`
+
+        let researchSummary = ''
+        try {
+            const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: researchPrompt }] }],
+                    generationConfig: { temperature: 0.2 }
+                })
+            })
+            if (geminiRes.ok) {
+                const gData = await geminiRes.json()
+                researchSummary = gData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+            }
+        } catch (rErr) {
+            console.warn('Gemini research step warning:', rErr)
+        }
+
+        if (!researchSummary) {
+            researchSummary = String(source_text).slice(0, 5000)
+        }
+
+        // ──────────────────────────────────────────────────────────
+        // 🚀 STEP 2: Claude 3.5 Haiku - 명품 대본 집필 & 53개 씬 생성 (Writer)
+        // ──────────────────────────────────────────────────────────
         const isDialogue = (mode === 'dialogue_podcast')
         let modeInstruction = ''
         let modeSpecificRules = ''
@@ -111,50 +157,78 @@ export async function POST(req: Request) {
             defaultSpeaker1 = '나레이터'
         }
 
-        const promptText = NOTEBOOKLM_PROMPT
+        const finalWriterPrompt = SCRIPT_WRITER_PROMPT
             .replace(/\{\{category\}\}/g, category)
             .replace(/\{\{duration_minutes\}\}/g, String(duration_minutes))
             .replace(/\{\{mode\}\}/g, mode)
             .replace(/\{\{mode_instruction\}\}/g, modeInstruction)
             .replace(/\{\{mode_specific_rules\}\}/g, modeSpecificRules)
-            .replace(/\{\{source_text\}\}/g, String(source_text).slice(0, 25000))
+            .replace(/\{\{research_summary\}\}/g, researchSummary)
+            .replace(/\{\{source_text\}\}/g, String(source_text).slice(0, 15000))
             .replace(/\{\{is_dialogue_json\}\}/g, isDialogueJson)
             .replace(/\{\{speakers_json\}\}/g, speakersJson)
             .replace(/\{\{default_speaker_1\}\}/g, defaultSpeaker1)
 
-        const geminiPayload = {
-            contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: {
-                temperature: 0.7,
-                responseMimeType: 'application/json'
+        let parsed: any = null
+        let usedEngine = 'claude-3-5-haiku'
+
+        // 1순위: Claude 3.5 Haiku 호출
+        if (claudeKey) {
+            try {
+                const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': claudeKey,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-3-5-haiku-20241022',
+                        max_tokens: 8192,
+                        temperature: 0.7,
+                        messages: [
+                            { role: 'user', content: finalWriterPrompt }
+                        ]
+                    })
+                })
+
+                if (claudeRes.ok) {
+                    const cData = await claudeRes.json()
+                    const rawContent = cData?.content?.[0]?.text || ''
+                    const cleanJsonStr = rawContent.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+                    parsed = JSON.parse(cleanJsonStr)
+                } else {
+                    console.warn('Claude Haiku call failed, falling back to Gemini:', await claudeRes.text())
+                }
+            } catch (cErr) {
+                console.warn('Claude Haiku error, falling back to Gemini:', cErr)
             }
         }
 
-        // Gemini 2.5 Flash -> fallback Gemini 1.5 Flash
-        let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiPayload)
-        })
-
-        if (!geminiRes.ok) {
-            geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        // 2순위 (폴백): Gemini 2.5 Flash로 대본 집필
+        if (!parsed) {
+            usedEngine = 'gemini-2.5-flash'
+            const geminiPayload = {
+                contents: [{ parts: [{ text: finalWriterPrompt }] }],
+                generationConfig: {
+                    temperature: 0.7,
+                    responseMimeType: 'application/json'
+                }
+            }
+            const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(geminiPayload)
             })
+            if (!gRes.ok) {
+                throw new Error(`대본 생성 실패: ${gRes.status}`)
+            }
+            const gData = await gRes.json()
+            const raw = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+            const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+            parsed = JSON.parse(clean)
         }
 
-        if (!geminiRes.ok) {
-            const errText = await geminiRes.text()
-            throw new Error(`Gemini API Error (${geminiRes.status}): ${errText}`)
-        }
-
-        const geminiData = await geminiRes.json()
-        const rawJsonStr = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-        const cleanJsonStr = rawJsonStr.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
-
-        const parsed = JSON.parse(cleanJsonStr)
         const finalTitle = custom_title?.trim() || parsed.title || `${category} - 노트북LM 심층 기획`
 
         // 프로젝트 생성 및 저장
@@ -166,6 +240,7 @@ export async function POST(req: Request) {
             language: 'ko',
             duration_minutes: duration_minutes,
             dialogue_mode: isDialogue,
+            ai_engine: usedEngine,
             script: parsed.full_script || parsed.scenes?.map((s: any) => `${s.speaker ? `${s.speaker}: ` : ''}${s.scene_text}`).join('\n\n') || '',
             scenes: (parsed.scenes || []).map((s: any, idx: number) => ({
                 id: idx + 1,
@@ -189,7 +264,6 @@ export async function POST(req: Request) {
             updated_at: new Date().toISOString(),
         }
 
-        // Supabase DB에 등록 시도
         try {
             await supabaseAdmin.from('std_projects').insert({
                 id: projectId,
@@ -203,7 +277,7 @@ export async function POST(req: Request) {
                 updated_at: new Date().toISOString(),
             })
         } catch (dbErr) {
-            console.warn('[NotebookLM] Failed to insert to std_projects table, returning project payload:', dbErr)
+            console.warn('[NotebookLM] Failed to insert std_projects:', dbErr)
         }
 
         return NextResponse.json({
@@ -215,6 +289,7 @@ export async function POST(req: Request) {
                 project_payload: projectPayload,
             },
             dialogue_mode: isDialogue,
+            engine: usedEngine,
             raw: parsed
         })
 

@@ -1,9 +1,7 @@
 ﻿"""
 [AIR STUDIO] Google NotebookLM-Style Grounded Script & 2-Host Dialogue Podcast Engine
-- Grounded on user reference materials (Articles, Historical notes, PDF extracts, transcripts)
-- Zero-hallucination factual grounding via Google Gemini 1.5 Pro
-- 2-Speaker Dialogue Podcast (Audio Overview style) & 1-Speaker Deep-dive Documentary formats
-- Automatic 53-Scene Visual Storyboard & Multi-Voice TTS Mapping
+- Step 1: Google Gemini 1.5 Pro / Flash for Deep Grounding & Fact Extraction (RAG)
+- Step 2: Anthropic Claude 3.5 Haiku for Elite Korean Scriptwriting & Scene Breakdown
 """
 import os
 import json
@@ -13,25 +11,31 @@ from typing import Dict, Any, List, Optional
 from config import config
 from services.gemini_service import gemini_service
 
-NOTEBOOKLM_PROMPT_TEMPLATE = """당신은 구글 노트북LM(NotebookLM)의 핵심 AI이자, 유튜브 100만 조회수 전문 롱폼 다큐멘터리/토크쇼 총괄 디렉터입니다.
-사용자가 제공한 [참고 자료]를 심층 분석하여, 철저하게 사실에 근거하면서도 시청자가 15~20분 동안 한순간도 눈을 뗄 수 없는 최고 품질의 유튜브 롱폼 대본과 53개 씬(Scene) 구성을 작성하세요.
+SCRIPT_WRITER_PROMPT_TEMPLATE = """당신은 최고 시청률의 유튜브 롱폼 다큐멘터리 및 토크쇼 메인 작가(Anthropic Claude)입니다.
+구글 노트북LM(Gemini)이 심층 조사하여 정리한 [팩트 연구 브리프]를 바탕으로, 한국어 특유의 흡입력과 몰입감을 극대화한 최고 품질의 유튜브 롱폼 대본과 53개 씬(Scene) 구성을 작성하세요.
 
 [요청 설정]
 - 카테고리: {category}
 - 목표 영상 분량: {duration_minutes}분 (약 4,000자~6,000자 대본 분량)
 - 대본 포맷 모드: {mode_instruction}
 
-[참고 자료 (Reference Material)]
+[팩트 연구 브리프 (Gemini NotebookLM Grounding Research)]
+\"\"\"
+{research_summary}
+\"\"\"
+
+[원문 참고 자료 발췌]
 \"\"\"
 {source_text}
 \"\"\"
 
 [작성 지침]
 1. {mode_specific_rules}
-2. 팩트 기반(Grounded): 참고 자료에 있는 핵심 정보, 흥미로운 일화, 통계, 맥락을 정확하게 반영하되 구어체로 흥미진진하게 풀어내세요.
+2. 문장력 및 흡입력: 시청자가 15~20분 동안 이탈하지 않도록 문장 끝맺음, 감정의 완급 조절, 생생한 구어체를 적용하세요.
 3. 씬 구성(Scenes): 유튜브 롱폼 영상에 맞게 총 50개~53개의 씬으로 분할하세요.
    - 각 씬마다:
      * scene_number: 1, 2, ...
+     * speaker: 대사를 말하는 화자 이름 (2인 대화 모드면 "진행자1" 또는 "진행자2", 1인 모드면 "나레이터")
      * scene_text: 해당 씬에서 읽을 대사 (2~3문장)
      * image_prompt: 해당 씬에 어울리는 구체적인 영어 이미지 프롬프트 (Cinematic lighting, 8k, photorealistic style)
      * visual_type: 1~12씬은 "video" (초반 훅 5초 비디오), 13~53씬은 "image"
@@ -65,15 +69,47 @@ async def generate_notebooklm_project(
     custom_title: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Generate complete grounded longform script & scenes from source text.
+    Generate complete grounded longform script & scenes:
+    Step 1: Gemini 1.5 Research -> Step 2: Claude 3.5 Haiku Writer
     """
     if not source_text or not source_text.strip():
         raise ValueError("참고 자료(Source Text)가 비어 있습니다.")
 
-    api_key = config.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
-    if not api_key:
+    gemini_key = config.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
+    claude_key = config.CLAUDE_API_KEY or os.environ.get("CLAUDE_API_KEY")
+
+    if not gemini_key:
         raise ValueError("GEMINI_API_KEY가 설정되어 있지 않습니다.")
 
+    # ──────────────────────────────────────────────────────────
+    # 🔍 STEP 1: Gemini 1.5 - 심층 팩트 분석 (Research & Grounding)
+    # ──────────────────────────────────────────────────────────
+    research_prompt = f"""당신은 구글 노트북LM(NotebookLM)의 핵심 연구 분석관입니다.
+제공된 [참고 자료]를 꼼꼼히 정독하고, 유튜브 롱폼({duration_minutes}분) 대본 집필에 필요한 핵심 팩트, 인물 관계, 타임라인, 가장 흥미로운 갈등/사연 포인트, 통계/인용구를 팩트 위주로 완벽하게 요약 정리(Research Brief)하세요.
+
+[참고 자료]
+\"\"\"
+{source_text[:30000]}
+\"\"\""""
+
+    research_summary = ""
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            r_res = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}",
+                json={"contents": [{"parts": [{"text": research_prompt}]}], "generationConfig": {"temperature": 0.2}}
+            )
+            if r_res.status_code == 200:
+                research_summary = r_res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            print(f"[NotebookLM] Gemini research step error: {e}")
+
+    if not research_summary:
+        research_summary = source_text[:5000]
+
+    # ──────────────────────────────────────────────────────────
+    # ✍️ STEP 2: Claude 3.5 Haiku - 명품 대본 집필 & 53개 씬 생성 (Writer)
+    # ──────────────────────────────────────────────────────────
     is_dialogue = (mode == "dialogue_podcast")
     if is_dialogue:
         mode_instruction = "2인 대화형 팟캐스트 (노트북LM Audio Overview 스타일 - 남/여 진행자 티키타카 토크쇼)"
@@ -95,45 +131,56 @@ async def generate_notebooklm_project(
         speakers_json = '["나레이터"]'
         default_speaker_1 = "나레이터"
 
-    prompt = NOTEBOOKLM_PROMPT_TEMPLATE.format(
+    writer_prompt = SCRIPT_WRITER_PROMPT_TEMPLATE.format(
         category=category,
         duration_minutes=duration_minutes,
         mode=mode,
         mode_instruction=mode_instruction,
         mode_specific_rules=mode_specific_rules,
-        source_text=source_text[:20000],
+        research_summary=research_summary,
+        source_text=source_text[:15000],
         is_dialogue_json=is_dialogue_json,
         speakers_json=speakers_json,
         default_speaker_1=default_speaker_1
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.7,
-            "responseMimeType": "application/json"
-        }
-    }
+    parsed = None
+    if claude_key:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            try:
+                c_res = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={"Content-Type": "application/json", "x-api-key": claude_key, "anthropic-version": "2023-06-01"},
+                    json={
+                        "model": "claude-3-5-haiku-20241022",
+                        "max_tokens": 8192,
+                        "temperature": 0.7,
+                        "messages": [{"role": "user", "content": writer_prompt}]
+                    }
+                )
+                if c_res.status_code == 200:
+                    raw_content = c_res.json()["content"][0]["text"]
+                    clean_json = re.sub(r"^```json\s*", "", raw_content.strip(), flags=re.MULTILINE)
+                    clean_json = re.sub(r"^```\s*$", "", clean_json.strip(), flags=re.MULTILINE)
+                    parsed = json.loads(clean_json.strip())
+            except Exception as ce:
+                print(f"[NotebookLM] Claude call failed: {ce}")
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        res = await client.post(url, json=payload)
-        if res.status_code != 200:
-            # Fallback to gemini-1.5-flash if 2.5 is unavailable
-            url_fallback = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-            res = await client.post(url_fallback, json=payload)
-            if res.status_code != 200:
-                raise RuntimeError(f"Gemini API 호출 실패: {res.status_code} - {res.text}")
-
-        res_data = res.json()
-        raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-
-    # JSON 파싱
-    clean_json = re.sub(r"^```json\s*", "", raw_text.strip(), flags=re.MULTILINE)
-    clean_json = re.sub(r"^```\s*$", "", clean_json.strip(), flags=re.MULTILINE)
-    data = json.loads(clean_json.strip())
+    if not parsed:
+        # Fallback to Gemini 2.5 Flash
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            g_res = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}",
+                json={"contents": [{"parts": [{"text": writer_prompt}]}], "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"}}
+            )
+            if g_res.status_code != 200:
+                raise RuntimeError(f"대본 생성 실패: {g_res.status_code}")
+            raw = g_res.json()["candidates"][0]["content"]["parts"][0]["text"]
+            clean = re.sub(r"^```json\s*", "", raw.strip(), flags=re.MULTILINE)
+            clean = re.sub(r"^```\s*$", "", clean.strip(), flags=re.MULTILINE)
+            parsed = json.loads(clean.strip())
 
     if custom_title and custom_title.strip():
-        data["title"] = custom_title.strip()
+        parsed["title"] = custom_title.strip()
 
-    return data
+    return parsed
