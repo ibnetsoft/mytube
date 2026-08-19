@@ -322,6 +322,12 @@ export default function StdPortalPage() {
     const [forgotEmail, setForgotEmail] = useState('')
     const [forgotMsg, setForgotMsg] = useState('')
     const [signupCategories, setSignupCategories] = useState<string[]>(['옛날이야기', '경제', '탈북사연', '한국사연', '해외감동', '무협', '노후금융', '황혼19금'])
+    const [emailVerified, setEmailVerified] = useState(false)
+    const [verifyCodeSent, setVerifyCodeSent] = useState(false)
+    const [verifyCodeInput, setVerifyCodeInput] = useState('')
+    const [verifyTimer, setVerifyTimer] = useState(600)
+    const [verifyLoading, setVerifyLoading] = useState(false)
+    const [verifyMsg, setVerifyMsg] = useState('')
     const [preferredVideoLength, setPreferredVideoLength] = useState('15-30분')
     const [agreedTerms, setAgreedTerms] = useState(false)
     const [agreedPrivacy, setAgreedPrivacy] = useState(false)
@@ -344,6 +350,19 @@ export default function StdPortalPage() {
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
     const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
+    
+    useEffect(() => {
+        let interval: any = null
+        if (verifyCodeSent && !emailVerified && verifyTimer > 0) {
+            interval = setInterval(() => {
+                setVerifyTimer(prev => (prev > 0 ? prev - 1 : 0))
+            }, 1000)
+        }
+        return () => {
+            if (interval) clearInterval(interval)
+        }
+    }, [verifyCodeSent, emailVerified, verifyTimer])
+
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
 
     // 2. 작업 데이터 상태
@@ -1000,6 +1019,69 @@ export default function StdPortalPage() {
             setUser(fallbackUser)
         } finally {
             setLoading(false)
+        }
+    }
+
+    
+    const sendVerificationCode = async () => {
+        const cleanEmail = email.trim().toLowerCase()
+        if (!cleanEmail || !cleanEmail.includes('@')) {
+            setMessage('올바른 이메일 주소를 입력해주세요.')
+            return
+        }
+        setVerifyLoading(true)
+        setMessage('')
+        setVerifyMsg('')
+        try {
+            const res = await fetch('/api/std/send-verify-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: cleanEmail }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (data.success) {
+                setVerifyCodeSent(true)
+                setVerifyTimer(600)
+                setVerifyMsg(data.message || '인증 코드가 발송되었습니다.')
+                if (data.code) {
+                    setVerifyCodeInput(data.code) // 개발/테스트 편의를 위한 자동 채움 지원
+                }
+            } else {
+                setMessage(data.error || '인증 코드 발송에 실패했습니다.')
+            }
+        } catch (err: any) {
+            setMessage(err?.message || '네트워크 오류가 발생했습니다.')
+        } finally {
+            setVerifyLoading(false)
+        }
+    }
+
+    const confirmVerificationCode = async () => {
+        const cleanEmail = email.trim().toLowerCase()
+        const cleanCode = verifyCodeInput.trim()
+        if (!cleanCode) {
+            setMessage('인증 코드를 입력해주세요.')
+            return
+        }
+        setVerifyLoading(true)
+        setMessage('')
+        try {
+            const res = await fetch('/api/std/verify-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: cleanEmail, code: cleanCode }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (data.success && data.verified) {
+                setEmailVerified(true)
+                setVerifyMsg('✓ 이메일 인증이 완료되었습니다.')
+            } else {
+                setMessage(data.error || '인증 코드가 일치하지 않습니다.')
+            }
+        } catch (err: any) {
+            setMessage(err?.message || '인증 확인 중 오류가 발생했습니다.')
+        } finally {
+            setVerifyLoading(false)
         }
     }
 
@@ -1797,22 +1879,69 @@ export default function StdPortalPage() {
                                     required
                                 />
 
-                                <div className="flex gap-2">
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={e => setEmail(e.target.value)}
-                                        className="flex-1 bg-[#0f172a]/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                                        placeholder={t('auth_ph_email')}
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => alert('인증 코드가 이메일로 발송되었습니다.')}
-                                        className="px-3 bg-blue-600/20 border border-blue-500/40 text-blue-300 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition whitespace-nowrap"
-                                    >
-                                        {t('auth_btn_send_verify')}
-                                    </button>
+                                {/* 이메일 입력 및 인증 코드 발송 */}
+                                <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            readOnly={emailVerified}
+                                            onChange={e => { setEmail(e.target.value); setEmailVerified(false); setVerifyCodeSent(false) }}
+                                            className={`flex-1 bg-[#0f172a]/80 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none transition ${
+                                                emailVerified ? 'border-emerald-500/50 bg-emerald-950/20 text-emerald-300' : 'border-white/10 focus:border-blue-500'
+                                            }`}
+                                            placeholder={t('auth_ph_email')}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={verifyLoading || !email.trim() || emailVerified}
+                                            onClick={sendVerificationCode}
+                                            className={`px-3.5 rounded-xl text-xs font-bold transition whitespace-nowrap border ${
+                                                emailVerified
+                                                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 cursor-default'
+                                                    : 'bg-blue-600/30 border-blue-500/50 text-blue-300 hover:bg-blue-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed'
+                                            }`}
+                                        >
+                                            {emailVerified ? '✓ 인증됨' : (verifyLoading ? '발송 중...' : (verifyCodeSent ? '재발송' : t('auth_btn_send_verify')))}
+                                        </button>
+                                    </div>
+
+                                    {/* 6자리 인증코드 입력 및 확인 영역 */}
+                                    {verifyCodeSent && !emailVerified && (
+                                        <div className="bg-[#020617]/70 border border-blue-500/30 rounded-xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                                            <div className="flex items-center justify-between text-[10px] text-gray-400">
+                                                <span className="text-cyan-400 font-bold">✉️ 인증 코드 6자리를 입력하세요</span>
+                                                <span className="text-amber-400 font-mono font-bold">
+                                                    ⏱️ {Math.floor(verifyTimer / 60).toString().padStart(2, '0')}:{(verifyTimer % 60).toString().padStart(2, '0')}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    maxLength={6}
+                                                    value={verifyCodeInput}
+                                                    onChange={e => setVerifyCodeInput(e.target.value)}
+                                                    className="flex-1 bg-[#0f172a] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white font-mono tracking-widest text-center focus:outline-none focus:border-cyan-400"
+                                                    placeholder="123456"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    disabled={verifyLoading || verifyCodeInput.trim().length < 6}
+                                                    onClick={confirmVerificationCode}
+                                                    className="px-4 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 rounded-lg text-xs font-bold text-white transition"
+                                                >
+                                                    {verifyLoading ? '확인 중...' : '확인'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {verifyMsg && (
+                                        <div className={`text-[11px] font-bold text-center ${emailVerified ? 'text-emerald-400' : 'text-cyan-300'}`}>
+                                            {verifyMsg}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <input
