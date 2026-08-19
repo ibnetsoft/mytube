@@ -8,9 +8,16 @@ const VOICES_CACHE_KEY = 'admin:voices'
 const VOICES_CACHE_TTL_SECONDS = 300
 
 type CustomVoice = {
-    name: string
+    id: string
     voice_id: string
+    name: string
+    gender?: 'male' | 'female'
+    category?: string
+    language?: string
+    description?: string
+    preview_url?: string
     provider: 'elevenlabs'
+    created_at?: string
 }
 
 const getAdmin = () => createClient(
@@ -23,11 +30,23 @@ const normalizeVoices = (value: unknown): CustomVoice[] => {
         const parsed = typeof value === 'string' ? JSON.parse(value) : value
         if (!Array.isArray(parsed)) return []
         return parsed
-            .map(item => ({
-                name: String(item?.name || '').trim(),
-                voice_id: String(item?.voice_id || '').trim(),
-                provider: 'elevenlabs' as const,
-            }))
+            .map((item: any) => {
+                const vid = String(item?.voice_id || item?.id || '').trim()
+                const name = String(item?.name || '').trim()
+                const gender = item?.gender === 'male' ? 'male' : 'female'
+                return {
+                    id: vid,
+                    voice_id: vid,
+                    name,
+                    gender,
+                    category: String(item?.category || 'custom').trim(),
+                    language: String(item?.language || 'ko').trim(),
+                    description: String(item?.description || '').trim(),
+                    preview_url: String(item?.preview_url || '').trim(),
+                    provider: 'elevenlabs' as const,
+                    created_at: item?.created_at || new Date().toISOString(),
+                }
+            })
             .filter(item => item.name && item.voice_id)
     } catch {
         return []
@@ -96,9 +115,12 @@ export async function POST(req: Request) {
 
         const voices = await loadVoices()
         for (const requested of requestedVoices) {
-            const existing = voices.find(voice => voice.voice_id === requested.voice_id)
-            if (existing) existing.name = requested.name
-            else voices.push(requested)
+            const existingIdx = voices.findIndex(voice => voice.voice_id === requested.voice_id)
+            if (existingIdx >= 0) {
+                voices[existingIdx] = { ...voices[existingIdx], ...requested }
+            } else {
+                voices.unshift(requested)
+            }
         }
         await saveVoices(voices)
         await deleteServerCache(VOICES_CACHE_KEY)

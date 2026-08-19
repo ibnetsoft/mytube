@@ -753,10 +753,11 @@ export default function StdPortalPage() {
         setMessage('')
         try {
             const headers = { Authorization: `Bearer ${accessToken}` }
-            const [meRes, topicsRes, projectsRes] = await Promise.allSettled([
+            const [meRes, topicsRes, projectsRes, voicesRes] = await Promise.allSettled([
                 fetch('/api/std/me', { headers }),
                 fetch(`/api/std/topics?refresh=1&limit=50`, { headers }),
                 fetch('/api/std/projects', { headers }),
+                fetch('/api/std/voices', { headers }),
             ])
 
             let meData: any = {}
@@ -766,6 +767,12 @@ export default function StdPortalPage() {
             if (meRes.status === 'fulfilled') meData = await safeParseJson(meRes.value, '')
             if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
             if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
+            if (voicesRes.status === 'fulfilled') {
+                const voiceData = await safeParseJson(voicesRes.value, '')
+                if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
+                    setAllVoices(voiceData.voices)
+                }
+            }
 
             if (meData?.user) {
                 setUser(meData.user)

@@ -388,7 +388,7 @@ export default function DashboardContent() {
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
     const [newPricingModelId, setNewPricingModelId] = useState('')
     const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi' | 'th'>('ko')
-    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'music' | 'video' | 'legal' | 'policy' | 'pricing'>('ai')
+    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'voices' | 'music' | 'video' | 'legal' | 'policy' | 'pricing'>('ai')
 
     // Style Presets state
     const [stylePresets, setStylePresets] = useState<any[]>([])
@@ -407,6 +407,15 @@ export default function DashboardContent() {
     const [voiceBulkInput, setVoiceBulkInput] = useState('')
     const [voicesLoading, setVoicesLoading] = useState(false)
     const [voiceSaving, setVoiceSaving] = useState(false)
+    const [singleVoiceForm, setSingleVoiceForm] = useState({
+        name: '',
+        voice_id: '',
+        gender: 'female' as 'male' | 'female',
+        description: '',
+        preview_url: '',
+    })
+    const [voiceAddMode, setVoiceAddMode] = useState<'single' | 'bulk'>('single')
+    const [isSyncingElevenLabs, setIsSyncingElevenLabs] = useState(false)
 
     // Auth & Access
     const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
@@ -1936,6 +1945,80 @@ export default function DashboardContent() {
         }
     }
 
+    const handleAddSingleVoice = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!singleVoiceForm.name.trim() || !singleVoiceForm.voice_id.trim()) {
+            alert('성우 이름과 ElevenLabs Voice ID를 입력해주세요.')
+            return
+        }
+        try {
+            setVoiceSaving(true)
+            const res = await adminFetch('/api/admin/voices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(singleVoiceForm)
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+            setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
+            setSingleVoiceForm({ name: '', voice_id: '', gender: 'female', description: '', preview_url: '' })
+            alert(`성우 "${singleVoiceForm.name}" 등록 완료! (웹std TTS 페이지에 즉시 노출됩니다)`)
+        } catch (e: any) {
+            alert('성우 저장 실패: ' + (e?.message || String(e)))
+        } finally {
+            setVoiceSaving(false)
+        }
+    }
+
+    const handleSyncElevenLabsVoices = async () => {
+        const key = sysKeys.elevenlabs
+        if (!key) {
+            alert('먼저 AI 핵심 탭에서 ElevenLabs API Key를 입력하고 저장해주세요.')
+            return
+        }
+        if (!confirm('현재 설정된 ElevenLabs 계정의 모든 보이스(Voice Library)를 조회하여 관리 목록에 추가하시겠습니까?')) return
+        try {
+            setIsSyncingElevenLabs(true)
+            const res = await fetch('https://api.elevenlabs.io/v1/voices?show_legacy=true', {
+                headers: { 'xi-api-key': key }
+            })
+            if (!res.ok) throw new Error(`ElevenLabs API 오류 (${res.status})`)
+            const data = await res.json()
+            const voicesToRegister = (data.voices || []).map((v: any) => {
+                const labels = v.labels || {}
+                const g = labels.gender || (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some((w: string) => (v.name || '').toLowerCase().includes(w)) ? 'female' : 'male')
+                return {
+                    voice_id: v.voice_id,
+                    name: v.name,
+                    gender: g,
+                    description: labels.description || v.description || '',
+                    preview_url: v.preview_url || '',
+                    provider: 'elevenlabs',
+                }
+            })
+            if (voicesToRegister.length === 0) {
+                alert('가져올 수 있는 성우 목록이 없습니다.')
+                return
+            }
+            const saveRes = await adminFetch('/api/admin/voices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voices: voicesToRegister })
+            })
+            const saveData = await saveRes.json()
+            if (saveRes.ok && saveData.success) {
+                setCustomVoices(Array.isArray(saveData.voices) ? saveData.voices : [])
+                alert(`ElevenLabs 동기화 완료! 총 ${voicesToRegister.length}명의 성우가 등록되었습니다.`)
+            } else {
+                alert('동기화 저장 실패: ' + (saveData.error || '알 수 없는 오류'))
+            }
+        } catch (err: any) {
+            alert('동기화 실패: ' + (err.message || String(err)))
+        } finally {
+            setIsSyncingElevenLabs(false)
+        }
+    }
+
     const handleDeleteVoice = async (targetVoiceId: string) => {
         if (!confirm('이 ElevenLabs 음성을 삭제하시겠습니까?')) return
         try {
@@ -2460,6 +2543,12 @@ export default function DashboardContent() {
             return () => clearInterval(interval);
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab === 'api' && apiSettingsTab === 'voices') {
+            fetchCustomVoices();
+        }
+    }, [activeTab, apiSettingsTab, fetchCustomVoices]);
 
     useEffect(() => {
         setTopicQueuePage(1);
@@ -4435,6 +4524,7 @@ export default function DashboardContent() {
                             <div className="flex gap-1 p-1 bg-black/40 border border-white/5 rounded-2xl flex-shrink-0">
                                 {([
                                     { key: 'ai',     icon: '🤖', label: 'AI 핵심' },
+                                    { key: 'voices', icon: '🎙️', label: '성우/TTS' },
                                     { key: 'music',  icon: '🎵', label: '음악' },
                                     { key: 'video',  icon: '🎬', label: '영상/결제' },
                                     { key: 'legal',  icon: '📋', label: '약관' },
@@ -4594,6 +4684,258 @@ export default function DashboardContent() {
                                 </div>
                             )}
 
+                            {/* ── 탭: 성우/TTS 관리 ── */}
+                            {apiSettingsTab === 'voices' && (
+                                <div className="space-y-6 animate-in fade-in duration-200">
+                                    {/* 안내 배너 */}
+                                    <div className="bg-gradient-to-r from-purple-900/30 to-indigo-900/30 border border-purple-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                                                <span>🎙️</span> ElevenLabs 성우 관리 &amp; 웹std 실시간 동기화
+                                            </h4>
+                                            <p className="text-xs text-purple-200/80 leading-relaxed">
+                                                여기서 등록하거나 동기화한 ElevenLabs 성우는 <strong>웹std 영상 제작 페이지(/std)의 TTS 탭 성우 선택 및 다중 성우 매핑</strong>에 실시간으로 즉시 노출됩니다.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={handleSyncElevenLabsVoices}
+                                                disabled={isSyncingElevenLabs}
+                                                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50"
+                                                title="ElevenLabs API Key로 계정 내 보이스 목록 자동 가져오기"
+                                            >
+                                                <span>{isSyncingElevenLabs ? '⏳' : '✨'}</span>
+                                                <span>{isSyncingElevenLabs ? '동기화 진행 중...' : 'ElevenLabs 계정 성우 자동 동기화'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={fetchCustomVoices}
+                                                disabled={voicesLoading}
+                                                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-gray-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                                                title="목록 새로고침"
+                                            >
+                                                <span>🔄</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 성우 등록 폼 */}
+                                    <div className="bg-[#0b101b] border border-white/10 rounded-2xl p-6 space-y-4 shadow-xl">
+                                        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-black text-gray-300 uppercase tracking-wider">➕ 새 성우 추가</span>
+                                                <div className="flex bg-black/40 border border-white/10 rounded-lg p-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setVoiceAddMode('single')}
+                                                        className={`px-2.5 py-1 rounded text-[11px] font-bold transition ${voiceAddMode === 'single' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                                    >
+                                                        단일 등록
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setVoiceAddMode('bulk')}
+                                                        className={`px-2.5 py-1 rounded text-[11px] font-bold transition ${voiceAddMode === 'bulk' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                                                    >
+                                                        대량 일괄 등록
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <span className="text-[11px] text-gray-500 font-mono">총 등록 성우: {customVoices.length}명</span>
+                                        </div>
+
+                                        {voiceAddMode === 'single' ? (
+                                            <form onSubmit={handleAddSingleVoice} className="space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-gray-300 block mb-1.5">
+                                                            성우 표시 이름 <span className="text-red-400">*</span>
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={singleVoiceForm.name}
+                                                            onChange={e => setSingleVoiceForm(prev => ({ ...prev, name: e.target.value }))}
+                                                            placeholder="예: Yooni (따뜻하고 차분한 여성)"
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-gray-300 block mb-1.5">
+                                                            ElevenLabs Voice ID <span className="text-red-400">*</span>
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={singleVoiceForm.voice_id}
+                                                            onChange={e => setSingleVoiceForm(prev => ({ ...prev, voice_id: e.target.value }))}
+                                                            placeholder="예: n2fbxG88jqAoaVPUy3IG"
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 font-mono"
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-gray-300 block mb-1.5">성별</label>
+                                                        <div className="flex items-center gap-3 bg-black/40 border border-white/10 rounded-xl px-3.5 py-2">
+                                                            <label className="flex items-center gap-1.5 text-xs text-gray-200 cursor-pointer">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="voice_gender"
+                                                                    value="female"
+                                                                    checked={singleVoiceForm.gender === 'female'}
+                                                                    onChange={() => setSingleVoiceForm(prev => ({ ...prev, gender: 'female' }))}
+                                                                    className="text-purple-600 focus:ring-0"
+                                                                />
+                                                                <span>👩 여성 (Female)</span>
+                                                            </label>
+                                                            <label className="flex items-center gap-1.5 text-xs text-gray-200 cursor-pointer">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="voice_gender"
+                                                                    value="male"
+                                                                    checked={singleVoiceForm.gender === 'male'}
+                                                                    onChange={() => setSingleVoiceForm(prev => ({ ...prev, gender: 'male' }))}
+                                                                    className="text-purple-600 focus:ring-0"
+                                                                />
+                                                                <span>👨 남성 (Male)</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-gray-300 block mb-1.5">설명 / 톤 (선택)</label>
+                                                        <input
+                                                            type="text"
+                                                            value={singleVoiceForm.description}
+                                                            onChange={e => setSingleVoiceForm(prev => ({ ...prev, description: e.target.value }))}
+                                                            placeholder="예: 몰입감 높은 다큐멘터리/사연 나레이션"
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[11px] font-bold text-gray-300 block mb-1.5">미리듣기 MP3 URL (선택)</label>
+                                                        <input
+                                                            type="url"
+                                                            value={singleVoiceForm.preview_url}
+                                                            onChange={e => setSingleVoiceForm(prev => ({ ...prev, preview_url: e.target.value }))}
+                                                            placeholder="https://.../preview.mp3"
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex justify-end pt-2">
+                                                    <button
+                                                        type="submit"
+                                                        disabled={voiceSaving}
+                                                        className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <span>{voiceSaving ? '등록 중...' : '+ 성우 등록하기'}</span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        ) : (
+                                            <form onSubmit={handleSaveVoice} className="space-y-3">
+                                                <p className="text-[11px] text-gray-400">
+                                                    한 줄에 <code>성우이름 | ElevenLabs Voice ID</code> 형식으로 여러 개를 입력하세요.
+                                                </p>
+                                                <textarea
+                                                    rows={5}
+                                                    value={voiceBulkInput}
+                                                    onChange={e => setVoiceBulkInput(e.target.value)}
+                                                    placeholder="Yooni | n2fbxG88jqAoaVPUy3IG&#10;Mina | cgSgspJ2msm6clMCkdW9&#10;Roger | CwhRBWXzGAHq8TQ4Fs17"
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-xs text-white font-mono placeholder-gray-600 focus:outline-none focus:border-purple-500 leading-relaxed"
+                                                />
+                                                <div className="flex justify-end">
+                                                    <button
+                                                        type="submit"
+                                                        disabled={voiceSaving}
+                                                        className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg disabled:opacity-50"
+                                                    >
+                                                        {voiceSaving ? '저장 중...' : '대량 일괄 등록'}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        )}
+                                    </div>
+
+                                    {/* 등록된 성우 목록 */}
+                                    <div className="bg-[#0b101b] border border-white/10 rounded-2xl p-6 space-y-4 shadow-xl">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-black text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                                                <span>📋</span> 등록된 성우 목록 ({customVoices.length}명)
+                                            </h4>
+                                        </div>
+
+                                        {voicesLoading ? (
+                                            <div className="text-center py-10 text-gray-500 text-xs">성우 목록 불러오는 중...</div>
+                                        ) : customVoices.length === 0 ? (
+                                            <div className="text-center py-12 text-gray-500 text-xs bg-black/20 rounded-xl border border-dashed border-white/10">
+                                                등록된 커스텀 성우가 없습니다. 위 입력 폼에서 성우를 추가하거나 [ElevenLabs 계정 성우 자동 동기화]를 눌러주세요.
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {customVoices.map((v: any, idx: number) => {
+                                                    const vid = v.voice_id || v.id
+                                                    const isFemale = v.gender === 'female' || (!v.gender && ['yooni', 'mina', 'sarah', 'bella', 'lily'].some((w: string) => (v.name || '').toLowerCase().includes(w)))
+                                                    return (
+                                                        <div
+                                                            key={vid || idx}
+                                                            className="p-3.5 bg-black/40 rounded-xl border border-white/10 hover:border-purple-500/50 transition-all flex flex-col justify-between gap-3 group"
+                                                        >
+                                                            <div className="space-y-1.5">
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="font-bold text-white text-xs truncate flex items-center gap-1.5" title={v.name}>
+                                                                        <span>{isFemale ? '👩' : '👨'}</span>
+                                                                        <span className="truncate">{v.name}</span>
+                                                                    </div>
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${isFemale ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'}`}>
+                                                                        {isFemale ? '여성' : '남성'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono bg-white/5 px-2 py-1 rounded">
+                                                                    <span className="text-gray-500">ID:</span>
+                                                                    <span className="truncate select-all">{vid}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { navigator.clipboard.writeText(vid); alert('Voice ID가 복사되었습니다.'); }}
+                                                                        className="ml-auto text-gray-500 hover:text-white"
+                                                                        title="ID 복사"
+                                                                    >
+                                                                        📋
+                                                                    </button>
+                                                                </div>
+                                                                {v.description && (
+                                                                    <p className="text-[10px] text-gray-400 leading-tight line-clamp-2">{v.description}</p>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                                                                {v.preview_url ? (
+                                                                    <audio src={v.preview_url} controls className="h-7 w-40" />
+                                                                ) : (
+                                                                    <span className="text-[10px] text-gray-600">미리듣기 없음</span>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteVoice(vid)}
+                                                                    className="text-xs text-gray-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition"
+                                                                    title="성우 삭제"
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* ── 탭 2: 음악 ── */}
                             {apiSettingsTab === 'music' && (
                                 <div className="space-y-5 animate-in fade-in duration-200">
@@ -4612,7 +4954,16 @@ export default function DashboardContent() {
 
                                     {/* ElevenLabs */}
                                     <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
-                                        <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">🎙️ ElevenLabs</p>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">🎙️ ElevenLabs</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setApiSettingsTab('voices')}
+                                                className="text-[10px] font-bold text-purple-400 hover:text-purple-300 px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 transition flex items-center gap-1"
+                                            >
+                                                <span>🎙️ 성우 목록 관리 ({customVoices.length}명) ➔</span>
+                                            </button>
+                                        </div>
                                         <div>
                                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">ElevenLabs API Key</label>
                                             <input

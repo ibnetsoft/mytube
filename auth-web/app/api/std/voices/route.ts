@@ -195,10 +195,45 @@ const ELEVENLABS_PRESET_VOICES = [
     },
 ]
 
+import { createClient } from '@supabase/supabase-js'
+
+const getAdmin = () => createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+const loadCustomVoices = async (): Promise<any[]> => {
+    try {
+        const sb = getAdmin()
+        const { data, error } = await sb
+            .from('global_settings')
+            .select('value')
+            .eq('key', 'custom_voices')
+            .maybeSingle()
+        if (error || !data?.value) return []
+        const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
+        if (!Array.isArray(parsed)) return []
+        return parsed.map((item: any) => ({
+            id: String(item?.voice_id || item?.id || '').trim(),
+            name: String(item?.name || '').trim(),
+            gender: item?.gender === 'male' ? 'male' : 'female',
+            category: String(item?.category || 'custom').trim(),
+            language: String(item?.language || 'ko').trim(),
+            description: String(item?.description || '').trim(),
+            preview_url: String(item?.preview_url || '').trim(),
+        })).filter(item => item.id && item.name)
+    } catch {
+        return []
+    }
+}
+
 export async function GET(req: Request) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
 
+    const customVoices = await loadCustomVoices()
+
+    let apiVoices: any[] = []
     try {
         const apiKey = process.env.ELEVENLABS_API_KEY
         if (apiKey) {
@@ -208,7 +243,7 @@ export async function GET(req: Request) {
             })
             if (res.ok) {
                 const data = await res.json()
-                const realVoices = (data.voices || []).map((v: any) => {
+                apiVoices = (data.voices || []).map((v: any) => {
                     const labels = v.labels || {}
                     const g = labels.gender || (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some(w => (v.name || '').toLowerCase().includes(w)) ? 'female' : 'male')
                     return {
@@ -221,24 +256,31 @@ export async function GET(req: Request) {
                         preview_url: v.preview_url || '',
                     }
                 })
-                if (realVoices.length > 0) {
-                    return NextResponse.json({
-                        success: true,
-                        provider: 'elevenlabs',
-                        model_id: 'eleven_multilingual_v2',
-                        voices: realVoices,
-                    })
-                }
             }
         }
     } catch (e) {
         console.error('Failed to fetch dynamic ElevenLabs voices:', e)
     }
 
+    const baseList = apiVoices.length > 0 ? apiVoices : ELEVENLABS_PRESET_VOICES
+
+    // customVoices를 최상단에 배치하고 ID 중복 제거
+    const combinedMap = new Map<string, any>()
+    for (const cv of customVoices) {
+        combinedMap.set(cv.id, cv)
+    }
+    for (const bv of baseList) {
+        if (!combinedMap.has(bv.id)) {
+            combinedMap.set(bv.id, bv)
+        }
+    }
+
+    const mergedVoices = Array.from(combinedMap.values())
+
     return NextResponse.json({
         success: true,
         provider: 'elevenlabs',
         model_id: 'eleven_multilingual_v2',
-        voices: ELEVENLABS_PRESET_VOICES,
+        voices: mergedVoices.length > 0 ? mergedVoices : ELEVENLABS_PRESET_VOICES,
     })
 }
