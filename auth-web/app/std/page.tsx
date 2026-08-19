@@ -1656,18 +1656,13 @@ export default function StdPortalPage() {
                 </div>
 
                 {/* 상단 8단계 녹색 원형 체크 스텝퍼 */}
-                <div className="hidden lg:flex items-center gap-2.5 text-[11px] text-gray-400 font-medium overflow-x-auto py-1">
+                <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
                     {[
                         { id: 'topics', label: t('nav_topics') },
-                        { id: 'script_plan', label: t('nav_plan', '기획') },
-                        { id: 'script_gen', label: t('nav_script', '대본') },
                         { id: 'image_gen', label: t('nav_image') },
                         { id: 'tts', label: t('nav_tts') },
                         { id: 'subtitle_gen', label: t('nav_subtitles') },
                         { id: 'thumbnail', label: t('nav_thumbnail') },
-                        { id: 'projects', label: t('nav_projects') },
-                        { id: 'template', label: t('nav_template') },
-                        { id: 'render', label: t('nav_render', '렌더') },
                         { id: 'settings', label: t('nav_settings') },
                     ].map((step) => {
                         const isCurrent = currentNav === step.id
@@ -1799,15 +1794,12 @@ export default function StdPortalPage() {
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
                             { id: 'topics', label: t('nav_topics') },
-                            { id: 'script_plan', label: t('nav_plan', '기획') },
-                            { id: 'script_gen', label: t('nav_script', '대본') },
-                            { id: 'image_gen', label: t('nav_image') },
                             { id: 'tts', label: t('nav_tts') },
+                            { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_gen', label: t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'projects', label: t('nav_projects') },
                             { id: 'template', label: t('nav_template') },
-                            { id: 'render', label: t('nav_render', '렌더로 생성') },
                             { id: 'settings', label: t('nav_settings') },
                         ].map((item) => {
                             const active = currentNav === item.id
@@ -4184,6 +4176,8 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
+                    {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
+                    
                     {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
                     
                     {/* [기획 탭 (유저앱 script_plan.html 완벽 대응)] */}
