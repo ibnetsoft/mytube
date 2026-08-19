@@ -1327,17 +1327,36 @@ async def api_voicebox_topics(
     
     combined_topics = []
     
-    # 1. Supabase topics_queue (Fetch all real topics)
+    # 1. Supabase topics_queue (Fetch all topics, prioritizing ones with scripts)
     try:
         from remote_drive_worker import RemoteDriveWorker
         worker = RemoteDriveWorker()
         topics_url = f"{worker.supabase_url}/rest/v1/topics_queue"
-        params = {
+        
+        # 1-1. Fetch topics with pregenerated scripts first
+        params_with_script = {
             "select": "*",
+            "pregenerated_script": "not.is.null",
             "order": "created_at.desc",
             "limit": "50",
         }
-        rows = worker._request("GET", topics_url, params=params) or []
+        script_rows = worker._request("GET", topics_url, params=params_with_script) or []
+        
+        # 1-2. Fetch latest topics
+        params_latest = {
+            "select": "*",
+            "order": "created_at.desc",
+            "limit": "30",
+        }
+        latest_rows = worker._request("GET", topics_url, params=params_latest) or []
+        
+        # Combine unique rows (script-ready topics first)
+        seen_ids = set()
+        rows = []
+        for r in script_rows + latest_rows:
+            if r.get("id") not in seen_ids:
+                seen_ids.add(r.get("id"))
+                rows.append(r)
         for r in rows:
             script_raw = r.get("pregenerated_script") or ""
             script_text = ""
@@ -4762,7 +4781,7 @@ function selectVoiceboxTopicByIndex(idx) {
   const metaEl = document.getElementById('voicebox-script-meta');
   const resultCard = document.getElementById('voicebox-audio-result-card');
   
-  if (editor) editor.value = item.script || '국민연금을 성실히 납입해온 평범한 부부의 대본 내용입니다...';
+  if (editor) editor.value = item.script || '';
   if (titleEl) titleEl.textContent = `📜 ${item.title}`;
   if (metaEl) metaEl.textContent = `${(item.script || '').length.toLocaleString()}자 대본`;
   if (resultCard) resultCard.style.display = 'none';
