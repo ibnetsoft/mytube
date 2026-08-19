@@ -593,7 +593,14 @@ export default function StdPortalPage() {
             }
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
-            setTopics(loadedTopics)
+            const seenTopicKeys = new Set<string>()
+            const dedupedTopics = loadedTopics.filter((t: any) => {
+                const key = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
+                if (!key || seenTopicKeys.has(key)) return false
+                seenTopicKeys.add(key)
+                return true
+            })
+            setTopics(dedupedTopics)
 
             const loadedProjects = Array.isArray(projectPayload?.projects) ? projectPayload.projects : []
             setProjects(loadedProjects)
@@ -1077,6 +1084,47 @@ export default function StdPortalPage() {
         end_time: '4.6',
         image_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
     }
+
+    const displayedTopics = useMemo(() => {
+        const rawList = topics.length > 0 ? topics : [
+            { id: 101, topic: '서른 해 동안 국민연금을 납입해온 부부의 실제 수령액과 은퇴 현실', generated_title: '30년 연금 납입의 충격 진실! 통장에 찍힌 실제 수령액', category_name: '경제/재테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
+            { id: 102, topic: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', generated_title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', category_name: '사연/이야기', assigned_duration_minutes: 15, estimated_payout: 45000 },
+            { id: 103, topic: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', generated_title: '물가 대폭등의 비밀! 우리가 몰랐던 유통의 함정', category_name: '경제/이슈', assigned_duration_minutes: 15, estimated_payout: 45000 },
+            { id: 104, topic: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', generated_title: '조선왕조실록에 숨겨진 기괴한 비밀 야사', category_name: '역사/야사', assigned_duration_minutes: 20, estimated_payout: 55000 },
+            { id: 105, topic: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', generated_title: '2026 AI 시대, 살아남는 직업과 사라지는 직업', category_name: 'IT/테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
+            { id: 106, topic: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', generated_title: '5060 부부가 절대 말하지 못하는 은밀한 고민', category_name: '라이프/사연', assigned_duration_minutes: 15, estimated_payout: 45000 },
+        ]
+
+        // 1. 검색 및 길이 필터링
+        const filtered = rawList.filter(t => {
+            if (topicLengthFilter === 'short' && (t.assigned_duration_minutes || t.duration_minutes || 15) >= 15) return false
+            if (topicLengthFilter === 'medium' && ((t.assigned_duration_minutes || t.duration_minutes || 15) < 15 || (t.assigned_duration_minutes || t.duration_minutes || 15) > 30)) return false
+            if (topicLengthFilter === 'long' && (t.assigned_duration_minutes || t.duration_minutes || 15) <= 30) return false
+
+            if (!topicSearchQuery) return true
+            const q = topicSearchQuery.toLowerCase()
+            return (t.topic || '').toLowerCase().includes(q) || (t.category_name || '').toLowerCase().includes(q) || (t.generated_title || '').toLowerCase().includes(q)
+        })
+
+        // 2. 제목 기준 고유 중복 제거
+        const seenTitles = new Set<string>()
+        const seenIds = new Set<string>()
+        const unique: any[] = []
+
+        for (const t of filtered) {
+            const id = String(t.id || '')
+            const titleKey = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
+            if (!titleKey) continue
+            if (id && seenIds.has(id)) continue
+            if (seenTitles.has(titleKey)) continue
+
+            if (id) seenIds.add(id)
+            seenTitles.add(titleKey)
+            unique.push(t)
+        }
+
+        return unique
+    }, [topics, topicSearchQuery, topicLengthFilter])
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
@@ -2817,26 +2865,13 @@ export default function StdPortalPage() {
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
                                         <span>✨ AI 추천 작업 주제 큐</span>
-                                        <span className="text-xs text-indigo-400 font-mono">({topics.length}개 대기 중)</span>
+                                        <span className="text-xs text-indigo-400 font-mono">({displayedTopics.length}개 대기 중)</span>
                                     </h3>
                                     <span className="text-xs text-gray-400">주제 카드를 클릭하면 상세 기획 프리뷰 및 작업 시작 모달이 나타납니다.</span>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {(topics.length > 0 ? topics : [
-                                        { id: 101, topic: '서른 해 동안 국민연금을 납입해온 부부의 실제 수령액과 은퇴 현실', generated_title: '30년 연금 납입의 충격 진실! 통장에 찍힌 실제 수령액', category_name: '경제/재테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
-                                        { id: 102, topic: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', generated_title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', category_name: '사연/이야기', assigned_duration_minutes: 15, estimated_payout: 45000 },
-                                        { id: 103, topic: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', generated_title: '물가 대폭등의 비밀! 우리가 몰랐던 유통의 함정', category_name: '경제/이슈', assigned_duration_minutes: 15, estimated_payout: 45000 },
-                                        { id: 104, topic: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', generated_title: '조선왕조실록에 숨겨진 기괴한 비밀 야사', category_name: '역사/야사', assigned_duration_minutes: 20, estimated_payout: 55000 },
-                                        { id: 105, topic: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', generated_title: '2026 AI 시대, 살아남는 직업과 사라지는 직업', category_name: 'IT/테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
-                                        { id: 106, topic: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', generated_title: '5060 부부가 절대 말하지 못하는 은밀한 고민', category_name: '라이프/사연', assigned_duration_minutes: 15, estimated_payout: 45000 },
-                                    ])
-                                    .filter(t => {
-                                        if (!topicSearchQuery) return true
-                                        const q = topicSearchQuery.toLowerCase()
-                                        return (t.topic || '').toLowerCase().includes(q) || (t.category_name || '').toLowerCase().includes(q) || (t.generated_title || '').toLowerCase().includes(q)
-                                    })
-                                    .map(topic => (
+                                    {displayedTopics.map(topic => (
                                         <div
                                             key={topic.id}
                                             onClick={() => {

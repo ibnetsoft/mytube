@@ -190,6 +190,31 @@ async function saveRecommendationCache(email: string, topics: any[], policy: Rec
     await supabaseAdmin.from('user_topic_recommendations').insert(rows)
 }
 
+function deduplicateTopics(topics: any[]): any[] {
+    const seenTitles = new Set<string>()
+    const seenIds = new Set<string>()
+    const unique: any[] = []
+
+    for (const t of topics) {
+        if (!t) continue
+        const id = String(t.id || '')
+        const titleKey = String(t.generated_title || t.topic || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '')
+
+        if (!titleKey) continue
+        if (id && seenIds.has(id)) continue
+        if (seenTitles.has(titleKey)) continue
+
+        if (id) seenIds.add(id)
+        seenTitles.add(titleKey)
+        unique.push(t)
+    }
+
+    return unique
+}
+
 export async function getStdRecommendedTopics(options: {
     email: string
     profile: any
@@ -201,9 +226,10 @@ export async function getStdRecommendedTopics(options: {
 
     if (!options.refresh) {
         const cached = await cachedRecommendationTopics(options.email, options.limit)
-        if (cached.length >= options.limit) {
+        const dedupedCached = deduplicateTopics(cached)
+        if (dedupedCached.length >= options.limit) {
             return {
-                topics: cached
+                topics: dedupedCached
                     .slice(0, options.limit)
                     .map((topic: any) => normalizeTopicForStd(topic, policy, boosts.get(String(topic.category_id)) || 1)),
                 cached: true,
@@ -217,10 +243,12 @@ export async function getStdRecommendedTopics(options: {
         .eq('status', 'pending')
         .not('generated_title', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(200)
+        .limit(300)
     if (error) throw error
 
-    const preparedTopics = (data || []).filter(isPreparedStdTopic)
+    // 1. 중복 제거된 준비된 주제 목록
+    const preparedTopics = deduplicateTopics((data || []).filter(isPreparedStdTopic))
+    
     let selectedTopics = preparedTopics
         .map((topic: any) => ({
             topic,
@@ -233,15 +261,23 @@ export async function getStdRecommendedTopics(options: {
 
     // Fallback: If filtered score produced not enough topics, fill from prepared topics
     if (selectedTopics.length < options.limit) {
-        const existingIds = new Set(selectedTopics.map((t: any) => t.id))
-        const remaining = preparedTopics.filter((t: any) => !existingIds.has(t.id)).slice(0, options.limit - selectedTopics.length)
+        const existingIds = new Set(selectedTopics.map((t: any) => String(t.id)))
+        const existingTitles = new Set(selectedTopics.map((t: any) => String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')))
+        
+        const remaining = preparedTopics.filter((t: any) => {
+            const id = String(t.id || '')
+            const titleKey = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
+            return !existingIds.has(id) && !existingTitles.has(titleKey)
+        }).slice(0, options.limit - selectedTopics.length)
+        
         selectedTopics = [...selectedTopics, ...remaining]
     }
 
-    await saveRecommendationCache(options.email, selectedTopics, policy, boosts)
+    const finalDeduped = deduplicateTopics(selectedTopics)
+    await saveRecommendationCache(options.email, finalDeduped, policy, boosts)
 
     return {
-        topics: selectedTopics.map((topic: any) => normalizeTopicForStd(topic, policy, boosts.get(String(topic.category_id)) || 1)),
+        topics: finalDeduped.map((topic: any) => normalizeTopicForStd(topic, policy, boosts.get(String(topic.category_id)) || 1)),
         cached: false,
     }
 }
