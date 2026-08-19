@@ -7,6 +7,7 @@ import {
     uploadStdDriveBuffer,
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
+import { parseScriptToVoiceSegments, ScriptVoiceSegment } from '@/lib/stdMultiVoice'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -68,6 +69,48 @@ async function getGlobalSetting(key: string) {
     return String(data?.value || '').trim()
 }
 
+async function generateSingleElevenLabsChunk(input: {
+    apiKey: string
+    voiceId: string
+    modelId: string
+    chunk: string
+    speed?: number
+    stability?: number
+    similarityBoost?: number
+    style?: number
+}): Promise<Buffer> {
+    const voiceSettings: Record<string, number> = {}
+    if (Number.isFinite(input.stability)) voiceSettings.stability = Number(input.stability)
+    if (Number.isFinite(input.similarityBoost)) voiceSettings.similarity_boost = Number(input.similarityBoost)
+    if (Number.isFinite(input.style)) voiceSettings.style = Number(input.style)
+    if (Number.isFinite(input.speed)) voiceSettings.speed = Math.min(1.2, Math.max(0.7, Number(input.speed)))
+
+    const res = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(input.voiceId)}?output_format=mp3_44100_128`,
+        {
+            method: 'POST',
+            headers: {
+                'xi-api-key': input.apiKey,
+                'Content-Type': 'application/json',
+                Accept: 'audio/mpeg',
+            },
+            body: JSON.stringify({
+                text: input.chunk,
+                model_id: input.modelId || DEFAULT_ELEVENLABS_MODEL_ID,
+                voice_settings: Object.keys(voiceSettings).length ? voiceSettings : undefined,
+            }),
+        }
+    )
+
+    if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(`ElevenLabs TTS API error (${res.status}): ${errText}`)
+    }
+
+    const arrayBuffer = await res.arrayBuffer()
+    return Buffer.from(arrayBuffer)
+}
+
 async function generateElevenLabsMp3(input: {
     apiKey: string
     voiceId: string
@@ -77,63 +120,77 @@ async function generateElevenLabsMp3(input: {
     stability?: number
     similarityBoost?: number
     style?: number
+    multiVoice?: boolean
+    voiceMap?: Record<string, string>
 }) {
+    // 1. 멀티 보이스 모드인 경우
+    if (input.multiVoice && input.voiceMap && Object.keys(input.voiceMap).length > 0) {
+        const { segments } = parseScriptToVoiceSegments(input.text)
+        if (!segments.length) throw new Error('TTS multi-voice text has no segments')
+
+        const buffers: Buffer[] = []
+        for (const seg of segments) {
+            const targetVoiceId = input.voiceMap[seg.speaker] || input.voiceId || DEFAULT_ELEVENLABS_VOICE_ID
+            const chunks = splitText(seg.text)
+            for (const chunk of chunks) {
+                const buf = await generateSingleElevenLabsChunk({
+                    apiKey: input.apiKey,
+                    voiceId: targetVoiceId,
+                    modelId: input.modelId,
+                    chunk,
+                    speed: input.speed,
+                    stability: input.stability,
+                    similarityBoost: input.similarityBoost,
+                    style: input.style,
+                })
+                buffers.push(buf)
+            }
+        }
+        return Buffer.concat(buffers)
+    }
+
+    // 2. 단일 보이스 모드
     const chunks = splitText(input.text)
     if (!chunks.length) throw new Error('TTS text is empty')
 
     const buffers: Buffer[] = []
     for (const chunk of chunks) {
-        const voiceSettings: Record<string, number> = {}
-        if (Number.isFinite(input.stability)) voiceSettings.stability = Number(input.stability)
-        if (Number.isFinite(input.similarityBoost)) voiceSettings.similarity_boost = Number(input.similarityBoost)
-        if (Number.isFinite(input.style)) voiceSettings.style = Number(input.style)
-        if (Number.isFinite(input.speed)) voiceSettings.speed = Math.min(1.2, Math.max(0.7, Number(input.speed)))
-
-        const res = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(input.voiceId)}?output_format=mp3_44100_128`,
-            {
-                method: 'POST',
-                headers: {
-                    'xi-api-key': input.apiKey,
-                    'Content-Type': 'application/json',
-                    Accept: 'audio/mpeg',
-                },
-                body: JSON.stringify({
-                    text: chunk,
-                    model_id: input.modelId,
-                    voice_settings: Object.keys(voiceSettings).length ? voiceSettings : undefined,
-                }),
-            }
-        )
-        if (!res.ok) {
-            const detail = await res.text()
-            throw new Error(`ElevenLabs TTS failed: HTTP ${res.status} ${detail.slice(0, 240)}`)
-        }
-        buffers.push(Buffer.from(await res.arrayBuffer()))
+        const buf = await generateSingleElevenLabsChunk({
+            apiKey: input.apiKey,
+            voiceId: input.voiceId,
+            modelId: input.modelId,
+            chunk,
+            speed: input.speed,
+            stability: input.stability,
+            similarityBoost: input.similarityBoost,
+            style: input.style,
+        })
+        buffers.push(buf)
     }
+
     return Buffer.concat(buffers)
 }
 
-function buildTtsText(project: any, scenes: any[], requestedText?: string) {
-    const explicit = cleanTtsText(requestedText || '')
-    if (explicit) return explicit
-    const sceneText = scenes
-        .map((scene: any) => cleanTtsText(scene.scene_text || scene.metadata?.narration || scene.metadata?.script || ''))
+function buildTtsText(project: any, scenes: any[], overrideText?: string) {
+    const raw = String(
+        overrideText
+        || project.project_payload?.script
+        || project.project_payload?.longform_script
+        || ''
+    ).trim()
+    if (raw) return raw
+
+    const parts = (scenes || [])
+        .map((scene: any) => String(scene.script_excerpt || scene.scene_text || scene.prompt_ko || '').trim())
         .filter(Boolean)
-        .join('\n\n')
-    return cleanTtsText(sceneText || project.project_payload?.script || '')
+    return parts.join('\n\n').trim()
 }
 
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
 
-    let body: any = {}
-    try {
-        body = await req.json()
-    } catch {
-        body = {}
-    }
+    const body = await req.json().catch(() => ({}))
 
     const { data: project, error: projectError } = await supabaseAdmin
         .from('std_projects')
@@ -144,9 +201,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
-        return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
-    }
 
     const { data: scenes, error: scenesError } = await supabaseAdmin
         .from('std_project_scenes')
@@ -179,6 +233,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             || DEFAULT_ELEVENLABS_VOICE_ID
         ).trim()
         const modelId = String(body?.model_id || project.project_payload?.tts_model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
+        const multiVoice = Boolean(body?.multi_voice)
+        const voiceMap = body?.voice_map || {}
 
         const audioBuffer = await generateElevenLabsMp3({
             apiKey,
@@ -189,6 +245,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             stability: body?.stability == null ? undefined : Number(body.stability),
             similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
             style: body?.style == null ? undefined : Number(body.style),
+            multiVoice,
+            voiceMap,
         })
 
         const folders = await ensureStdProjectDriveFolders(project)
@@ -228,6 +286,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     provider: 'elevenlabs',
                     voice_id: voiceId,
                     model_id: modelId,
+                    multi_voice: multiVoice,
+                    voice_map: voiceMap,
                     text_length: text.length,
                     chunk_count: splitText(text).length,
                     generated_by: auth.requester.email,
@@ -249,37 +309,38 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     tts_generated_at: now,
                     tts_asset_id: asset.id,
                     tts_drive_file_id: driveFile.id,
-                    tts_voice_id: voiceId,
-                    tts_model_id: modelId,
-                    std_drive: {
-                        ...(progressPayload.std_drive || {}),
-                        folder_ids: {
-                            project: folders.projectFolderId,
-                            images: folders.imagesFolderId,
-                            videos: folders.videosFolderId,
-                            originals: folders.originalsFolderId,
-                        },
-                    },
+                    tts_file_name: driveFile.name || fileName,
+                    voice_id: voiceId,
+                    multi_voice: multiVoice,
+                    voice_map: voiceMap,
                 },
-                status: project.status === 'claimed' ? 'in_progress' : project.status,
+                project_payload: {
+                    ...(project.project_payload || {}),
+                    audio_url: driveFile.webViewLink || driveFileLink(driveFile.id),
+                    tts_url: driveFile.webViewLink || driveFileLink(driveFile.id),
+                    voice_id: voiceId,
+                    multi_voice: multiVoice,
+                    voice_map: voiceMap,
+                },
                 updated_at: now,
             })
             .eq('id', project.id)
 
         try {
             await syncStdProjectToLegacy(project.id)
-        } catch (syncError: any) {
-            console.error('[STD TTS] legacy sync failed:', syncError?.message)
-        }
+        } catch {}
 
         return NextResponse.json({
             success: true,
-            asset: {
-                ...asset,
-                drive_file_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-            },
+            asset,
+            drive_file: driveFile,
+            web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+            message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error?.message || 'TTS generation failed' }, { status: 500 })
+        return NextResponse.json(
+            { success: false, error: error?.message || 'TTS generation failed' },
+            { status: 500 }
+        )
     }
 }

@@ -54,6 +54,7 @@ import {
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
+import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
 
 type Topic = {
     id: number
@@ -1387,6 +1388,16 @@ export default function StdPortalPage() {
         setMessage('')
         const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
         try {
+            // 화자별 성우 맵 구성 (기본 나레이터 포함)
+            const finalVoiceMap: Record<string, string> = {
+                '나레이터': selectedVoice,
+                ...characterVoices,
+            }
+            // 미지정된 화자는 기본 성우로 fallback
+            detectedCharacters.forEach(char => {
+                if (!finalVoiceMap[char]) finalVoiceMap[char] = selectedVoice
+            })
+
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
@@ -1398,6 +1409,8 @@ export default function StdPortalPage() {
                     stability: Number(elStability),
                     style: Number(elStyle),
                     text: customScriptText || selectedProject.project.project_payload?.script,
+                    multi_voice: multiVoice,
+                    voice_map: finalVoiceMap,
                 }),
             })
             const payload = await safeParseJson(res, 'TTS 생성 실패')
@@ -3085,31 +3098,117 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {multiVoice && (
-                                        <div className="bg-[#181d26] border border-white/10 rounded-xl p-4 shadow space-y-3 flex-1 flex flex-col">
-                                            <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                                                <span className="text-xs font-bold text-white">등장인물별 성우 배정 ({detectedCharacters.length}명 감지)</span>
+                                        <div className="bg-[#181d26] border border-purple-500/30 rounded-xl p-4 shadow-lg space-y-3 flex-1 flex flex-col">
+                                            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                        <span>🎭</span> 등장인물 성우 1:1 매칭
+                                                    </span>
+                                                    <span className="text-[10px] bg-purple-600/30 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold">
+                                                        총 {detectedCharacters.length}명 화자
+                                                    </span>
+                                                </div>
                                                 <button
-                                                    onClick={() => alert('대본에서 화자를 다시 분석했습니다.')}
-                                                    className="text-[10px] text-gray-400 hover:text-white px-2 py-0.5 border border-white/10 rounded"
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const text = customScriptText || selectedProject?.project?.project_payload?.script || ''
+                                                        const parsed = parseScriptToVoiceSegments(text)
+                                                        alert(`대본 분석 완료! 총 ${parsed.uniqueSpeakers.length}명의 등장인물이 자동 감지되었습니다: ${parsed.uniqueSpeakers.join(', ') || '없음'}`)
+                                                    }}
+                                                    className="text-[10px] text-purple-400 hover:text-white px-2 py-0.5 border border-purple-500/30 rounded bg-purple-500/10 transition-colors"
                                                 >
-                                                    새로고침
+                                                    대본 재분석
                                                 </button>
                                             </div>
-                                            <div className="space-y-2 overflow-y-auto max-h-48 pr-1">
-                                                {detectedCharacters.map(char => (
-                                                    <div key={char} className="flex items-center justify-between gap-2 p-2 bg-[#14181f] rounded border border-white/5">
-                                                        <span className="text-xs font-bold text-purple-300 truncate max-w-[80px]">{char}</span>
-                                                        <select
-                                                            value={characterVoices[char] || selectedVoice}
-                                                            onChange={e => setCharacterVoices(prev => ({ ...prev, [char]: e.target.value }))}
-                                                            className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white flex-1"
-                                                        >
-                                                            {allVoices.map(v => (
-                                                                <option key={v.id} value={v.id}>{v.name}</option>
-                                                            ))}
-                                                        </select>
+
+                                            {/* 기본 나레이터 표시 */}
+                                            <div className="p-2.5 bg-[#14181f] rounded-lg border border-purple-500/20 flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-xs font-bold text-emerald-400">📖 나레이터 (기본 해설)</span>
+                                                </div>
+                                                <span className="text-xs font-bold text-gray-300 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                                                    {selectedVoiceObj.name}
+                                                </span>
+                                            </div>
+
+                                            {/* 감지된 화자 목록 */}
+                                            <div className="space-y-2 overflow-y-auto max-h-60 pr-1">
+                                                {detectedCharacters.length === 0 ? (
+                                                    <div className="text-center py-4 text-xs text-gray-500 bg-[#14181f] rounded-lg border border-dashed border-white/10">
+                                                        대본에서 감지된 인물 대사(따옴표 또는 화자:)가 없습니다.<br />
+                                                        아래에서 수동으로 화자를 추가할 수 있습니다.
                                                     </div>
-                                                ))}
+                                                ) : (
+                                                    detectedCharacters.map(char => {
+                                                        const currentVoiceId = characterVoices[char] || selectedVoice
+                                                        const charVoiceObj = allVoices.find(v => v.id === currentVoiceId) || selectedVoiceObj
+                                                        return (
+                                                            <div key={char} className="p-2.5 bg-[#14181f] rounded-lg border border-white/10 hover:border-purple-500/40 transition-colors flex flex-col gap-1.5">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
+                                                                        <span>👤</span> {char}
+                                                                    </span>
+                                                                    {charVoiceObj.preview_url && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const audio = new Audio(charVoiceObj.preview_url)
+                                                                                audio.play()
+                                                                            }}
+                                                                            className="text-[10px] text-cyan-400 hover:text-white px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/30 rounded border border-cyan-500/30 font-bold transition-all"
+                                                                            title="목소리 미리듣기"
+                                                                        >
+                                                                            ▶ 미리듣기
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                                <select
+                                                                    value={currentVoiceId}
+                                                                    onChange={e => setCharacterVoices(prev => ({ ...prev, [char]: e.target.value }))}
+                                                                    className="w-full text-xs bg-[#202632] border border-white/10 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-purple-500"
+                                                                >
+                                                                    {allVoices.map(v => (
+                                                                        <option key={v.id} value={v.id}>{v.name} ({v.gender === 'female' ? '여성' : '남성'})</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        )
+                                                    })
+                                                )}
+                                            </div>
+
+                                            {/* 수동 화자 추가 폼 */}
+                                            <div className="pt-2 border-t border-white/10 flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={newCharInput}
+                                                    onChange={e => setNewCharInput(e.target.value)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter' && newCharInput.trim()) {
+                                                            e.preventDefault()
+                                                            const name = newCharInput.trim()
+                                                            if (!detectedCharacters.includes(name)) {
+                                                                setCustomAddedCharacters(prev => [...prev, name])
+                                                            }
+                                                            setNewCharInput('')
+                                                        }
+                                                    }}
+                                                    placeholder="등장인물 이름 직접 추가 (예: 할머니, 큰아들)..."
+                                                    className="flex-1 bg-[#14181f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const name = newCharInput.trim()
+                                                        if (name && !detectedCharacters.includes(name)) {
+                                                            setCustomAddedCharacters(prev => [...prev, name])
+                                                            setNewCharInput('')
+                                                        }
+                                                    }}
+                                                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-all shadow shrink-0"
+                                                >
+                                                    + 화자 추가
+                                                </button>
                                             </div>
                                         </div>
                                     )}
