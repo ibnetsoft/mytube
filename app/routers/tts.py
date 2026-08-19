@@ -185,17 +185,22 @@ async def tts_generate(req: TTSRequest):
                     try:
                         if provider == "elevenlabs":
                              result = await tts_service.generate_elevenlabs(seg_text, target_voice, seg_path, voice_settings=el_voice_settings)
-                             # 실제 저장된 경로 검증 (None 또는 파일 없으면 실패 처리)
                              actual_path = result.get("audio_path") if result else None
                              if actual_path and os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
                                  return actual_path
                              else:
                                  print(f"❌ Segment {idx} (Speaker: {speaker}) - 파일 생성 실패 또는 빈 파일: {actual_path}")
                                  return None
+                        elif provider in ("google", "gtts"):
+                             await tts_service.generate_gtts(seg_text, language_code_for_tts(req.language, "gtts"), seg_path)
+                             return seg_path if os.path.exists(seg_path) else None
+                        elif provider in ("voicebox", "edge_tts"):
+                             await tts_service.generate_edge_tts(seg_text, target_voice or "ko-KR-SunHiNeural", seg_path, req.speed)
+                             return seg_path if os.path.exists(seg_path) else None
                         elif provider == "openai":
                              await tts_service.generate_openai(seg_text, target_voice, "tts-1", seg_path, req.speed)
                              return seg_path if os.path.exists(seg_path) else None
-                        else: # gemini / edge_tts
+                        else: # gemini / fallback
                              await tts_service.generate_gemini(seg_text, target_voice, req.language, req.style_prompt, seg_path, req.speed)
                              return seg_path if os.path.exists(seg_path) else None
                     except Exception as e:
@@ -310,27 +315,36 @@ async def tts_generate(req: TTSRequest):
                 result = await tts_service.generate_elevenlabs(
                     req.text, req.voice_id, result_filename, voice_settings=el_voice_settings
                 )
-                # ElevenLabs returns a dict containing metadata
                 if isinstance(result, dict):
                     output_path = result.get("audio_path")
                 else:
                     output_path = result
-            # 2. Google Cloud
+            # 2. VoiceBox (Edge-TTS 고품질 무료)
+            elif req.provider in ("voicebox", "edge_tts"):
+                output_path = await tts_service.generate_edge_tts(
+                    req.text, req.voice_id or "ko-KR-SunHiNeural", result_filename, req.speed
+                )
+            # 3. Google Cloud
             elif req.provider == "google_cloud":
                 output_path = await tts_service.generate_google_cloud(
                     req.text, req.voice_id, req.language, result_filename, req.speed
                 )
-            # 3. Gemini
+            # 4. Google Free TTS (gTTS)
+            elif req.provider in ("google", "gtts"):
+                output_path = await tts_service.generate_gtts(
+                    req.text, language_code_for_tts(req.language, "gtts"), result_filename
+                )
+            # 5. Gemini
             elif req.provider == "gemini":
                 output_path = await tts_service.generate_gemini(
                     req.text, req.voice_id, req.language, req.style_prompt, result_filename, req.speed
                 )
-            # 4. OpenAI
+            # 6. OpenAI
             elif req.provider == "openai":
                 output_path = await tts_service.generate_openai(
                     req.text, req.voice_id, "tts-1", result_filename, req.speed
                 )
-            # 5. gTTS (Default)
+            # 7. Fallback
             else:
                 output_path = await tts_service.generate_gtts(
                     req.text, language_code_for_tts(req.language, "gtts"), result_filename

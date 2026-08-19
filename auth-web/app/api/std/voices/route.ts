@@ -262,12 +262,65 @@ export async function GET(req: Request) {
         console.error('Failed to fetch dynamic ElevenLabs voices:', e)
     }
 
+    const FREE_ALTERNATIVE_VOICES = [
+        {
+            id: 'google_kr_female',
+            name: '🌐 Google 한국어 여성 (구글 무료)',
+            gender: 'female',
+            category: 'google',
+            language: 'ko',
+            description: '구글 표준 무료 한국어 여성 음성 (비용 0원)',
+            preview_url: '',
+        },
+        {
+            id: 'google_kr_male',
+            name: '🌐 Google 한국어 남성 (구글 무료)',
+            gender: 'male',
+            category: 'google',
+            language: 'ko',
+            description: '구글 표준 무료 한국어 남성 음성 (비용 0원)',
+            preview_url: '',
+        },
+        {
+            id: 'ko-KR-SunHiNeural',
+            name: '⚡ VoiceBox 선희 (Edge-TTS 고품질 무료 여성)',
+            gender: 'female',
+            category: 'voicebox',
+            language: 'ko',
+            description: '차분하고 자연스러운 무료 여성 내레이션',
+            preview_url: '',
+        },
+        {
+            id: 'ko-KR-InJoonNeural',
+            name: '⚡ VoiceBox 인준 (Edge-TTS 고품질 무료 남성)',
+            gender: 'male',
+            category: 'voicebox',
+            language: 'ko',
+            description: '또렷하고 힘 있는 무료 남성 음성',
+            preview_url: '',
+        },
+        {
+            id: 'ko-KR-SoonBokNeural',
+            name: '⚡ VoiceBox 순복 (옛날이야기 할머니 무료)',
+            gender: 'female',
+            category: 'voicebox',
+            language: 'ko',
+            description: '한국 고전 설화에 어울리는 정겨운 할머니 음성',
+            preview_url: '',
+        }
+    ]
+
     const baseList = apiVoices.length > 0 ? apiVoices : ELEVENLABS_PRESET_VOICES
 
-    // customVoices를 최상단에 배치하고 ID 중복 제거
+    // customVoices -> FREE_ALTERNATIVE_VOICES -> baseList 순서로 병합
     const combinedMap = new Map<string, any>()
     for (const cv of customVoices) {
         combinedMap.set(cv.id, cv)
+    }
+    for (const fv of FREE_ALTERNATIVE_VOICES) {
+        if (!combinedMap.has(fv.id)) {
+            combinedMap.set(fv.id, fv)
+        }
     }
     for (const bv of baseList) {
         if (!combinedMap.has(bv.id)) {

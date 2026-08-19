@@ -14,16 +14,23 @@
 
         <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
-        <!-- Provider (Hidden, always elevenlabs) -->
-        <select id="providerSelect" class="hidden">
-            <option value="elevenlabs" selected>ElevenLabs</option>
-        </select>
+        <!-- TTS Provider Select -->
+        <div class="flex items-center gap-1.5">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">엔진</span>
+            <select id="providerSelect" onchange="handleProviderChange()"
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027] text-white">
+                <option value="elevenlabs" selected>🎙️ ElevenLabs (프리미엄 AI)</option>
+                <option value="voicebox">⚡ VoiceBox (Edge-TTS 고품질 무료)</option>
+                <option value="google">🌐 Google TTS (구글 무료 음성)</option>
+                <option value="google_cloud">☁️ Google Cloud TTS (Neural2)</option>
+            </select>
+        </div>
 
         <!-- Voice (Single Mode) -->
         <div class="flex items-center gap-2" id="singleVoiceControls">
             <span class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ t('label_voice') }}</span>
             <select id="voiceSelect"
-                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027]/50 dark:text-white w-40 bg-[#1c2027] text-white">
+                class="text-xs border-gray-300 dark:border-gray-600 rounded-md py-1 px-2 focus:ring-primary focus:border-primary bg-[#1c2027]/50 dark:text-white min-w-[160px] bg-[#1c2027] text-white">
                 <option value="">{{ t('status_loading') }}</option>
             </select>
         </div>
@@ -708,12 +715,32 @@
             if (provider === 'browser') {
                 const browserVoices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('ko'));
                 voices = browserVoices.map(v => ({ id: v.name, name: v.name }));
+            } else if (provider === 'google' || provider === 'gtts') {
+                voices = [
+                    { id: 'ko', name: '🌐 Google 한국어 여성 (무료 표준)', gender: 'female' },
+                    { id: 'ko_male', name: '🌐 Google 한국어 남성 (무료)', gender: 'male' },
+                    { id: 'en', name: '🌐 Google 영어 여성 (US)', gender: 'female' },
+                    { id: 'ja', name: '🌐 Google 일본어 여성 (JP)', gender: 'female' }
+                ];
+            } else if (provider === 'voicebox' || provider === 'edge_tts') {
+                voices = [
+                    { id: 'ko-KR-SunHiNeural', name: '⚡ 선희 (SunHi - 차분한 여성)', gender: 'female' },
+                    { id: 'ko-KR-InJoonNeural', name: '⚡ 인준 (InJoon - 또렷한 남성)', gender: 'male' },
+                    { id: 'ko-KR-BongJinNeural', name: '⚡ 봉진 (BongJin - 중후한 남성)', gender: 'male' },
+                    { id: 'ko-KR-SoonBokNeural', name: '⚡ 순복 (SoonBok - 옛날이야기 할머니)', gender: 'female' },
+                    { id: 'ko-KR-GookMinNeural', name: '⚡ 국민 (GookMin - 뉴스 앵커 남성)', gender: 'male' },
+                    { id: 'ko-KR-JiMinNeural', name: '⚡ 지민 (JiMin - 감성 다큐 여성)', gender: 'female' },
+                    { id: 'ko-KR-SeoHyeonNeural', name: '⚡ 서현 (SeoHyeon - 부드러운 여성)', gender: 'female' },
+                    { id: 'ko-KR-YuJinNeural', name: '⚡ 유진 (YuJin - 밝은 여성)', gender: 'female' },
+                    { id: 'ko-KR-HyunsuNeural', name: '⚡ 현수 (Hyunsu - 젊은 청년 남성)', gender: 'male' }
+                ];
             } else if (provider === 'google_cloud') {
                 voices = [
-                    { id: 'ko-KR-Neural2-A', name: `${i18n.label_voice_kor} Neural2 A(${i18n.label_female})`, gender: 'female' },
-                    { id: 'ko-KR-Neural2-C', name: `${i18n.label_voice_kor} Neural2 C(${i18n.label_male})`, gender: 'male' },
-                    { id: 'ko-KR-Standard-A', name: `${i18n.label_voice_kor} Std A(${i18n.label_female})`, gender: 'female' }
-                ]; // Simplified for now, or full list
+                    { id: 'ko-KR-Neural2-A', name: '☁️ Google Neural2 A (여성)', gender: 'female' },
+                    { id: 'ko-KR-Neural2-C', name: '☁️ Google Neural2 C (남성)', gender: 'male' },
+                    { id: 'ko-KR-Standard-A', name: '☁️ Google Standard A (여성)', gender: 'female' },
+                    { id: 'ko-KR-Standard-C', name: '☁️ Google Standard C (남성)', gender: 'male' }
+                ];
             } else if (provider === 'gemini') {
                 voices = [
                     { id: 'Puck', name: `Puck (${i18n.label_male}/${i18n.label_mid})`, gender: 'male' },
@@ -887,7 +914,20 @@
         document.getElementById('estTime').textContent = Utils.formatDuration(seconds);
     }
 
-    function handleProviderChange() { loadVoices(); }
+    function handleProviderChange() {
+        const provider = document.getElementById('providerSelect').value;
+        const elContainer = document.getElementById('elSettingsContainer');
+        if (elContainer) {
+            if (provider === 'elevenlabs') {
+                elContainer.classList.remove('hidden');
+                elContainer.classList.add('flex');
+            } else {
+                elContainer.classList.remove('flex');
+                elContainer.classList.add('hidden');
+            }
+        }
+        loadVoices();
+    }
 
     async function generateTTS() {
         const text = document.getElementById('ttsText').value.trim();
