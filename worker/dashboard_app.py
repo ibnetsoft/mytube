@@ -1540,21 +1540,30 @@ async def api_voicebox_save_to_supabase(
         audio_url = f"/api/voicebox/audio/{audio_filename}"
         
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        update_payload = {
+        topics_url = f"{worker.supabase_url}/rest/v1/topics_queue"
+        
+        # 1. Fetch existing progress_payload to preserve existing properties
+        existing_rows = worker._request("GET", topics_url, params={"select": "id,progress_payload", "id": f"eq.{topic_id}"}) or []
+        existing_payload = {}
+        if existing_rows and isinstance(existing_rows[0].get("progress_payload"), dict):
+            existing_payload = existing_rows[0]["progress_payload"]
+            
+        merged_payload = {
+            **existing_payload,
+            "has_pregenerated_audio": True,
             "pregenerated_audio_url": audio_url,
-            "progress_updated_at": now,
-            "progress_payload": {
-                "has_pregenerated_audio": True,
-                "pregenerated_audio_url": audio_url,
-                "pregenerated_audio_filename": audio_filename,
-                "pregenerated_voice_id": voice_id,
-                "tts_provider": "voicebox",
-                "tts_completed": True,
-                "tts_completed_at": now,
-            }
+            "pregenerated_audio_filename": audio_filename,
+            "pregenerated_voice_id": voice_id,
+            "tts_provider": "voicebox",
+            "tts_completed": True,
+            "tts_completed_at": now,
         }
         
-        topics_url = f"{worker.supabase_url}/rest/v1/topics_queue"
+        update_payload = {
+            "progress_updated_at": now,
+            "progress_payload": merged_payload,
+        }
+        
         url = f"{topics_url}?id=eq.{topic_id}"
         patch_res = worker._request("PATCH", url, json=update_payload)
         return {
