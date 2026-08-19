@@ -78,89 +78,210 @@ type SelectedProjectPayload = {
 
 const ELEVENLABS_VOICES = [
     {
-        id: 'n2fbxG88jqAoaVPUy3IG',
-        name: 'Yooni (한국어 여성 · 자연스럽고 맑은 전달력)',
-        gender: 'female',
-        category: 'professional',
-        language: 'ko',
-        description: '차분하고 또렷한 한국어 스토리텔링 및 나레이션',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/n2fbxG88jqAoaVPUy3IG.mp3',
-    },
-    {
-        id: 'aiUUgjHa4mpHf6UenZuf',
-        name: 'Mina (한국어 여성 · 따뜻하고 감성적인 톤)',
-        gender: 'female',
-        category: 'professional',
-        language: 'ko',
-        description: '감동적인 이야기, 회상, 따뜻한 전기수 낭독',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/aiUUgjHa4mpHf6UenZuf.mp3',
-    },
-    {
-        id: '5n5gqmaQi9Ewevrz7bOS',
-        name: 'Sian (한국어 여성 · 다정하고 부드러운 목소리)',
-        gender: 'female',
-        category: 'professional',
-        language: 'ko',
-        description: '친절하고 차분한 어조의 드라마 나레이션',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/5n5gqmaQi9Ewevrz7bOS.mp3',
-    },
-    {
-        id: 'JBFqnCBsd6RMkjVDRZzb',
-        name: 'George (한국어/다국어 남성 · 옛날이야기 구연동화 추천)',
+        id: 'CwhRBWXzGAHq8TQ4Fs17',
+        name: 'Roger - Laid-Back, Casual, Resonant',
         gender: 'male',
         category: 'premade',
         language: 'ko',
-        description: '몰입감 넘치는 전통 이야기꾼, 전기수 스타일',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/JBFqnCBsd6RMkjVDRZzb.mp3',
-    },
-    {
-        id: '7p1Ofvcwsv7UBPoFNcpI',
-        name: 'Julian (한국어/다국어 남성 · 중후하고 깊은 목소리)',
-        gender: 'male',
-        category: 'professional',
-        language: 'ko',
-        description: '다큐멘터리 및 웅장한 역사 드라마 나레이션',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/7p1Ofvcwsv7UBPoFNcpI.mp3',
-    },
-    {
-        id: 'nPczCjzI2devNBz1zQrb',
-        name: 'Brian (한국어/다국어 남성 · 편안하고 신뢰감 있는 톤)',
-        gender: 'male',
-        category: 'premade',
-        language: 'ko',
-        description: '안정적이고 편안한 휴먼 드라마 톤',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/nPczCjzI2devNBz1zQrb.mp3',
+        description: 'Easy going and perfect for casual conversations.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/CwhRBWXzGAHq8TQ4Fs17/58ee3ff5-f6f2-4628-93b8-e38eb31806b0.mp3',
     },
     {
         id: 'EXAVITQu4vr4xnSDxMaL',
-        name: 'Sarah (한국어/다국어 여성 · 성숙하고 자신감 있는 어조)',
+        name: 'Sarah - Mature, Reassuring, Confident',
         gender: 'female',
         category: 'premade',
         language: 'ko',
-        description: '지적이고 안정된 전문 성우 톤',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/EXAVITQu4vr4xnSDxMaL.mp3',
+        description: 'Young adult woman with a confident and warm, mature quality and a reassuring, professional tone.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/01a3e33c-6e99-4ee7-8543-ff2216a32186.mp3',
     },
     {
-        id: 'hpp4J3VqNfWAUOO0d1Us',
-        name: 'Bella (한국어/다국어 여성 · 밝고 프로페셔널한 톤)',
+        id: 'FGY2WhTYpPnrIDTdsKH5',
+        name: 'Laura - Enthusiast, Quirky Attitude',
         gender: 'female',
         category: 'premade',
         language: 'ko',
-        description: '경쾌하고 생동감 넘치는 대사 및 해설',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/hpp4J3VqNfWAUOO0d1Us.mp3',
+        description: 'This young adult female voice delivers sunny enthusiasm with a quirky attitude.',
+        preview_url: 'https://api.us.elevenlabs.io/v1/voices/FGY2WhTYpPnrIDTdsKH5/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiI2NzM0MTc1OS1hZDA4LTQxYTUtYmU2ZS1kZTEyZmU0NDg2MTgubXAzIiwidGltZXN0YW1wIjoxNzg3MTA4NDAwMDAwMDAwfQ%3D%3D',
     },
     {
-        id: 'pNInz6obpgDQGcFmaJgB',
-        name: 'Adam (한국어/다국어 남성 · 무게감 있고 단호한 톤)',
+        id: 'IKne3meq5aSn9XLyUdCD',
+        name: 'Charlie - Deep, Confident, Energetic',
         gender: 'male',
         category: 'premade',
         language: 'ko',
-        description: '강렬한 씬 전환 및 카리스마 있는 목소리',
-        preview_url: 'https://storage.googleapis.com/eleven-public-prod/previews/pNInz6obpgDQGcFmaJgB.mp3',
+        description: 'A young Australian male with a confident and energetic voice.',
+        preview_url: 'https://api.us.elevenlabs.io/v1/voices/IKne3meq5aSn9XLyUdCD/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiIxMDJkZTZmMi0yMmVkLTQzZTAtYTFmMS0xMTFmYTc1YzU0ODEubXAzIiwidGltZXN0YW1wIjoxNzg3MTA4NDAwMDAwMDAwfQ%3D%3D',
+    },
+    {
+        id: 'JBFqnCBsd6RMkjVDRZzb',
+        name: 'George - Warm, Captivating Storyteller',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'Warm resonance that instantly captivates listeners.',
+        preview_url: 'https://api.us.elevenlabs.io/v1/voices/JBFqnCBsd6RMkjVDRZzb/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiJlNjIwNmQxYS0wNzIxLTQ3ODctYWFmYi0wNmE2ZTcwNWNhYzUubXAzIiwidGltZXN0YW1wIjoxNzg3MTA4NDAwMDAwMDAwfQ%3D%3D',
+    },
+    {
+        id: 'N2lVS1w4EtoT3dr4eOWO',
+        name: 'Callum - Husky Trickster',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'Deceptively gravelly, yet unsettling edge.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/N2lVS1w4EtoT3dr4eOWO/ac833bd8-ffda-4938-9ebc-b0f99ca25481.mp3',
+    },
+    {
+        id: 'SAz9YHcvj6GT2YYXdXww',
+        name: 'River - Relaxed, Neutral, Informative',
+        gender: 'neutral',
+        category: 'premade',
+        language: 'ko',
+        description: 'A relaxed, neutral voice ready for narrations or conversational projects.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/SAz9YHcvj6GT2YYXdXww/e6c95f0b-2227-491a-b3d7-2249240decb7.mp3',
+    },
+    {
+        id: 'SOYHLrjzK2X1ezoPC6cr',
+        name: 'Harry - Fierce Warrior',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'An animated warrior ready to charge forward.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/SOYHLrjzK2X1ezoPC6cr/86d178f6-f4b6-4e0e-85be-3de19f490794.mp3',
+    },
+    {
+        id: 'TX3LPaxmHKxFdv7VOQHJ',
+        name: 'Liam - Energetic, Social Media Creator',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'A young adult with energy and warmth - suitable for reels and shorts.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/TX3LPaxmHKxFdv7VOQHJ/63148076-6363-42db-aea8-31424308b92c.mp3',
+    },
+    {
+        id: 'Xb7hH8MSUJpSbSDYk0k2',
+        name: 'Alice - Clear, Engaging Educator',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: 'Clear and engaging, friendly woman with a British accent suitable for e-learning.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/Xb7hH8MSUJpSbSDYk0k2/d10f7534-11f6-41fe-a012-2de1e482d336.mp3',
+    },
+    {
+        id: 'XrExE9yKIg1WjnnlVkGX',
+        name: 'Matilda - Knowledgable, Professional',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: 'A professional woman with a pleasing alto pitch. Suitable for many use cases.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/XrExE9yKIg1WjnnlVkGX/b930e18d-6b4d-466e-bab2-0ae97c6d8535.mp3',
+    },
+    {
+        id: 'bIHbv24MWmeRgasZH58o',
+        name: 'Will - Relaxed Optimist',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'Conversational and laid back.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/bIHbv24MWmeRgasZH58o/8caf8f3d-ad29-4980-af41-53f20c72d7a4.mp3',
+    },
+    {
+        id: 'cgSgspJ2msm6clMCkdW9',
+        name: 'Jessica - Playful, Bright, Warm',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: 'Young and popular, this playful American female voice is perfect for trendy content.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/cgSgspJ2msm6clMCkdW9/56a97bf8-b69b-448f-846c-c3a11683d45a.mp3',
+    },
+    {
+        id: 'cjVigY5qzO86Huf0OWal',
+        name: 'Eric - Smooth, Trustworthy',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'A smooth tenor pitch from a man in his 40s - perfect for agentic use cases.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/cjVigY5qzO86Huf0OWal/d098fda0-6456-4030-b3d8-63aa048c9070.mp3',
+    },
+    {
+        id: 'hpp4J3VqNfWAUOO0d1Us',
+        name: 'Bella - Professional, Bright, Warm',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: 'This voice is warm, bright, and professional, characterized by a Standard American accent and a polished, narrative quality. It features a medium-high pitch with crisp diction and a deliberate, rhythmic pace that makes it highly intelligible and engaging for long-form listening.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/hpp4J3VqNfWAUOO0d1Us/dab0f5ba-3aa4-48a8-9fad-f138fea1126d.mp3',
+    },
+    {
+        id: 'iP95p4xoKVk53GoZ742B',
+        name: 'Chris - Charming, Down-to-Earth',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'Natural and real, this down-to-earth voice is great across many use-cases.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/iP95p4xoKVk53GoZ742B/3f4bde72-cc48-40dd-829f-57fbf906f4d7.mp3',
+    },
+    {
+        id: 'nPczCjzI2devNBz1zQrb',
+        name: 'Brian - Deep, Resonant and Comforting',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'Middle-aged man with a resonant and comforting tone. Great for narrations and advertisements.',
+        preview_url: 'https://api.us.elevenlabs.io/v1/voices/nPczCjzI2devNBz1zQrb/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiIyZGQzZTcyYy00ZmQzLTQyZjEtOTNlYS1hYmM1ZDRlNWFhMWQubXAzIiwidGltZXN0YW1wIjoxNzg3MTA4NDAwMDAwMDAwfQ%3D%3D',
+    },
+    {
+        id: 'onwK4e9ZLuTAKqWW03F9',
+        name: 'Daniel - Steady Broadcaster',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'A strong voice perfect for delivering a professional broadcast or news story.',
+        preview_url: 'https://api.us.elevenlabs.io/v1/voices/onwK4e9ZLuTAKqWW03F9/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiI3ZWVlMDIzNi0xYTcyLTRiODYtYjMwMy01ZGNhZGMwMDdiYTkubXAzIiwidGltZXN0YW1wIjoxNzg3MTA4NDAwMDAwMDAwfQ%3D%3D',
+    },
+    {
+        id: 'pFZP5JQG7iQjIQuC4Bku',
+        name: 'Lily - Velvety Actress',
+        gender: 'female',
+        category: 'premade',
+        language: 'ko',
+        description: 'Velvety British female voice delivers news and narrations with warmth and clarity.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/pFZP5JQG7iQjIQuC4Bku/89b68b35-b3dd-4348-a84a-a3c13a3c2b30.mp3',
+    },
+    {
+        id: 'pNInz6obpgDQGcFmaJgB',
+        name: 'Adam - Dominant, Firm',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'A bright tenor pitch that immediately cuts through. The delivery is brash and openly confident, speaking with unwavering certainty and a slightly aggressive self-assurance.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/pNInz6obpgDQGcFmaJgB/d6905d7a-dd26-4187-bfff-1bd3a5ea7cac.mp3',
+    },
+    {
+        id: 'pqHfZKP75CvOlQylNhV4',
+        name: 'Bill - Wise, Mature, Balanced',
+        gender: 'male',
+        category: 'premade',
+        language: 'ko',
+        description: 'Friendly and comforting voice ready to narrate your stories.',
+        preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/pqHfZKP75CvOlQylNhV4/d782b3ff-84ba-4029-848c-acf01285524d.mp3',
     },
 ]
 
 export default function StdPortalPage() {
+
+    useEffect(() => {
+        // Load voices from API
+        fetch('/api/std/voices')
+            .then(res => res.json())
+            .then(data => {
+                if (data?.voices && data.voices.length > 0) {
+                    setAllVoices(data.voices)
+                }
+            })
+            .catch(err => console.error('Failed to load voices:', err))
+    }, [])
+
     // 1. 인증 및 사용자 세션 상태
     const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
     const [email, setEmail] = useState('')
@@ -219,6 +340,7 @@ export default function StdPortalPage() {
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
+    const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
     const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // ElevenLabs Yooni 기본값
     const [ttsSpeed, setTtsSpeed] = useState('1.0')
     const [elStability, setElStability] = useState('0.35')
@@ -1002,7 +1124,7 @@ export default function StdPortalPage() {
         if (!selectedProject) return
         setGeneratingTts(true)
         setMessage('')
-        const voiceObj = ELEVENLABS_VOICES.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
+        const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
         try {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
@@ -1104,7 +1226,7 @@ export default function StdPortalPage() {
     }, [selectedProject])
 
     const selectedVoiceObj = useMemo(() => {
-        return ELEVENLABS_VOICES.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
+        return allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
     }, [selectedVoice])
 
     const scriptCharCount = useMemo(() => {
@@ -2326,7 +2448,7 @@ export default function StdPortalPage() {
                                             onChange={e => setSelectedVoice(e.target.value)}
                                             className="bg-[#202632] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 min-w-[200px]"
                                         >
-                                            {ELEVENLABS_VOICES.map(v => (
+                                            {allVoices.map(v => (
                                                 <option key={v.id} value={v.id}>{v.name}</option>
                                             ))}
                                         </select>
@@ -2426,7 +2548,7 @@ export default function StdPortalPage() {
                                                             onChange={e => setCharacterVoices(prev => ({ ...prev, [char]: e.target.value }))}
                                                             className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white flex-1"
                                                         >
-                                                            {ELEVENLABS_VOICES.map(v => (
+                                                            {allVoices.map(v => (
                                                                 <option key={v.id} value={v.id}>{v.name}</option>
                                                             ))}
                                                         </select>
