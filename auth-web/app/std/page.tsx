@@ -1860,31 +1860,43 @@ export default function StdPortalPage() {
     }
 
     
-    // 7대 필수 단계 완료 여부 동적 계산 헬퍼
+    // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, TTS, 자막, 썸네일)
     const getProjectStepStatus = (proj: any, scenesList: any[] = [], currentAudio?: string, currentScript?: string, currentSubs?: any[], currentThumb?: string) => {
         const p = proj?.project || proj || {}
         const payload = p.project_payload || {}
         const scenes = scenesList.length > 0 ? scenesList : (proj?.scenes || [])
 
-        const isPlanningDone = Boolean(p.title || p.topic_id || payload.topic)
-        const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt)))
+        // 1. 주제 (Topic)
+        const isTopicDone = Boolean(p.title || p.topic_id || payload.topic || payload.title)
+
+        // 2. 기획 (Structure / Scenes)
+        const isPlanningDone = Boolean(payload.structure || payload.pregenerated_structure || scenes.length >= 50 || p.status === 'image_prompted' || p.status === 'submitted')
+
+        // 3. 대본 (Script)
+        const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt || s.text)))
         
-        // 이미지: 씬 에셋이 53개 씬 기준 최소 90% 이상(또는 전체 씬) 등록되었는지 확인
+        // 4. 이미지 (Image): 씬 에셋 등록 여부
         const uploadedAssetsCount = scenes.filter((s: any) => s.image_url || s.video_url || s.drive_file_id).length
         const isImageDone = scenes.length > 0 && (uploadedAssetsCount >= scenes.length || (scenes.length >= 50 && uploadedAssetsCount >= 50))
 
+        // 5. TTS: 오디오 생성 완료 여부
         const isTtsDone = Boolean(currentAudio || payload.audio_url || payload.tts_url || p.audio_url || (p.progress_payload?.tts_completed))
+
+        // 6. 자막: 자막 저장 완료 여부
         const isSubtitlesDone = Boolean(
             isSubtitleSaved ||
             p.progress_payload?.subtitles_saved ||
             p.progress_payload?.subtitles_completed ||
             payload.subtitles_saved
         )
+
+        // 7. 썸네일: 썸네일 등록 완료 여부
         const isThumbnailDone = Boolean(currentThumb || payload.thumbnail_url || p.thumbnail_url || p.progress_payload?.thumbnail_completed)
 
-        const allDone = isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
+        const allDone = isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
 
         return {
+            isTopicDone,
             isPlanningDone,
             isScriptDone,
             isImageDone,
@@ -2633,23 +2645,25 @@ export default function StdPortalPage() {
                     </span>
                 </div>
 
-                {/* 상단 단계별 상태 체크 스텝퍼 (데스크톱/태블릿) */}
+                {/* 상단 단계별 상태 체크 스텝퍼 (데스크톱/태블릿: 주제, 기획, 대본, 이미지, TTS, 자막, 썸네일) */}
                 {(() => {
                     const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                     const steps = [
-                        { id: 'topics', label: t('nav_topics'), isDone: status.isPlanningDone },
-                        { id: 'image_gen', label: t('nav_image'), isDone: status.isImageDone },
-                        { id: 'tts', label: t('nav_tts'), isDone: status.isTtsDone },
-                        { id: 'subtitle_gen', label: t('nav_subtitles'), isDone: status.isSubtitlesDone },
-                        { id: 'thumbnail', label: t('nav_thumbnail'), isDone: status.isThumbnailDone },
+                        { id: 'topics', label: '주제', isDone: status.isTopicDone },
+                        { id: 'topics', label: '기획', isDone: status.isPlanningDone },
+                        { id: 'tts', label: '대본', isDone: status.isScriptDone },
+                        { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
+                        { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
+                        { id: 'subtitle_gen', label: '자막', isDone: status.isSubtitlesDone },
+                        { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                     ]
                     return (
-                        <div className="hidden md:flex items-center gap-2 lg:gap-3 text-[10px] lg:text-[11px] text-gray-400 font-medium">
-                            {steps.map((step) => {
+                        <div className="hidden md:flex items-center gap-1.5 lg:gap-2.5 text-[10px] lg:text-[11px] text-gray-400 font-medium">
+                            {steps.map((step, idx) => {
                                 const isCurrent = currentNav === step.id
                                 return (
                                     <button
-                                        key={step.id}
+                                        key={idx}
                                         onClick={() => setCurrentNav(step.id as any)}
                                         className={`flex flex-col items-center gap-0.5 transition-colors ${
                                             isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
@@ -2709,21 +2723,23 @@ export default function StdPortalPage() {
                 </div>
             </header>
 
-            {/* 모바일 전용 가로 스크롤 스텝퍼 바 */}
+            {/* 모바일 전용 가로 스크롤 스텝퍼 바 (7단계) */}
             {(() => {
                 const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                 const steps = [
-                    { id: 'topics', label: t('nav_topics'), isDone: status.isPlanningDone },
-                    { id: 'image_gen', label: t('nav_image'), isDone: status.isImageDone },
-                    { id: 'tts', label: t('nav_tts'), isDone: status.isTtsDone },
-                    { id: 'subtitle_gen', label: t('nav_subtitles'), isDone: status.isSubtitlesDone },
-                    { id: 'thumbnail', label: t('nav_thumbnail'), isDone: status.isThumbnailDone },
+                    { id: 'topics', label: '주제', isDone: status.isTopicDone },
+                    { id: 'topics', label: '기획', isDone: status.isPlanningDone },
+                    { id: 'tts', label: '대본', isDone: status.isScriptDone },
+                    { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
+                    { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
+                    { id: 'subtitle_gen', label: '자막', isDone: status.isSubtitlesDone },
+                    { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                 ]
                 return (
                     <div className="md:hidden bg-[#14181f] border-b border-white/10 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
-                        {steps.map(step => (
+                        {steps.map((step, idx) => (
                             <button
-                                key={step.id}
+                                key={idx}
                                 onClick={() => { setCurrentNav(step.id as any); setMobileMenuOpen(false); }}
                                 className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${
                                     currentNav === step.id
@@ -2794,8 +2810,8 @@ export default function StdPortalPage() {
                             <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                                 {[
                                     { id: 'topics', label: t('nav_topics') },
-                                    { id: 'tts', label: t('nav_tts') },
                                     { id: 'image_gen', label: t('nav_image') },
+                                    { id: 'tts', label: t('nav_tts') },
                                     { id: 'subtitle_gen', label: t('nav_subtitles') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
                                     { id: 'projects', label: t('nav_projects') },
@@ -2905,8 +2921,8 @@ export default function StdPortalPage() {
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
                             { id: 'topics', label: t('nav_topics') },
-                            { id: 'tts', label: t('nav_tts') },
                             { id: 'image_gen', label: t('nav_image') },
+                            { id: 'tts', label: t('nav_tts') },
                             { id: 'subtitle_gen', label: t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'projects', label: t('nav_projects') },
@@ -5211,12 +5227,13 @@ export default function StdPortalPage() {
                                             <th className="px-2 py-2.5 w-24 text-center">시작일</th>
                                             <th className="px-2 py-2.5 w-24 text-center">수정일</th>
                                             <th className="px-3 py-2.5">영상 제목</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">기획</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">대본</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">이미지</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">TTS</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">자막</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">썸네일</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">주제</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">기획</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">대본</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">이미지</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">TTS</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">자막</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">썸네일</th>
                                             <th className="px-2 py-2.5 w-16 text-center text-cyan-300 font-black tracking-wide">제출</th>
                                         </tr>
                                     </thead>
@@ -5276,11 +5293,11 @@ export default function StdPortalPage() {
                                                     <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
                                                         {p.title}
                                                     </td>
-                                                    {/* 6단계 상태 원형 인디케이터 (기획, 대본, 이미지, TTS, 자막, 썸네일) */}
+                                                    {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, TTS, 자막, 썸네일) */}
                                                     {(() => {
                                                         const pStatus = isSelectedProj
-                                                            ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                                                            : getProjectStepStatus(p)
+                                                             ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                                                             : getProjectStepStatus(p)
                                                         const isSubmitted = Boolean(
                                                             p.status === 'review_requested' ||
                                                             p.status === 'submitted' ||
@@ -5291,6 +5308,11 @@ export default function StdPortalPage() {
                                                         )
                                                         return (
                                                             <>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isTopicDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isTopicDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
                                                                 <td className="px-1 py-2 text-center">
                                                                     <span className={pStatus.isPlanningDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
                                                                         {pStatus.isPlanningDone ? '●' : '○'}
