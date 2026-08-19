@@ -3,7 +3,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 
 export const dynamic = 'force-dynamic'
 
-export const ELEVENLABS_PRESET_VOICES = [
+const ELEVENLABS_PRESET_VOICES = [
     {
         id: 'CwhRBWXzGAHq8TQ4Fs17',
         name: 'Roger - Laid-Back, Casual, Resonant',

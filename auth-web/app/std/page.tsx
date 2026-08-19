@@ -395,6 +395,8 @@ export default function StdPortalPage() {
     const [elStyle, setElStyle] = useState('0.45')
     const [multiVoice, setMultiVoice] = useState(false)
     const [characterVoices, setCharacterVoices] = useState<Record<string, string>>({})
+    const [newCharInput, setNewCharInput] = useState('')
+    const [customAddedCharacters, setCustomAddedCharacters] = useState<string[]>([])
     const [customScriptText, setCustomScriptText] = useState('')
     const [audioResultUrl, setAudioResultUrl] = useState('')
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
@@ -1477,6 +1479,10 @@ export default function StdPortalPage() {
         }
     }
 
+    const handleStartRender = async () => {
+        await submitProject()
+    }
+
     const generateTts = async () => {
         if (!selectedProject) return
         setGeneratingTts(true)
@@ -1526,9 +1532,9 @@ export default function StdPortalPage() {
     const detectedCharacters = useMemo(() => {
         const text = customScriptText || selectedProject?.project?.project_payload?.script || ''
         const lines = text.split('\n')
-        const chars = new Set<string>()
+        const chars = new Set<string>(customAddedCharacters)
         const regex = /^\s*(?:([^\s:\[\]\(\)]+)(?:\(.*\))?[:：]|([^\s:\[\]\(\)]+)[\)）\]])/
-        lines.forEach(line => {
+        lines.forEach((line: string) => {
             const match = line.trim().match(regex)
             const rawName = match ? (match[1] || match[2]) : null
             if (rawName) {
@@ -1537,7 +1543,7 @@ export default function StdPortalPage() {
             }
         })
         return Array.from(chars)
-    }, [customScriptText, selectedProject])
+    }, [customScriptText, selectedProject, customAddedCharacters])
 
     // 2x2 프롬프트 묶음
     const imageGridPrompts = useMemo(() => {
