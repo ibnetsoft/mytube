@@ -617,6 +617,73 @@ export default function StdPortalPage() {
         }
     }
 
+    // Main Character Anchor & Consistency state
+    const [mainCharacter, setMainCharacter] = useState<any>(null)
+    const [generatingCharacter, setGeneratingCharacter] = useState(false)
+    const [characterModalOpen, setCharacterModalOpen] = useState(false)
+
+    useEffect(() => {
+        if (selectedProject?.project?.project_payload?.main_character) {
+            setMainCharacter(selectedProject.project.project_payload.main_character)
+        } else {
+            setMainCharacter(null)
+        }
+    }, [selectedProject])
+
+    const handleGenerateMainCharacter = async () => {
+        if (!selectedProject) {
+            alert('먼저 프로젝트를 선택해주세요.')
+            return
+        }
+        const scriptText = customScriptText || selectedProject.project?.project_payload?.script || selectedProject.scenes?.map((s: any) => s.text).join('\n')
+        if (!scriptText) {
+            alert('대본 내용이 없습니다. 대본을 먼저 작성하거나 불러와주세요.')
+            return
+        }
+        try {
+            setGeneratingCharacter(true)
+            const reqHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            }
+            if (isImpersonating && impersonateEmail) {
+                reqHeaders['x-impersonate-email'] = impersonateEmail
+            }
+            const res = await fetch('/api/std/characters/anchor', {
+                method: 'POST',
+                headers: reqHeaders,
+                body: JSON.stringify({
+                    project_id: selectedProject.project?.id,
+                    script_text: scriptText,
+                    category: selectedProject.project?.category || '옛날이야기'
+                })
+            })
+            const data = await res.json()
+            if (res.ok && data.success && data.character) {
+                setMainCharacter(data.character)
+                const updatedProject = {
+                    ...selectedProject,
+                    project: {
+                        ...selectedProject.project,
+                        project_payload: {
+                            ...selectedProject.project?.project_payload,
+                            main_character: data.character
+                        }
+                    }
+                }
+                setSelectedProject(updatedProject)
+                localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
+                setMessage(`주인공 캐릭터 "${data.character.name || '주인공'}" DNA가 등록되어 전체 씬에 적용되었습니다!`)
+            } else {
+                throw new Error(data.error || '캐릭터 생성 실패')
+            }
+        } catch (err: any) {
+            alert('캐릭터 앵커 생성 실패: ' + (err.message || String(err)))
+        } finally {
+            setGeneratingCharacter(false)
+        }
+    }
+
     const totalDuration = useMemo(() => {
         if (!localSubtitles || localSubtitles.length === 0) return 60.0
         const last = localSubtitles[localSubtitles.length - 1]
@@ -3594,6 +3661,130 @@ export default function StdPortalPage() {
                     {/* [이미지 생성 탭] */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
+
+                            {/* [주인공 캐릭터 앵커 & 일관성 DNA 미리보기 바] */}
+                            <div className="bg-[#181d26] border border-white/10 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+                                <div className="flex items-center gap-3.5">
+                                    {/* 캐릭터 대표 이미지 썸네일 */}
+                                    <div
+                                        onClick={() => mainCharacter?.image_url && setCharacterModalOpen(true)}
+                                        className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/40 border border-white/15 shrink-0 flex items-center justify-center shadow-inner group cursor-pointer"
+                                    >
+                                        {mainCharacter?.image_url ? (
+                                            <img src={mainCharacter.image_url} alt="주인공 캐릭터" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span className="text-2xl">👤</span>
+                                        )}
+                                        {mainCharacter?.image_url && (
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                                                <span className="text-[10px] text-white font-bold">확대</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 캐릭터 정보 */}
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-white">
+                                                {mainCharacter?.name || '영상 주인공 캐릭터'}
+                                            </span>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${mainCharacter ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}>
+                                                {mainCharacter ? '🎨 캐릭터 일관성 DNA 적용 중' : '미등록 (자동 감지 가능)'}
+                                            </span>
+                                            {mainCharacter?.age_group && (
+                                                <span className="text-[10px] text-gray-400 font-mono">({mainCharacter.age_group})</span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-gray-400 leading-snug line-clamp-1 max-w-xl">
+                                            {mainCharacter?.visual_dna_en || '대본을 분석하여 주인공의 얼굴, 복장, 분위기를 53개 씬에 동일하게 유지합니다.'}
+                                        </p>
+                                        {mainCharacter?.tags && mainCharacter.tags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 pt-0.5">
+                                                {mainCharacter.tags.map((tag: string, i: number) => (
+                                                    <span key={i} className="text-[9px] px-1.5 py-0.2 bg-white/5 text-gray-300 rounded border border-white/5">
+                                                        #{tag}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 버튼 액션 */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateMainCharacter}
+                                        disabled={generatingCharacter}
+                                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        <span>{generatingCharacter ? '⏳' : '✨'}</span>
+                                        <span>{generatingCharacter ? '캐릭터 생성 중...' : (mainCharacter ? '캐릭터 재추출' : '주인공 캐릭터 자동 생성')}</span>
+                                    </button>
+                                    {mainCharacter && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCharacterModalOpen(true)}
+                                            className="px-3 py-2 bg-white/10 hover:bg-white/20 text-gray-200 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                                        >
+                                            <span>🔍</span> 상세 보기
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 캐릭터 상세 모달 팝업 */}
+                            {characterModalOpen && mainCharacter && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                                    <div className="bg-[#1c2027] border border-white/20 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 relative text-left">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCharacterModalOpen(false)}
+                                            className="absolute top-4 right-4 text-gray-400 hover:text-white font-bold p-1"
+                                        >
+                                            ✕
+                                        </button>
+                                        <div className="flex items-center gap-3 border-b border-white/10 pb-3">
+                                            <span className="text-xl">👤</span>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-white">{mainCharacter.name}</h4>
+                                                <span className="text-[10px] text-emerald-400">영상 공통 주인공 캐릭터 DNA</span>
+                                            </div>
+                                        </div>
+
+                                        {mainCharacter.image_url ? (
+                                            <div className="w-full aspect-square rounded-2xl overflow-hidden border border-white/10 bg-black/40 shadow-inner">
+                                                <img src={mainCharacter.image_url} alt="캐릭터 앵커 이미지" className="w-full h-full object-cover" />
+                                            </div>
+                                        ) : (
+                                            <div className="w-full py-12 bg-black/30 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500">
+                                                생성된 대표 이미지가 없습니다.
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-1.5 text-xs">
+                                            <span className="text-gray-400 font-bold block">영문 고정 프롬프트 (Visual DNA)</span>
+                                            <p className="p-3 bg-black/40 rounded-xl border border-white/5 text-gray-300 font-mono text-[11px] leading-relaxed">
+                                                {mainCharacter.visual_dna_en}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex justify-end pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(mainCharacter.visual_dna_en || '')
+                                                    alert('캐릭터 DNA 프롬프트가 복사되었습니다.')
+                                                }}
+                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition"
+                                            >
+                                                📋 DNA 프롬프트 복사
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="bg-[#1a1f29] border border-white/10 rounded-xl p-5 shadow-lg space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
