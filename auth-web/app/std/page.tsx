@@ -1341,7 +1341,20 @@ export default function StdPortalPage() {
 
     const submitProject = async () => {
         if (!selectedProject) return
-        if (!confirm('에셋 검증 및 원격 렌더 큐 제출을 진행하시겠습니까?')) return
+        const pStatus = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+        if (!pStatus.allDone) {
+            const missingList = []
+            if (!pStatus.isPlanningDone) missingList.push('기획')
+            if (!pStatus.isScriptDone) missingList.push('대본')
+            if (!pStatus.isImageDone) missingList.push(`이미지/에셋 (${pStatus.uploadedAssetsCount}/${pStatus.totalScenesCount} 완료)`)
+            if (!pStatus.isTtsDone) missingList.push('TTS')
+            if (!pStatus.isSubtitlesDone) missingList.push('자막')
+            if (!pStatus.isThumbnailDone) missingList.push('썸네일')
+            if (!pStatus.isSettingsDone) missingList.push('설정')
+            alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
+            return
+        }
+        if (!confirm('모든 단계가 정상 완료되었습니다. 에셋 검증 및 원격 렌더 큐 제출을 진행하시겠습니까?')) return
         setLoading(true)
         setMessage('')
         try {
@@ -1541,6 +1554,41 @@ export default function StdPortalPage() {
         start_time: '0.0',
         end_time: '4.6',
         image_url: '',
+    }
+
+    
+    // 7대 필수 단계 완료 여부 동적 계산 헬퍼
+    const getProjectStepStatus = (proj: any, scenesList: any[] = [], currentAudio?: string, currentScript?: string, currentSubs?: any[], currentThumb?: string) => {
+        const p = proj?.project || proj || {}
+        const payload = p.project_payload || {}
+        const scenes = scenesList.length > 0 ? scenesList : (proj?.scenes || [])
+
+        const isPlanningDone = Boolean(p.title || p.topic_id || payload.topic)
+        const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt)))
+        
+        // 이미지: 씬 에셋이 53개 씬 기준 최소 90% 이상(또는 전체 씬) 등록되었는지 확인
+        const uploadedAssetsCount = scenes.filter((s: any) => s.image_url || s.video_url || s.drive_file_id).length
+        const isImageDone = scenes.length > 0 && (uploadedAssetsCount >= scenes.length || (scenes.length >= 50 && uploadedAssetsCount >= 50))
+
+        const isTtsDone = Boolean(currentAudio || payload.audio_url || payload.tts_url || p.audio_url || (p.progress_payload?.tts_completed))
+        const isSubtitlesDone = Boolean((currentSubs && currentSubs.length > 0) || payload.subtitles || p.progress_payload?.subtitles_completed)
+        const isThumbnailDone = Boolean(currentThumb || payload.thumbnail_url || p.thumbnail_url || p.progress_payload?.thumbnail_completed)
+        const isSettingsDone = Boolean(p.id)
+
+        const allDone = isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone && isSettingsDone
+
+        return {
+            isPlanningDone,
+            isScriptDone,
+            isImageDone,
+            isTtsDone,
+            isSubtitlesDone,
+            isThumbnailDone,
+            isSettingsDone,
+            allDone,
+            uploadedAssetsCount,
+            totalScenesCount: scenes.length || 53,
+        }
     }
 
     const displayedTopics = useMemo(() => {
@@ -2270,35 +2318,43 @@ export default function StdPortalPage() {
                     </span>
                 </div>
 
-                {/* 상단 8단계 녹색 원형 체크 스텝퍼 */}
-                <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
-                    {[
-                        { id: 'topics', label: t('nav_topics') },
-                        { id: 'image_gen', label: t('nav_image') },
-                        { id: 'tts', label: t('nav_tts') },
-                        { id: 'subtitle_gen', label: t('nav_subtitles') },
-                        { id: 'thumbnail', label: t('nav_thumbnail') },
-                        { id: 'settings', label: t('nav_settings') },
-                    ].map((step) => {
-                        const isCurrent = currentNav === step.id
-                        return (
-                            <button
-                                key={step.id}
-                                onClick={() => setCurrentNav(step.id as any)}
-                                className={`flex flex-col items-center gap-0.5 transition-colors ${
-                                    isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
-                                }`}
-                            >
-                                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
-                                    isCurrent ? 'bg-blue-600 text-white font-bold' : 'bg-emerald-500 text-black font-bold'
-                                }`}>
-                                    ✓
-                                </div>
-                                <span className="text-[10px]">{step.label}</span>
-                            </button>
-                        )
-                    })}
-                </div>
+                {/* 상단 단계별 상태 체크 스텝퍼 (실제 완성 여부에 따라 초록불/회색불 동적 바인딩) */}
+                {(() => {
+                    const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                    const steps = [
+                        { id: 'topics', label: t('nav_topics'), isDone: status.isPlanningDone },
+                        { id: 'image_gen', label: t('nav_image'), isDone: status.isImageDone },
+                        { id: 'tts', label: t('nav_tts'), isDone: status.isTtsDone },
+                        { id: 'subtitle_gen', label: t('nav_subtitles'), isDone: status.isSubtitlesDone },
+                        { id: 'thumbnail', label: t('nav_thumbnail'), isDone: status.isThumbnailDone },
+                        { id: 'settings', label: t('nav_settings'), isDone: status.isSettingsDone },
+                    ]
+                    return (
+                        <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
+                            {steps.map((step) => {
+                                const isCurrent = currentNav === step.id
+                                return (
+                                    <button
+                                        key={step.id}
+                                        onClick={() => setCurrentNav(step.id as any)}
+                                        className={`flex flex-col items-center gap-0.5 transition-colors ${
+                                            isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
+                                        }`}
+                                    >
+                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                                            step.isDone
+                                                ? 'bg-emerald-500 text-black shadow-sm'
+                                                : 'bg-white/10 text-gray-500 border border-white/20'
+                                        }`}>
+                                            {step.isDone ? '✓' : '○'}
+                                        </div>
+                                        <span className={`text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )
+                })()}
 
                 <div className="flex items-center gap-3">
                     {/* 언어 선택 드롭다운 (KO, EN, VI, TH) */}
@@ -4408,54 +4464,80 @@ export default function StdPortalPage() {
                                                         {p.title}
                                                     </td>
                                                     {/* 7단계 상태 원형 인디케이터 (기획, 대본, 이미지, TTS, 자막, 썸네일, 설정) */}
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                            {isSelectedProj ? '●' : '○'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                            {isSelectedProj ? '●' : '○'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj ? 'text-gray-600 text-sm' : 'text-gray-600 text-sm'}>
-                                                            ○
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj || idx === 6 ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                            {isSelectedProj || idx === 6 ? '●' : '○'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj || idx === 6 ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                            {isSelectedProj || idx === 6 ? '●' : '○'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj || idx === 6 ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                            {isSelectedProj || idx === 6 ? '●' : '○'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-1 py-2 text-center">
-                                                        <span className={isSelectedProj || idx === 6 ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                            {isSelectedProj || idx === 6 ? '●' : '○'}
-                                                        </span>
-                                                    </td>
-                                                    {/* 제출 버튼 컬럼 */}
-                                                    <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                        <button
-                                                            onClick={() => {
-                                                                openProject(p.id)
-                                                                submitProject()
-                                                            }}
-                                                            className="text-blue-400 hover:text-blue-200 hover:bg-blue-500/10 p-1 rounded-full transition-all"
-                                                            title="드라이브 제출 및 원격 렌더 큐 접수"
-                                                        >
-                                                            <span className="text-sm font-bold">⏎</span>
-                                                        </button>
-                                                    </td>
+                                                    {(() => {
+                                                        const pStatus = isSelectedProj
+                                                            ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                                                            : getProjectStepStatus(p)
+                                                        return (
+                                                            <>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isPlanningDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isPlanningDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isScriptDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isScriptDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isImageDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isImageDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isTtsDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isTtsDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isSubtitlesDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isSubtitlesDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isThumbnailDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isThumbnailDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isSettingsDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isSettingsDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                {/* 제출 버튼 컬럼: 7단계 모두 완료(초록불) 시에만 활성화 */}
+                                                                <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                                                                    <button
+                                                                        disabled={!pStatus.allDone}
+                                                                        onClick={() => {
+                                                                            if (!pStatus.allDone) {
+                                                                                const missingList = []
+                                                                                if (!pStatus.isPlanningDone) missingList.push('기획')
+                                                                                if (!pStatus.isScriptDone) missingList.push('대본')
+                                                                                if (!pStatus.isImageDone) missingList.push(`이미지/에셋 (${pStatus.uploadedAssetsCount}/${pStatus.totalScenesCount} 완료)`)
+                                                                                if (!pStatus.isTtsDone) missingList.push('TTS')
+                                                                                if (!pStatus.isSubtitlesDone) missingList.push('자막')
+                                                                                if (!pStatus.isThumbnailDone) missingList.push('썸네일')
+                                                                                if (!pStatus.isSettingsDone) missingList.push('설정')
+                                                                                alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
+                                                                                return
+                                                                            }
+                                                                            openProject(p.id)
+                                                                            submitProject()
+                                                                        }}
+                                                                        className={`p-1.5 rounded-full transition-all ${
+                                                                            pStatus.allDone
+                                                                                ? 'text-cyan-400 hover:text-white bg-blue-600/30 hover:bg-blue-600 border border-blue-500/50 shadow-md cursor-pointer'
+                                                                                : 'text-gray-600 bg-white/5 border border-white/5 opacity-40 cursor-not-allowed'
+                                                                        }`}
+                                                                        title={pStatus.allDone ? "드라이브 제출 및 원격 렌더 큐 접수" : "모든 단계(기획/대본/이미지/TTS/자막/썸네일/설정) 완료 시 활성화됩니다."}
+                                                                    >
+                                                                        <span className="text-sm font-bold">⏎</span>
+                                                                    </button>
+                                                                </td>
+                                                            </>
+                                                        )
+                                                    })()}
                                                 </tr>
                                             )
                                         })}
