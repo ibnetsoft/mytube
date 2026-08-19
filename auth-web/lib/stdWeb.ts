@@ -195,8 +195,16 @@ export function isPreparedStdTopic(topic: any): boolean {
     const hasTitle = Boolean(firstText(topic?.generated_title, topic?.topic))
     const struct = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    // 유저앱과 동일하게 50씬 이상 기획 및 프롬프트가 완료된 주제만 선별
-    return Boolean(hasTitle && (scenes.length >= 20 || topic?.pregenerated_script))
+    const hasStructure = scenes.length >= 20 || topic?.pregenerated_structure_status === 'completed'
+    const hasScript = Boolean(String(topic?.pregenerated_script || '').trim().length > 100 || topic?.pregenerated_script_status === 'completed')
+    const hasMediaPrompts = Boolean(
+        struct?.media_prompt_status === 'completed' ||
+        (scenes.length > 0 && scenes.some((s: any) => Boolean(s?.prompt_en || s?.video_prompt || s?.image_prompt || s?.prompt)))
+    )
+    const hasDescription = topicHasPublishDescription(topic)
+
+    // 대시보드의 대기주제 조건(ready)과 100% 동일하게 모든 기획/대본/프롬프트가 완성된 주제만 선별
+    return Boolean(topic?.status === 'pending' && hasTitle && hasStructure && hasScript && hasMediaPrompts && hasDescription)
 }
 
 export function buildStdScenes(topic: any) {
