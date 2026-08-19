@@ -1327,6 +1327,56 @@ async def api_voicebox_topics(
     
     combined_topics = []
     
+    # 1. Supabase topics_queue (Fetch all real topics)
+    try:
+        from remote_drive_worker import RemoteDriveWorker
+        worker = RemoteDriveWorker()
+        topics_url = f"{worker.supabase_url}/rest/v1/topics_queue"
+        params = {
+            "select": "*",
+            "order": "created_at.desc",
+            "limit": "50",
+        }
+        rows = worker._request("GET", topics_url, params=params) or []
+        for r in rows:
+            script_raw = r.get("pregenerated_script") or ""
+            script_text = ""
+            if isinstance(script_raw, str):
+                script_text = script_raw
+            elif isinstance(script_raw, dict):
+                script_text = script_raw.get("script") or script_raw.get("full_script") or str(script_raw)
+            
+            # Check progress_payload script
+            if not script_text.strip():
+                pp = r.get("progress_payload") or {}
+                if isinstance(pp, dict) and pp.get("script"):
+                    script_text = str(pp.get("script"))
+                    
+            # If script column is empty, check structure scenes narration
+            if not script_text.strip():
+                structure = r.get("pregenerated_structure") or {}
+                if isinstance(structure, dict) and "scenes" in structure:
+                    scene_texts = []
+                    for sc in structure["scenes"]:
+                        narr = sc.get("narration") or sc.get("script") or sc.get("text") or ""
+                        if narr:
+                            scene_texts.append(narr)
+                    if scene_texts:
+                        script_text = "\n\n".join(scene_texts)
+            
+            combined_topics.append({
+                "id": f"queue-{r.get('id')}",
+                "type": "supabase",
+                "topic_id": r.get("id"),
+                "title": r.get("generated_title") or r.get("topic") or f"주제 #{r.get('id')}",
+                "category": r.get("category_name") or "옛날이야기/사연",
+                "script": script_text,
+                "has_audio": bool(r.get("pregenerated_audio_url")),
+                "created_at": r.get("created_at"),
+            })
+    except Exception as e:
+        logger.warning(f"Failed to fetch supabase topics: {e}")
+    
     # 1. Local generated results
     try:
         from hermes_autopilot import hermes_autopilot
