@@ -2826,21 +2826,39 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className="p-4 border-t border-white/5 bg-[#181d26] space-y-3">
-                                    <h4 className="text-xs font-bold text-gray-300">최종 클립 순서</h4>
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold text-gray-300">최종 클립 순서</h4>
+                                        <span className="text-[11px] text-gray-400 font-mono">
+                                            영상 등록 완료: {selectedProject.scenes.filter(s => Boolean(s.video_url)).length} / {selectedProject.scenes.length}
+                                        </span>
+                                    </div>
                                     <div className="flex flex-wrap items-center gap-3">
-                                        <div className="flex items-center gap-2 bg-[#14181f] px-3 py-1.5 rounded border border-white/5">
-                                            <span className="font-bold text-white">씬 1</span>
-                                            <span className="text-purple-400 font-mono">manual_vid_p276_s1_1786710213.mp4</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 bg-[#14181f] px-3 py-1.5 rounded border border-white/5">
-                                            <span className="font-bold text-white">씬 2</span>
-                                            <span className="text-purple-400 font-mono">manual_vid_p276_s2_1786710246.mp4</span>
-                                        </div>
+                                        {selectedProject.scenes.filter(s => Boolean(s.video_url)).length > 0 ? (
+                                            selectedProject.scenes.filter(s => Boolean(s.video_url)).map(s => (
+                                                <div key={s.scene_number} className="flex items-center gap-2 bg-[#14181f] px-3 py-1.5 rounded border border-white/5 text-xs">
+                                                    <span className="font-bold text-white">씬 {s.scene_number}</span>
+                                                    <span className="text-purple-400 font-mono truncate max-w-[200px]">
+                                                        {s.video_url?.split('/').pop() || `clip_scene_${s.scene_number}.mp4`}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-xs text-gray-500 py-1">
+                                                아직 등록된 영상 클립이 없습니다.
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center justify-between pt-2">
-                                        <p className="text-xs text-amber-400 font-mono">
-                                            영상 누락: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20...
-                                        </p>
+                                        {selectedProject.scenes.filter(s => !s.video_url).length > 0 ? (
+                                            <p className="text-xs text-amber-400 font-mono truncate max-w-xl">
+                                                영상 미등록: {selectedProject.scenes.filter(s => !s.video_url).map(s => s.scene_number).slice(0, 15).join(', ')}
+                                                {selectedProject.scenes.filter(s => !s.video_url).length > 15 ? ` 외 ${selectedProject.scenes.filter(s => !s.video_url).length - 15}개` : ''}
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-emerald-400 font-mono">
+                                                ✅ 모든 씬의 영상 클립이 등록되었습니다.
+                                            </p>
+                                        )}
                                         <button
                                             onClick={() => setCurrentNav('tts')}
                                             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md"
