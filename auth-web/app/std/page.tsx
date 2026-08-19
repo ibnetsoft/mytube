@@ -3007,6 +3007,11 @@ export default function StdPortalPage() {
                                     <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">
                                         ⚡ ElevenLabs (Multilingual v2)
                                     </span>
+                                    {selectedProject?.project?.project_payload?.tts_provider === 'voicebox' && (
+                                        <span className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 flex items-center gap-1 animate-pulse">
+                                            <span>⚡</span> Voicebox GPU 사전 생성 음성 연동됨 (ElevenLabs 생략 가능)
+                                        </span>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center gap-3 flex-wrap">

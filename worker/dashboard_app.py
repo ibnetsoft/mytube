@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import job_store
-from fastapi import FastAPI, Header, HTTPException, Response
+from fastapi import FastAPI, Header, HTTPException, Response, Body
 from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
@@ -1314,6 +1314,105 @@ async def api_autopilot_stop(
 # Login page (serves HTML — no auth required)
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Voicebox GPU TTS API Endpoints
+# ---------------------------------------------------------------------------
+@app.get("/api/voicebox/presets")
+async def api_voicebox_presets(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from voicebox_engine import voicebox_engine
+    return {"presets": voicebox_engine.list_presets(), "device": voicebox_engine.device}
+
+@app.post("/api/voicebox/generate")
+async def api_voicebox_generate(
+    payload: dict = Body(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from voicebox_engine import voicebox_engine
+    script_text = str(payload.get("script") or "").strip()
+    voice_id = str(payload.get("voice_id") or "narrator_calm_kr").strip()
+    speed = float(payload.get("speed") or 1.0)
+    topic_id = payload.get("topic_id")
+    
+    if not script_text:
+        raise HTTPException(status_code=400, detail="대본 내용이 비어 있습니다.")
+        
+    try:
+        res = await voicebox_engine.generate_tts(
+            script_text=script_text,
+            voice_id=voice_id,
+            speed=speed,
+        )
+        return {"success": True, **res}
+    except Exception as e:
+        logger.error(f"Voicebox generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Voicebox 생성 실패: {str(e)}")
+
+@app.get("/api/voicebox/audio/{filename}")
+async def api_voicebox_audio(filename: str):
+    from pathlib import Path
+    output_dir = Path(__file__).resolve().parent / "voicebox_outputs"
+    file_path = output_dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    from fastapi.responses import FileResponse
+    return FileResponse(str(file_path), media_type="audio/mpeg")
+
+@app.post("/api/voicebox/save-to-supabase")
+async def api_voicebox_save_to_supabase(
+    payload: dict = Body(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    topic_id = payload.get("topic_id")
+    audio_filename = payload.get("audio_filename")
+    voice_id = payload.get("voice_id") or "voicebox"
+    
+    if not topic_id:
+        raise HTTPException(status_code=400, detail="topic_id가 필요합니다.")
+        
+    try:
+        from remote_drive_worker import RemoteDriveWorker
+        worker = RemoteDriveWorker()
+        
+        # Audio URL constructing
+        # If hosting locally or via worker dashboard audio API:
+        audio_url = f"/api/voicebox/audio/{audio_filename}"
+        
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        update_payload = {
+            "pregenerated_audio_url": audio_url,
+            "progress_updated_at": now,
+            "progress_payload": {
+                "has_pregenerated_audio": True,
+                "pregenerated_audio_url": audio_url,
+                "pregenerated_audio_filename": audio_filename,
+                "pregenerated_voice_id": voice_id,
+                "tts_provider": "voicebox",
+                "tts_completed": True,
+                "tts_completed_at": now,
+            }
+        }
+        
+        url = f"{worker.queue_url}?id=eq.{topic_id}"
+        patch_res = worker._request("PATCH", url, json=update_payload)
+        return {
+            "success": True,
+            "message": f"주제 #{topic_id}에 Voicebox 음성이 Supabase로 저장되었습니다. 유저 작업 시 TTS가 즉시 완료 상태가 됩니다!",
+            "audio_url": audio_url,
+        }
+    except Exception as e:
+        logger.error(f"Failed to save voicebox audio to supabase: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Supabase 저장 실패: {str(e)}")
+
+
 @app.get("/api/generated-results")
 async def api_generated_results(
     limit: int = 100,
@@ -1669,6 +1768,9 @@ tr:hover { background: #161b22; }
       </div>
       <div class="nav-item" data-tab="generated-results" onclick="switchTab('generated-results')">
         <span class="icon">&#x1F4D1;</span> 생성 결과 확인
+      </div>
+      <div class="nav-item" data-tab="voicebox-tts" onclick="switchTab('voicebox-tts')">
+        <span class="icon">&#x1F399;</span> TTS 생성
       </div>
       <div class="nav-item" data-tab="hermes-gen" onclick="switchTab('hermes-gen')">
         <span class="icon">&#x1F4DD;</span> Hermes 제목 생성
@@ -2302,6 +2404,7 @@ function showToast(msg, type='success') {
 /* ── Tab switching ── */
 const tabTitles = {
   'generated-results': '생성 결과 확인',
+  'voicebox-tts': 'Voicebox TTS 음성 생성',
   'overview': '대시보드',
   'rendering': '렌더링 상황',
   'topic-search': '주제 찾기',
@@ -2330,6 +2433,7 @@ function switchTab(tabId) {
   if (tabId === 'yt-explore') initYtExplore();
   if (tabId === 'hermes-autopilot') loadAutopilotStatus();
   if (tabId === 'generated-results') loadGeneratedResults();
+  if (tabId === 'voicebox-tts') loadVoiceboxTtsTab();
 }
 
 /* ── Time formatting ── */
@@ -4372,6 +4476,177 @@ async function stopAutopilot() {
     showToast('자동 생성기 중지 통신 실패', 'error');
   }
 }
+
+
+/* ─── Voicebox TTS Controller ─── */
+let voiceboxCurrentTopic = null;
+let voiceboxCurrentAudioFile = null;
+
+async function loadVoiceboxTtsTab() {
+  await loadVoiceboxPresets();
+  await loadVoiceboxTopics();
+}
+
+async function loadVoiceboxPresets() {
+  try {
+    const data = await api('GET', '/api/voicebox/presets');
+    if (!data || !data.presets) return;
+    const select = document.getElementById('voicebox-preset-select');
+    if (!select) return;
+    select.innerHTML = data.presets.map(p => `
+      <option value="${p.id}">${p.name} (${p.gender === 'female' ? '여성' : '남성'})</option>
+    `).join('');
+  } catch (e) {
+    console.error('Failed to load voicebox presets:', e);
+  }
+}
+
+async function loadVoiceboxTopics() {
+  const container = document.getElementById('voicebox-topics-list');
+  if (!container) return;
+  container.innerHTML = '<div class="info">대본 목록 로딩 중...</div>';
+  
+  try {
+    // 1. Fetch generated results
+    const genData = await api('GET', '/api/generated-results?limit=50');
+    const results = (genData && genData.results) ? genData.results : [];
+    
+    if (!results.length) {
+      container.innerHTML = '<div class="empty" style="padding:16px;">생성된 대본이 없습니다.</div>';
+      return;
+    }
+    
+    container.innerHTML = results.map(r => `
+      <div onclick="selectVoiceboxTopic('${escapeHtml(r.id)}')" style="padding:10px;background:#161b22;border:1px solid #30363d;border-radius:6px;cursor:pointer;transition:all;" onmouseover="this.style.borderColor='#58a6ff'" onmouseout="this.style.borderColor='#30363d'">
+        <div style="font-weight:bold;color:#c9d1d9;font-size:12px;margin-bottom:4px;" class="truncate">${escapeHtml(r.title || r.topic)}</div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#8b949e;">
+          <span>${r.category || '일반'}</span>
+          <span>${(r.script || '').length}자</span>
+        </div>
+      </div>
+    `).join('');
+    
+    // Auto-select first item
+    if (results.length > 0) {
+      selectVoiceboxTopic(results[0].id);
+    }
+  } catch (e) {
+    container.innerHTML = '<div class="empty" style="padding:16px;color:#f85149;">대본 목록 로딩 실패</div>';
+  }
+}
+
+async function selectVoiceboxTopic(resultId) {
+  try {
+    const data = await api('GET', `/api/generated-results/${encodeURIComponent(resultId)}`);
+    if (!data) return;
+    
+    voiceboxCurrentTopic = data;
+    voiceboxCurrentAudioFile = null;
+    
+    const editor = document.getElementById('voicebox-script-editor');
+    const titleEl = document.getElementById('voicebox-script-title');
+    const metaEl = document.getElementById('voicebox-script-meta');
+    const resultCard = document.getElementById('voicebox-audio-result-card');
+    
+    if (editor) editor.value = data.script || '';
+    if (titleEl) titleEl.textContent = `📜 ${data.title || data.topic}`;
+    if (metaEl) metaEl.textContent = `${(data.script || '').length.toLocaleString()}자 대본`;
+    if (resultCard) resultCard.style.display = 'none';
+  } catch (e) {
+    showToast('대본 로딩 실패', 'error');
+  }
+}
+
+async function generateVoiceboxTts() {
+  const editor = document.getElementById('voicebox-script-editor');
+  const btn = document.getElementById('voicebox-gen-btn');
+  const presetSelect = document.getElementById('voicebox-preset-select');
+  const speedRange = document.getElementById('voicebox-speed-range');
+  
+  if (!editor || !editor.value.trim()) {
+    showToast('대본 내용이 비어 있습니다.', 'warning');
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> GPU로 음성 생성 중...';
+  
+  try {
+    const payload = {
+      script: editor.value.trim(),
+      voice_id: presetSelect ? presetSelect.value : 'narrator_calm_kr',
+      speed: speedRange ? parseFloat(speedRange.value) : 1.0,
+      topic_id: voiceboxCurrentTopic ? voiceboxCurrentTopic.topic_id : null,
+    };
+    
+    const res = await api('POST', '/api/voicebox/generate', payload);
+    if (!res || !res.success) {
+      showToast('Voicebox 생성 실패: ' + (res?.detail || '오류'), 'error');
+      return;
+    }
+    
+    voiceboxCurrentAudioFile = res.filename;
+    
+    const resultCard = document.getElementById('voicebox-audio-result-card');
+    const player = document.getElementById('voicebox-audio-player');
+    const meta = document.getElementById('voicebox-audio-meta');
+    
+    if (player) {
+      player.src = `/api/voicebox/audio/${res.filename}?t=${Date.now()}`;
+      player.load();
+    }
+    if (meta) {
+      meta.innerHTML = `<span>크기: ${(res.file_size / 1024).toFixed(1)} KB</span><span>생성시간: ${res.elapsed_seconds}초</span>`;
+    }
+    if (resultCard) {
+      resultCard.style.display = 'flex';
+    }
+    
+    showToast(`🎉 Voicebox TTS 음성 생성이 완료되었습니다! (${res.elapsed_seconds}초 소요)`, 'success');
+  } catch (e) {
+    showToast('Voicebox TTS 생성 통신 오류: ' + e, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🎙️</span> Voicebox로 TTS 생성';
+  }
+}
+
+async function saveVoiceboxToSupabase() {
+  if (!voiceboxCurrentAudioFile) {
+    showToast('먼저 TTS를 생성해주세요.', 'warning');
+    return;
+  }
+  
+  const saveBtn = document.getElementById('voicebox-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '☁️ Supabase 저장 중...';
+  
+  try {
+    const topicId = (voiceboxCurrentTopic && voiceboxCurrentTopic.topic_id) ? voiceboxCurrentTopic.topic_id : (voiceboxCurrentTopic ? voiceboxCurrentTopic.id : null);
+    const presetSelect = document.getElementById('voicebox-preset-select');
+    
+    const payload = {
+      topic_id: topicId,
+      audio_filename: voiceboxCurrentAudioFile,
+      voice_id: presetSelect ? presetSelect.value : 'voicebox',
+    };
+    
+    const res = await api('POST', '/api/voicebox/save-to-supabase', payload);
+    if (res && res.success) {
+      showToast('✅ ' + res.message, 'success');
+      saveBtn.textContent = '✅ Supabase 연동 완료';
+    } else {
+      showToast('Supabase 저장 실패: ' + (res?.detail || '오류'), 'error');
+      saveBtn.disabled = false;
+      saveBtn.textContent = '☁️ Supabase에 저장 & 유저앱 연동 완료';
+    }
+  } catch (e) {
+    showToast('Supabase 저장 통신 실패: ' + e, 'error');
+    saveBtn.disabled = false;
+    saveBtn.textContent = '☁️ Supabase에 저장 & 유저앱 연동 완료';
+  }
+}
+
 
 /* ── Init ── */
 refreshAll();

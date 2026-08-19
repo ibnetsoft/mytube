@@ -73,11 +73,17 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 structure: topic.pregenerated_structure || {},
                 image_grid_prompts: imageGridPrompts,
                 publish_metadata: topic.publish_metadata || topic.progress_payload?.publish_metadata || {},
+                audio_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
+                tts_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
+                tts_provider: (topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url) ? 'voicebox' : null,
             },
             progress_payload: {
                 scene_count: summary.scene_count,
                 image_grid_prompt_count: imageGridPrompts.length,
                 ready_scene_count: 0,
+                has_tts_audio: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
+                tts_completed: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
+                tts_provider: (topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url) ? 'voicebox' : null,
             },
         })
         .select('*')
