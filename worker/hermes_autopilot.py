@@ -16,7 +16,7 @@ import re
 import time
 import httpx
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 
 import job_store
@@ -401,7 +401,7 @@ class HermesAutopilotManager:
         channel_ids = self._merge_channel_ids(channel_ids)
         if not supabase_url or not headers.get("apikey") or not category or not channel_ids:
             return
-        now_iso = datetime.utcnow().isoformat() + "Z"
+        now_iso = datetime.now(timezone.utc).isoformat()
         allowed_source = source if source in {"auto", "manual", "local_sync", "import"} else "auto"
         rows = [
             {
@@ -457,8 +457,8 @@ class HermesAutopilotManager:
                         "channel_id": f"in.({quoted_ids})",
                     },
                     json={
-                        "last_used_at": datetime.utcnow().isoformat() + "Z",
-                        "updated_at": datetime.utcnow().isoformat() + "Z",
+                        "last_used_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )
         except Exception:

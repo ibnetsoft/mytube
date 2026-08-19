@@ -223,3 +223,79 @@ def test_old_story_context_repairs_mojibake_title_for_retry_jobs():
         mojibake_title,
         "3d_render",
     )
+
+
+def test_all_8_categories_have_repetition_repair_handlers_and_pass_qa():
+    repeated_structure = {
+        "scenes": [
+            {
+                "scene_summary": "같은 장면 요약이 계속 반복된다",
+                "scene_purpose": "같은 목적",
+                "retention_hook": "같은 훅",
+            }
+            for _ in range(14)
+        ]
+    }
+    
+    # 1. 노후금융
+    finance_rep = hermes_worker._repair_finance_scene_plan_repetition(repeated_structure, "노후연금", "노후연금 이야기")
+    assert not hermes_worker._scene_plan_repetition_errors(finance_rep)
+    
+    # 2. 경제
+    econ_rep = hermes_worker._repair_macro_economy_scene_plan_repetition(repeated_structure, "환율 금리", "환율 금리 폭등")
+    assert not hermes_worker._scene_plan_repetition_errors(econ_rep)
+    
+    # 3. 무협
+    martial_rep = hermes_worker._repair_martial_scene_plan_repetition(repeated_structure, "강호 비급", "강호 전설의 비급")
+    assert not hermes_worker._scene_plan_repetition_errors(martial_rep)
+    
+    # 4. 탈북사연
+    survival_rep = hermes_worker._repair_survival_story_scene_plan_repetition(repeated_structure, "두만강 국경", "두만강 탈출 실화")
+    assert not hermes_worker._scene_plan_repetition_errors(survival_rep)
+    
+    # 5. 황혼19금
+    twilight_rep = hermes_worker._repair_twilight_scene_plan_repetition(repeated_structure, "황혼 재회", "30년 만의 황혼 재회")
+    assert not hermes_worker._scene_plan_repetition_errors(twilight_rep)
+    
+    # 6. 한국사연
+    korean_rep = hermes_worker._repair_korean_drama_scene_plan_repetition(repeated_structure, "시댁 갈등", "시댁의 무리한 요구를 응징한 사연")
+    assert not hermes_worker._scene_plan_repetition_errors(korean_rep)
+    
+    # 7. 해외감동
+    overseas_rep = hermes_worker._repair_overseas_touching_scene_plan_repetition(repeated_structure, "외국인 은인", "타국에서 만난 참전용사 은인")
+    assert not hermes_worker._scene_plan_repetition_errors(overseas_rep)
+    
+    # 8. 옛날이야기
+    old_rep = hermes_worker._repair_old_story_scene_plan_repetition(repeated_structure, "조선시대 야담", "조선시대 야담 실화")
+    assert not hermes_worker._scene_plan_repetition_errors(old_rep)
+
+
+def test_all_8_categories_have_visual_motifs_refreshed():
+    base_structure = {
+        "scenes": [
+            {"scene_summary": f"장면 {i}", "scene_purpose": "목적", "retention_hook": "훅"}
+            for i in range(1, 13)
+        ]
+    }
+    all_categories = ["노후금융", "경제", "무협", "탈북사연", "황혼19금", "한국사연", "해외감동", "옛날이야기"]
+    for cat in all_categories:
+        refreshed = hermes_worker._refresh_scene_visual_fields_for_category(cat, base_structure, f"{cat} 주제", f"{cat} 제목")
+        scenes = refreshed.get("scenes") or []
+        assert len(scenes) == 12
+        for scene in scenes:
+            assert scene.get("visual_direction")
+            assert scene.get("tts_direction")
+            assert scene.get("end_bridge")
+
+
+def test_all_8_categories_have_rescue_scripts():
+    structure = {"scenes": [{"scene_summary": "장면 1"}]}
+    assert len(hermes_worker._build_finance_rescue_script("노후금융", "노후금융 제목", structure)) >= 1000
+    assert len(hermes_worker._build_economy_rescue_script("경제", "경제 지표 분석", structure)) >= 1000
+    assert len(hermes_worker._build_martial_rescue_script("무협", "무협 복수극", structure)) >= 1000
+    assert len(hermes_worker._build_survival_rescue_script("탈북사연", "두만강 탈출", structure)) >= 1000
+    assert len(hermes_worker._build_twilight_rescue_script("황혼19금", "황혼의 사랑", structure)) >= 1000
+    assert len(hermes_worker._build_korean_drama_rescue_script("한국사연", "사이다 응징", structure)) >= 1000
+    assert len(hermes_worker._build_overseas_rescue_script("해외감동", "해외 은인 재회", structure)) >= 1000
+    assert len(hermes_worker._build_old_story_grave_vigil_rescue_script("옛날이야기", "무덤 지킨 며느리", structure)) >= 1000
+

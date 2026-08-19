@@ -64,6 +64,13 @@ _ECONOMY_TERMS = (
     "나스닥",
     "비트코인",
 )
+_CATEGORY_CONTAMINATION_MAP = {
+    "옛날이야기": _ECONOMY_TERMS,
+    "무협": ("스마트폰", "아파트", "달러", "주식", "비행기", "경찰", "CCTV", "엘리베이터", "지하철"),
+    "탈북사연": ("비급", "장문인", "사부", "단전", "내공", "무림", "호랑이 사냥꾼", "조선시대"),
+    "경제": ("비급", "장문인", "사부", "도련님", "호랑이 사냥꾼", "조선시대", "며느리", "시어머니"),
+    "노후금융": ("비급", "장문인", "사부", "호랑이 사냥꾼", "조선시대"),
+}
 _METADATA_INTERNAL_TERMS = (
     "AI",
     "worker",
@@ -182,8 +189,8 @@ def validate_generation_package(
             score = int(float(script_quality.get("score") or 0))
         except (TypeError, ValueError):
             score = 0
-        # QA score is informational for monitoring and does not block package validation
-        pass
+        if verdict != "pass":
+            errors.append(f"script_quality_report not passing: verdict={verdict or 'missing'}, score={score}")
 
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")
@@ -201,7 +208,8 @@ def validate_generation_package(
     if any(marker in script for marker in _FALLBACK_SCRIPT_MARKERS):
         errors.append("script contains fallback/scratch English template text")
 
-    if category == "옛날이야기":
+    contamination_terms = _CATEGORY_CONTAMINATION_MAP.get(category)
+    if contamination_terms:
         context_blob = json.dumps(
             {
                 "topic": payload.get("topic") or payload.get("generated_title"),
@@ -211,8 +219,11 @@ def validate_generation_package(
             },
             ensure_ascii=False,
         )
-        if re.search("|".join(re.escape(term) for term in _ECONOMY_TERMS), context_blob, re.I):
-            errors.append("off-category economy contamination detected for old-story category")
+        if re.search("|".join(re.escape(term) for term in contamination_terms), context_blob, re.I):
+            if category == "옛날이야기":
+                errors.append("off-category economy contamination detected for old-story category")
+            else:
+                errors.append(f"off-category contamination detected for category '{category}'")
 
     video_prompts: list[tuple[str, str]] = []
     for fallback_number, scene in enumerate(scenes, start=1):

@@ -98,9 +98,13 @@ class RemoteDriveWorker:
 
     def _request(self, method, url, **kwargs):
         import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        ssl_verify = os.getenv("SUPABASE_SSL_NO_VERIFY", "false").lower() == "true"
+        if ssl_verify:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            kwargs.setdefault("verify", False)
+        else:
+            kwargs.setdefault("verify", True)
         kwargs.setdefault("timeout", 30)
-        kwargs.setdefault("verify", False)
         kwargs.setdefault("proxies", {"http": None, "https": None})
         response = requests.request(method, url, headers=self.headers, **kwargs)
         if response.status_code >= 400:

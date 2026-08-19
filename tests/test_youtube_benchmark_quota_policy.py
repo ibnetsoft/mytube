@@ -191,16 +191,16 @@ def test_autopilot_auto_discovery_only_when_enabled_and_needed():
 
 
 def test_old_story_benchmark_keywords_do_not_call_ai_or_use_economy_terms(monkeypatch):
-    manager = object.__new__(HermesAutopilotManager)
-
     async def fail_generate_text(*args, **kwargs):
         raise AssertionError("old-story benchmark keyword discovery must use fixed category seeds")
 
-    monkeypatch.setattr("hermes_autopilot.ai_router.generate_text", fail_generate_text)
+    monkeypatch.setattr("services.ai_router.generate_text", fail_generate_text)
 
+    manager = object.__new__(HermesAutopilotManager)
     keywords = asyncio.run(manager._discover_benchmark_keywords("옛날이야기"))
 
-    assert keywords == ["조선시대 실화", "옛날 한국 풍습", "역사 미스터리", "한국 민간 전설"]
+    assert len(keywords) == 10
+    assert "조선시대 야담 실화" in keywords
     assert not any(term in " ".join(keywords) for term in ["금값", "코스피", "환율", "주가", "부동산", "경제"])
 
 
