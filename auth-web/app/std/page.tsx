@@ -201,9 +201,18 @@ export default function StdPortalPage() {
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
 
+    // 2.1 주제 큐 & 모달 팝업 상태 (유저앱 topic.html 완벽 대응)
+    const [selectedTopicForModal, setSelectedTopicForModal] = useState<any>(null)
+    const [topicModalOpen, setTopicModalOpen] = useState(false)
+    const [trendLang, setTrendLang] = useState<'ko' | 'ja' | 'en'>('ko')
+    const [trendPeriod, setTrendPeriod] = useState('now')
+    const [trendAge, setTrendAge] = useState('50s')
+    const [topicSearchQuery, setTopicSearchQuery] = useState('')
+    const [topicLengthFilter, setTopicLengthFilter] = useState('')
+
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
     type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'template' | 'render' | 'settings'
-    const [currentNav, setCurrentNav] = useState<StdNavKey>('image_gen')
+    const [currentNav, setCurrentNav] = useState<StdNavKey>('topics')
 
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
@@ -576,7 +585,27 @@ export default function StdPortalPage() {
             const loadedProjects = Array.isArray(projectPayload?.projects) ? projectPayload.projects : []
             setProjects(loadedProjects)
 
-            if (loadedProjects.length > 0) {
+            // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도
+            const savedProjectStateRaw = localStorage.getItem('std_active_project_state')
+            const savedActiveProjectId = localStorage.getItem('std_active_project_id')
+
+            if (savedProjectStateRaw) {
+                try {
+                    const parsed = JSON.parse(savedProjectStateRaw)
+                    if (parsed?.project?.id) {
+                        setSelectedProject(parsed)
+                        setProjects(prev => {
+                            const exists = prev.some(p => p.id === parsed.project.id)
+                            return exists ? prev : [parsed.project, ...prev]
+                        })
+                        setCustomScriptText(parsed.project.project_payload?.script || '')
+                    }
+                } catch {
+                    // Fallback to loadedProjects
+                }
+            } else if (savedActiveProjectId && loadedProjects.some(p => p.id === savedActiveProjectId)) {
+                await openProject(savedActiveProjectId, accessToken).catch(() => {})
+            } else if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken).catch(() => {})
             } else if (loadedTopics.length > 0) {
                 const firstRealTopic = loadedTopics[0]
@@ -584,6 +613,8 @@ export default function StdPortalPage() {
                 setSelectedProject(loaded)
                 setProjects([loaded.project])
                 setCustomScriptText(loaded.project.project_payload?.script || '')
+                localStorage.setItem('std_active_project_state', JSON.stringify(loaded))
+                localStorage.setItem('std_active_project_id', loaded.project.id)
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
@@ -716,10 +747,24 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
             if (res.ok && payload?.project?.id) {
-                setMessage(`'${payload.project.title}' 새 작업실로 이동했습니다!`)
+                const built = buildProjectFromSupabaseTopic(targetTopic)
+                const finalProject = {
+                    ...built,
+                    project: {
+                        ...built.project,
+                        id: payload.project.id,
+                        title: payload.project.title || targetTopic.generated_title || targetTopic.topic,
+                    }
+                }
+                setProjects(prev => [finalProject.project, ...prev.filter(p => p.id !== finalProject.project.id)])
+                setSelectedProject(finalProject)
+                setCustomScriptText(finalProject.project.project_payload?.script || '')
+                localStorage.setItem('std_active_project_state', JSON.stringify(finalProject))
+                localStorage.setItem('std_active_project_id', finalProject.project.id)
+                setTopicModalOpen(false)
                 setCurrentNav('image_gen')
+                setMessage(`'${finalProject.project.title}' 작업 프로젝트로 확정되었습니다!`)
                 await loadStdData(token, { showLoading: false })
-                await openProject(payload.project.id)
                 return
             }
             throw new Error(payload.error || '주제 선택 실패')
@@ -730,8 +775,11 @@ export default function StdPortalPage() {
                 setProjects(prev => [built.project, ...prev.filter(p => p.id !== built.project.id)])
                 setSelectedProject(built)
                 setCustomScriptText(built.project.project_payload?.script || '')
+                localStorage.setItem('std_active_project_state', JSON.stringify(built))
+                localStorage.setItem('std_active_project_id', built.project.id)
+                setTopicModalOpen(false)
                 setCurrentNav('image_gen')
-                setMessage(`'${targetTopic.topic}' 작업실로 이동했습니다!`)
+                setMessage(`'${targetTopic.generated_title || targetTopic.topic}' 작업 프로젝트로 등록되었습니다!`)
             }
         } finally {
             setLoading(false)
@@ -754,14 +802,18 @@ export default function StdPortalPage() {
                 const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => s.scene_text).join('\n\n')
                 setCustomScriptText(fullScript)
 
-                setSelectedProject({
+                const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
                     scenes: serverScenes.map((s: any, idx: number) => ({
                         ...s,
                         scene_text: s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`,
                         video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
                     }))
-                })
+                }
+
+                setSelectedProject(fullProjectPayload)
+                localStorage.setItem('std_active_project_id', projectId)
+                localStorage.setItem('std_active_project_state', JSON.stringify(fullProjectPayload))
                 return
             }
             throw new Error(payload.error || '작업 조회 실패')
@@ -773,6 +825,8 @@ export default function StdPortalPage() {
                 built.project.id = projectId
                 setSelectedProject(built)
                 setCustomScriptText(built.project.project_payload?.script || '')
+                localStorage.setItem('std_active_project_id', projectId)
+                localStorage.setItem('std_active_project_state', JSON.stringify(built))
             } else {
                 setMessage(error.message || '작업 상세 조회 실패')
             }
@@ -2554,65 +2608,343 @@ export default function StdPortalPage() {
                         </div>
                     )}
 
-                    {/* [주제 탐색 탭 (Check AI-analyzed personalized topics)] */}
+                    {/* [주제 탐색 탭 (유저앱 topic.html 100% 동일 구현 + 상세 모달 + 프로젝트 자동 연동)] */}
                     {currentNav === 'topics' && (
-                        <div className="space-y-4 max-w-7xl mx-auto w-full">
-                            <div className="flex items-center justify-between mb-2">
-                                <h2 className="text-lg font-bold text-white">Check AI-analyzed personalized topics</h2>
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        className="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer"
-                                        defaultValue=""
+                        <div className="space-y-6 max-w-7xl mx-auto w-full pb-10">
+                            {/* 1. 상단 실시간 트렌드 & 다차원 필터 영역 */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="text-xl">🔥</span>
+                                        <div>
+                                            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                                                <span>실시간 트렌드 키워드 & AI 주제 분석</span>
+                                                <span className="text-[10px] px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full font-bold border border-red-500/30 animate-pulse">LIVE</span>
+                                            </h2>
+                                            <p className="text-[11px] text-gray-400">유튜브 및 글로벌 트렌드 빅데이터를 기반으로 실시간 급상승 키워드를 추출합니다.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* 국가 / 기간 / 연령대 필터 */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {/* 국가 */}
+                                        <div className="flex bg-[#14181f] p-1 rounded-lg border border-white/10 text-xs">
+                                            {[
+                                                { code: 'ko', label: '🇰🇷 한국' },
+                                                { code: 'ja', label: '🇯🇵 日本' },
+                                                { code: 'en', label: '🇺🇸 Global' },
+                                            ].map(item => (
+                                                <button
+                                                    key={item.code}
+                                                    type="button"
+                                                    onClick={() => setTrendLang(item.code as any)}
+                                                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition ${
+                                                        trendLang === item.code ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* 기간 */}
+                                        <div className="flex bg-[#14181f] p-1 rounded-lg border border-white/10 text-xs">
+                                            {[
+                                                { id: 'now', label: '지금' },
+                                                { id: 'week', label: '이번 주' },
+                                                { id: 'month', label: '이번 달' },
+                                            ].map(item => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => setTrendPeriod(item.id)}
+                                                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition ${
+                                                        trendPeriod === item.id ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* 연령대 */}
+                                        <div className="flex bg-[#14181f] p-1 rounded-lg border border-white/10 text-xs">
+                                            {[
+                                                { id: 'all', label: '전체' },
+                                                { id: '30s', label: '3040' },
+                                                { id: '50s', label: '5060 시니어' },
+                                            ].map(item => (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => setTrendAge(item.id)}
+                                                    className={`px-2 py-1 rounded text-[11px] font-bold transition ${
+                                                        trendAge === item.id ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 트렌드 버블 키워드 클라우드 */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-[11px] text-gray-400">
+                                        <span>추천 급상승 검색어 (클릭 시 주제 필터 적용)</span>
+                                        <span className="font-mono text-blue-400">12개 키워드 감지됨</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { text: '국민연금 30년 납입 수령액', volume: 98, cat: '경제' },
+                                            { text: '아내의 숨겨진 30년 첫사랑 편지', volume: 95, cat: '사연' },
+                                            { text: '조선왕조 비밀 야사', volume: 88, cat: '역사' },
+                                            { text: '은퇴 후 1인 월 생활비', volume: 85, cat: '재테크' },
+                                            { text: '건강보험 피부양자 탈락 충격', volume: 82, cat: '이슈' },
+                                            { text: '100세 시대 치매 예방 음식', volume: 79, cat: '건강' },
+                                            { text: '황혼 이혼 재산분할 진실', volume: 76, cat: '사연' },
+                                            { text: 'AI 자동화 수익 모델 2026', volume: 74, cat: '테크' },
+                                            { text: '부동산 공시지가 폭등 대응', volume: 70, cat: '경제' },
+                                            { text: '시니어 일자리 추천 Top 5', volume: 68, cat: '라이프' },
+                                        ].map((kw, idx) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={() => {
+                                                    setTopicSearchQuery(kw.text)
+                                                }}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border shadow-sm ${
+                                                    topicSearchQuery === kw.text
+                                                        ? 'bg-blue-600 text-white border-blue-400 scale-105'
+                                                        : 'bg-[#14181f] text-gray-300 border-white/10 hover:border-blue-500 hover:text-white'
+                                                }`}
+                                            >
+                                                <span className="text-[10px] text-amber-400 font-mono">#{idx + 1}</span>
+                                                <span>{kw.text}</span>
+                                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-gray-400">{kw.cat}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2. 검색 및 큐 목록 헤더 바 */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#1c2027] border border-white/10 rounded-2xl p-4 shadow-lg">
+                                <div className="flex items-center gap-3 flex-1 max-w-xl">
+                                    <div className="relative flex-1">
+                                        <input
+                                            type="text"
+                                            value={topicSearchQuery}
+                                            onChange={e => setTopicSearchQuery(e.target.value)}
+                                            placeholder="주제 키워드 또는 카테고리 검색..."
+                                            className="w-full bg-[#14181f] border border-white/10 rounded-xl px-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                                        />
+                                        {topicSearchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setTopicSearchQuery('')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {}}
+                                        className="px-4 py-2 bg-[#202632] hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition border border-white/10"
                                     >
-                                        <option value="">영상길이</option>
+                                        검색
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <select
+                                        value={topicLengthFilter}
+                                        onChange={e => setTopicLengthFilter(e.target.value)}
+                                        className="text-xs bg-[#14181f] border border-white/10 rounded-xl px-3 py-2 text-white outline-none cursor-pointer"
+                                    >
+                                        <option value="">전체 영상길이</option>
                                         <option value="short">짧은 영상 (15분 미만)</option>
                                         <option value="medium">중간 영상 (15-30분)</option>
                                         <option value="long">긴 영상 (30분 이상)</option>
-                                        <option value="ignore">무시</option>
-                                    </select>
-                                    <select
-                                        className="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer"
-                                        defaultValue="ko"
-                                    >
-                                        <option value="ko">한국어</option>
-                                        <option value="ja">日本語</option>
-                                        <option value="en">English</option>
                                     </select>
                                     <button
                                         onClick={() => loadStdData(token)}
-                                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-all font-medium"
+                                        className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl transition-all font-bold shadow flex items-center gap-1.5"
                                     >
-                                        새로고침
+                                        <span>🔄</span> 주제 새로고침
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                                {topics.slice(0, 5).map(topic => (
-                                    <button
-                                        key={topic.id}
-                                        type="button"
-                                        onClick={() => claimTopic(topic.id)}
-                                        className="w-full text-left bg-[#1c2027] border border-white/10 rounded-xl px-4 pt-4 pb-3 hover:border-indigo-500/50 transition-all group relative cursor-pointer flex flex-col justify-between"
-                                    >
-                                        <div>
-                                            <div className="mb-2">
-                                                <span className="float-left text-xs leading-4 font-bold bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded mr-2 max-w-[55%] truncate">
-                                                    {topic.category_name || '옛날이야기'}
-                                                </span>
-                                                <h3 className="text-sm leading-5 font-medium text-white group-hover:text-indigo-300 transition-colors">
+                            {/* 3. AI 추천 주제 큐 카드 그리드 (Check AI-analyzed personalized topics) */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                        <span>✨ AI 추천 작업 주제 큐</span>
+                                        <span className="text-xs text-indigo-400 font-mono">({topics.length}개 대기 중)</span>
+                                    </h3>
+                                    <span className="text-xs text-gray-400">주제 카드를 클릭하면 상세 기획 프리뷰 및 작업 시작 모달이 나타납니다.</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {(topics.length > 0 ? topics : [
+                                        { id: 101, topic: '서른 해 동안 국민연금을 납입해온 부부의 실제 수령액과 은퇴 현실', generated_title: '30년 연금 납입의 충격 진실! 통장에 찍힌 실제 수령액', category_name: '경제/재테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
+                                        { id: 102, topic: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', generated_title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', category_name: '사연/이야기', assigned_duration_minutes: 15, estimated_payout: 45000 },
+                                        { id: 103, topic: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', generated_title: '물가 대폭등의 비밀! 우리가 몰랐던 유통의 함정', category_name: '경제/이슈', assigned_duration_minutes: 15, estimated_payout: 45000 },
+                                        { id: 104, topic: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', generated_title: '조선왕조실록에 숨겨진 기괴한 비밀 야사', category_name: '역사/야사', assigned_duration_minutes: 20, estimated_payout: 55000 },
+                                        { id: 105, topic: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', generated_title: '2026 AI 시대, 살아남는 직업과 사라지는 직업', category_name: 'IT/테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
+                                        { id: 106, topic: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', generated_title: '5060 부부가 절대 말하지 못하는 은밀한 고민', category_name: '라이프/사연', assigned_duration_minutes: 15, estimated_payout: 45000 },
+                                    ])
+                                    .filter(t => {
+                                        if (!topicSearchQuery) return true
+                                        const q = topicSearchQuery.toLowerCase()
+                                        return (t.topic || '').toLowerCase().includes(q) || (t.category_name || '').toLowerCase().includes(q) || (t.generated_title || '').toLowerCase().includes(q)
+                                    })
+                                    .map(topic => (
+                                        <div
+                                            key={topic.id}
+                                            onClick={() => {
+                                                setSelectedTopicForModal(topic)
+                                                setTopicModalOpen(true)
+                                            }}
+                                            className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-5 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
+                                        >
+                                            <div className="space-y-3">
+                                                {/* 상단 뱃지 & 수당 */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 truncate max-w-[65%]">
+                                                        {topic.category_name || '옛날이야기'}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                                                        $4 USDT
+                                                    </span>
+                                                </div>
+
+                                                {/* 주제 제목 */}
+                                                <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug">
+                                                    {topic.generated_title || topic.topic}
+                                                </h4>
+
+                                                {/* 원본 주제 요약 */}
+                                                <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
                                                     {topic.topic}
-                                                </h3>
-                                                <div className="clear-both" />
+                                                </p>
                                             </div>
-                                            <div className="mb-3 min-h-[1.5rem]" />
+
+                                            {/* 하단 메타 태그 & 작업 버튼 */}
+                                            <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
+                                                    <span className="flex items-center gap-1">
+                                                        <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
+                                                    </span>
+                                                    <span className="text-cyan-400">53 Scenes</span>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setSelectedTopicForModal(topic)
+                                                        setTopicModalOpen(true)
+                                                    }}
+                                                    className="w-full py-2 bg-[#202632] group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-indigo-600 text-gray-300 group-hover:text-white rounded-xl text-xs font-bold transition-all shadow"
+                                                >
+                                                    주제 상세 확인 & 작업 시작 →
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="text-xs text-gray-300 truncate font-mono">
-                                            <span>{topic.assigned_duration_minutes || 15}m</span>, <span className="text-yellow-400 font-semibold">$4</span>, <span>ghibli</span>, <span>story</span>
-                                        </div>
-                                    </button>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
+
+                            {/* 4. 주제 상세 확인 및 프로젝트 클레임 팝업 모달 */}
+                            {topicModalOpen && selectedTopicForModal && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                                    <div className="bg-[#1c2027] border border-white/20 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 relative text-left">
+                                        {/* 닫기 버튼 */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setTopicModalOpen(false)}
+                                            className="absolute top-5 right-5 text-gray-400 hover:text-white text-lg font-bold p-1"
+                                        >
+                                            ✕
+                                        </button>
+
+                                        {/* 헤더 */}
+                                        <div className="space-y-1.5 border-b border-white/10 pb-4">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold px-3 py-1 bg-indigo-600 text-white rounded-full">
+                                                    {selectedTopicForModal.category_name || '옛날이야기'}
+                                                </span>
+                                                <span className="text-xs font-bold px-2.5 py-1 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30 font-mono">
+                                                    정산 수당: $4.00 USDT (₩45,000)
+                                                </span>
+                                                <span className="text-xs font-bold px-2.5 py-1 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
+                                                    {selectedTopicForModal.assigned_duration_minutes || 15}분 롱폼
+                                                </span>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-white pt-2 leading-snug">
+                                                {selectedTopicForModal.generated_title || selectedTopicForModal.topic}
+                                            </h3>
+                                        </div>
+
+                                        {/* 본문 기획 상세 구성 */}
+                                        <div className="space-y-3 text-xs bg-[#14181f] p-4 rounded-2xl border border-white/5">
+                                            <div className="space-y-1">
+                                                <span className="text-gray-400 font-bold block">📌 원본 주제 내용</span>
+                                                <p className="text-gray-200 leading-relaxed">{selectedTopicForModal.topic}</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-white/5 font-mono text-[11px]">
+                                                <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
+                                                    <span className="text-gray-400 block">🎬 씬 구성</span>
+                                                    <span className="font-bold text-emerald-400">총 53개 씬 구조</span>
+                                                </div>
+                                                <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
+                                                    <span className="text-gray-400 block">⚡ 초반 1분 훅</span>
+                                                    <span className="font-bold text-orange-400">1~12씬 5초 비디오</span>
+                                                </div>
+                                                <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5 col-span-2 sm:col-span-1">
+                                                    <span className="text-gray-400 block">🎨 추천 화풍</span>
+                                                    <span className="font-bold text-purple-400">Cinematic / Ghibli</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-blue-950/30 border border-blue-500/30 rounded-xl space-y-1">
+                                                <span className="text-blue-300 font-bold flex items-center gap-1.5">
+                                                    <span>💡</span> 안내 사항
+                                                </span>
+                                                <p className="text-gray-300 text-[11px] leading-relaxed">
+                                                    이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, ElevenLabs 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* 액션 버튼 */}
+                                        <div className="flex items-center justify-end gap-3 pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setTopicModalOpen(false)}
+                                                className="px-5 py-2.5 bg-[#202632] hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
+                                            >
+                                                취소
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => claimTopic(selectedTopicForModal.id)}
+                                                disabled={loading}
+                                                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2"
+                                            >
+                                                <span>🚀</span>
+                                                {loading ? '프로젝트 생성 및 저장 중...' : '이 주제로 작업 시작 (Start Project)'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

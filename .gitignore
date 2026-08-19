@@ -6,6 +6,9 @@ dist/
 build/
 *.spec
 !packaging/windows/*.spec
+*.msi
+_tmp_image_gen_scripts/
+scratch/
 output/
 data/
 # [AIR-0227E-P2-VALIDATION] vendored build inputs (e.g. ffprobe.exe, ~87MB) -
