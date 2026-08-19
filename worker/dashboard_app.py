@@ -1318,6 +1318,36 @@ async def api_autopilot_stop(
 # ---------------------------------------------------------------------------
 # Voicebox GPU TTS API Endpoints
 # ---------------------------------------------------------------------------
+@app.get("/api/voicebox/history")
+async def api_voicebox_history(
+    topic_id: str | None = None,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from pathlib import Path
+    output_dir = Path(__file__).resolve().parent / "voicebox_outputs"
+    if not output_dir.exists():
+        return {"history": []}
+        
+    files = list(output_dir.glob("*.mp3")) + list(output_dir.glob("*.wav"))
+    files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+    
+    history = []
+    for f in files[:30]:
+        stat = f.stat()
+        mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime))
+        history.append({
+            "filename": f.name,
+            "url": f"/api/voicebox/audio/{f.name}",
+            "size_kb": round(stat.st_size / 1024, 1),
+            "created_at": mtime,
+            "timestamp": stat.st_mtime,
+        })
+        
+    return {"history": history}
+
+
 @app.get("/api/voicebox/topics")
 async def api_voicebox_topics(
     authorization: str | None = Header(default=None),
@@ -2217,9 +2247,11 @@ tr:hover { background: #161b22; }
               <span>&#x1F399;</span> Voicebox로 TTS 생성
             </button>
 
-            <!-- 생성된 오디오 미리듣기 영역 -->
-            <div id="voicebox-audio-result-card" style="display:none;padding:12px;background:#161b22;border:1px solid #30363d;border-radius:8px;flex-direction:column;gap:8px;">
-              <div style="font-size:12px;color:#2ea043;font-weight:bold;">&#x2705; 생성된 Voicebox 오디오</div>
+            <!-- 실시간 생성된 오디오 완료 카드 -->
+            <div id="voicebox-audio-result-card" style="display:none;padding:12px;background:#161b22;border:1px solid #238636;border-radius:8px;flex-direction:column;gap:8px;box-shadow:0 0 10px rgba(35,134,54,0.2);">
+              <div style="font-size:12px;color:#7ee787;font-weight:bold;display:flex;align-items:center;gap:4px;">
+                <span>🎉</span> 방금 생성 완료된 음성
+              </div>
               <audio id="voicebox-audio-player" controls style="width:100%;height:32px;"></audio>
               <div style="display:flex;justify-content:space-between;font-size:11px;color:#8b949e;" id="voicebox-audio-meta">
                 <span>파일 크기: -</span>
@@ -2241,6 +2273,19 @@ tr:hover { background: #161b22; }
                 <div style="font-size:12px;color:#f0f6fc;font-weight:bold;line-height:1.4;word-break:break-all;" id="voicebox-target-title">
                   선택된 주제 제목이 표시됩니다.
                 </div>
+              </div>
+            </div>
+
+            <!-- 생성 이력 (히스토리) 리스트 -->
+            <div style="border-top:1px solid #30363d;padding-top:14px;margin-top:6px;display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;font-weight:bold;color:#c9d1d9;display:flex;align-items:center;gap:4px;">
+                  <span>📜</span> 음성 생성 이력 (<span id="voicebox-history-count" style="color:#58a6ff;">0</span>)
+                </span>
+                <button class="btn btn-sm" onclick="loadVoiceboxHistory()" style="font-size:10px;padding:2px 8px;">새로고침</button>
+              </div>
+              <div id="voicebox-history-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;padding-right:2px;">
+                <div class="info" style="font-size:11px;">생성 이력을 불러오는 중...</div>
               </div>
             </div>
 
@@ -4732,12 +4777,72 @@ async function stopAutopilot() {
 
 
 /* ─── Voicebox TTS Controller ─── */
+
+async function loadVoiceboxHistory() {
+  const container = document.getElementById('voicebox-history-list');
+  const countEl = document.getElementById('voicebox-history-count');
+  if (!container) return;
+  
+  try {
+    const res = await api('GET', '/api/voicebox/history');
+    const history = (res && res.history) ? res.history : [];
+    
+    if (countEl) countEl.textContent = history.length;
+    
+    if (!history.length) {
+      container.innerHTML = '<div class="empty" style="padding:12px;font-size:11px;">생성된 음성 파일이 없습니다.</div>';
+      return;
+    }
+    
+    container.innerHTML = history.map((item, idx) => `
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+          <span style="font-weight:bold;color:#58a6ff;font-family:monospace;font-size:10px;" class="truncate">${escapeHtml(item.filename)}</span>
+          <span style="color:#8b949e;font-size:10px;">${item.size_kb} KB</span>
+        </div>
+        <div style="font-size:10px;color:#8b949e;margin-top:-2px;">🕒 ${item.created_at}</div>
+        <audio src="${item.url}" controls style="width:100%;height:26px;margin-top:2px;"></audio>
+        <div style="display:flex;gap:6px;margin-top:2px;">
+          <a href="${item.url}" download="${item.filename}" class="btn btn-sm" style="flex:1;text-align:center;font-size:10px;padding:3px 0;background:#21262d;color:#c9d1d9;text-decoration:none;border-radius:4px;border:1px solid #30363d;">
+            ⬇️ 다운로드
+          </a>
+          <button onclick="selectHistoryAudio('${item.filename}')" class="btn btn-sm" style="flex:1.4;font-size:10px;padding:3px 0;background:#238636;color:#fff;border:none;border-radius:4px;font-weight:bold;">
+            ☁️ Supabase 연동
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="empty" style="padding:12px;font-size:11px;color:#f85149;">이력 불러오기 실패</div>';
+  }
+}
+
+function selectHistoryAudio(filename) {
+  voiceboxCurrentAudioFile = filename;
+  const player = document.getElementById('voicebox-audio-player');
+  const resultCard = document.getElementById('voicebox-audio-result-card');
+  const meta = document.getElementById('voicebox-audio-meta');
+  
+  if (player) {
+    player.src = `/api/voicebox/audio/${filename}?t=${Date.now()}`;
+    player.load();
+  }
+  if (meta) {
+    meta.innerHTML = `<span>선택된 파일: ${filename}</span><span>준비 완료</span>`;
+  }
+  if (resultCard) {
+    resultCard.style.display = 'flex';
+  }
+  showToast(`선택된 파일(${filename})로 Supabase 연동 준비가 되었습니다. 'Supabase에 저장' 버튼을 누르세요.`, 'success');
+}
+
 let voiceboxCurrentTopic = null;
 let voiceboxCurrentAudioFile = null;
 
 async function loadVoiceboxTtsTab() {
   await loadVoiceboxPresets();
   await loadVoiceboxTopics();
+  await loadVoiceboxHistory();
 }
 
 async function loadVoiceboxPresets() {
@@ -4894,6 +4999,7 @@ async function generateVoiceboxTts() {
     }
     
     showToast(`🎉 Voicebox TTS 음성 생성이 완료되었습니다! (${res.elapsed_seconds}초 소요)`, 'success');
+    await loadVoiceboxHistory();
   } catch (e) {
     showToast('Voicebox TTS 생성 통신 오류: ' + e, 'error');
   } finally {
