@@ -122,7 +122,66 @@ export function splitTextToSingleLineChunks(text: string, maxChars: number = 18)
     return chunks
 }
 
-// 4. 전체 대본을 잘게 나누어 씬별 타임라인과 1:1로 매칭되는 1줄 자막 목록 생성
+// 4. 전체 대본을 53개 씬에 맞게 균등/지능형으로 분할 매핑하는 유틸리티
+export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCount: number = 53): string[] {
+    if (!rawScriptText || !rawScriptText.trim()) {
+        return Array.from({ length: totalScenesCount }, (_, i) => `씬 ${i + 1} 나레이션`)
+    }
+
+    const cleanLines = rawScriptText
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        // 화자 태그 (진행자1:, 나레이터: 등) 정제
+        .map(l => l.replace(/^(?:진행자\d+|나레이터|화자\d+|호스트|해설자|Speaker\s*\d+)\s*[:：]\s*/i, '').trim())
+        .filter(l => l.length > 0)
+
+    if (cleanLines.length === 0) {
+        return Array.from({ length: totalScenesCount }, (_, i) => `씬 ${i + 1} 나레이션`)
+    }
+
+    // 전체 대본 텍스트를 문장 단위로 분할
+    const fullText = cleanLines.join(' ')
+    const sentences = fullText.match(/[^.!?]+[.!?]+/g) || fullText.split('\n')
+    const cleanedSentences = sentences.map(s => s.trim()).filter(s => s.length > 0)
+
+    if (cleanedSentences.length >= totalScenesCount) {
+        const sentencesPerScene = Math.max(1, Math.floor(cleanedSentences.length / totalScenesCount))
+        const result: string[] = []
+        let curIdx = 0
+        for (let i = 0; i < totalScenesCount; i++) {
+            if (i === totalScenesCount - 1) {
+                result.push(cleanedSentences.slice(curIdx).join(' '))
+            } else {
+                result.push(cleanedSentences.slice(curIdx, curIdx + sentencesPerScene).join(' '))
+                curIdx += sentencesPerScene
+            }
+        }
+        return result
+    }
+
+    // 문장 수가 53개보다 적으면 글자수 기준으로 53개 블록으로 분할
+    const totalChars = fullText.length
+    const charsPerScene = Math.max(15, Math.floor(totalChars / totalScenesCount))
+    const result: string[] = []
+    let offset = 0
+    for (let i = 0; i < totalScenesCount; i++) {
+        if (i === totalScenesCount - 1) {
+            result.push(fullText.slice(offset).trim())
+        } else {
+            let nextOffset = offset + charsPerScene
+            const spaceIdx = fullText.indexOf(' ', nextOffset - 5)
+            if (spaceIdx !== -1 && spaceIdx < nextOffset + 15) {
+                nextOffset = spaceIdx + 1
+            }
+            result.push(fullText.slice(offset, nextOffset).trim())
+            offset = nextOffset
+        }
+    }
+    return result
+}
+
+// 5. 전체 대본을 잘게 나누어 씬별 타임라인과 1:1로 매칭되는 1줄 자막 목록 생성
 export function generateSynchronizedSubtitles(
     rawScriptText: string,
     scenes: any[],
@@ -130,70 +189,24 @@ export function generateSynchronizedSubtitles(
 ): StdSubtitleItem[] {
     const sceneTimings = calculateLongformSceneTimings(scenes)
     const totalScenes = sceneTimings.length
-
-    const fallbackStories = [
-        "서른 해 동안",
-        "한 번도 거르지 않고",
-        "국민연금을 성실히 납입해온",
-        "평범한 부부가 있습니다.",
-        "그리고 오늘, 그들이 마주한",
-        "통장 한 장이 있습니다.",
-        "검은 잉크로 인쇄된",
-        "'국민연금' 항목 옆에",
-        "적힌 숫자를 보며",
-        "부부는 아무 말도 못 합니다.",
-        "30년 차 부부의 실제 수령액,",
-        "과연 얼마였을까요?",
-    ]
+    const partitionedScenes = partitionScriptTo53Scenes(rawScriptText, totalScenes)
 
     const subtitles: StdSubtitleItem[] = []
 
-    // 씬 1~12: 5.0초 고정 훅 구간 처리 (씬당 2~3개의 1줄 자막으로 잘게 분할)
-    for (let sNum = 1; sNum <= 12; sNum++) {
+    for (let sNum = 1; sNum <= totalScenes; sNum++) {
         const timing = sceneTimings[sNum - 1]
         const sceneData = scenes[sNum - 1] || {}
-        let pureText = cleanKoreanScriptLine(sceneData.script_excerpt || sceneData.scene_text || '')
-        if (!pureText || pureText.length < 3) {
-            pureText = fallbackStories[(sNum - 1) % fallbackStories.length]
+        const isHook = sNum <= 12
+
+        // rawScriptText에서 분할된 텍스트가 있으면 최우선 적용, 없으면 sceneData fallback
+        let pureText = cleanKoreanScriptLine(partitionedScenes[sNum - 1] || sceneData.script_excerpt || sceneData.scene_text || sceneData.text || '')
+        if (!pureText || pureText.length < 2) {
+            pureText = cleanKoreanScriptLine(sceneData.script_excerpt || sceneData.scene_text || sceneData.text || `씬 ${sNum} 나레이션`)
         }
 
         const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)
         const chunkCount = Math.max(1, chunks.length)
-        const chunkDuration = Math.round((5.0 / chunkCount) * 10) / 10
-
-        chunks.forEach((chunkText, cIdx) => {
-            const subStart = Math.round((timing.start_time + cIdx * chunkDuration) * 10) / 10
-            const subEnd = cIdx === chunks.length - 1
-                ? timing.end_time
-                : Math.round((subStart + chunkDuration) * 10) / 10
-
-            subtitles.push({
-                id: `sub-${sNum}-${cIdx + 1}`,
-                scene_number: sNum,
-                start_time: subStart.toFixed(1),
-                end_time: subEnd.toFixed(1),
-                start_num: subStart,
-                end_num: subEnd,
-                text: chunkText,
-                image_url: sceneData.image_url || '',
-                video_url: sceneData.video_url,
-                is_hook_zone: true,
-            })
-        })
-    }
-
-    // 씬 13~53: 본문 스토리 동적 런닝타임 구간 처리 (씬당 3~6개의 1줄 자막으로 잘게 분할)
-    for (let sNum = 13; sNum <= totalScenes; sNum++) {
-        const timing = sceneTimings[sNum - 1]
-        const sceneData = scenes[sNum - 1] || {}
-        let pureText = cleanKoreanScriptLine(sceneData.script_excerpt || sceneData.scene_text || '')
-        if (!pureText || pureText.length < 3) {
-            pureText = `씬 ${sNum}의 본문 스토리 나레이션이 자연스럽게 이어집니다.`
-        }
-
-        const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)
-        const chunkCount = Math.max(1, chunks.length)
-        const sceneDuration = timing.duration
+        const sceneDuration = timing.duration || 5.0
         const chunkDuration = Math.round((sceneDuration / chunkCount) * 10) / 10
 
         chunks.forEach((chunkText, cIdx) => {
@@ -212,7 +225,7 @@ export function generateSynchronizedSubtitles(
                 text: chunkText,
                 image_url: sceneData.image_url || '',
                 video_url: sceneData.video_url,
-                is_hook_zone: false,
+                is_hook_zone: isHook,
             })
         })
     }

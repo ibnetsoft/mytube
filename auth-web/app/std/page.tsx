@@ -51,6 +51,7 @@ import {
     generateSynchronizedSubtitles,
     calculateLongformSceneTimings,
     cleanKoreanScriptLine,
+    partitionScriptTo53Scenes,
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
@@ -681,6 +682,53 @@ export default function StdPortalPage() {
             alert('캐릭터 앵커 생성 실패: ' + (err.message || String(err)))
         } finally {
             setGeneratingCharacter(false)
+        }
+    }
+
+    // 전체 대본 내용을 53개 씬 및 자막과 100% 일치 동기화하는 함수
+    const handleSyncScriptToScenesAndSubtitles = (showSuccessAlert: boolean = true) => {
+        if (!selectedProject) return
+        const scriptToUse = customScriptText || selectedProject.project?.project_payload?.script || ''
+        if (!scriptToUse.trim()) {
+            if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
+            return
+        }
+        const totalCount = Math.max(53, selectedProject.scenes.length || 53)
+        const partitioned = partitionScriptTo53Scenes(scriptToUse, totalCount)
+        
+        const updatedScenes = (selectedProject.scenes.length >= 53 ? selectedProject.scenes : Array.from({ length: 53 }, (_, i) => ({
+            id: i + 1,
+            scene_number: i + 1,
+            visual_type: i < 12 ? 'video' : 'image',
+            image_url: '',
+            video_url: null
+        }))).map((s: any, idx: number) => ({
+            ...s,
+            text: partitioned[idx] || s.text || '',
+            script_excerpt: partitioned[idx] || s.script_excerpt || ''
+        }))
+        
+        const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 18)
+        
+        const updatedProject = {
+            ...selectedProject,
+            scenes: updatedScenes,
+            project: {
+                ...selectedProject.project,
+                project_payload: {
+                    ...selectedProject.project?.project_payload,
+                    script: scriptToUse,
+                    scenes: updatedScenes,
+                    subtitles: updatedSubs
+                }
+            }
+        }
+        
+        setSelectedProject(updatedProject)
+        setLocalSubtitles(updatedSubs)
+        localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
+        if (showSuccessAlert) {
+            alert('✅ 전체 대본 내용이 53개 씬 및 자막과 100% 완벽하게 일치 동기화되었습니다!')
         }
     }
 
@@ -3075,19 +3123,10 @@ export default function StdPortalPage() {
                                             1줄/2줄 분할
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                const scenes = selectedProject?.scenes || []
-                                                const subs = generateSynchronizedSubtitles(
-                                                    selectedProject?.project?.project_payload?.script || customScriptText || '',
-                                                    scenes,
-                                                    Number(subMaxChars) || 25
-                                                )
-                                                setLocalSubtitles(subs)
-                                                alert('전체 53개 씬 롱폼 구조에 맞춰 자막이 새로 재생성되었습니다.')
-                                            }}
-                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                            onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
+                                            className="text-[10px] font-bold px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded shadow flex items-center gap-1"
                                         >
-                                            AI 전체 재생성
+                                            <span>🔄</span> 대본 전체 자막 동기화
                                         </button>
                                         <button
                                             onClick={() => alert('선택한 언어로 자막이 번역되었습니다.')}
@@ -3642,9 +3681,18 @@ export default function StdPortalPage() {
                                             </h4>
                                             <p className="text-[10px] text-gray-400 mt-0.5">이곳에서 직접 대본을 수정하면 수정된 대본으로 ElevenLabs 음성이 생성됩니다.</p>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-xs font-bold text-purple-400 font-mono">{scriptCharCount.toLocaleString()}자</div>
-                                            <div className="text-[10px] text-gray-400">예상 소요: {formattedEstimatedTime}</div>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
+                                                className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold transition shadow flex items-center gap-1.5"
+                                            >
+                                                <span>🔄</span> 대본 ↔ 53개 씬/자막 전체 동기화
+                                            </button>
+                                            <div className="text-right">
+                                                <div className="text-xs font-bold text-purple-400 font-mono">{scriptCharCount.toLocaleString()}자</div>
+                                                <div className="text-[10px] text-gray-400">예상 소요: {formattedEstimatedTime}</div>
+                                            </div>
                                         </div>
                                     </div>
                                     <textarea
