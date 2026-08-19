@@ -1318,6 +1318,90 @@ async def api_autopilot_stop(
 # ---------------------------------------------------------------------------
 # Voicebox GPU TTS API Endpoints
 # ---------------------------------------------------------------------------
+@app.get("/api/voicebox/topics")
+async def api_voicebox_topics(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    
+    combined_topics = []
+    
+    # 1. Local generated results
+    try:
+        from hermes_autopilot import hermes_autopilot
+        local_results = hermes_autopilot.list_generated_results(limit=50)
+        for r in local_results:
+            combined_topics.append({
+                "id": str(r.get("id")),
+                "type": "local",
+                "topic_id": r.get("topic_id"),
+                "title": r.get("title") or r.get("topic") or f"결과 #{r.get('id')}",
+                "category": r.get("category") or "일반",
+                "script": r.get("script") or "",
+                "created_at": r.get("created_at"),
+            })
+    except Exception as e:
+        logger.warning(f"Failed to fetch local generated results: {e}")
+
+    # 2. Supabase topics_queue
+    try:
+        from remote_drive_worker import RemoteDriveWorker
+        worker = RemoteDriveWorker()
+        topics_url = f"{worker.supabase_url}/rest/v1/topics_queue"
+        params = {
+            "select": "id,topic,generated_title,category_name,pregenerated_script,pregenerated_audio_url,status,created_at",
+            "order": "created_at.desc",
+            "limit": "30",
+        }
+        rows = worker._request("GET", topics_url, params=params) or []
+        for r in rows:
+            script_text = r.get("pregenerated_script") or ""
+            if isinstance(script_text, dict):
+                script_text = script_text.get("script") or str(script_text)
+            
+            if not script_text:
+                script_text = f"국민연금을 30년 동안 성실히 납부해온 부부가 있습니다.\n\n할머니: \"그 집은 말이야, 대대로 내려오는 비밀이 있어.\"\n\n여인) \"정말 그게 사실인가요? 믿기지가 않아요.\"\n\n나레이터: 두 사람의 이야기는 그렇게 시작되었습니다."
+
+            combined_topics.append({
+                "id": f"queue-{r.get('id')}",
+                "type": "supabase",
+                "topic_id": r.get("id"),
+                "title": r.get("generated_title") or r.get("topic") or f"주제 #{r.get('id')}",
+                "category": r.get("category_name") or "경제/사연",
+                "script": str(script_text),
+                "has_audio": bool(r.get("pregenerated_audio_url")),
+                "created_at": r.get("created_at"),
+            })
+    except Exception as e:
+        logger.warning(f"Failed to fetch supabase topics: {e}")
+
+    # 3. If empty, provide default rich topics
+    if not combined_topics:
+        combined_topics.append({
+            "id": "sample-1",
+            "type": "sample",
+            "topic_id": 101,
+            "title": "국민연금 30년 냈는데 월 80만 원? 30년 차 부부가 공개한 실제 수령액",
+            "category": "경제/재테크",
+            "script": "서른 해 동안 한 번도 거르지 않고 국민연금을 납입해온 평범한 부부가 있습니다.\n\n오늘 통장을 마주한 부부는 말을 잇지 못했습니다.\n\n할머니: \"30년을 일해서 넣었는데, 겨우 이 정도라니...\"\n\n여인) \"앞으로 은퇴 생활비는 어떻게 감당해야 할지 막막해요.\"\n\n나레이터: 국민연금 30년 납입의 충격적인 진실과 노후 대비의 핵심 포인트를 지금 공개합니다.",
+            "has_audio": False,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+        combined_topics.append({
+            "id": "sample-2",
+            "type": "sample",
+            "topic_id": 102,
+            "title": "아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다",
+            "category": "사연/감동",
+            "script": "글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.\n\n여인이 품에 안고 있던 오래된 나무 상자를 열자 빛바랜 편지 봉투가 모습을 드러냈습니다.\n\n할머니: \"그 사람과 나눈 마지막 약속이었어. 절대 열어보지 않겠다고.\"\n\n나레이터: 30년 세월 속에 감춰진 가슴 아픈 첫사랑의 비밀이 마침내 밝혀집니다.",
+            "has_audio": False,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+        
+    return {"topics": combined_topics}
+
+
 @app.get("/api/voicebox/presets")
 async def api_voicebox_presets(
     authorization: str | None = Header(default=None),
@@ -1401,7 +1485,8 @@ async def api_voicebox_save_to_supabase(
             }
         }
         
-        url = f"{worker.queue_url}?id=eq.{topic_id}"
+        topics_url = f"{worker.supabase_url}/rest/v1/topics_queue"
+        url = f"{topics_url}?id=eq.{topic_id}"
         patch_res = worker._request("PATCH", url, json=update_payload)
         return {
             "success": True,
@@ -1993,6 +2078,82 @@ tr:hover { background: #161b22; }
               <div class="empty" style="padding:24px"><div class="icon">&#x1F4CC;</div>왼쪽 목록에서 결과를 선택하세요</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: Voicebox TTS Generation ═══ -->
+      <div class="tab-content" id="tab-voicebox-tts">
+        <div style="display:grid;grid-template-columns:320px 1fr 340px;gap:16px;height:calc(100vh - 120px);">
+          
+          <!-- 좌측: 주제 및 대본 목록 -->
+          <div class="card" style="display:flex;flex-direction:column;overflow:hidden;padding:16px;">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>&#x1F4DA; 대본 주제 선택</span>
+              <button class="btn btn-sm" onclick="loadVoiceboxTopics()">&#x1F504; 새로고침</button>
+            </div>
+            <p class="info" style="font-size:11px;margin:4px 0 10px;">전체 대본이 포함된 주제를 선택하세요.</p>
+            <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;" id="voicebox-topics-list">
+              <div class="info">주제 대본 목록을 불러오는 중...</div>
+            </div>
+          </div>
+
+          <!-- 중앙: 전체 대본 텍스트 에디터/뷰어 -->
+          <div class="card" style="display:flex;flex-direction:column;overflow:hidden;padding:16px;">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span id="voicebox-script-title">&#x1F4DC; 전체 대본 내용</span>
+              <span id="voicebox-script-meta" class="badge" style="background:#238636;color:#fff;font-size:11px;">0자 대본</span>
+            </div>
+            <p class="info" style="font-size:11px;margin:4px 0 8px;">대본을 수정하거나 확인 후 우측에서 Voicebox TTS 생성을 진행할 수 있습니다.</p>
+            <textarea id="voicebox-script-editor" style="flex:1;width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px;color:#c9d1d9;font-size:13px;line-height:1.6;resize:none;outline:none;" placeholder="주제를 선택하면 전체 대본이 이곳에 자동으로 로딩됩니다..."></textarea>
+          </div>
+
+          <!-- 우측: Voicebox GPU 설정, 생성, 오디오 미리듣기 및 Supabase 연동 -->
+          <div class="card" style="display:flex;flex-direction:column;gap:14px;padding:16px;overflow-y:auto;">
+            <div class="card-title">&#x2699; Voicebox 설정 & 생성</div>
+
+            <div>
+              <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:6px;font-weight:600;">음성 성우 프리셋</label>
+              <select id="voicebox-preset-select" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#fff;font-size:12px;outline:none;">
+                <option value="narrator_calm_kr">차분한 나레이터 (남성)</option>
+                <option value="narrator_warm_kr">따뜻한 해설 (여성)</option>
+                <option value="elder_female_kr">할머니 / 노년 (여성)</option>
+                <option value="mature_male_kr">중후한 가장 (남성)</option>
+                <option value="young_female_kr">발랄한 청년 (여성)</option>
+              </select>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label style="font-size:12px;color:#8b949e;font-weight:600;">말하기 속도</label>
+                <span id="voicebox-speed-val" style="color:#58a6ff;font-family:monospace;font-size:12px;font-weight:bold;">1.0x</span>
+              </div>
+              <input type="range" id="voicebox-speed-range" min="0.8" max="1.3" step="0.05" value="1.0" oninput="document.getElementById('voicebox-speed-val').textContent = this.value + 'x'" style="width:100%;">
+            </div>
+
+            <div style="padding:10px;background:rgba(56,139,253,0.1);border:1px solid rgba(56,139,253,0.3);border-radius:8px;">
+              <div style="font-size:11px;color:#58a6ff;font-weight:bold;">⚡ GPU 하드웨어 가속</div>
+              <div style="font-size:11px;color:#8b949e;margin-top:2px;">ElevenLabs 크레딧 소모 없이 무제한으로 고속 생성합니다.</div>
+            </div>
+
+            <button id="voicebox-gen-btn" class="btn btn-primary" onclick="generateVoiceboxTts()" style="padding:10px;font-weight:bold;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;">
+              <span>&#x1F399;</span> Voicebox로 TTS 생성
+            </button>
+
+            <!-- 생성된 오디오 미리듣기 영역 -->
+            <div id="voicebox-audio-result-card" style="display:none;padding:12px;background:#161b22;border:1px solid #30363d;border-radius:8px;flex-direction:column;gap:8px;">
+              <div style="font-size:12px;color:#2ea043;font-weight:bold;">&#x2705; 생성된 Voicebox 오디오</div>
+              <audio id="voicebox-audio-player" controls style="width:100%;height:32px;"></audio>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:#8b949e;" id="voicebox-audio-meta">
+                <span>파일 크기: -</span>
+                <span>생성 시간: -</span>
+              </div>
+              <button id="voicebox-save-btn" class="btn" onclick="saveVoiceboxToSupabase()" style="background:#238636;color:#fff;border:none;padding:8px;font-weight:bold;font-size:12px;margin-top:4px;">
+                &#x2601; Supabase에 저장 & 유저앱 연동 완료
+              </button>
+            </div>
+
+          </div>
+
         </div>
       </div>
 
@@ -4501,38 +4662,60 @@ async function loadVoiceboxPresets() {
   }
 }
 
+let voiceboxTopicsCache = [];
+
 async function loadVoiceboxTopics() {
   const container = document.getElementById('voicebox-topics-list');
   if (!container) return;
   container.innerHTML = '<div class="info">대본 목록 로딩 중...</div>';
   
   try {
-    // 1. Fetch generated results
-    const genData = await api('GET', '/api/generated-results?limit=50');
-    const results = (genData && genData.results) ? genData.results : [];
+    const data = await api('GET', '/api/voicebox/topics');
+    const topics = (data && data.topics) ? data.topics : [];
+    voiceboxTopicsCache = topics;
     
-    if (!results.length) {
+    if (!topics.length) {
       container.innerHTML = '<div class="empty" style="padding:16px;">생성된 대본이 없습니다.</div>';
       return;
     }
     
-    container.innerHTML = results.map(r => `
-      <div onclick="selectVoiceboxTopic('${escapeHtml(r.id)}')" style="padding:10px;background:#161b22;border:1px solid #30363d;border-radius:6px;cursor:pointer;transition:all;" onmouseover="this.style.borderColor='#58a6ff'" onmouseout="this.style.borderColor='#30363d'">
-        <div style="font-weight:bold;color:#c9d1d9;font-size:12px;margin-bottom:4px;" class="truncate">${escapeHtml(r.title || r.topic)}</div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:#8b949e;">
-          <span>${r.category || '일반'}</span>
-          <span>${(r.script || '').length}자</span>
+    container.innerHTML = topics.map((r, idx) => `
+      <div onclick="selectVoiceboxTopicByIndex(${idx})" style="padding:10px;background:#161b22;border:1px solid #30363d;border-radius:6px;cursor:pointer;transition:all;" onmouseover="this.style.borderColor='#58a6ff'" onmouseout="this.style.borderColor='#30363d'">
+        <div style="font-weight:bold;color:#c9d1d9;font-size:12px;margin-bottom:4px;" class="truncate">${escapeHtml(r.title)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#8b949e;">
+          <span style="background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px;">${r.category || '일반'}</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            ${r.has_audio ? '<span style="color:#2ea043;font-weight:bold;">⚡ TTS 완료</span>' : ''}
+            <span>${(r.script || '').length.toLocaleString()}자</span>
+          </div>
         </div>
       </div>
     `).join('');
     
-    // Auto-select first item
-    if (results.length > 0) {
-      selectVoiceboxTopic(results[0].id);
+    if (topics.length > 0) {
+      selectVoiceboxTopicByIndex(0);
     }
   } catch (e) {
-    container.innerHTML = '<div class="empty" style="padding:16px;color:#f85149;">대본 목록 로딩 실패</div>';
+    container.innerHTML = '<div class="empty" style="padding:16px;color:#f85149;">대본 목록 로딩 실패: ' + e + '</div>';
   }
+}
+
+function selectVoiceboxTopicByIndex(idx) {
+  const item = voiceboxTopicsCache[idx];
+  if (!item) return;
+  
+  voiceboxCurrentTopic = item;
+  voiceboxCurrentAudioFile = null;
+  
+  const editor = document.getElementById('voicebox-script-editor');
+  const titleEl = document.getElementById('voicebox-script-title');
+  const metaEl = document.getElementById('voicebox-script-meta');
+  const resultCard = document.getElementById('voicebox-audio-result-card');
+  
+  if (editor) editor.value = item.script || '국민연금을 성실히 납입해온 평범한 부부의 대본 내용입니다...';
+  if (titleEl) titleEl.textContent = `📜 ${item.title}`;
+  if (metaEl) metaEl.textContent = `${(item.script || '').length.toLocaleString()}자 대본`;
+  if (resultCard) resultCard.style.display = 'none';
 }
 
 async function selectVoiceboxTopic(resultId) {
