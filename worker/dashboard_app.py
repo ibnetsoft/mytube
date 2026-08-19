@@ -2216,9 +2216,23 @@ tr:hover { background: #161b22; }
                 <span>파일 크기: -</span>
                 <span>생성 시간: -</span>
               </div>
-              <button id="voicebox-save-btn" class="btn" onclick="saveVoiceboxToSupabase()" style="background:#238636;color:#fff;border:none;padding:8px;font-weight:bold;font-size:12px;margin-top:4px;">
-                &#x2601; Supabase에 저장 & 유저앱 연동 완료
+              <button id="voicebox-save-btn" class="btn" onclick="saveVoiceboxToSupabase()" style="background:#238636;color:#fff;border:none;padding:10px;font-weight:bold;font-size:13px;margin-top:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.3);">
+                <span>&#x2601;</span> Supabase에 저장 & 유저앱 연동 완료
               </button>
+
+              <!-- 연동 대상 주제 및 카테고리 실시간 확인 박스 -->
+              <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px;margin-top:6px;display:flex;flex-direction:column;gap:5px;">
+                <div style="font-size:10px;color:#8b949e;font-weight:bold;display:flex;align-items:center;justify-content:space-between;">
+                  <span>🎯 저장 및 자동 연동 대상</span>
+                  <span id="voicebox-target-id" style="color:#58a6ff;font-family:monospace;background:rgba(56,139,253,0.1);padding:1px 5px;border-radius:3px;">ID: -</span>
+                </div>
+                <div style="font-size:11px;color:#7ee787;font-weight:bold;display:flex;align-items:center;gap:4px;">
+                  <span style="background:rgba(46,160,67,0.15);border:1px solid rgba(46,160,67,0.3);padding:1px 6px;border-radius:4px;" id="voicebox-target-category">카테고리</span>
+                </div>
+                <div style="font-size:12px;color:#f0f6fc;font-weight:bold;line-height:1.4;word-break:break-all;" id="voicebox-target-title">
+                  선택된 주제 제목이 표시됩니다.
+                </div>
+              </div>
             </div>
 
           </div>
@@ -4785,6 +4799,14 @@ function selectVoiceboxTopicByIndex(idx) {
   if (titleEl) titleEl.textContent = `📜 ${item.title}`;
   if (metaEl) metaEl.textContent = `${(item.script || '').length.toLocaleString()}자 대본`;
   if (resultCard) resultCard.style.display = 'none';
+
+  const targetIdEl = document.getElementById('voicebox-target-id');
+  const targetCatEl = document.getElementById('voicebox-target-category');
+  const targetTitleEl = document.getElementById('voicebox-target-title');
+
+  if (targetIdEl) targetIdEl.textContent = `ID: #${item.topic_id || item.id}`;
+  if (targetCatEl) targetCatEl.textContent = `📁 ${item.category || '카테고리'}`;
+  if (targetTitleEl) targetTitleEl.textContent = item.title || '주제';
 }
 
 async function selectVoiceboxTopic(resultId) {
@@ -4852,6 +4874,14 @@ async function generateVoiceboxTts() {
     }
     if (resultCard) {
       resultCard.style.display = 'flex';
+      const targetIdEl = document.getElementById('voicebox-target-id');
+      const targetCatEl = document.getElementById('voicebox-target-category');
+      const targetTitleEl = document.getElementById('voicebox-target-title');
+      if (voiceboxCurrentTopic) {
+        if (targetIdEl) targetIdEl.textContent = `ID: #${voiceboxCurrentTopic.topic_id || voiceboxCurrentTopic.id}`;
+        if (targetCatEl) targetCatEl.textContent = `📁 ${voiceboxCurrentTopic.category || '카테고리'}`;
+        if (targetTitleEl) targetTitleEl.textContent = voiceboxCurrentTopic.title || '주제';
+      }
     }
     
     showToast(`🎉 Voicebox TTS 음성 생성이 완료되었습니다! (${res.elapsed_seconds}초 소요)`, 'success');
