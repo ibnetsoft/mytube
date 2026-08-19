@@ -722,14 +722,13 @@ export default function StdPortalPage() {
                 if (meData.user.nationality) setSettingNationality(meData.user.nationality)
                 if (meData.user.contact) setSettingPhone(meData.user.contact)
                 if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
-            } else if (!user) {
-                const savedEmail = localStorage.getItem('std_last_email') || 'ejsh0518@naver.com'
-                setUser({
-                    id: 'temp-worker',
-                    email: savedEmail,
-                    full_name: '김호',
-                    membership: 'std',
-                })
+            } else {
+                if (!isImpersonating) {
+                    setUser(null)
+                    setToken('')
+                    localStorage.removeItem('std_session_token')
+                    return
+                }
             }
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
@@ -868,9 +867,15 @@ export default function StdPortalPage() {
             return
         }
 
-        const savedToken = localStorage.getItem('std_session_token') || 'std_dev_session_active'
-        setToken(savedToken)
-        loadStdData(savedToken).finally(() => setAuthChecking(false))
+        const savedToken = localStorage.getItem('std_session_token')
+        if (savedToken) {
+            setToken(savedToken)
+            loadStdData(savedToken).finally(() => setAuthChecking(false))
+        } else {
+            setToken('')
+            setUser(null)
+            setAuthChecking(false)
+        }
     }, [])
 
     useEffect(() => {
