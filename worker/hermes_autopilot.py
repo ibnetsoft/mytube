@@ -205,6 +205,20 @@ class HermesAutopilotManager:
                 normalized.append(category)
         return normalized
 
+    def _normalize_category_image_style_overrides(self, value) -> dict:
+        current = dict(self.settings.get("category_image_style_overrides") or {})
+        if not isinstance(value, dict) or not value:
+            return current
+        for cat, style in value.items():
+            if cat not in CATEGORIES:
+                continue
+            style_str = str(style or "").strip().lower()
+            if style_str:
+                current[cat] = style_str
+            else:
+                current.pop(cat, None)
+        return current
+
     def _apply_settings(self, new_settings: dict | None = None):
         if new_settings is not None and "force_generate" not in new_settings:
             self.settings["force_generate"] = False
@@ -219,9 +233,14 @@ class HermesAutopilotManager:
                 self.settings[k] = self._normalize_category_timestamp_settings(v)
             elif k == "target_duration_seconds_by_category":
                 self.settings[k] = self._normalize_category_duration_settings(v)
+            elif k == "category_image_style_overrides":
+                self.settings[k] = self._normalize_category_image_style_overrides(v)
             else:
                 self.settings[k] = v
 
+        self.settings["category_image_style_overrides"] = self._normalize_category_image_style_overrides(
+            self.settings.get("category_image_style_overrides", {})
+        )
         self.settings["active_categories"] = self._normalize_active_categories(
             self.settings.get("active_categories", CATEGORIES)
         )
@@ -1570,20 +1589,46 @@ Return ONLY valid JSON in this schema:
         default remains the fallback so a temporary AI/API failure never
         leaves the topic without a usable visual direction.
         """
+        if not manual_override:
+            manual_override = (self.settings.get("category_image_style_overrides") or {}).get(category)
+
         styles = self._available_image_styles()
-        by_key = {str(item.get("key_code") or "").strip().lower(): item for item in styles}
-        by_key = {key: item for key, item in by_key.items() if key}
-        manual_override = str(manual_override or "").strip().lower()
-        if manual_override and manual_override in by_key:
-            return {
-                "assigned_image_style": manual_override,
-                "automatic_style": None,
-                "selection_source": "worker_manual_override",
-                "reason": "Worker에서 수동 지정한 카테고리 이미지 스타일을 우선 적용합니다.",
-            }
+        by_key = {}
+        for item in styles:
+            k = str(item.get("key_code") or "").strip().lower()
+            if k:
+                by_key[k] = item
+                by_key[k.replace(" ", "_")] = item
+                by_key[k.replace("_", " ")] = item
+            name_ko = str(item.get("display_name_ko") or "").strip().lower()
+            if name_ko:
+                by_key[name_ko] = item
+                by_key[name_ko.replace(" ", "")] = item
+
+        manual_clean = str(manual_override or "").strip().lower()
+        if manual_clean:
+            matched_item = (
+                by_key.get(manual_clean)
+                or by_key.get(manual_clean.replace(" ", "_"))
+                or by_key.get(manual_clean.replace("_", " "))
+            )
+            if not matched_item:
+                for k, item in by_key.items():
+                    if manual_clean in k or k in manual_clean:
+                        matched_item = item
+                        break
+            if matched_item:
+                canonical_key = str(matched_item.get("key_code") or manual_clean).strip()
+                return {
+                    "assigned_image_style": canonical_key,
+                    "automatic_style": None,
+                    "selection_source": "worker_manual_override",
+                    "reason": f"Worker에서 수동 지정한 카테고리 이미지 스타일({canonical_key})을 우선 적용합니다.",
+                }
+
         fallback = str(category_default or "").strip().lower()
         if fallback not in by_key:
-            fallback = "realistic" if "realistic" in by_key else next(iter(by_key), "realistic")
+            fallback = "realistic" if "realistic" in by_key else (next(iter(by_key.keys())) if by_key else "realistic")
         if not by_key:
             return {
                 "assigned_image_style": fallback,
@@ -2426,6 +2471,9 @@ Return ONLY a JSON array of strings.
             "title_candidates": title_plan["title_candidates"],
             "narrative_blueprint": narrative_blueprint,
             "script_quality_report": script_quality_report,
+            "image_style": assigned_image_style,
+            "assigned_image_style": assigned_image_style,
+            "image_style_selection": image_style_plan,
             "publish_metadata": publish_metadata,
             "structure": structure,
             "script": final_script,

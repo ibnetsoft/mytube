@@ -4480,6 +4480,7 @@ function getSettingsFromUI() {
     target_limit: limit,
     min_buffer_per_category: buffer,
     active_categories,
+    category_image_style_overrides: (autopilotStatusSnapshot && autopilotStatusSnapshot.settings && autopilotStatusSnapshot.settings.category_image_style_overrides) ? autopilotStatusSnapshot.settings.category_image_style_overrides : {},
     benchmark_channel_ids_by_category: getBenchmarkChannelSettingsFromUI(),
     benchmark_channel_auto_discovery_enabled: discoveryEnabled,
     benchmark_channel_discovery_min_channels: discoveryMin,
