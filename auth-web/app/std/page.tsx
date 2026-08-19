@@ -1250,6 +1250,36 @@ export default function StdPortalPage() {
         return `약 ${hours}시간 ${mins}분`
     }, [scriptCharCount, ttsSpeed])
 
+    const getSceneScriptStartText = (scene: any, sceneIndex: number) => {
+        // 1. 해당 씬 번호에 매핑된 첫 번째 자막 텍스트
+        const targetSub = localSubtitles.find(s => s.scene_number === (sceneIndex + 1))
+        if (targetSub?.text) {
+            return targetSub.text.replace(/\n/g, ' ').trim()
+        }
+
+        // 2. scene 객체의 narration_text 또는 대본 텍스트
+        if (scene.narration_text) {
+            return scene.narration_text.slice(0, 100).replace(/\n/g, ' ').trim()
+        }
+
+        // 3. 전체 대본에서 씬별 비례 분할 위치의 첫 문장
+        const fullScript = customScriptText || selectedProject?.project?.project_payload?.script || ''
+        if (fullScript) {
+            const paragraphs = fullScript.split(/\n+/).map(p => p.trim()).filter(Boolean)
+            if (paragraphs.length > 0) {
+                const pIdx = Math.min(
+                    paragraphs.length - 1,
+                    Math.floor((sceneIndex / Math.max(1, selectedProject?.scenes?.length || 53)) * paragraphs.length)
+                )
+                if (paragraphs[pIdx]) {
+                    return paragraphs[pIdx].slice(0, 100)
+                }
+            }
+        }
+
+        return cleanScriptContextText(scene.scene_text || scene.script_excerpt || '') || `Scene ${sceneIndex + 1}`
+    }
+
     const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
         text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
         start_time: '0.0',
@@ -2836,8 +2866,8 @@ export default function StdPortalPage() {
                                                         {sceneNum}
                                                     </span>
                                                     <span className="font-bold text-white text-xs">Scene {sceneNum}</span>
-                                                    <span className="text-xs text-gray-400 truncate max-w-sm">
-                                                        📋 {cleanScriptContextText(scene.scene_text || scene.script_excerpt || '') || `Scene ${sceneNum}`}
+                                                    <span className="text-xs text-gray-400 truncate max-w-md" title={getSceneScriptStartText(scene, i)}>
+                                                        📄 {getSceneScriptStartText(scene, i)}
                                                     </span>
                                                 </div>
                                                 <label className="flex items-center gap-2 cursor-pointer bg-[#202632] px-2 py-1 rounded border border-white/5">
