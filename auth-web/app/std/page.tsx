@@ -869,6 +869,21 @@ export default function StdPortalPage() {
             return
         }
 
+        // 아이디 및 비밀번호 저장 복원
+        const remEmailFlag = localStorage.getItem('std_remember_email') === 'true'
+        const remPwFlag = localStorage.getItem('std_remember_password') === 'true'
+        const savedEmail = localStorage.getItem('std_saved_email') || ''
+        const savedPw = localStorage.getItem('std_saved_password') || ''
+
+        if (remEmailFlag && savedEmail) {
+            setEmail(savedEmail)
+            setRememberEmail(true)
+        }
+        if (remPwFlag && savedPw) {
+            setPassword(savedPw)
+            setRememberPassword(true)
+        }
+
         const savedToken = localStorage.getItem('std_session_token')
         if (savedToken) {
             setToken(savedToken)
@@ -904,6 +919,23 @@ export default function StdPortalPage() {
         setMessage('')
         const targetEmail = email.trim().toLowerCase() || 'ejsh0519@naver.com'
         localStorage.setItem('std_last_email', targetEmail)
+
+        // 아이디 / 비밀번호 저장 처리
+        if (rememberEmail) {
+            localStorage.setItem('std_remember_email', 'true')
+            localStorage.setItem('std_saved_email', targetEmail)
+        } else {
+            localStorage.removeItem('std_remember_email')
+            localStorage.removeItem('std_saved_email')
+        }
+
+        if (rememberPassword) {
+            localStorage.setItem('std_remember_password', 'true')
+            localStorage.setItem('std_saved_password', password)
+        } else {
+            localStorage.removeItem('std_remember_password')
+            localStorage.removeItem('std_saved_password')
+        }
 
         try {
             const res = await fetch('/api/std/login', {
