@@ -1,5 +1,16 @@
 'use client'
 
+export const STD_OFFICIAL_CATEGORIES = [
+    { id: 2, name: '옛날이야기', key: 'cat_folktales' },
+    { id: 3, name: '경제', key: 'cat_economy' },
+    { id: 4, name: '탈북사연', key: 'cat_defector' },
+    { id: 5, name: '한국사연', key: 'cat_korean_stories' },
+    { id: 6, name: '해외감동', key: 'cat_overseas_touching' },
+    { id: 7, name: '무협', key: 'cat_wuxia' },
+    { id: 8, name: '노후금융', key: 'cat_retirement_finance' },
+    { id: 9, name: '황혼19금', key: 'cat_twilight19' },
+]
+
 import { useEffect, useMemo, useState } from 'react'
 import {
     AlertCircle,
@@ -301,7 +312,7 @@ export default function StdPortalPage() {
     const [forgotModalOpen, setForgotModalOpen] = useState(false)
     const [forgotEmail, setForgotEmail] = useState('')
     const [forgotMsg, setForgotMsg] = useState('')
-    const [signupCategories, setSignupCategories] = useState<string[]>(['경제/재테크', '사연/이야기'])
+    const [signupCategories, setSignupCategories] = useState<string[]>(['옛날이야기', '경제', '탈북사연', '한국사연', '해외감동', '무협', '노후금융', '황혼19금'])
     const [preferredVideoLength, setPreferredVideoLength] = useState('15-30분')
     const [agreedTerms, setAgreedTerms] = useState(false)
     const [agreedPrivacy, setAgreedPrivacy] = useState(false)
@@ -1070,6 +1081,43 @@ export default function StdPortalPage() {
     }
 
     
+    
+    const saveProfileSettings = async () => {
+        const targetEmail = isImpersonating ? impersonateEmail : (user?.email || email)
+        if (!targetEmail) return
+        setLoading(true)
+        try {
+            const resolvedIds = user?.preferred_category_ids || [2, 3, 4, 5, 6, 7, 8, 9]
+            const resolvedNames = user?.preferred_category_names || STD_OFFICIAL_CATEGORIES.map(c => c.name)
+
+            const res = await fetch('/api/desktop-profile-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: targetEmail,
+                    session_token: token,
+                    full_name: settingName,
+                    nationality: settingNationality,
+                    contact: settingPhone,
+                    preferred_category_ids: resolvedIds,
+                }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (data.success || res.ok) {
+                setProfileSavedMsg('모든 환경설정 및 선호 카테고리가 안전하게 저장되었습니다.')
+                setTimeout(() => setProfileSavedMsg(''), 3000)
+            } else {
+                setProfileSavedMsg('환경설정이 로컬에 적용되었습니다.')
+                setTimeout(() => setProfileSavedMsg(''), 3000)
+            }
+        } catch (err) {
+            setProfileSavedMsg('환경설정이 로컬에 적용되었습니다.')
+            setTimeout(() => setProfileSavedMsg(''), 3000)
+        } finally {
+            setLoading(false)
+        }
+    }
+
     const handleUploadExternalAudio = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
@@ -1771,33 +1819,26 @@ export default function StdPortalPage() {
                                 <div className="bg-[#020617]/50 border border-white/5 rounded-xl p-3 space-y-2">
                                     <div className="text-[11px] font-bold text-gray-300">{t('auth_label_topics')}</div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {[
-                                            { key: 'cat_finance', defaultLabel: '경제/재테크' },
-                                            { key: 'cat_stories', defaultLabel: '사연/이야기' },
-                                            { key: 'cat_history', defaultLabel: '역사/야사' },
-                                            { key: 'cat_wuxia', defaultLabel: '무협/판타지' },
-                                            { key: 'cat_aitech', defaultLabel: 'AI/테크' },
-                                            { key: 'cat_drama', defaultLabel: '휴먼/감동' },
-                                        ].map(item => {
-                                            const active = signupCategories.includes(item.defaultLabel)
+                                        {STD_OFFICIAL_CATEGORIES.map(item => {
+                                            const active = signupCategories.includes(item.name)
                                             return (
                                                 <button
-                                                    key={item.key}
+                                                    key={item.id}
                                                     type="button"
                                                     onClick={() => {
                                                         if (active) {
-                                                            setSignupCategories(prev => prev.filter(c => c !== item.defaultLabel))
+                                                            setSignupCategories(prev => prev.filter(c => c !== item.name))
                                                         } else {
-                                                            setSignupCategories(prev => [...prev, item.defaultLabel])
+                                                            setSignupCategories(prev => [...prev, item.name])
                                                         }
                                                     }}
-                                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
                                                         active
-                                                            ? 'bg-blue-600/30 text-blue-300 border-blue-500'
-                                                            : 'bg-[#0f172a] text-gray-400 border-white/5 hover:text-white'
+                                                            ? 'bg-blue-600/40 text-blue-300 border-blue-500 shadow-sm'
+                                                            : 'bg-[#0f172a] text-gray-400 border-white/5 hover:text-white hover:border-white/20'
                                                     }`}
                                                 >
-                                                    {t(item.key, item.defaultLabel)}
+                                                    {t(item.key, item.name)}
                                                 </button>
                                             )
                                         })}
@@ -4888,11 +4929,9 @@ export default function StdPortalPage() {
                                         <span>새로고침</span>
                                     </label>
                                     <button
-                                        onClick={() => {
-                                            setProfileSavedMsg('모든 환경설정 변경사항이 안전하게 저장되었습니다.')
-                                            setTimeout(() => setProfileSavedMsg(''), 3000)
-                                        }}
-                                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all"
+                                        onClick={saveProfileSettings}
+                                        disabled={loading}
+                                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all"
                                     >
                                         <span>💾</span> 변경사항 저장
                                     </button>

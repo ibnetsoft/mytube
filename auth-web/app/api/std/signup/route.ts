@@ -61,6 +61,8 @@ export async function POST(req: Request) {
         const contact = cleanText(body?.contact)
         const nationality = cleanText(body?.nationality || 'KR')
         const referrer = cleanText(body?.referrer || body?.referral_code || '').toUpperCase()
+        const preferredCategoryIds = Array.isArray(body?.preferred_category_ids) ? body.preferred_category_ids : []
+        const preferredCategoryNames = Array.isArray(body?.preferred_category_names) ? body.preferred_category_names : []
 
         if (!email || !password) {
             return NextResponse.json({ success: false, error: '이메일과 비밀번호를 입력해주세요.' }, { status: 400 })
@@ -109,7 +111,8 @@ export async function POST(req: Request) {
             membership_tier: existingProfile?.membership_tier || 'std',
             preferred_languages: existingProfile?.preferred_languages || ['ko'],
             preferred_video_length: existingProfile?.preferred_video_length || '',
-            preferred_category_ids: existingProfile?.preferred_category_ids || [],
+            preferred_category_ids: preferredCategoryIds.length > 0 ? preferredCategoryIds : (existingProfile?.preferred_category_ids || [2, 3, 4, 5, 6, 7, 8, 9]),
+            preferred_category_names: preferredCategoryNames.length > 0 ? preferredCategoryNames : (existingProfile?.preferred_category_names || ['옛날이야기', '경제', '탈북사연', '한국사연', '해외감동', '무협', '노후금융', '황혼19금']),
             referred_by_code: referrer,
             terms_accepted_at: existingProfile?.terms_accepted_at || now,
             privacy_accepted_at: existingProfile?.privacy_accepted_at || now,
