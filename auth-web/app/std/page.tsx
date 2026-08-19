@@ -1447,7 +1447,6 @@ export default function StdPortalPage() {
             if (!pStatus.isTtsDone) missingList.push('TTS')
             if (!pStatus.isSubtitlesDone) missingList.push('자막')
             if (!pStatus.isThumbnailDone) missingList.push('썸네일')
-            if (!pStatus.isSettingsDone) missingList.push('설정')
             alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
             return
         }
@@ -1687,9 +1686,8 @@ export default function StdPortalPage() {
             payload.subtitles_saved
         )
         const isThumbnailDone = Boolean(currentThumb || payload.thumbnail_url || p.thumbnail_url || p.progress_payload?.thumbnail_completed)
-        const isSettingsDone = Boolean(p.id)
 
-        const allDone = isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone && isSettingsDone
+        const allDone = isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
 
         return {
             isPlanningDone,
@@ -1698,7 +1696,6 @@ export default function StdPortalPage() {
             isTtsDone,
             isSubtitlesDone,
             isThumbnailDone,
-            isSettingsDone,
             allDone,
             uploadedAssetsCount,
             totalScenesCount: scenes.length || 53,
@@ -2450,7 +2447,6 @@ export default function StdPortalPage() {
                         { id: 'tts', label: t('nav_tts'), isDone: status.isTtsDone },
                         { id: 'subtitle_gen', label: t('nav_subtitles'), isDone: status.isSubtitlesDone },
                         { id: 'thumbnail', label: t('nav_thumbnail'), isDone: status.isThumbnailDone },
-                        { id: 'settings', label: t('nav_settings'), isDone: status.isSettingsDone },
                     ]
                     return (
                         <div className="hidden md:flex items-center gap-2 lg:gap-3 text-[10px] lg:text-[11px] text-gray-400 font-medium">
@@ -2527,7 +2523,6 @@ export default function StdPortalPage() {
                     { id: 'tts', label: t('nav_tts'), isDone: status.isTtsDone },
                     { id: 'subtitle_gen', label: t('nav_subtitles'), isDone: status.isSubtitlesDone },
                     { id: 'thumbnail', label: t('nav_thumbnail'), isDone: status.isThumbnailDone },
-                    { id: 'settings', label: t('nav_settings'), isDone: status.isSettingsDone },
                 ]
                 return (
                     <div className="md:hidden bg-[#14181f] border-b border-white/10 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
@@ -4766,7 +4761,6 @@ export default function StdPortalPage() {
                                             <th className="px-1 py-2.5 w-14 text-center">TTS</th>
                                             <th className="px-1 py-2.5 w-14 text-center">자막</th>
                                             <th className="px-1 py-2.5 w-14 text-center">썸네일</th>
-                                            <th className="px-1 py-2.5 w-14 text-center">설정</th>
                                             <th className="px-2 py-2.5 w-14 text-center">제출</th>
                                         </tr>
                                     </thead>
@@ -4811,7 +4805,7 @@ export default function StdPortalPage() {
                                                     <td className="px-3 py-2 text-gray-300 max-w-sm truncate" title={p.title}>
                                                         {p.title}
                                                     </td>
-                                                    {/* 7단계 상태 원형 인디케이터 (기획, 대본, 이미지, TTS, 자막, 썸네일, 설정) */}
+                                                    {/* 6단계 상태 원형 인디케이터 (기획, 대본, 이미지, TTS, 자막, 썸네일) */}
                                                     {(() => {
                                                         const pStatus = isSelectedProj
                                                             ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
@@ -4848,12 +4842,7 @@ export default function StdPortalPage() {
                                                                         {pStatus.isThumbnailDone ? '●' : '○'}
                                                                     </span>
                                                                 </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isSettingsDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isSettingsDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                {/* 제출 버튼 컬럼: 7단계 모두 완료(초록불) 시에만 활성화 */}
+                                                                {/* 제출 버튼 컬럼: 6단계 모두 완료(초록불) 시에만 활성화 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                                     <button
                                                                         disabled={!pStatus.allDone}
@@ -4866,7 +4855,6 @@ export default function StdPortalPage() {
                                                                                 if (!pStatus.isTtsDone) missingList.push('TTS')
                                                                                 if (!pStatus.isSubtitlesDone) missingList.push('자막')
                                                                                 if (!pStatus.isThumbnailDone) missingList.push('썸네일')
-                                                                                if (!pStatus.isSettingsDone) missingList.push('설정')
                                                                                 alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
                                                                                 return
                                                                             }
@@ -4878,7 +4866,7 @@ export default function StdPortalPage() {
                                                                                 ? 'text-cyan-400 hover:text-white bg-blue-600/30 hover:bg-blue-600 border border-blue-500/50 shadow-md cursor-pointer'
                                                                                 : 'text-gray-600 bg-white/5 border border-white/5 opacity-40 cursor-not-allowed'
                                                                         }`}
-                                                                        title={pStatus.allDone ? "드라이브 제출 및 원격 렌더 큐 접수" : "모든 단계(기획/대본/이미지/TTS/자막/썸네일/설정) 완료 시 활성화됩니다."}
+                                                                        title={pStatus.allDone ? "드라이브 제출 및 원격 렌더 큐 접수" : "모든 단계(기획/대본/이미지/TTS/자막/썸네일) 완료 시 활성화됩니다."}
                                                                     >
                                                                         <span className="text-sm font-bold">⏎</span>
                                                                     </button>
