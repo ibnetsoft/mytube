@@ -6,6 +6,10 @@ Runs inside the Manager process on a separate uvicorn instance bound to
 Local API (local_api_token.py) so the user only needs one token.
 """
 import json
+import os
+import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -1310,6 +1314,48 @@ async def api_autopilot_stop(
     }
 
 
+def _delayed_restart():
+    time.sleep(0.8)
+    python_exe = sys.executable
+    if len(sys.argv) > 1 and ("uvicorn" in sys.argv[0] or "dashboard_app" in " ".join(sys.argv)):
+        cmd = [python_exe] + sys.argv
+    else:
+        cmd = [python_exe, "-m", "uvicorn", "dashboard_app:app", "--host", "127.0.0.1", "--port", "3002"]
+    logger.info(f"Restarting worker server: {cmd}")
+    flags = 0
+    if sys.platform == "win32":
+        flags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    subprocess.Popen(cmd, cwd=str(Path(__file__).resolve().parent), creationflags=flags)
+    time.sleep(0.5)
+    os._exit(0)
+
+
+def _delayed_shutdown():
+    time.sleep(0.8)
+    logger.info("Worker server shutting down upon user request")
+    os._exit(0)
+
+
+@app.post("/api/server/restart")
+async def api_server_restart(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    threading.Thread(target=_delayed_restart, daemon=True).start()
+    return {"success": True, "message": "워커 서버 재시작을 진행합니다."}
+
+
+@app.post("/api/server/shutdown")
+async def api_server_shutdown(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    threading.Thread(target=_delayed_shutdown, daemon=True).start()
+    return {"success": True, "message": "워커 서버가 완전히 종료됩니다."}
+
+
 # ---------------------------------------------------------------------------
 # Login page (serves HTML — no auth required)
 # ---------------------------------------------------------------------------
@@ -1983,6 +2029,14 @@ tr:hover { background: #161b22; }
       <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
         <span class="icon">&#x2699;</span> 설정
       </div>
+      <div style="margin: 14px 10px 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 6px;">
+        <button class="btn btn-sm" onclick="confirmRestartServer()" style="width: 100%; font-size: 11px; background: rgba(56, 139, 253, 0.15); border: 1px solid rgba(56, 139, 253, 0.4); color: #58a6ff; font-weight: bold; padding: 7px 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+          <span>🔄</span> 서버 완전 재시작
+        </button>
+        <button class="btn btn-sm" onclick="confirmShutdownServer()" style="width: 100%; font-size: 11px; background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.3); color: #f85149; padding: 5px 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+          <span>🛑</span> 서버 완전 종료
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2373,6 +2427,23 @@ tr:hover { background: #161b22; }
             <button class="btn btn-primary" onclick="saveAllSettings()">모든 변경사항 저장</button>
             <button class="btn" onclick="loadSettings()">다시 불러오기</button>
             <span id="settings-status" style="font-size:13px;color:#8b949e"></span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(22,27,34,0.6);">
+          <div class="card-title" style="display:flex;align-items:center;gap:8px;">
+            <span>⚡</span> 워커 서버 프로세스 제어
+          </div>
+          <p style="color:#8b949e;font-size:13px;margin-bottom:16px;line-height:1.5;">
+            워커 서버 프로세스를 완전히 종료하거나, 수정된 환경변수(.env) 및 코드를 즉시 적용하기 위해 서버를 재시작합니다.
+          </p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="confirmRestartServer()" style="background:#238636;border-color:#2ea043;font-weight:bold;padding:8px 16px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <span>🔄</span> 워커 서버 완전 재시작 (Restart)
+            </button>
+            <button class="btn" onclick="confirmShutdownServer()" style="background:rgba(248,81,73,0.15);border:1px solid rgba(248,81,73,0.4);color:#f85149;font-weight:bold;padding:8px 16px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <span>🛑</span> 워커 서버 완전 종료 (Shutdown)
+            </button>
           </div>
         </div>
       </div>
@@ -5043,6 +5114,58 @@ async function saveVoiceboxToSupabase() {
     saveBtn.disabled = false;
     saveBtn.textContent = '☁️ Supabase에 저장 & 유저앱 연동 완료';
   }
+}
+
+
+/* ── Server Process Management ── */
+async function confirmRestartServer() {
+  if (!confirm('워커 서버를 완전히 재시작하시겠습니까?\n\n약 3~4초 후 서버가 새로 시작되며 페이지가 자동 새로고침됩니다.')) return;
+  showToast('워커 서버를 재시작하는 중입니다... 잠시만 기다려주세요.', 'info');
+  try {
+    await api('POST', '/api/server/restart');
+  } catch (e) {}
+  showRestartModal();
+}
+
+async function confirmShutdownServer() {
+  if (!confirm('워커 서버를 완전히 종료하시겠습니까?\n\n종료 후에는 바탕화면 앱 또는 실행 스크립트로 직접 다시 켜야 합니다.')) return;
+  showToast('워커 서버를 완전히 종료합니다.', 'warning');
+  try {
+    await api('POST', '/api/server/shutdown');
+  } catch (e) {}
+  document.body.innerHTML = `
+    <div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0d1117;color:#c9d1d9;font-family:sans-serif;text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">🛑</div>
+      <h2 style="color:#f85149;">워커 서버가 완전히 종료되었습니다</h2>
+      <p style="color:#8b949e;margin-top:8px;">다시 실행하려면 AIR Studio 데스크톱 앱이나 워커 실행기를 시작하세요.</p>
+    </div>
+  `;
+}
+
+function showRestartModal() {
+  let count = 4;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.style.zIndex = '9999';
+  overlay.innerHTML = `
+    <div class="modal" style="text-align:center;max-width:380px;padding:30px 20px;">
+      <div style="font-size:36px;margin-bottom:12px;">🔄</div>
+      <h3 style="margin-bottom:8px;">워커 서버 재시작 중</h3>
+      <p style="color:#8b949e;margin:12px 0 20px;font-size:13px;" id="restart-countdown-text">서버를 다시 시작하고 있습니다... (<span id="restart-sec" style="color:#58a6ff;font-weight:bold;">4</span>초)</p>
+      <div class="refresh-indicator" style="display:inline-block;padding:6px 14px;background:#21262d;border-radius:20px;font-size:12px;color:#58a6ff;">잠시 후 자동 새로고침됩니다</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  
+  const timer = setInterval(() => {
+    count--;
+    const secEl = document.getElementById('restart-sec');
+    if (secEl) secEl.textContent = count;
+    if (count <= 0) {
+      clearInterval(timer);
+      window.location.reload();
+    }
+  }, 1000);
 }
 
 
