@@ -1239,6 +1239,17 @@ export default function StdPortalPage() {
         return Math.round((chars / (330 * speedNum)) * 10) / 10
     }, [scriptCharCount, ttsSpeed])
 
+    const formattedEstimatedTime = useMemo(() => {
+        const speedNum = Number(ttsSpeed) || 1.0
+        const totalMinutes = Math.round(scriptCharCount / (330 * speedNum))
+        if (totalMinutes < 60) {
+            return `약 ${totalMinutes}분`
+        }
+        const hours = Math.floor(totalMinutes / 60)
+        const mins = totalMinutes % 60
+        return `약 ${hours}시간 ${mins}분`
+    }, [scriptCharCount, ttsSpeed])
+
     const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
         text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
         start_time: '0.0',
@@ -2598,7 +2609,7 @@ export default function StdPortalPage() {
                                         </div>
                                         <div className="text-right">
                                             <div className="text-xs font-bold text-purple-400 font-mono">{scriptCharCount.toLocaleString()}자</div>
-                                            <div className="text-[10px] text-gray-400">예상 소요: 약 {estimatedAudioMinutes}분</div>
+                                            <div className="text-[10px] text-gray-400">예상 소요: {formattedEstimatedTime}</div>
                                         </div>
                                     </div>
                                     <textarea
