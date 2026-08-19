@@ -63,7 +63,7 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")  # [AIR-0227E-P3] hermes_worker now runs the real hermes_worker.py (topic_research via services.ai_router) - see air_worker_entry.py's role dispatch
 # Hermes creates editorial content and must be explicitly started by an
 # administrator.  The render worker and local API are infrastructure services.
-ALWAYS_ON_CHILD_SCRIPTS = ("render_worker", "local_api")
+ALWAYS_ON_CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "local_api")
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
     "remote_drive_worker": STATE_DIR / "remote_drive_worker.json",

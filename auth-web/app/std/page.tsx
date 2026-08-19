@@ -182,8 +182,10 @@ export default function StdPortalPage() {
     const [forgotMsg, setForgotMsg] = useState('')
     const [signupCategories, setSignupCategories] = useState<string[]>(['경제/재테크', '사연/이야기'])
     const [preferredVideoLength, setPreferredVideoLength] = useState('15-30분')
-    const [agreedTerms, setAgreedTerms] = useState(true)
-    const [agreedPrivacy, setAgreedPrivacy] = useState(true)
+    const [isImpersonating, setIsImpersonating] = useState(false)
+    const [impersonateEmail, setImpersonateEmail] = useState('')
+    const [impersonateUserId, setImpersonateUserId] = useState('')
+    const [viewMode, setViewMode] = useState<'workspace' | 'login_form'>('workspace')
 
     const [token, setToken] = useState('')
     const [user, setUser] = useState<any>(null)
@@ -657,6 +659,31 @@ export default function StdPortalPage() {
     }
 
     useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search)
+        const impEmail = urlParams.get('impersonate') || urlParams.get('email')
+        const impUserId = urlParams.get('userId')
+
+        if (impEmail) {
+            const cleanEmail = decodeURIComponent(impEmail).trim().toLowerCase()
+            setIsImpersonating(true)
+            setImpersonateEmail(cleanEmail)
+            if (impUserId) setImpersonateUserId(impUserId)
+            setEmail(cleanEmail)
+
+            const impToken = `std_impersonate_${Date.now()}`
+            const impUser = {
+                id: impUserId || ('worker-' + Date.now()),
+                email: cleanEmail,
+                full_name: cleanEmail.split('@')[0] || 'STD 유저',
+                membership: 'std',
+                signup_status: 'approved',
+            }
+            setToken(impToken)
+            setUser(impUser)
+            loadStdData(impToken).finally(() => setAuthChecking(false))
+            return
+        }
+
         const savedToken = localStorage.getItem('std_session_token') || 'std_dev_session_active'
         setToken(savedToken)
         loadStdData(savedToken).finally(() => setAuthChecking(false))
@@ -1162,14 +1189,40 @@ export default function StdPortalPage() {
     }
 
     // 로그인 화면 (유저앱 login.html과 100% 동일 구현)
-    if (!token || !user) {
+    if (!token || !user || (isImpersonating && viewMode === 'login_form')) {
         return (
-            <main className="min-h-screen bg-[#0b0f19] text-gray-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+            <main className="min-h-screen bg-[#0b0f19] text-gray-100 flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+                {isImpersonating && (
+                    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-950/95 via-indigo-950/95 to-purple-950/95 border-b border-blue-500/40 px-6 py-2.5 flex flex-wrap items-center justify-between text-xs font-bold shadow-2xl backdrop-blur-md">
+                        <div className="flex items-center gap-2.5">
+                            <span className="px-2 py-0.5 rounded bg-blue-500 text-black text-[10px] font-black uppercase tracking-wider">Admin View</span>
+                            <span className="text-white">👑 관리자 뷰어:</span>
+                            <span className="text-cyan-300 font-mono font-black">{impersonateEmail}</span>
+                            <span className="text-gray-400 font-normal text-[11px]">(로그인 폼 화면 조회 중)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('workspace')}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black transition shadow-lg shadow-blue-600/30"
+                            >
+                                유저 작업화면 보기 →
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => window.location.href = '/dashboard'}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl text-xs font-black transition border border-white/20"
+                            >
+                                관리자 대시보드로 복귀
+                            </button>
+                        </div>
+                    </div>
+                )}
                 {/* 배경 조명 블러 효과 */}
                 <div className="absolute -right-20 -top-20 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
-                <div className="w-full max-w-md bg-[#1e293b]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10">
+                <div className={`w-full max-w-md bg-[#1e293b]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 ${isImpersonating ? 'mt-12' : ''}`}>
                     <div className="flex flex-col items-center">
                         {/* 상단 펄스 헤더 */}
                         <div className="flex items-center gap-2 mb-2">
@@ -1550,6 +1603,32 @@ export default function StdPortalPage() {
 
     return (
         <div className="min-h-screen bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
+            {isImpersonating && (
+                <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
+                    <div className="flex items-center gap-2.5">
+                        <span className="px-2 py-0.5 rounded bg-cyan-400 text-black text-[10px] font-black uppercase tracking-wider">Admin View</span>
+                        <span className="text-white">👑 관리자 뷰어:</span>
+                        <span className="text-cyan-300 font-mono font-black">{impersonateEmail}</span>
+                        <span className="text-gray-400 font-normal text-[11px]">(유저 시점 작업 화면 조회 중)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('login_form')}
+                            className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-xs font-bold transition"
+                        >
+                            로그인 폼 화면 보기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => window.location.href = '/dashboard'}
+                            className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black transition shadow"
+                        >
+                            관리자 대시보드로 복귀
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* 1. 상단 글로벌 헤더 */}
             <header className="h-12 bg-[#181d26] border-b border-white/10 px-4 flex items-center justify-between shrink-0 z-30">
                 <div className="flex items-center gap-3">

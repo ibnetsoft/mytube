@@ -610,6 +610,107 @@ async def api_jobs(
     return {"jobs": jobs}
 
 
+def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
+    try:
+        from remote_drive_worker import RemoteDriveWorker
+        worker = RemoteDriveWorker()
+        params = {
+            "select": "*",
+            "render_mode": "eq.drive_api",
+            "order": "created_at.desc",
+            "limit": str(limit),
+        }
+        rows = worker._request("GET", worker.queue_url, params=params) or []
+        formatted = []
+        for r in rows:
+            meta = r.get("metadata") or {}
+            result_fid = r.get("result_file_id") or meta.get("result_video_file_id")
+            raw_status = str(r.get("status") or "pending").upper()
+            progress_val = int(r.get("progress") or (100 if raw_status.lower() == "completed" else 0))
+            err_msg = r.get("error_message") or (r.get("message") if raw_status.lower() == "failed" else "")
+            
+            # 1시간 이상 갱신 없는 작업은 유령 렌더링(Stale) 방지
+            last_activity = r.get("updated_at") or r.get("claimed_at") or r.get("created_at")
+            if raw_status in ("RENDERING", "PREPARING", "CLAIMED", "UPLOADING") and last_activity:
+                try:
+                    import datetime
+                    dt = datetime.datetime.fromisoformat(str(last_activity).replace('Z', '+00:00'))
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    if (now - dt).total_seconds() > 3600:
+                        raw_status = "FAILED"
+                        err_msg = "워커 응답 시간 초과로 중단됨"
+                except Exception:
+                    pass
+
+            formatted.append({
+                "job_id": str(r.get("id")),
+                "raw_id": r.get("id"),
+                "source": "web_std",
+                "job_type": "drive_api_render",
+                "email": r.get("email") or "-",
+                "project_id": r.get("project_id"),
+                "project_name": r.get("project_name") or r.get("asset_file_name") or f"프로젝트 #{r.get('project_id')}",
+                "status": raw_status,
+                "progress": progress_val,
+                "progress_message": r.get("message") or "",
+                "worker_id": r.get("worker_id") or "-",
+                "result_url": drive_url,
+                "drive_file_id": result_fid,
+                "thumbnail_file_id": meta.get("result_thumbnail_file_id") or r.get("thumbnail_file_id"),
+                "created_at": r.get("created_at"),
+                "started_at": r.get("claimed_at"),
+                "completed_at": r.get("completed_at"),
+                "error_message": err_msg,
+            })
+        return formatted
+    except Exception as exc:
+        logger.warning(f"Failed to fetch remote_render_queue: {exc}")
+        return []
+
+
+@app.get("/api/rendering-jobs")
+async def api_rendering_jobs(
+    limit: int = 30,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    local_jobs = [j for j in job_store.list_jobs(limit=limit) if j.get("job_type") == "render_video"]
+    formatted_local = []
+    for j in local_jobs:
+        payload = j.get("payload") or {}
+        formatted_local.append({
+            "job_id": j.get("job_id"),
+            "raw_id": j.get("job_id"),
+            "source": "local",
+            "job_type": "render_video",
+            "project_id": payload.get("project_id"),
+            "project_name": payload.get("project_name") or payload.get("title") or f"Local Job {j.get('job_id', '')[:8]}",
+            "status": j.get("status", "QUEUED"),
+            "progress": j.get("progress", 0),
+            "progress_message": j.get("progress_message", ""),
+            "worker_id": j.get("worker_instance_id") or "local_worker",
+            "result_url": j.get("output_path"),
+            "created_at": j.get("created_at"),
+            "started_at": j.get("started_at"),
+            "error_message": j.get("error_message", ""),
+        })
+    remote_jobs = _fetch_remote_drive_render_queue(limit=limit)
+    all_jobs = formatted_local + remote_jobs
+    all_jobs.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    
+    active_jobs = [j for j in all_jobs if j.get("status") in ("RENDERING", "PREPARING", "CLAIMED", "UPLOADING")]
+    pending_jobs = [j for j in all_jobs if j.get("status") in ("PENDING", "QUEUED")]
+    
+    return {
+        "jobs": all_jobs[:limit],
+        "active_job": active_jobs[0] if active_jobs else None,
+        "active_count": len(active_jobs),
+        "pending_count": len(pending_jobs),
+        "total_count": len(all_jobs),
+    }
+
+
 @app.get("/api/jobs/{job_id}")
 async def api_job_detail(
     job_id: str,
@@ -1552,6 +1653,7 @@ tr:hover { background: #161b22; }
       </div>
       <div class="nav-item" data-tab="rendering" onclick="switchTab('rendering')">
         <span class="icon">&#x1F3AC;</span> 렌더링 상황
+        <span id="render-nav-badge" class="badge" style="display:none;margin-left:auto;background:#e74c3c;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;">0</span>
       </div>
       <div class="nav-item" data-tab="topic-search" onclick="switchTab('topic-search')">
         <span class="icon">&#x1F50D;</span> 주제 찾기
@@ -1589,7 +1691,12 @@ tr:hover { background: #161b22; }
   <!-- Main content -->
   <div class="main">
     <div class="topbar">
-      <h2 id="page-title">대시보드</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <h2 id="page-title">대시보드</h2>
+        <span id="manager-offline-badge" style="display:none;background:#da363322;border:1px solid #da363366;color:#f85149;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:0.3px" title="heartbeat 없음 — Manager 프로세스가 실행 중이 아닙니다">
+          &#x26A0; Manager 오프라인
+        </span>
+      </div>
       <div class="topbar-actions">
         <span class="refresh-indicator" id="refresh-timer"></span>
         <button class="btn btn-sm" onclick="refreshAll()">&#x1F504; 새로고침</button>
@@ -1618,9 +1725,12 @@ tr:hover { background: #161b22; }
           <div id="render-active-content"></div>
         </div>
         <div class="card">
-          <div class="card-title">렌더 작업 목록</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="card-title" style="margin-bottom:0">렌더 작업 목록</div>
+            <button class="btn btn-sm" onclick="loadRenderTab()">&#x1F504; 렌더 목록 새로고침</button>
+          </div>
           <table>
-            <thead><tr><th>ID</th><th>상태</th><th>진행률</th><th>메시지</th><th>시작</th><th>작업</th></tr></thead>
+            <thead><tr><th>출처</th><th>ID / 프로젝트</th><th>상태</th><th>진행률</th><th>메시지 / 작업자</th><th>접수/시작</th><th>결과</th></tr></thead>
             <tbody id="render-jobs-body"></tbody>
           </table>
           <div class="empty" id="render-empty" style="display:none"><div class="icon">&#x1F3AC;</div>렌더 작업이 없습니다</div>
@@ -2222,20 +2332,20 @@ function switchTab(tabId) {
 /* ── Time formatting ── */
 function fmtTime(ts) {
   if (!ts) return '-';
-  const d = new Date(ts * 1000);
-  return d.toLocaleString('ko-KR');
+  const d = (typeof ts === 'number' || (!isNaN(Number(ts)) && !String(ts).includes('-') && !String(ts).includes('T'))) ? new Date(Number(ts) * 1000) : new Date(ts);
+  return isNaN(d.getTime()) ? String(ts) : d.toLocaleString('ko-KR');
 }
 function fmtShort(ts) {
   if (!ts) return '-';
-  const d = new Date(ts * 1000);
-  return d.toLocaleTimeString('ko-KR');
+  const d = (typeof ts === 'number' || (!isNaN(Number(ts)) && !String(ts).includes('-') && !String(ts).includes('T'))) ? new Date(Number(ts) * 1000) : new Date(ts);
+  return isNaN(d.getTime()) ? String(ts) : d.toLocaleTimeString('ko-KR');
 }
 
 /* ── Status badge ── */
 const STATUS_LABELS = {
-  QUEUED: '대기 중', CLAIMED: '작업 준비', PREPARING: '준비 중',
-  RENDERING: '처리 중', UPLOADING: '결과 저장 중', COMPLETED: '완료',
-  FAILED: '실패', CANCELED: '취소됨', ABANDONED: '중단됨',
+  QUEUED: '대기 중', PENDING: '대기 중', pending: '대기 중', CLAIMED: '작업 준비', PREPARING: '준비 중',
+  RENDERING: '렌더링 중', rendering: '렌더링 중', UPLOADING: '결과 저장 중', COMPLETED: '완료', completed: '완료',
+  FAILED: '실패', failed: '실패', CANCELED: '취소됨', canceled: '취소됨', ABANDONED: '중단됨',
   running: '실행 중', idle: '대기 중', stopped: '중지됨',
   starting: '시작 중', disabled: '사용 안 함',
 };
@@ -2368,8 +2478,9 @@ function renderProcessCards(status, jobs = []) {
       ${currentJobDetails}
     </div>`;
   }
-  if (status.manager_alive === false) {
-    html += `<div class="status-card" style="border-color:#f85149"><div class="name" style="color:#f85149">&#x26A0; Manager 오프라인</div><div class="info">heartbeat 없음 — Worker가 실행 중이 아닐 수 있습니다</div></div>`;
+  const offlineBadge = document.getElementById('manager-offline-badge');
+  if (offlineBadge) {
+    offlineBadge.style.display = (status.manager_alive === false) ? 'inline-block' : 'none';
   }
   el.innerHTML = html;
 }
@@ -2424,36 +2535,125 @@ function renderRecentJobs(jobs) {
   </tr>`).join('');
 }
 
+let knownRenderJobIds = new Set();
+let isFirstRenderJobFetch = true;
+
+function playChimeSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.45);
+  } catch(e) {}
+}
+
+function checkNewRenderJobs(jobs, pendingCount) {
+  const badge = document.getElementById('render-nav-badge');
+  if (badge) {
+    if (pendingCount > 0) {
+      badge.textContent = pendingCount;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  if (!Array.isArray(jobs) || !jobs.length) return;
+
+  if (isFirstRenderJobFetch) {
+    jobs.forEach(j => knownRenderJobIds.add(String(j.job_id)));
+    isFirstRenderJobFetch = false;
+    return;
+  }
+
+  for (const j of jobs) {
+    const id = String(j.job_id);
+    if (!knownRenderJobIds.has(id)) {
+      knownRenderJobIds.add(id);
+      const st = String(j.status || '').toUpperCase();
+      if (st === 'PENDING' || st === 'QUEUED' || st === 'RENDERING') {
+        const src = j.source === 'web_std' ? '웹STD 클라우드' : '로컬 워커';
+        const title = j.project_name || j.job_id;
+        showToast(`🔔 [${src}] 새로운 렌더링 작업이 감지되었습니다: ${title}`, 'info');
+        playChimeSound();
+      }
+    }
+  }
+}
+
 /* ── Render tab ── */
 function loadRenderTab() {
-  api('GET', '/api/jobs?job_type=render_video&limit=20').then(data => {
+  api('GET', '/api/rendering-jobs?limit=30').then(data => {
     if (!data) return;
     const jobs = data.jobs || [];
+    checkNewRenderJobs(jobs, data.pending_count || 0);
+
     const el = document.getElementById('render-jobs-body');
     const empty = document.getElementById('render-empty');
     if (!jobs.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
-    el.innerHTML = jobs.map(j => `<tr>
-      <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-      <td>${statusBadge(j.status)}</td>
-      <td>${displayProgress(j)}%</td>
-      <td>${escapeHtml(j.progress_message || j.error_message || '-')}</td>
-      <td>${fmtShort(j.started_at)}</td>
-      <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">취소</button>` : ''}</td>
-    </tr>`).join('');
 
-    // Show active render
-    const active = jobs.find(j => ['CLAIMED','PREPARING','RENDERING','UPLOADING'].includes(j.status));
+    el.innerHTML = jobs.map(j => {
+      const srcBadge = j.source === 'web_std' 
+        ? '<span class="badge" style="background:#8e44ad;color:#fff;">웹STD</span>' 
+        : '<span class="badge" style="background:#2980b9;color:#fff;">로컬</span>';
+      const isCompleted = String(j.status).toUpperCase() === 'COMPLETED';
+      const resultLink = j.result_url 
+        ? `<a href="${escapeHtml(j.result_url)}" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none;">결과 확인 &#x1F517;</a>` 
+        : (isCompleted ? '<span style="color:#2ecc71;">완료됨</span>' : '-');
+      const progress = displayProgress(j);
+
+      return `<tr>
+        <td>${srcBadge}</td>
+        <td>
+          <div style="font-weight:600;color:#58a6ff;">${escapeHtml(j.project_name || j.job_id.substring(0,8))} ${j.project_id ? `<span style="color:#8b949e;font-size:12px;">(${j.project_id})</span>` : ''}</div>
+          <div style="font-size:11px;color:#8b949e;">${j.email && j.email !== '-' ? `<span style="color:#58a6ff;">${escapeHtml(j.email)}</span> · ` : ''}ID: ${escapeHtml(j.job_id.substring(0,12))}</div>
+        </td>
+        <td>${statusBadge(j.status)}</td>
+        <td style="min-width:110px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="progress-bar" style="flex:1;height:8px;margin:0;"><div class="progress-fill" style="width:${progress}%"></div></div>
+            <span style="font-size:12px;font-weight:600;">${progress}%</span>
+          </div>
+        </td>
+        <td>
+          <div>${escapeHtml(j.progress_message || j.error_message || '-')}</div>
+          ${j.worker_id && j.worker_id !== '-' ? `<div style="font-size:11px;color:#8b949e;">담당: ${escapeHtml(j.worker_id)}</div>` : ''}
+        </td>
+        <td>${fmtShort(j.started_at || j.created_at)}</td>
+        <td>${resultLink}</td>
+      </tr>`;
+    }).join('');
+
+    // Show active render card
+    const active = data.active_job || jobs.find(j => ['CLAIMED','PREPARING','RENDERING','UPLOADING'].includes(String(j.status).toUpperCase()));
     const acEl = document.getElementById('render-active-content');
     if (active) {
-      acEl.innerHTML = `<div class="status-card">
-        <div class="name">${statusBadge(active.status)} ${active.job_id.substring(0,8)}</div>
-        <div class="info">${escapeHtml(active.progress_message || jobDescription(active))}</div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${displayProgress(active)}%"></div></div>
-        <div style="margin-top:8px">${canCancel(active.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${active.job_id}')">렌더 취소</button>` : ''}</div>
+      const srcLabel = active.source === 'web_std' ? '[웹STD 클라우드 렌더]' : '[로컬 렌더]';
+      acEl.innerHTML = `<div class="status-card" style="border-left:4px solid #58a6ff;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div class="name">${statusBadge(active.status)} <strong style="color:#58a6ff;">${srcLabel} ${escapeHtml(active.project_name || active.job_id)}</strong></div>
+          <span style="font-size:12px;color:#8b949e;">시작: ${fmtShort(active.started_at || active.created_at)}</span>
+        </div>
+        <div class="info" style="margin-top:6px;">${escapeHtml(active.progress_message || '영상 렌더링을 진행하고 있습니다...')}</div>
+        <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${displayProgress(active)}%"></div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:12px;color:#8b949e;">
+          <span>진행률: ${displayProgress(active)}%</span>
+          <span>작업자: ${escapeHtml(active.worker_id || 'AIR Worker')}</span>
+        </div>
       </div>`;
     } else {
-      acEl.innerHTML = '<div class="empty" style="padding:20px"><div class="icon">&#x274C;</div>활성 렌더 작업 없음</div>';
+      acEl.innerHTML = '<div class="empty" style="padding:20px"><div class="icon">&#x274C;</div>현재 진행 중인 렌더 작업 없음</div>';
     }
   });
 }
@@ -3241,6 +3441,10 @@ async function refreshAll() {
   try {
     const jobs = await api('GET', '/api/jobs?limit=10');
     const status = await api('GET', '/api/status');
+    const renderJobsData = await api('GET', '/api/rendering-jobs?limit=10');
+    if (renderJobsData) {
+      checkNewRenderJobs(renderJobsData.jobs, renderJobsData.pending_count || 0);
+    }
     if (!status) return;
     const recentJobs = jobs?.jobs || [];
     renderProcessCards(status, recentJobs);

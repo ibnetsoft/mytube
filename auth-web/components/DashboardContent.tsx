@@ -2989,8 +2989,7 @@ export default function DashboardContent() {
                             { id: 'withdrawals', label: ui.withdrawals, superOnly: false },
                             { id: 'api', label: ui.api, superOnly: true },
                             { id: 'learning', label: ui.learning, superOnly: true },
-                            { id: 'styles', label: ui.styles, superOnly: true },
-                            { id: 'tenants', label: '테넌트', superOnly: true },
+                                                        { id: 'tenants', label: '테넌트', superOnly: true },
                             { id: 'referral-admin', label: '추천인 관리', superOnly: true },
                             { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
                             { id: 'support', label: '문의 Inbox', superOnly: false },
@@ -3279,11 +3278,9 @@ export default function DashboardContent() {
                                                         </div>
                                                         )}
                                                     </div>
-                                                    <div className="space-y-2 text-xs text-gray-400 mb-6">
-                                                        <p>키워드: <strong className="text-gray-200">{cat.keywords || '(없음)'}</strong></p>
-                                                        <p className="truncate">벤치 채널: <a href={cat.benchmark_channel_url} target="_blank" rel="noreferrer" className="text-blue-400 underline">{cat.benchmark_channel_url || '(없음)'}</a></p>
+                                                    <div className="space-y-2 text-xs text-gray-400 mb-4">
                                                         <p>
-                                                            업로드 채널:{' ' }
+                                                            업로드 채널:{' '}
                                                             <button
                                                                 type="button"
                                                                 disabled={!canManageTopics}
@@ -3291,11 +3288,8 @@ export default function DashboardContent() {
                                                                 className={`text-blue-400 underline hover:text-blue-300 ${!canManageTopics ? 'cursor-not-allowed opacity-50' : ''}`}
                                                             >
                                                                 {cat.upload_channel_name || cat.upload_channel_handle || '미지정'}
-                                                        </button>
-                                                    </p>
-                                                        <p>대본 스타일: <strong className="text-gray-200">{cat.default_script_style || '기본'}</strong></p>
-                                                        <p>콘텐츠 언어: <strong className="text-gray-200">{contentLanguageLabel(cat.language)}</strong></p>
-                                                        <p>영상 포맷: <strong className="text-gray-200">{cat.video_type === 'shorts' ? '쇼츠 (Shorts)' : '롱폼 (Longform)'}</strong></p>
+                                                            </button>
+                                                        </p>
                                                     </div>
                                                      
                                                     {/* 주제 대기열 카운트 */}
@@ -4401,6 +4395,7 @@ export default function DashboardContent() {
                                                     )}
                                                     <button onClick={() => { setEditInfoUser(u); setEditInfoForm({ full_name: u.user_metadata?.full_name || '', nationality: u.user_metadata?.nationality || '', contact: u.user_metadata?.contact || '', preferred_languages: u.profile?.preferred_languages?.length ? u.profile.preferred_languages : ['ko'], persona_name: u.profile?.persona_name || '', persona_style: u.profile?.persona_style || '', persona_description: u.profile?.persona_description || '' }); }} className="px-2 py-1 bg-yellow-600/10 hover:bg-yellow-600 text-yellow-500 hover:text-white text-[10px] font-black rounded border border-yellow-500/20 transition-all whitespace-nowrap">정보수정</button>
                                                     <button onClick={() => { setLogViewUser(u); setLogPeriod(1); fetchUserLogs(u.id, 1); }} className="px-2 py-1 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-[10px] font-black rounded border border-blue-500/20 transition-all whitespace-nowrap">로그조회</button>
+                                                    <button onClick={() => window.open(`/std?impersonate=${encodeURIComponent(u.email || '')}&userId=${encodeURIComponent(u.id || '')}`, '_blank')} className="px-2 py-1 bg-cyan-600/10 hover:bg-cyan-600 text-cyan-400 hover:text-white text-[10px] font-black rounded border border-cyan-500/20 transition-all whitespace-nowrap" title="해당 유저 시점 화면 / 로그인화면 보기">로그인화면</button>
                                                     {canManageSensitiveUserSettings && u.app_metadata?.membership?.toLowerCase() === 'pro' && (
                                                         <button onClick={() => { setApiViewUser(u); setTempApiKeys(u.app_metadata?.custom_api_keys || { openai: '', gemini: '', pexels: '', replicate: '' }); }} className="px-2 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-500 hover:text-white text-[10px] font-black rounded border border-indigo-500/20 transition-all whitespace-nowrap">API</button>
                                                     )}
@@ -5129,256 +5124,35 @@ export default function DashboardContent() {
                     <ErrorLogsPanel />
                 )}
 
-                {activeTab === 'styles' && canManageStyles && (
-                    <div className="space-y-8 animate-in fade-in duration-300">
-                        {/* 1. 스타일 추가/수정 */}
-                        <div ref={presetFormRef} className={`rounded-[2.5rem] border p-8 shadow-2xl scroll-mt-24 transition-all duration-300 ${presetId ? 'bg-blue-950/40 border-blue-500/40' : 'bg-[#0f172a]/60 border-white/10'}`}>
-                            <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
-                                스타일 프리셋 {presetId ? '수정' : '추가'}
-                            </h2>
-                            <form onSubmit={handleSavePreset} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 타입 *</label>
-                                    <select
-                                        required
-                                        value={presetType}
-                                        onChange={e => setPresetType(e.target.value as any)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                                    >
-                                        <option value="script">대본 스타일 (Script Style)</option>
-                                        <option value="thumbnail">썸네일 스타일 (Thumbnail Style)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 영문 코드명 * (예: realistic)</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="영문 소문자 및 언더바 권장"
-                                        value={presetKeyCode}
-                                        onChange={e => setPresetKeyCode(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 한글 표시명 *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="예: 실사영화"
-                                        value={presetNameKo}
-                                        onChange={e => setPresetNameKo(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">스타일 베트남어 표시명</label>
-                                    <input
-                                        type="text"
-                                        placeholder="예: Dien anh thuc te"
-                                        value={presetNameVi}
-                                        onChange={e => setPresetNameVi(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">프리뷰 썸네일 이미지 URL</label>
-                                    <input
-                                        type="text"
-                                        placeholder="https://... 또는 /static/img/... (선택사항)"
-                                        value={presetImageUrl}
-                                        onChange={e => setPresetImageUrl(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    />
-                                </div>
-                                <div className="md:col-span-2 lg:col-span-3">
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">프롬프트 템플릿 *</label>
-                                    <textarea
-                                        required
-                                        rows={4}
-                                        placeholder="스타일에 적용할 주요 프롬프트 및 수식어를 적어주세요. 이미지 스타일의 경우 [SUBJECT] 등을 활용할 수 있습니다."
-                                        value={presetPromptTemplate}
-                                        onChange={e => setPresetPromptTemplate(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs"
-                                    />
-                                </div>
-                                <div className="md:col-span-2 lg:col-span-3">
-                                    <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">AI 추가 지시사항 (Grounded Gemini Instruction - 이미지 스타일 적용)</label>
-                                    <textarea
-                                        rows={3}
-                                        placeholder="예: 절대 텍스트나 말풍선을 넣지 마세요."
-                                        value={presetGeminiInstruction}
-                                        onChange={e => setPresetGeminiInstruction(e.target.value)}
-                                        className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs"
-                                    />
-                                </div>
-                                <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3">
-                                    {presetId && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setPresetId(null)
-                                                setPresetKeyCode('')
-                                                setPresetNameKo('')
-                                                setPresetNameVi('')
-                                                setPresetPromptTemplate('')
-                                                setPresetGeminiInstruction('')
-                                                setPresetImageUrl('')
-                                            }}
-                                            className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-black transition-all"
-                                        >
-                                            취소
-                                        </button>
-                                    )}
-                                    <button
-                                        type="submit"
-                                        disabled={isSavingPreset}
-                                        className="px-8 py-3 rounded-xl text-xs font-black bg-blue-600 text-white shadow-lg flex items-center gap-1.5 disabled:opacity-50 hover:bg-blue-500 transition-all"
-                                    >
-                                        {isSavingPreset ? '저장 중...' : '프리셋 저장'}
-                                    </button>
-                                </div>
-                            </form>
+                {activeTab === 'styles' && (
+                    <div className="rounded-[2.5rem] border border-cyan-500/20 bg-[#0f172a]/70 p-10 shadow-2xl text-center max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
+                        <div className="w-16 h-16 rounded-3xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-3xl mx-auto">
+                            🎨
                         </div>
-
-                        {/* 2. 스타일 프리셋 리스트 */}
-                        <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
-                            <div className="p-6 border-b border-white/5 bg-white/5 flex flex-wrap justify-between items-center gap-3">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {([
-                                        { key: 'script', label: '대본 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'script').length },
-                                        { key: 'thumbnail', label: '썸네일 스타일', count: stylePresets.filter((p: any) => p.preset_type === 'thumbnail').length },
-                                        { key: 'voice', label: '음성', count: customVoices.length },
-                                    ] as const).map(tab => (
-                                        <button
-                                            key={tab.key}
-                                            type="button"
-                                            onClick={() => setStyleCatalogTab(tab.key)}
-                                            className={`px-4 py-2 rounded-lg text-xs font-black border transition-all ${
-                                                styleCatalogTab === tab.key
-                                                    ? 'bg-blue-600 border-blue-500 text-white'
-                                                    : 'bg-black/30 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-                                            }`}
-                                        >
-                                            {tab.label} ({tab.count})
-                                        </button>
-                                    ))}
-                                </div>
-                                <button
-                                    onClick={styleCatalogTab === 'voice' ? fetchCustomVoices : fetchStylePresets}
-                                    className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-white/10"
-                                >
-                                    새로고침
-                                </button>
-                            </div>
-                            <div className="p-6">
-                                {styleCatalogTab === 'voice' ? (
-                                    <div className="space-y-6">
-                                        <form onSubmit={handleSaveVoice} className="grid grid-cols-1 gap-4">
-                                            <div>
-                                                <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">ElevenLabs 음성 일괄 등록</label>
-                                                <textarea
-                                                    rows={6}
-                                                    value={voiceBulkInput}
-                                                    onChange={e => setVoiceBulkInput(e.target.value)}
-                                                    placeholder={'한국어 남성 내레이션 | VoiceID_1\n한국어 여성 내레이션 | VoiceID_2'}
-                                                    className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs resize-y"
-                                                />
-                                                <p className="mt-2 text-[10px] text-gray-500">한 줄에 하나씩 `음성 이름 | Voice ID` 형식으로 입력하세요. 탭 또는 쉼표 구분도 지원합니다.</p>
-                                            </div>
-                                            <button
-                                                type="submit"
-                                                disabled={voiceSaving}
-                                                className="justify-self-end px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black disabled:opacity-50"
-                                            >
-                                                {voiceSaving ? '저장 중...' : '음성 일괄 등록'}
-                                            </button>
-                                        </form>
-
-                                        {voicesLoading ? (
-                                            <div className="text-center text-xs text-gray-500 py-10">음성 목록 로딩 중...</div>
-                                        ) : customVoices.length === 0 ? (
-                                            <p className="text-xs text-gray-600 italic">등록된 ElevenLabs 음성이 없습니다.</p>
-                                        ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {customVoices.map((voice: any) => (
-                                                    <div key={voice.voice_id} className="border border-white/5 bg-black/40 p-4 rounded-xl flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <h4 className="text-sm font-bold text-white truncate">{voice.name}</h4>
-                                                            <p className="mt-1 text-[10px] font-mono text-gray-500 break-all">{voice.voice_id}</p>
-                                                            <span className="mt-2 inline-block rounded bg-purple-500/10 px-2 py-1 text-[9px] font-black text-purple-300">ELEVENLABS</span>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteVoice(voice.voice_id)}
-                                                            className="px-2 py-1 rounded text-[10px] font-bold text-red-400 hover:bg-red-500/10"
-                                                        >
-                                                            삭제
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : presetsLoading ? (
-                                    <div className="text-center text-xs text-gray-500 py-10">프리셋 로딩 중...</div>
-                                ) : (
-                                    <div>
-                                        {stylePresets.filter((p: any) => p.preset_type === styleCatalogTab).length === 0 ? (
-                                            <p className="text-xs text-gray-600 italic">등록된 스타일 프리셋이 없습니다.</p>
-                                        ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {stylePresets
-                                                    .filter((p: any) => p.preset_type === styleCatalogTab)
-                                                    .map((preset: any) => (
-                                                                <div key={preset.id} className="border border-white/5 bg-black/40 p-4 rounded-xl relative group hover:border-white/10 transition-all flex flex-col justify-between">
-                                                                    <div>
-                                                                        <div className="flex justify-between items-start mb-2">
-                                                                            <div>
-                                                                                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                                                                                    {preset.display_name_ko}
-                                                                                    {preset.display_name_vi && (
-                                                                                        <span className="text-[10px] text-gray-500 font-normal">({preset.display_name_vi})</span>
-                                                                                    )}
-                                                                                </h4>
-                                                                                <span className="text-[9px] font-mono text-gray-500 bg-white/5 px-1.5 py-0.5 rounded mt-1 inline-block">code: {preset.key_code}</span>
-                                                                            </div>
-                                                                            <div className="flex gap-1">
-                                                                                <button
-                                                                                    onClick={() => handleEditPreset(preset)}
-                                                                                    className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded text-[10px] font-bold transition-all border border-blue-500/20"
-                                                                                    title="수정"
-                                                                                >
-                                                                                    수정
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => handleDeletePreset(preset.id, preset.key_code)}
-                                                                                    className="p-1 hover:bg-white/5 rounded text-red-500 text-xs"
-                                                                                    title="삭제"
-                                                                                >
-                                                                                    삭제
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                        {preset.image_url && (
-                                                                            <Image src={preset.image_url} alt={preset.display_name_ko} width={96} height={96} unoptimized className="w-24 h-24 object-cover rounded-lg mb-2.5 border border-white/5 bg-[#111]" />
-                                                                        )}
-                                                                        <p className="text-[10px] text-gray-400 font-mono line-clamp-3 bg-black/50 p-2 rounded border border-white/5">
-                                                                            {preset.prompt_template}
-                                                                        </p>
-                                                                        {preset.gemini_instruction && (
-                                                                            <p className="text-[9px] text-purple-400 font-mono mt-1.5">
-                                                                                Instruction: {preset.gemini_instruction}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                    ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-white tracking-tight">스타일 세팅은 AIR Worker로 일원화되었습니다</h2>
+                            <p className="mt-3 text-sm text-gray-400 leading-relaxed">
+                                이미지 스타일 및 대본 스타일 프리셋, 카테고리별 이미지 스타일 매핑 관리는<br />
+                                <strong>AIR Worker 대시보드</strong>에서 전담하여 핸들링합니다.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                            <a
+                                href="http://127.0.0.1:3002"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-6 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs transition-all shadow-lg shadow-cyan-600/30 flex items-center gap-2"
+                            >
+                                <span>AIR Worker 스타일 관리 바로가기 (포트 3002)</span>
+                                <span>→</span>
+                            </a>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('topics')}
+                                className="px-6 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold text-xs transition border border-white/10"
+                            >
+                                주제 큐 관리로 이동
+                            </button>
                         </div>
                     </div>
                 )}
