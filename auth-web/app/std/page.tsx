@@ -1212,6 +1212,12 @@ export default function StdPortalPage() {
         
         const requiredVideoZone = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
+        const requiredZoneOnlyImage = scenes
+            .filter(s => requiredVideoZone.includes(s.scene_number) && Boolean(s.image_url) && !s.video_url)
+            .map(s => s.scene_number)
+        const requiredZoneMissingAll = scenes
+            .filter(s => requiredVideoZone.includes(s.scene_number) && !s.image_url && !s.video_url)
+            .map(s => s.scene_number)
         const completion = totalScenes > 0 ? Math.round(((totalScenes - missingScenes.length) / totalScenes) * 100) : 0
 
         return {
@@ -1220,6 +1226,8 @@ export default function StdPortalPage() {
             videoCount: videoScenes.length,
             missingScenes,
             videoReadyInZoneCount: videoReadyInZone.length,
+            requiredZoneOnlyImage,
+            requiredZoneMissingAll,
             completion,
             videoScenes,
         }
@@ -2749,9 +2757,11 @@ export default function StdPortalPage() {
                                             에셋 누락: {assetStats.missingScenes.join(', ')}
                                         </p>
                                     )}
-                                    <p className="text-xs text-orange-400">
-                                        🔒 초반 구간 영상 필요 (이미지만 있음: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
-                                    </p>
+                                    {assetStats.requiredZoneOnlyImage.length > 0 && (
+                                        <p className="text-xs text-orange-400">
+                                            🔒 초반 구간 영상 필요 (이미지만 있음: {assetStats.requiredZoneOnlyImage.join(', ')})
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="overflow-x-auto border-t border-white/5">
