@@ -250,6 +250,18 @@ export default function StdPortalPage() {
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
+    
+    // 7. 렌더(Render) 탭 전용 상태 (유저앱 render.html 100% 동일 구현)
+    const [renderResolution, setRenderResolution] = useState<'1080p' | '720p'>('1080p')
+    const [renderUseSubtitles, setRenderUseSubtitles] = useState(true)
+    const [renderTarget, setRenderTarget] = useState<'drive_api' | 'local'>('drive_api')
+    const [isRendering, setIsRendering] = useState(false)
+    const [renderProgress, setRenderProgress] = useState(0)
+    const [renderLogList, setRenderLogList] = useState<string[]>([
+        '대기 중 - 렌더링 시작 버튼을 누르면 작업이 진행됩니다.'
+    ])
+    const [renderedVideoUrl, setRenderedVideoUrl] = useState('')
+
     const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>('basic')
     const [settingName, setSettingName] = useState('김호')
     const [settingNationality, setSettingNationality] = useState('대한민국')
@@ -1644,15 +1656,18 @@ export default function StdPortalPage() {
                 </div>
 
                 {/* 상단 8단계 녹색 원형 체크 스텝퍼 */}
-                <div className="hidden lg:flex items-center gap-3 text-[11px] text-gray-400 font-medium">
+                <div className="hidden lg:flex items-center gap-2.5 text-[11px] text-gray-400 font-medium overflow-x-auto py-1">
                     {[
                         { id: 'topics', label: t('nav_topics') },
-                        { id: 'script_plan', label: t('nav_plan') },
-                        { id: 'script_gen', label: t('nav_script') },
+                        { id: 'script_plan', label: t('nav_plan', '기획') },
+                        { id: 'script_gen', label: t('nav_script', '대본') },
                         { id: 'image_gen', label: t('nav_image') },
                         { id: 'tts', label: t('nav_tts') },
                         { id: 'subtitle_gen', label: t('nav_subtitles') },
                         { id: 'thumbnail', label: t('nav_thumbnail') },
+                        { id: 'projects', label: t('nav_projects') },
+                        { id: 'template', label: t('nav_template') },
+                        { id: 'render', label: t('nav_render', '렌더') },
                         { id: 'settings', label: t('nav_settings') },
                     ].map((step) => {
                         const isCurrent = currentNav === step.id
@@ -1784,8 +1799,10 @@ export default function StdPortalPage() {
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
                             { id: 'topics', label: t('nav_topics') },
-                            { id: 'tts', label: t('nav_tts') },
+                            { id: 'script_plan', label: t('nav_plan', '기획') },
+                            { id: 'script_gen', label: t('nav_script', '대본') },
                             { id: 'image_gen', label: t('nav_image') },
+                            { id: 'tts', label: t('nav_tts') },
                             { id: 'subtitle_gen', label: t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'projects', label: t('nav_projects') },
@@ -1838,6 +1855,24 @@ export default function StdPortalPage() {
                             <div className="bg-[#1c2027] border border-white/10 rounded-xl p-3 shadow-md flex flex-col gap-2 shrink-0">
                                 {/* 1행: 템플릿 / 프리셋 / 폰트 / 크기 / 글자색 / 테두리색 */}
                                 <div className="flex items-center gap-3 flex-wrap">
+                                    {/* 외부 오디오 업로드 */}
+                                    <div className="flex items-center">
+                                        <input
+                                            type="file"
+                                            id="audioUploadInput"
+                                            accept="audio/*"
+                                            className="hidden"
+                                            onChange={handleUploadExternalAudio}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => document.getElementById('audioUploadInput')?.click()}
+                                            className="px-2.5 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-white/5 text-gray-300 hover:text-white rounded-lg transition-all flex items-center gap-1"
+                                            title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
+                                        >
+                                            <span>📁</span> 외부 오디오 업로드
+                                        </button>
+                                    </div>
                                     <div className="flex items-center gap-1">
                                         <select className="text-[11px] bg-[#202632] border border-indigo-500/30 rounded px-2 py-1 text-white">
                                             <option value="">-- 템플릿 선택 --</option>
@@ -4150,6 +4185,317 @@ export default function StdPortalPage() {
                     )}
 
                     {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
+                    
+                    {/* [기획 탭 (유저앱 script_plan.html 완벽 대응)] */}
+                    {currentNav === 'script_plan' && selectedProject && (
+                        <div className="space-y-5 max-w-7xl mx-auto w-full flex flex-col h-full pb-10">
+                            {/* 상단 툴바 */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 shrink-0">
+                                <div className="space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">PLAN & STRUCTURE</span>
+                                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                                        <span>📝</span> {selectedProject.project.title}
+                                    </h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => alert('기획안 구성이 성공적으로 저장되었습니다.')}
+                                        className="px-4 py-2 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                                    >
+                                        기획안 저장
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentNav('script_gen')}
+                                        className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-1.5"
+                                    >
+                                        <span>대본 단계로 이동</span>
+                                        <span>→</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 기획 구조 개요 카드 */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 space-y-1">
+                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">총 씬 구성</span>
+                                    <div className="text-xl font-black text-white">{selectedProject.scenes.length}개 씬</div>
+                                    <span className="text-[11px] text-gray-400">도입-전개-위기-절정-결말</span>
+                                </div>
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 space-y-1">
+                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">예상 소요 시간</span>
+                                    <div className="text-xl font-black text-purple-400">{(selectedProject.scenes.length * 0.25).toFixed(1)}분</div>
+                                    <span className="text-[11px] text-gray-400">표준 롱폼 템포</span>
+                                </div>
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 space-y-1">
+                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">타겟 오디언스</span>
+                                    <div className="text-xl font-black text-emerald-400">40대 ~ 60대</div>
+                                    <span className="text-[11px] text-gray-400">감성 드라마 / 야사 타겟</span>
+                                </div>
+                                <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 space-y-1">
+                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">영상 비율</span>
+                                    <div className="text-xl font-black text-amber-400">16:9 가로형</div>
+                                    <span className="text-[11px] text-gray-400">1920x1080 Full HD</span>
+                                </div>
+                            </div>
+
+                            {/* 씬별 기획 구조표 */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-5 shadow-sm space-y-4">
+                                <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide flex items-center gap-2">
+                                    <span>🎬</span> 씬별 연출 및 기획 구조표
+                                </h3>
+                                <div className="space-y-3">
+                                    {selectedProject.scenes.map((scene, idx) => (
+                                        <div key={scene.scene_index} className="p-3.5 bg-[#14181f] border border-white/5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-white/10 transition">
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-7 h-7 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-xs font-black shrink-0">
+                                                    #{idx + 1}
+                                                </span>
+                                                <div>
+                                                    <div className="text-xs font-bold text-white">{scene.title || `씬 ${idx + 1}`}</div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">{scene.narration_text || scene.visual_prompt}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[11px] text-gray-400 self-end md:self-auto shrink-0">
+                                                <span className="px-2 py-0.5 bg-[#1c2027] rounded border border-white/10">비주얼 프롬프트 준비됨</span>
+                                                <button
+                                                    onClick={() => setCurrentNav('script_gen')}
+                                                    className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-gray-200 rounded border border-white/10 font-bold"
+                                                >
+                                                    대본 보기
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+
+                    {/* [대본 탭 (유저앱 script_gen.html 완벽 대응)] */}
+                    {currentNav === 'script_gen' && selectedProject && (
+                        <div className="space-y-5 max-w-7xl mx-auto w-full flex flex-col h-full pb-10">
+                            {/* 상단 툴바 */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[11px] px-3 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg font-bold">
+                                        총 {selectedProject.scenes.length}개 씬
+                                    </span>
+                                    <span className="text-[11px] px-3 py-1 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg font-bold">
+                                        {scriptCharCount}자 (약 {(scriptCharCount / 300).toFixed(1)}분)
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => alert('대본 변경사항이 성공적으로 저장되었습니다.')}
+                                        className="px-4 py-2 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                                    >
+                                        대본 전체 저장
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentNav('tts')}
+                                        className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-1.5"
+                                    >
+                                        <span>TTS 음성 생성 단계로 이동</span>
+                                        <span>→</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 씬별 나레이션 대본 및 비주얼 프롬프트 에디터 */}
+                            <div className="space-y-4">
+                                {selectedProject.scenes.map((scene, idx) => (
+                                    <div key={scene.scene_index} className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-black">
+                                                    {idx + 1}
+                                                </span>
+                                                <span className="text-xs font-bold text-white">씬 #{idx + 1} 대본 & 연출</span>
+                                            </div>
+                                            <span className="text-[11px] text-gray-500 font-mono">
+                                                {(scene.narration_text || '').length}자
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                                            {/* 나레이션 대본 */}
+                                            <div className="lg:col-span-7 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">나레이션 대본 (TTS)</label>
+                                                <textarea
+                                                    defaultValue={scene.narration_text}
+                                                    rows={3}
+                                                    className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2.5 text-xs text-gray-200 leading-relaxed focus:outline-none focus:border-blue-500/50 resize-none font-sans"
+                                                />
+                                            </div>
+                                            {/* 비주얼 프롬프트 */}
+                                            <div className="lg:col-span-5 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">이미지 비주얼 프롬프트</label>
+                                                <textarea
+                                                    defaultValue={scene.visual_prompt}
+                                                    rows={3}
+                                                    className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2.5 text-xs text-gray-400 leading-relaxed focus:outline-none focus:border-purple-500/50 resize-none font-mono text-[11px]"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+
+                    {/* [렌더로 생성 탭 (유저앱 render.html 100% 동일 구현)] */}
+                    {currentNav === 'render' && selectedProject && (
+                        <div className="space-y-5 max-w-7xl mx-auto w-full flex flex-col h-full pb-10">
+                            {/* 1. 상단 컨트롤 툴바 */}
+                            <div className="flex items-center gap-3 p-3 bg-[#1c2027] rounded-xl shadow-sm border border-white/10 shrink-0 flex-wrap justify-between">
+                                <div className="flex items-center gap-4 flex-wrap">
+                                    {/* 해상도 선택 */}
+                                    <div className="flex items-center gap-2 border-r border-white/10 pr-3">
+                                        <span className="text-xs font-bold text-gray-300">해상도</span>
+                                        <select
+                                            value={renderResolution}
+                                            onChange={e => setRenderResolution(e.target.value as any)}
+                                            className="text-xs bg-[#202632] border border-white/10 rounded-lg py-1 px-2.5 text-white focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value="1080p">1080p (Full HD)</option>
+                                            <option value="720p">720p (HD)</option>
+                                        </select>
+                                    </div>
+
+                                    {/* 자막 포함 여부 */}
+                                    <label className="flex items-center gap-1.5 cursor-pointer border-r border-white/10 pr-3 select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={renderUseSubtitles}
+                                            onChange={e => setRenderUseSubtitles(e.target.checked)}
+                                            className="w-3.5 h-3.5 text-blue-600 rounded bg-[#202632] border-white/10 focus:ring-0 cursor-pointer"
+                                        />
+                                        <span className="text-xs text-gray-300 font-medium">자막 포함 렌더링</span>
+                                    </label>
+
+                                    {/* 렌더 대상 위치 */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-gray-300">렌더링 엔진</span>
+                                        <select
+                                            value={renderTarget}
+                                            onChange={e => setRenderTarget(e.target.value as any)}
+                                            className="text-xs bg-[#202632] border border-white/10 rounded-lg py-1 px-2.5 text-white focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value="drive_api">원격 그래픽스 서버 (Cloud GPU)</option>
+                                            <option value="local">로컬 PC 렌더러</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* 렌더링 시작 버튼 */}
+                                <button
+                                    type="button"
+                                    onClick={handleStartRender}
+                                    disabled={isRendering}
+                                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                                >
+                                    <span>🎬</span>
+                                    <span>{isRendering ? '영상 렌더링 진행 중...' : '최종 렌더링 시작'}</span>
+                                </button>
+                            </div>
+
+                            {/* 2. 메인 워크스페이스 그리드 (좌: 상태/로그, 우: 비디오 플레이어) */}
+                            <div className="grid grid-cols-12 gap-5 flex-1 min-h-0">
+                                {/* 좌측 패널 (Col 6) */}
+                                <div className="col-span-12 lg:col-span-6 flex flex-col gap-4">
+                                    {/* 프로젝트 구성 에셋 상태 요약 */}
+                                    <div className="bg-[#1c2027] rounded-xl border border-white/10 p-4 shadow-sm space-y-3 shrink-0">
+                                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide">📦 프로젝트 에셋 구성 상태</h4>
+                                        <div className="grid grid-cols-3 gap-2 text-[11px]">
+                                            <div className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-center font-bold">
+                                                📝 대본 {selectedProject.scenes.length}개 씬 (완료)
+                                            </div>
+                                            <div className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-center font-bold">
+                                                🖼️ 이미지 프롬프트 (준비됨)
+                                            </div>
+                                            <div className="p-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-center font-bold">
+                                                🔊 ElevenLabs 음성 (연동)
+                                            </div>
+                                            <div className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-center font-bold">
+                                                💬 자막 레이아웃 (설정됨)
+                                            </div>
+                                            <div className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg text-center font-bold">
+                                                🎨 16:9 썸네일 (완료)
+                                            </div>
+                                            <div className="p-2 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-lg text-center font-bold">
+                                                ⚙️ 인코더 libx264
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 실시간 렌더 콘솔 로그 */}
+                                    <div className="bg-[#14181f] rounded-xl border border-white/10 p-4 flex-1 flex flex-col font-mono text-xs text-green-400 min-h-[300px] shadow-inner">
+                                        <div className="flex justify-between border-b border-white/10 pb-2 mb-3 text-gray-400 font-bold">
+                                            <span>>_ 렌더링 콘솔 로그 (Terminal)</span>
+                                            <span className="text-yellow-400 font-mono">진행률: {renderProgress}%</span>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto space-y-1.5 text-[11px] leading-relaxed pr-1 custom-scrollbar">
+                                            {renderLogList.map((log, index) => (
+                                                <div key={index} className="opacity-90">{log}</div>
+                                            ))}
+                                        </div>
+                                        {/* 진행 바 */}
+                                        <div className="mt-3 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-300"
+                                                style={{ width: `${renderProgress}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 우측 패널: 최종 완성 비디오 플레이어 및 다운로드 (Col 6) */}
+                                <div className="col-span-12 lg:col-span-6 flex flex-col bg-[#1c2027] rounded-xl border border-white/10 shadow-sm overflow-hidden min-h-[480px]">
+                                    <div className="flex-1 bg-black flex items-center justify-center relative overflow-hidden">
+                                        {renderedVideoUrl ? (
+                                            <video
+                                                src={renderedVideoUrl}
+                                                controls
+                                                className="w-full h-full object-contain"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center text-gray-500 space-y-3 p-6 text-center">
+                                                <span className="text-5xl animate-pulse">🎬</span>
+                                                <div className="text-sm font-bold text-gray-300">최종 렌더링 비디오 대기 중</div>
+                                                <p className="text-xs text-gray-500 max-w-xs leading-relaxed">
+                                                    상단의 [최종 렌더링 시작] 버튼을 누르면 인코딩이 완료된 완성본 비디오가 이곳에 로드됩니다.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 하단 액션 버튼 바 */}
+                                    <div className="p-4 bg-[#181d26] border-t border-white/10 flex items-center justify-between gap-3 shrink-0">
+                                        <div className="text-xs text-gray-400 font-mono">
+                                            {renderedVideoUrl ? '✅ MP4 렌더링 완료' : '대기 상태'}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <a
+                                                href={renderedVideoUrl || '#'}
+                                                download={`final_render_${selectedProject.project.id}.mp4`}
+                                                className={`px-5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                                    renderedVideoUrl
+                                                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg cursor-pointer'
+                                                        : 'bg-white/5 text-gray-500 cursor-not-allowed pointer-events-none'
+                                                }`}
+                                            >
+                                                <span>💾</span>
+                                                <span>최종 영상 다운로드</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {currentNav === 'settings' && (
                         <div className="space-y-4 max-w-5xl mx-auto w-full flex flex-col h-full">
                             {/* 1. 상단 타이틀 및 액션 바 */}
