@@ -267,6 +267,7 @@ export default function StdPortalPage() {
 
     // 7. 템플릿(Template) 전용 디자인 스튜디오 상태 (유저앱 template.html 100% 동일 구현)
     const [templateBgUrl, setTemplateBgUrl] = useState('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+    const [templateBgColor, setTemplateBgColor] = useState('#000000')
     const [templatePresetName, setTemplatePresetName] = useState('')
     const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('preset-1')
     const [textLayers, setTextLayers] = useState<Array<{
@@ -3777,16 +3778,44 @@ export default function StdPortalPage() {
                                 <div className="lg:col-span-6 space-y-4">
                                     <div className="bg-[#1c2027] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div className="p-3 border-b border-white/5 flex items-center justify-between text-xs font-bold text-gray-200">
-                                            <span>🎨 실시간 16:9 템플릿 캔버스</span>
-                                            <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
+                                            <div className="flex items-center gap-2">
+                                                <span>🎨 실시간 16:9 템플릿 캔버스</span>
+                                                {!templateBgUrl && (
+                                                    <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold border border-red-500/30">
+                                                        배경 없음 (단색/투명)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {templateBgUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTemplateBgUrl('')}
+                                                        className="text-[10px] px-2 py-0.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded border border-red-500/30 font-bold transition"
+                                                    >
+                                                        ✕ 배경 지우기
+                                                    </button>
+                                                )}
+                                                <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
+                                            </div>
                                         </div>
-                                        <div className="relative aspect-video bg-black overflow-hidden select-none">
-                                            {/* 배경 이미지 */}
-                                            <img
-                                                src={templateBgUrl}
-                                                alt="Template BG"
-                                                className="w-full h-full object-cover"
-                                            />
+                                        <div
+                                            className="relative aspect-video overflow-hidden select-none transition-colors"
+                                            style={{ backgroundColor: templateBgColor }}
+                                        >
+                                            {/* 배경 이미지 (있을 때만 렌더링) */}
+                                            {templateBgUrl ? (
+                                                <img
+                                                    src={templateBgUrl}
+                                                    alt="Template BG"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 select-none pointer-events-none gap-1 opacity-40">
+                                                    <span className="text-2xl">🖼️</span>
+                                                    <span className="text-[10px] font-mono tracking-wider">배경 없음 (단색 캔버스)</span>
+                                                </div>
+                                            )}
 
                                             {/* 도형 배너 오버레이 */}
                                             {shapeLayers.map(shape => (
@@ -3835,32 +3864,65 @@ export default function StdPortalPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                                 {/* (1) 배경 설정 */}
                                 <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
-                                    <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                                        <span>🖼️ 배경 설정</span>
+                                    <h4 className="text-xs font-bold text-gray-300 flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">🖼️ 배경 설정</span>
+                                        {templateBgUrl ? (
+                                            <span className="text-[10px] text-emerald-400 font-mono">이미지 활성</span>
+                                        ) : (
+                                            <span className="text-[10px] text-gray-400 font-mono">배경 없음</span>
+                                        )}
                                     </h4>
                                     <div className="space-y-2">
+                                        {/* 배경 완전히 지우기 버튼 */}
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const newImg = prompt('배경 이미지 URL을 입력하세요:', templateBgUrl)
-                                                if (newImg) setTemplateBgUrl(newImg)
+                                                setTemplateBgUrl('')
                                             }}
-                                            className="w-full py-2 bg-[#202632] hover:bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10 transition"
+                                            className="w-full py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
                                         >
-                                            배경 이미지 URL 변경
+                                            <span>🗑️</span> 배경 이미지 완전히 지우기 (단색/투명)
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (selectedProject?.scenes?.[0]?.image_url) {
-                                                    setTemplateBgUrl(selectedProject.scenes[0].image_url)
-                                                    alert('프로젝트 1번 씬 이미지를 배경으로 로드했습니다.')
-                                                }
-                                            }}
-                                            className="w-full py-2 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-400 hover:text-white rounded-lg text-xs font-bold transition"
-                                        >
-                                            현재 프로젝트 씬 이미지 적용
-                                        </button>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const newImg = prompt('배경 이미지 URL을 입력하세요:', templateBgUrl || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+                                                    if (newImg) setTemplateBgUrl(newImg)
+                                                }}
+                                                className="py-2 bg-[#202632] hover:bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10 transition"
+                                            >
+                                                URL로 변경
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (selectedProject?.scenes?.[0]?.image_url) {
+                                                        setTemplateBgUrl(selectedProject.scenes[0].image_url)
+                                                    } else {
+                                                        alert('프로젝트 씬 이미지가 없습니다.')
+                                                    }
+                                                }}
+                                                className="py-2 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-400 hover:text-white rounded-lg text-xs font-bold transition truncate px-1"
+                                            >
+                                                1번 씬 이미지 적용
+                                            </button>
+                                        </div>
+
+                                        {/* 단색 배경 색상 선택 */}
+                                        <div className="flex items-center justify-between p-2 bg-[#14181f] rounded-lg border border-white/5 text-[11px]">
+                                            <span className="text-gray-400 font-bold">단색 캔버스 배경색</span>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="color"
+                                                    value={templateBgColor}
+                                                    onChange={e => setTemplateBgColor(e.target.value)}
+                                                    className="w-6 h-6 rounded border border-white/10 bg-transparent cursor-pointer"
+                                                />
+                                                <span className="font-mono text-gray-300 text-[10px]">{templateBgColor}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
