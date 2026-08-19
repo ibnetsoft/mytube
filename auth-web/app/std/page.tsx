@@ -718,6 +718,10 @@ export default function StdPortalPage() {
 
             if (meData?.user) {
                 setUser(meData.user)
+                if (meData.user.full_name) setSettingName(meData.user.full_name)
+                if (meData.user.nationality) setSettingNationality(meData.user.nationality)
+                if (meData.user.contact) setSettingPhone(meData.user.contact)
+                if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
             } else if (!user) {
                 const savedEmail = localStorage.getItem('std_last_email') || 'ejsh0518@naver.com'
                 setUser({
@@ -822,12 +826,22 @@ export default function StdPortalPage() {
                         Authorization: `Bearer ${impToken}`,
                         'x-impersonate-email': cleanEmail,
                     }
-                    const [pRes, tRes] = await Promise.allSettled([
+                    const [meRes, pRes, tRes] = await Promise.allSettled([
+                        fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                         fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                         fetch(`/api/std/topics?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                     ])
+                    const meData = meRes.status === 'fulfilled' ? await meRes.value.json().catch(() => ({})) : {}
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
                     const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
+
+                    if (meData?.user) {
+                        setUser(meData.user)
+                        if (meData.user.full_name) setSettingName(meData.user.full_name)
+                        if (meData.user.nationality) setSettingNationality(meData.user.nationality)
+                        if (meData.user.contact) setSettingPhone(meData.user.contact)
+                        if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
+                    }
 
                     const loadedProjects = Array.isArray(pData?.projects) ? pData.projects : []
                     const loadedTopics = Array.isArray(tData?.topics) ? tData.topics : []
@@ -1356,8 +1370,21 @@ export default function StdPortalPage() {
             { id: 106, topic: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', generated_title: '5060 부부가 절대 말하지 못하는 은밀한 고민', category_name: '라이프/사연', assigned_duration_minutes: 15, estimated_payout: 45000 },
         ]
 
-        // 1. 검색 및 길이 필터링
+        // 1. 이미 작업 중인 프로젝트들의 제목/ID 목록 수집 (추천 큐에서 제외하여 중복 작업 방지)
+        const activeProjectTitles = new Set(
+            projects.map(p => String(p.title || '').trim().toLowerCase().replace(/\s+/g, ''))
+        )
+        if (selectedProject?.project?.title) {
+            activeProjectTitles.add(String(selectedProject.project.title).trim().toLowerCase().replace(/\s+/g, ''))
+        }
+
+        // 2. 검색 및 길이 필터링 + 작업 중인 프로젝트 제외
         const filtered = rawList.filter(t => {
+            const topicKey = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
+            if (topicKey && activeProjectTitles.has(topicKey)) {
+                return false
+            }
+
             if (topicLengthFilter === 'short' && (t.assigned_duration_minutes || t.duration_minutes || 15) >= 15) return false
             if (topicLengthFilter === 'medium' && ((t.assigned_duration_minutes || t.duration_minutes || 15) < 15 || (t.assigned_duration_minutes || t.duration_minutes || 15) > 30)) return false
             if (topicLengthFilter === 'long' && (t.assigned_duration_minutes || t.duration_minutes || 15) <= 30) return false
@@ -1385,7 +1412,7 @@ export default function StdPortalPage() {
         }
 
         return unique
-    }, [topics, topicSearchQuery, topicLengthFilter])
+    }, [topics, topicSearchQuery, topicLengthFilter, projects, selectedProject])
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
