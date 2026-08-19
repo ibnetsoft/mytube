@@ -1881,13 +1881,24 @@ export default function StdPortalPage() {
                             )}
                             <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                     if (!forgotEmail.trim()) return
-                                    setForgotMsg('임시 비밀번호가 발송되었습니다. 메일함을 확인해주세요.')
-                                    setTimeout(() => {
-                                        setForgotMsg('')
-                                        setForgotModalOpen(false)
-                                    }, 2500)
+                                    try {
+                                        setForgotMsg('처리 중...')
+                                        const res = await fetch('/api/std/forgot-password', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ email: forgotEmail.trim() }),
+                                        })
+                                        const data = await res.json().catch(() => ({}))
+                                        if (data.success) {
+                                            setForgotMsg(data.message || '임시 비밀번호가 발급되었습니다.')
+                                        } else {
+                                            setForgotMsg('❌ ' + (data.error || '발급 실패'))
+                                        }
+                                    } catch (err: any) {
+                                        setForgotMsg('❌ ' + (err?.message || '네트워크 오류'))
+                                    }
                                 }}
                                 disabled={!forgotEmail.trim()}
                                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-xl text-xs font-bold text-white shadow transition"
