@@ -32,6 +32,15 @@ const nextConfig = {
         // 빌드 시 타입 에러를 무시합니다 (배포 테스트용)
         ignoreBuildErrors: true,
     },
+    async redirects() {
+        return [
+            {
+                source: '/',
+                destination: '/std',
+                permanent: false,
+            },
+        ];
+    },
 };
 
 export default nextConfig;
