@@ -550,6 +550,73 @@ export default function StdPortalPage() {
         }
     ])
 
+    // NotebookLM AI Grounded Script & Dialogue state
+    const [useNotebookLM, setUseNotebookLM] = useState(false)
+    const [nlmSourceText, setNlmSourceText] = useState('')
+    const [nlmMode, setNlmMode] = useState<'dialogue_podcast' | 'narrator'>('dialogue_podcast')
+    const [nlmCategory, setNlmCategory] = useState('옛날이야기')
+    const [nlmDuration, setNlmDuration] = useState(15)
+    const [nlmCustomTitle, setNlmCustomTitle] = useState('')
+    const [nlmGenerating, setNlmGenerating] = useState(false)
+
+    const handleGenerateNotebookLM = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
+        if (!nlmSourceText.trim()) {
+            alert('참고자료(뉴스, 기사, 사료, PDF 내용, 메모 등)를 입력해주세요.')
+            return
+        }
+        try {
+            setNlmGenerating(true)
+            const reqHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            }
+            if (isImpersonating && impersonateEmail) {
+                reqHeaders['x-impersonate-email'] = impersonateEmail
+            }
+            const res = await fetch('/api/std/notebooklm/generate', {
+                method: 'POST',
+                headers: reqHeaders,
+                body: JSON.stringify({
+                    source_text: nlmSourceText,
+                    mode: nlmMode,
+                    category: nlmCategory,
+                    duration_minutes: nlmDuration,
+                    custom_title: nlmCustomTitle,
+                })
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || '노트북LM 대본 생성 실패')
+            }
+
+            const newProject = data.project
+            setProjects(prev => [newProject, ...prev.filter(p => p.id !== newProject.id)])
+            setSelectedProject({
+                project: newProject,
+                scenes: newProject.project_payload?.scenes || []
+            })
+            setCustomScriptText(newProject.project_payload?.script || '')
+
+            if (data.dialogue_mode) {
+                setMultiVoice(true)
+            }
+
+            localStorage.setItem('std_active_project_id', newProject.id)
+            localStorage.setItem('std_active_project_state', JSON.stringify({
+                project: newProject,
+                scenes: newProject.project_payload?.scenes || []
+            }))
+
+            setMessage(`'${newProject.title}' 프로젝트가 생성되었습니다! (노트북LM ${data.dialogue_mode ? '2인 대화 팟캐스트' : '1인 심층 내레이션'} 모드)`)
+            setCurrentNav('tts')
+        } catch (err: any) {
+            alert('노트북LM 대본 생성 오류: ' + (err.message || String(err)))
+        } finally {
+            setNlmGenerating(false)
+        }
+    }
+
     const totalDuration = useMemo(() => {
         if (!localSubtitles || localSubtitles.length === 0) return 60.0
         const last = localSubtitles[localSubtitles.length - 1]
@@ -3918,6 +3985,143 @@ export default function StdPortalPage() {
                     {/* [주제 탐색 탭 (유저앱 topic.html 100% 동일 구현 + 상세 모달 + 프로젝트 자동 연동)] */}
                     {currentNav === 'topics' && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full pb-10">
+
+                            {/* [✨ Google NotebookLM 모드: 자료 기반 심층 대본 & 2인 대화 팟캐스트 AI 생성 (옵션 토글)] */}
+                            <div className={`border rounded-2xl p-5 shadow-xl transition-all ${useNotebookLM ? 'bg-gradient-to-br from-[#1b1938] to-[#121829] border-purple-500/50 ring-1 ring-purple-500/30' : 'bg-[#1c2027] border-white/10'}`}>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-2xl">✨</span>
+                                        <div>
+                                            <h3 className="text-sm font-black text-white flex items-center gap-2">
+                                                <span>Google NotebookLM 심층 대본 &amp; 2인 대화 팟캐스트</span>
+                                                <span className="text-[10px] px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full font-bold border border-purple-500/30">AI RAG &amp; Grounding</span>
+                                            </h3>
+                                            <p className="text-[11px] text-gray-400">
+                                                뉴스 기사, PDF 사료, 리포트 등 원문 자료를 입력하면 환각 없이 팩트에 기반한 15~20분 롱폼 대본과 53개 씬을 자동 집필합니다.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {/* 체크 토글 버튼 */}
+                                    <label className="flex items-center gap-2 cursor-pointer select-none bg-black/40 px-3.5 py-2 rounded-xl border border-white/10 hover:border-purple-500/50 transition shrink-0">
+                                        <input
+                                            type="checkbox"
+                                            checked={useNotebookLM}
+                                            onChange={e => setUseNotebookLM(e.target.checked)}
+                                            className="w-4 h-4 rounded text-purple-600 focus:ring-0 cursor-pointer"
+                                        />
+                                        <span className={`text-xs font-bold ${useNotebookLM ? 'text-purple-300' : 'text-gray-400'}`}>
+                                            노트북LM 모드 활성화
+                                        </span>
+                                    </label>
+                                </div>
+
+                                {useNotebookLM && (
+                                    <form onSubmit={handleGenerateNotebookLM} className="pt-4 space-y-4 animate-in fade-in duration-300">
+                                        {/* 1. 포맷 모드 & 카테고리 & 분량 선택 */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {/* 대본 포맷 모드 */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-bold text-gray-300 block">대본 포맷 스타일</label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNlmMode('dialogue_podcast')}
+                                                        className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${nlmMode === 'dialogue_podcast' ? 'bg-purple-600/30 border-purple-500 text-white shadow-lg ring-1 ring-purple-400' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
+                                                    >
+                                                        <span className="text-xs font-black">🎙️ 2인 대화 팟캐스트</span>
+                                                        <span className="text-[10px] opacity-70 mt-1">남/여 티키타카 토크쇼</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNlmMode('narrator')}
+                                                        className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${nlmMode === 'narrator' ? 'bg-purple-600/30 border-purple-500 text-white shadow-lg ring-1 ring-purple-400' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
+                                                    >
+                                                        <span className="text-xs font-black">📖 1인 심층 내레이션</span>
+                                                        <span className="text-[10px] opacity-70 mt-1">단독 성우 몰입형 다큐</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* 카테고리 선택 */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-bold text-gray-300 block">공식 카테고리</label>
+                                                <select
+                                                    value={nlmCategory}
+                                                    onChange={e => setNlmCategory(e.target.value)}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                                                >
+                                                    {STD_OFFICIAL_CATEGORIES.map(c => (
+                                                        <option key={c.id} value={c.name} className="bg-[#161a22]">{c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* 목표 영상 분량 */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-bold text-gray-300 block">목표 영상 분량</label>
+                                                <div className="flex gap-2">
+                                                    {[10, 15, 20].map(mins => (
+                                                        <button
+                                                            key={mins}
+                                                            type="button"
+                                                            onClick={() => setNlmDuration(mins)}
+                                                            className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition ${nlmDuration === mins ? 'bg-purple-600 text-white border-purple-500' : 'bg-black/40 text-gray-400 border-white/10 hover:text-white'}`}
+                                                        >
+                                                            {mins}분 롱폼
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. 참고 자료 입력 텍스트 에어리어 */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[11px] font-bold text-purple-300">
+                                                    참고 자료 / 텍스트 붙여넣기 (뉴스 기사, 역사 사료, PDF 내용, 분석 리포트, 메모 등) <span className="text-red-400">*</span>
+                                                </label>
+                                                <span className="text-[10px] text-gray-500 font-mono">{nlmSourceText.length.toLocaleString()}자</span>
+                                            </div>
+                                            <textarea
+                                                rows={5}
+                                                value={nlmSourceText}
+                                                onChange={e => setNlmSourceText(e.target.value)}
+                                                placeholder="여기에 요약할 기사 원문, 사료 기록, 인터뷰 내용, 유튜브 스크립트 등을 그대로 복사해서 붙여넣으세요. Gemini 1.5 Pro가 원문의 팩트에 근거하여 53개 씬의 완벽한 유튜브 롱폼 대본으로 변환합니다."
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 font-mono leading-relaxed"
+                                                required
+                                            />
+                                        </div>
+
+                                        {/* 3. 선택 사항: 사용자 지정 제목 */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-gray-400">희망 프로젝트 제목 (비워두면 AI가 최적의 100만 조회수 제목 자동 생성)</label>
+                                            <input
+                                                type="text"
+                                                value={nlmCustomTitle}
+                                                onChange={e => setNlmCustomTitle(e.target.value)}
+                                                placeholder="예: 70년 만에 밝혀진 어느 독립운동가의 숨겨진 비밀 일기"
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+
+                                        {/* 4. 생성 버튼 */}
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-white/5">
+                                            <span className="text-[11px] text-gray-400">
+                                                💡 생성 완료 시 <strong>{nlmMode === 'dialogue_podcast' ? 'TTS 탭의 다중 성우(남/여 진행자)' : 'TTS 탭'}</strong>에 자동 매핑됩니다.
+                                            </span>
+                                            <button
+                                                type="submit"
+                                                disabled={nlmGenerating}
+                                                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                <span>{nlmGenerating ? '⏳' : '🚀'}</span>
+                                                <span>{nlmGenerating ? 'Gemini 1.5 Pro 대본 & 53개 씬 생성 중...' : 'Gemini 노트북LM AI 대본 & 씬 생성 시작'}</span>
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+                            </div>
+
                             {/* 1. 상단 실시간 트렌드 & 다차원 필터 영역 */}
                             <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">

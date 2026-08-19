@@ -377,6 +377,13 @@ from app.routers import audio as audio_router
 from app.routers import music as music_router
 from app.routers import sources as sources_router
 from app.routers import pages as pages_router
+from app.routers import health as health_router
+from app.routers import queue as queue_router # [NEW]
+
+from app.routers import audio as audio_router
+from app.routers import music as music_router
+from app.routers import sources as sources_router
+from app.routers import pages as pages_router
 from app.routers import gemini as gemini_router
 from app.routers import image as image_router
 from app.routers import thumbnails as thumbnails_router
@@ -398,6 +405,7 @@ from app.routers import production_api as production_api_router  # [AIR-0206]
 from app.routers import prompt_package_api as prompt_package_api_router  # [AIR-0207]
 from app.routers import asset_matching_api as asset_matching_api_router  # [AIR-0207]
 from app.routers import render_api as render_api_router  # [AIR-0207]
+from app.routers import notebooklm as notebooklm_router
 
 app.include_router(update_router.router)
 app.include_router(learning_router.router)
@@ -412,24 +420,6 @@ app.include_router(settings_router.router)
 app.include_router(youtube_router.router)
 app.include_router(tts_router.router)
 app.include_router(repository_router.router)
-app.include_router(health_router.router)
-app.include_router(queue_router.router)
-app.include_router(audio_router.router)
-app.include_router(music_router.router)
-app.include_router(sources_router.router)
-app.include_router(pages_router.router)
-app.include_router(gemini_router.router)
-app.include_router(image_router.router)
-app.include_router(thumbnails_router.router)
-app.include_router(templates_router.router)
-app.include_router(auth_router.router)
-app.include_router(admin_tenant_router.router)  # [NEW]
-app.include_router(user_topics_router.router)  # [NEW]
-app.include_router(referral_router.router, prefix="/api")
-app.include_router(support_router.router, prefix="/api")
-app.include_router(announcements_router.router, prefix="/api")
-app.include_router(admin_voices_router.router)
-app.include_router(voices_router.router)
 app.include_router(script_api_router.router, prefix="/api/script")  # [AIR-0203]
 app.include_router(director_api_router.router, prefix="/api/director")  # [AIR-0205]
 app.include_router(production_api_router.router, prefix="/api/production")  # [AIR-0206]
