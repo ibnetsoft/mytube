@@ -4751,7 +4751,7 @@ export default function StdPortalPage() {
                                             <th className="px-3 py-2.5 w-10 text-center">
                                                 <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
                                             </th>
-                                            <th className="px-3 py-2.5 w-72">프로젝트명</th>
+                                            <th className="px-3 py-2.5 w-32 text-center">카테고리</th>
                                             <th className="px-2 py-2.5 w-24 text-center">시작일</th>
                                             <th className="px-2 py-2.5 w-24 text-center">수정일</th>
                                             <th className="px-3 py-2.5">영상 제목</th>
@@ -4761,23 +4761,39 @@ export default function StdPortalPage() {
                                             <th className="px-1 py-2.5 w-14 text-center">TTS</th>
                                             <th className="px-1 py-2.5 w-14 text-center">자막</th>
                                             <th className="px-1 py-2.5 w-14 text-center">썸네일</th>
-                                            <th className="px-2 py-2.5 w-14 text-center">제출</th>
+                                            <th className="px-2 py-2.5 w-16 text-center text-cyan-300 font-black tracking-wide">제출</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
                                         {/* 풍부한 프로젝트 목록 렌더링 */}
                                         {(projects.length > 0 ? projects : [
-                                            { id: 'p-276', title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', status: 'image_prompted', created_at: '2026-08-14', updated_at: '2026-08-18' },
-                                            { id: 'p-275', title: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', status: 'pending', created_at: '2026-08-12', updated_at: '2026-08-17' },
-                                            { id: 'p-274', title: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', status: 'pending', created_at: '2026-08-11', updated_at: '2026-08-17' },
-                                            { id: 'p-273', title: '나만 모르는 돈의 비밀? 경제 벤치마크로 미래를 읽는 법', status: 'pending', created_at: '2026-08-10', updated_at: '2026-08-17' },
-                                            { id: 'p-272', title: '절대 무공을 숨긴 당인, 강호의 운명을 바꾸다', status: 'pending', created_at: '2026-07-19', updated_at: '2026-08-17' },
-                                            { id: 'p-271', title: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', status: 'pending', created_at: '2026-07-08', updated_at: '2026-08-17' },
-                                            { id: 'p-270', title: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', status: 'pending', created_at: '2026-07-01', updated_at: '2026-08-17' },
-                                            { id: 'p-269', title: '2024년 경제 불확실성 시대, 돈 버는 주식·부동산 이 투자법이 정답!', status: 'pending', created_at: '2026-06-27', updated_at: '2026-08-17' },
-                                            { id: 'p-268', title: '강호의 낭인, 당신이 몰랐던 진짜 무공의 비밀', status: 'pending', created_at: '2026-06-27', updated_at: '2026-08-17' },
+                                            { id: 'p-276', title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', category_name: '한국사연', status: 'image_prompted', created_at: '2026-08-14', updated_at: '2026-08-18' },
+                                            { id: 'p-275', title: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', category_name: '경제', status: 'pending', created_at: '2026-08-12', updated_at: '2026-08-17' },
+                                            { id: 'p-274', title: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', category_name: '경제', status: 'pending', created_at: '2026-08-11', updated_at: '2026-08-17' },
+                                            { id: 'p-273', title: '나만 모르는 돈의 비밀? 경제 벤치마크로 미래를 읽는 법', category_name: '노후금융', status: 'pending', created_at: '2026-08-10', updated_at: '2026-08-17' },
+                                            { id: 'p-272', title: '절대 무공을 숨긴 당인, 강호의 운명을 바꾸다', category_name: '무협', status: 'pending', created_at: '2026-07-19', updated_at: '2026-08-17' },
+                                            { id: 'p-271', title: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', category_name: '옛날이야기', status: 'pending', created_at: '2026-07-08', updated_at: '2026-08-17' },
+                                            { id: 'p-270', title: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', category_name: '황혼19금', status: 'pending', created_at: '2026-07-01', updated_at: '2026-08-17' },
+                                            { id: 'p-269', title: '2024년 경제 불확실성 시대, 돈 버는 주식·부동산 이 투자법이 정답!', category_name: '경제', status: 'pending', created_at: '2026-06-27', updated_at: '2026-08-17' },
+                                            { id: 'p-268', title: '강호의 낭인, 당신이 몰랐던 진짜 무공의 비밀', category_name: '무협', status: 'pending', created_at: '2026-06-27', updated_at: '2026-08-17' },
                                         ]).map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id || idx === 0
+                                            const projectCatName = (() => {
+                                                if (p.category_name) return p.category_name
+                                                if (p.project_payload?.category_name) return p.project_payload.category_name
+                                                if (p.project_payload?.category) return p.project_payload.category
+                                                if (p.category) return p.category
+                                                const title = p.title || ''
+                                                if (title.includes('연금') || title.includes('은퇴')) return '노후금융'
+                                                if (title.includes('물가') || title.includes('돈') || title.includes('주식') || title.includes('부동산') || title.includes('경제')) return '경제'
+                                                if (title.includes('무공') || title.includes('강호') || title.includes('낭인')) return '무협'
+                                                if (title.includes('야사') || title.includes('조선') || title.includes('옛날')) return '옛날이야기'
+                                                if (title.includes('19금') || title.includes('황혼') || title.includes('부부')) return '황혼19금'
+                                                if (title.includes('편지') || title.includes('첫사랑') || title.includes('장례식')) return '한국사연'
+                                                if (title.includes('탈북')) return '탈북사연'
+                                                if (title.includes('해외') || title.includes('감동')) return '해외감동'
+                                                return '옛날이야기'
+                                            })()
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -4790,11 +4806,10 @@ export default function StdPortalPage() {
                                                     <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                         <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
                                                     </td>
-                                                    <td className="px-3 py-2 whitespace-nowrap font-medium text-white max-w-xs truncate">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-amber-400">📁</span>
-                                                            <span className="truncate group-hover:text-blue-400 transition-colors">{p.title}</span>
-                                                        </div>
+                                                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                                                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                                            {projectCatName}
+                                                        </span>
                                                     </td>
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
                                                         {p.created_at ? p.created_at.slice(2).replace(/-/g, '. ') + '.' : '26. 08. 14.'}
@@ -4802,7 +4817,7 @@ export default function StdPortalPage() {
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
                                                         {p.updated_at ? p.updated_at.slice(2).replace(/-/g, '. ') + '.' : '26. 08. 18.'}
                                                     </td>
-                                                    <td className="px-3 py-2 text-gray-300 max-w-sm truncate" title={p.title}>
+                                                    <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
                                                         {p.title}
                                                     </td>
                                                     {/* 6단계 상태 원형 인디케이터 (기획, 대본, 이미지, TTS, 자막, 썸네일) */}
@@ -4810,6 +4825,14 @@ export default function StdPortalPage() {
                                                         const pStatus = isSelectedProj
                                                             ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                                                             : getProjectStepStatus(p)
+                                                        const isSubmitted = Boolean(
+                                                            p.status === 'review_requested' ||
+                                                            p.status === 'submitted' ||
+                                                            p.status === 'approved' ||
+                                                            p.status === 'rendering' ||
+                                                            p.status === 'completed' ||
+                                                            p.progress_payload?.submitted_at
+                                                        )
                                                         return (
                                                             <>
                                                                 <td className="px-1 py-2 text-center">
@@ -4842,34 +4865,36 @@ export default function StdPortalPage() {
                                                                         {pStatus.isThumbnailDone ? '●' : '○'}
                                                                     </span>
                                                                 </td>
-                                                                {/* 제출 버튼 컬럼: 6단계 모두 완료(초록불) 시에만 활성화 */}
+                                                                {/* 제출 버튼 컬럼 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                                    <button
-                                                                        disabled={!pStatus.allDone}
-                                                                        onClick={() => {
-                                                                            if (!pStatus.allDone) {
-                                                                                const missingList = []
-                                                                                if (!pStatus.isPlanningDone) missingList.push('기획')
-                                                                                if (!pStatus.isScriptDone) missingList.push('대본')
-                                                                                if (!pStatus.isImageDone) missingList.push(`이미지/에셋 (${pStatus.uploadedAssetsCount}/${pStatus.totalScenesCount} 완료)`)
-                                                                                if (!pStatus.isTtsDone) missingList.push('TTS')
-                                                                                if (!pStatus.isSubtitlesDone) missingList.push('자막')
-                                                                                if (!pStatus.isThumbnailDone) missingList.push('썸네일')
-                                                                                alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
-                                                                                return
-                                                                            }
-                                                                            openProject(p.id)
-                                                                            submitProject()
-                                                                        }}
-                                                                        className={`p-1.5 rounded-full transition-all ${
-                                                                            pStatus.allDone
-                                                                                ? 'text-cyan-400 hover:text-white bg-blue-600/30 hover:bg-blue-600 border border-blue-500/50 shadow-md cursor-pointer'
-                                                                                : 'text-gray-600 bg-white/5 border border-white/5 opacity-40 cursor-not-allowed'
-                                                                        }`}
-                                                                        title={pStatus.allDone ? "드라이브 제출 및 원격 렌더 큐 접수" : "모든 단계(기획/대본/이미지/TTS/자막/썸네일) 완료 시 활성화됩니다."}
-                                                                    >
-                                                                        <span className="text-sm font-bold">⏎</span>
-                                                                    </button>
+                                                                    {isSubmitted ? (
+                                                                        <button
+                                                                            disabled
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600/25 text-emerald-400 border border-emerald-500/50 shadow-md mx-auto cursor-default transition-all"
+                                                                            title="제출 완료 (원격 렌더 큐 접수됨)"
+                                                                        >
+                                                                            <span className="text-xs font-black leading-none text-emerald-400">⏎</span>
+                                                                        </button>
+                                                                    ) : pStatus.allDone ? (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                openProject(p.id)
+                                                                                submitProject()
+                                                                            }}
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
+                                                                            title="모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수"
+                                                                        >
+                                                                            <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            disabled
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 text-gray-400 border border-white/10 opacity-80 cursor-not-allowed mx-auto transition-all"
+                                                                            title="모든 단계(기획/대본/이미지/TTS/자막/썸네일) 완료 시 활성화됩니다."
+                                                                        >
+                                                                            <span className="text-xs font-bold leading-none text-gray-400">⏎</span>
+                                                                        </button>
+                                                                    )}
                                                                 </td>
                                                             </>
                                                         )
