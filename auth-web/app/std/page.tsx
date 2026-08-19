@@ -2764,65 +2764,131 @@ export default function StdPortalPage() {
                                     )}
                                 </div>
 
-                                <div className="overflow-x-auto border-t border-white/5">
-                                    <table className="w-full text-left text-xs divide-y divide-white/5">
-                                        <thead className="bg-[#14181f] text-gray-400 text-[11px] font-bold">
-                                            <tr>
-                                                <th className="px-4 py-2.5 w-16">씬</th>
-                                                <th className="px-4 py-2.5">프롬프트</th>
-                                                <th className="px-4 py-2.5 w-28">이미지</th>
-                                                <th className="px-4 py-2.5 w-28">영상</th>
-                                                <th className="px-4 py-2.5 w-28 text-right">작업</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5">
-                                            {selectedProject.scenes.map((scene: any, idx: number) => {
-                                                const isVideoReady = Boolean(scene.video_url)
-                                                const isImageReady = Boolean(scene.image_url)
-                                                const inRequiredZone = isStdRequiredVideoScene(scene.scene_number || idx + 1)
+                                <div className="p-4 border-t border-white/5 space-y-4">
+                                    {/* 1. 초반 필수 영상 구간 (1~12씬 - 진한 주황색) */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                                <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">
+                                                    초반 1분 필수 영상 구간 (씬 1 ~ 12)
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 font-mono">
+                                                완료: {selectedProject.scenes.filter(s => (s.scene_number <= 12) && Boolean(s.video_url)).length} / 12
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                                            {selectedProject.scenes.slice(0, 12).map((scene: any, idx: number) => {
+                                                const sNum = scene.scene_number || idx + 1
+                                                const isReady = Boolean(scene.video_url)
                                                 return (
-                                                    <tr key={scene.id || idx} className="hover:bg-[#202733] transition-colors">
-                                                        <td className="px-4 py-2.5 font-bold text-white whitespace-nowrap">
-                                                            씬 {scene.scene_number || idx + 1} {inRequiredZone && <span>🔒</span>}
-                                                        </td>
-                                                        <td className="px-4 py-2.5 text-gray-400 max-w-md truncate font-mono">
-                                                            {scene.video_prompt || scene.prompt_en || `2x2 Grid Scene: ${selectedProject.project.title}`}
-                                                        </td>
-                                                        <td className="px-4 py-2.5 whitespace-nowrap">
-                                                            <span className={isImageReady ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
-                                                                {isImageReady ? '이미지 준비됨' : '이미지 없음'}
+                                                    <div
+                                                        key={scene.id || idx}
+                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between min-h-[76px] ${
+                                                            isReady
+                                                                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                                                                : 'bg-orange-950/20 border-orange-500/50 hover:border-orange-400 shadow-sm'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-black px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                                                                #{sNum}
                                                             </span>
-                                                        </td>
-                                                        <td className="px-4 py-2.5 whitespace-nowrap">
-                                                            <span className={isVideoReady ? 'text-emerald-400 font-bold' : (inRequiredZone ? 'text-orange-400 font-bold' : 'text-amber-400')}>
-                                                                {isVideoReady ? '영상 준비됨' : (inRequiredZone ? '🔒 영상 없음' : '영상 없음')}
+                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : 'text-orange-400'}`}>
+                                                                {isReady ? '✅ 영상 완료' : '영상 없음'}
                                                             </span>
-                                                        </td>
-                                                        <td className="px-4 py-2.5 text-right whitespace-nowrap space-x-2">
+                                                        </div>
+                                                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
                                                             <button
+                                                                type="button"
                                                                 onClick={() => {
                                                                     const el = document.getElementById(`prompt-card-${idx}`)
                                                                     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                                                                 }}
-                                                                className="text-blue-400 hover:text-blue-300 font-bold"
+                                                                className="text-gray-400 hover:text-white transition-colors"
                                                             >
                                                                 보기
                                                             </button>
-                                                            <label className="cursor-pointer text-indigo-400 hover:text-indigo-300 font-bold">
-                                                                교체
+                                                            <span className="text-gray-600">|</span>
+                                                            <label className="cursor-pointer text-orange-400 hover:text-orange-300 transition-colors">
+                                                                {isReady ? '교체' : '업로드'}
+                                                                <input
+                                                                    type="file"
+                                                                    accept="video/*"
+                                                                    className="hidden"
+                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* 2. 본문 이미지/영상 구간 (13~53씬 - 흐린 주황/앰버색) */}
+                                    <div className="space-y-2 pt-2 border-t border-white/5">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-full bg-amber-500/70" />
+                                                <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
+                                                    본문 이미지 구간 (씬 13 ~ {selectedProject.scenes.length})
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 font-mono">
+                                                완료: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                                            {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
+                                                const idx = offsetIdx + 12
+                                                const sNum = scene.scene_number || idx + 1
+                                                const isReady = Boolean(scene.image_url || scene.video_url)
+                                                return (
+                                                    <div
+                                                        key={scene.id || idx}
+                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between min-h-[76px] ${
+                                                            isReady
+                                                                ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
+                                                                : 'bg-[#181d26] border-amber-500/30 hover:border-amber-400/60 shadow-sm'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">
+                                                                #{sNum}
+                                                            </span>
+                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : 'text-amber-400/80'}`}>
+                                                                {isReady ? '✅ 이미지 완료' : '이미지 없음'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const el = document.getElementById(`prompt-card-${idx}`)
+                                                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                                                }}
+                                                                className="text-gray-400 hover:text-white transition-colors"
+                                                            >
+                                                                보기
+                                                            </button>
+                                                            <span className="text-gray-600">|</span>
+                                                            <label className="cursor-pointer text-amber-400 hover:text-amber-300 transition-colors">
+                                                                {isReady ? '교체' : '업로드'}
                                                                 <input
                                                                     type="file"
                                                                     accept="image/*,video/*"
                                                                     className="hidden"
-                                                                    onChange={e => uploadAsset(scene, inRequiredZone ? 'video' : 'image', e.target.files?.[0] || null)}
+                                                                    onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
-                                                        </td>
-                                                    </tr>
+                                                        </div>
+                                                    </div>
                                                 )
                                             })}
-                                        </tbody>
-                                    </table>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="p-4 border-t border-white/5 bg-[#181d26] space-y-3">
