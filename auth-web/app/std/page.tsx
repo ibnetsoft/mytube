@@ -448,7 +448,7 @@ export default function StdPortalPage() {
     const [inquiryCategory, setInquiryCategory] = useState('시스템 문의')
 
     // 7. 템플릿(Template) 전용 디자인 스튜디오 상태 (유저앱 template.html 100% 동일 구현)
-    const [templateBgUrl, setTemplateBgUrl] = useState('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+    const [templateBgUrl, setTemplateBgUrl] = useState('')
     const [templateBgColor, setTemplateBgColor] = useState('#000000')
     const [templatePresetName, setTemplatePresetName] = useState('')
     const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('preset-1')
@@ -509,7 +509,7 @@ export default function StdPortalPage() {
     const [thumbLayout, setThumbLayout] = useState('face')
     const [thumbStyle, setThumbStyle] = useState('realistic')
     const [thumbStep, setThumbStep] = useState<number>(1)
-    const [thumbBgUrl, setThumbBgUrl] = useState('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+    const [thumbBgUrl, setThumbBgUrl] = useState('')
     const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
         id: string
         text: string
@@ -1540,7 +1540,7 @@ export default function StdPortalPage() {
         text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
         start_time: '0.0',
         end_time: '4.6',
-        image_url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+        image_url: '',
     }
 
     const displayedTopics = useMemo(() => {
@@ -2452,7 +2452,7 @@ export default function StdPortalPage() {
                             start_num: 0.0,
                             end_num: 5.0,
                             text: '서른 해, 정확히 30년 동안 한 번도 거르지 않고 국민연금을 납입해온 부부가 있습니다.',
-                            image_url: selectedProject?.scenes?.[0]?.image_url || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800&auto=format&fit=crop&q=80',
+                            image_url: selectedProject?.scenes?.[0]?.image_url || '',
                             video_url: selectedProject?.scenes?.[0]?.video_url || null,
                             is_hook_zone: true,
                         }
@@ -2755,11 +2755,18 @@ export default function StdPortalPage() {
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-                                            <img
-                                                src={currentSub.image_url}
-                                                alt="Preview"
-                                                className="w-full h-full object-cover"
-                                            />
+                                            {currentSub.image_url ? (
+                                                <img
+                                                    src={currentSub.image_url}
+                                                    alt="Preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-[#0b0e14] flex flex-col items-center justify-center text-gray-600 gap-1 select-none">
+                                                    <span className="text-2xl opacity-40">🖼️</span>
+                                                    <span className="text-[10px] font-mono text-gray-500">이미지 없음 (업로드 대기)</span>
+                                                </div>
+                                            )}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             <div
                                                 className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
@@ -4762,7 +4769,7 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const newImg = prompt('배경 이미지 URL을 입력하세요:', templateBgUrl || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1280&auto=format&fit=crop&q=80')
+                                                    const newImg = prompt('배경 이미지 URL을 입력하세요:', templateBgUrl || '')
                                                     if (newImg) setTemplateBgUrl(newImg)
                                                 }}
                                                 className="py-2 bg-[#202632] hover:bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10 transition"
