@@ -2089,14 +2089,7 @@ export default function StdPortalPage() {
     }
 
     const displayedTopics = useMemo(() => {
-        const rawList = topics.length > 0 ? topics : [
-            { id: 101, topic: '서른 해 동안 국민연금을 납입해온 부부의 실제 수령액과 은퇴 현실', generated_title: '30년 연금 납입의 충격 진실! 통장에 찍힌 실제 수령액', category_name: '경제/재테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
-            { id: 102, topic: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', generated_title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', category_name: '사연/이야기', assigned_duration_minutes: 15, estimated_payout: 45000 },
-            { id: 103, topic: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', generated_title: '물가 대폭등의 비밀! 우리가 몰랐던 유통의 함정', category_name: '경제/이슈', assigned_duration_minutes: 15, estimated_payout: 45000 },
-            { id: 104, topic: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', generated_title: '조선왕조실록에 숨겨진 기괴한 비밀 야사', category_name: '역사/야사', assigned_duration_minutes: 20, estimated_payout: 55000 },
-            { id: 105, topic: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', generated_title: '2026 AI 시대, 살아남는 직업과 사라지는 직업', category_name: 'IT/테크', assigned_duration_minutes: 15, estimated_payout: 45000 },
-            { id: 106, topic: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', generated_title: '5060 부부가 절대 말하지 못하는 은밀한 고민', category_name: '라이프/사연', assigned_duration_minutes: 15, estimated_payout: 45000 },
-        ]
+        const rawList = topics
 
         // 1. 이미 작업 중인 프로젝트들의 제목/ID 목록 수집 (추천 큐에서 제외하여 중복 작업 방지)
         const activeProjectTitles = new Set(
@@ -5558,17 +5551,7 @@ export default function StdPortalPage() {
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
                                         {/* 풍부한 프로젝트 목록 렌더링 */}
-                                        {(projects.length > 0 ? projects : [
-                                            { id: 'p-276', title: '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다', category_name: '한국사연', status: 'image_prompted', created_at: '2026-08-14', updated_at: '2026-08-18' },
-                                            { id: 'p-275', title: '만점으로 살 게 없다! 식탁 물가 폭등의 진짜 원인', category_name: '경제', status: 'pending', created_at: '2026-08-12', updated_at: '2026-08-17' },
-                                            { id: 'p-274', title: 'AI발 일자리 쇼크, 내 직업은 안전할까? 우리는 뭘 해야 하나?', category_name: '경제', status: 'pending', created_at: '2026-08-11', updated_at: '2026-08-17' },
-                                            { id: 'p-273', title: '나만 모르는 돈의 비밀? 경제 벤치마크로 미래를 읽는 법', category_name: '노후금융', status: 'pending', created_at: '2026-08-10', updated_at: '2026-08-17' },
-                                            { id: 'p-272', title: '절대 무공을 숨긴 당인, 강호의 운명을 바꾸다', category_name: '무협', status: 'pending', created_at: '2026-07-19', updated_at: '2026-08-17' },
-                                            { id: 'p-271', title: '한국인이 몰랐던 조선 야사: 소를 뜯는 구선 선설의 진실', category_name: '옛날이야기', status: 'pending', created_at: '2026-07-08', updated_at: '2026-08-17' },
-                                            { id: 'p-270', title: '황혼 부부, 이것 때문에 잠 못 이룬다? 19금 속마음 공개!', category_name: '황혼19금', status: 'pending', created_at: '2026-07-01', updated_at: '2026-08-17' },
-                                            { id: 'p-269', title: '2024년 경제 불확실성 시대, 돈 버는 주식·부동산 이 투자법이 정답!', category_name: '경제', status: 'pending', created_at: '2026-06-27', updated_at: '2026-08-17' },
-                                            { id: 'p-268', title: '강호의 낭인, 당신이 몰랐던 진짜 무공의 비밀', category_name: '무협', status: 'pending', created_at: '2026-06-27', updated_at: '2026-08-17' },
-                                        ]).map((p: any, idx: number) => {
+                                        {projects.map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id || idx === 0
                                             const projectCatName = (() => {
                                                 if (p.category_name) return p.category_name
@@ -5699,6 +5682,13 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
+                                        {projects.length === 0 && (
+                                            <tr>
+                                                <td colSpan={13} className="px-4 py-10 text-center text-xs text-gray-500">
+                                                    아직 생성된 프로젝트가 없습니다.
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
