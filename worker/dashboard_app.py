@@ -3201,10 +3201,10 @@ function renderProcessCards(status, jobs = []) {
       ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : name === 'hermes_worker' ? `
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
         <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="생성할 영상 수" title="생성할 영상 수" style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
-        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
+        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${s==='running' ? 'disabled' : ''}>\u25B6 시작</button>
         <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
       </div>
-      <div class="info" style="color:#8b949e;margin-top:5px;font-size:12px">영상 수: 1개 = 벤치마크 분석·제목 생성·웹 자료 조사·씬 기획 및 이미지·영상 프롬프트 생성·대본 작성·설명 생성을 포함한 내부 6단계를 완료한 영상 1개입니다.</div>` : `
+      ` : `
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-sm btn-start" onclick="startProcess('${name}')" ${(s==='running'||s==='idle') ? 'disabled' : ''}>\u25B6 시작</button>
         <button class="btn btn-sm btn-stop" onclick="stopProcess('${name}')" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
