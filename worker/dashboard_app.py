@@ -25,6 +25,15 @@ logger = get_logger("dashboard")
 app = FastAPI(title="AIR Worker Dashboard")
 autopilot_manager = HermesAutopilotManager()
 
+HERMES_JOB_TYPES = {
+    "topic_benchmark_analyze",
+    "web_research",
+    "script_plan_generate",
+    "script_generate",
+    "publish_metadata_generate",
+}
+HERMES_ACTIVE_STATUSES = {"CLAIMED", "PREPARING", "RENDERING", "UPLOADING"}
+
 # ---------------------------------------------------------------------------
 # Auth helpers (same pattern as local_api_app.py)
 # ---------------------------------------------------------------------------
@@ -76,6 +85,41 @@ def _read_job_result(job_id: str) -> dict | None:
         except Exception:
             return None
     return None
+
+
+def _active_hermes_job_from_local_queue(limit: int = 50) -> dict | None:
+    """Return the newest local Hermes job that is still actively being handled."""
+    try:
+        jobs = job_store.list_jobs(limit=limit)
+    except Exception as exc:
+        logger.warning(f"Failed to inspect local Hermes queue: {exc}")
+        return None
+    for job in jobs:
+        if job.get("job_type") in HERMES_JOB_TYPES and str(job.get("status") or "").upper() in HERMES_ACTIVE_STATUSES:
+            return job
+    return None
+
+
+def _sync_hermes_process_status(snap: dict, autopilot_status: dict) -> dict:
+    """Keep the Hermes process card aligned with the visible pipeline rows."""
+    hermes_process = snap.setdefault("processes", {}).setdefault("hermes_worker", {})
+    active_job = _active_hermes_job_from_local_queue()
+    if active_job:
+        payload = active_job.get("payload") or {}
+        hermes_process["status"] = "running"
+        hermes_process["current_job"] = {
+            "job_id": active_job.get("job_id"),
+            "job_type": active_job.get("job_type"),
+            "project_name": payload.get("upload_title") or payload.get("topic") or payload.get("title"),
+            "progress_message": active_job.get("progress_message") or "",
+        }
+        hermes_process["progress"] = active_job.get("progress") or 1
+        return hermes_process
+
+    if autopilot_status.get("is_running"):
+        hermes_process["status"] = "running"
+        hermes_process["current_job"] = autopilot_status.get("current_step") or "hermes_autopilot"
+    return hermes_process
 
 
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
@@ -589,12 +633,7 @@ async def api_status(
     require_auth(authorization, cookie)
     snap = _read_manager_status()
     autopilot_status = autopilot_manager.get_status()
-    if autopilot_status.get("is_running"):
-        hermes_process = snap.setdefault("processes", {}).setdefault("hermes_worker", {})
-        # Autopilot is the user-facing lifecycle for Hermes. Surface it in
-        # the process card even while the child process state file catches up.
-        hermes_process["status"] = "running"
-        hermes_process["current_job"] = autopilot_status.get("current_step") or "hermes_autopilot"
+    _sync_hermes_process_status(snap, autopilot_status)
     snap["render_status"] = render_status_display()
     return snap
 
