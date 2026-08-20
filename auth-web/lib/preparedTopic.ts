@@ -1,5 +1,6 @@
 export type PreparedTopicLike = {
     status?: string | null
+    assigned_at?: string | null
     generated_title?: string | null
     category_id?: string | number | null
     categories?: unknown
@@ -54,6 +55,7 @@ export function isPreparedUserTopic(topic: PreparedTopicLike): boolean {
         && Boolean(topic?.pregenerated_structure)
 
     return topic?.status === 'pending'
+        && !String(topic?.assigned_at || '').trim()
         && String(topic?.generated_title || '').trim().length > 0
         && topic?.category_id !== null
         && topic?.category_id !== undefined
@@ -64,6 +66,6 @@ export function isPreparedUserTopic(topic: PreparedTopicLike): boolean {
 }
 
 export function preparedTopicStatus(topic: PreparedTopicLike): 'ready' | 'not_ready' | 'claimed' {
-    if (topic?.status === 'assigned') return 'claimed'
+    if (topic?.status === 'assigned' || String(topic?.assigned_at || '').trim()) return 'claimed'
     return isPreparedUserTopic(topic) ? 'ready' : 'not_ready'
 }
