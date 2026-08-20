@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, type User } from '@supabase/supabase-js'
+import { isPreparedUserTopic } from './preparedTopic'
 import { supabaseAdmin } from './supabaseAdmin'
 
 const getAuthClient = () => createClient(
@@ -190,19 +191,7 @@ export function topicHasPublishDescription(topic: any): boolean {
 }
 
 export function isPreparedStdTopic(topic: any): boolean {
-    const hasTitle = Boolean(firstText(topic?.generated_title, topic?.topic))
-    const struct = topic?.pregenerated_structure || topic?.structure || {}
-    const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    const hasStructure = Boolean((topic?.pregenerated_structure_status === 'ready' || topic?.pregenerated_structure_status === 'completed') && scenes.length >= 20)
-    const hasScript = Boolean(
-        (topic?.pregenerated_script_status === 'ready' || topic?.pregenerated_script_status === 'completed')
-        && String(topic?.pregenerated_script || '').trim().length > 100
-    )
-    const hasMediaPrompts = topicHasReadyImageGridPrompts(topic)
-    const hasDescription = topicHasPublishDescription(topic)
-
-    // 대시보드의 대기주제 조건(ready)과 100% 동일하게 모든 기획/대본/프롬프트가 완성된 주제만 선별
-    return Boolean(topic?.status === 'pending' && hasTitle && hasStructure && hasScript && hasMediaPrompts && hasDescription)
+    return isPreparedUserTopic(topic)
 }
 
 export function buildStdScenes(topic: any) {
