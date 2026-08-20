@@ -190,25 +190,93 @@ async function saveRecommendationCache(email: string, topics: any[], policy: Rec
     await supabaseAdmin.from('user_topic_recommendations').insert(rows)
 }
 
+function extractTopicKeywords(text: string): Set<string> {
+    const cleaned = text.replace(/["'“”‘’`「」『』\[\]()<>,.?!~|/\\:;]/g, ' ')
+    const tokens = cleaned.split(/\s+/).filter(Boolean)
+    const particles = ['은', '는', '이', '가', '을', '를', '의', '에', '에서', '로', '으로', '와', '과', '도', '만', '차', '앞둔', '위한', '통해', '대해', '대', '년', '월', '원']
+    const roots = new Set<string>()
+
+    for (const t of tokens) {
+        const lower = t.toLowerCase()
+        roots.add(lower)
+        for (const p of particles) {
+            if (lower.endsWith(p) && lower.length > p.length) {
+                const stem = lower.slice(0, -p.length)
+                if (stem.length >= 1) roots.add(stem)
+                break
+            }
+        }
+    }
+    return roots
+}
+
+function calculateTopicSimilarity(a: string, b: string): number {
+    const cleanA = a.replace(/[\s\W_]+/g, '').toLowerCase()
+    const cleanB = b.replace(/[\s\W_]+/g, '').toLowerCase()
+    if (!cleanA || !cleanB) return 0.0
+    if (cleanA === cleanB) return 1.0
+
+    // 1. Shingle overlap (4-char sliding window)
+    const shinglesA = new Set<string>()
+    const shinglesB = new Set<string>()
+    for (let i = 0; i < cleanA.length - 3; i++) shinglesA.add(cleanA.slice(i, i + 4))
+    for (let i = 0; i < cleanB.length - 3; i++) shinglesB.add(cleanB.slice(i, i + 4))
+    
+    let shingleOverlap = 0
+    if (shinglesA.size > 0 && shinglesB.size > 0) {
+        let inter = 0
+        for (const s of shinglesA) {
+            if (shinglesB.has(s)) inter++
+        }
+        shingleOverlap = inter / Math.min(shinglesA.size, shinglesB.size)
+    }
+
+    // 2. Keyword roots overlap
+    const rootsA = extractTopicKeywords(a)
+    const rootsB = extractTopicKeywords(b)
+    let rootOverlap = 0
+    if (rootsA.size > 0 && rootsB.size > 0) {
+        let inter = 0
+        for (const r of rootsA) {
+            if (rootsB.has(r)) inter++
+        }
+        rootOverlap = inter / Math.min(rootsA.size, rootsB.size)
+    }
+
+    // 3. Numbers overlap bonus (e.g. 30년, 80만원)
+    const numsA = a.match(/\d+/g) || []
+    const numsB = b.match(/\d+/g) || []
+    const numsSetB = new Set(numsB)
+    const numMatches = numsA.filter(n => numsSetB.has(n)).length
+    const numBonus = (numMatches >= 2 && (shingleOverlap > 0.12 || rootOverlap > 0.20)) ? 0.25 : 0
+
+    return Math.min(1.0, Math.max(shingleOverlap, rootOverlap) + numBonus)
+}
+
 function deduplicateTopics(topics: any[]): any[] {
-    const seenTitles = new Set<string>()
+    const seenTitles: string[] = []
     const seenIds = new Set<string>()
     const unique: any[] = []
 
     for (const t of topics) {
         if (!t) continue
         const id = String(t.id || '')
-        const titleKey = String(t.generated_title || t.topic || '')
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, '')
-
-        if (!titleKey) continue
+        const rawTitle = String(t.generated_title || t.topic || '').trim()
+        if (!rawTitle) continue
         if (id && seenIds.has(id)) continue
-        if (seenTitles.has(titleKey)) continue
+
+        // Fuzzy similarity check against all already selected topics
+        let isDuplicate = false
+        for (const prev of seenTitles) {
+            if (calculateTopicSimilarity(rawTitle, prev) >= 0.35) {
+                isDuplicate = true
+                break
+            }
+        }
+        if (isDuplicate) continue
 
         if (id) seenIds.add(id)
-        seenTitles.add(titleKey)
+        seenTitles.push(rawTitle)
         unique.push(t)
     }
 

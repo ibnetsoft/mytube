@@ -116,6 +116,81 @@ function isMissingColumnError(err: any): boolean {
     )
 }
 
+
+// --- Topic Similarity & Deduplication Engine ---
+function extractTopicKeywords(text: string): Set<string> {
+    const cleaned = text.replace(/["'“”‘’`「」『』\[\]()<>,.?!~|/\\:;]/g, ' ')
+    const tokens = cleaned.split(/\s+/).filter(Boolean)
+    const particles = ['은', '는', '이', '가', '을', '를', '의', '에', '에서', '로', '으로', '와', '과', '도', '만', '차', '앞둔', '위한', '통해', '대해', '대', '년', '월', '원']
+    const roots = new Set<string>()
+
+    for (const t of tokens) {
+        const lower = t.toLowerCase()
+        roots.add(lower)
+        for (const p of particles) {
+            if (lower.endsWith(p) && lower.length > p.length) {
+                const stem = lower.slice(0, -p.length)
+                if (stem.length >= 1) roots.add(stem)
+                break
+            }
+        }
+    }
+    return roots
+}
+
+function calculateTopicSimilarity(a: string, b: string): number {
+    const cleanA = a.replace(/[\s\W_]+/g, '').toLowerCase()
+    const cleanB = b.replace(/[\s\W_]+/g, '').toLowerCase()
+    if (!cleanA || !cleanB) return 0.0
+    if (cleanA === cleanB) return 1.0
+
+    // 1. Shingle overlap (4-char sliding window)
+    const shinglesA = new Set<string>()
+    const shinglesB = new Set<string>()
+    for (let i = 0; i < cleanA.length - 3; i++) shinglesA.add(cleanA.slice(i, i + 4))
+    for (let i = 0; i < cleanB.length - 3; i++) shinglesB.add(cleanB.slice(i, i + 4))
+    
+    let shingleOverlap = 0
+    if (shinglesA.size > 0 && shinglesB.size > 0) {
+        let inter = 0
+        for (const s of shinglesA) {
+            if (shinglesB.has(s)) inter++
+        }
+        shingleOverlap = inter / Math.min(shinglesA.size, shinglesB.size)
+    }
+
+    // 2. Keyword roots overlap
+    const rootsA = extractTopicKeywords(a)
+    const rootsB = extractTopicKeywords(b)
+    let rootOverlap = 0
+    if (rootsA.size > 0 && rootsB.size > 0) {
+        let inter = 0
+        for (const r of rootsA) {
+            if (rootsB.has(r)) inter++
+        }
+        rootOverlap = inter / Math.min(rootsA.size, rootsB.size)
+    }
+
+    // 3. Numbers overlap bonus (e.g. 30년, 80만원)
+    const numsA = a.match(/\d+/g) || []
+    const numsB = b.match(/\d+/g) || []
+    const numsSetB = new Set(numsB)
+    const numMatches = numsA.filter(n => numsSetB.has(n)).length
+    const numBonus = (numMatches >= 2 && (shingleOverlap > 0.12 || rootOverlap > 0.20)) ? 0.25 : 0
+
+    return Math.min(1.0, Math.max(shingleOverlap, rootOverlap) + numBonus)
+}
+
+function isNearDuplicateTopic(candidate: string, referenceList: string[], threshold = 0.35): boolean {
+    for (const ref of referenceList) {
+        if (!ref) continue
+        if (calculateTopicSimilarity(candidate, ref) >= threshold) {
+            return true
+        }
+    }
+    return false
+}
+
 // --- AIR-0129: Admin auto-translation pipeline ---
 
 type TranslationTopic = { id: string; topic: string; category_name: string }
@@ -642,10 +717,11 @@ export async function POST(req: Request) {
         - If a year is mentioned in a current-affairs or market topic, prefer ${currentYearKst}. Do not generate stale present-tense titles anchored to 2024 or 2025 unless the topic is explicitly retrospective or historical.
         - If the input keywords contain older years, treat them only as weak reference context and rewrite the final title so it matches ${currentYearKst}.
 
-        DIVERSITY REQUIREMENT (this category already has a repetition problem — take it seriously):
-        - The 10 topics must span at least 5 clearly different angles or sub-types (for example: a specific historical event, a personal/family life story, a mysterious or unexplained case, a ranking/listicle compilation, a cautionary or moral tale, a surprising little-known fact, a comparison, an emotional human-interest drama — pick whichever angles genuinely fit this category).
-        - Do NOT produce 10 topics that all follow the same sentence pattern, structure, or opening phrase.
-        - Do NOT produce near-duplicate topics within this same batch of 10 (same core subject with only wording changed).
+        ABSOLUTE DIVERSITY & ANTI-REPETITION MANDATE (CRITICAL):
+        - Each of the 10 topics MUST cover a completely distinct subject, person, situation, question, financial case, or angle.
+        - NEVER produce near-duplicate topics in the same batch (e.g. do NOT generate two topics about '국민연금 30년 80만원' or '10년 기다린 어머니' with only slight wording changes).
+        - Each topic must have a UNIQUE hook, UNIQUE numbers/amounts, and UNIQUE core life situation.
+        - The 10 topics must span at least 5 clearly different sub-themes across the category.
         ${existingTopics.length ? `
         EXISTING TOPICS ALREADY IN THIS CATEGORY'S QUEUE (${existingTopicCount ?? existingTopics.length} total in this category; ${existingTopics.length} most recent shown below) — DO NOT repeat any of these, and do NOT generate a near-duplicate or a minor rewording of any of them:
         ${existingTopics.map((t) => `- ${t}`).join('\n        ')}
@@ -727,15 +803,29 @@ export async function POST(req: Request) {
             const categoryNormalized = categoryLabel.replace(/[\s·_-]+/g, '').toLowerCase()
             return !normalized || normalized === categoryNormalized || normalized.length < 12
         }
-        const normalizedTopics = topics.map((item: any) => ({
+        const validCandidates = topics.map((item: any) => ({
             item,
             title: normalizeTitle(typeof item === 'string' ? item : (item?.title || item?.topic)),
-        }))
-        if (normalizedTopics.some(({ title }) => isPlaceholderTitle(title))) {
-            throw new Error(`AI returned a category label instead of a publishable title for '${categoryLabel}'.`)
+        })).filter(({ title }) => !isPlaceholderTitle(title))
+
+        // 중복 및 유사 주제 자동 방지 필터 (배치 내부 중복 + 기존 카테고리 대기열 중복 제거)
+        const acceptedTopics: typeof validCandidates = []
+        const acceptedTitles: string[] = [...existingTopics]
+
+        for (const cand of validCandidates) {
+            if (isNearDuplicateTopic(cand.title, acceptedTitles, 0.35)) {
+                console.log(`[Topic Generator] Filtered out near-duplicate topic: "${cand.title}"`)
+                continue
+            }
+            acceptedTopics.push(cand)
+            acceptedTitles.push(cand.title)
         }
 
-        const inserts = normalizedTopics.map(({ item, title: topic }, index) => {
+        if (acceptedTopics.length === 0) {
+            throw new Error(`생성된 주제들이 기존 주제들과 너무 유사하여 중복 방지 필터에 의해 제외되었습니다. 다시 시도해 주세요.`)
+        }
+
+        const inserts = acceptedTopics.map(({ item, title: topic }, index) => {
             const geminiDuration = isLongformCategory
                 ? clampDuration(item?.recommended_duration_minutes, minDurationMinutes)
                 : null
