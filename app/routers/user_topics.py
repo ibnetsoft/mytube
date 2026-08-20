@@ -54,12 +54,28 @@ def _first_text(*values) -> str:
     return ""
 
 
+def _scene_image_prompt(scene: dict) -> str:
+    return _first_text(
+        scene.get("image_prompt"),
+        scene.get("prompt_en"),
+        scene.get("visual_prompt"),
+        scene.get("visual_description"),
+        scene.get("keyframe_subject"),
+        scene.get("visual_direction"),
+        scene.get("scene_situation"),
+    )
+
+
 def _scene_video_prompt(scene: dict) -> str:
     return _first_text(
         scene.get("video_prompt"),
         scene.get("motion_desc"),
         scene.get("flow_prompt"),
         scene.get("camera_motion"),
+        scene.get("motion_plan"),
+        scene.get("visual_direction"),
+        scene.get("scene_situation"),
+        scene.get("script_excerpt"),
     )
 
 

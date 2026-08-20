@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
 import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
 import { generateJsonWithModelSetting } from '../../../../lib/aiRouter'
+import { isPreparedUserTopic, preparedTopicStatus } from '../../../../lib/preparedTopic'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -508,10 +509,14 @@ function normalizeTopicQueueRow(topic: any) {
     const videoClipRatio = String(topic?.video_clip_ratio || assetMix?.video_clip_ratio || fallbackRatio || '').trim()
 
     const language = normalizeContentLanguage(topic?.language || topic?.categories?.language)
+    const preparationStatus = preparedTopicStatus(topic)
+    const { pregenerated_structure, pregenerated_script, ...safeTopic } = topic
     return {
-        ...topic,
+        ...safeTopic,
         language,
         language_label: contentLanguageLabel(language),
+        preparation_status: preparationStatus,
+        is_prepared_for_claim: preparationStatus === 'ready',
         total_scenes: totalScenes,
         video_scenes: videoScenes,
         image_scenes: imageScenes,
@@ -557,6 +562,10 @@ export async function GET(req: Request) {
                 query = query.eq('category_id', categoryId)
             }
 
+            if (status === 'active') {
+                return query.limit(1000)
+            }
+
             return query.range(rangeFrom, rangeTo)
         }
 
@@ -570,14 +579,17 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        const topics = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
+        const visibleRows = status === 'active'
+            ? (data || []).filter((topic: any) => topic?.status === 'assigned' || isPreparedUserTopic(topic))
+            : (data || [])
+        const topics = visibleRows.map((topic: any) => normalizeTopicQueueRow(topic))
 
         return NextResponse.json({
             topics,
             page,
             perPage,
-            total: count ?? topics.length,
-            hasMore: count != null ? rangeTo + 1 < count : topics.length === perPage,
+            total: status === 'active' ? topics.length : (count ?? topics.length),
+            hasMore: status === 'active' ? false : (count != null ? rangeTo + 1 < count : topics.length === perPage),
         })
     } catch (e: any) {
         console.error('Failed to get topics queue:', e)

@@ -67,6 +67,7 @@ job-type-specific needed changing in either shared module). The web-admin
 trigger itself (creating remote_hermes_queue rows) is a separate, still-open
 follow-up - see docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md §2b.
 """
+import datetime
 import asyncio
 import json
 import os
@@ -7148,6 +7149,14 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 "pregenerated_script_status": "ready",
                 "pregenerated_structure": result_payload.get("structure"),
                 "pregenerated_structure_status": "ready",
+                "publish_metadata": result_payload.get("publish_metadata"),
+                "publish_metadata_status": "ready",
+                "progress_payload": {
+                    "publish_metadata": result_payload.get("publish_metadata"),
+                    "pregenerated_script_status": "ready",
+                    "prepared_topic_ready": True,
+                    "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                },
                 "narrative_blueprint": result_payload.get("narrative_blueprint"),
                 "script_quality_report": result_payload.get("script_quality_report"),
             }

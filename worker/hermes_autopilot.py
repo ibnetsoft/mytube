@@ -2511,7 +2511,12 @@ Return ONLY a JSON array of strings.
                             "narrative_blueprint": narrative_blueprint,
                             "script_quality_report": script_quality_report,
                             "publish_metadata": publish_metadata,
-                            "progress_payload": {"publish_metadata": publish_metadata},
+                            "progress_payload": {
+                                "publish_metadata": publish_metadata,
+                                "pregenerated_script_status": "ready",
+                                "prepared_topic_ready": True,
+                                "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                            },
                             "publish_metadata_status": "ready",
                             "status": "pending"
                         }
@@ -2530,7 +2535,12 @@ Return ONLY a JSON array of strings.
                                 "generated_title": generated_title,
                                 "title_candidates": title_plan["title_candidates"],
                                 "benchmark_analysis": benchmark_payload,
-                                "progress_payload": {"publish_metadata": publish_metadata},
+                                "progress_payload": {
+                                    "publish_metadata": publish_metadata,
+                                    "pregenerated_script_status": "ready",
+                                    "prepared_topic_ready": True,
+                                    "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                                },
                                 "status": "pending"
                             }
                         )

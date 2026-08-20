@@ -129,11 +129,28 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
         if (!topicQueueId || !script) return
 
         const resultPayload = job.result_payload || {}
+        const { data: existingTopic } = await supabaseAdmin
+            .from('topics_queue')
+            .select('progress_payload')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+        const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
+            ? existingTopic.progress_payload
+            : {}
+        const progressPayload = {
+            ...existingProgress,
+            publish_metadata: resultPayload.publish_metadata || existingProgress.publish_metadata || null,
+            pregenerated_script_status: 'ready',
+            prepared_topic_ready: true,
+            prepared_topic_ready_at: new Date().toISOString(),
+        }
         let { error } = await supabaseAdmin
             .from('topics_queue')
             .update({
                 pregenerated_script: script,
                 pregenerated_script_status: 'ready',
+                ...(resultPayload.publish_metadata ? { publish_metadata: resultPayload.publish_metadata } : {}),
+                progress_payload: progressPayload,
                 narrative_blueprint: resultPayload.narrative_blueprint || null,
                 script_quality_report: resultPayload.script_quality_report || null,
             })
@@ -145,6 +162,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                 .update({
                     pregenerated_script: script,
                     pregenerated_script_status: 'ready',
+                    progress_payload: progressPayload,
                 })
                 .eq('id', topicQueueId)
             error = fallback.error
@@ -193,12 +211,26 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
         const publishMetadata = job.result_payload?.publish_metadata
         if (!topicQueueId || !publishMetadata) return
 
+        const { data: existingTopic } = await supabaseAdmin
+            .from('topics_queue')
+            .select('progress_payload')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+        const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
+            ? existingTopic.progress_payload
+            : {}
+        const progressPayload = {
+            ...existingProgress,
+            publish_metadata: publishMetadata,
+            publish_metadata_status: 'ready',
+        }
+
         let { error } = await supabaseAdmin
             .from('topics_queue')
             .update({
                 publish_metadata: publishMetadata,
                 publish_metadata_status: 'ready',
-                progress_payload: { publish_metadata: publishMetadata },
+                progress_payload: progressPayload,
             })
             .eq('id', topicQueueId)
 
@@ -207,7 +239,7 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
                 .from('topics_queue')
                 .update({
                     publish_metadata: publishMetadata,
-                    progress_payload: { publish_metadata: publishMetadata },
+                    progress_payload: progressPayload,
                 })
                 .eq('id', topicQueueId)
             error = fallback.error
