@@ -5410,6 +5410,7 @@ Scene planning guard:
         for key in ("category", "category_name")
     ).strip()
     script_style_context = f"{script_style} {category_context}".strip()
+    detected_cat = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     finance_plan_context = _is_finance_plan_context(script_style_context, topic, upload_title, image_style)
     old_story_plan_context = _is_old_story_plan_context(script_style_context, topic, upload_title, image_style)
     if old_story_plan_context and not _old_story_title_is_grave_vigil(topic, upload_title):
@@ -5447,11 +5448,14 @@ Scene planning guard:
             job_log.warning(f"Scene plan repetition QA requested fallback repair: {plan_errors[:8]}")
             structure = _repair_finance_scene_plan_repetition(structure, topic, upload_title)
 
+        # Repair builders preserve the planner's original visual fields unless
+        # refreshed here. Those fields can contain internal template labels such
+        # as "Timed visual beat" and must be replaced before the second QA pass.
+        structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
         plan_errors = _scene_plan_repetition_errors(structure)
         if plan_errors:
             raise RuntimeError(f"scene plan repetition QA failed after repair: {plan_errors[:8]}")
 
-    detected_cat = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
     category_errors = _scene_plan_category_contamination_errors(
         structure,
