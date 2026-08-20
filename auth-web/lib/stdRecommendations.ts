@@ -271,7 +271,7 @@ function calculateTopicSimilarity(a: string, b: string): number {
 }
 
 function deduplicateTopics(topics: any[]): any[] {
-    const seenTitles: string[] = []
+    const seenTitles = new Set<string>()
     const seenIds = new Set<string>()
     const unique: any[] = []
 
@@ -281,19 +281,11 @@ function deduplicateTopics(topics: any[]): any[] {
         const rawTitle = String(t.generated_title || t.topic || '').trim()
         if (!rawTitle) continue
         if (id && seenIds.has(id)) continue
-
-        // Fuzzy similarity check against all already selected topics
-        let isDuplicate = false
-        for (const prev of seenTitles) {
-            if (calculateTopicSimilarity(rawTitle, prev) >= 0.35) {
-                isDuplicate = true
-                break
-            }
-        }
-        if (isDuplicate) continue
+        const titleKey = rawTitle.toLowerCase().replace(/\s+/g, '')
+        if (seenTitles.has(titleKey)) continue
 
         if (id) seenIds.add(id)
-        seenTitles.push(rawTitle)
+        seenTitles.add(titleKey)
         unique.push(t)
     }
 
