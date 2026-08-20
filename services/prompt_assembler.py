@@ -16,15 +16,19 @@ class PromptAssembler:
         character_dnas: List[Dict[str, Any]], 
         scene_context: Dict[str, Any],
         cinematic_tags: str = "cinematic lighting, high resolution, 8k",
-        aspect_ratio: str = "9:16",
+        aspect_ratio: str = "16:9",
         seed: int = -1,
         model_type: str = "sdxl",
         global_ethnicity: Optional[str] = None
     ) -> Dict[str, str]:
         """
         [BLOCK 1~6] 조립 및 최종 프롬프트 세트 반환
+        초반에 16:9 와이드스크린 비율 강력 지시어 기본 배치
         """
         
+        # --- BLOCK 0: ASPECT RATIO DIRECTIVE (16:9 Widescreen Prefix) ---
+        ar_prefix = f"16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar {aspect_ratio})" if aspect_ratio in ("16:9", "16/9") else f"{aspect_ratio} aspect ratio, widescreen horizontal format"
+
         # --- BLOCK 1: STYLE (Template Filling) ---
         block1 = style_prefix.strip()
         used_keys = set()
@@ -105,8 +109,8 @@ class PromptAssembler:
         if seed is not None and str(seed) != "-1":
             block6 += f", seed {seed}"
 
-        # 최종 조립
-        positive_prompt = f"{block1}, {block2}, {block3}, {block4}, {block6}"
+        # 최종 조립 (초반 16:9 와이드스크린 선언 필수 배치)
+        positive_prompt = f"{ar_prefix}, {block1}, {block2}, {block3}, {block4}, {block6}"
         
         # 쉼표 및 템플릿 잔재 정제
         positive_prompt = self._cleanup_commas(positive_prompt)

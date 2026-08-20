@@ -1729,7 +1729,7 @@ async def replace_asset_from_library(
 async def generate_grid_image(
     project_id: int = Body(...),
     scenes: list = Body(...),
-    aspect_ratio: str = Body("1:1"),
+    aspect_ratio: str = Body("16:9"),
     style: str = Body("realistic")
 ):
     """
@@ -1739,8 +1739,8 @@ async def generate_grid_image(
         if not scenes or len(scenes) == 0:
             return {"status": "error", "error": "씬 데이터가 없습니다."}
 
-        # 프롬프트 조합
-        grid_prompt = "Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). Do NOT add any extra panels, text, or borders. Each panel must represent one scene:\\n"
+        # 프롬프트 조합 (16:9 가로 와이드스크린 강력 선언)
+        grid_prompt = "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total) on a 16:9 widescreen canvas. Do NOT add any extra panels, text, or borders. Each panel must represent one scene:\n"
         for i, scene in enumerate(scenes):
             scene_text = scene.get('prompt_en', scene.get('prompt_ko', ''))
             

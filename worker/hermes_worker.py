@@ -2357,7 +2357,8 @@ Rules:
 5. The final prompt must be compact: common layout rules once, shared_style once, then the four panel briefs. Avoid repeating negative guardrails inside every panel.
 6. Every final prompt must include: "No borders", "NO grid lines", "no text", "no words", "no letters", "no captions", and "no watermarks".
 7. Ground every panel in script_excerpt first, then use scene_situation and keyframe_subject only as supporting context. Do not contradict the final narration.
-8. No Korean administrative commentary. Return ONLY valid JSON.
+8. Every 2x2 grid prompt MUST strictly enforce a 16:9 widescreen canvas aspect ratio (16:9 aspect ratio, widescreen horizontal format).
+9. No Korean administrative commentary. Return ONLY valid JSON.
 
 Schema:
 {{

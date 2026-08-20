@@ -92,7 +92,8 @@ def make_compact_image_grid_prompt(
         )
 
     return (
-        "Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels. "
+        "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). "
+        "Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. "
         "No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. "
         "Use one consistent visual world across all panels.\n"
         f"Shared style and continuity: {shared or 'consistent characters, wardrobe, props, lighting direction, palette, era, and location logic.'}\n"
