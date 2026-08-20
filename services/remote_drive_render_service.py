@@ -197,14 +197,42 @@ class RemoteDriveRenderService:
         if not package_path or not os.path.exists(package_path):
             raise RuntimeError("Remote render package file does not exist.")
 
-        folder_id = self._get_drive_folder_id()
+        root_folder_id = self._get_drive_folder_id()
         token_path = token_path or self._get_google_token_path()
         task_id = str(uuid.uuid4())
+
+        # [AIR-0227E] Asset packages now land in the same category/project
+        # subfolder the rendered result is later saved into
+        # (remote_drive_worker.py::_resolve_result_folder uses the identical
+        # category-or-email + project-name pair), instead of a single flat
+        # root folder - keeps the asset zip and its eventual output together
+        # for anyone browsing Drive directly. Job discovery/claiming is
+        # entirely Supabase-row-driven (fetch_next_job queries
+        # remote_render_queue, not Drive folders) and asset download is by
+        # Drive file id, not folder path - so this is purely organizational,
+        # no functional dependency on where the zip physically sits.
+        settings = db.get_project_settings(project_id) or {}
+        category_name = settings.get("preferred_youtube_channel_name") or settings.get("preferred_youtube_channel_handle")
+        email = auth_service.get_user_email() or project.get("employee_email") or "unknown"
+        project_name = project.get("name") or f"Project {project_id}"
+
+        upload_folder_id = root_folder_id
+        try:
+            asset_folder = google_drive_service.ensure_project_folder(
+                category_name or email,
+                project_name,
+                token_path=token_path,
+                root_folder_id=root_folder_id,
+            )
+            if asset_folder and asset_folder.get("id"):
+                upload_folder_id = asset_folder.get("id")
+        except Exception as e:
+            print(f"[RemoteDriveRenderService] Failed to resolve category folder, uploading to root instead: {e}")
 
         drive_file = google_drive_service.upload_file(
             package_path,
             token_path=token_path,
-            folder_id=folder_id,
+            folder_id=upload_folder_id,
             mimetype="application/zip",
             description=f"AIR remote render asset package for project {project_id}",
             make_public=False,
@@ -227,9 +255,7 @@ class RemoteDriveRenderService:
         queue_metadata.setdefault("visibility_control", "web_admin_pending")
         queue_metadata.setdefault("package_transport", "google_drive_api")
         queue_metadata.setdefault("job_stage", "pending")
-        
-        settings = db.get_project_settings(project_id) or {}
-        category_name = settings.get("preferred_youtube_channel_name") or settings.get("preferred_youtube_channel_handle")
+
         if category_name:
             queue_metadata["category_name"] = category_name
 
