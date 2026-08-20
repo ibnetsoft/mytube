@@ -364,6 +364,104 @@ const DEFAULT_SUBTITLE_PRESETS = [
     }
 ]
 
+const DEFAULT_THUMBNAIL_TEMPLATE_PRESETS = [
+    {
+        id: 'preset-1',
+        name: '기본 2줄 볼드 강조 템플릿',
+        settings: {
+            bgUrl: '',
+            bgColor: '#000000',
+            textLayers: [
+                {
+                    id: 'layer-1',
+                    text: '30년 연금 납입의 충격 진실',
+                    fontSize: 34,
+                    color: '#ffeb3b',
+                    strokeColor: '#000000',
+                    strokeWidth: 4,
+                    fontFamily: 'GmarketSansBold',
+                    x: 50,
+                    y: 35,
+                },
+                {
+                    id: 'layer-2',
+                    text: '통장에 찍힌 실제 수령액 공개',
+                    fontSize: 26,
+                    color: '#ffffff',
+                    strokeColor: '#000000',
+                    strokeWidth: 3,
+                    fontFamily: 'GmarketSansBold',
+                    x: 50,
+                    y: 65,
+                },
+            ],
+            shapeLayers: [
+                {
+                    id: 'shape-1',
+                    type: 'banner',
+                    color: '#000000',
+                    opacity: 0.6,
+                    y: 55,
+                    height: 25,
+                },
+            ],
+        },
+    },
+    {
+        id: 'preset-2',
+        name: '좌측 상단 고정 훅 템플릿',
+        settings: {
+            bgUrl: '',
+            bgColor: '#000000',
+            textLayers: [
+                {
+                    id: 'layer-1',
+                    text: 'AI로 생성한 영상입니다',
+                    fontSize: 28,
+                    color: '#ffffff',
+                    strokeColor: '#000000',
+                    strokeWidth: 2,
+                    fontFamily: 'Pretendard',
+                    x: 16,
+                    y: 14,
+                },
+            ],
+            shapeLayers: [],
+        },
+    },
+    {
+        id: 'preset-3',
+        name: '중앙 심플 자막바 템플릿',
+        settings: {
+            bgUrl: '',
+            bgColor: '#000000',
+            textLayers: [
+                {
+                    id: 'layer-1',
+                    text: '핵심 장면',
+                    fontSize: 32,
+                    color: '#ffffff',
+                    strokeColor: '#000000',
+                    strokeWidth: 3,
+                    fontFamily: 'GmarketSansBold',
+                    x: 50,
+                    y: 50,
+                },
+            ],
+            shapeLayers: [
+                {
+                    id: 'shape-1',
+                    type: 'banner',
+                    color: '#000000',
+                    opacity: 0.55,
+                    y: 40,
+                    height: 20,
+                },
+            ],
+        },
+    },
+]
+
 export default function StdPortalPage() {
 
     useEffect(() => {
@@ -545,6 +643,8 @@ export default function StdPortalPage() {
     const [templateBgColor, setTemplateBgColor] = useState('#000000')
     const [templatePresetName, setTemplatePresetName] = useState('')
     const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('preset-1')
+    const [templatePresets, setTemplatePresets] = useState<any[]>(DEFAULT_THUMBNAIL_TEMPLATE_PRESETS)
+    const [selectedImageTemplatePreset, setSelectedImageTemplatePreset] = useState('')
     const [textLayers, setTextLayers] = useState<Array<{
         id: string
         text: string
@@ -596,6 +696,71 @@ export default function StdPortalPage() {
             height: 25,
         }
     ])
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('std_thumbnail_template_presets')
+            if (!saved) return
+            const customPresets = JSON.parse(saved)
+            if (Array.isArray(customPresets)) {
+                setTemplatePresets([...DEFAULT_THUMBNAIL_TEMPLATE_PRESETS, ...customPresets])
+            }
+        } catch (e) {}
+    }, [])
+
+    const applyTemplatePreset = (presetId: string) => {
+        setSelectedTemplatePreset(presetId)
+        const preset = templatePresets.find(p => p.id === presetId)
+        if (!preset?.settings) return
+        setTemplateBgUrl(preset.settings.bgUrl || '')
+        setTemplateBgColor(preset.settings.bgColor || '#000000')
+        setTextLayers((preset.settings.textLayers || []).map((layer: any, index: number) => ({
+            ...layer,
+            id: layer.id || `layer-${Date.now()}-${index}`,
+        })))
+        setShapeLayers((preset.settings.shapeLayers || []).map((shape: any, index: number) => ({
+            ...shape,
+            id: shape.id || `shape-${Date.now()}-${index}`,
+        })))
+        setMessage(`'${preset.name}' 템플릿이 적용되었습니다.`)
+    }
+
+    const saveTemplatePreset = () => {
+        const name = templatePresetName.trim()
+        if (!name) {
+            alert('프리셋 이름을 입력해주세요.')
+            return
+        }
+        const preset = {
+            id: `custom-${Date.now()}`,
+            name,
+            settings: {
+                bgUrl: templateBgUrl,
+                bgColor: templateBgColor,
+                textLayers,
+                shapeLayers,
+            },
+        }
+        const customPresets = [...templatePresets.filter(p => String(p.id).startsWith('custom-')), preset]
+        setTemplatePresets([...DEFAULT_THUMBNAIL_TEMPLATE_PRESETS, ...customPresets])
+        setSelectedTemplatePreset(preset.id)
+        localStorage.setItem('std_thumbnail_template_presets', JSON.stringify(customPresets))
+        setTemplatePresetName('')
+        setMessage(`'${name}' 템플릿 프리셋이 저장되었습니다.`)
+    }
+
+    const handleTemplateBgFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+        if (!file.type.startsWith('image/')) {
+            alert('템플릿 배경으로 사용할 이미지 파일만 업로드할 수 있습니다.')
+            event.target.value = ''
+            return
+        }
+        setTemplateBgUrl(URL.createObjectURL(file))
+        setMessage(`템플릿 배경 이미지 (${file.name})가 적용되었습니다.`)
+        event.target.value = ''
+    }
 
     // 8. 썸네일(Thumbnail) 제작 스튜디오 전용 상태 (유저앱 thumbnail.html 100% 동일 구현)
     const [thumbTitle, setThumbTitle] = useState('국민연금 30년 냈는데 월 80만 원? 30년 차 부부가 공개한 실제 수령액')
@@ -4022,6 +4187,25 @@ export default function StdPortalPage() {
                                         <span>🎨</span> 생성된 씬 프롬프트
                                     </h3>
                                     <div className="flex flex-wrap items-center gap-2">
+                                        <select
+                                            value={selectedImageTemplatePreset}
+                                            onChange={e => {
+                                                const presetId = e.target.value
+                                                setSelectedImageTemplatePreset(presetId)
+                                                const preset = templatePresets.find(p => p.id === presetId)
+                                                if (preset) {
+                                                    setMessage(`'${preset.name}' 이미지 템플릿이 선택되었습니다.`)
+                                                }
+                                            }}
+                                            className="px-3 py-1.5 bg-[#202632] border border-white/10 rounded text-xs font-bold text-gray-200 focus:outline-none focus:border-blue-500"
+                                        >
+                                            <option value="">템플릿 선택</option>
+                                            {templatePresets.map(preset => (
+                                                <option key={preset.id} value={preset.id}>
+                                                    {preset.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                         <button
                                             onClick={toggleSelectAll}
                                             className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 flex items-center gap-1.5 transition-all"
@@ -5393,44 +5577,6 @@ export default function StdPortalPage() {
                     {/* [템플릿 탭 (유저앱 template.html과 100% 동일 구현)] */}
                     {currentNav === 'template' && (
                         <div className="space-y-4 max-w-6xl mx-auto w-full flex flex-col h-full pb-10">
-                            {/* 1. 상단 AI 추천 훅 문구 영역 */}
-                            <div className="bg-[#1c2027] border border-blue-500/30 rounded-xl p-4 shadow-md space-y-2">
-                                <h4 className="text-xs font-bold text-blue-400 flex items-center gap-2">
-                                    <span>🎯 AI 추천 썸네일/템플릿 훅 문구 (클릭 시 레이어 추가)</span>
-                                </h4>
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                    {[
-                                        "30년 연금 납입의 충격 진실",
-                                        "통장에 찍힌 실제 수령액 공개",
-                                        "우리가 몰랐던 은퇴 후 한 달 생활비",
-                                        "국민연금 vs 현실 생계비 격차",
-                                        "30년 일하고 받은 돈이 고작...",
-                                    ].map((hook, idx) => (
-                                        <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => {
-                                                const newLayer = {
-                                                    id: `layer-${Date.now()}`,
-                                                    text: hook,
-                                                    fontSize: 30,
-                                                    color: idx === 0 ? '#ffeb3b' : '#ffffff',
-                                                    strokeColor: '#000000',
-                                                    strokeWidth: 3,
-                                                    fontFamily: 'GmarketSansBold',
-                                                    x: 50,
-                                                    y: 40 + idx * 15,
-                                                }
-                                                setTextLayers(prev => [...prev, newLayer])
-                                            }}
-                                            className="px-3 py-1.5 bg-[#202632] hover:bg-blue-600 border border-white/10 hover:border-blue-500 rounded-lg text-xs font-bold text-gray-200 hover:text-white transition-all shadow-sm"
-                                        >
-                                            + {hook}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
                             {/* 2. 메인 디자인 스튜디오 (2열 그리드: 좌측 레이어 관리, 우측 16:9 실시간 캔버스) */}
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                                 {/* 좌측 컬럼: 텍스트 레이어 관리 (Col 6~7) */}
@@ -5487,7 +5633,7 @@ export default function StdPortalPage() {
                                                         placeholder="텍스트 입력"
                                                     />
 
-                                                    <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
                                                         <div>
                                                             <label className="text-gray-500 block mb-1">폰트</label>
                                                             <select
@@ -5516,6 +5662,20 @@ export default function StdPortalPage() {
                                                                     setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, fontSize: val } : l))
                                                                 }}
                                                                 className="w-full accent-blue-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-gray-500 block mb-1">가로 위치 X ({layer.x}%)</label>
+                                                            <input
+                                                                type="range"
+                                                                min="0"
+                                                                max="100"
+                                                                value={layer.x}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value)
+                                                                    setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, x: val } : l))
+                                                                }}
+                                                                className="w-full accent-emerald-500 cursor-pointer"
                                                             />
                                                         </div>
                                                         <div>
@@ -5641,10 +5801,11 @@ export default function StdPortalPage() {
                                             {textLayers.map(layer => (
                                                 <div
                                                     key={layer.id}
-                                                    className="absolute inset-x-4 text-center select-none pointer-events-none transition-all"
+                                                    className="absolute select-none pointer-events-none transition-all whitespace-nowrap"
                                                     style={{
+                                                        left: `${layer.x}%`,
                                                         top: `${layer.y}%`,
-                                                        transform: 'translateY(-50%)',
+                                                        transform: 'translate(-50%, -50%)',
                                                         fontFamily: layer.fontFamily,
                                                         color: layer.color,
                                                         fontSize: `${layer.fontSize}px`,
@@ -5690,29 +5851,20 @@ export default function StdPortalPage() {
                                             <span>🗑️</span> 배경 이미지 완전히 지우기 (단색/투명)
                                         </button>
 
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            id="template-bg-upload-input"
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleTemplateBgFileSelect}
+                                        />
+                                        <div className="grid grid-cols-1 gap-2">
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    const newImg = prompt('배경 이미지 URL을 입력하세요:', templateBgUrl || '')
-                                                    if (newImg) setTemplateBgUrl(newImg)
-                                                }}
-                                                className="py-2 bg-[#202632] hover:bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10 transition"
+                                                onClick={() => document.getElementById('template-bg-upload-input')?.click()}
+                                                className="py-2 bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition truncate px-1"
                                             >
-                                                URL로 변경
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    if (selectedProject?.scenes?.[0]?.image_url) {
-                                                        setTemplateBgUrl(selectedProject.scenes[0].image_url)
-                                                    } else {
-                                                        alert('프로젝트 씬 이미지가 없습니다.')
-                                                    }
-                                                }}
-                                                className="py-2 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-400 hover:text-white rounded-lg text-xs font-bold transition truncate px-1"
-                                            >
-                                                1번 씬 이미지 적용
+                                                ⬆️ 이미지 파일 업로드
                                             </button>
                                         </div>
 
@@ -5740,12 +5892,14 @@ export default function StdPortalPage() {
                                     <div className="space-y-2">
                                         <select
                                             value={selectedTemplatePreset}
-                                            onChange={e => setSelectedTemplatePreset(e.target.value)}
+                                            onChange={e => applyTemplatePreset(e.target.value)}
                                             className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none"
                                         >
-                                            <option value="preset-1">기본 2줄 볼드 강조 템플릿</option>
-                                            <option value="preset-2">상단 옐로우 훅 템플릿</option>
-                                            <option value="preset-3">중앙 심플 자막바 템플릿</option>
+                                            {templatePresets.map(preset => (
+                                                <option key={preset.id} value={preset.id}>
+                                                    {preset.name}
+                                                </option>
+                                            ))}
                                         </select>
                                         <div className="flex gap-2">
                                             <input
@@ -5757,14 +5911,7 @@ export default function StdPortalPage() {
                                             />
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    if (!templatePresetName.trim()) {
-                                                        alert('프리셋 이름을 입력해주세요.')
-                                                        return
-                                                    }
-                                                    alert(`'${templatePresetName}' 템플릿 프리셋이 저장되었습니다.`)
-                                                    setTemplatePresetName('')
-                                                }}
+                                                onClick={saveTemplatePreset}
                                                 className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-bold text-white shadow whitespace-nowrap"
                                             >
                                                 저장
