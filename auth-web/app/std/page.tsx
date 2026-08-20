@@ -281,6 +281,89 @@ const ELEVENLABS_VOICES = [
     },
 ]
 
+const SUBTITLE_FONTS = [
+    { value: 'GmarketSansBold', label: 'GmarketSansBold' },
+    { value: 'TmonMonsori', label: 'TmonMonsori' },
+    { value: 'Jalnan', label: 'Jalnan' },
+    { value: 'Black Han Sans', label: 'Black Han Sans' },
+    { value: 'Pretendard-Bold', label: 'Pretendard-Bold' },
+    { value: 'NanumSquareExtraBold', label: 'NanumSquareExtraBold' },
+    { value: 'Jua', label: 'Jua' },
+    { value: 'Do Hyeon', label: 'Do Hyeon' },
+    { value: 'CookieRun-Regular', label: 'CookieRun-Regular' },
+    { value: 'BinggraeMelona-Bold', label: 'BinggraeMelona-Bold' },
+    { value: 'NetmarbleB', label: 'NetmarbleB' },
+    { value: 'ChosunIlboMyungjo', label: 'ChosunIlboMyungjo' },
+    { value: 'MapoFlowerIsland', label: 'MapoFlowerIsland' },
+    { value: 'S-CoreDream-6Bold', label: 'S-CoreDream-6Bold' },
+    { value: 'Gungsuh', label: 'Gungsuh' },
+    { value: 'NanumMyeongjo', label: 'NanumMyeongjo' },
+    { value: 'Malgun Gothic', label: 'Malgun Gothic' },
+]
+
+const SUBTITLE_TEMPLATES = [
+    { id: '', name: '-- 템플릿 선택 --' },
+    { id: 'bold_strip', name: '기본 볼드 자막바', fontFamily: 'GmarketSansBold', fontSize: '5.4', textColor: '#ffffff', strokeColor: '#000000', strokeWidth: '0', lineSpacing: '0.1', subtitleMaxChars: '25', posY: 5, bgStrip: true, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
+    { id: 'neon_cyber', name: '네온 사이버', fontFamily: 'Jalnan', fontSize: '5.8', textColor: '#ffffff', strokeColor: '#00e5ff', strokeWidth: '3.0', lineSpacing: '0.1', subtitleMaxChars: '22', posY: 6, bgStrip: true, bgColor: '#000000', bgOpacity: '0.6', bgVOffset: '0' },
+    { id: 'cinema_gold', name: '골드 시네마틱', fontFamily: 'TmonMonsori', fontSize: '5.6', textColor: '#ffe066', strokeColor: '#1a1a1a', strokeWidth: '2.5', lineSpacing: '0.1', subtitleMaxChars: '24', posY: 5, bgStrip: false, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
+    { id: 'black_impact', name: '블랙 임팩트', fontFamily: 'Black Han Sans', fontSize: '5.8', textColor: '#ffff00', strokeColor: '#000000', strokeWidth: '4.0', lineSpacing: '0.15', subtitleMaxChars: '20', posY: 7, bgStrip: true, bgColor: '#000000', bgOpacity: '0.7', bgVOffset: '0' },
+    { id: 'korean_tale', name: '감성 명조 이야기', fontFamily: 'NanumMyeongjo', fontSize: '5.2', textColor: '#f8fafc', strokeColor: '#0f172a', strokeWidth: '1.5', lineSpacing: '0.2', subtitleMaxChars: '26', posY: 5, bgStrip: false, bgColor: '#000000', bgOpacity: '0.4', bgVOffset: '0' },
+]
+
+const DEFAULT_SUBTITLE_PRESETS = [
+    {
+        name: 'Gmarket_Default',
+        settings: {
+            fontFamily: 'GmarketSansBold',
+            fontSize: '5.4',
+            textColor: '#ffffff',
+            strokeColor: '#000000',
+            strokeWidth: '0',
+            lineSpacing: '0.1',
+            subtitleMaxChars: '25',
+            posY: 5,
+            bgStrip: false,
+            bgColor: '#000000',
+            bgOpacity: '0.5',
+            bgVOffset: '0',
+        }
+    },
+    {
+        name: '화이트_네온',
+        settings: {
+            fontFamily: 'Jalnan',
+            fontSize: '5.8',
+            textColor: '#ffffff',
+            strokeColor: '#00e5ff',
+            strokeWidth: '3.0',
+            lineSpacing: '0.1',
+            subtitleMaxChars: '22',
+            posY: 6,
+            bgStrip: true,
+            bgColor: '#000000',
+            bgOpacity: '0.6',
+            bgVOffset: '0',
+        }
+    },
+    {
+        name: '골드_시네마',
+        settings: {
+            fontFamily: 'TmonMonsori',
+            fontSize: '5.6',
+            textColor: '#ffe066',
+            strokeColor: '#1a1a1a',
+            strokeWidth: '2.5',
+            lineSpacing: '0.1',
+            subtitleMaxChars: '24',
+            posY: 5,
+            bgStrip: false,
+            bgColor: '#000000',
+            bgOpacity: '0.5',
+            bgVOffset: '0',
+        }
+    }
+]
+
 export default function StdPortalPage() {
 
     useEffect(() => {
@@ -422,6 +505,10 @@ export default function StdPortalPage() {
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
+    const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
+    const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
+    const [newSubPresetName, setNewSubPresetName] = useState('')
+    const [selectedSubTemplate, setSelectedSubTemplate] = useState('')
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
     
@@ -1478,6 +1565,98 @@ export default function StdPortalPage() {
         const fakeUrl = URL.createObjectURL(file)
         setAudioResultUrl(fakeUrl)
         alert(`외부 오디오 파일 '${file.name}'이(가) 업로드되었습니다.`)
+    }
+
+    const handleApplySubtitlePreset = (presetName: string) => {
+        if (!presetName) return
+        setSelectedSubPreset(presetName)
+        const target = subPresetList.find(p => p.name === presetName)
+        if (target && target.settings) {
+            const s = target.settings
+            if (s.fontFamily) setSubFontFamily(s.fontFamily)
+            if (s.fontSize) setSubFontSize(String(s.fontSize))
+            if (s.textColor) setSubTextColor(s.textColor)
+            if (s.strokeColor) setSubStrokeColor(s.strokeColor)
+            if (s.strokeWidth !== undefined) setSubStrokeWidth(String(s.strokeWidth))
+            if (s.lineSpacing !== undefined) setSubLineSpacing(String(s.lineSpacing))
+            if (s.subtitleMaxChars !== undefined) setSubMaxChars(String(s.subtitleMaxChars))
+            if (s.posY !== undefined) setSubPosY(Number(s.posY))
+            if (s.bgStrip !== undefined) setSubBgStrip(Boolean(s.bgStrip))
+            if (s.bgColor) setSubBgColor(s.bgColor)
+            if (s.bgOpacity !== undefined) setSubBgOpacity(String(s.bgOpacity))
+            if (s.bgVOffset !== undefined) setSubBgVOffset(String(s.bgVOffset))
+            setMessage(`'${presetName}' 자막 프리셋이 적용되었습니다.`)
+        }
+    }
+
+    const handleSaveSubtitlePreset = () => {
+        const name = newSubPresetName.trim()
+        if (!name) {
+            alert('새 프리셋명을 입력해주세요.')
+            return
+        }
+        const newPreset = {
+            name,
+            settings: {
+                fontFamily: subFontFamily,
+                fontSize: subFontSize,
+                textColor: subTextColor,
+                strokeColor: subStrokeColor,
+                strokeWidth: subStrokeWidth,
+                lineSpacing: subLineSpacing,
+                subtitleMaxChars: subMaxChars,
+                posY: subPosY,
+                bgStrip: subBgStrip,
+                bgColor: subBgColor,
+                bgOpacity: subBgOpacity,
+                bgVOffset: subBgVOffset,
+            }
+        }
+        const updated = [...subPresetList.filter(p => p.name !== name), newPreset]
+        setSubPresetList(updated)
+        setSelectedSubPreset(name)
+        setNewSubPresetName('')
+        try {
+            localStorage.setItem('std_subtitle_presets', JSON.stringify(updated))
+        } catch (e) {}
+        alert(`'${name}' 자막 프리셋이 저장되었습니다.`)
+    }
+
+    const handleDeleteSubtitlePreset = () => {
+        if (!selectedSubPreset) return
+        if (selectedSubPreset === 'Gmarket_Default') {
+            alert('기본 프리셋은 삭제할 수 없습니다.')
+            return
+        }
+        if (!confirm(`'${selectedSubPreset}' 프리셋을 삭제하시겠습니까?`)) return
+        const updated = subPresetList.filter(p => p.name !== selectedSubPreset)
+        setSubPresetList(updated)
+        setSelectedSubPreset(updated[0]?.name || '')
+        try {
+            localStorage.setItem('std_subtitle_presets', JSON.stringify(updated))
+        } catch (e) {}
+        alert('프리셋이 삭제되었습니다.')
+    }
+
+    const handleApplySubtitleTemplate = (templateId: string) => {
+        setSelectedSubTemplate(templateId)
+        if (!templateId) return
+        const t = SUBTITLE_TEMPLATES.find(tpl => tpl.id === templateId)
+        if (t) {
+            if (t.fontFamily) setSubFontFamily(t.fontFamily)
+            if (t.fontSize) setSubFontSize(t.fontSize)
+            if (t.textColor) setSubTextColor(t.textColor)
+            if (t.strokeColor) setSubStrokeColor(t.strokeColor)
+            if (t.strokeWidth !== undefined) setSubStrokeWidth(t.strokeWidth)
+            if (t.lineSpacing !== undefined) setSubLineSpacing(t.lineSpacing)
+            if (t.subtitleMaxChars !== undefined) setSubMaxChars(t.subtitleMaxChars)
+            if (t.posY !== undefined) setSubPosY(t.posY)
+            if (t.bgStrip !== undefined) setSubBgStrip(t.bgStrip)
+            if (t.bgColor) setSubBgColor(t.bgColor)
+            if (t.bgOpacity !== undefined) setSubBgOpacity(t.bgOpacity)
+            if (t.bgVOffset !== undefined) setSubBgVOffset(t.bgVOffset)
+            setMessage(`'${t.name}' 템플릿이 적용되었습니다.`)
+        }
     }
 
     const handleSaveSubtitles = () => {
@@ -2970,10 +3149,10 @@ export default function StdPortalPage() {
                         }
                         return (
                         <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full">
-                            {/* 1. 상단 2줄 스타일 툴바 */}
-                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-3 shadow-md flex flex-col gap-2 shrink-0">
-                                {/* 1행: 템플릿 / 프리셋 / 폰트 / 크기 / 글자색 / 테두리색 */}
-                                <div className="flex items-center gap-3 flex-wrap">
+                            {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
+                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
+                                {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
+                                <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap">
                                     {/* 외부 오디오 업로드 */}
                                     <div className="flex items-center">
                                         <input
@@ -2986,105 +3165,238 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={() => document.getElementById('audioUploadInput')?.click()}
-                                            className="px-2.5 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-white/5 text-gray-300 hover:text-white rounded-lg transition-all flex items-center gap-1"
+                                            className="px-2.5 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-white/5 text-gray-200 hover:text-white rounded-md transition-all flex items-center gap-1.5 shrink-0"
                                             title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
                                         >
-                                            <span>📁</span> 외부 오디오 업로드
+                                            <span className="text-yellow-400">📁</span> 외부 오디오 업로드
                                         </button>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <select className="text-[11px] bg-[#202632] border border-indigo-500/30 rounded px-2 py-1 text-white">
-                                            <option value="">-- 템플릿 선택 --</option>
-                                            <option value="preset1">기본 볼드 자막바</option>
+
+                                    {/* 템플릿 선택 & 새로고침 */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <select
+                                            value={selectedSubTemplate}
+                                            onChange={e => handleApplySubtitleTemplate(e.target.value)}
+                                            className="text-[11px] font-medium bg-[#1c2027]/50 border border-indigo-500/40 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                        >
+                                            {SUBTITLE_TEMPLATES.map(tpl => (
+                                                <option key={tpl.id} value={tpl.id} className="bg-[#1c2027] text-white">
+                                                    {tpl.name}
+                                                </option>
+                                            ))}
                                         </select>
-                                        <button className="text-[10px] px-2 py-1 text-gray-400 hover:text-white border border-white/10 rounded">새로고침</button>
+                                        <button
+                                            type="button"
+                                            onClick={() => alert('템플릿 목록이 새로고침되었습니다.')}
+                                            className="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all"
+                                        >
+                                            새로고침
+                                        </button>
                                     </div>
-                                    <div className="w-px h-4 bg-white/10" />
-                                    <div className="flex items-center gap-1">
-                                        <select className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white">
+
+                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+
+                                    {/* 프리셋 관리: 선택 / 삭제 / 새 프리셋명 / 저장 */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <select
+                                            value={selectedSubPreset}
+                                            onChange={e => handleApplySubtitlePreset(e.target.value)}
+                                            className="text-[11px] font-medium bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                                        >
                                             <option value="">선택</option>
-                                            <option value="custom">Gmarket_Default</option>
+                                            {subPresetList.map(p => (
+                                                <option key={p.name} value={p.name} className="bg-[#1c2027] text-white">
+                                                    {p.name}
+                                                </option>
+                                            ))}
                                         </select>
-                                        <button className="text-[10px] px-2 py-1 text-red-400 border border-red-500/20 rounded">삭제</button>
-                                        <input placeholder="새 프리셋명" className="text-[11px] bg-[#14181f] border border-white/10 rounded px-2 py-1 text-white w-20" />
-                                        <button className="text-[11px] font-bold px-2 py-1 bg-[#202632] border border-white/10 text-white rounded">저장</button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDeleteSubtitlePreset}
+                                            className="text-[10px] font-bold px-1.5 py-1 text-red-400 hover:text-white border border-red-900/50 hover:bg-red-900 rounded transition-all"
+                                        >
+                                            삭제
+                                        </button>
+                                        <input
+                                            type="text"
+                                            value={newSubPresetName}
+                                            onChange={e => setNewSubPresetName(e.target.value)}
+                                            placeholder="새 프리셋명"
+                                            className="text-[11px] bg-[#14181f] border border-white/10 rounded px-1.5 py-1 text-white w-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveSubtitlePreset}
+                                            className="text-[11px] border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white px-2 py-1 rounded transition-all font-bold"
+                                        >
+                                            저장
+                                        </button>
                                     </div>
-                                    <div className="w-px h-4 bg-white/10" />
+
+                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+
                                     {/* 폰트 & 크기 & 자간 & 최대글자수 */}
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 shrink-0">
                                         <select
                                             value={subFontFamily}
                                             onChange={e => setSubFontFamily(e.target.value)}
-                                            className="text-[11px] bg-[#202632] border border-white/10 rounded px-2 py-1 text-white font-bold"
+                                            className="text-[11px] bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-2 text-white font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-32"
                                         >
-                                            <option value="GmarketSansBold">GmarketSansBold</option>
-                                            <option value="TmonMonsori">TmonMonsori</option>
-                                            <option value="Jalnan">Jalnan</option>
-                                            <option value="Pretendard-Bold">Pretendard-Bold</option>
-                                            <option value="NanumSquareExtraBold">NanumSquare</option>
+                                            {SUBTITLE_FONTS.map(f => (
+                                                <option key={f.value} value={f.value} style={{ fontFamily: f.value }} className="bg-[#1c2027] text-white">
+                                                    {f.label}
+                                                </option>
+                                            ))}
                                         </select>
                                         <input
                                             type="number"
                                             value={subFontSize}
                                             onChange={e => setSubFontSize(e.target.value)}
-                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-1 text-white"
+                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
                                             step="0.1"
+                                            min="1"
+                                            max="20"
+                                            title="글자 크기 (%)"
                                         />
                                         <span className="text-[11px] text-gray-400">%</span>
                                         <input
                                             type="number"
                                             value={subLineSpacing}
                                             onChange={e => setSubLineSpacing(e.target.value)}
-                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-1 text-white"
+                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
                                             step="0.05"
+                                            min="-0.5"
+                                            max="1.5"
+                                            title="자간/행간 비율"
                                         />
                                         <input
                                             type="number"
                                             value={subMaxChars}
                                             onChange={e => setSubMaxChars(e.target.value)}
-                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-1 text-white"
+                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
+                                            min="20"
+                                            max="40"
+                                            title="한 자막 최대 글자 수 (롱폼)"
                                         />
                                     </div>
-                                    <div className="w-px h-4 bg-white/10" />
+
+                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+
                                     {/* 글자색 / 테두리색 */}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 shrink-0">
                                         <div className="flex flex-col items-center gap-0.5">
-                                            <input type="color" value={subTextColor} onChange={e => setSubTextColor(e.target.value)} className="w-6 h-5 p-0 bg-transparent rounded cursor-pointer border-0" />
-                                            <span className="text-[8px] text-gray-400">글자</span>
+                                            <input
+                                                type="color"
+                                                value={subTextColor}
+                                                onChange={e => setSubTextColor(e.target.value)}
+                                                className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
+                                                title="글자색"
+                                            />
+                                            <span className="text-[9px] text-gray-400">글자</span>
                                         </div>
                                         <div className="flex flex-col items-center gap-0.5">
-                                            <input type="color" value={subStrokeColor} onChange={e => setSubStrokeColor(e.target.value)} className="w-6 h-5 p-0 bg-transparent rounded cursor-pointer border-0" />
-                                            <span className="text-[8px] text-gray-400">테두리</span>
+                                            <input
+                                                type="color"
+                                                value={subStrokeColor}
+                                                onChange={e => setSubStrokeColor(e.target.value)}
+                                                className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
+                                                title="테두리색"
+                                            />
+                                            <span className="text-[9px] text-gray-400">테두리</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* 2행: 테두리 두께 / Y위치 / 배경 바 / 액션 버튼들 */}
-                                <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-white/5">
-                                    <div className="flex items-center gap-1">
+                                {/* 2행: 테두리 두께 / Y위치 / 배경 바 / 액션 버튼 6종 */}
+                                <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap pt-1.5 border-t border-white/5">
+                                    {/* 테두리 두께 & Y 위치 */}
+                                    <div className="flex items-center gap-1 shrink-0">
                                         <span className="text-[10px] text-gray-400 font-bold">테두리</span>
-                                        <input type="number" value={subStrokeWidth} onChange={e => setSubStrokeWidth(e.target.value)} className="w-10 text-center text-[11px] bg-[#14181f] border border-white/10 rounded py-0.5 text-white" />
+                                        <input
+                                            type="number"
+                                            value={subStrokeWidth}
+                                            onChange={e => setSubStrokeWidth(e.target.value)}
+                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
+                                            min="0"
+                                            max="15"
+                                            step="0.5"
+                                        />
                                         <span className="text-[10px] text-gray-400">px</span>
-                                        <div className="flex items-center gap-1 ml-1 bg-[#14181f] px-1 py-0.5 rounded border border-white/5">
-                                            <button onClick={() => setSubPosY(p => Math.max(1, p - 1))} className="text-[10px] px-1 text-gray-400 hover:text-white">▲</button>
-                                            <span className="text-[10px] font-mono text-purple-400">{subPosY}</span>
-                                            <button onClick={() => setSubPosY(p => Math.min(20, p + 1))} className="text-[10px] px-1 text-gray-400 hover:text-white">▼</button>
+                                        <div className="flex flex-col items-center gap-0.5 ml-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSubPosY(p => Math.max(0, p + 1))}
+                                                className="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
+                                                title="위로 (Y위치 증가)"
+                                            >
+                                                ▲
+                                            </button>
+                                            <span className="text-[9px] font-mono text-gray-300 w-5 text-center leading-none">
+                                                {subPosY}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSubPosY(p => Math.max(0, p - 1))}
+                                                className="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
+                                                title="아래로 (Y위치 감소)"
+                                            >
+                                                ▼
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="w-px h-4 bg-white/10" />
-                                    <div className="flex items-center gap-2">
-                                        <label className="flex items-center gap-1.5 cursor-pointer">
-                                            <span className="text-[10px] text-gray-400 font-bold">배경 바</span>
-                                            <input type="checkbox" checked={subBgStrip} onChange={e => setSubBgStrip(e.target.checked)} className="sr-only peer" />
-                                            <div className="w-7 h-4 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600 relative" />
+
+                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+
+                                    {/* 배경 바 */}
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <span className="text-[10px] text-gray-400 font-bold">배경 바</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={subBgStrip}
+                                                onChange={e => setSubBgStrip(e.target.checked)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
                                         </label>
-                                        <input type="color" value={subBgColor} onChange={e => setSubBgColor(e.target.value)} className="w-5 h-4 p-0 bg-transparent rounded cursor-pointer border-0" />
-                                        <input type="number" value={subBgOpacity} onChange={e => setSubBgOpacity(e.target.value)} step="0.1" min="0" max="1" className="w-10 text-center text-[10px] bg-[#14181f] border border-white/10 rounded py-0.5 text-white" />
-                                        <span className="text-[10px] text-gray-400 font-mono">: {subBgVOffset}</span>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <input
+                                                type="color"
+                                                value={subBgColor}
+                                                onChange={e => setSubBgColor(e.target.value)}
+                                                className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
+                                                title="배경색"
+                                            />
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={subBgOpacity}
+                                            onChange={e => setSubBgOpacity(e.target.value)}
+                                            step="0.1"
+                                            min="0"
+                                            max="1"
+                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
+                                            title="불투명도 (0~1)"
+                                        />
+                                        <div className="flex items-center gap-0.5 bg-[#14181f] px-1 rounded border border-white/5">
+                                            <span className="text-[10px] text-gray-400">:</span>
+                                            <input
+                                                type="number"
+                                                value={subBgVOffset}
+                                                onChange={e => setSubBgVOffset(e.target.value)}
+                                                step="1"
+                                                className="w-8 text-center text-[11px] bg-transparent border-0 py-0.5 text-white focus:outline-none"
+                                                title="세로 여백/오프셋"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="w-px h-4 bg-white/10" />
+
+                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+
+                                    {/* 액션 버튼 6종 */}
                                     <div className="flex items-center gap-1.5 flex-wrap ml-auto">
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 const scenes = selectedProject?.scenes || []
                                                 const subs = generateSynchronizedSubtitles(
@@ -3096,14 +3408,14 @@ export default function StdPortalPage() {
                                                 setSelectedSubIndex(0)
                                                 alert('초반 1분 12개 비디오 훅(5초) + 13~53씬 동적 배분 규칙으로 자막 싱크가 초기화되었습니다.')
                                             }}
-                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
                                             초기화 및 재로드
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 const scenes = selectedProject?.scenes || []
-                                                const sceneTimings = calculateLongformSceneTimings(scenes)
                                                 setLocalSubtitles(prev => prev.map(s => {
                                                     const sNum = s.scene_number || 1
                                                     const targetScene = scenes[sNum - 1] || scenes[0] || {}
@@ -3115,11 +3427,12 @@ export default function StdPortalPage() {
                                                 }))
                                                 alert('각 씬의 이미지 및 영상 런닝타임과 자막 싱크가 100% 동기화되었습니다.')
                                             }}
-                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
                                             AI 이미지 동기화
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 const maxChars = Number(subMaxChars) || 25
                                                 setLocalSubtitles(prev => prev.map(s => {
@@ -3134,26 +3447,28 @@ export default function StdPortalPage() {
                                                 }))
                                                 alert('2줄 자막으로 자동 정렬 분할되었습니다.')
                                             }}
-                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded"
+                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
                                             1줄/2줄 분할
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
-                                            className="text-[10px] font-bold px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded shadow flex items-center gap-1"
+                                            className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
                                         >
-                                            <span>🔄</span> 대본 전체 자막 동기화
+                                            <span>🔮</span> 대본 전체 자막 동기화
                                         </button>
                                         <button
-                                            onClick={() => alert('선택한 언어로 자막이 번역되었습니다.')}
-                                            className="text-[10px] font-bold px-2.5 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded"
+                                            type="button"
+                                            onClick={() => alert('선택한 언어로 자막 번역 작업이 완료되었습니다.')}
+                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all"
                                         >
                                             Translate
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleSaveSubtitles}
-                                            className="text-[10px] font-bold px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded shadow transition-all active:scale-95 flex items-center gap-1"
+                                            className="text-[10px] font-bold px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md shadow transition-all active:scale-95 flex items-center gap-1"
                                         >
                                             저장
                                         </button>

@@ -1549,12 +1549,13 @@ async def api_voicebox_topics(
 
 @app.get("/api/voicebox/presets")
 async def api_voicebox_presets(
+    provider: str = "all",
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
     require_auth(authorization, cookie)
     from voicebox_engine import voicebox_engine
-    return {"presets": voicebox_engine.list_presets(), "device": voicebox_engine.device}
+    return {"presets": voicebox_engine.list_presets(provider), "device": voicebox_engine.device}
 
 @app.post("/api/voicebox/generate")
 async def api_voicebox_generate(
@@ -1565,7 +1566,8 @@ async def api_voicebox_generate(
     require_auth(authorization, cookie)
     from voicebox_engine import voicebox_engine
     script_text = str(payload.get("script") or "").strip()
-    voice_id = str(payload.get("voice_id") or "narrator_calm_kr").strip()
+    provider = str(payload.get("provider") or "voicebox").strip()
+    voice_id = str(payload.get("voice_id") or ("google_kr_standard" if provider == "google" else "narrator_calm_kr")).strip()
     speed = float(payload.get("speed") or 1.0)
     topic_id = payload.get("topic_id")
     
@@ -1575,13 +1577,14 @@ async def api_voicebox_generate(
     try:
         res = await voicebox_engine.generate_tts(
             script_text=script_text,
+            provider=provider,
             voice_id=voice_id,
             speed=speed,
         )
         return {"success": True, **res}
     except Exception as e:
-        logger.error(f"Voicebox generation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Voicebox 생성 실패: {str(e)}")
+        logger.error(f"TTS generation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"TTS 생성 실패: {str(e)}")
 
 @app.get("/api/voicebox/audio/{filename}")
 async def api_voicebox_audio(filename: str):
@@ -1975,8 +1978,39 @@ tr:hover { background: #161b22; }
 .generated-meta .label { color: #8b949e; }
 .scene-card { border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-top: 10px; background: #0d1117; }
 .scene-card .scene-title { font-weight: 700; color: #58a6ff; margin-bottom: 8px; }
-.prompt-box { margin-top: 8px; padding: 10px; border-radius: 6px; border: 1px solid #21262d; background: #010409; white-space: pre-wrap; line-height: 1.55; font-size: 12px; max-height: 220px; overflow-y: auto; }
-@media (max-width: 1100px) { .generated-result-layout { grid-template-columns: 1fr; } }
+/* ── Video Production Pipeline Cards ── */
+.pipeline-list { display: flex; flex-direction: column; gap: 12px; }
+.pipeline-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 14px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+.pipeline-card:hover { border-color: rgba(88, 166, 255, 0.4); }
+.pipeline-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.pipeline-title-group { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px; }
+.pipeline-badge-category { background: rgba(163, 113, 247, 0.15); border: 1px solid rgba(163, 113, 247, 0.4); color: #d2a8ff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
+.pipeline-title { font-size: 14px; font-weight: 600; color: #e6edf3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; }
+.pipeline-meta-group { display: flex; align-items: center; gap: 10px; }
+.pipeline-time { font-size: 11px; color: #8b949e; font-family: monospace; }
+.pipeline-toggle-btn { background: #21262d; border: 1px solid #30363d; color: #8b949e; font-size: 11px; padding: 3px 8px; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+.pipeline-toggle-btn:hover { color: #c9d1d9; background: #30363d; }
+
+.pipeline-steps-container { display: flex; align-items: center; gap: 6px; background: #0d1117; padding: 8px 12px; border-radius: 8px; border: 1px solid #21262d; overflow-x: auto; }
+.pipeline-step-item { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; transition: all 0.2s; flex-shrink: 0; }
+.pipeline-step-arrow { color: #484f58; font-size: 10px; flex-shrink: 0; }
+
+.step-done { background: rgba(35, 134, 54, 0.15); border-color: rgba(35, 134, 54, 0.4); color: #3fb950; }
+.step-running { background: rgba(56, 139, 253, 0.15); border-color: rgba(56, 139, 253, 0.5); color: #58a6ff; animation: pulseGlow 1.5s infinite; }
+.step-failed { background: rgba(248, 81, 73, 0.15); border-color: rgba(248, 81, 73, 0.4); color: #f85149; }
+.step-pending { background: rgba(110, 118, 129, 0.08); border-color: rgba(110, 118, 129, 0.2); color: #8b949e; opacity: 0.7; }
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(56, 139, 253, 0.4); }
+  70% { box-shadow: 0 0 0 5px rgba(56, 139, 253, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 139, 253, 0); }
+}
+
+.pipeline-details-accordion { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #21262d; }
+.pipeline-details-accordion.open { display: block; }
+.pipeline-subjob-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; font-size: 12px; background: rgba(13, 17, 23, 0.5); margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.03); }
+.pipeline-subjob-row:hover { background: rgba(13, 17, 23, 0.8); }
+.pipeline-actions-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -2061,11 +2095,11 @@ tr:hover { background: #161b22; }
       <div class="tab-content active" id="tab-overview">
         <div class="status-grid" id="process-cards"></div>
         <div class="card">
-          <div class="card-title">최근 작업</div>
-          <table>
-            <thead><tr><th>ID</th><th>유형</th><th>상태</th><th>진행률</th><th>생성시간</th></tr></thead>
-            <tbody id="recent-jobs-body"></tbody>
-          </table>
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>🎬 최근 영상 제작 파이프라인 및 작업</span>
+            <span class="info" style="font-size:11px;">동일 영상 5단계 사이클 자동 그룹화</span>
+          </div>
+          <div id="recent-jobs-container" class="pipeline-list"></div>
           <div class="empty" id="recent-empty" style="display:none"><div class="icon">&#x1F4ED;</div>아직 작업이 없습니다</div>
         </div>
       </div>
@@ -2269,18 +2303,28 @@ tr:hover { background: #161b22; }
             <textarea id="voicebox-script-editor" style="flex:1;width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px;color:#c9d1d9;font-size:13px;line-height:1.6;resize:none;outline:none;" placeholder="주제를 선택하면 전체 대본이 이곳에 자동으로 로딩됩니다..."></textarea>
           </div>
 
-          <!-- 우측: Voicebox GPU 설정, 생성, 오디오 미리듣기 및 Supabase 연동 -->
+          <!-- 우측: Google 무료 TTS & Voicebox 설정, 생성, 오디오 미리듣기 및 Supabase 연동 -->
           <div class="card" style="display:flex;flex-direction:column;gap:14px;padding:16px;overflow-y:auto;">
-            <div class="card-title">&#x2699; Voicebox 설정 & 생성</div>
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>⚙️ 무료 TTS 엔진 & 생성</span>
+              <span class="badge" style="background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.4);color:#58a6ff;font-size:10px;">무제한 무료</span>
+            </div>
 
+            <!-- 1. TTS 엔진 선택 -->
             <div>
-              <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:6px;font-weight:600;">음성 성우 프리셋</label>
+              <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:6px;font-weight:600;">TTS 공급 엔진 선택</label>
+              <select id="voicebox-provider-select" onchange="onTtsProviderChange()" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #58a6ff;border-radius:6px;color:#fff;font-size:12px;font-weight:bold;outline:none;">
+                <option value="google" selected>🌐 Google 무료 TTS (gTTS - 제한 없음)</option>
+                <option value="voicebox">⚡ Voicebox 신경망 TTS (Edge Neural / 고품질)</option>
+              </select>
+            </div>
+
+            <!-- 2. 성우/보이스 프리셋 -->
+            <div>
+              <label id="voicebox-preset-label" style="font-size:12px;color:#8b949e;display:block;margin-bottom:6px;font-weight:600;">음성 보이스 / 성우 선택</label>
               <select id="voicebox-preset-select" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#fff;font-size:12px;outline:none;">
-                <option value="narrator_calm_kr">차분한 나레이터 (남성)</option>
-                <option value="narrator_warm_kr">따뜻한 해설 (여성)</option>
-                <option value="elder_female_kr">할머니 / 노년 (여성)</option>
-                <option value="mature_male_kr">중후한 가장 (남성)</option>
-                <option value="young_female_kr">발랄한 청년 (여성)</option>
+                <option value="google_kr_standard">Google 한국어 표준 (기본 여성)</option>
+                <option value="google_kr_alt">Google 한국어 보조 (남성/또렷한 톤)</option>
               </select>
             </div>
 
@@ -2292,13 +2336,14 @@ tr:hover { background: #161b22; }
               <input type="range" id="voicebox-speed-range" min="0.8" max="1.3" step="0.05" value="1.0" oninput="document.getElementById('voicebox-speed-val').textContent = this.value + 'x'" style="width:100%;">
             </div>
 
-            <div style="padding:10px;background:rgba(56,139,253,0.1);border:1px solid rgba(56,139,253,0.3);border-radius:8px;">
-              <div style="font-size:11px;color:#58a6ff;font-weight:bold;">⚡ GPU 하드웨어 가속</div>
-              <div style="font-size:11px;color:#8b949e;margin-top:2px;">ElevenLabs 크레딧 소모 없이 무제한으로 고속 생성합니다.</div>
+            <!-- 엔진 안내 배너 -->
+            <div id="voicebox-engine-info" style="padding:10px;background:rgba(56,139,253,0.1);border:1px solid rgba(56,139,253,0.3);border-radius:8px;">
+              <div style="font-size:11px;color:#58a6ff;font-weight:bold;">🌐 Google 무료 TTS 모드</div>
+              <div style="font-size:11px;color:#8b949e;margin-top:2px;">ElevenLabs 크레딧 소모 없이 구글 공식 합성 음성을 무제한으로 생성합니다.</div>
             </div>
 
             <button id="voicebox-gen-btn" class="btn btn-primary" onclick="generateVoiceboxTts()" style="padding:10px;font-weight:bold;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;">
-              <span>&#x1F399;</span> Voicebox로 TTS 생성
+              <span>🌐</span> Google 무료 TTS로 생성
             </button>
 
             <!-- 실시간 생성된 오디오 완료 카드 -->
@@ -2381,11 +2426,11 @@ tr:hover { background: #161b22; }
           </div>
         </div>
         <div class="card">
-          <div class="card-title">작업 목록</div>
-          <table>
-            <thead><tr><th>ID</th><th>유형</th><th>상태</th><th>진행률</th><th>생성시간</th><th>작업</th></tr></thead>
-            <tbody id="history-body"></tbody>
-          </table>
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>📋 작업 파이프라인 및 히스토리</span>
+            <span class="info" style="font-size:11px;">영상 단위 통합 진행 상황</span>
+          </div>
+          <div id="history-jobs-container" class="pipeline-list"></div>
           <div class="empty" id="history-empty" style="display:none"><div class="icon">&#x1F4CB;</div>작업이 없습니다</div>
         </div>
       </div>
@@ -2995,20 +3040,345 @@ async function restartHermesFromCancelled(jobId) {
   }
 }
 
+/* ── Pipeline Grouping & Rendering ── */
+/* ── Pipeline Grouping & Rendering ── */
+const PIPELINE_STEPS_CONFIG = [
+  { key: 'research', type: 'web_research', label: '1. 웹 자료조사', icon: '🔍' },
+  { key: 'plan', type: 'script_plan_generate', label: '2. 씬/비주얼 기획', icon: '📝' },
+  { key: 'script', type: 'script_generate', label: '3. 대본·프롬프트', icon: '✍️' },
+  { key: 'metadata', type: 'publish_metadata_generate', label: '4. 설명·태그', icon: '🏷️' },
+];
+
+function groupJobsIntoPipelines(jobs) {
+  const pipelineMap = new Map();
+  const benchmarkBatches = new Map();
+  const otherJobs = [];
+
+  // Pass 1: Build queueId -> title map so jobs with queueId can find their video title
+  const queueIdToTitle = new Map();
+  for (const job of jobs) {
+    const payload = job.payload || {};
+    const title = (payload.upload_title || payload.generated_title || payload.topic || '').trim();
+    const qId = payload.topic_queue_id || payload.topic_id;
+    if (qId && title) {
+      queueIdToTitle.set(String(qId), title);
+    }
+  }
+
+  for (const job of jobs) {
+    const payload = job.payload || {};
+    let title = (payload.upload_title || payload.generated_title || payload.topic || '').trim();
+    const category = jobCategory(job) || '일반';
+    const queueId = payload.topic_queue_id || payload.topic_id || '';
+    
+    // If title was missing on this job, try looking up from queueId
+    if (!title && queueId && queueIdToTitle.has(String(queueId))) {
+      title = queueIdToTitle.get(String(queueId));
+    }
+
+    if (job.job_type === 'topic_benchmark_analyze' && !title) {
+      // Standalone benchmark exploration job - group into benchmark batch
+      const batchKey = `benchmark:::${category}`;
+      if (!benchmarkBatches.has(batchKey)) {
+        benchmarkBatches.set(batchKey, {
+          id: 'bench_' + Math.random().toString(36).substring(2, 9),
+          isBenchmarkBatch: true,
+          category: category,
+          title: `📊 고성과 벤치마크 & 주제 탐색`,
+          jobs: [],
+          created_at: job.created_at,
+          updated_at: job.created_at,
+        });
+      }
+      const batch = benchmarkBatches.get(batchKey);
+      batch.jobs.push(job);
+      if (job.created_at > batch.updated_at) batch.updated_at = job.created_at;
+      if (job.created_at < batch.created_at) batch.created_at = job.created_at;
+    } else if (title) {
+      // Hermes Video Production Pipeline
+      const groupKey = `video:::${category}:::${title}`;
+      if (!pipelineMap.has(groupKey)) {
+        pipelineMap.set(groupKey, {
+          id: 'pipe_' + Math.random().toString(36).substring(2, 9),
+          isPipeline: true,
+          category: category,
+          title: title,
+          queueId: queueId,
+          jobs: [],
+          created_at: job.created_at,
+          updated_at: job.created_at,
+        });
+      }
+      const group = pipelineMap.get(groupKey);
+      group.jobs.push(job);
+      if (job.created_at > group.updated_at) group.updated_at = job.created_at;
+      if (job.created_at < group.created_at) group.created_at = job.created_at;
+    } else {
+      otherJobs.push(job);
+    }
+  }
+
+  // Process Video Pipelines
+  const pipelineGroups = Array.from(pipelineMap.values()).map(g => {
+    g.jobs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+
+    const stepStatuses = {};
+    for (const step of PIPELINE_STEPS_CONFIG) {
+      const matchingJob = g.jobs.find(j => j.job_type === step.type);
+      if (matchingJob) {
+        stepStatuses[step.key] = {
+          status: String(matchingJob.status || '').toUpperCase(),
+          job: matchingJob,
+        };
+      } else {
+        stepStatuses[step.key] = {
+          status: 'PENDING',
+          job: null,
+        };
+      }
+    }
+
+    const totalSteps = PIPELINE_STEPS_CONFIG.length;
+    const completedCount = PIPELINE_STEPS_CONFIG.filter(s => {
+      return stepStatuses[s.key]?.status === 'COMPLETED';
+    }).length;
+    const hasFailed = g.jobs.some(j => String(j.status || '').toUpperCase() === 'FAILED');
+    const hasRunning = g.jobs.some(j => ['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED'].includes(String(j.status || '').toUpperCase()));
+
+    let overallStatus = 'PENDING';
+    if (hasFailed) overallStatus = 'FAILED';
+    else if (completedCount === totalSteps) overallStatus = 'COMPLETED';
+    else if (hasRunning || completedCount > 0) overallStatus = 'RUNNING';
+
+    const overallProgress = Math.round((completedCount / totalSteps) * 100);
+
+    return {
+      isPipeline: true,
+      id: g.id,
+      category: g.category,
+      title: g.title,
+      queueId: g.queueId,
+      overallStatus,
+      overallProgress,
+      completedCount,
+      totalSteps,
+      stepStatuses,
+      jobs: g.jobs,
+      created_at: g.created_at,
+      updated_at: g.updated_at,
+    };
+  });
+
+  // Process Benchmark Batches
+  const benchmarkGroups = Array.from(benchmarkBatches.values()).map(b => {
+    b.jobs.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    const completedCount = b.jobs.filter(j => String(j.status || '').toUpperCase() === 'COMPLETED').length;
+    const hasFailed = b.jobs.some(j => String(j.status || '').toUpperCase() === 'FAILED');
+    const hasRunning = b.jobs.some(j => ['RUNNING', 'CLAIMED'].includes(String(j.status || '').toUpperCase()));
+
+    let overallStatus = 'COMPLETED';
+    if (hasFailed) overallStatus = 'FAILED';
+    else if (hasRunning) overallStatus = 'RUNNING';
+
+    return {
+      isBenchmarkBatch: true,
+      id: b.id,
+      category: b.category,
+      title: `${b.title} (${b.jobs.length}회 실행)`,
+      overallStatus,
+      overallProgress: 100,
+      completedCount,
+      jobs: b.jobs,
+      created_at: b.created_at,
+      updated_at: b.updated_at,
+    };
+  });
+
+  const combined = [
+    ...pipelineGroups,
+    ...benchmarkGroups,
+    ...otherJobs.map(j => ({ isPipeline: false, job: j, updated_at: j.created_at }))
+  ];
+  combined.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
+  return combined;
+}
+
+function renderPipelineCard(item, prefix = 'rec') {
+  if (item.isBenchmarkBatch) {
+    const domId = `${prefix}_${item.id}`;
+    const subjobsHtml = item.jobs.map(j => `
+      <div class="pipeline-subjob-row">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <a href="#" onclick="showJobDetail('${j.job_id}');return false" style="font-family:monospace;font-weight:bold;color:#58a6ff;">${j.job_id.substring(0,8)}</a>
+          <span style="color:#c9d1d9;font-weight:600;">📊 고성과 벤치마크 분석</span>
+          <span class="info" style="font-size:11px;">${escapeHtml(jobDescription(j))}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${statusBadge(j.status)}
+          <span style="font-size:11px;color:#8b949e;font-family:monospace;">${fmtTime(j.created_at)}</span>
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="pipeline-card" style="border-left: 3px solid #58a6ff; background: rgba(56,139,253,0.03);">
+        <div class="pipeline-header">
+          <div class="pipeline-title-group">
+            <span class="pipeline-badge-category" style="background:rgba(56,139,253,0.15);border-color:rgba(56,139,253,0.4);color:#58a6ff;">📊 ${escapeHtml(item.category)}</span>
+            <span class="pipeline-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
+          </div>
+          <div class="pipeline-meta-group">
+            <span class="badge badge-completed">${item.completedCount}건 완료</span>
+            <span class="pipeline-time">${fmtTime(item.updated_at)}</span>
+            <button class="pipeline-toggle-btn" onclick="togglePipelineDetails('${domId}')">
+              <span id="${domId}_arrow">▼</span> 상세 (${item.jobs.length})
+            </button>
+          </div>
+        </div>
+        <div id="${domId}_details" class="pipeline-details-accordion">
+          <div style="font-size:11px;color:#8b949e;font-weight:bold;margin-bottom:8px;">📌 벤치마크 탐색 실행 로그</div>
+          ${subjobsHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  if (!item.isPipeline) {
+    const j = item.job;
+    return `
+      <div class="pipeline-card">
+        <div class="pipeline-header">
+          <div class="pipeline-title-group">
+            <span class="pipeline-badge-category" style="background:rgba(56,139,253,0.15);border-color:rgba(56,139,253,0.4);color:#58a6ff;">${humanJobType(j.job_type)}</span>
+            <span class="pipeline-title" title="${escapeHtml(jobDescription(j))}">${escapeHtml(jobDescription(j))}</span>
+          </div>
+          <div class="pipeline-meta-group">
+            ${statusBadge(j.status)}
+            <span class="pipeline-time">${fmtTime(j.created_at)}</span>
+            <button class="btn btn-sm" onclick="showJobDetail('${j.job_id}')" style="font-size:10px;padding:2px 8px;">상세</button>
+          </div>
+        </div>
+        ${(j.status === 'FAILED' || j.error_message) ? `
+          <div style="color:#f85149;margin-top:6px;font-size:12px;word-break:break-all;background:rgba(248,81,73,0.1);padding:6px 10px;border-radius:6px;border:1px solid rgba(248,81,73,0.25)">
+            ⚠️ 오류: ${escapeHtml(j.error_message || '작업 실패')}
+          </div>` : ''}
+      </div>
+    `;
+  }
+
+  const domId = `${prefix}_${item.id}`;
+  const isAllComplete = item.overallStatus === 'COMPLETED';
+  const statusClass = isAllComplete ? 'badge-completed' : (item.overallStatus === 'FAILED' ? 'badge-failed' : 'badge-rendering');
+  const statusText = isAllComplete ? '제작 완료' : (item.overallStatus === 'FAILED' ? '오류' : `진행 중 (${item.completedCount}/${item.totalSteps})`);
+
+  const stepsHtml = PIPELINE_STEPS_CONFIG.map((step, idx) => {
+    const stepInfo = item.stepStatuses[step.key];
+    const st = stepInfo.status;
+    let stepClass = 'step-pending';
+    let stepBadgeIcon = '⚪';
+
+    if (st === 'COMPLETED') {
+      stepClass = 'step-done';
+      stepBadgeIcon = '✓';
+    } else if (['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED'].includes(st)) {
+      stepClass = 'step-running';
+      stepBadgeIcon = '⏳';
+    } else if (st === 'FAILED') {
+      stepClass = 'step-failed';
+      stepBadgeIcon = '✕';
+    }
+
+    const clickAttr = stepInfo.job ? `onclick="showJobDetail('${stepInfo.job.job_id}')" style="cursor:pointer;" title="클릭하여 ${step.label} 상세 로그 보기"` : '';
+    const arrow = idx < PIPELINE_STEPS_CONFIG.length - 1 ? `<span class="pipeline-step-arrow">➔</span>` : '';
+
+    return `
+      <div class="pipeline-step-item ${stepClass}" ${clickAttr}>
+        <span>${step.icon}</span>
+        <span>${step.label}</span>
+        <span style="font-size:10px;opacity:0.9;">[${stepBadgeIcon}]</span>
+      </div>
+      ${arrow}
+    `;
+  }).join('');
+
+  const subjobsHtml = item.jobs.map(j => `
+    <div class="pipeline-subjob-row">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <a href="#" onclick="showJobDetail('${j.job_id}');return false" style="font-family:monospace;font-weight:bold;color:#58a6ff;">${j.job_id.substring(0,8)}</a>
+        <span style="color:#c9d1d9;font-weight:600;">${humanJobType(j.job_type)}</span>
+        <span class="info" style="font-size:11px;">${escapeHtml(jobDescription(j))}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${statusBadge(j.status)}
+        <span style="font-size:11px;color:#8b949e;font-family:monospace;">${fmtTime(j.created_at)}</span>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="pipeline-card" style="${isAllComplete ? 'border: 1px solid rgba(46,160,67,0.4); box-shadow: 0 0 12px rgba(46,160,67,0.08);' : ''}">
+      <div class="pipeline-header">
+        <div class="pipeline-title-group">
+          <span class="pipeline-badge-category">🔞 ${escapeHtml(item.category)}</span>
+          <span class="pipeline-title" title="${escapeHtml(item.title)}" style="${isAllComplete ? 'color:#7ee787;font-weight:bold;' : ''}">"${escapeHtml(item.title)}"</span>
+        </div>
+        <div class="pipeline-meta-group">
+          <span class="badge ${statusClass}">${statusText}</span>
+          <span style="font-size:12px;font-weight:bold;color:${isAllComplete ? '#7ee787' : '#58a6ff'};font-family:monospace;">${item.overallProgress}%</span>
+          <span class="pipeline-time">${fmtTime(item.updated_at)}</span>
+          <button class="pipeline-toggle-btn" onclick="togglePipelineDetails('${domId}')">
+            <span id="${domId}_arrow">▼</span> 상세 (${item.jobs.length})
+          </button>
+        </div>
+      </div>
+
+      <!-- 4단계 가로 파이프라인 스텝 바 -->
+      <div class="pipeline-steps-container">
+        ${stepsHtml}
+      </div>
+
+      <!-- 아코디언 상세 영역 -->
+      <div id="${domId}_details" class="pipeline-details-accordion">
+        <div style="font-size:11px;color:#8b949e;font-weight:bold;margin-bottom:8px;">📌 포함된 세부 Job 및 로그</div>
+        ${subjobsHtml}
+        ${isAllComplete ? `
+          <div class="pipeline-actions-footer">
+            <button class="btn btn-sm btn-start" onclick="switchTab('generated-results')" style="font-size:11px;">
+              👁️ 생성 결과 확인
+            </button>
+            <button class="btn btn-sm" onclick="switchTab('voicebox-tts')" style="font-size:11px;background:rgba(163,113,247,0.15);border-color:rgba(163,113,247,0.4);color:#d2a8ff;">
+              🎙️ TTS 생성 이동
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function togglePipelineDetails(domId) {
+  const detailsEl = document.getElementById(`${domId}_details`);
+  const arrowEl = document.getElementById(`${domId}_arrow`);
+  if (!detailsEl) return;
+  const isOpen = detailsEl.classList.contains('open');
+  if (isOpen) {
+    detailsEl.classList.remove('open');
+    if (arrowEl) arrowEl.textContent = '▼';
+  } else {
+    detailsEl.classList.add('open');
+    if (arrowEl) arrowEl.textContent = '▲';
+  }
+}
+
 function renderRecentJobs(jobs) {
-  const el = document.getElementById('recent-jobs-body');
+  const el = document.getElementById('recent-jobs-container');
   const empty = document.getElementById('recent-empty');
-  if (!jobs.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-  el.innerHTML = jobs.slice(0, 10).map(j => `<tr>
-    <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-    <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span>${(j.status === 'FAILED' || j.error_message) ? `<div style="color:#f85149;margin-top:4px;font-size:12px;word-break:break-all;background:rgba(248,81,73,0.1);padding:4px 8px;border-radius:4px;border:1px solid rgba(248,81,73,0.25)">⚠️ 오류: ${escapeHtml(j.error_message || '작업 실패')}</div>` : ''}</td>
-    <td>${statusBadge(j.status)}${j.status === 'CANCELED' && isHermesGenerationJob(j)
-      ? ` <button class="btn btn-sm btn-start" style="margin-left:8px" onclick="event.stopPropagation(); restartHermesFromCancelled('${j.job_id}')">재시작</button>`
-      : ''}</td>
-    <td>${displayProgress(j)}%</td>
-    <td>${fmtTime(j.created_at)}</td>
-  </tr>`).join('');
+  if (!el) return;
+  if (!jobs.length) { el.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+  if (empty) empty.style.display = 'none';
+
+  const pipelines = groupJobsIntoPipelines(jobs);
+  el.innerHTML = pipelines.slice(0, 10).map(p => renderPipelineCard(p, 'rec')).join('');
 }
 
 let knownRenderJobIds = new Set();
@@ -3347,9 +3717,56 @@ async function showGeneratedResult(resultId) {
     ['결말/페이오프', structure.payoff],
     ['전체 무드', structure.global_mood],
   ].filter(([, value]) => value).map(([label, value]) => `<div class="label">${escapeHtml(label)}</div><div>${escapeHtml(value)}</div>`).join('');
-  const titleJson = Object.keys(titleGeneration).length
-    ? `<div class="prompt-box">${escapeHtml(JSON.stringify(titleGeneration, null, 2))}</div>`
-    : '<div class="info">제목 생성 상세 데이터가 없습니다.</div>';
+  let titleJson = '';
+  if (Object.keys(titleGeneration).length) {
+    const selectedTitle = titleGeneration.generated_title || titleGeneration.title || '-';
+    const selectedScore = titleGeneration.selected_score || '-';
+    const candidates = Array.isArray(titleGeneration.title_candidates) ? titleGeneration.title_candidates : [];
+
+    let candidatesListHtml = '';
+    if (candidates.length > 0) {
+      candidatesListHtml = `
+        <div style="margin-top:12px;">
+          <div style="font-size:12px;font-weight:bold;color:#8b949e;margin-bottom:8px;">📋 기획 제목 후보군 (${candidates.length}개)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${candidates.map((c, idx) => {
+              const isSelected = (c.title === selectedTitle);
+              return `
+                <div style="padding:10px 12px;border-radius:6px;background:${isSelected ? 'rgba(46,160,67,0.12)' : '#0d1117'};border:1px solid ${isSelected ? '#2ea043' : '#30363d'};">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-weight:bold;color:${isSelected ? '#7ee787' : '#c9d1d9'};font-size:13px;">
+                      ${isSelected ? '👑 [최종 선정] ' : `${idx + 1}. `}${escapeHtml(c.title || '-')}
+                    </span>
+                    <span class="badge ${isSelected ? 'badge-completed' : ''}" style="font-size:11px;font-weight:bold;">
+                      ${c.score ? `${c.score}점` : (c.final_score ? `${c.final_score}점` : '')}
+                    </span>
+                  </div>
+                  ${c.angle ? `<div style="font-size:11px;color:#8b949e;margin-bottom:2px;"><strong>기획 앵글:</strong> ${escapeHtml(c.angle)}</div>` : ''}
+                  ${c.ai_reason ? `<div style="font-size:11px;color:#58a6ff;"><strong>평가 이유:</strong> ${escapeHtml(c.ai_reason)}</div>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    titleJson = `
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="generated-meta" style="grid-template-columns:110px 1fr;">
+          <div class="label">최종 선정 제목</div>
+          <div><strong style="color:#7ee787;font-size:13px;">${escapeHtml(selectedTitle)}</strong></div>
+          <div class="label">종합 평가 점수</div>
+          <div><span class="badge badge-completed" style="font-size:12px;">${escapeHtml(String(selectedScore))}점</span></div>
+          <div class="label">카테고리</div>
+          <div>${escapeHtml(titleGeneration.category || data.category || '-')}</div>
+        </div>
+        ${candidatesListHtml}
+      </div>
+    `;
+  } else {
+    titleJson = '<div class="info">제목 생성 상세 데이터가 없습니다.</div>';
+  }
   const publishTitle = getGeneratedPublishTitle(data, publishMetadata);
   const publishDescription = getGeneratedPublishDescription(publishMetadata);
   const publishTags = Array.isArray(publishMetadata.tags) ? publishMetadata.tags : [];
@@ -3440,26 +3857,22 @@ async function showGeneratedResult(resultId) {
 }
 
 function loadHistory() {
-  const status = document.getElementById('hist-filter-status').value;
-  const type = document.getElementById('hist-filter-type').value;
+  const status = document.getElementById('hist-filter-status')?.value || '';
+  const type = document.getElementById('hist-filter-type')?.value || '';
   let url = '/api/jobs?limit=100';
   if (status) url += `&status=${status}`;
   api('GET', url).then(data => {
     if (!data) return;
     let jobs = data.jobs || [];
     if (type) jobs = jobs.filter(j => j.job_type === type);
-    const el = document.getElementById('history-body');
+    const el = document.getElementById('history-jobs-container');
     const empty = document.getElementById('history-empty');
-    if (!jobs.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
-    empty.style.display = 'none';
-    el.innerHTML = jobs.map(j => `<tr>
-      <td><a href="#" onclick="showJobDetail('${j.job_id}');return false">${j.job_id.substring(0,8)}</a></td>
-      <td><strong>${humanJobType(j.job_type)}</strong><br><span class="info">${escapeHtml(jobDescription(j))}</span>${(j.status === 'FAILED' || j.error_message) ? `<div style="color:#f85149;margin-top:4px;font-size:12px;word-break:break-all;background:rgba(248,81,73,0.1);padding:4px 8px;border-radius:4px;border:1px solid rgba(248,81,73,0.25)">⚠️ 오류: ${escapeHtml(j.error_message || '작업 실패')}</div>` : ''}</td>
-      <td>${statusBadge(j.status)}</td>
-      <td>${displayProgress(j)}%</td>
-      <td>${fmtTime(j.created_at)}</td>
-      <td>${canCancel(j.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelJob('${j.job_id}')">취소</button>` : `<button class="btn btn-sm" onclick="showJobDetail('${j.job_id}')">상세</button>`}</td>
-    </tr>`).join('');
+    if (!el) return;
+    if (!jobs.length) { el.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+    if (empty) empty.style.display = 'none';
+
+    const pipelines = groupJobsIntoPipelines(jobs);
+    el.innerHTML = pipelines.map(p => renderPipelineCard(p, 'hist')).join('');
   });
 }
 
@@ -4917,17 +5330,49 @@ async function loadVoiceboxTtsTab() {
   await loadVoiceboxHistory();
 }
 
+let allVoiceboxPresets = [];
+
 async function loadVoiceboxPresets() {
   try {
-    const data = await api('GET', '/api/voicebox/presets');
+    const data = await api('GET', '/api/voicebox/presets?provider=all');
     if (!data || !data.presets) return;
-    const select = document.getElementById('voicebox-preset-select');
-    if (!select) return;
-    select.innerHTML = data.presets.map(p => `
-      <option value="${p.id}">${p.name} (${p.gender === 'female' ? '여성' : '남성'})</option>
-    `).join('');
+    allVoiceboxPresets = data.presets;
+    onTtsProviderChange();
   } catch (e) {
     console.error('Failed to load voicebox presets:', e);
+  }
+}
+
+function onTtsProviderChange() {
+  const providerSelect = document.getElementById('voicebox-provider-select');
+  const presetSelect = document.getElementById('voicebox-preset-select');
+  const genBtn = document.getElementById('voicebox-gen-btn');
+  const engineInfo = document.getElementById('voicebox-engine-info');
+  const provider = providerSelect ? providerSelect.value : 'google';
+
+  if (!presetSelect) return;
+
+  const filtered = allVoiceboxPresets.filter(p => p.provider === provider);
+  presetSelect.innerHTML = filtered.map(p => `
+    <option value="${p.id}">${p.name} ${p.gender ? '(' + (p.gender === 'female' ? '여성' : '남성') + ')' : ''}</option>
+  `).join('');
+
+  if (provider === 'google') {
+    if (genBtn) genBtn.innerHTML = '<span>🌐</span> Google 무료 TTS로 생성';
+    if (engineInfo) {
+      engineInfo.innerHTML = `
+        <div style="font-size:11px;color:#58a6ff;font-weight:bold;">🌐 Google 무료 TTS 모드</div>
+        <div style="font-size:11px;color:#8b949e;margin-top:2px;">ElevenLabs 크레딧 소모 없이 구글 공식 합성 음성을 무제한으로 생성합니다.</div>
+      `;
+    }
+  } else {
+    if (genBtn) genBtn.innerHTML = '<span>⚡</span> Voicebox 신경망 TTS로 생성';
+    if (engineInfo) {
+      engineInfo.innerHTML = `
+        <div style="font-size:11px;color:#a371f7;font-weight:bold;">⚡ Voicebox 고품질 신경망 모드</div>
+        <div style="font-size:11px;color:#8b949e;margin-top:2px;">자연스러운 한국어 성우 프리셋으로 고품질 음성을 생성합니다.</div>
+      `;
+    }
   }
 }
 
@@ -5020,8 +5465,10 @@ async function selectVoiceboxTopic(resultId) {
 async function generateVoiceboxTts() {
   const editor = document.getElementById('voicebox-script-editor');
   const btn = document.getElementById('voicebox-gen-btn');
+  const providerSelect = document.getElementById('voicebox-provider-select');
   const presetSelect = document.getElementById('voicebox-preset-select');
   const speedRange = document.getElementById('voicebox-speed-range');
+  const provider = providerSelect ? providerSelect.value : 'google';
   
   if (!editor || !editor.value.trim()) {
     showToast('대본 내용이 비어 있습니다.', 'warning');
@@ -5029,19 +5476,20 @@ async function generateVoiceboxTts() {
   }
   
   btn.disabled = true;
-  btn.innerHTML = '<span>⏳</span> GPU로 음성 생성 중...';
+  btn.innerHTML = `<span>⏳</span> ${provider === 'google' ? 'Google 무료' : 'Voicebox'} TTS 음성 생성 중...`;
   
   try {
     const payload = {
       script: editor.value.trim(),
-      voice_id: presetSelect ? presetSelect.value : 'narrator_calm_kr',
+      provider: provider,
+      voice_id: presetSelect ? presetSelect.value : (provider === 'google' ? 'google_kr_standard' : 'narrator_calm_kr'),
       speed: speedRange ? parseFloat(speedRange.value) : 1.0,
       topic_id: voiceboxCurrentTopic ? voiceboxCurrentTopic.topic_id : null,
     };
     
     const res = await api('POST', '/api/voicebox/generate', payload);
     if (!res || !res.success) {
-      showToast('Voicebox 생성 실패: ' + (res?.detail || '오류'), 'error');
+      showToast('TTS 생성 실패: ' + (res?.detail || res?.error || '오류'), 'error');
       return;
     }
     
@@ -5056,7 +5504,7 @@ async function generateVoiceboxTts() {
       player.load();
     }
     if (meta) {
-      meta.innerHTML = `<span>크기: ${(res.file_size / 1024).toFixed(1)} KB</span><span>생성시간: ${res.elapsed_seconds}초</span>`;
+      meta.innerHTML = `<span>크기: ${(res.file_size / 1024).toFixed(1)} KB</span><span>소요: ${res.elapsed_seconds}초</span><span>엔진: ${provider.toUpperCase()}</span>`;
     }
     if (resultCard) {
       resultCard.style.display = 'flex';
@@ -5070,13 +5518,13 @@ async function generateVoiceboxTts() {
       }
     }
     
-    showToast(`🎉 Voicebox TTS 음성 생성이 완료되었습니다! (${res.elapsed_seconds}초 소요)`, 'success');
+    showToast(`🎉 ${provider === 'google' ? 'Google 무료' : 'Voicebox'} TTS 생성이 완료되었습니다! (${res.elapsed_seconds}초 소요)`, 'success');
     await loadVoiceboxHistory();
   } catch (e) {
-    showToast('Voicebox TTS 생성 통신 오류: ' + e, 'error');
+    showToast('TTS 생성 통신 오류: ' + e, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span>🎙️</span> Voicebox로 TTS 생성';
+    onTtsProviderChange();
   }
 }
 

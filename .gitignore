@@ -42,6 +42,7 @@ logs/
 !auth-web/app/admin/logs/page.tsx
 
 # Runtime/generated root artifacts
+worker/voicebox_outputs/
 /api_test.json
 /debug_*
 /test_*
