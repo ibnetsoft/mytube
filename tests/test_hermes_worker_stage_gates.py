@@ -15,6 +15,22 @@ import hermes_worker  # noqa: E402
 from services.hermes_offline_harness import build_valid_sample_payload  # noqa: E402
 
 
+class _FakeLog:
+    def __init__(self):
+        self.messages = []
+
+    def info(self, message):
+        self.messages.append(("info", message))
+
+    def warning(self, message):
+        self.messages.append(("warning", message))
+
+
+class _FakeResponse:
+    status_code = 204
+    text = ""
+
+
 def test_script_plan_stage_rejects_repeated_scene_summaries():
     structure = {
         "scenes": [
@@ -92,3 +108,65 @@ def test_publish_metadata_stage_accepts_complete_package():
 
     assert report["status"] == "pass"
     assert report["stage"] == "publish_metadata"
+
+
+def test_script_generate_defers_supabase_ready_sync_when_quality_gated(monkeypatch):
+    import requests
+
+    calls = []
+
+    def fake_patch(*args, **kwargs):
+        calls.append((args, kwargs))
+        return _FakeResponse()
+
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setattr(requests, "patch", fake_patch)
+
+    payload = build_valid_sample_payload("옛날이야기")
+    payload["topic_queue_id"] = "123"
+    payload["defer_ready_until_quality_gate"] = True
+
+    hermes_worker._save_result_to_supabase("script_generate", payload, _FakeLog())
+
+    assert calls == []
+
+
+def test_publish_metadata_syncs_full_prepared_package_even_when_quality_gated(monkeypatch):
+    import requests
+
+    calls = []
+
+    def fake_patch(*args, **kwargs):
+        calls.append((args, kwargs))
+        return _FakeResponse()
+
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setattr(requests, "patch", fake_patch)
+
+    payload = build_valid_sample_payload("무협")
+    payload.update(
+        {
+            "topic_queue_id": "3285",
+            "topic": "버림받은 삼류무사가 사부의 낡은 검보를 펼친 날",
+            "generated_title": "버림받은 삼류무사가 사부의 낡은 검보를 펼친 날",
+            "upload_title": "버림받은 삼류무사가 사부의 낡은 검보를 펼친 날",
+            "narrative_blueprint": {"protagonist": "삼류무사"},
+            "defer_ready_until_quality_gate": True,
+        }
+    )
+
+    hermes_worker._save_result_to_supabase("publish_metadata_generate", payload, _FakeLog())
+
+    assert len(calls) == 1
+    patch_payload = calls[0][1]["json"]
+    assert patch_payload["status"] == "pending"
+    assert patch_payload["pregenerated_script"] == payload["script"]
+    assert patch_payload["pregenerated_script_status"] == "ready"
+    assert patch_payload["pregenerated_structure"] == payload["structure"]
+    assert patch_payload["pregenerated_structure_status"] == "ready"
+    assert patch_payload["publish_metadata"] == payload["publish_metadata"]
+    assert patch_payload["generated_title"] == payload["generated_title"]
+    assert patch_payload["total_scenes"] == len(payload["structure"]["scenes"])
+    assert patch_payload["progress_payload"]["prepared_topic_ready"] is True

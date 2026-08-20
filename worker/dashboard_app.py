@@ -2060,6 +2060,11 @@ a:hover { text-decoration: underline; }
 .prompt-box-error { border-color: #f0883e66; color: #f0883e; }
 .badge-canceled { background: #f8514922; color: #f85149; }
 .badge-abandoned { background: #f8514922; color: #f85149; }
+.generated-results-section { margin-top: 14px; }
+.generated-results-section:first-of-type { margin-top: 0; }
+.generated-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #c9d1d9; }
+.generated-results-heading .info { font-weight: 500; }
+.generated-progress { display: inline-flex; align-items: center; min-width: 42px; justify-content: center; }
 
 /* ── Tables ── */
 table { width: 100%; border-collapse: collapse; }
@@ -2185,7 +2190,7 @@ tr:hover { background: #161b22; }
 
 .step-done { background: rgba(35, 134, 54, 0.15); border-color: rgba(35, 134, 54, 0.4); color: #3fb950; }
 .step-running { background: rgba(56, 139, 253, 0.15); border-color: rgba(56, 139, 253, 0.5); color: #58a6ff; animation: pulseGlow 1.5s infinite; }
-.step-failed { background: rgba(248, 81, 73, 0.15); border-color: rgba(248, 81, 73, 0.4); color: #f85149; }
+.step-failed { background: rgba(240, 136, 62, 0.15); border-color: rgba(240, 136, 62, 0.45); color: #f0883e; }
 .step-pending { background: rgba(110, 118, 129, 0.08); border-color: rgba(110, 118, 129, 0.2); color: #8b949e; opacity: 0.7; }
 
 @keyframes pulseGlow {
@@ -2199,6 +2204,8 @@ tr:hover { background: #161b22; }
 .pipeline-subjob-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; font-size: 12px; background: rgba(13, 17, 23, 0.5); margin-bottom: 4px; border: 1px solid rgba(255,255,255,0.03); }
 .pipeline-subjob-row:hover { background: rgba(13, 17, 23, 0.8); }
 .pipeline-actions-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.pipeline-error-summary { margin-top: 10px; color: #f0883e; font-size: 12px; word-break: break-word; background: rgba(240,136,62,0.12); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(240,136,62,0.35); }
+.pipeline-header-resume { font-size: 11px; padding: 3px 9px; }
 </style>
 </head>
 <body>
@@ -2450,10 +2457,28 @@ tr:hover { background: #161b22; }
               <button class="btn btn-sm" onclick="loadGeneratedResults()">&#x1F504; 새로고침</button>
               <span class="info" id="generated-results-dir"></span>
             </div>
-            <table>
-              <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
-              <tbody id="generated-results-body"></tbody>
-            </table>
+            <div id="generated-results-tables">
+              <div class="generated-results-section">
+                <div class="generated-results-heading">
+                  <span>100% 완료 결과</span>
+                  <span class="info" id="generated-results-completed-count">0건</span>
+                </div>
+                <table>
+                  <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+                  <tbody id="generated-results-completed-body"></tbody>
+                </table>
+              </div>
+              <div class="generated-results-section">
+                <div class="generated-results-heading">
+                  <span>부분완료 결과</span>
+                  <span class="info" id="generated-results-partial-count">0건 · 완료율 높은 순</span>
+                </div>
+                <table>
+                  <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+                  <tbody id="generated-results-partial-body"></tbody>
+                </table>
+              </div>
+            </div>
             <div class="empty" id="generated-results-empty" style="display:none"><div class="icon">&#x1F4ED;</div>저장된 생성 결과가 없습니다</div>
           </div>
           <div class="card">
@@ -3229,6 +3254,24 @@ const PIPELINE_STEPS_CONFIG = [
   { key: 'metadata', type: 'publish_metadata_generate', label: '4. 설명·태그', icon: '🏷️' },
 ];
 
+const openPipelineDetails = new Set();
+
+function stableHash(input) {
+  let hash = 0;
+  const text = String(input || '');
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function latestFailedJob(jobs) {
+  return [...(jobs || [])]
+    .filter(j => String(j.status || '').toUpperCase() === 'FAILED' || j.error_message)
+    .sort((a, b) => (b.completed_at || b.created_at || 0) - (a.completed_at || a.created_at || 0))[0] || null;
+}
+
 function groupJobsIntoPipelines(jobs) {
   const pipelineMap = new Map();
   const benchmarkBatches = new Map();
@@ -3261,7 +3304,7 @@ function groupJobsIntoPipelines(jobs) {
       const batchKey = `benchmark:::${category}`;
       if (!benchmarkBatches.has(batchKey)) {
         benchmarkBatches.set(batchKey, {
-          id: 'bench_' + Math.random().toString(36).substring(2, 9),
+          id: 'bench_' + stableHash(batchKey),
           isBenchmarkBatch: true,
           category: category,
           title: `📊 고성과 벤치마크 & 주제 탐색`,
@@ -3279,7 +3322,7 @@ function groupJobsIntoPipelines(jobs) {
       const groupKey = `video:::${category}:::${title}`;
       if (!pipelineMap.has(groupKey)) {
         pipelineMap.set(groupKey, {
-          id: 'pipe_' + Math.random().toString(36).substring(2, 9),
+          id: 'pipe_' + stableHash(groupKey),
           isPipeline: true,
           category: category,
           title: title,
@@ -3304,10 +3347,17 @@ function groupJobsIntoPipelines(jobs) {
 
     const stepStatuses = {};
     for (const step of PIPELINE_STEPS_CONFIG) {
-      const matchingJob = g.jobs.find(j => j.job_type === step.type);
+      const matchingJob = [...g.jobs].reverse().find(j => j.job_type === step.type);
       if (matchingJob) {
+        let status = String(matchingJob.status || '').toUpperCase();
+        if (['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED'].includes(status)) {
+          const priorCompletedJob = [...g.jobs].reverse().find(j => j.job_type === step.type && String(j.status || '').toUpperCase() === 'COMPLETED');
+          if (priorCompletedJob) {
+            status = 'COMPLETED';
+          }
+        }
         stepStatuses[step.key] = {
-          status: String(matchingJob.status || '').toUpperCase(),
+          status,
           job: matchingJob,
         };
       } else {
@@ -3325,15 +3375,17 @@ function groupJobsIntoPipelines(jobs) {
     const hasFailed = g.jobs.some(j => String(j.status || '').toUpperCase() === 'FAILED');
     const hasCanceled = g.jobs.some(j => String(j.status || '').toUpperCase() === 'CANCELED');
     const hasRunning = g.jobs.some(j => ['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED'].includes(String(j.status || '').toUpperCase()));
+    const failedJob = latestFailedJob(g.jobs);
 
     let overallStatus = 'PENDING';
-    if (hasFailed) overallStatus = 'FAILED';
-    else if (completedCount === totalSteps) overallStatus = 'COMPLETED';
+    if (completedCount === totalSteps) overallStatus = 'COMPLETED';
     else if (hasRunning) overallStatus = 'RUNNING';
+    else if (hasFailed) overallStatus = 'FAILED';
     else if (completedCount > 0 || hasCanceled) overallStatus = 'PAUSED';
 
     const overallProgress = Math.round((completedCount / totalSteps) * 100);
-    const canResume = overallStatus === 'PAUSED' && completedCount > 0;
+    const canResume = !hasRunning && completedCount > 0 && overallStatus !== 'COMPLETED';
+    const lastError = failedJob?.error_message || '';
 
     return {
       isPipeline: true,
@@ -3346,6 +3398,8 @@ function groupJobsIntoPipelines(jobs) {
       completedCount,
       totalSteps,
       canResume,
+      failedJob,
+      lastError,
       stepStatuses,
       jobs: g.jobs,
       created_at: g.created_at,
@@ -3390,6 +3444,7 @@ function groupJobsIntoPipelines(jobs) {
 function renderPipelineCard(item, prefix = 'rec') {
   if (item.isBenchmarkBatch) {
     const domId = `${prefix}_${item.id}`;
+    const isOpen = openPipelineDetails.has(domId);
     const subjobsHtml = item.jobs.map(j => `
       <div class="pipeline-subjob-row">
         <div style="display:flex;align-items:center;gap:8px;">
@@ -3415,11 +3470,11 @@ function renderPipelineCard(item, prefix = 'rec') {
             <span class="badge badge-completed">${item.completedCount}건 완료</span>
             <span class="pipeline-time">${fmtTime(item.updated_at)}</span>
             <button class="pipeline-toggle-btn" onclick="togglePipelineDetails('${domId}')">
-              <span id="${domId}_arrow">▼</span> 상세 (${item.jobs.length})
+              <span id="${domId}_arrow">${isOpen ? '▲' : '▼'}</span> 상세 (${item.jobs.length})
             </button>
           </div>
         </div>
-        <div id="${domId}_details" class="pipeline-details-accordion">
+        <div id="${domId}_details" class="pipeline-details-accordion ${isOpen ? 'open' : ''}">
           <div style="font-size:11px;color:#8b949e;font-weight:bold;margin-bottom:8px;">📌 벤치마크 탐색 실행 로그</div>
           ${subjobsHtml}
         </div>
@@ -3443,7 +3498,7 @@ function renderPipelineCard(item, prefix = 'rec') {
           </div>
         </div>
         ${(j.status === 'FAILED' || j.error_message) ? `
-          <div style="color:#f85149;margin-top:6px;font-size:12px;word-break:break-all;background:rgba(248,81,73,0.1);padding:6px 10px;border-radius:6px;border:1px solid rgba(248,81,73,0.25)">
+          <div style="color:#f0883e;margin-top:6px;font-size:12px;word-break:break-all;background:rgba(240,136,62,0.12);padding:6px 10px;border-radius:6px;border:1px solid rgba(240,136,62,0.35)">
             ⚠️ 오류: ${escapeHtml(j.error_message || '작업 실패')}
           </div>` : ''}
       </div>
@@ -3451,11 +3506,18 @@ function renderPipelineCard(item, prefix = 'rec') {
   }
 
   const domId = `${prefix}_${item.id}`;
+  const isOpen = openPipelineDetails.has(domId);
   const isAllComplete = item.overallStatus === 'COMPLETED';
   const isPaused = item.overallStatus === 'PAUSED';
   const statusClass = isAllComplete ? 'badge-completed' : (item.overallStatus === 'FAILED' ? 'badge-failed' : (isPaused ? 'badge-paused' : 'badge-rendering'));
   const displayStatusText = isAllComplete ? '제작 완료' : (item.overallStatus === 'FAILED' ? '오류' : (isPaused ? `이어 가능 (${item.completedCount}/${item.totalSteps})` : `진행 중 (${item.completedCount}/${item.totalSteps})`));
   const statusText = displayStatusText;
+  const resumeJobId = item.failedJob?.job_id || item.jobs[item.jobs.length - 1]?.job_id || '';
+  const errorSummary = item.lastError ? `
+    <div class="pipeline-error-summary">
+      <strong>오류 이유:</strong> ${escapeHtml(item.lastError)}
+    </div>
+  ` : '';
 
   const stepsHtml = PIPELINE_STEPS_CONFIG.map((step, idx) => {
     const stepInfo = item.stepStatuses[step.key];
@@ -3512,8 +3574,13 @@ function renderPipelineCard(item, prefix = 'rec') {
           <span class="badge ${statusClass}">${statusText}</span>
           <span style="font-size:12px;font-weight:bold;color:${isAllComplete ? '#7ee787' : '#58a6ff'};font-family:monospace;">${item.overallProgress}%</span>
           <span class="pipeline-time">${fmtTime(item.updated_at)}</span>
+          ${item.canResume ? `
+            <button class="btn btn-sm btn-start pipeline-header-resume" onclick="restartHermesFromCancelled('${resumeJobId}')">
+              이어하기
+            </button>
+          ` : ''}
           <button class="pipeline-toggle-btn" onclick="togglePipelineDetails('${domId}')">
-            <span id="${domId}_arrow">▼</span> 상세 (${item.jobs.length})
+            <span id="${domId}_arrow">${isOpen ? '▲' : '▼'}</span> 상세 (${item.jobs.length})
           </button>
         </div>
       </div>
@@ -3524,8 +3591,9 @@ function renderPipelineCard(item, prefix = 'rec') {
       </div>
 
       <!-- 아코디언 상세 영역 -->
-      <div id="${domId}_details" class="pipeline-details-accordion">
+      <div id="${domId}_details" class="pipeline-details-accordion ${isOpen ? 'open' : ''}">
         <div style="font-size:11px;color:#8b949e;font-weight:bold;margin-bottom:8px;">📌 포함된 세부 Job 및 로그</div>
+        ${errorSummary}
         ${subjobsHtml}
         ${isAllComplete ? `
           <div class="pipeline-actions-footer">
@@ -3538,7 +3606,7 @@ function renderPipelineCard(item, prefix = 'rec') {
           </div>
         ` : item.canResume ? `
           <div class="pipeline-actions-footer">
-            <button class="btn btn-sm btn-start" onclick="restartHermesFromCancelled('${item.jobs[item.jobs.length - 1]?.job_id || ''}')" style="font-size:11px;">
+            <button class="btn btn-sm btn-start" onclick="restartHermesFromCancelled('${resumeJobId}')" style="font-size:11px;">
               이어하기
             </button>
           </div>
@@ -3555,9 +3623,11 @@ function togglePipelineDetails(domId) {
   const isOpen = detailsEl.classList.contains('open');
   if (isOpen) {
     detailsEl.classList.remove('open');
+    openPipelineDetails.delete(domId);
     if (arrowEl) arrowEl.textContent = '▼';
   } else {
     detailsEl.classList.add('open');
+    openPipelineDetails.add(domId);
     if (arrowEl) arrowEl.textContent = '▲';
   }
 }
@@ -3819,6 +3889,50 @@ function renderMaterialBadges(statuses) {
   }).join(' ');
 }
 
+const GENERATED_MATERIAL_KEYS = ['benchmark', 'title', 'web_research', 'plan_prompts', 'script', 'publish_metadata'];
+
+function generatedCompletionStats(row) {
+  const statuses = generatedMaterialStatuses(row);
+  const readyCount = GENERATED_MATERIAL_KEYS.filter(key => statuses?.[key] === 'ready').length;
+  const percent = Math.round((readyCount / GENERATED_MATERIAL_KEYS.length) * 100);
+  return {
+    statuses,
+    readyCount,
+    totalCount: GENERATED_MATERIAL_KEYS.length,
+    percent,
+    isComplete: readyCount === GENERATED_MATERIAL_KEYS.length,
+  };
+}
+
+function generatedSortTime(row) {
+  return Number(row.completed_at || row.updated_at || 0);
+}
+
+function renderGeneratedRows(rows, emptyText) {
+  if (!rows.length) {
+    return `<tr><td colspan="5" class="info">${escapeHtml(emptyText)}</td></tr>`;
+  }
+  return rows.map(row => {
+    const completion = row._completion || generatedCompletionStats(row);
+    const ready = row.has_image_prompts && row.has_video_prompts;
+    const promptState = ready
+      ? '프롬프트 준비됨'
+      : (row.has_legacy_visual_direction ? '구버전 시각 연출만 있음' : '프롬프트 없음');
+    const scriptState = row.has_script ? `${row.script_chars || 0} chars` : 'script missing';
+    const stageLabel = row.stage === 'metadata' ? 'metadata ready' : (row.stage === 'script' ? 'script ready' : (row.stage === 'plan' ? 'plan ready' : 'title ready'));
+    const statusText = row.status && row.status !== 'COMPLETED' ? ` / ${row.status}` : '';
+    const materialBadges = renderMaterialBadges(completion.statuses);
+    const progressClass = completion.isComplete ? 'badge-completed' : (completion.percent >= 67 ? 'badge-review' : 'badge-idle');
+    return `<tr>
+      <td><a href="#" onclick="showGeneratedResult('${escapeHtml(row.id)}');return false">${escapeHtml(row.topic_queue_id || row.id)}</a></td>
+      <td>${escapeHtml(row.category || '-')}</td>
+      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong><div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
+      <td><span class="badge ${progressClass} generated-progress">${completion.percent}%</span> ${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0} scenes, ${scriptState}, ${promptState}</span></td>
+      <td>${fmtTime(row.completed_at || row.updated_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
 function renderGeneratedEmptyState(diagnostics) {
   const lines = [];
   if (diagnostics) {
@@ -3842,43 +3956,45 @@ function renderGeneratedEmptyState(diagnostics) {
 }
 
 async function loadGeneratedResults() {
-  const body = document.getElementById('generated-results-body');
+  const completedBody = document.getElementById('generated-results-completed-body');
+  const partialBody = document.getElementById('generated-results-partial-body');
   const empty = document.getElementById('generated-results-empty');
+  const tables = document.getElementById('generated-results-tables');
   const dir = document.getElementById('generated-results-dir');
-  if (!body || !empty) return;
-  body.innerHTML = '<tr><td colspan="5" class="info">생성 결과를 불러오는 중...</td></tr>';
+  const completedCount = document.getElementById('generated-results-completed-count');
+  const partialCount = document.getElementById('generated-results-partial-count');
+  if (!completedBody || !partialBody || !empty) return;
+  completedBody.innerHTML = '<tr><td colspan="5" class="info">생성 결과를 불러오는 중...</td></tr>';
+  partialBody.innerHTML = '';
   empty.style.display = 'none';
+  if (tables) tables.style.display = 'block';
   const data = await api('GET', '/api/generated-results?limit=100');
   if (!data) return;
   if (dir) dir.textContent = data.dir || '';
-  const rows = data.results || [];
+  const rows = (data.results || []).map(row => ({ ...row, _completion: generatedCompletionStats(row) }));
   if (!rows.length) {
-    body.innerHTML = '';
+    completedBody.innerHTML = '';
+    partialBody.innerHTML = '';
+    if (tables) tables.style.display = 'none';
     empty.innerHTML = renderGeneratedEmptyState(data.diagnostics);
     empty.style.display = 'block';
     return;
   }
-  body.innerHTML = rows.map(row => {
-    const ready = row.has_image_prompts && row.has_video_prompts;
-    const promptState = ready
-      ? '프롬프트 준비됨'
-      : (row.has_legacy_visual_direction ? '구버전: 시각 연출만 있음' : '프롬프트 없음');
-    const scriptState = row.has_script ? `${row.script_chars || 0} chars` : 'script missing';
-    const stageLabel = row.stage === 'metadata' ? 'metadata ready' : (row.stage === 'script' ? 'script ready' : (row.stage === 'plan' ? 'plan ready' : 'title ready'));
-    const statusText = row.status && row.status !== 'COMPLETED' ? ` / ${row.status}` : '';
-    const materialBadges = renderMaterialBadges(generatedMaterialStatuses(row));
-    return `<tr>
-      <td><a href="#" onclick="showGeneratedResult('${escapeHtml(row.id)}');return false">${escapeHtml(row.topic_queue_id || row.id)}</a></td>
-      <td>${escapeHtml(row.category || '-')}</td>
-      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong><div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
-      <td>${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0} scenes, ${scriptState}, ${promptState}</span></td>
-      <td>${fmtTime(row.completed_at || row.updated_at)}</td>
-    </tr>`;
-  }).join('');
-  generatedResultsLoaded = true;
-  if (rows[0]) showGeneratedResult(rows[0].id);
-}
+  const completedRows = rows
+    .filter(row => row._completion.isComplete)
+    .sort((a, b) => generatedSortTime(b) - generatedSortTime(a));
+  const partialRows = rows
+    .filter(row => !row._completion.isComplete)
+    .sort((a, b) => (b._completion.percent - a._completion.percent) || (b._completion.readyCount - a._completion.readyCount) || (generatedSortTime(b) - generatedSortTime(a)));
 
+  if (completedCount) completedCount.textContent = `${completedRows.length}건`;
+  if (partialCount) partialCount.textContent = `${partialRows.length}건 · 완료율 높은 순`;
+  completedBody.innerHTML = renderGeneratedRows(completedRows, '100% 완료된 결과가 없습니다.');
+  partialBody.innerHTML = renderGeneratedRows(partialRows, '부분완료 결과가 없습니다.');
+  generatedResultsLoaded = true;
+  const firstRow = completedRows[0] || partialRows[0];
+  if (firstRow) showGeneratedResult(firstRow.id);
+}
 async function showGeneratedResult(resultId) {
   const container = document.getElementById('generated-result-detail');
   if (!container) return;

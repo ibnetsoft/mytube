@@ -175,9 +175,7 @@ export function normalizeImageGridPrompts(structure: any): any[] {
 
 export function topicHasReadyImageGridPrompts(topic: any): boolean {
     const structure = topic?.pregenerated_structure || {}
-    const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
-    if (scenes.length === 0) return false
-    return true
+    return normalizeImageGridPrompts(structure).length > 0
 }
 
 export function topicHasReadyScenePrompts(topic: any): boolean {
@@ -195,12 +193,12 @@ export function isPreparedStdTopic(topic: any): boolean {
     const hasTitle = Boolean(firstText(topic?.generated_title, topic?.topic))
     const struct = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    const hasStructure = scenes.length >= 20 || topic?.pregenerated_structure_status === 'completed'
-    const hasScript = Boolean(String(topic?.pregenerated_script || '').trim().length > 100 || topic?.pregenerated_script_status === 'completed')
-    const hasMediaPrompts = Boolean(
-        struct?.media_prompt_status === 'completed' ||
-        (scenes.length > 0 && scenes.some((s: any) => Boolean(s?.prompt_en || s?.video_prompt || s?.image_prompt || s?.prompt)))
+    const hasStructure = Boolean((topic?.pregenerated_structure_status === 'ready' || topic?.pregenerated_structure_status === 'completed') && scenes.length >= 20)
+    const hasScript = Boolean(
+        (topic?.pregenerated_script_status === 'ready' || topic?.pregenerated_script_status === 'completed')
+        && String(topic?.pregenerated_script || '').trim().length > 100
     )
+    const hasMediaPrompts = topicHasReadyImageGridPrompts(topic)
     const hasDescription = topicHasPublishDescription(topic)
 
     // 대시보드의 대기주제 조건(ready)과 100% 동일하게 모든 기획/대본/프롬프트가 완성된 주제만 선별
@@ -236,36 +234,7 @@ export function buildStdScenes(topic: any) {
 
 export function buildStdImageGridPrompts(topic: any) {
     const struct = topic?.pregenerated_structure || {}
-    const existingGrids = normalizeImageGridPrompts(struct)
-    if (existingGrids.length > 0) return existingGrids
-
-    // Fallback: auto generate 2x2 grid prompts from scenes in batches of 4
-    const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    if (scenes.length === 0) return []
-
-    const grids = []
-    const chunkSize = 4
-    for (let i = 0; i < scenes.length; i += chunkSize) {
-        const chunk = scenes.slice(i, i + chunkSize)
-        const sceneNumbers = chunk.map((s: any, idx: number) => Number(s?.scene_order || s?.scene_number || i + idx + 1))
-        const gridNum = Math.floor(i / chunkSize) + 1
-        const startNum = sceneNumbers[0]
-        const endNum = sceneNumbers[sceneNumbers.length - 1]
-        const panelPrompts = chunk.map((s: any, idx: number) => {
-            const text = firstText(s?.script_excerpt, s?.scene_situation, s?.scene_summary, `Scene ${startNum + idx}`)
-            return `Panel ${idx + 1}: ${text}`
-        }).join('. ')
-
-        grids.push({
-            grid_number: gridNum,
-            template: 'strict_2x2_v1',
-            scene_numbers: sceneNumbers,
-            scene_ids: chunk.map((s: any) => s?.scene_id || ''),
-            panel_count: 4,
-            prompt: `2x2 Grid Scene ${startNum}~${endNum}: Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). There must be NO borders, NO margins, NO text. ${panelPrompts}. Cinematic realistic 8k photorealism.`
-        })
-    }
-    return grids
+    return normalizeImageGridPrompts(struct)
 }
 
 export function normalizeTopicSummary(topic: any) {

@@ -141,6 +141,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
             ...existingProgress,
             publish_metadata: resultPayload.publish_metadata || existingProgress.publish_metadata || null,
             pregenerated_script_status: 'ready',
+            ...(resultPayload.structure ? { pregenerated_structure_status: 'ready' } : {}),
             prepared_topic_ready: true,
             prepared_topic_ready_at: new Date().toISOString(),
         }
@@ -149,6 +150,13 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
             .update({
                 pregenerated_script: script,
                 pregenerated_script_status: 'ready',
+                ...(resultPayload.structure ? {
+                    pregenerated_structure: resultPayload.structure,
+                    pregenerated_structure_status: 'ready',
+                    total_scenes: Array.isArray(resultPayload.structure?.scenes)
+                        ? resultPayload.structure.scenes.length
+                        : resultPayload.structure?.scene_count || null,
+                } : {}),
                 ...(resultPayload.publish_metadata ? { publish_metadata: resultPayload.publish_metadata } : {}),
                 progress_payload: progressPayload,
                 narrative_blueprint: resultPayload.narrative_blueprint || null,
@@ -178,10 +186,12 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                     topic_queue_id: String(topicQueueId),
                     topic: resultPayload.topic || jobPayload.topic,
                     script,
-                    structure: jobPayload.structure || {},
+                    structure: resultPayload.structure || jobPayload.structure || {},
                     upload_title: resultPayload.upload_title || jobPayload.upload_title,
                     title_generation: resultPayload.title_generation || jobPayload.title_generation,
                     narrative_blueprint: resultPayload.narrative_blueprint || {},
+                    script_quality_report: resultPayload.script_quality_report || {},
+                    defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
                     language: jobPayload.language,
                 },
                 status: 'pending',
@@ -208,8 +218,16 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
         if (!job || job.status !== 'completed' || job.job_type !== 'publish_metadata_generate') return
 
         const topicQueueId = job.payload?.topic_queue_id
-        const publishMetadata = job.result_payload?.publish_metadata
+        const resultPayload = job.result_payload || {}
+        const publishMetadata = resultPayload.publish_metadata
         if (!topicQueueId || !publishMetadata) return
+        const structure = resultPayload.structure && typeof resultPayload.structure === 'object'
+            ? resultPayload.structure
+            : null
+        const script = typeof resultPayload.script === 'string' ? resultPayload.script : ''
+        const sceneCount = Array.isArray(structure?.scenes)
+            ? structure.scenes.length
+            : structure?.scene_count || null
 
         const { data: existingTopic } = await supabaseAdmin
             .from('topics_queue')
@@ -223,16 +241,48 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
             ...existingProgress,
             publish_metadata: publishMetadata,
             publish_metadata_status: 'ready',
+            pregenerated_script_status: script ? 'ready' : existingProgress.pregenerated_script_status,
+            pregenerated_structure_status: structure ? 'ready' : existingProgress.pregenerated_structure_status,
+            prepared_topic_ready: true,
+            prepared_topic_ready_at: new Date().toISOString(),
         }
+
+        const updatePayload: Record<string, any> = {
+            status: 'pending',
+            publish_metadata: publishMetadata,
+            publish_metadata_status: 'ready',
+            progress_payload: progressPayload,
+        }
+        if (script) {
+            updatePayload.pregenerated_script = script
+            updatePayload.pregenerated_script_status = 'ready'
+        }
+        if (structure) {
+            updatePayload.pregenerated_structure = structure
+            updatePayload.pregenerated_structure_status = 'ready'
+        }
+        if (sceneCount) updatePayload.total_scenes = sceneCount
+        if (resultPayload.generated_title || resultPayload.upload_title) {
+            updatePayload.generated_title = resultPayload.generated_title || resultPayload.upload_title
+        }
+        if (resultPayload.narrative_blueprint) updatePayload.narrative_blueprint = resultPayload.narrative_blueprint
+        if (resultPayload.script_quality_report) updatePayload.script_quality_report = resultPayload.script_quality_report
 
         let { error } = await supabaseAdmin
             .from('topics_queue')
-            .update({
-                publish_metadata: publishMetadata,
-                publish_metadata_status: 'ready',
-                progress_payload: progressPayload,
-            })
+            .update(updatePayload)
             .eq('id', topicQueueId)
+
+        if (error) {
+            const fallbackPayload = { ...updatePayload }
+            delete fallbackPayload.narrative_blueprint
+            delete fallbackPayload.script_quality_report
+            const fallback = await supabaseAdmin
+                .from('topics_queue')
+                .update(fallbackPayload)
+                .eq('id', topicQueueId)
+            error = fallback.error
+        }
 
         if (error) {
             const fallback = await supabaseAdmin

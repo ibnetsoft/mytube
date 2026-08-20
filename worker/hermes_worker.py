@@ -7055,7 +7055,11 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "status": "COMPLETED",
         "topic_queue_id": topic_queue_id,
         "topic": topic,
+        "generated_title": upload_title,
         "upload_title": upload_title,
+        "script": script,
+        "structure": structure,
+        "narrative_blueprint": narrative_blueprint,
         "publish_metadata": publish_metadata,
         "script_quality_report": script_quality_report,
         "stage_quality_report": metadata_stage_report,
@@ -7097,7 +7101,6 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
         if result_payload.get("defer_ready_until_quality_gate") and job_type in {
             "script_plan_generate",
             "script_generate",
-            "publish_metadata_generate",
         }:
             job_log.info(
                 "Quality-gated autopilot job complete locally; deferring Supabase ready sync "
@@ -7227,11 +7230,38 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if not tq_id:
                 job_log.info("No topic_queue_id in publish metadata result - skipping Supabase update")
                 return
-            patch_data = {
+            structure = result_payload.get("structure") if isinstance(result_payload.get("structure"), dict) else {}
+            scene_count = (
+                structure.get("scene_count")
+                or len(structure.get("scenes") or [])
+                or result_payload.get("total_scenes")
+            )
+            progress_payload = {
                 "publish_metadata": result_payload.get("publish_metadata"),
-                "progress_payload": {"publish_metadata": result_payload.get("publish_metadata")},
-                "publish_metadata_status": "ready",
+                "pregenerated_script_status": "ready",
+                "pregenerated_structure_status": "ready",
+                "prepared_topic_ready": True,
+                "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
+            patch_data = {
+                "status": "pending",
+                "publish_metadata": result_payload.get("publish_metadata"),
+                "progress_payload": progress_payload,
+                "pregenerated_script_status": "ready",
+                "pregenerated_structure_status": "ready",
+            }
+            if result_payload.get("script"):
+                patch_data["pregenerated_script"] = result_payload.get("script")
+            if structure:
+                patch_data["pregenerated_structure"] = structure
+            if result_payload.get("generated_title") or result_payload.get("upload_title"):
+                patch_data["generated_title"] = result_payload.get("generated_title") or result_payload.get("upload_title")
+            if scene_count:
+                patch_data["total_scenes"] = scene_count
+            if result_payload.get("narrative_blueprint"):
+                patch_data["narrative_blueprint"] = result_payload.get("narrative_blueprint")
+            if result_payload.get("script_quality_report"):
+                patch_data["script_quality_report"] = result_payload.get("script_quality_report")
             r = _req.patch(
                 f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
                 headers={**headers, "Prefer": "return=minimal"},
@@ -7240,8 +7270,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             )
             if r.status_code not in (200, 204):
                 fallback = {
-                    "publish_metadata": result_payload.get("publish_metadata"),
-                    "progress_payload": {"publish_metadata": result_payload.get("publish_metadata")},
+                    key: value for key, value in patch_data.items()
+                    if key not in ("narrative_blueprint", "script_quality_report")
                 }
                 r = _req.patch(
                     f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
@@ -7249,8 +7279,19 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                     json=fallback,
                     timeout=10,
                 )
+            if r.status_code not in (200, 204):
+                metadata_only = {
+                    "publish_metadata": result_payload.get("publish_metadata"),
+                    "progress_payload": progress_payload,
+                }
+                r = _req.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json=metadata_only,
+                    timeout=10,
+                )
             if r.status_code in (200, 204):
-                job_log.info(f"Supabase: updated topics_queue#{tq_id} with publish metadata")
+                job_log.info(f"Supabase: updated topics_queue#{tq_id} with final prepared topic package")
             else:
                 job_log.warning(f"Supabase patch failed: {r.status_code} {r.text[:200]}")
 
