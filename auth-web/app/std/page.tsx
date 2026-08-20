@@ -603,6 +603,7 @@ export default function StdPortalPage() {
     const [thumbStyle, setThumbStyle] = useState('realistic')
     const [thumbStep, setThumbStep] = useState<number>(1)
     const [thumbBgUrl, setThumbBgUrl] = useState('')
+    const [thumbBgUploadFile, setThumbBgUploadFile] = useState<File | null>(null)
     const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
         id: string
         text: string
@@ -637,140 +638,6 @@ export default function StdPortalPage() {
             y: 65,
         }
     ])
-
-    // NotebookLM AI Grounded Script & Dialogue state
-    const [useNotebookLM, setUseNotebookLM] = useState(false)
-    const [nlmSourceText, setNlmSourceText] = useState('')
-    const [nlmMode, setNlmMode] = useState<'dialogue_podcast' | 'narrator'>('dialogue_podcast')
-    const [nlmCategory, setNlmCategory] = useState('옛날이야기')
-    const [nlmDuration, setNlmDuration] = useState(15)
-    const [nlmCustomTitle, setNlmCustomTitle] = useState('')
-    const [nlmGenerating, setNlmGenerating] = useState(false)
-
-    const handleGenerateNotebookLM = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault()
-        if (!nlmSourceText.trim()) {
-            alert('참고자료(뉴스, 기사, 사료, PDF 내용, 메모 등)를 입력해주세요.')
-            return
-        }
-        try {
-            setNlmGenerating(true)
-            const reqHeaders: Record<string, string> = {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {})
-            }
-            if (isImpersonating && impersonateEmail) {
-                reqHeaders['x-impersonate-email'] = impersonateEmail
-            }
-            const res = await fetch('/api/std/notebooklm/generate', {
-                method: 'POST',
-                headers: reqHeaders,
-                body: JSON.stringify({
-                    source_text: nlmSourceText,
-                    mode: nlmMode,
-                    category: nlmCategory,
-                    duration_minutes: nlmDuration,
-                    custom_title: nlmCustomTitle,
-                })
-            })
-            const data = await res.json()
-            if (!res.ok || !data.success) {
-                throw new Error(data.error || '노트북LM 대본 생성 실패')
-            }
-
-            const newProject = data.project
-            setProjects(prev => [newProject, ...prev.filter(p => p.id !== newProject.id)])
-            setSelectedProject({
-                project: newProject,
-                scenes: newProject.project_payload?.scenes || []
-            })
-            setCustomScriptText(newProject.project_payload?.script || '')
-
-            if (data.dialogue_mode) {
-                setMultiVoice(true)
-            }
-
-            localStorage.setItem('std_active_project_id', newProject.id)
-            localStorage.setItem('std_active_project_state', JSON.stringify({
-                project: newProject,
-                scenes: newProject.project_payload?.scenes || []
-            }))
-
-            setMessage(`'${newProject.title}' 프로젝트가 생성되었습니다! (노트북LM ${data.dialogue_mode ? '2인 대화 팟캐스트' : '1인 심층 내레이션'} 모드)`)
-            setCurrentNav('tts')
-        } catch (err: any) {
-            alert('노트북LM 대본 생성 오류: ' + (err.message || String(err)))
-        } finally {
-            setNlmGenerating(false)
-        }
-    }
-
-    // Main Character Anchor & Consistency state
-    const [mainCharacter, setMainCharacter] = useState<any>(null)
-    const [generatingCharacter, setGeneratingCharacter] = useState(false)
-    const [characterModalOpen, setCharacterModalOpen] = useState(false)
-
-    useEffect(() => {
-        if (selectedProject?.project?.project_payload?.main_character) {
-            setMainCharacter(selectedProject.project.project_payload.main_character)
-        } else {
-            setMainCharacter(null)
-        }
-    }, [selectedProject])
-
-    const handleGenerateMainCharacter = async () => {
-        if (!selectedProject) {
-            alert('먼저 프로젝트를 선택해주세요.')
-            return
-        }
-        const scriptText = customScriptText || selectedProject.project?.project_payload?.script || selectedProject.scenes?.map((s: any) => s.text).join('\n')
-        if (!scriptText) {
-            alert('대본 내용이 없습니다. 대본을 먼저 작성하거나 불러와주세요.')
-            return
-        }
-        try {
-            setGeneratingCharacter(true)
-            const reqHeaders: Record<string, string> = {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {})
-            }
-            if (isImpersonating && impersonateEmail) {
-                reqHeaders['x-impersonate-email'] = impersonateEmail
-            }
-            const res = await fetch('/api/std/characters/anchor', {
-                method: 'POST',
-                headers: reqHeaders,
-                body: JSON.stringify({
-                    project_id: selectedProject.project?.id,
-                    script_text: scriptText,
-                    category: selectedProject.project?.category || '옛날이야기'
-                })
-            })
-            const data = await res.json()
-            if (res.ok && data.success && data.character) {
-                setMainCharacter(data.character)
-                const updatedProject = {
-                    ...selectedProject,
-                    project: {
-                        ...selectedProject.project,
-                        project_payload: {
-                            ...selectedProject.project?.project_payload,
-                            main_character: data.character
-                        }
-                    }
-                }
-                setSelectedProject(updatedProject)
-                localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
-                setMessage(`주인공 캐릭터 "${data.character.name || '주인공'}" DNA가 등록되어 전체 씬에 적용되었습니다!`)
-            } else {
-                throw new Error(data.error || '캐릭터 생성 실패')
-            }
-        } catch (err: any) {
-            alert('캐릭터 앵커 생성 실패: ' + (err.message || String(err)))
-        } finally {
-            setGeneratingCharacter(false)
-        }
-    }
 
     // 전체 대본 내용을 53개 씬 및 자막과 100% 일치 동기화하는 함수
     const handleSyncScriptToScenesAndSubtitles = (showSuccessAlert: boolean = true) => {
@@ -1791,6 +1658,128 @@ export default function StdPortalPage() {
             setMessage(error.message || '업로드 실패')
         } finally {
             setUploadingKey('')
+        }
+    }
+
+    const handleThumbnailBgFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+        if (!file.type.startsWith('image/')) {
+            alert('썸네일 배경으로 사용할 이미지 파일만 업로드할 수 있습니다.')
+            event.target.value = ''
+            return
+        }
+        const objectUrl = URL.createObjectURL(file)
+        setThumbBgUrl(objectUrl)
+        setThumbBgUploadFile(file)
+        setMessage(`썸네일 배경 이미지 (${file.name})가 적용되었습니다.`)
+        event.target.value = ''
+    }
+
+    const uploadThumbnailBgToDrive = async (file: File) => {
+        if (!selectedProject?.project?.id) return
+        setUploadingKey('thumbnail-upload')
+        setMessage('썸네일 이미지를 업로드하는 중...')
+        try {
+            const initRes = await fetch(`/api/std/projects/${selectedProject.project.id}/assets/init`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    asset_type: 'thumbnail',
+                    mime_type: file.type || 'image/png',
+                    file_name: file.name,
+                    file_size: file.size,
+                }),
+            })
+            const initPayload = await safeParseJson(initRes, '썸네일 업로드 준비 실패')
+            if (!initRes.ok || !initPayload.upload_url) {
+                throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
+            }
+
+            const uploadRes = await fetch(initPayload.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file,
+            })
+            const uploadPayload = await safeParseJson(uploadRes, '썸네일 Drive 업로드 실패')
+            if (!uploadRes.ok || !uploadPayload.id) {
+                throw new Error(uploadPayload.error || '썸네일 Drive 업로드 실패')
+            }
+
+            const completeRes = await fetch(`/api/std/projects/${selectedProject.project.id}/assets/complete`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    drive_file_id: uploadPayload.id,
+                    asset_type: 'thumbnail',
+                    target_folder_id: initPayload.target_folder_id,
+                    file_name: file.name,
+                    mime_type: file.type,
+                    file_size: file.size,
+                }),
+            })
+            const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
+            if (!completeRes.ok || completePayload.success === false) {
+                throw new Error(completePayload.error || '썸네일 업로드 완료 처리 실패')
+            }
+
+            setSelectedProject(prev => {
+                if (!prev) return prev
+                return {
+                    ...prev,
+                    assets: [
+                        completePayload.asset,
+                        ...prev.assets.filter(a => a.asset_type !== 'thumbnail'),
+                    ],
+                    project: {
+                        ...prev.project,
+                        progress_payload: {
+                            ...(prev.project.progress_payload || {}),
+                            thumbnail_completed: true,
+                        },
+                    },
+                }
+            })
+            setThumbBgUploadFile(null)
+            setMessage(`썸네일 이미지 (${file.name}) 업로드가 완료되었습니다.`)
+        } finally {
+            setUploadingKey('')
+        }
+    }
+
+    const markThumbnailConfirmed = async () => {
+        if (!selectedProject?.project?.id) return
+        const confirmedAt = new Date().toISOString()
+        const progressPatch = {
+            thumbnail_completed: true,
+            thumbnail_url: thumbBgUrl || '',
+            thumbnail_confirmed_at: confirmedAt,
+        }
+
+        setSelectedProject(prev => {
+            if (!prev) return prev
+            const updated = {
+                ...prev,
+                project: {
+                    ...prev.project,
+                    progress_payload: {
+                        ...(prev.project.progress_payload || {}),
+                        ...progressPatch,
+                    },
+                },
+            }
+            localStorage.setItem('std_active_project_state', JSON.stringify(updated))
+            return updated
+        })
+
+        const res = await fetch(`/api/std/projects/${selectedProject.project.id}`, {
+            method: 'PATCH',
+            headers: authedJsonHeaders,
+            body: JSON.stringify({ progress_payload: progressPatch }),
+        })
+        const payload = await safeParseJson(res, '썸네일 완료 상태 저장 실패')
+        if (!res.ok || payload.success === false) {
+            throw new Error(payload.error || '썸네일 완료 상태 저장 실패')
         }
     }
 
@@ -4038,658 +4027,6 @@ export default function StdPortalPage() {
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
 
-                            {/* [주인공 캐릭터 앵커 & 일관성 DNA 미리보기 바] */}
-                            <div className="bg-[#181d26] border border-white/10 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
-                                <div className="flex items-center gap-3.5">
-                                    {/* 캐릭터 대표 이미지 썸네일 */}
-                                    <div
-                                        onClick={() => mainCharacter?.image_url && setCharacterModalOpen(true)}
-                                        className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/40 border border-white/15 shrink-0 flex items-center justify-center shadow-inner group cursor-pointer"
-                                    >
-                                        {mainCharacter?.image_url ? (
-                                            <img src={mainCharacter.image_url} alt="주인공 캐릭터" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <span className="text-2xl">👤</span>
-                                        )}
-                                        {mainCharacter?.image_url && (
-                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                                                <span className="text-[10px] text-white font-bold">확대</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* 캐릭터 정보 */}
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-black text-white">
-                                                {mainCharacter?.name || '영상 주인공 캐릭터'}
-                                            </span>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${mainCharacter ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}>
-                                                {mainCharacter ? '🎨 캐릭터 일관성 DNA 적용 중' : '미등록 (자동 감지 가능)'}
-                                            </span>
-                                            {mainCharacter?.age_group && (
-                                                <span className="text-[10px] text-gray-400 font-mono">({mainCharacter.age_group})</span>
-                                            )}
-                                        </div>
-                                        <p className="text-[11px] text-gray-400 leading-snug line-clamp-1 max-w-xl">
-                                            {mainCharacter?.visual_dna_en || '대본을 분석하여 주인공의 얼굴, 복장, 분위기를 53개 씬에 동일하게 유지합니다.'}
-                                        </p>
-                                        {mainCharacter?.tags && mainCharacter.tags.length > 0 && (
-                                            <div className="flex flex-wrap gap-1 pt-0.5">
-                                                {mainCharacter.tags.map((tag: string, i: number) => (
-                                                    <span key={i} className="text-[9px] px-1.5 py-0.2 bg-white/5 text-gray-300 rounded border border-white/5">
-                                                        #{tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* 버튼 액션 */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={handleGenerateMainCharacter}
-                                        disabled={generatingCharacter}
-                                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 disabled:opacity-50"
-                                    >
-                                        <span>{generatingCharacter ? '⏳' : '✨'}</span>
-                                        <span>{generatingCharacter ? '캐릭터 생성 중...' : (mainCharacter ? '캐릭터 재추출' : '주인공 캐릭터 자동 생성')}</span>
-                                    </button>
-                                    {mainCharacter && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setCharacterModalOpen(true)}
-                                            className="px-3 py-2 bg-white/10 hover:bg-white/20 text-gray-200 rounded-xl text-xs font-bold transition flex items-center gap-1"
-                                        >
-                                            <span>🔍</span> 상세 보기
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* 캐릭터 상세 모달 팝업 */}
-                            {characterModalOpen && mainCharacter && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-                                    <div className="bg-[#1c2027] border border-white/20 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 relative text-left">
-                                        <button
-                                            type="button"
-                                            onClick={() => setCharacterModalOpen(false)}
-                                            className="absolute top-4 right-4 text-gray-400 hover:text-white font-bold p-1"
-                                        >
-                                            ✕
-                                        </button>
-                                        <div className="flex items-center gap-3 border-b border-white/10 pb-3">
-                                            <span className="text-xl">👤</span>
-                                            <div>
-                                                <h4 className="text-sm font-bold text-white">{mainCharacter.name}</h4>
-                                                <span className="text-[10px] text-emerald-400">영상 공통 주인공 캐릭터 DNA</span>
-                                            </div>
-                                        </div>
-
-                                        {mainCharacter.image_url ? (
-                                            <div className="w-full aspect-square rounded-2xl overflow-hidden border border-white/10 bg-black/40 shadow-inner">
-                                                <img src={mainCharacter.image_url} alt="캐릭터 앵커 이미지" className="w-full h-full object-cover" />
-                                            </div>
-                                        ) : (
-                                            <div className="w-full py-12 bg-black/30 rounded-2xl border border-dashed border-white/10 text-center text-xs text-gray-500">
-                                                생성된 대표 이미지가 없습니다.
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-1.5 text-xs">
-                                            <span className="text-gray-400 font-bold block">영문 고정 프롬프트 (Visual DNA)</span>
-                                            <p className="p-3 bg-black/40 rounded-xl border border-white/5 text-gray-300 font-mono text-[11px] leading-relaxed">
-                                                {mainCharacter.visual_dna_en}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex justify-end pt-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(mainCharacter.visual_dna_en || '')
-                                                    alert('캐릭터 DNA 프롬프트가 복사되었습니다.')
-                                                }}
-                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition"
-                                            >
-                                                📋 DNA 프롬프트 복사
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="bg-[#1a1f29] border border-white/10 rounded-xl p-5 shadow-lg space-y-4">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
-                                    <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                                        <span>🎨</span> 생성된 씬 프롬프트
-                                    </h3>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <button
-                                            onClick={toggleSelectAll}
-                                            className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 flex items-center gap-1.5 transition-all"
-                                        >
-                                            <span>{selectedSceneIndexes.length === selectedProject.scenes.length ? '☑' : '☐'}</span> 전체 선택
-                                        </button>
-                                        <label className="cursor-pointer px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-xs font-bold flex items-center gap-1.5 transition-all">
-                                            <span>🖼️</span> 이미지 일괄등록
-                                            <input
-                                                type="file"
-                                                multiple
-                                                accept="image/*,video/*"
-                                                className="hidden"
-                                                onChange={e => handleBulkImageUpload(e.target.files)}
-                                            />
-                                        </label>
-                                        <button
-                                            onClick={() => alert('등록된 모든 이미지를 다운로드합니다.')}
-                                            className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
-                                        >
-                                            이미지 일괄 다운로드
-                                        </button>
-                                        <button
-                                            onClick={copyAllPrompts}
-                                            className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
-                                        >
-                                            전체 복사
-                                        </button>
-                                        <button
-                                            onClick={() => alert('프롬프트 변경 사항이 저장되었습니다!')}
-                                            className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-xs font-bold flex items-center gap-1 transition-all"
-                                        >
-                                            <span>💾</span> 전체 저장
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2 pt-1">
-                                    {imageGridPrompts.map((grid: any, idx: number) => {
-                                        const label = grid.label || (grid.scene_numbers ? `${grid.scene_numbers[0]}-${grid.scene_numbers[grid.scene_numbers.length - 1]}` : `${idx * 4 + 1}-${idx * 4 + 4}`)
-                                        return (
-                                            <button
-                                                key={grid.grid_number || idx}
-                                                onClick={() => copyPromptText(grid.prompt)}
-                                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold transition-all shadow-sm"
-                                            >
-                                                {label}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-
-                            <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
-                                    <div>
-                                        <h3 className="font-bold text-sm text-white">씬 에셋 검토</h3>
-                                        <p className="text-xs text-gray-400 mt-0.5">계속하기 전에 프롬프트, 가져온 이미지, 최종 클립을 검토하세요.</p>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                                        <button
-                                            onClick={() => alert('2x2 분할 이미지를 크롭하여 씬별로 배정합니다.')}
-                                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition-all shadow-sm"
-                                        >
-                                            2x2 크롭 가져오기
-                                        </button>
-                                        <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">씬 {assetStats.totalScenes}</span>
-                                        <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">이미지 {assetStats.imageCount}</span>
-                                        <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">영상 {assetStats.videoCount}</span>
-                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/12</span>
-                                        <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">비주얼 누락 {assetStats.missingScenes.length}</span>
-                                    </div>
-                                </div>
-
-                                <div className="px-5 space-y-2">
-                                    <div className="flex items-center justify-between text-xs text-gray-400">
-                                        <span>전체 에셋 완성도</span>
-                                        <span className="text-white font-bold font-mono">{assetStats.completion}%</span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-[#11141a] overflow-hidden">
-                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${assetStats.completion}%` }} />
-                                    </div>
-                                    {assetStats.missingScenes.length > 0 && (
-                                        <p className="text-xs text-amber-400 pt-1">
-                                            에셋 누락: {assetStats.missingScenes.join(', ')}
-                                        </p>
-                                    )}
-                                    {assetStats.requiredZoneOnlyImage.length > 0 && (
-                                        <p className="text-xs text-orange-400">
-                                            🔒 초반 구간 영상 필요 (이미지만 있음: {assetStats.requiredZoneOnlyImage.join(', ')})
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div className="p-4 border-t border-white/5 space-y-4">
-                                    {/* 1. 초반 필수 영상 구간 (1~12씬 - 진한 주황색) */}
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                                                <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">
-                                                    초반 1분 필수 영상 구간 (씬 1 ~ 12)
-                                                </span>
-                                            </div>
-                                            <span className="text-[10px] text-gray-400 font-mono">
-                                                완료: {selectedProject.scenes.filter(s => (s.scene_number <= 12) && Boolean(s.video_url)).length} / 12
-                                            </span>
-                                        </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                                            {selectedProject.scenes.slice(0, 12).map((scene: any, idx: number) => {
-                                                const sNum = scene.scene_number || idx + 1
-                                                const isReady = Boolean(scene.video_url)
-                                                return (
-                                                    <div
-                                                        key={scene.id || idx}
-                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between min-h-[76px] ${
-                                                            isReady
-                                                                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
-                                                                : 'bg-orange-950/20 border-orange-500/50 hover:border-orange-400 shadow-sm'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-black px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                                                                #{sNum}
-                                                            </span>
-                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : 'text-orange-400'}`}>
-                                                                {isReady ? '✅ 영상 완료' : '영상 없음'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const el = document.getElementById(`prompt-card-${idx}`)
-                                                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                                                }}
-                                                                className="text-gray-400 hover:text-white transition-colors"
-                                                            >
-                                                                보기
-                                                            </button>
-                                                            <span className="text-gray-600">|</span>
-                                                            <label className="cursor-pointer text-orange-400 hover:text-orange-300 transition-colors">
-                                                                {isReady ? '교체' : '업로드'}
-                                                                <input
-                                                                    type="file"
-                                                                    accept="video/*"
-                                                                    className="hidden"
-                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    {/* 2. 본문 이미지/영상 구간 (13~53씬 - 흐린 주황/앰버색) */}
-                                    <div className="space-y-2 pt-2 border-t border-white/5">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="w-2 h-2 rounded-full bg-amber-500/70" />
-                                                <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    본문 이미지 구간 (씬 13 ~ {selectedProject.scenes.length})
-                                                </span>
-                                            </div>
-                                            <span className="text-[10px] text-gray-400 font-mono">
-                                                완료: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
-                                            </span>
-                                        </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                                            {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
-                                                const idx = offsetIdx + 12
-                                                const sNum = scene.scene_number || idx + 1
-                                                const isReady = Boolean(scene.image_url || scene.video_url)
-                                                return (
-                                                    <div
-                                                        key={scene.id || idx}
-                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between min-h-[76px] ${
-                                                            isReady
-                                                                ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
-                                                                : 'bg-[#181d26] border-amber-500/30 hover:border-amber-400/60 shadow-sm'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">
-                                                                #{sNum}
-                                                            </span>
-                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : 'text-amber-400/80'}`}>
-                                                                {isReady ? '✅ 이미지 완료' : '이미지 없음'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const el = document.getElementById(`prompt-card-${idx}`)
-                                                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                                                }}
-                                                                className="text-gray-400 hover:text-white transition-colors"
-                                                            >
-                                                                보기
-                                                            </button>
-                                                            <span className="text-gray-600">|</span>
-                                                            <label className="cursor-pointer text-amber-400 hover:text-amber-300 transition-colors">
-                                                                {isReady ? '교체' : '업로드'}
-                                                                <input
-                                                                    type="file"
-                                                                    accept="image/*,video/*"
-                                                                    className="hidden"
-                                                                    onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 border-t border-white/5 bg-[#181d26] space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-xs font-bold text-gray-300">최종 클립 순서</h4>
-                                        <span className="text-[11px] text-gray-400 font-mono">
-                                            영상 등록 완료: {selectedProject.scenes.filter(s => Boolean(s.video_url)).length} / {selectedProject.scenes.length}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        {selectedProject.scenes.filter(s => Boolean(s.video_url)).length > 0 ? (
-                                            selectedProject.scenes.filter(s => Boolean(s.video_url)).map(s => (
-                                                <div key={s.scene_number} className="flex items-center gap-2 bg-[#14181f] px-3 py-1.5 rounded border border-white/5 text-xs">
-                                                    <span className="font-bold text-white">씬 {s.scene_number}</span>
-                                                    <span className="text-purple-400 font-mono truncate max-w-[200px]">
-                                                        {s.video_url?.split('/').pop() || `clip_scene_${s.scene_number}.mp4`}
-                                                    </span>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="text-xs text-gray-500 py-1">
-                                                아직 등록된 영상 클립이 없습니다.
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center justify-between pt-2">
-                                        {selectedProject.scenes.filter(s => !s.video_url).length > 0 ? (
-                                            <p className="text-xs text-amber-400 font-mono truncate max-w-xl">
-                                                영상 미등록: {selectedProject.scenes.filter(s => !s.video_url).map(s => s.scene_number).slice(0, 15).join(', ')}
-                                                {selectedProject.scenes.filter(s => !s.video_url).length > 15 ? ` 외 ${selectedProject.scenes.filter(s => !s.video_url).length - 15}개` : ''}
-                                            </p>
-                                        ) : (
-                                            <p className="text-xs text-emerald-400 font-mono">
-                                                ✅ 모든 씬의 영상 클립이 등록되었습니다.
-                                            </p>
-                                        )}
-                                        <button
-                                            onClick={() => setCurrentNav('tts')}
-                                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md"
-                                        >
-                                            TTS 음성 생성으로 이동하기 →
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {selectedProject.scenes.map((scene: any, i: number) => {
-                                    const sceneNum = scene.scene_number || i + 1
-                                    const inRequiredZone = isStdRequiredVideoScene(sceneNum)
-                                    const isDual = Boolean(dualFrameStates[i])
-                                    const isSelected = selectedSceneIndexes.includes(i)
-
-                                    return (
-                                        <div
-                                            key={scene.id || i}
-                                            id={`prompt-card-${i}`}
-                                            className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow-sm transition-all"
-                                        >
-                                            <div className="flex items-center justify-between px-4 py-2.5 bg-[#14181f] border-b border-white/5">
-                                                <div className="flex items-center gap-3">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => toggleSceneSelect(i)}
-                                                        className="w-4 h-4 rounded border-gray-600 text-blue-600 cursor-pointer bg-transparent"
-                                                    />
-                                                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
-                                                        {sceneNum}
-                                                    </span>
-                                                    <span className="font-bold text-white text-xs">Scene {sceneNum}</span>
-                                                    <span className="text-xs text-gray-400 truncate max-w-md" title={getSceneScriptStartText(scene, i)}>
-                                                        📄 {getSceneScriptStartText(scene, i)}
-                                                    </span>
-                                                </div>
-                                                <label className="flex items-center gap-2 cursor-pointer bg-[#202632] px-2 py-1 rounded border border-white/5">
-                                                    <span className="text-[10px] font-bold text-gray-400">Dual Frame</span>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isDual}
-                                                        onChange={e => setDualFrameStates(prev => ({ ...prev, [i]: e.target.checked }))}
-                                                        className="sr-only peer"
-                                                    />
-                                                    <div className="relative w-7 h-4 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
-                                                </label>
-                                            </div>
-
-                                            <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
-                                                <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
-                                                    {inRequiredZone && (
-                                                        <div className="absolute top-2 left-2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow z-10">
-                                                            영상 필수
-                                                        </div>
-                                                    )}
-                                                    {scene.video_url ? (
-                                                        <>
-                                                            <video
-                                                                src={scene.video_url}
-                                                                className="w-full h-full object-cover"
-                                                                controls
-                                                                loop
-                                                                muted
-                                                            />
-                                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                🎬 Video Ready
-                                                            </div>
-                                                        </>
-                                                    ) : scene.image_url ? (
-                                                        <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
-                                                            <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
-                                                            <span className="text-xs font-bold text-gray-400">{inRequiredZone ? '영상만 등록 가능' : '에셋 없음'}</span>
-                                                            <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
-                                                                📁 {inRequiredZone ? '영상 업로드' : '이미지 업로드'}
-                                                                <input
-                                                                    type="file"
-                                                                    accept={inRequiredZone ? 'video/*' : 'image/*,video/*'}
-                                                                    className="hidden"
-                                                                    onChange={e => uploadAsset(scene, inRequiredZone ? 'video' : 'image', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="lg:col-span-5 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-blue-500/20">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-bold text-blue-400">🌊 Video Prompt</span>
-                                                        <div className="flex items-center gap-1">
-                                                            <button
-                                                                onClick={() => copyPromptText(scene.video_prompt || scene.prompt_en || '')}
-                                                                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-all"
-                                                            >
-                                                                Copy
-                                                            </button>
-                                                            <button
-                                                                onClick={() => alert('프롬프트 편집 모드')}
-                                                                className="text-gray-400 hover:text-gray-200 text-[10px]"
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <p className="text-[11px] text-gray-300 leading-relaxed overflow-hidden line-clamp-5 font-mono">
-                                                        {scene.video_prompt || scene.prompt_en || `Start from the exact image keyframe for scene ${sceneNum}. At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag...`}
-                                                    </p>
-                                                </div>
-
-                                                <div className="lg:col-span-3 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-white/5">
-                                                    <span className="text-[10px] font-bold text-gray-400">📜 Script Context</span>
-                                                    <p className="text-[11px] text-gray-300 leading-relaxed">
-                                                        {scene.scene_text || 'At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife\'s old handbag.'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* [주제 탐색 탭 (유저앱 topic.html 100% 동일 구현 + 상세 모달 + 프로젝트 자동 연동)] */}
-                    {currentNav === 'topics' && (
-                        <div className="space-y-6 max-w-7xl mx-auto w-full pb-10">
-
-                            {/* [✨ Google NotebookLM 모드: 자료 기반 심층 대본 & 2인 대화 팟캐스트 AI 생성 (옵션 토글)] */}
-                            <div className={`border rounded-2xl p-5 shadow-xl transition-all ${useNotebookLM ? 'bg-gradient-to-br from-[#1b1938] to-[#121829] border-purple-500/50 ring-1 ring-purple-500/30' : 'bg-[#1c2027] border-white/10'}`}>
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-2xl">✨</span>
-                                        <div>
-                                            <h3 className="text-sm font-black text-white flex items-center gap-2">
-                                                <span>Google NotebookLM 심층 대본 &amp; 2인 대화 팟캐스트</span>
-                                                <span className="text-[10px] px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full font-bold border border-purple-500/30">AI RAG &amp; Grounding</span>
-                                            </h3>
-                                            <p className="text-[11px] text-gray-400">
-                                                뉴스 기사, PDF 사료, 리포트 등 원문 자료를 입력하면 환각 없이 팩트에 기반한 15~20분 롱폼 대본과 53개 씬을 자동 집필합니다.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {/* 체크 토글 버튼 */}
-                                    <label className="flex items-center gap-2 cursor-pointer select-none bg-black/40 px-3.5 py-2 rounded-xl border border-white/10 hover:border-purple-500/50 transition shrink-0">
-                                        <input
-                                            type="checkbox"
-                                            checked={useNotebookLM}
-                                            onChange={e => setUseNotebookLM(e.target.checked)}
-                                            className="w-4 h-4 rounded text-purple-600 focus:ring-0 cursor-pointer"
-                                        />
-                                        <span className={`text-xs font-bold ${useNotebookLM ? 'text-purple-300' : 'text-gray-400'}`}>
-                                            노트북LM 모드 활성화
-                                        </span>
-                                    </label>
-                                </div>
-
-                                {useNotebookLM && (
-                                    <form onSubmit={handleGenerateNotebookLM} className="pt-4 space-y-4 animate-in fade-in duration-300">
-                                        {/* 1. 포맷 모드 & 카테고리 & 분량 선택 */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            {/* 대본 포맷 모드 */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-gray-300 block">대본 포맷 스타일</label>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setNlmMode('dialogue_podcast')}
-                                                        className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${nlmMode === 'dialogue_podcast' ? 'bg-purple-600/30 border-purple-500 text-white shadow-lg ring-1 ring-purple-400' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
-                                                    >
-                                                        <span className="text-xs font-black">🎙️ 2인 대화 팟캐스트</span>
-                                                        <span className="text-[10px] opacity-70 mt-1">남/여 티키타카 토크쇼</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setNlmMode('narrator')}
-                                                        className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${nlmMode === 'narrator' ? 'bg-purple-600/30 border-purple-500 text-white shadow-lg ring-1 ring-purple-400' : 'bg-black/30 border-white/10 text-gray-400 hover:text-white'}`}
-                                                    >
-                                                        <span className="text-xs font-black">📖 1인 심층 내레이션</span>
-                                                        <span className="text-[10px] opacity-70 mt-1">단독 성우 몰입형 다큐</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* 카테고리 선택 */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-gray-300 block">공식 카테고리</label>
-                                                <select
-                                                    value={nlmCategory}
-                                                    onChange={e => setNlmCategory(e.target.value)}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
-                                                >
-                                                    {STD_OFFICIAL_CATEGORIES.map(c => (
-                                                        <option key={c.id} value={c.name} className="bg-[#161a22]">{c.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-
-                                            {/* 목표 영상 분량 */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-gray-300 block">목표 영상 분량</label>
-                                                <div className="flex gap-2">
-                                                    {[10, 15, 20].map(mins => (
-                                                        <button
-                                                            key={mins}
-                                                            type="button"
-                                                            onClick={() => setNlmDuration(mins)}
-                                                            className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition ${nlmDuration === mins ? 'bg-purple-600 text-white border-purple-500' : 'bg-black/40 text-gray-400 border-white/10 hover:text-white'}`}
-                                                        >
-                                                            {mins}분 롱폼
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* 2. 참고 자료 입력 텍스트 에어리어 */}
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-[11px] font-bold text-purple-300">
-                                                    참고 자료 / 텍스트 붙여넣기 (뉴스 기사, 역사 사료, PDF 내용, 분석 리포트, 메모 등) <span className="text-red-400">*</span>
-                                                </label>
-                                                <span className="text-[10px] text-gray-500 font-mono">{nlmSourceText.length.toLocaleString()}자</span>
-                                            </div>
-                                            <textarea
-                                                rows={5}
-                                                value={nlmSourceText}
-                                                onChange={e => setNlmSourceText(e.target.value)}
-                                                placeholder="여기에 요약할 기사 원문, 사료 기록, 인터뷰 내용, 유튜브 스크립트 등을 그대로 복사해서 붙여넣으세요. Gemini 1.5 Pro가 원문의 팩트에 근거하여 53개 씬의 완벽한 유튜브 롱폼 대본으로 변환합니다."
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 font-mono leading-relaxed"
-                                                required
-                                            />
-                                        </div>
-
-                                        {/* 3. 선택 사항: 사용자 지정 제목 */}
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-gray-400">희망 프로젝트 제목 (비워두면 AI가 최적의 100만 조회수 제목 자동 생성)</label>
-                                            <input
-                                                type="text"
-                                                value={nlmCustomTitle}
-                                                onChange={e => setNlmCustomTitle(e.target.value)}
-                                                placeholder="예: 70년 만에 밝혀진 어느 독립운동가의 숨겨진 비밀 일기"
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
-                                            />
-                                        </div>
-
-                                        {/* 4. 생성 버튼 */}
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-white/5">
-                                            <span className="text-[11px] text-gray-400">
-                                                💡 생성 완료 시 <strong>{nlmMode === 'dialogue_podcast' ? 'TTS 탭의 다중 성우(남/여 진행자)' : 'TTS 탭'}</strong>에 자동 매핑됩니다.
-                                            </span>
-                                            <button
-                                                type="submit"
-                                                disabled={nlmGenerating}
-                                                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
-                                            >
-                                                <span>{nlmGenerating ? '⏳' : '🚀'}</span>
-                                                <span>{nlmGenerating ? 'Gemini 1.5 Pro 대본 & 53개 씬 생성 중...' : 'Gemini 노트북LM AI 대본 & 씬 생성 시작'}</span>
-                                            </button>
-                                        </div>
-                                    </form>
-                                )}
-                            </div>
-
-                            {/* 1. 상단 실시간 트렌드 & 다차원 필터 영역 */}
                             <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
                                     <div className="flex items-center gap-2.5">
@@ -5277,13 +4614,21 @@ export default function StdPortalPage() {
                                     </h3>
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            uploadAsset(null, 'thumbnail', null)
-                                            alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
+                                        onClick={async () => {
+                                            try {
+                                                if (thumbBgUploadFile) {
+                                                    await uploadThumbnailBgToDrive(thumbBgUploadFile)
+                                                }
+                                                await markThumbnailConfirmed()
+                                                alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
+                                            } catch (error: any) {
+                                                alert(error.message || '썸네일 이미지 업로드에 실패했습니다.')
+                                            }
                                         }}
+                                        disabled={uploadingKey === 'thumbnail-upload'}
                                         className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition"
                                     >
-                                        💾 최종 썸네일 확정 저장
+                                        {uploadingKey === 'thumbnail-upload' ? '업로드 중...' : '💾 최종 썸네일 확정 저장'}
                                     </button>
                                 </div>
 
@@ -5474,12 +4819,20 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {/* 하단 배경 교체 버튼들 */}
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <input
+                                            id="thumbnail-bg-upload-input"
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleThumbnailBgFileSelect}
+                                        />
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     if (selectedProject?.scenes?.[0]?.image_url) {
                                                         setThumbBgUrl(selectedProject.scenes[0].image_url)
+                                                        setThumbBgUploadFile(null)
                                                     }
                                                 }}
                                                 className="py-2 bg-[#202632] hover:bg-white/10 rounded-lg font-bold text-gray-200 border border-white/10 transition"
@@ -5488,9 +4841,19 @@ export default function StdPortalPage() {
                                             </button>
                                             <button
                                                 type="button"
+                                                onClick={() => document.getElementById('thumbnail-bg-upload-input')?.click()}
+                                                className="py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg font-bold border border-emerald-500/30 transition"
+                                            >
+                                                ⬆️ 이미지 파일 업로드
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={() => {
                                                     const newUrl = prompt('썸네일 배경 이미지 URL을 입력하세요:', thumbBgUrl)
-                                                    if (newUrl) setThumbBgUrl(newUrl)
+                                                    if (newUrl) {
+                                                        setThumbBgUrl(newUrl)
+                                                        setThumbBgUploadFile(null)
+                                                    }
                                                 }}
                                                 className="py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg font-bold border border-blue-500/30 transition"
                                             >

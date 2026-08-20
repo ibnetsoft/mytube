@@ -1994,27 +1994,6 @@
                 </tr>`;
         }).join('');
 
-        const clipRows = ordered
-            .filter(item => item.scene.video_url)
-            .map(({ scene, index }) => {
-                const number = Number(scene.scene_number || index + 1);
-                return `<a href="${escapeBulkHtml(scene.video_url)}" target="_blank" rel="noopener"
-                           class="flex items-center justify-between gap-3 rounded border border-white/5 bg-[#1c2027] px-3 py-2 hover:border-purple-500/40">
-                            <span class="font-bold text-white">${i18n.th_scene} ${number}</span>
-                            <span class="truncate text-purple-400">${escapeBulkHtml(scene.video_url.split('/').pop())}</span>
-                        </a>`;
-            }).join('');
-
-        const continueControl = readyToContinue
-            ? `<a href="/tts?project_id=${encodeURIComponent(projectId || '')}"
-                  class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-500">
-                    ${i18n.btn_continue_to_tts}
-               </a>`
-            : `<button type="button" disabled
-                       class="cursor-not-allowed rounded-lg bg-gray-700 px-4 py-2 font-bold text-gray-400">
-                    ${i18n.label_add_assets_first.replace('{count}', blockingSceneNumbers.length)}
-               </button>`;
-
         panel.innerHTML = `
             <div class="rounded-xl border border-white/10 bg-[#20252d] overflow-hidden">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
@@ -2023,10 +2002,6 @@
                         <p class="mt-1 text-xs text-gray-400">${i18n.desc_scene_asset_review}</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 text-xs">
-                        <a href="/image-crop?project_id=${encodeURIComponent(projectId || '')}&start_scene=1"
-                           class="rounded bg-blue-600 px-2 py-1 font-bold text-white hover:bg-blue-500">
-                            ${i18n.btn_2x2_crop_import}
-                        </a>
                         <span class="rounded bg-blue-500/15 px-2 py-1 text-blue-400">${i18n.badge_scenes_label} ${ordered.length}</span>
                         <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-400">${i18n.badge_images_label} ${imageCount}</span>
                         <span class="rounded bg-purple-500/15 px-2 py-1 text-purple-400">${i18n.badge_videos_label} ${videoCount}</span>
@@ -2070,16 +2045,6 @@
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
-                </div>
-                <div class="grid gap-4 border-t border-white/5 p-4 lg:grid-cols-[1fr_auto]">
-                    <div>
-                        <h4 class="mb-2 text-xs font-bold text-gray-300">${i18n.label_final_clip_order}</h4>
-                        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            ${clipRows || `<p class="text-xs text-gray-500">${i18n.label_no_clips_uploaded}</p>`}
-                        </div>
-                        ${missingVideo.length ? `<p class="mt-2 text-xs text-amber-400">${i18n.label_video_missing_prefix} ${missingVideo.map(item => Number(item.scene.scene_number || item.index + 1)).join(', ')}</p>` : ''}
-                    </div>
-                    <div class="flex items-end">${continueControl}</div>
                 </div>
             </div>`;
         panel.classList.remove('hidden');

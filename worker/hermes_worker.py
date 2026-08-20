@@ -2468,6 +2468,7 @@ def _generate_scene_media_prompts(
     language: str,
     job_log,
     script_text: str = "",
+    main_character: dict | None = None,
 ) -> dict:
     """Attach image/video generation prompts without changing scene boundaries."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else None
@@ -2494,6 +2495,9 @@ def _generate_scene_media_prompts(
         image_style_directive,
         language,
     )
+    if main_character:
+        visual_direction_plan = dict(visual_direction_plan or {})
+        visual_direction_plan["main_character"] = main_character
 
     def _build_media_prompt(prompt_scenes: list, chunk_label: str, retry_note: str = "") -> str:
         retry_instruction = ""
@@ -2517,6 +2521,8 @@ ADMIN-SELECTED IMAGE STYLE DIRECTIVE:
 {image_style_directive}
 GLOBAL VISUAL BIBLE - MUST GOVERN EVERY SCENE:
 {json.dumps(visual_direction_plan, ensure_ascii=False, indent=2)}
+MAIN PROTAGONIST DNA - MUST PRESERVE WHEN THE PROTAGONIST APPEARS:
+{_main_character_context(main_character) or "{}"}
 SCENE PLAN:
 {json.dumps(prompt_scenes, ensure_ascii=False, indent=2)}
 {retry_instruction}
@@ -2689,6 +2695,8 @@ Return ONLY valid JSON in this shape:
         result["image_style_directive"] = image_style_directive
         result["image_style_selection"] = image_style_selection or {}
         result["visual_direction_plan"] = visual_direction_plan
+        if main_character:
+            result["main_character"] = main_character
         result["image_grid_prompts"] = image_grid_prompts
         result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
         result["image_grid_prompt_mode"] = image_grid_prompt_mode
@@ -5979,6 +5987,7 @@ def _build_script_chunk_prompt(
     narrative_blueprint: dict | None = None,
     previous_context: dict | None = None,
     narration_mode: str = "single",
+    main_character: dict | None = None,
 ) -> str:
     structure_context = structure_context or {}
     narrative_blueprint = narrative_blueprint or {}
@@ -6022,6 +6031,11 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 - Use opening_incident before backstory in the first chunk.
 - Use personal_stake to make the protagonist's motive clear before the first act ends.
 - Use midpoint_reversal and final_payoff as hard story anchors, not optional suggestions.
+
+[MAIN PROTAGONIST DNA - WORKER GENERATED]
+{_main_character_context(main_character) or "{}"}
+- Keep this protagonist's identity, motive, age, and emotional baseline stable across every scene.
+- Do not print this JSON or describe it as metadata to viewers. Use it only to keep the story and later visuals consistent.
 
 {research_section}
 
@@ -6106,6 +6120,149 @@ def _short_script_excerpt(text: str, max_chars: int = 1400) -> str:
     if len(value) <= max_chars:
         return value
     return value[-max_chars:]
+
+
+def _main_character_context(main_character: dict | None) -> str:
+    if not isinstance(main_character, dict) or not main_character:
+        return ""
+    return json.dumps({
+        "name": main_character.get("name") or main_character.get("display_name") or "주인공",
+        "gender": main_character.get("gender") or "",
+        "age_group": main_character.get("age_group") or "",
+        "role": main_character.get("role") or "protagonist",
+        "visual_dna_en": main_character.get("visual_dna_en") or "",
+        "wardrobe_en": main_character.get("wardrobe_en") or "",
+        "continuity_instruction": main_character.get("continuity_instruction") or "",
+        "tags": main_character.get("tags") or [],
+    }, ensure_ascii=False)
+
+
+def _fallback_main_character(topic: str, upload_title: str, structure: dict, narrative_blueprint: dict | None = None) -> dict:
+    blueprint = narrative_blueprint or {}
+    protagonist = str(blueprint.get("protagonist") or "").strip()
+    if not protagonist:
+        scenes = structure.get("scenes") if isinstance(structure, dict) else []
+        first_scene = scenes[0] if isinstance(scenes, list) and scenes else {}
+        protagonist = str(
+            first_scene.get("protagonist")
+            or first_scene.get("main_character")
+            or first_scene.get("character")
+            or "주인공"
+        ).strip()
+    title_hint = _text_with_mojibake_repairs(topic, upload_title)
+    if any(term in title_hint for term in ("할머니", "어머니", "아내", "여자", "며느리")):
+        gender = "female"
+    elif any(term in title_hint for term in ("할아버지", "아버지", "남편", "남자", "영감")):
+        gender = "male"
+    else:
+        gender = "unknown"
+    if any(term in title_hint for term in ("노인", "노후", "70", "80", "할머니", "할아버지", "영감")):
+        age_group = "70s"
+    elif any(term in title_hint for term in ("30", "40")):
+        age_group = "30s-40s"
+    else:
+        age_group = "middle-aged adult"
+    visual = (
+        f"a Korean {age_group} {gender if gender != 'unknown' else 'person'} with a grounded, realistic face, "
+        "natural skin texture, restrained emotional eyes, ordinary everyday clothing, consistent hairstyle, "
+        "consistent body type and wardrobe colors across every scene"
+    )
+    return {
+        "name": protagonist or "주인공",
+        "gender": gender,
+        "age_group": age_group,
+        "role": "주인공",
+        "visual_dna_en": visual,
+        "wardrobe_en": "simple, story-appropriate everyday clothing with consistent color and silhouette",
+        "continuity_instruction": "Keep the protagonist's age, face shape, hairstyle, clothing, body type, and emotional baseline consistent in every scene.",
+        "tags": [age_group, gender, "consistent protagonist"],
+        "source": "worker_fallback",
+    }
+
+
+async def _generate_main_character_anchor(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    language: str,
+    narrative_blueprint: dict | None,
+    job_log,
+) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    scene_digest = []
+    if isinstance(scenes, list):
+        for scene in scenes[:12]:
+            if not isinstance(scene, dict):
+                continue
+            scene_digest.append({
+                "scene_order": scene.get("scene_order") or scene.get("order"),
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "character_choice": scene.get("character_choice"),
+            })
+    prompt = f"""You are the worker-side visual continuity director for AIR Studio.
+Before writing the script, infer ONE main protagonist character DNA that should govern the narration, image-grid prompts, and video prompts.
+
+Return ONLY valid JSON.
+
+[TOPIC]
+{topic}
+
+[UPLOAD TITLE]
+{upload_title}
+
+[LANGUAGE]
+{language}
+
+[STORY BLUEPRINT]
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+[SCENE DIGEST]
+{json.dumps(scene_digest, ensure_ascii=False)}
+
+JSON shape:
+{{
+  "name": "Korean character name or stable label",
+  "gender": "male|female|unknown",
+  "age_group": "clear age range",
+  "role": "주인공 role in Korean",
+  "visual_dna_en": "precise English permanent visual identity: age, ethnicity, face shape, eyes, hair, body type, skin texture, expression baseline",
+  "wardrobe_en": "consistent default wardrobe and color palette",
+  "continuity_instruction": "one English sentence instructing image/video generators to preserve this protagonist across scenes",
+  "tags": ["short Korean/English tags"]
+}}
+
+Rules:
+- Do not invent a celebrity, brand, copyrighted character, or public figure likeness.
+- Make the character specific enough to keep consistent, but ordinary enough for generic AI generation.
+- The character must serve the title promise and story blueprint.
+- If the story is narration-only or financial/economy analysis, create a representative protagonist or affected viewer only when the scene plan has a human subject; otherwise return an understated host/subject character."""
+    try:
+        raw = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.25,
+            max_tokens=2048,
+            task_type="hermes_main_character_anchor",
+        )
+        data = _extract_json(raw)
+        if not isinstance(data, dict):
+            raise ValueError("main character response was not an object")
+        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        character = {**fallback, **{k: v for k, v in data.items() if v not in (None, "", [])}}
+        character["source"] = "worker_ai"
+        character["created_at"] = time.time()
+        if not str(character.get("visual_dna_en") or "").strip():
+            character["visual_dna_en"] = fallback["visual_dna_en"]
+        job_log.info(f"Main character anchor ready: {character.get('name') or 'protagonist'}")
+        return character
+    except Exception as e:
+        job_log.warning(f"Main character anchor generation failed; using fallback: {e}")
+        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        fallback["created_at"] = time.time()
+        return fallback
 
 
 def _fallback_narrative_blueprint(topic: str, upload_title: str, structure: dict) -> dict:
@@ -6688,7 +6845,7 @@ Hard retry rules:
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts)
     script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
 
-    async def _run_generation() -> tuple[str, dict, dict, dict, int]:
+    async def _run_generation() -> tuple[str, dict, dict, dict, int, dict]:
         if old_story_context and grave_vigil_context:
             narrative_blueprint = {
                 "protagonist": "순옥",
@@ -6700,6 +6857,9 @@ Hard retry rules:
             }
             narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
             narrative_blueprint["tone"] = "구수한 한국 옛날이야기 입말, 전근대 산골 마을, 현대 소재 없음"
+            main_character = await _generate_main_character_anchor(
+                ai_router, draft_model, topic, upload_title, structure, language, narrative_blueprint, job_log
+            )
             job_log.info("Using old-story grave-vigil script path before section generation")
             job_store.update_progress(job_id, 78, "script QA")
             write_state("running", job, 78, job_id)
@@ -6708,7 +6868,7 @@ Hard retry rules:
                 ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
             )
             if not _script_needs_revision(rescue_quality):
-                return rescue_script, narrative_blueprint, rescue_quality, rescue_quality, 0
+                return rescue_script, narrative_blueprint, rescue_quality, rescue_quality, 0, main_character
             rescue_issues = rescue_quality.get("critical_issues") or rescue_quality.get("revision_notes") or []
             job_log.warning(
                 "Old-story grave-vigil script path did not pass QA; falling back to section generation "
@@ -6716,9 +6876,16 @@ Hard retry rules:
             )
         else:
             narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
+            main_character = await _generate_main_character_anchor(
+                ai_router, draft_model, topic, upload_title, structure, language, narrative_blueprint, job_log
+            )
 
         final_parts = []
         known_characters: list[str] = []
+        if isinstance(main_character, dict):
+            main_name = str(main_character.get("name") or "").strip()
+            if main_name:
+                known_characters.append(main_name)
         unresolved_threads = [
             narrative_blueprint.get("hidden_information"),
             narrative_blueprint.get("central_conflict"),
@@ -6745,6 +6912,7 @@ Hard retry rules:
                 narrative_blueprint=narrative_blueprint,
                 previous_context=previous_context,
                 narration_mode=narration_mode,
+                main_character=main_character,
             )
             if style_directive:
                 prompt = f"{prompt}\n\n{style_directive}"
@@ -6884,9 +7052,9 @@ Hard retry rules:
                     final_quality = rescue_quality
                     revision_count = max(revision_count, 1)
 
-        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count
+        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character
 
-    final_script, narrative_blueprint, initial_quality, final_quality, revision_count = asyncio.run(_run_generation())
+    final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character = asyncio.run(_run_generation())
     if not final_script:
         raise ValueError("Generated script was empty after all sections were processed")
     if _script_needs_revision(final_quality):
@@ -6923,6 +7091,7 @@ Hard retry rules:
         language=language,
         job_log=job_log,
         script_text=final_script,
+        main_character=main_character,
     )
     category_errors = _scene_plan_category_contamination_errors(
         structure,
@@ -6973,6 +7142,7 @@ Hard retry rules:
         "image_style_selection": image_style_selection,
         "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
         "narrative_blueprint": narrative_blueprint,
+        "main_character": main_character,
         "initial_script_quality_report": initial_quality,
         "script_quality_report": final_quality,
         "stage_quality_report": script_stage_report,
@@ -7160,6 +7330,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 "publish_metadata_status": "ready",
                 "progress_payload": {
                     "publish_metadata": result_payload.get("publish_metadata"),
+                    "main_character": result_payload.get("main_character"),
                     "pregenerated_script_status": "ready",
                     "prepared_topic_ready": True,
                     "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),

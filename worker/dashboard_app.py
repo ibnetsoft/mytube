@@ -7,14 +7,18 @@ Local API (local_api_token.py) so the user only needs one token.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
 import time
+import zipfile
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+from xml.etree import ElementTree
 
 import job_store
-from fastapi import FastAPI, Header, HTTPException, Response, Body
+from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, File
 from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
@@ -246,9 +250,111 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
+NOTEBOOKLM_RESULTS_DIR = OUTPUT_DIR / "notebooklm_results"
 GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research", "publish_metadata_generate"}
 _OFFLINE_HARNESS_CACHE: dict = {"checked_at": 0.0, "report": None}
 _OFFLINE_HARNESS_CACHE_SECONDS = 30.0
+
+
+def _split_reference_lines(value) -> list[str]:
+    if isinstance(value, list):
+        items = value
+    else:
+        items = re.split(r"[\r\n]+", str(value or ""))
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def _extract_html_text(raw: str) -> str:
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(raw, "html.parser")
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        return soup.get_text("\n", strip=True)
+    except Exception:
+        return re.sub(r"<[^>]+>", " ", raw)
+
+
+async def _fetch_reference_url(url: str) -> str:
+    import httpx
+    if not re.match(r"^https?://", url, flags=re.I):
+        raise ValueError(f"URL 형식이 아닙니다: {url}")
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        res = await client.get(url, headers={"User-Agent": "AIRWorker/NotebookLM"})
+        res.raise_for_status()
+        content_type = res.headers.get("content-type", "")
+        text = res.text
+        if "html" in content_type.lower() or "<html" in text[:500].lower():
+            text = _extract_html_text(text)
+        return text[:50000]
+
+
+def _extract_docx_text(path: Path) -> str:
+    with zipfile.ZipFile(path) as zf:
+        xml = zf.read("word/document.xml")
+    root = ElementTree.fromstring(xml)
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    chunks = [node.text for node in root.findall(".//w:t", ns) if node.text]
+    return "\n".join(chunks)
+
+
+def _extract_pdf_text(path: Path) -> str:
+    try:
+        import pdfplumber
+    except Exception as exc:
+        raise ValueError("PDF 읽기에는 pdfplumber가 필요합니다.") from exc
+    pages: list[str] = []
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages[:80]:
+            pages.append(page.extract_text() or "")
+    return "\n\n".join(pages)
+
+
+def _read_reference_file(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return _extract_pdf_text(path)
+    if suffix in {".docx", ".docm"}:
+        return _extract_docx_text(path)
+    if suffix in {".html", ".htm"}:
+        return _extract_html_text(path.read_text(encoding="utf-8", errors="ignore"))
+    if suffix in {".txt", ".md", ".csv", ".json", ".rtf", ".srt", ".vtt"}:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    raise ValueError(f"지원하지 않는 파일 형식입니다: {path.name}")
+
+
+async def _build_notebooklm_source_text(body: dict) -> tuple[str, list[dict]]:
+    chunks: list[str] = []
+    sources: list[dict] = []
+
+    direct_text = str(body.get("source_text") or "").strip()
+    if direct_text:
+        chunks.append(f"[직접 입력]\n{direct_text}")
+        sources.append({"type": "text", "chars": len(direct_text)})
+
+    for url in _split_reference_lines(body.get("source_urls")):
+        try:
+            text = await _fetch_reference_url(url)
+            if text.strip():
+                chunks.append(f"[URL: {url}]\n{text}")
+                sources.append({"type": "url", "value": url, "chars": len(text)})
+        except Exception as exc:
+            sources.append({"type": "url", "value": url, "error": str(exc)})
+
+    for raw_path in _split_reference_lines(body.get("source_paths")):
+        path = Path(raw_path).expanduser()
+        if not path.exists() or not path.is_file():
+            sources.append({"type": "path", "value": raw_path, "error": "파일을 찾을 수 없습니다."})
+            continue
+        try:
+            text = _read_reference_file(path)
+            if text.strip():
+                chunks.append(f"[파일: {path}]\n{text[:80000]}")
+                sources.append({"type": "path", "value": str(path), "chars": len(text)})
+        except Exception as exc:
+            sources.append({"type": "path", "value": raw_path, "error": str(exc)})
+
+    return "\n\n---\n\n".join(chunks).strip(), sources
 
 
 def _run_hermes_offline_harness(*, force: bool = False) -> dict:
@@ -1207,6 +1313,244 @@ async def yt_channel(
     if data.get("error"):
         return {"error": data.get("message") or data.get("error")}
     return data
+
+
+@app.post("/api/notebooklm/generate")
+async def api_notebooklm_generate(
+    body: dict = Body(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Generate a grounded NotebookLM-style script in the Worker, not the user web app."""
+    require_auth(authorization, cookie)
+    source_text, sources = await _build_notebooklm_source_text(body)
+    if not source_text:
+        raise HTTPException(400, "참고 자료를 입력해주세요.")
+
+    mode = str(body.get("mode") or "dialogue_podcast")
+    if mode not in {"dialogue_podcast", "narrator"}:
+        raise HTTPException(400, "지원하지 않는 대본 모드입니다.")
+
+    duration_minutes = int(body.get("duration_minutes") or 15)
+    duration_minutes = max(5, min(duration_minutes, 60))
+    category = str(body.get("category") or "옛날이야기").strip() or "옛날이야기"
+    if category not in CATEGORIES:
+        raise HTTPException(400, "지원하지 않는 카테고리입니다.")
+    custom_title = str(body.get("custom_title") or "").strip() or None
+
+    try:
+        project_root = Path(__file__).resolve().parents[1]
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        from services.notebooklm_service import generate_notebooklm_project
+
+        result = await generate_notebooklm_project(
+            source_text=source_text,
+            mode=mode,
+            category=category,
+            duration_minutes=duration_minutes,
+            custom_title=custom_title,
+        )
+    except Exception as exc:
+        logger.exception("NotebookLM worker generation failed")
+        raise HTTPException(500, str(exc))
+
+    NOTEBOOKLM_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_id = f"notebooklm_{int(time.time())}"
+    payload = {
+        "id": result_id,
+        "created_at": time.time(),
+        "category": category,
+        "mode": mode,
+        "duration_minutes": duration_minutes,
+        "source_chars": len(source_text),
+        "sources": sources,
+        "result": result,
+    }
+    (NOTEBOOKLM_RESULTS_DIR / f"{result_id}.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return {"success": True, "id": result_id, "sources": sources, "result": result}
+
+
+@app.post("/api/notebooklm/extract-file")
+async def api_notebooklm_extract_file(
+    file: UploadFile = File(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Extract text from an uploaded local reference file for NotebookLM generation."""
+    require_auth(authorization, cookie)
+    filename = file.filename or "reference"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".txt", ".md", ".csv", ".json", ".rtf", ".srt", ".vtt", ".html", ".htm", ".pdf", ".docx", ".docm"}:
+        raise HTTPException(400, f"지원하지 않는 파일 형식입니다: {suffix or filename}")
+    tmp_path = None
+    try:
+        with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(await file.read())
+        text = _read_reference_file(tmp_path)
+        return {
+            "success": True,
+            "filename": filename,
+            "chars": len(text),
+            "text": text[:100000],
+        }
+    except Exception as exc:
+        logger.exception("NotebookLM file extraction failed")
+        raise HTTPException(500, str(exc))
+    finally:
+        if tmp_path:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+@app.post("/api/notebooklm/{result_id}/send-to-hermes")
+async def api_notebooklm_send_to_hermes(
+    result_id: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Convert a saved NotebookLM result into the Hermes generated-results package format."""
+    require_auth(authorization, cookie)
+    safe_id = _safe_result_id(result_id)
+    if not safe_id:
+        raise HTTPException(400, "Invalid result id")
+    source_path = NOTEBOOKLM_RESULTS_DIR / f"{safe_id}.json"
+    if not source_path.exists():
+        raise HTTPException(404, "NotebookLM result not found")
+
+    try:
+        notebook_payload = json.loads(source_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        raise HTTPException(500, f"NotebookLM result JSON is invalid: {exc}")
+
+    result = notebook_payload.get("result") if isinstance(notebook_payload.get("result"), dict) else {}
+    raw_scenes = result.get("scenes") if isinstance(result.get("scenes"), list) else []
+    title = str(result.get("title") or notebook_payload.get("custom_title") or safe_id).strip()
+    category = str(result.get("category") or notebook_payload.get("category") or "옛날이야기").strip()
+    hook = str(result.get("hook") or "").strip()
+    script = str(result.get("full_script") or result.get("script") or "").strip()
+
+    scenes = []
+    scene_script_lines = []
+    for index, raw_scene in enumerate(raw_scenes, start=1):
+        if not isinstance(raw_scene, dict):
+            continue
+        scene_text = str(
+            raw_scene.get("scene_text")
+            or raw_scene.get("narration")
+            or raw_scene.get("script")
+            or raw_scene.get("text")
+            or ""
+        ).strip()
+        speaker = str(raw_scene.get("speaker") or "").strip()
+        image_prompt = str(raw_scene.get("image_prompt") or raw_scene.get("visual_prompt") or "").strip()
+        scene_number = raw_scene.get("scene_number") or raw_scene.get("scene_order") or index
+        if scene_text:
+            scene_script_lines.append(f"{speaker}: {scene_text}" if speaker else scene_text)
+        scenes.append({
+            "scene_number": scene_number,
+            "scene_order": scene_number,
+            "speaker": speaker,
+            "scene_summary": scene_text[:120] or f"Scene {index}",
+            "scene_situation": scene_text,
+            "narration": scene_text,
+            "visual_direction": image_prompt,
+            "image_prompt": image_prompt,
+            "visual_type": raw_scene.get("visual_type") or ("video" if index <= MAX_VIDEO_PROMPT_SCENES else "image"),
+            "video_prompt_required": index <= MAX_VIDEO_PROMPT_SCENES,
+        })
+    if not script and scene_script_lines:
+        script = "\n\n".join(scene_script_lines)
+
+    now = time.time()
+    hermes_id = f"{safe_id}_hermes"
+    hermes_payload = {
+        "id": hermes_id,
+        "source": "notebooklm",
+        "source_notebooklm_id": safe_id,
+        "topic_queue_id": hermes_id,
+        "status": "COMPLETED",
+        "category": category,
+        "topic": title,
+        "generated_title": title,
+        "upload_title": title,
+        "title_generation": {
+            "generated_title": title,
+            "final_title": title,
+            "category": category,
+            "source": "notebooklm",
+        },
+        "benchmark_analysis": {
+            "source": "notebooklm",
+            "summary": hook or "NotebookLM 자료 기반 생성 결과",
+        },
+        "research_bundle": {
+            "source": "notebooklm",
+            "sources": notebook_payload.get("sources") or [],
+            "source_chars": notebook_payload.get("source_chars"),
+        },
+        "narrative_blueprint": {
+            "hook": hook,
+            "mode": result.get("mode") or notebook_payload.get("mode"),
+            "speakers": result.get("speakers") or [],
+        },
+        "script": script,
+        "char_count": len(script),
+        "structure": {
+            "upload_title": title,
+            "title_promise": hook,
+            "opening_hook": hook,
+            "global_mood": "NotebookLM grounded script",
+            "scenes": scenes,
+            "media_prompt_status": "fallback_ready" if any(scene.get("visual_direction") for scene in scenes) else "missing",
+            "research_bundle": {
+                "source": "notebooklm",
+                "sources": notebook_payload.get("sources") or [],
+            },
+        },
+        "publish_metadata": {
+            "title": title,
+            "titles": [title],
+            "description": hook or script[:500],
+            "tags": [category, "NotebookLM", "자료기반대본"],
+            "hashtags": [f"#{category}", "#NotebookLM"],
+        },
+        "material_statuses": {
+            "benchmark": "ready",
+            "title": "ready",
+            "web_research": "ready",
+            "plan_prompts": "review" if scenes else "missing",
+            "script": "ready" if script else "missing",
+            "publish_metadata": "ready",
+        },
+        "quality_gate": {
+            "status": "review",
+            "missing": ["media_prompts"],
+            "review": ["notebooklm_import_needs_media_prompt_upgrade"],
+            "media_prompt_status": "fallback_ready" if scenes else "missing",
+            "can_auto_render": False,
+        },
+        "created_at": now,
+        "updated_at": now,
+        "completed_at": now,
+    }
+
+    AUTOPILOT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    target_path = AUTOPILOT_RESULTS_DIR / f"{hermes_id}.json"
+    target_path.write_text(json.dumps(hermes_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {
+        "success": True,
+        "id": hermes_id,
+        "path": str(target_path),
+        "scene_count": len(scenes),
+        "script_chars": len(script),
+    }
 
 
 @app.get("/api/yt/trending-keywords")
@@ -2243,6 +2587,9 @@ tr:hover { background: #161b22; }
       <div class="nav-item" data-tab="hermes-gen" onclick="switchTab('hermes-gen')">
         <span class="icon">&#x1F4DD;</span> Hermes 제목 생성
       </div>
+      <div class="nav-item" data-tab="notebooklm" onclick="switchTab('notebooklm')">
+        <span class="icon">&#x2728;</span> NotebookLM 대본
+      </div>
       <div class="nav-item" data-tab="styles" onclick="switchTab('styles')">
         <span class="icon">&#x1F3A8;</span> 스타일 관리
       </div>
@@ -2444,6 +2791,76 @@ tr:hover { background: #161b22; }
             <textarea id="sg-structure" rows="4" placeholder='{"scenes": [{"scene_summary": "...", "scene_situation": "..."}]}'></textarea>
           </div>
           <button class="btn btn-primary" onclick="submitScriptGenerate()">대본 생성</button>
+        </div>
+      </div>
+
+      <!-- ═══ Tab: NotebookLM Script Generation ═══ -->
+      <div class="tab-content" id="tab-notebooklm">
+        <div class="generated-result-layout">
+          <div class="card">
+            <div class="card-title">&#x2728; NotebookLM 대본 생성</div>
+            <p class="info" style="margin:-4px 0 16px">자료 기반 심층 리서치와 1인/2인 대본 생성을 워커에서 실행합니다. 결과는 워커 로컬 output/notebooklm_results에 저장됩니다.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label>대본 모드</label>
+                <select id="nlm-mode">
+                  <option value="dialogue_podcast">2인 대화 팟캐스트</option>
+                  <option value="narrator">1인 심층 내레이션</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>카테고리</label>
+                <select id="nlm-category">
+                  <option value="탈북사연">탈북사연</option>
+                  <option value="해외감동">해외감동</option>
+                  <option value="노후금융">노후금융</option>
+                  <option value="황혼19금">황혼19금</option>
+                  <option value="옛날이야기" selected>옛날이야기</option>
+                  <option value="한국사연">한국사연</option>
+                  <option value="무협">무협</option>
+                  <option value="경제">경제</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>목표 분량(분)</label>
+                <input type="number" id="nlm-duration" min="5" max="60" value="15">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>선택 제목</label>
+              <input type="text" id="nlm-title" placeholder="비워두면 AI가 제목을 생성합니다">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>참고 URL (여러 줄 입력)</label>
+                <textarea id="nlm-urls" rows="4" placeholder="https://example.com/article-1&#10;https://example.com/report-2"></textarea>
+              </div>
+              <div class="form-group">
+                <label>로컬 파일 경로 (여러 줄 입력)</label>
+                <textarea id="nlm-paths" rows="4" placeholder="C:\\Users\\kimse\\Documents\\reference.pdf&#10;C:\\Users\\kimse\\Documents\\notes.docx"></textarea>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>파일 업로드 (PDF/DOCX/TXT/HTML/MD)</label>
+              <input type="file" id="nlm-files" multiple accept=".pdf,.docx,.docm,.txt,.md,.html,.htm,.csv,.json,.rtf,.srt,.vtt" onchange="handleNotebookLMFiles(this.files)">
+              <div class="info" id="nlm-file-status" style="margin-top:6px">선택한 파일은 워커가 텍스트로 추출해 참고자료에 합칩니다.</div>
+            </div>
+            <div class="form-group">
+              <label>직접 붙여넣기</label>
+              <textarea id="nlm-source" rows="8" placeholder="뉴스 기사, 리포트, 인터뷰, PDF 텍스트, 메모 등을 붙여넣으세요. URL/파일/경로만 사용해도 됩니다."></textarea>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-primary" id="nlm-submit" onclick="submitNotebookLM()">NotebookLM 대본 생성</button>
+              <button class="btn btn-primary" id="nlm-send-hermes" onclick="sendNotebookLMToHermes()" disabled>Hermes 패키지로 보내기</button>
+              <span class="info" id="nlm-send-hermes-hint">NotebookLM 대본 생성 후 활성화됩니다.</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">&#x1F4DC; 생성 결과</div>
+            <div id="nlm-result" class="generated-result-detail">
+              <div class="empty" style="padding:24px"><div class="icon">&#x1F4CC;</div>왼쪽에서 자료를 입력하고 워커로 생성하세요</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -3038,6 +3455,7 @@ const tabTitles = {
   'yt-explore': 'YouTube 탐색',
   'hermes-autopilot': 'Hermes 자동 생성',
   'hermes-gen': 'Hermes 제목 생성',
+  'notebooklm': 'NotebookLM 대본 생성',
   'styles': '스타일 관리',
   'category-image-styles': '카테고리 이미지 스타일',
   'history': '작업 히스토리',
@@ -3154,6 +3572,23 @@ function statusBadge(s) {
   return `<span class="badge badge-${String(s).toLowerCase()}">${humanStatus(s)}</span>`;
 }
 
+function isActiveHermesStatus(status) {
+  return ['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED', 'QUEUED', 'PENDING'].includes(String(status || '').toUpperCase());
+}
+
+function hermesReadyAfterCompletedPipeline(jobs = []) {
+  const hasActiveHermesJob = jobs.some(job => isHermesGenerationJob(job) && isActiveHermesStatus(job.status));
+  if (hasActiveHermesJob) return false;
+  const latestPipeline = groupJobsIntoPipelines(jobs)
+    .filter(item => item.isPipeline)
+    .sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0))[0];
+  return Boolean(
+    latestPipeline
+    && latestPipeline.overallStatus === 'COMPLETED'
+    && Number(latestPipeline.overallProgress || 0) >= 100
+  );
+}
+
 /* ── Process cards ── */
 function renderProcessCards(status, jobs = []) {
   const el = document.getElementById('process-cards');
@@ -3181,7 +3616,7 @@ function renderProcessCards(status, jobs = []) {
       : '';
     const workerDescription = {
       render_worker: '영상 조립, 렌더링, 결과 파일 저장을 담당합니다.',
-      hermes_worker: '주제 탐색, 고성과 분석, 대본 기획과 대본 생성을 담당합니다.',
+      hermes_worker: '',
       local_api: 'AIR Studio 앱과 Worker 사이의 요청을 연결합니다.',
       updater: 'Worker 업데이트를 확인하고 적용합니다.',
     }[name] || '';
@@ -3190,6 +3625,9 @@ function renderProcessCards(status, jobs = []) {
     const autoStart = (name === 'render_worker' || name === 'local_api');
     const displayLabel = name === 'remote_drive_worker' ? 'Drive API Render Worker' : label;
     const displayIcon = name === 'remote_drive_worker' ? '\u{2601}' : icon;
+    const hermesPipelineDone = name === 'hermes_worker' && hermesReadyAfterCompletedPipeline(jobs);
+    const hermesStartDisabled = !hermesPipelineDone && s === 'running';
+    const hermesStopDisabled = hermesPipelineDone || ['stopped', 'idle'].includes(String(s || '').toLowerCase());
 
     html += `<div class="status-card">
       <div class="name">${displayIcon} ${displayLabel} ${statusBadge(s)}</div>
@@ -3201,8 +3639,8 @@ function renderProcessCards(status, jobs = []) {
       ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : name === 'hermes_worker' ? `
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
         <input id="hermes-start-limit" type="number" value="1" min="1" max="100" aria-label="생성할 영상 수" title="생성할 영상 수" style="width:64px;padding:6px 8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.16);color:#fff;border-radius:6px;outline:none" />
-        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${s==='running' ? 'disabled' : ''}>\u25B6 시작</button>
-        <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${s==='stopped' ? 'disabled' : ''}>\u23F9 중지</button>
+        <button class="btn btn-sm btn-start" onclick="startHermesForLimit()" ${hermesStartDisabled ? 'disabled' : ''}>\u25B6 시작</button>
+        <button class="btn btn-sm btn-stop" onclick="stopHermesGeneration()" ${hermesStopDisabled ? 'disabled' : ''}>\u23F9 중지</button>
       </div>
       ` : `
       <div style="display:flex;gap:8px;margin-top:8px">
@@ -4494,6 +4932,162 @@ async function submitBenchmark() {
 }
 
 /* ── Submit: script_plan_generate ── */
+let notebookLMUploadedSources = [];
+let notebookLMLastResultId = '';
+
+async function handleNotebookLMFiles(files) {
+  const statusEl = document.getElementById('nlm-file-status');
+  const sourceEl = document.getElementById('nlm-source');
+  const selected = Array.from(files || []);
+  if (!selected.length) return;
+  if (statusEl) statusEl.textContent = `${selected.length}개 파일 텍스트 추출 중...`;
+  for (const file of selected) {
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch('/api/notebooklm/extract-file', { method: 'POST', body: form });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.detail || data.error || '파일 추출 실패');
+      }
+      const block = `\n\n[업로드 파일: ${data.filename}]\n${data.text || ''}`;
+      notebookLMUploadedSources.push({ filename: data.filename, chars: data.chars || 0 });
+      if (sourceEl) sourceEl.value = `${sourceEl.value || ''}${block}`.trim();
+    } catch (e) {
+      showToast(`${file.name} 추출 실패: ${e.message || e}`, 'error');
+    }
+  }
+  if (statusEl) {
+    const total = notebookLMUploadedSources.reduce((sum, item) => sum + (item.chars || 0), 0);
+    statusEl.textContent = `${notebookLMUploadedSources.length}개 파일 추출 완료 · ${total.toLocaleString()}자`;
+  }
+}
+
+async function submitNotebookLM() {
+  const sourceEl = document.getElementById('nlm-source');
+  const resultEl = document.getElementById('nlm-result');
+  const submitEl = document.getElementById('nlm-submit');
+  const sendEl = document.getElementById('nlm-send-hermes');
+  const sendHintEl = document.getElementById('nlm-send-hermes-hint');
+  const sourceText = sourceEl?.value?.trim() || '';
+  const sourceUrls = document.getElementById('nlm-urls')?.value?.trim() || '';
+  const sourcePaths = document.getElementById('nlm-paths')?.value?.trim() || '';
+  if (!sourceText && !sourceUrls && !sourcePaths) {
+    showToast('참고 자료, URL, 파일 경로 중 하나 이상 입력하세요.', 'error');
+    return;
+  }
+  const body = {
+    source_text: sourceText,
+    source_urls: sourceUrls,
+    source_paths: sourcePaths,
+    mode: document.getElementById('nlm-mode')?.value || 'dialogue_podcast',
+    category: document.getElementById('nlm-category')?.value?.trim() || '옛날이야기',
+    duration_minutes: parseInt(document.getElementById('nlm-duration')?.value, 10) || 15,
+    custom_title: document.getElementById('nlm-title')?.value?.trim() || '',
+  };
+  if (submitEl) {
+    submitEl.disabled = true;
+    submitEl.textContent = 'NotebookLM 대본 생성 중...';
+  }
+  notebookLMLastResultId = '';
+  if (sendEl) sendEl.disabled = true;
+  if (sendHintEl) sendHintEl.textContent = 'NotebookLM 대본 생성 중입니다.';
+  if (resultEl) {
+    resultEl.innerHTML = '<div class="info">워커에서 Gemini/Claude 기반 대본을 생성하는 중입니다...</div>';
+  }
+  try {
+    const data = await api('POST', '/api/notebooklm/generate', body);
+    if (!data || data.success === false) {
+      throw new Error(data?.detail || data?.error || 'NotebookLM 대본 생성 실패');
+    }
+    const result = data.result || {};
+    const scenes = Array.isArray(result.scenes) ? result.scenes : [];
+    const script = result.full_script || result.script || '';
+    notebookLMLastResultId = data.id || '';
+    if (sendEl) sendEl.disabled = !notebookLMLastResultId;
+    if (sendHintEl) {
+      sendHintEl.textContent = notebookLMLastResultId
+        ? '생성 결과를 기존 Hermes 결과 확인/TTS/렌더 흐름으로 보냅니다.'
+        : '결과 ID가 없어 보낼 수 없습니다.';
+    }
+    const sourceRows = (data.sources || []).map(src => {
+      const label = src.value || src.filename || src.type || '-';
+      const detail = src.error ? `오류: ${src.error}` : `${(src.chars || 0).toLocaleString()}자`;
+      return `<div class="label">${escapeHtml(src.type || '-')}</div><div>${escapeHtml(label)} <span class="info">${escapeHtml(detail)}</span></div>`;
+    }).join('');
+    if (resultEl) {
+      resultEl.innerHTML = `
+        <div class="generated-section">
+          <h4>기본 정보</h4>
+          <div class="generated-meta">
+            <div class="label">결과 ID</div><div>${escapeHtml(data.id || '-')}</div>
+            <div class="label">제목</div><div><strong>${escapeHtml(result.title || '-')}</strong></div>
+            <div class="label">카테고리</div><div>${escapeHtml(result.category || body.category)}</div>
+            <div class="label">모드</div><div>${escapeHtml(result.dialogue_mode ? '2인 대화 팟캐스트' : '1인 심층 내레이션')}</div>
+            <div class="label">씬 수</div><div>${scenes.length}</div>
+          </div>
+        </div>
+        <div class="generated-section">
+          <h4>참고자료 수집</h4>
+          <div class="generated-meta">${sourceRows || '<div class="label">source</div><div>-</div>'}</div>
+        </div>
+        <div class="generated-section">
+          <h4>훅</h4>
+          <div class="prompt-box">${escapeHtml(result.hook || '-')}</div>
+        </div>
+        <div class="generated-section">
+          <h4>대본</h4>
+          <div class="result-viewer" style="max-height:420px">${escapeHtml(script || '-')}</div>
+        </div>
+        <div class="generated-section">
+          <h4>씬 JSON</h4>
+          <div class="result-viewer" style="max-height:320px">${escapeHtml(JSON.stringify(scenes.slice(0, 60), null, 2))}</div>
+        </div>`;
+    }
+    showToast(`NotebookLM 대본 생성 완료: ${data.id}`);
+  } catch (e) {
+    if (resultEl) {
+      resultEl.innerHTML = `<div class="prompt-box prompt-box-error">${escapeHtml(e.message || String(e))}</div>`;
+    }
+    showToast(`NotebookLM 대본 생성 실패: ${e.message || e}`, 'error');
+  } finally {
+    if (submitEl) {
+      submitEl.disabled = false;
+      submitEl.textContent = 'NotebookLM 대본 생성';
+    }
+  }
+}
+
+async function sendNotebookLMToHermes(resultId) {
+  const targetId = resultId || notebookLMLastResultId;
+  if (!targetId) {
+    showToast('NotebookLM 결과 ID가 없습니다.', 'error');
+    return;
+  }
+  const resultEl = document.getElementById('nlm-result');
+  try {
+    const data = await api('POST', `/api/notebooklm/${encodeURIComponent(targetId)}/send-to-hermes`);
+    if (!data || data.success === false) {
+      throw new Error(data?.detail || data?.error || 'Hermes 패키지 변환 실패');
+    }
+    showToast(`Hermes 패키지 저장 완료: ${data.id}`);
+    if (resultEl) {
+      const notice = document.createElement('div');
+      notice.className = 'prompt-box';
+      notice.innerHTML = `Hermes 패키지로 저장했습니다: <strong>${escapeHtml(data.id)}</strong><br>씬 ${data.scene_count || 0}개, 대본 ${(data.script_chars || 0).toLocaleString()}자`;
+      resultEl.prepend(notice);
+    }
+    generatedResultsLoaded = false;
+    switchTab('generated-results');
+  } catch (e) {
+    showToast(`Hermes 패키지 변환 실패: ${e.message || e}`, 'error');
+  }
+}
+
 async function submitScriptPlan() {
   const topic = document.getElementById('sp-topic').value.trim();
   if (!topic) { showToast('주제를 입력하세요', 'error'); return; }

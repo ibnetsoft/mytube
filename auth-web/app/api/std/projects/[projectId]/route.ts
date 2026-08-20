@@ -36,3 +36,55 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     return NextResponse.json({ success: true, project, scenes: scenes || [], assets: assets || [] })
 }
+
+export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {
+    const auth = await requireStdUser(req)
+    if (!auth.ok) return auth.response
+
+    let body: any
+    try {
+        body = await req.json()
+    } catch {
+        return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
+    }
+
+    const { data: project, error: projectError } = await supabaseAdmin
+        .from('std_projects')
+        .select('*')
+        .eq('id', params.projectId)
+        .eq('employee_email', auth.requester.email)
+        .maybeSingle()
+
+    if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
+    if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
+    if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
+        return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
+    }
+
+    const incomingProgress = body?.progress_payload || {}
+    const allowedProgressKeys = new Set(['thumbnail_completed', 'thumbnail_url', 'thumbnail_confirmed_at'])
+    const progressPatch = Object.fromEntries(
+        Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
+    )
+
+    if (Object.keys(progressPatch).length === 0) {
+        return NextResponse.json({ success: false, error: 'No supported fields to update' }, { status: 400 })
+    }
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+        .from('std_projects')
+        .update({
+            progress_payload: {
+                ...(project.progress_payload || {}),
+                ...progressPatch,
+            },
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', project.id)
+        .select('*')
+        .single()
+
+    if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
+
+    return NextResponse.json({ success: true, project: updated })
+}
