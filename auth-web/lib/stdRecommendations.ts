@@ -100,6 +100,18 @@ function normalizeTopicForStd(topic: any, policy: Record<string, any>, payoutMul
     }
 }
 
+function preferredCategorySet(profile: any): Set<string> {
+    return new Set(
+        (Array.isArray(profile?.preferred_category_ids) ? profile.preferred_category_ids : [])
+            .map((id: any) => String(id || '').trim())
+            .filter(Boolean)
+    )
+}
+
+function topicMatchesPreferredCategory(topic: any, preferredCategories: Set<string>): boolean {
+    return preferredCategories.size === 0 || preferredCategories.has(String(topic?.category_id || ''))
+}
+
 function calculateTopicScore(topic: any, profile: any, requesterEmail: string, filters: Record<string, boolean>): number {
     let score = 0
     if (String(topic?.assigned_employee_email || '').toLowerCase() === requesterEmail.toLowerCase()) score += 50
@@ -133,7 +145,7 @@ function calculateTopicScore(topic: any, profile: any, requesterEmail: string, f
     return score
 }
 
-async function cachedRecommendationTopics(email: string, limit: number) {
+async function cachedRecommendationTopics(email: string, limit: number, profile: any, filters: Record<string, boolean>) {
     const now = new Date().toISOString()
     const { data: cacheRows } = await supabaseAdmin
         .from('user_topic_recommendations')
@@ -154,7 +166,12 @@ async function cachedRecommendationTopics(email: string, limit: number) {
         .eq('status', 'pending')
         .not('generated_title', 'is', null)
 
-    const liveById = new Map((liveTopics || []).filter(isPreparedStdTopic).map((topic: any) => [String(topic.id), topic]))
+    const preferredCategories = filters.ignore_category ? new Set<string>() : preferredCategorySet(profile)
+    const liveById = new Map((liveTopics || [])
+        .filter(isPreparedStdTopic)
+        .filter((topic: any) => filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories))
+        .map((topic: any) => [String(topic.id), topic])
+    )
     return (cacheRows || []).map((row: any) => liveById.get(String(row.topic_queue_id))).filter(Boolean)
 }
 
@@ -293,7 +310,7 @@ export async function getStdRecommendedTopics(options: {
     const [policy, boosts] = await Promise.all([loadPolicy(), loadBoosts()])
 
     if (!options.refresh) {
-        const cached = await cachedRecommendationTopics(options.email, options.limit)
+        const cached = await cachedRecommendationTopics(options.email, options.limit, options.profile, options.filters)
         const dedupedCached = deduplicateTopics(cached)
         if (dedupedCached.length >= options.limit) {
             return {
@@ -316,8 +333,12 @@ export async function getStdRecommendedTopics(options: {
 
     // 1. 중복 제거된 준비된 주제 목록
     const preparedTopics = deduplicateTopics((data || []).filter(isPreparedStdTopic))
+    const preferredCategories = options.filters.ignore_category ? new Set<string>() : preferredCategorySet(options.profile)
+    const candidateTopics = preparedTopics.filter((topic: any) =>
+        options.filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories)
+    )
     
-    let selectedTopics = preparedTopics
+    let selectedTopics = candidateTopics
         .map((topic: any) => ({
             topic,
             score: calculateTopicScore(topic, options.profile, options.email, options.filters),
@@ -332,7 +353,7 @@ export async function getStdRecommendedTopics(options: {
         const existingIds = new Set(selectedTopics.map((t: any) => String(t.id)))
         const existingTitles = new Set(selectedTopics.map((t: any) => String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')))
         
-        const remaining = preparedTopics.filter((t: any) => {
+        const remaining = candidateTopics.filter((t: any) => {
             const id = String(t.id || '')
             const titleKey = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
             return !existingIds.has(id) && !existingTitles.has(titleKey)

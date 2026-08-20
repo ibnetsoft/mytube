@@ -1163,7 +1163,7 @@ export default function StdPortalPage() {
                     const [meRes, pRes, tRes] = await Promise.allSettled([
                         fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                         fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
-                        fetch(`/api/std/topics?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
+                        fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                     ])
                     const meData = meRes.status === 'fulfilled' ? await meRes.value.json().catch(() => ({})) : {}
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
@@ -2113,6 +2113,10 @@ export default function StdPortalPage() {
                 return false
             }
 
+            if (selectedCategories.length > 0 && !selectedCategories.includes(String(t.category_name || '').trim())) {
+                return false
+            }
+
             if (topicLengthFilter === 'short' && (t.assigned_duration_minutes || t.duration_minutes || 15) >= 15) return false
             if (topicLengthFilter === 'medium' && ((t.assigned_duration_minutes || t.duration_minutes || 15) < 15 || (t.assigned_duration_minutes || t.duration_minutes || 15) > 30)) return false
             if (topicLengthFilter === 'long' && (t.assigned_duration_minutes || t.duration_minutes || 15) <= 30) return false
@@ -2140,7 +2144,7 @@ export default function StdPortalPage() {
         }
 
         return unique
-    }, [topics, topicSearchQuery, topicLengthFilter, projects, selectedProject])
+    }, [topics, topicSearchQuery, topicLengthFilter, projects, selectedProject, selectedCategories])
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
