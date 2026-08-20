@@ -131,34 +131,36 @@ const normalizeContentLanguage = (value: any) => CONTENT_LANGUAGE_OPTIONS.some(o
 const contentLanguageLabel = (value: any) => CONTENT_LANGUAGE_OPTIONS.find(option => option.value === normalizeContentLanguage(value))?.label || '한국어'
 
 const firstNonEmpty = (...values: any[]) => values.map(v => String(v || '').trim()).find(Boolean) || ''
-const MAX_VIDEO_PROMPT_SCENES = 12
-
-const sceneNumber = (scene: any, index: number) => {
-    const value = Number(scene?.scene_order || scene?.scene_number || index + 1)
-    return Number.isFinite(value) ? value : index + 1
-}
-
-const sceneRequiresVideoPrompt = (scene: any, index: number) => (
-    scene?.video_prompt_required === false ? false : sceneNumber(scene, index) <= MAX_VIDEO_PROMPT_SCENES
-)
 
 const getTopicPreparation = (item: any) => {
+    if (typeof item?.is_prepared_for_claim === 'boolean') {
+        return {
+            ready: item.is_prepared_for_claim,
+            missing: item.is_prepared_for_claim ? [] : [item?.preparation_status === 'claimed' ? '이미 선택됨' : '준비 데이터 확인'],
+            scenes: Number(item?.total_scenes || 0),
+            structureStatus: item?.pregenerated_structure_status || 'queued',
+            scriptStatus: item?.pregenerated_script_status || 'queued',
+            mediaStatus: item.is_prepared_for_claim ? 'ready' : 'queued',
+            hasDescription: Boolean(item?.publish_metadata || item?.progress_payload?.publish_metadata),
+        }
+    }
     const structure = item?.pregenerated_structure || {}
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
+    const grids = Array.isArray(structure?.image_grid_prompts) ? structure.image_grid_prompts : []
     const publishMetadata = item?.publish_metadata || item?.progress_payload?.publish_metadata || {}
     const hasTitle = firstNonEmpty(item?.generated_title, item?.topic).length > 0
     const hasStructure = item?.pregenerated_structure_status === 'ready' && scenes.length > 0
     const hasScript = item?.pregenerated_script_status === 'ready'
         && firstNonEmpty(item?.pregenerated_script).length > 0
+    const expectedGridCount = scenes.length ? Math.floor(scenes.length / 4) + (scenes.length % 4 ? 1 : 0) : 0
     const hasMediaPrompts = hasStructure
-        && String(structure?.media_prompt_status || '') === 'ready'
-        && scenes.every((scene: any, index: number) => (
-            String(scene?.media_prompt_status || '') === 'ready'
-            && firstNonEmpty(scene?.image_prompt, scene?.prompt_en, scene?.visual_prompt, scene?.visual_description)
-            && (
-                !sceneRequiresVideoPrompt(scene, index)
-                || firstNonEmpty(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
-            )
+        && String(structure?.image_grid_prompt_status || '') === 'ready'
+        && grids.length === expectedGridCount
+        && grids.every((grid: any) => (
+            Number(grid?.panel_count || 4) === 4
+            && Array.isArray(grid?.scene_numbers)
+            && grid.scene_numbers.length === 4
+            && firstNonEmpty(grid?.prompt, grid?.grid_prompt).length > 0
         ))
     const hasDescription = firstNonEmpty(publishMetadata?.description).length > 0
     const missing = [

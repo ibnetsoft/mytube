@@ -11,57 +11,10 @@ export type PreparedTopicLike = {
     progress_payload?: any
 }
 
-const MAX_VIDEO_PROMPT_SCENES = 12
-
-function firstText(...values: unknown[]): string {
-    for (const value of values) {
-        const text = String(value || '').trim()
-        if (text) return text
-    }
-    return ''
-}
-
 export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
     const structure = topic?.pregenerated_structure
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
     if (topic?.pregenerated_structure_status !== 'ready' || !structure || scenes.length === 0) return false
-    if (String(structure.media_prompt_status || '') !== 'ready') return false
-
-    const seenImagePrompts = new Set<string>()
-    const seenVideoPrompts = new Set<string>()
-    const scenesReady = scenes.every((scene: any, index: number) => {
-        if (!scene || typeof scene !== 'object') return false
-        const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
-        const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
-        const requiresVideoPrompt = scene?.video_prompt_required === false
-            ? false
-            : normalizedSceneNumber <= MAX_VIDEO_PROMPT_SCENES
-        const imagePrompt = firstText(
-            scene?.image_prompt,
-            scene?.prompt_en,
-            scene?.visual_prompt,
-            scene?.visual_description,
-            scene?.keyframe_subject,
-            scene?.visual_direction,
-            scene?.scene_situation,
-        )
-        const videoPrompt = firstText(
-            scene?.video_prompt,
-            scene?.motion_desc,
-            scene?.flow_prompt,
-            scene?.camera_motion,
-            scene?.motion_plan,
-            scene?.visual_direction,
-            scene?.scene_situation,
-            scene?.script_excerpt,
-        )
-        if (!imagePrompt || (requiresVideoPrompt && !videoPrompt)) return false
-        if (seenImagePrompts.has(imagePrompt) || (videoPrompt && seenVideoPrompts.has(videoPrompt))) return false
-        seenImagePrompts.add(imagePrompt)
-        if (videoPrompt) seenVideoPrompts.add(videoPrompt)
-        return String(scene?.media_prompt_status || '') === 'ready'
-    })
-    if (!scenesReady) return false
     if (String(structure.image_grid_prompt_status || '') !== 'ready') return false
 
     const grids = Array.isArray(structure.image_grid_prompts) ? structure.image_grid_prompts : []
