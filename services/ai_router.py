@@ -31,10 +31,13 @@ def _has_deepseek_key() -> bool:
     return bool((getattr(config, "DEEPSEEK_API_KEY", "") or "").strip())
 
 
-def fallback_text_model() -> str:
-    if _has_deepseek_key():
+def fallback_text_model(exclude_provider: str | None = None) -> str:
+    excluded = {str(exclude_provider or "").strip().lower()} if exclude_provider else set()
+    if "deepseek" not in excluded and _has_deepseek_key():
         return FALLBACK_DEEPSEEK_MODEL
-    return FALLBACK_GLM_MODEL if _has_glm_key() else FALLBACK_GEMINI_MODEL
+    if "glm" not in excluded and _has_glm_key():
+        return FALLBACK_GLM_MODEL
+    return FALLBACK_GEMINI_MODEL
 
 
 def normalize_model(model: str) -> str:
@@ -126,15 +129,41 @@ async def generate_text(
                 f"running plain text generation for {task_type}"
             )
         print(f"[AI Router] Using DeepSeek for {task_type} (model={selected})")
-        return await deepseek_service.generate_text(
-            prompt,
-            model=selected,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            task_type=task_type,
-            json_mode=json_mode,
-            project_id=project_id,
-        )
+        try:
+            return await deepseek_service.generate_text(
+                prompt,
+                model=selected,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+                json_mode=json_mode,
+                project_id=project_id,
+            )
+        except Exception as exc:
+            fallback_model = fallback_text_model(exclude_provider="deepseek")
+            fallback_provider = detect_provider(fallback_model)
+            print(f"[AI Router] DeepSeek failed for {task_type}: {exc}")
+            print(f"[AI Router] Falling back to {fallback_provider.upper()} (model={fallback_model})")
+            if fallback_provider == "glm":
+                return await glm_service.generate_text(
+                    prompt,
+                    model=fallback_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
+                    json_mode=json_mode,
+                    project_id=project_id,
+                )
+            return await gemini_service.generate_text(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                project_id=project_id,
+                task_type=task_type,
+                model=fallback_model,
+                use_search=use_search,
+                json_mode=json_mode,
+            )
 
     if provider == "glm":
         if use_search:
