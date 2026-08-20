@@ -122,6 +122,127 @@ def _sync_hermes_process_status(snap: dict, autopilot_status: dict) -> dict:
     return hermes_process
 
 
+def _job_pipeline_identity(job: dict) -> tuple[str, str, str]:
+    payload = job.get("payload") or {}
+    queue_id = str(payload.get("topic_queue_id") or payload.get("topic_id") or "").strip()
+    category = str(payload.get("category") or payload.get("category_name") or "").strip()
+    title = str(
+        payload.get("upload_title")
+        or payload.get("generated_title")
+        or payload.get("topic")
+        or ""
+    ).strip()
+    return queue_id, category, title
+
+
+def _related_hermes_pipeline_jobs(seed_job: dict, limit: int = 500) -> list[dict]:
+    seed_queue_id, seed_category, seed_title = _job_pipeline_identity(seed_job)
+    related: list[dict] = []
+    for job in job_store.list_jobs(limit=limit):
+        if job.get("job_type") not in HERMES_JOB_TYPES:
+            continue
+        queue_id, category, title = _job_pipeline_identity(job)
+        same_queue = bool(seed_queue_id and queue_id and str(queue_id) == str(seed_queue_id))
+        same_title = bool(seed_title and title and title == seed_title and (not seed_category or not category or category == seed_category))
+        if job.get("job_id") == seed_job.get("job_id") or same_queue or same_title:
+            related.append(job)
+    related.sort(key=lambda item: float(item.get("created_at") or 0))
+    return related
+
+
+def _completed_result_for_type(jobs: list[dict], job_type: str) -> tuple[dict, dict] | tuple[None, None]:
+    for job in reversed(jobs):
+        if job.get("job_type") != job_type or str(job.get("status") or "").upper() != "COMPLETED":
+            continue
+        result = _read_job_result(str(job.get("job_id") or ""))
+        if isinstance(result, dict):
+            return job, result
+    return None, None
+
+
+def _pipeline_has_active_job(jobs: list[dict]) -> bool:
+    return any(str(job.get("status") or "").upper() in HERMES_ACTIVE_STATUSES for job in jobs)
+
+
+def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
+    metadata_job, _metadata_data = _completed_result_for_type(jobs, "publish_metadata_generate")
+    if metadata_job:
+        return {"success": False, "error": "이미 설명·태그 단계까지 완료된 작업입니다."}
+
+    script_job, script_data = _completed_result_for_type(jobs, "script_generate")
+    if script_job and script_data:
+        script_payload = script_job.get("payload") or {}
+        topic_queue_id = script_data.get("topic_queue_id") or script_payload.get("topic_queue_id")
+        title = (
+            script_data.get("upload_title")
+            or script_data.get("generated_title")
+            or script_payload.get("upload_title")
+            or script_payload.get("topic")
+        )
+        new_job_id = job_store.submit_job(
+            job_type="publish_metadata_generate",
+            payload={
+                "topic_queue_id": topic_queue_id,
+                "category": script_data.get("category") or script_payload.get("category"),
+                "category_name": script_data.get("category_name") or script_payload.get("category_name"),
+                "category_id": script_data.get("category_id") or script_payload.get("category_id"),
+                "topic": title,
+                "script": script_data.get("script"),
+                "structure": script_data.get("structure") or script_payload.get("structure"),
+                "upload_title": title,
+                "title_generation": script_data.get("title_generation") or script_payload.get("title_generation"),
+                "narrative_blueprint": script_data.get("narrative_blueprint") or {},
+                "script_quality_report": script_data.get("script_quality_report") or {},
+                "language": script_data.get("language") or script_payload.get("language") or "ko",
+                "defer_ready_until_quality_gate": True,
+                "resume_from_job_id": script_job.get("job_id"),
+            },
+            priority=100,
+            source="autopilot",
+            max_retries=0,
+        )
+        return {"success": True, "job_id": new_job_id, "resumed_stage": "publish_metadata_generate"}
+
+    plan_job, plan_data = _completed_result_for_type(jobs, "script_plan_generate")
+    if plan_job and plan_data:
+        plan_payload = plan_job.get("payload") or {}
+        topic_queue_id = plan_data.get("topic_queue_id") or plan_payload.get("topic_queue_id")
+        title = (
+            plan_data.get("upload_title")
+            or plan_data.get("generated_title")
+            or plan_payload.get("upload_title")
+            or plan_payload.get("topic")
+        )
+        new_job_id = job_store.submit_job(
+            job_type="script_generate",
+            payload={
+                "topic_queue_id": topic_queue_id,
+                "category": plan_data.get("category") or plan_payload.get("category"),
+                "category_name": plan_data.get("category_name") or plan_payload.get("category_name"),
+                "category_id": plan_data.get("category_id") or plan_payload.get("category_id"),
+                "topic": title,
+                "structure": plan_data.get("structure"),
+                "target_duration_seconds": plan_data.get("target_duration_seconds") or plan_payload.get("target_duration_seconds") or 900,
+                "script_style": plan_data.get("script_style") or plan_payload.get("script_style") or "default",
+                "image_style": plan_data.get("image_style") or plan_payload.get("image_style"),
+                "image_style_selection": plan_data.get("image_style_selection") or plan_payload.get("image_style_selection"),
+                "language": plan_data.get("language") or plan_payload.get("language") or "ko",
+                "narration_mode": plan_payload.get("narration_mode") or "dramatic_single",
+                "upload_title": title,
+                "title_generation": plan_data.get("title_generation") or plan_payload.get("title_generation"),
+                "learning_profile": plan_data.get("learning_profile") or plan_payload.get("learning_profile"),
+                "defer_ready_until_quality_gate": True,
+                "resume_from_job_id": plan_job.get("job_id"),
+            },
+            priority=100,
+            source="autopilot",
+            max_retries=0,
+        )
+        return {"success": True, "job_id": new_job_id, "resumed_stage": "script_generate"}
+
+    return {"success": False, "error": "이어갈 수 있는 완료 단계가 없습니다. 기획 또는 대본 결과가 필요합니다."}
+
+
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
@@ -799,6 +920,33 @@ async def api_cancel_job(
     require_auth(authorization, cookie)
     from ipc import submit_command, wait_for_result
     return wait_for_result(submit_command("cancel_job", {"job_id": job_id}), timeout=15)
+
+
+@app.post("/api/hermes/pipelines/{job_id}/resume")
+async def api_resume_hermes_pipeline(
+    job_id: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    seed_job = job_store.get_job(job_id)
+    if not seed_job:
+        return {"success": False, "error": "작업을 찾을 수 없습니다."}
+    related_jobs = _related_hermes_pipeline_jobs(seed_job)
+    if _pipeline_has_active_job(related_jobs):
+        return {"success": False, "error": "이미 진행 중인 단계가 있습니다."}
+    resume_result = _submit_resume_job_from_pipeline(related_jobs)
+    if not resume_result.get("success"):
+        return resume_result
+
+    from ipc import submit_command, wait_for_result
+
+    worker_result = wait_for_result(submit_command("start_process", {"name": "hermes_worker"}))
+    return {
+        **resume_result,
+        "worker_started": bool(worker_result.get("success")),
+        "worker_error": worker_result.get("error"),
+    }
 
 
 @app.get("/api/logs")
@@ -1898,6 +2046,7 @@ a:hover { text-decoration: underline; }
 .badge-running { background: #23863622; color: #3fb950; }
 .badge-idle { background: #8b949e22; color: #8b949e; }
 .badge-stopped { background: #f8514922; color: #f85149; }
+.badge-paused { background: #d2992222; color: #d29922; }
 .badge-starting { background: #d2992222; color: #d29922; }
 .badge-disabled { background: #f8514922; color: #f85149; }
 .badge-queued { background: #8b949e22; color: #8b949e; }
@@ -3059,15 +3208,7 @@ function isHermesGenerationJob(job) {
 
 async function restartHermesFromCancelled(jobId) {
   try {
-    const current = await api('GET', '/api/autopilot/hermes/status');
-    const currentSettings = current?.settings || {};
-    const settings = {
-      ...currentSettings,
-      mode: currentSettings.mode || 'target_limit',
-      target_limit: Number(currentSettings.target_limit || 1),
-      resume: true,
-    };
-    const result = await api('POST', '/api/autopilot/hermes/start', { settings });
+    const result = await api('POST', `/api/hermes/pipelines/${jobId}/resume`);
     if (!result || result.success === false) {
       showToast(`재시작 실패: ${result?.error || '응답 없음'}`, 'error');
       return;
@@ -3182,14 +3323,17 @@ function groupJobsIntoPipelines(jobs) {
       return stepStatuses[s.key]?.status === 'COMPLETED';
     }).length;
     const hasFailed = g.jobs.some(j => String(j.status || '').toUpperCase() === 'FAILED');
+    const hasCanceled = g.jobs.some(j => String(j.status || '').toUpperCase() === 'CANCELED');
     const hasRunning = g.jobs.some(j => ['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED'].includes(String(j.status || '').toUpperCase()));
 
     let overallStatus = 'PENDING';
     if (hasFailed) overallStatus = 'FAILED';
     else if (completedCount === totalSteps) overallStatus = 'COMPLETED';
-    else if (hasRunning || completedCount > 0) overallStatus = 'RUNNING';
+    else if (hasRunning) overallStatus = 'RUNNING';
+    else if (completedCount > 0 || hasCanceled) overallStatus = 'PAUSED';
 
     const overallProgress = Math.round((completedCount / totalSteps) * 100);
+    const canResume = overallStatus === 'PAUSED' && completedCount > 0;
 
     return {
       isPipeline: true,
@@ -3201,6 +3345,7 @@ function groupJobsIntoPipelines(jobs) {
       overallProgress,
       completedCount,
       totalSteps,
+      canResume,
       stepStatuses,
       jobs: g.jobs,
       created_at: g.created_at,
@@ -3307,8 +3452,10 @@ function renderPipelineCard(item, prefix = 'rec') {
 
   const domId = `${prefix}_${item.id}`;
   const isAllComplete = item.overallStatus === 'COMPLETED';
-  const statusClass = isAllComplete ? 'badge-completed' : (item.overallStatus === 'FAILED' ? 'badge-failed' : 'badge-rendering');
-  const statusText = isAllComplete ? '제작 완료' : (item.overallStatus === 'FAILED' ? '오류' : `진행 중 (${item.completedCount}/${item.totalSteps})`);
+  const isPaused = item.overallStatus === 'PAUSED';
+  const statusClass = isAllComplete ? 'badge-completed' : (item.overallStatus === 'FAILED' ? 'badge-failed' : (isPaused ? 'badge-paused' : 'badge-rendering'));
+  const displayStatusText = isAllComplete ? '제작 완료' : (item.overallStatus === 'FAILED' ? '오류' : (isPaused ? `이어 가능 (${item.completedCount}/${item.totalSteps})` : `진행 중 (${item.completedCount}/${item.totalSteps})`));
+  const statusText = displayStatusText;
 
   const stepsHtml = PIPELINE_STEPS_CONFIG.map((step, idx) => {
     const stepInfo = item.stepStatuses[step.key];
@@ -3387,6 +3534,12 @@ function renderPipelineCard(item, prefix = 'rec') {
             </button>
             <button class="btn btn-sm" onclick="switchTab('voicebox-tts')" style="font-size:11px;background:rgba(163,113,247,0.15);border-color:rgba(163,113,247,0.4);color:#d2a8ff;">
               🎙️ TTS 생성 이동
+            </button>
+          </div>
+        ` : item.canResume ? `
+          <div class="pipeline-actions-footer">
+            <button class="btn btn-sm btn-start" onclick="restartHermesFromCancelled('${item.jobs[item.jobs.length - 1]?.job_id || ''}')" style="font-size:11px;">
+              이어하기
             </button>
           </div>
         ` : ''}
