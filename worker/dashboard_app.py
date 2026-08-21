@@ -5752,22 +5752,26 @@ function toggleLimitInput() {
   document.getElementById('auto-limit-group').style.display = (mode === 'target_limit') ? 'block' : 'none';
 }
 
-function renderCategoryCheckboxes(activeCats) {
+function renderCategoryCheckboxes(activeCats, durationMap) {
   const container = document.getElementById('auto-categories-checkboxes');
   if (!container) return;
   container.innerHTML = '';
+  const durations = durationMap && typeof durationMap === 'object' ? durationMap : {};
   
   ALL_CATEGORIES.forEach((cat, index) => {
     const isChecked = activeCats ? activeCats.includes(cat) : true;
+    const savedSeconds = parseInt(durations[cat], 10);
+    const durationMinutes = Number.isFinite(savedSeconds) && savedSeconds > 0 ? Math.max(5, Math.min(150, Math.round(savedSeconds / 60))) : 150;
     const row = document.createElement('div');
     row.className = 'auto-cat-row';
     row.dataset.category = cat;
-    row.style.cssText = 'display:grid;grid-template-columns:minmax(130px,1fr) 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
+    row.style.cssText = 'display:grid;grid-template-columns:minmax(130px,1fr) 76px 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
     row.innerHTML = `
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
         <input type="checkbox" class="auto-cat-checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" />
         <span style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(cat)}</span>
       </label>
+      <input type="number" class="auto-cat-duration-minutes" data-category="${escapeHtml(cat)}" value="${durationMinutes}" min="5" max="150" title="Target video length in minutes" style="width:76px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
       <input type="number" class="auto-cat-limit" id="auto-cat-limit-${index}" value="1" min="1" max="100" title="생성 수" style="width:86px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
       <button class="btn btn-primary btn-sm auto-cat-start" type="button" data-category="${escapeHtml(cat)}" data-index="${index}">▶ 시작</button>
       <button class="btn btn-danger btn-sm auto-cat-stop" type="button" data-category="${escapeHtml(cat)}" data-index="${index}" disabled>■ 중지</button>
@@ -5822,6 +5826,19 @@ function getBenchmarkChannelSettingsFromUI() {
   return result;
 }
 
+function getCategoryDurationSettingsFromUI() {
+  const result = {};
+  ALL_CATEGORIES.forEach(cat => { result[cat] = 150 * 60; });
+  document.querySelectorAll('.auto-cat-duration-minutes[data-category]').forEach(input => {
+    const category = input.dataset.category || '';
+    if (!ALL_CATEGORIES.includes(category)) return;
+    const minutes = parseInt(input.value, 10);
+    const safeMinutes = Number.isFinite(minutes) ? Math.max(5, Math.min(150, minutes)) : 150;
+    result[category] = safeMinutes * 60;
+  });
+  return result;
+}
+
 function renderActiveCategoryBadges(activeCats) {
   const categories = Array.isArray(activeCats) ? activeCats : ALL_CATEGORIES;
   const title = document.getElementById('auto-active-category-title');
@@ -5867,6 +5884,7 @@ function getSettingsFromUI() {
     min_buffer_per_category: buffer,
     active_categories,
     category_image_style_overrides: (autopilotStatusSnapshot && autopilotStatusSnapshot.settings && autopilotStatusSnapshot.settings.category_image_style_overrides) ? autopilotStatusSnapshot.settings.category_image_style_overrides : {},
+    target_duration_seconds_by_category: getCategoryDurationSettingsFromUI(),
     benchmark_channel_ids_by_category: getBenchmarkChannelSettingsFromUI(),
     benchmark_channel_auto_discovery_enabled: discoveryEnabled,
     benchmark_channel_discovery_min_channels: discoveryMin,
@@ -5910,7 +5928,7 @@ async function saveAutopilotSettings() {
     if (res && res.success) {
       const savedSettings = res.settings || settings;
       renderActiveCategoryBadges(savedSettings.active_categories);
-      renderCategoryCheckboxes(savedSettings.active_categories);
+      renderCategoryCheckboxes(savedSettings.active_categories, savedSettings.target_duration_seconds_by_category);
       renderBenchmarkChannelSettings(savedSettings.benchmark_channel_ids_by_category);
       showToast('오토파일럿 설정이 저장되었습니다.', 'success');
     } else {
@@ -6039,13 +6057,13 @@ async function loadAutopilotStatus() {
       document.getElementById('auto-setting-channel-search-calls').value = data.settings.benchmark_channel_discovery_max_search_calls ?? 1;
       
       toggleLimitInput();
-      renderCategoryCheckboxes(data.settings.active_categories);
+      renderCategoryCheckboxes(data.settings.active_categories, data.settings.target_duration_seconds_by_category);
       renderBenchmarkChannelSettings(data.settings.benchmark_channel_ids_by_category);
       updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;
     } else if (!autopilotSettingsInitialized) {
       // 폰백 렌더링
-      renderCategoryCheckboxes(null);
+      renderCategoryCheckboxes(null, null);
       renderBenchmarkChannelSettings(null);
       updateCategoryRunControls(data);
       autopilotSettingsInitialized = true;

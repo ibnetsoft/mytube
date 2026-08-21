@@ -46,6 +46,14 @@ CATEGORIES = [
     "경제"
 ]
 
+MIN_CATEGORY_TARGET_DURATION_SECONDS = 5 * 60
+DEFAULT_CATEGORY_TARGET_DURATION_SECONDS = 150 * 60
+MAX_CATEGORY_TARGET_DURATION_SECONDS = 150 * 60
+DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY = {
+    category: DEFAULT_CATEGORY_TARGET_DURATION_SECONDS
+    for category in CATEGORIES
+}
+
 
 class QualityGateError(RuntimeError):
     """Raised when a generated package is complete but not good enough to publish."""
@@ -105,7 +113,7 @@ class HermesAutopilotManager:
             "benchmark_channel_discovery_interval_hours": 24,
             "benchmark_channel_discovery_max_search_calls": 1,
             "benchmark_channel_discovery_last_at": {},
-            "target_duration_seconds_by_category": {},
+            "target_duration_seconds_by_category": DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.copy(),
             "force_generate": False,
             "quality_max_attempts": 1,
         }
@@ -321,24 +329,34 @@ class HermesAutopilotManager:
         return normalized
 
     def _normalize_category_duration_settings(self, value) -> dict:
+        normalized = DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.copy()
         if not isinstance(value, dict):
-            return {}
-        normalized = {}
+            return normalized
         for category in CATEGORIES:
             try:
                 seconds = int(value.get(category) or 0)
             except (TypeError, ValueError):
                 seconds = 0
             if seconds > 0:
-                normalized[category] = max(300, min(1800, seconds))
+                normalized[category] = max(
+                    MIN_CATEGORY_TARGET_DURATION_SECONDS,
+                    min(MAX_CATEGORY_TARGET_DURATION_SECONDS, seconds),
+                )
         return normalized
 
     def _target_duration_seconds_for_category(self, category: str) -> int:
         durations = self.settings.get("target_duration_seconds_by_category") or {}
         try:
-            return int(durations.get(category) or 900)
+            return int(
+                durations.get(category)
+                or DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.get(category)
+                or DEFAULT_CATEGORY_TARGET_DURATION_SECONDS
+            )
         except (TypeError, ValueError):
-            return 900
+            return (
+                DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.get(category)
+                or DEFAULT_CATEGORY_TARGET_DURATION_SECONDS
+            )
 
     def _merge_channel_ids(self, *groups: list[str]) -> list[str]:
         merged = []
