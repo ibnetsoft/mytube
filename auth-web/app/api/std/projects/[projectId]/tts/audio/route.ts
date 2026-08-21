@@ -65,7 +65,18 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     const targetDriveFileId = asset?.drive_file_id || driveFileId
     if (!targetDriveFileId) return NextResponse.json({ success: false, error: 'TTS audio not found' }, { status: 404 })
 
-    const audioBuffer = await downloadStdDriveFile(targetDriveFileId)
+    let audioBuffer: Buffer
+    try {
+        audioBuffer = await downloadStdDriveFile(targetDriveFileId)
+    } catch (error: any) {
+        console.warn('[STD TTS Audio] Drive download failed:', error?.message)
+        return NextResponse.json({
+            success: false,
+            error: 'TTS audio file could not be loaded from Drive',
+            detail: error?.message || 'drive_download_failed',
+        }, { status: 404 })
+    }
+
     return new NextResponse(new Uint8Array(audioBuffer), {
         headers: {
             'Content-Type': asset?.mime_type || 'audio/mpeg',

@@ -1109,27 +1109,10 @@ export default function StdPortalPage() {
             setThumbBgUploadFile(null)
         }
 
-        const audioAsset = assets.find((asset: any) =>
-            asset?.asset_type === 'audio' && ['uploaded', 'assigned'].includes(asset?.status)
-        )
-        const audioEndpoint = audioPlaybackEndpoint(projectId, audioAsset)
-            || (projectPayload?.project?.progress_payload?.tts_drive_file_id
-                ? `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?driveFileId=${encodeURIComponent(projectPayload.project.progress_payload.tts_drive_file_id)}`
-                : null)
-
-        if (!audioEndpoint) {
-            setAudioResultUrl('')
-            return
-        }
-
-        try {
-            const audioRes = await fetch(audioEndpoint, { headers })
-            if (!audioRes.ok) throw new Error('Persisted TTS audio could not be loaded.')
-            setAudioResultUrl(URL.createObjectURL(await audioRes.blob()))
-        } catch (error) {
-            console.warn('[STD] persisted audio restore failed:', error)
-            setAudioResultUrl('')
-        }
+        // Do not eagerly download persisted TTS on page load. Some older Drive
+        // files can be unavailable; restoring them here produced noisy 500s and
+        // made the TTS tab look broken before the user generated new audio.
+        setAudioResultUrl('')
     }
 
     // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
@@ -2568,9 +2551,11 @@ export default function StdPortalPage() {
                     const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
                     if (!audioRes.ok) {
                         const errorText = await audioRes.text().catch(() => '')
-                        throw new Error(errorText || 'Generated TTS audio could not be loaded.')
+                        console.warn('[STD TTS] generated audio playback load failed:', errorText || audioRes.status)
+                        audioUrl = payload.web_view_link || ''
+                    } else {
+                        audioUrl = URL.createObjectURL(await audioRes.blob())
                     }
-                    audioUrl = URL.createObjectURL(await audioRes.blob())
                 }
 
                 setAudioResultUrl(audioUrl)
