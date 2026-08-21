@@ -34,13 +34,22 @@ async function resolveDriveRootFolderId(): Promise<string> {
     const envRootFolderId = driveRootFolderId()
     if (envRootFolderId) return envRootFolderId
 
+    // Check primary key first, then legacy fallback key
     const { data } = await supabaseAdmin
         .from('global_settings')
-        .select('value')
-        .eq('key', 'remote_render_drive_folder_id')
-        .maybeSingle()
-    return String(data?.value || '').trim()
+        .select('key, value')
+        .in('key', ['sys_api_remote_render_drive_folder_id', 'remote_render_drive_folder_id'])
+        .neq('value', '')
+        .order('key', { ascending: false }) // sys_api_ sorts last, so primary key wins
+    if (Array.isArray(data) && data.length > 0) {
+        // Prefer sys_api_remote_render_drive_folder_id over legacy key
+        const primary = data.find((d: any) => d.key === 'sys_api_remote_render_drive_folder_id')
+        const fallback = data.find((d: any) => d.key === 'remote_render_drive_folder_id')
+        return String((primary || fallback)?.value || '').trim()
+    }
+    return ''
 }
+
 
 export function requireStdDriveRootFolderId(): string {
     const rootFolderId = driveRootFolderId()
