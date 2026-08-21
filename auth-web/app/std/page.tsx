@@ -2072,6 +2072,61 @@ export default function StdPortalPage() {
                 const blob = new Blob([combined], { type: 'audio/mpeg' })
                 audioUrl = URL.createObjectURL(blob)
             } else {
+                const finalVoiceMap: Record<string, string> = {}
+                if (multiVoice) {
+                    for (const char of detectedCharacters) {
+                        finalVoiceMap[char] = characterVoices[char] || selectedVoice
+                    }
+                }
+
+                setMessage(
+                    multiVoice
+                        ? `TTS generating with narrator and ${detectedCharacters.length} character voice(s)...`
+                        : 'TTS generating...'
+                )
+
+                const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        provider: 'elevenlabs',
+                        voice_id: selectedVoice,
+                        model_id: 'eleven_multilingual_v2',
+                        speed: Number(ttsSpeed),
+                        stability: Number(elStability),
+                        style: Number(elStyle),
+                        text: ttsText,
+                        multi_voice: multiVoice,
+                        voice_map: finalVoiceMap,
+                    }),
+                })
+                const payload = await safeParseJson(res, 'TTS generation failed')
+                if (!res.ok) throw new Error(payload.error || 'TTS generation failed')
+
+                const generatedAudioUrl = payload.audio_url || payload.download_url
+                if (!generatedAudioUrl) {
+                    throw new Error('TTS audio was generated, but no playable audio URL was returned.')
+                }
+
+                if (String(generatedAudioUrl).startsWith('data:audio/')) {
+                    audioUrl = generatedAudioUrl
+                } else {
+                    const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
+                    if (!audioRes.ok) {
+                        const errorText = await audioRes.text().catch(() => '')
+                        throw new Error(errorText || 'Generated TTS audio could not be loaded.')
+                    }
+                    audioUrl = URL.createObjectURL(await audioRes.blob())
+                }
+
+                setAudioResultUrl(audioUrl)
+                setMessage(
+                    multiVoice
+                        ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).`
+                        : `${voiceObj.name} TTS audio generated.`
+                )
+                return
+                /*
                 // ElevenLabs TTS: 클라이언트에서 직접 API 호출 (Vercel 타임아웃 우회)
                 setMessage('🔑 API 키 확인 중...')
                 const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
@@ -2156,6 +2211,7 @@ export default function StdPortalPage() {
                         voice_map: {},
                     }),
                 }).catch(() => {})
+                */
             }
 
             setAudioResultUrl(audioUrl)
@@ -2172,6 +2228,15 @@ export default function StdPortalPage() {
     // 대본 속 인물(화자) 감지
     const detectedCharacters = useMemo(() => {
         const text = customScriptText || selectedProject?.project?.project_payload?.script || ''
+        const parsed = parseScriptToVoiceSegments(text)
+        if (parsed.uniqueSpeakers.length > 0 || customAddedCharacters.length > 0) {
+            const parsedChars = new Set<string>(customAddedCharacters)
+            parsed.uniqueSpeakers.forEach((speaker: string) => {
+                const clean = speaker.trim()
+                if (clean) parsedChars.add(clean)
+            })
+            return Array.from(parsedChars)
+        }
         const lines = text.split('\n')
         const chars = new Set<string>(customAddedCharacters)
         const regex = /^\s*(?:([^\s:\[\]\(\)]+)(?:\(.*\))?[:：]|([^\s:\[\]\(\)]+)[\)）\]])/
