@@ -1999,58 +1999,132 @@ export default function StdPortalPage() {
         setMessage('')
         const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
         const ttsProvider = selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
-        try {
-            // 화자별 성우 맵 구성 (기본 나레이터 포함)
-            const finalVoiceMap: Record<string, string> = {
-                '나레이터': selectedVoice,
-                ...characterVoices,
-            }
-            // 미지정된 화자는 기본 성우로 fallback
-            detectedCharacters.forEach(char => {
-                if (!finalVoiceMap[char]) finalVoiceMap[char] = selectedVoice
-            })
+        const ttsText = customScriptText || selectedProject.project.project_payload?.script || ''
+        if (!ttsText.trim()) {
+            setMessage('❗ 대본이 없습니다. 먼저 대본을 생성해주세요.')
+            setGeneratingTts(false)
+            return
+        }
 
-            const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    provider: ttsProvider,
-                    voice_id: selectedVoice,
-                    model_id: 'eleven_multilingual_v2',
-                    speed: Number(ttsSpeed),
-                    stability: Number(elStability),
-                    style: Number(elStyle),
-                    text: customScriptText || selectedProject.project.project_payload?.script,
-                    multi_voice: ttsProvider === 'elevenlabs' ? multiVoice : false,
-                    voice_map: finalVoiceMap,
-                }),
-            })
-            const payload = await safeParseJson(res, 'TTS 생성 실패')
-            if (!res.ok) throw new Error(payload.error || 'TTS 생성 실패')
-            
-            const generatedAudioUrl = payload.audio_url || payload.download_url
-            if (!generatedAudioUrl) {
-                throw new Error('TTS audio was generated, but no playable audio URL was returned.')
-            }
-            if (generatedAudioUrl.startsWith('data:')) {
-                setAudioResultUrl(generatedAudioUrl)
-            } else {
-                const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
-                if (!audioRes.ok) {
-                    const errorText = await audioRes.text().catch(() => '')
-                    throw new Error(errorText || 'Generated TTS audio could not be loaded.')
+        try {
+            let audioUrl = ''
+
+            if (ttsProvider === 'google_free') {
+                // Google 무료 TTS는 서버를 통해 생성 (CORS 우회)
+                const finalVoiceMap: Record<string, string> = { '나레이터': selectedVoice, ...characterVoices }
+                detectedCharacters.forEach(char => { if (!finalVoiceMap[char]) finalVoiceMap[char] = selectedVoice })
+                const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        provider: 'google_free',
+                        voice_id: selectedVoice,
+                        text: ttsText,
+                        multi_voice: false,
+                        voice_map: finalVoiceMap,
+                    }),
+                })
+                const payload = await safeParseJson(res, 'Google TTS 생성 실패')
+                if (!res.ok) throw new Error(payload.error || 'Google TTS 생성 실패')
+                const generatedAudioUrl = payload.audio_url || payload.download_url
+                if (!generatedAudioUrl) throw new Error('Google TTS: 오디오 URL이 없습니다.')
+                if (generatedAudioUrl.startsWith('data:')) {
+                    audioUrl = generatedAudioUrl
+                } else {
+                    const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
+                    if (!audioRes.ok) throw new Error('Google TTS 오디오 로드 실패')
+                    const audioBlob = await audioRes.blob()
+                    audioUrl = URL.createObjectURL(audioBlob)
                 }
-                const audioBlob = await audioRes.blob()
-                setAudioResultUrl(URL.createObjectURL(audioBlob))
+            } else {
+                // ElevenLabs TTS: 클라이언트에서 직접 API 호출 (Vercel 타임아웃 우회)
+                setMessage('🔑 API 키 확인 중...')
+                const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
+                const keyData = await keyRes.json().catch(() => ({}))
+                if (!keyRes.ok || !keyData.elevenlabs_key) {
+                    throw new Error('ElevenLabs API 키를 가져올 수 없습니다.')
+                }
+                const elevenLabsKey = keyData.elevenlabs_key
+
+                // 텍스트를 4500자씩 분할
+                const MAX_CHARS = 4500
+                const cleanText = ttsText.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+                const paragraphs = cleanText.split(/\n+/).map((p: string) => p.trim()).filter(Boolean)
+                const chunks: string[] = []
+                let current = ''
+                for (const para of paragraphs) {
+                    if ((current + '\n' + para).trim().length <= MAX_CHARS) {
+                        current = (current ? `${current}\n` : '') + para
+                    } else {
+                        if (current) chunks.push(current)
+                        current = para.length <= MAX_CHARS ? para : (() => { chunks.push(para.slice(0, MAX_CHARS)); return para.slice(MAX_CHARS) })()
+                    }
+                }
+                if (current) chunks.push(current)
+                if (!chunks.length) throw new Error('대본이 비어있습니다.')
+
+                const speed = Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1))
+                const stability = Number(elStability) || 0.35
+                const style = Number(elStyle) || 0.45
+
+                const buffers: ArrayBuffer[] = []
+                for (let i = 0; i < chunks.length; i++) {
+                    setMessage(`🎙️ TTS 생성 중... (${i + 1}/${chunks.length} 구간)`)
+                    const elRes = await fetch(
+                        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(selectedVoice)}?output_format=mp3_44100_128`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'xi-api-key': elevenLabsKey,
+                                'Content-Type': 'application/json',
+                                Accept: 'audio/mpeg',
+                            },
+                            body: JSON.stringify({
+                                text: chunks[i],
+                                model_id: 'eleven_multilingual_v2',
+                                voice_settings: { stability, similarity_boost: 0.75, style, speed },
+                            }),
+                        }
+                    )
+                    if (!elRes.ok) {
+                        const errText = await elRes.text().catch(() => '')
+                        throw new Error(`ElevenLabs 오류 (${elRes.status}): ${errText.slice(0, 200)}`)
+                    }
+                    buffers.push(await elRes.arrayBuffer())
+                }
+
+                // 여러 청크 오디오를 하나로 합치기
+                const totalLength = buffers.reduce((sum, b) => sum + b.byteLength, 0)
+                const combined = new Uint8Array(totalLength)
+                let offset = 0
+                for (const buf of buffers) {
+                    combined.set(new Uint8Array(buf), offset)
+                    offset += buf.byteLength
+                }
+                const blob = new Blob([combined], { type: 'audio/mpeg' })
+                audioUrl = URL.createObjectURL(blob)
+
+                // 백그라운드로 서버에 저장 (실패해도 재생에는 지장 없음)
+                setMessage(`🔊 ${voiceObj.name} TTS 음성 생성 완료! Drive 저장 중...`)
+                fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        provider: 'elevenlabs',
+                        voice_id: selectedVoice,
+                        model_id: 'eleven_multilingual_v2',
+                        speed: Number(ttsSpeed),
+                        stability: Number(elStability),
+                        style: Number(elStyle),
+                        text: ttsText,
+                        multi_voice: false,
+                        voice_map: {},
+                    }),
+                }).catch(() => {})
             }
-            queueMicrotask(() => {
-                setMessage(
-                    payload.transient
-                        ? `${voiceObj.name} TTS audio generated for immediate playback.`
-                        : `${voiceObj.name} TTS audio generated and saved to Google Drive.`
-                )
-            })
-            setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되어 Google Drive에 저장되었습니다!`)
+
+            setAudioResultUrl(audioUrl)
+            setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!`)
         } catch (error: any) {
             setAudioResultUrl('')
             setMessage(error?.message || 'TTS generation failed')
@@ -2058,6 +2132,7 @@ export default function StdPortalPage() {
             setGeneratingTts(false)
         }
     }
+
 
     // 대본 속 인물(화자) 감지
     const detectedCharacters = useMemo(() => {
