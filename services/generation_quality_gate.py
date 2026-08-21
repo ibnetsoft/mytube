@@ -161,6 +161,52 @@ def _metadata_title_matches_script(title: str, script: str) -> bool:
     return matched >= max(1, min(2, len(tokens[:8]) // 3))
 
 
+def _contamination_context(payload: Mapping[str, Any]) -> str:
+    benchmark_analysis = payload.get("benchmark_analysis")
+    benchmark_context: Any = benchmark_analysis
+    if isinstance(benchmark_analysis, Mapping):
+        benchmark_context = {
+            "keyword": benchmark_analysis.get("keyword"),
+            "selected_title": benchmark_analysis.get("selected_title"),
+            "representative_title": benchmark_analysis.get("representative_title"),
+            "candidates": [],
+        }
+        candidates = benchmark_analysis.get("candidates")
+        if isinstance(candidates, list):
+            for candidate in candidates[:10]:
+                if not isinstance(candidate, Mapping):
+                    continue
+                benchmark_context["candidates"].append({
+                    "title": candidate.get("title"),
+                    "channel_title": candidate.get("channel_title"),
+                    "search_query": candidate.get("search_query"),
+                })
+
+    research_bundle = payload.get("research_bundle")
+    research_context: Any = research_bundle
+    if isinstance(research_bundle, Mapping):
+        research_context = {
+            "topic": research_bundle.get("topic"),
+            "upload_title": research_bundle.get("upload_title"),
+            "sources": [],
+        }
+        sources = research_bundle.get("sources")
+        if isinstance(sources, list):
+            for source in sources[:10]:
+                if isinstance(source, Mapping):
+                    research_context["sources"].append({"title": source.get("title"), "url": source.get("url")})
+
+    return json.dumps(
+        {
+            "topic": payload.get("topic") or payload.get("generated_title"),
+            "title": payload.get("generated_title") or payload.get("upload_title"),
+            "benchmark_analysis": benchmark_context,
+            "research_bundle": research_context,
+        },
+        ensure_ascii=False,
+    )
+
+
 def validate_generation_package(
     payload: Mapping[str, Any],
     *,
@@ -210,15 +256,7 @@ def validate_generation_package(
 
     contamination_terms = _CATEGORY_CONTAMINATION_MAP.get(category)
     if contamination_terms:
-        context_blob = json.dumps(
-            {
-                "topic": payload.get("topic") or payload.get("generated_title"),
-                "title": payload.get("generated_title") or payload.get("upload_title"),
-                "benchmark_analysis": payload.get("benchmark_analysis"),
-                "research_bundle": payload.get("research_bundle"),
-            },
-            ensure_ascii=False,
-        )
+        context_blob = _contamination_context(payload)
         if re.search("|".join(re.escape(term) for term in contamination_terms), context_blob, re.I):
             if category == "옛날이야기":
                 errors.append("off-category economy contamination detected for old-story category")

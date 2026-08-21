@@ -125,6 +125,22 @@ def test_worker_character_anchors_are_injected_into_compact_grid_prompts():
     assert "gray office jacket" in prompt
 
 
+def test_worker_aligns_generated_media_chunk_to_input_scene_identity():
+    aligned = hermes_worker._align_generated_media_chunk(
+        _scenes(3),
+        [
+            {"scene_id": "scene001", "scene_order": 1, "video_prompt": "one"},
+            {"scene_id": "scene001", "scene_order": 1, "video_prompt": "two"},
+            {"scene_id": "scene001", "scene_order": 1, "video_prompt": "three"},
+        ],
+        "1-3 of 3",
+    )
+
+    assert [scene["scene_id"] for scene in aligned] == ["scene001", "scene002", "scene003"]
+    assert [scene["scene_order"] for scene in aligned] == [1, 2, 3]
+    assert [scene["video_prompt"] for scene in aligned] == ["one", "two", "three"]
+
+
 def test_validate_grid_prompts_requires_tail_coverage():
     scenes = _scenes(9)
     old_complete_blocks_only = build_image_grid_prompts(_scenes(8))

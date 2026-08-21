@@ -178,6 +178,28 @@ def test_generation_quality_gate_rejects_revise_script_quality():
     assert any("script_quality_report not passing" in error for error in errors)
 
 
+def test_old_story_contamination_ignores_benchmark_analysis_body():
+    payload = _valid_payload()
+    payload["benchmark_analysis"] = {
+        "keyword": "옛날이야기",
+        "candidates": [
+            {
+                "title": "조선시대 산골 마을에 남겨진 붉은 실의 비밀",
+                "channel_title": "역사 이야기",
+                "search_query": "옛날이야기",
+                "analysis": {
+                    "main_topics": ["신분 차이", "부동산과 경제라는 단어가 분석 설명에만 등장"],
+                    "summary": "성과 분석 문장에는 경제라는 말이 있을 수 있다.",
+                },
+            }
+        ],
+    }
+
+    errors = validate_generation_package(payload, category="옛날이야기")
+
+    assert not any("off-category economy contamination" in error for error in errors)
+
+
 def test_generation_quality_gate_rejects_internal_metadata_terms():
     payload = _valid_payload()
     payload["publish_metadata"]["description"] += "\n\n이 프롬프트와 벤치마크 분석을 기반으로 자동 생성된 설명입니다."

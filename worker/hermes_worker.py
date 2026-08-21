@@ -2232,6 +2232,25 @@ def _sanitize_video_prompt_text(video_prompt: str) -> str:
     return text
 
 
+def _align_generated_media_chunk(input_scenes: list[dict], generated_scenes: list[dict], chunk_label: str) -> list[dict]:
+    if len(generated_scenes) != len(input_scenes):
+        raise ValueError(
+            f"media prompt count mismatch for chunk {chunk_label}: expected {len(input_scenes)}, got "
+            f"{len(generated_scenes or [])}"
+        )
+    aligned = []
+    for index, (input_scene, generated_item) in enumerate(zip(input_scenes, generated_scenes), start=1):
+        if not isinstance(generated_item, dict):
+            raise ValueError(f"media prompt item {index} is not an object for chunk {chunk_label}")
+        item = dict(generated_item)
+        expected_order = input_scene.get("scene_order") or input_scene.get("order") or index
+        expected_id = str(input_scene.get("scene_id") or f"scene{int(expected_order):03d}")
+        item["scene_id"] = expected_id
+        item["scene_order"] = expected_order
+        aligned.append(item)
+    return aligned
+
+
 def _validate_unique_video_prompts(scenes: list[dict]) -> None:
     seen_video_prompts: dict[str, str] = {}
     normalized_videos: list[tuple[str, str]] = []
@@ -2601,11 +2620,9 @@ Return ONLY valid JSON in this shape:
                     ))
                     generated = _extract_json(raw)
                     chunk_scenes = generated.get("scenes") if isinstance(generated, dict) else None
-                    if not isinstance(chunk_scenes, list) or len(chunk_scenes) != len(chunk):
-                        raise ValueError(
-                            f"media prompt count mismatch for chunk {chunk_label}: expected {len(chunk)}, got "
-                            f"{len(chunk_scenes or [])}"
-                        )
+                    if not isinstance(chunk_scenes, list):
+                        raise ValueError(f"media prompt scenes missing for chunk {chunk_label}")
+                    chunk_scenes = _align_generated_media_chunk(chunk, chunk_scenes, chunk_label)
                     for generated_item in chunk_scenes:
                         scene_label = str(
                             generated_item.get("scene_id")
