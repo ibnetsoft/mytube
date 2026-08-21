@@ -2032,13 +2032,17 @@ export default function StdPortalPage() {
             if (!generatedAudioUrl) {
                 throw new Error('TTS audio was generated, but no playable audio URL was returned.')
             }
-            const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
-            if (!audioRes.ok) {
-                const errorText = await audioRes.text().catch(() => '')
-                throw new Error(errorText || 'Generated TTS audio could not be loaded.')
+            if (generatedAudioUrl.startsWith('data:')) {
+                setAudioResultUrl(generatedAudioUrl)
+            } else {
+                const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
+                if (!audioRes.ok) {
+                    const errorText = await audioRes.text().catch(() => '')
+                    throw new Error(errorText || 'Generated TTS audio could not be loaded.')
+                }
+                const audioBlob = await audioRes.blob()
+                setAudioResultUrl(URL.createObjectURL(audioBlob))
             }
-            const audioBlob = await audioRes.blob()
-            setAudioResultUrl(URL.createObjectURL(audioBlob))
             queueMicrotask(() => {
                 setMessage(
                     payload.transient

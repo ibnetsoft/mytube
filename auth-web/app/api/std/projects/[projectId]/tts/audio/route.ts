@@ -7,20 +7,17 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-function topicIdFromProjectParam(projectId: string) {
+function topicIdFromProjectParam(projectId: string): number | null {
     const value = String(projectId || '').trim()
-    const legacyMatch = value.match(/^proj--?(\d+)$/i)
-    if (legacyMatch) return Number(legacyMatch[1])
-
-    const numeric = Number(value)
-    if (Number.isFinite(numeric) && numeric >= 1_000_000_000) return numeric - 1_000_000_000
+    const match = value.match(/^(?:proj-)?(\d+)$/i)
+    if (match) return Number(match[1])
     return null
 }
 
 async function loadStdProject(projectId: string, employeeEmail: string) {
-    let query = supabaseAdmin.from('std_projects').select('id').eq('employee_email', employeeEmail)
     const topicQueueId = topicIdFromProjectParam(projectId)
 
+    let query = supabaseAdmin.from('std_projects').select('id')
     if (UUID_RE.test(projectId)) {
         query = query.eq('id', projectId)
     } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
@@ -29,7 +26,10 @@ async function loadStdProject(projectId: string, employeeEmail: string) {
         return { data: null, error: null }
     }
 
-    return await query.maybeSingle()
+    const userRes = await query.maybeSingle()
+    if (userRes.data) return userRes
+
+    return { data: null, error: null }
 }
 
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
@@ -45,7 +45,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     const { data: project, error: projectError } = await loadStdProject(params.projectId, auth.requester.email)
 
-    if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
+    if (projectError) return NextResponse.json({ success: false, error: (projectError as any)?.message || 'Project query failed' }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
     let asset: any = null

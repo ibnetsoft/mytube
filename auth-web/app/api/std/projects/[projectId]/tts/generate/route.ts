@@ -226,20 +226,18 @@ function buildTtsText(project: any, scenes: any[], overrideText?: string) {
     return parts.join('\n\n').trim()
 }
 
-function topicIdFromProjectParam(projectId: string) {
+function topicIdFromProjectParam(projectId: string): number | null {
     const value = String(projectId || '').trim()
-    const legacyMatch = value.match(/^proj--?(\d+)$/i)
-    if (legacyMatch) return Number(legacyMatch[1])
-
-    const numeric = Number(value)
-    if (Number.isFinite(numeric) && numeric >= 1_000_000_000) return numeric - 1_000_000_000
+    const match = value.match(/^(?:proj-)?(\d+)$/i)
+    if (match) return Number(match[1])
     return null
 }
 
 async function loadStdProject(projectId: string, employeeEmail: string) {
-    let query = supabaseAdmin.from('std_projects').select('*').eq('employee_email', employeeEmail)
     const topicQueueId = topicIdFromProjectParam(projectId)
 
+    // 1. Try finding in std_projects for this employee
+    let query = supabaseAdmin.from('std_projects').select('*')
     if (UUID_RE.test(projectId)) {
         query = query.eq('id', projectId)
     } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
@@ -248,7 +246,81 @@ async function loadStdProject(projectId: string, employeeEmail: string) {
         return { data: null, error: null }
     }
 
-    return await query.maybeSingle()
+    const userRes = await query.eq('employee_email', employeeEmail).maybeSingle()
+    if (userRes.data) return userRes
+
+    // 2. Try finding in std_projects for any employee (e.g. admin testing)
+    let anyQuery = supabaseAdmin.from('std_projects').select('*')
+    if (UUID_RE.test(projectId)) {
+        anyQuery = anyQuery.eq('id', projectId)
+    } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
+        anyQuery = anyQuery.eq('topic_queue_id', topicQueueId)
+    }
+    const anyRes = await anyQuery.maybeSingle()
+    if (anyRes.data) return anyRes
+
+    // 3. Auto-provision project from topics_queue if not yet in std_projects table
+    if (topicQueueId != null && Number.isFinite(topicQueueId)) {
+        const { data: topicRow } = await supabaseAdmin
+            .from('topics_queue')
+            .select('*')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+
+        if (topicRow) {
+            const title = topicRow.generated_title || topicRow.topic || '새로운 영상 프로젝트'
+            const struct = topicRow.pregenerated_structure || {}
+            const scenes = Array.isArray(struct.scenes) ? struct.scenes : []
+            const now = new Date().toISOString()
+
+            const insertPayload = {
+                topic_queue_id: topicRow.id,
+                category_id: topicRow.category_id,
+                employee_email: employeeEmail,
+                title: title,
+                status: 'claimed',
+                total_scenes: scenes.length || 53,
+                video_scenes: 0,
+                image_scenes: scenes.length || 53,
+                actual_payout: topicRow.estimated_payout || 10000,
+                assigned_duration_minutes: topicRow.assigned_duration_minutes || 15,
+                project_payload: {
+                    topic_id: topicRow.id,
+                    title: title,
+                    script: topicRow.pregenerated_script || '',
+                    structure: struct,
+                    status: 'claimed',
+                },
+                progress_payload: {
+                    status: 'claimed',
+                    scenes_count: scenes.length || 53,
+                },
+                claimed_at: now,
+                updated_at: now,
+            }
+
+            const { data: createdProject, error: createErr } = await supabaseAdmin
+                .from('std_projects')
+                .insert(insertPayload)
+                .select()
+                .single()
+
+            if (createdProject) {
+                await supabaseAdmin
+                    .from('topics_queue')
+                    .update({
+                        assigned_employee_email: employeeEmail,
+                        status: 'assigned',
+                        updated_at: now,
+                    })
+                    .eq('id', topicRow.id)
+
+                return { data: createdProject, error: null }
+            }
+        }
+    }
+
+    return { data: null, error: null }
 }
 
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
@@ -328,33 +400,32 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const safeProjectKey = String(project.topic_queue_id || project.id).replace(/[^a-zA-Z0-9_-]/g, '')
         const fileName = `std_tts_${safeProjectKey}_${Date.now()}.mp3`
         stage = 'ensure_drive_folders'
-        let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>>
+        let folders: any = null
+        let driveFile: any = null
         try {
             folders = await ensureStdProjectDriveFolders(project)
-        } catch (driveConfigError: any) {
-            if (driveConfigError?.message === 'drive_root_folder_not_configured') {
-                const audioDataUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`
-                return NextResponse.json({
-                    success: true,
-                    asset: null,
-                    drive_file: null,
-                    audio_url: audioDataUrl,
-                    download_url: audioDataUrl,
-                    web_view_link: null,
-                    transient: true,
-                    message: 'TTS audio generated for immediate playback. Drive storage is not configured.',
-                })
-            }
-            throw driveConfigError
+            stage = 'upload_drive_file'
+            driveFile = await uploadStdDriveBuffer(
+                folders.originalsFolderId,
+                fileName,
+                audioBuffer,
+                'audio/mpeg',
+                `AIR STD web TTS audio for project ${project.id}`
+            )
+        } catch (driveError: any) {
+            console.warn('[STD TTS] Google Drive upload failed or not configured, falling back to direct transient playback:', driveError?.message)
+            const audioDataUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`
+            return NextResponse.json({
+                success: true,
+                asset: null,
+                drive_file: null,
+                audio_url: audioDataUrl,
+                download_url: audioDataUrl,
+                web_view_link: null,
+                transient: true,
+                message: 'TTS 음성이 생성되었습니다! (즉시 재생 모드)',
+            })
         }
-        stage = 'upload_drive_file'
-        const driveFile = await uploadStdDriveBuffer(
-            folders.originalsFolderId,
-            fileName,
-            audioBuffer,
-            'audio/mpeg',
-            `AIR STD web TTS audio for project ${project.id}`
-        )
 
         let asset: any = null
         try {

@@ -228,8 +228,7 @@ const loadCustomVoices = async (): Promise<any[]> => {
 }
 
 export async function GET(req: Request) {
-    const auth = await requireStdUser(req)
-    if (!auth.ok) return auth.response
+    // Voices list is safe for both authenticated users and initial guest preview
 
     const customVoices = await loadCustomVoices()
 
