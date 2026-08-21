@@ -2296,6 +2296,7 @@ def _generate_direct_image_grid_prompts(
     image_style_key: str,
     image_style_directive: str,
     job_log,
+    character_anchors_context: str = "",
 ) -> list[dict]:
     """Generate 2x2 prompts directly instead of concatenating per-scene prompts."""
     from services.image_grid_prompts import (
@@ -2347,13 +2348,15 @@ IMAGE STYLE DIRECTIVE:
 {image_style_directive}
 VISUAL BIBLE:
 {json.dumps(visual_direction_plan, ensure_ascii=False, indent=2)}
+CHARACTER DNA ANCHORS - TEXT ONLY, MUST PRESERVE WHEN EACH CHARACTER APPEARS:
+{character_anchors_context or "{}"}
 GRID INPUTS:
 {json.dumps(grid_inputs, ensure_ascii=False, indent=2)}
 
 Rules:
 1. Return exactly one grid object for every GRID INPUT, preserving grid_number, scene_numbers, and scene_ids.
 2. Each grid has exactly 4 panels in these positions: Top-Left, Top-Right, Bottom-Left, Bottom-Right.
-3. Write one shared_style per grid covering recurring characters, wardrobe, era/location logic, lighting direction, color palette, and selected image style.
+3. Write one shared_style per grid covering recurring characters, wardrobe, era/location logic, lighting direction, color palette, and selected image style. Include the relevant CHARACTER DNA ANCHORS in compact English when a named/recurring character appears in that grid.
 4. Write each panel_prompt as a concise English visual beat: subject, action, setting, composition, emotion, and one unique prop or background anchor. Keep each panel_prompt under 70 words.
 5. The final prompt must be compact: common layout rules once, shared_style once, then the four panel briefs. Avoid repeating negative guardrails inside every panel.
 6. Every final prompt must include: "No borders", "NO grid lines", "no text", "no words", "no letters", "no captions", and "no watermarks".
@@ -2425,6 +2428,7 @@ Schema:
                 "scene_ids": grid_input["scene_ids"],
                 "shared_style": (
                     f"{image_style_key}: {image_style_directive} "
+                    f"{character_anchors_context} "
                     "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
                 ),
                 "negative_prompt": (
@@ -2469,6 +2473,7 @@ def _generate_scene_media_prompts(
     job_log,
     script_text: str = "",
     main_character: dict | None = None,
+    supporting_characters: list[dict] | None = None,
 ) -> dict:
     """Attach image/video generation prompts without changing scene boundaries."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else None
@@ -2498,6 +2503,10 @@ def _generate_scene_media_prompts(
     if main_character:
         visual_direction_plan = dict(visual_direction_plan or {})
         visual_direction_plan["main_character"] = main_character
+    if supporting_characters:
+        visual_direction_plan = dict(visual_direction_plan or {})
+        visual_direction_plan["supporting_characters"] = supporting_characters
+    character_anchors_context = _character_anchors_context(main_character, supporting_characters)
 
     def _build_media_prompt(prompt_scenes: list, chunk_label: str, retry_note: str = "") -> str:
         retry_instruction = ""
@@ -2521,8 +2530,8 @@ ADMIN-SELECTED IMAGE STYLE DIRECTIVE:
 {image_style_directive}
 GLOBAL VISUAL BIBLE - MUST GOVERN EVERY SCENE:
 {json.dumps(visual_direction_plan, ensure_ascii=False, indent=2)}
-MAIN PROTAGONIST DNA - MUST PRESERVE WHEN THE PROTAGONIST APPEARS:
-{_main_character_context(main_character) or "{}"}
+CHARACTER DNA ANCHORS - TEXT ONLY, MUST PRESERVE WHEN EACH CHARACTER APPEARS:
+{character_anchors_context or "{}"}
 SCENE PLAN:
 {json.dumps(prompt_scenes, ensure_ascii=False, indent=2)}
 {retry_instruction}
@@ -2533,7 +2542,7 @@ Rules:
 3. Treat script_excerpt as the most authoritative source for what appears in the scene. Use scene_summary/scene_situation only to clarify context; never contradict the final narration.
 4. Treat the admin-selected image style as the visual language for the whole video. Integrate it naturally into the continuity notes; do not mix incompatible art styles.
 5. keyframe_subject must describe the opening keyframe in one concise English sentence: primary subject, pose/action, location, lighting, and continuity anchors.
-6. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them.
+6. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them. Use CHARACTER DNA ANCHORS as the source of truth; do not invent contradictory faces or wardrobes.
 7. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot. Never write the generic phrase "camera moves"; name the exact approved movement instead.
 8. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
 9. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
@@ -2686,6 +2695,7 @@ Return ONLY valid JSON in this shape:
             image_style_key,
             image_style_directive,
             job_log,
+            character_anchors_context=character_anchors_context,
         )
         image_grid_prompt_mode = "direct_2x2_only"
         validate_image_grid_prompt_readiness(enriched_scenes, image_grid_prompts, status="ready", require_status="ready")
@@ -2697,6 +2707,8 @@ Return ONLY valid JSON in this shape:
         result["visual_direction_plan"] = visual_direction_plan
         if main_character:
             result["main_character"] = main_character
+        if supporting_characters:
+            result["supporting_characters"] = supporting_characters[:2]
         result["image_grid_prompts"] = image_grid_prompts
         result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
         result["image_grid_prompt_mode"] = image_grid_prompt_mode
@@ -6137,6 +6149,82 @@ def _main_character_context(main_character: dict | None) -> str:
     }, ensure_ascii=False)
 
 
+def _character_anchor_name(character: dict | None) -> str:
+    if not isinstance(character, dict):
+        return ""
+    return str(
+        character.get("name")
+        or character.get("display_name")
+        or character.get("stable_label")
+        or ""
+    ).strip()
+
+
+def _normalize_character_anchor(character: dict | None, *, fallback_name: str, role: str) -> dict:
+    source = character if isinstance(character, dict) else {}
+    name = _character_anchor_name(source) or fallback_name
+    visual_dna = str(
+        source.get("visual_dna_en")
+        or source.get("prompt_en")
+        or source.get("description_en")
+        or source.get("description")
+        or ""
+    ).strip()
+    wardrobe = str(source.get("wardrobe_en") or source.get("wardrobe") or "").strip()
+    continuity = str(source.get("continuity_instruction") or "").strip()
+    if not visual_dna:
+        visual_dna = (
+            f"ordinary Korean {role} with a consistent age range, face shape, hairstyle, "
+            "body type, natural skin texture, restrained expression, and stable wardrobe colors"
+        )
+    if not wardrobe:
+        wardrobe = "story-appropriate everyday clothing with consistent color and silhouette"
+    if not continuity:
+        continuity = (
+            "Preserve this character's age, face shape, hairstyle, wardrobe, body type, "
+            "and emotional baseline in every image and video prompt."
+        )
+    return {
+        "name": name,
+        "gender": str(source.get("gender") or "unknown").strip() or "unknown",
+        "age_group": str(source.get("age_group") or "").strip(),
+        "role": str(source.get("role") or role).strip() or role,
+        "visual_dna_en": visual_dna,
+        "wardrobe_en": wardrobe,
+        "continuity_instruction": continuity,
+        "tags": source.get("tags") if isinstance(source.get("tags"), list) else [],
+        "source": source.get("source") or "worker_character_anchor",
+    }
+
+
+def _character_anchors_context(
+    main_character: dict | None,
+    supporting_characters: list[dict] | None = None,
+) -> str:
+    main_anchor = _normalize_character_anchor(
+        main_character,
+        fallback_name="protagonist",
+        role="protagonist",
+    ) if isinstance(main_character, dict) and main_character else None
+    supporting = [
+        _normalize_character_anchor(item, fallback_name=f"supporting_character_{idx}", role="supporting")
+        for idx, item in enumerate((supporting_characters or [])[:2], start=1)
+        if isinstance(item, dict)
+    ]
+    payload = {
+        "max_character_anchors": 3,
+        "main_character": main_anchor,
+        "supporting_characters": supporting,
+        "image_reference_policy": (
+            "No character image file is generated in this worker stage. Use these text DNA anchors "
+            "as the source of truth for image-grid and video-prompt continuity."
+        ),
+    }
+    if not main_anchor and not supporting:
+        return ""
+    return json.dumps(payload, ensure_ascii=False)
+
+
 def _fallback_main_character(topic: str, upload_title: str, structure: dict, narrative_blueprint: dict | None = None) -> dict:
     blueprint = narrative_blueprint or {}
     protagonist = str(blueprint.get("protagonist") or "").strip()
@@ -6263,6 +6351,117 @@ Rules:
         fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
         fallback["created_at"] = time.time()
         return fallback
+
+
+async def _generate_supporting_character_anchors(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    final_script: str,
+    main_character: dict | None,
+    job_log,
+) -> list[dict]:
+    """Infer up to two non-image supporting character DNA anchors.
+
+    This deliberately creates text continuity only. Character portrait/image
+    generation is a later, opt-in stage because it costs more and can drift
+    from the final scene prompts.
+    """
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    scene_digest = []
+    if isinstance(scenes, list):
+        for scene in scenes[:16]:
+            if not isinstance(scene, dict):
+                continue
+            scene_digest.append({
+                "scene_order": scene.get("scene_order") or scene.get("order"),
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "character_choice": scene.get("character_choice"),
+                "continuity_identity": scene.get("continuity_identity"),
+            })
+
+    prompt = f"""You are AIR Studio's worker-side character continuity director.
+Infer up to TWO supporting character DNA anchors from the final script and scene plan.
+
+Return ONLY valid JSON.
+
+[TOPIC]
+{topic}
+
+[UPLOAD TITLE]
+{upload_title}
+
+[MAIN CHARACTER - DO NOT DUPLICATE]
+{_main_character_context(main_character) or "{}"}
+
+[SCENE DIGEST]
+{json.dumps(scene_digest, ensure_ascii=False)}
+
+[FINAL SCRIPT EXCERPT]
+{str(final_script or "")[:6000]}
+
+JSON shape:
+{{
+  "supporting_characters": [
+    {{
+      "name": "stable Korean name or role label",
+      "gender": "male|female|unknown",
+      "age_group": "clear age range",
+      "role": "story role",
+      "visual_dna_en": "precise English permanent visual identity: age, ethnicity, face shape, eyes, hair, body type, skin texture, expression baseline",
+      "wardrobe_en": "consistent default wardrobe and color palette",
+      "continuity_instruction": "one English sentence for image/video prompt consistency",
+      "tags": ["short tags"]
+    }}
+  ]
+}}
+
+Rules:
+- Return 0, 1, or 2 supporting characters only.
+- Choose recurring or visually important characters, not one-off crowds.
+- Do not duplicate the main character.
+- Do not invent celebrities, brands, copyrighted characters, or public figures.
+- Use text DNA only; do not request or describe a generated portrait file."""
+    try:
+        raw = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.25,
+            max_tokens=2200,
+            task_type="hermes_supporting_character_anchors",
+        )
+        data = _extract_json(raw)
+        candidates = data.get("supporting_characters") if isinstance(data, dict) else []
+        if not isinstance(candidates, list):
+            raise ValueError("supporting_characters was not a list")
+        main_name = _character_anchor_name(main_character).casefold()
+        anchors = []
+        seen = {main_name} if main_name else set()
+        for index, candidate in enumerate(candidates, start=1):
+            if not isinstance(candidate, dict):
+                continue
+            anchor = _normalize_character_anchor(
+                candidate,
+                fallback_name=f"supporting_character_{index}",
+                role="supporting",
+            )
+            key = _character_anchor_name(anchor).casefold()
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            anchor["source"] = "worker_ai"
+            anchors.append(anchor)
+            if len(anchors) >= 2:
+                break
+        job_log.info(f"Supporting character anchors ready: {len(anchors)}")
+        return anchors
+    except Exception as e:
+        job_log.warning(f"Supporting character anchor generation failed; continuing without supporting anchors: {e}")
+        return []
 
 
 def _fallback_narrative_blueprint(topic: str, upload_title: str, structure: dict) -> dict:
@@ -7069,6 +7268,35 @@ Hard retry rules:
             "Generated script contains excessive repeated sentences: "
             f"{json.dumps(repeated_sentences[:8], ensure_ascii=False)}"
         )
+    if not isinstance(main_character, dict) or not main_character:
+        main_character = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        main_character["source"] = "worker_required_fallback"
+    main_character = _normalize_character_anchor(
+        main_character,
+        fallback_name="protagonist",
+        role="protagonist",
+    )
+    supporting_characters = asyncio.run(
+        _generate_supporting_character_anchors(
+            ai_router,
+            draft_model,
+            topic,
+            upload_title,
+            structure,
+            final_script,
+            main_character,
+            job_log,
+        )
+    )[:2]
+    character_anchors = {
+        "main_character": main_character,
+        "supporting_characters": supporting_characters,
+        "max_character_anchors": 3,
+        "character_image_generation": {
+            "enabled": False,
+            "reason": "Worker pre-generation uses text DNA anchors first; portrait image generation remains opt-in.",
+        },
+    }
 
     image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
     image_style_selection = (
@@ -7092,6 +7320,7 @@ Hard retry rules:
         job_log=job_log,
         script_text=final_script,
         main_character=main_character,
+        supporting_characters=supporting_characters,
     )
     category_errors = _scene_plan_category_contamination_errors(
         structure,
@@ -7114,6 +7343,9 @@ Hard retry rules:
         "script_quality_report": final_quality,
         "script_style": script_style_context,
         "image_style": image_style,
+        "main_character": main_character,
+        "supporting_characters": supporting_characters,
+        "character_anchors": character_anchors,
     }
     script_stage_report = _validate_script_generate_stage(
         script_stage_payload,
@@ -7143,6 +7375,8 @@ Hard retry rules:
         "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
         "narrative_blueprint": narrative_blueprint,
         "main_character": main_character,
+        "supporting_characters": supporting_characters,
+        "character_anchors": character_anchors,
         "initial_script_quality_report": initial_quality,
         "script_quality_report": final_quality,
         "stage_quality_report": script_stage_report,
@@ -7219,6 +7453,12 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     result_path = RESULTS_DIR / f"{job_id}.json"
     completed_at = time.time()
+    main_character = structure.get("main_character") if isinstance(structure, dict) else None
+    supporting_characters = (
+        structure.get("supporting_characters")
+        if isinstance(structure, dict) and isinstance(structure.get("supporting_characters"), list)
+        else []
+    )
     result_payload = {
         "job_id": job_id,
         "job_type": "publish_metadata_generate",
@@ -7230,6 +7470,17 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "script": script,
         "structure": structure,
         "narrative_blueprint": narrative_blueprint,
+        "main_character": main_character,
+        "supporting_characters": supporting_characters[:2],
+        "character_anchors": {
+            "main_character": main_character,
+            "supporting_characters": supporting_characters[:2],
+            "max_character_anchors": 3,
+            "character_image_generation": {
+                "enabled": False,
+                "reason": "Worker pre-generation uses text DNA anchors first; portrait image generation remains opt-in.",
+            },
+        },
         "publish_metadata": publish_metadata,
         "script_quality_report": script_quality_report,
         "stage_quality_report": metadata_stage_report,
@@ -7331,6 +7582,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 "progress_payload": {
                     "publish_metadata": result_payload.get("publish_metadata"),
                     "main_character": result_payload.get("main_character"),
+                    "supporting_characters": result_payload.get("supporting_characters") or [],
+                    "character_anchors": result_payload.get("character_anchors") or {},
                     "pregenerated_script_status": "ready",
                     "prepared_topic_ready": True,
                     "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -7409,6 +7662,13 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             )
             progress_payload = {
                 "publish_metadata": result_payload.get("publish_metadata"),
+                "main_character": result_payload.get("main_character") or structure.get("main_character"),
+                "supporting_characters": result_payload.get("supporting_characters") or structure.get("supporting_characters") or [],
+                "character_anchors": result_payload.get("character_anchors") or {
+                    "main_character": result_payload.get("main_character") or structure.get("main_character"),
+                    "supporting_characters": result_payload.get("supporting_characters") or structure.get("supporting_characters") or [],
+                    "max_character_anchors": 3,
+                },
                 "pregenerated_script_status": "ready",
                 "pregenerated_structure_status": "ready",
                 "prepared_topic_ready": True,

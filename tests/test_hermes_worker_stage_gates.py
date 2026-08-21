@@ -156,6 +156,20 @@ def test_publish_metadata_syncs_full_prepared_package_even_when_quality_gated(mo
             "defer_ready_until_quality_gate": True,
         }
     )
+    payload["structure"]["main_character"] = {
+        "name": "무진",
+        "role": "protagonist",
+        "visual_dna_en": "Korean swordsman with a lean build and tired eyes",
+        "wardrobe_en": "worn gray martial robe",
+    }
+    payload["structure"]["supporting_characters"] = [
+        {
+            "name": "사부",
+            "role": "mentor",
+            "visual_dna_en": "elderly Korean master with white hair",
+            "wardrobe_en": "plain dark robe",
+        }
+    ]
 
     hermes_worker._save_result_to_supabase("publish_metadata_generate", payload, _FakeLog())
 
@@ -170,3 +184,6 @@ def test_publish_metadata_syncs_full_prepared_package_even_when_quality_gated(mo
     assert patch_payload["generated_title"] == payload["generated_title"]
     assert patch_payload["total_scenes"] == len(payload["structure"]["scenes"])
     assert patch_payload["progress_payload"]["prepared_topic_ready"] is True
+    assert patch_payload["progress_payload"]["main_character"]["name"] == "무진"
+    assert patch_payload["progress_payload"]["supporting_characters"][0]["name"] == "사부"
+    assert patch_payload["progress_payload"]["character_anchors"]["max_character_anchors"] == 3

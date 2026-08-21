@@ -80,6 +80,51 @@ def test_compact_grid_prompts_use_panel_briefs_instead_of_full_scene_prompts():
     validate_image_grid_prompt_readiness(scenes, [compact], status="ready", require_status="ready")
 
 
+def test_worker_character_anchors_are_injected_into_compact_grid_prompts():
+    context = hermes_worker._character_anchors_context(
+        {
+            "name": "Minseo",
+            "role": "protagonist",
+            "visual_dna_en": "Korean woman in her 60s, oval face, silver bob hair, tired but kind eyes",
+            "wardrobe_en": "navy cardigan and cream blouse",
+        },
+        [
+            {
+                "name": "Joonho",
+                "role": "son",
+                "visual_dna_en": "Korean man in his 30s, square jaw, short black hair",
+                "wardrobe_en": "gray office jacket",
+            }
+        ],
+    )
+    grids = build_compact_image_grid_prompts([
+        {
+            "grid_number": 1,
+            "scene_numbers": [1, 2, 3, 4],
+            "scene_ids": [f"scene{index:03d}" for index in range(1, 5)],
+            "shared_style": f"Character DNA anchors: {context}",
+            "panels": [
+                {
+                    "scene_number": number,
+                    "scene_id": f"scene{number:03d}",
+                    "position": position,
+                    "panel_prompt": f"Scene {number}: Minseo and Joonho in a concrete story beat.",
+                }
+                for number, position in zip(
+                    range(1, 5),
+                    ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                )
+            ],
+        }
+    ])
+
+    prompt = grids[0]["prompt"]
+    assert "Minseo" in prompt
+    assert "Joonho" in prompt
+    assert "silver bob hair" in prompt
+    assert "gray office jacket" in prompt
+
+
 def test_validate_grid_prompts_requires_tail_coverage():
     scenes = _scenes(9)
     old_complete_blocks_only = build_image_grid_prompts(_scenes(8))
