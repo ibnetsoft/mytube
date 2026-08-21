@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
 import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
 import { generateJsonWithModelSetting } from '../../../../lib/aiRouter'
-import { isPreparedUserTopic, preparedTopicStatus } from '../../../../lib/preparedTopic'
+import { preparedTopicStatus } from '../../../../lib/preparedTopic'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -60,9 +60,7 @@ const TOPICS_QUEUE_LIST_SELECT = `
     payout_policy,
     duration_reason,
     difficulty_level,
-    pregenerated_structure,
     pregenerated_structure_status,
-    pregenerated_script,
     pregenerated_script_status,
     generated_title,
     translation_status,
@@ -509,7 +507,23 @@ function normalizeTopicQueueRow(topic: any) {
     const videoClipRatio = String(topic?.video_clip_ratio || assetMix?.video_clip_ratio || fallbackRatio || '').trim()
 
     const language = normalizeContentLanguage(topic?.language || topic?.categories?.language)
-    const preparationStatus = preparedTopicStatus(topic)
+    const hasTitle = String(topic?.generated_title || topic?.topic || '').trim().length > 0
+    const hasDescription = String((topic?.publish_metadata || topic?.progress_payload?.publish_metadata || {})?.description || '').trim().length > 0
+    const compactReady = topic?.status === 'pending'
+        && !String(topic?.assigned_at || '').trim()
+        && hasTitle
+        && topic?.category_id !== null
+        && topic?.category_id !== undefined
+        && topic?.pregenerated_structure_status === 'ready'
+        && topic?.pregenerated_script_status === 'ready'
+        && hasDescription
+    const preparationStatus = topic?.pregenerated_structure || topic?.pregenerated_script
+        ? preparedTopicStatus(topic)
+        : topic?.status === 'assigned' || String(topic?.assigned_at || '').trim()
+        ? 'claimed'
+        : compactReady
+        ? 'ready'
+        : 'not_ready'
     const { pregenerated_structure, pregenerated_script, ...safeTopic } = topic
     return {
         ...safeTopic,
@@ -522,6 +536,12 @@ function normalizeTopicQueueRow(topic: any) {
         image_scenes: imageScenes,
         actual_payout: actualPayout,
         video_clip_ratio: videoClipRatio,
+        preparation_summary: {
+            has_title: hasTitle,
+            has_structure: topic?.pregenerated_structure_status === 'ready',
+            has_script: topic?.pregenerated_script_status === 'ready',
+            has_description: hasDescription,
+        },
     }
 }
 
@@ -579,10 +599,10 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        const visibleRows = status === 'active'
-            ? (data || []).filter((topic: any) => topic?.status === 'assigned' || isPreparedUserTopic(topic))
-            : (data || [])
-        const topics = visibleRows.map((topic: any) => normalizeTopicQueueRow(topic))
+        const normalizedRows = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
+        const topics = status === 'active'
+            ? normalizedRows.filter((topic: any) => topic?.status === 'assigned' || topic?.is_prepared_for_claim)
+            : normalizedRows
 
         return NextResponse.json({
             topics,

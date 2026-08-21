@@ -164,6 +164,7 @@ class VideoService:
         transition_effects: Optional[List[str]] = None, # [NEW] Scene transitions
         intro_video_path: Optional[str] = None,   # [NEW] Intro Video Prepend
         sfx_map: Optional[dict] = None,          # [NEW] Scene SFX Map {scene_num: sfx_path}
+        sfx_cues: Optional[List[dict]] = None,   # Subtitle-timeline SFX cues
         focal_point_ys: Optional[List[float]] = None, # [NEW] Smart Focus Point (0.0 - 1.0)
         content_aspect_ratio: Optional[str] = None,  # [NEW] '1:1', '3:4' etc.
         codec: str = "libx264"                        # [GPU] encoder: libx264 (CPU) or h264_nvenc (NVENC)
@@ -1173,6 +1174,79 @@ class VideoService:
                     print(f"BGM Mixing Error: {bge}")
 
             # 오디오 길이에 맞춰 비디오 조절
+            effective_sfx_cues = list(sfx_cues or [])
+            if not effective_sfx_cues and sfx_map:
+                scene_start = 0.0
+                scene_durations = duration_per_image if isinstance(duration_per_image, list) else [duration_per_image] * len(images)
+                for scene_index, scene_duration in enumerate(scene_durations, start=1):
+                    sfx_path = sfx_map.get(scene_index) or sfx_map.get(str(scene_index))
+                    if sfx_path:
+                        effective_sfx_cues.append(
+                            {
+                                "start": round(scene_start, 3),
+                                "path": sfx_path,
+                                "category": "scene",
+                                "volume_db": -16.0,
+                                "source": "scene_sfx_map",
+                            }
+                        )
+                    try:
+                        scene_start += float(scene_duration)
+                    except (TypeError, ValueError):
+                        scene_start += 5.0
+
+            if effective_sfx_cues:
+                try:
+                    from moviepy.audio.AudioClip import CompositeAudioClip
+                    from services.sfx_service import db_to_volume_factor, resolve_sfx_path
+
+                    mixed_clips = [audio]
+                    applied_count = 0
+                    for cue in effective_sfx_cues:
+                        if not isinstance(cue, dict) or cue.get("enabled") is False:
+                            continue
+                        try:
+                            start_at = max(0.0, float(cue.get("start") or cue.get("time") or 0.0))
+                        except (TypeError, ValueError):
+                            continue
+                        if start_at > audio.duration + 0.5:
+                            continue
+
+                        from pathlib import Path
+                        packaged_root = Path(audio_path).parent.parent if audio_path else None
+                        sfx_path = resolve_sfx_path(
+                            cue.get("relative_path") or cue.get("filename") or cue.get("path") or cue.get("key"),
+                            packaged_root=packaged_root,
+                        )
+                        if not sfx_path or not os.path.exists(sfx_path):
+                            continue
+
+                        sfx_clip = AudioFileClip(str(sfx_path))
+                        max_duration = max(0.05, audio.duration - start_at)
+                        cue_duration = cue.get("duration")
+                        try:
+                            target_duration = min(float(cue_duration), sfx_clip.duration, max_duration) if cue_duration else min(sfx_clip.duration, max_duration)
+                        except (TypeError, ValueError):
+                            target_duration = min(sfx_clip.duration, max_duration)
+                        sfx_clip = sfx_clip.with_duration(target_duration)
+
+                        volume = db_to_volume_factor(cue.get("volume_db"), -18.0)
+                        if hasattr(sfx_clip, "with_volume_scaled"):
+                            sfx_clip = sfx_clip.with_volume_scaled(volume)
+                        elif hasattr(sfx_clip, "with_volume"):
+                            sfx_clip = sfx_clip.with_volume(volume)
+                        elif hasattr(sfx_clip, "volumex"):
+                            sfx_clip = sfx_clip.volumex(volume)
+
+                        mixed_clips.append(sfx_clip.with_start(start_at))
+                        applied_count += 1
+
+                    if applied_count:
+                        audio = CompositeAudioClip(mixed_clips).with_duration(audio.duration)
+                        print(f"[SFX Mixer] Mixed {applied_count} subtitle-timeline SFX cue(s).")
+                except Exception as sfx_err:
+                    print(f"SFX timeline mixing error: {sfx_err}")
+
             check_duration = audio.duration
             try:
                 import pydub

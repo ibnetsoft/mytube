@@ -137,9 +137,17 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
         const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
             ? existingTopic.progress_payload
             : {}
+        const sfxCues = Array.isArray(resultPayload.sfx_cues)
+            ? resultPayload.sfx_cues
+            : Array.isArray(existingProgress.sfx_cues)
+                ? existingProgress.sfx_cues
+                : []
+        const sfxCuesJson = resultPayload.sfx_cues_json || existingProgress.sfx_cues_json || JSON.stringify(sfxCues)
         const progressPayload = {
             ...existingProgress,
             publish_metadata: resultPayload.publish_metadata || existingProgress.publish_metadata || null,
+            sfx_cues: sfxCues,
+            sfx_cues_json: sfxCuesJson,
             pregenerated_script_status: 'ready',
             ...(resultPayload.structure ? { pregenerated_structure_status: 'ready' } : {}),
             prepared_topic_ready: true,
@@ -191,6 +199,8 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                     title_generation: resultPayload.title_generation || jobPayload.title_generation,
                     narrative_blueprint: resultPayload.narrative_blueprint || {},
                     script_quality_report: resultPayload.script_quality_report || {},
+                    sfx_cues: sfxCues,
+                    sfx_cues_json: sfxCuesJson,
                     defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
                     language: jobPayload.language,
                 },
@@ -237,9 +247,17 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
         const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
             ? existingTopic.progress_payload
             : {}
+        const sfxCues = Array.isArray(resultPayload.sfx_cues)
+            ? resultPayload.sfx_cues
+            : Array.isArray(existingProgress.sfx_cues)
+                ? existingProgress.sfx_cues
+                : []
+        const sfxCuesJson = resultPayload.sfx_cues_json || existingProgress.sfx_cues_json || JSON.stringify(sfxCues)
         const progressPayload = {
             ...existingProgress,
             publish_metadata: publishMetadata,
+            sfx_cues: sfxCues,
+            sfx_cues_json: sfxCuesJson,
             publish_metadata_status: 'ready',
             pregenerated_script_status: script ? 'ready' : existingProgress.pregenerated_script_status,
             pregenerated_structure_status: structure ? 'ready' : existingProgress.pregenerated_structure_status,

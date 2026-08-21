@@ -138,6 +138,22 @@ def _compute_image_durations(starts_or_durations, scene_count: int, audio_durati
     return durations
 
 
+def _copy_project_sfx_package(project_id: int, p_settings: dict, subs: list, image_timing_starts, temp_dir: str) -> list:
+    try:
+        from services.sfx_service import build_render_sfx_cues, package_sfx_cues
+
+        cues = build_render_sfx_cues(
+            p_settings,
+            subs,
+            project_id=project_id,
+            image_timing_starts=image_timing_starts if isinstance(image_timing_starts, list) else None,
+        )
+        return package_sfx_cues(cues, temp_dir)
+    except Exception as exc:
+        print(f"[SFX] Failed to prepare SFX package: {exc}")
+        return []
+
+
 def _build_project_upload_metadata(project_id: int, project_obj: dict, p_settings: dict):
     metadata = db.get_project_metadata(project_id, p_settings.get("app_mode")) or {}
     title = (
@@ -317,6 +333,8 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
             except Exception:
                 pass
 
+        sfx_cues = _copy_project_sfx_package(project_id, p_settings, subs, image_timing_starts, temp_dir)
+
         bg_video_url = p_settings.get('bg_video_url')
         intro_video_path = p_settings.get('intro_video_path')
         intro_filename = None
@@ -366,6 +384,7 @@ def package_project_assets(project_id: int, use_subtitles: bool = True, resoluti
             'render_settings': render_settings,
             'image_timing_starts': image_timing_starts,
             'image_effects': image_effects,
+            'sfx_cues': sfx_cues,
             'focal_point_ys': focal_point_ys,
             'bg_video_url': bg_video_url,
             'intro_filename': intro_filename,
@@ -521,6 +540,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         render_settings = metadata.get('render_settings', {})
         image_timing_starts = metadata.get('image_timing_starts')
         image_effects = metadata.get('image_effects') or []
+        sfx_cues = metadata.get('sfx_cues') or []
         focal_point_ys = metadata.get('focal_point_ys') or []
 
         if aspect_ratio == '9:16':
@@ -667,6 +687,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             intro_video_path=intro_video_path if intro_video_path and os.path.exists(intro_video_path) else None,
             focal_point_ys=focal_point_ys,
             image_effects=image_effects,
+            sfx_cues=sfx_cues,
             content_aspect_ratio=metadata.get('content_aspect_ratio'),
             codec=slideshow_encoder,
         )

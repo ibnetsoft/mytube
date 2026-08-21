@@ -133,8 +133,15 @@ def render_status_display() -> dict:
     """[AIR-0227B Stage 9] Honest CPU/GPU status for Local API /status -
     never claims GPU acceleration is active since nothing in the pipeline
     implements it (Stage 1 finding, worker_config.py)."""
+    try:
+        from sfx_library import sfx_status
+    except Exception:
+        sfx = {"catalog_exists": False, "item_count": 0, "existing_file_count": 0}
+    else:
+        sfx = sfx_status()
     return {
         "encoder": RENDER_ENCODER,
         "acceleration": RENDER_ACCELERATION,
         "gpu_rendering": GPU_RENDERING_ACTIVE,
+        "sfx_library": sfx,
     }

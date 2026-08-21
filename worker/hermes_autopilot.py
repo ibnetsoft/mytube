@@ -2437,6 +2437,8 @@ Return ONLY a JSON array of strings.
             structure = script_data["structure"]
         narrative_blueprint = script_data.get("narrative_blueprint")
         script_quality_report = script_data.get("script_quality_report")
+        sfx_cues = script_data.get("sfx_cues") or []
+        sfx_cues_json = script_data.get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
         char_count = len(final_script)
         self.add_log(f"✍️ 최종 대본 집필 완료 (총 글자수: {char_count}자)")
 
@@ -2461,6 +2463,8 @@ Return ONLY a JSON array of strings.
                 "title_generation": title_plan,
                 "narrative_blueprint": narrative_blueprint or {},
                 "script_quality_report": script_quality_report or {},
+                "sfx_cues": sfx_cues,
+                "sfx_cues_json": sfx_cues_json,
                 "language": "ko",
                 "defer_ready_until_quality_gate": True,
                 "quality_feedback": getattr(self, "_quality_feedback", []),
@@ -2489,6 +2493,8 @@ Return ONLY a JSON array of strings.
             "title_candidates": title_plan["title_candidates"],
             "narrative_blueprint": narrative_blueprint,
             "script_quality_report": script_quality_report,
+            "sfx_cues": sfx_cues,
+            "sfx_cues_json": sfx_cues_json,
             "image_style": assigned_image_style,
             "assigned_image_style": assigned_image_style,
             "image_style_selection": image_style_plan,
@@ -2531,6 +2537,8 @@ Return ONLY a JSON array of strings.
                             "publish_metadata": publish_metadata,
                             "progress_payload": {
                                 "publish_metadata": publish_metadata,
+                                "sfx_cues": sfx_cues,
+                                "sfx_cues_json": sfx_cues_json,
                                 "pregenerated_script_status": "ready",
                                 "prepared_topic_ready": True,
                                 "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
@@ -2555,6 +2563,8 @@ Return ONLY a JSON array of strings.
                                 "benchmark_analysis": benchmark_payload,
                                 "progress_payload": {
                                     "publish_metadata": publish_metadata,
+                                    "sfx_cues": sfx_cues,
+                                    "sfx_cues_json": sfx_cues_json,
                                     "pregenerated_script_status": "ready",
                                     "prepared_topic_ready": True,
                                     "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",

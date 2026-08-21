@@ -6975,6 +6975,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     from config import Config, config
     from services import ai_router
     from services.script_style_resolver import resolve_script_style_directive
+    from services.sfx_service import build_hermes_sfx_cues
     import asyncio
 
     Config.refresh_remote_keys_if_stale()
@@ -7348,6 +7349,13 @@ Hard retry rules:
     )
     if category_errors:
         raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
+    sfx_cues = build_hermes_sfx_cues(
+        final_script,
+        structure,
+        target_duration_seconds=duration_seconds,
+    )
+    sfx_cues_json = json.dumps(sfx_cues, ensure_ascii=False)
+    job_log.info(f"-> HERMES SFX PLANNED ({len(sfx_cues)} cues)")
     category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     script_stage_payload = {
         "topic_queue_id": topic_queue_id,
@@ -7363,6 +7371,8 @@ Hard retry rules:
         "main_character": main_character,
         "supporting_characters": supporting_characters,
         "character_anchors": character_anchors,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
     }
     script_stage_report = _validate_script_generate_stage(
         script_stage_payload,
@@ -7394,6 +7404,8 @@ Hard retry rules:
         "main_character": main_character,
         "supporting_characters": supporting_characters,
         "character_anchors": character_anchors,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
         "initial_script_quality_report": initial_quality,
         "script_quality_report": final_quality,
         "stage_quality_report": script_stage_report,
@@ -7445,6 +7457,8 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
     )
     _validate_publish_metadata_quality(publish_metadata, topic, upload_title, script, language)
     category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    sfx_cues = (job.get("payload") or {}).get("sfx_cues") or []
+    sfx_cues_json = (job.get("payload") or {}).get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
     metadata_stage_payload = {
         "topic_queue_id": topic_queue_id,
         "category": category_for_gate,
@@ -7456,6 +7470,8 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "narrative_blueprint": narrative_blueprint,
         "script_quality_report": script_quality_report,
         "publish_metadata": publish_metadata,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
         "language": language,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
     }
@@ -7499,6 +7515,8 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
             },
         },
         "publish_metadata": publish_metadata,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
         "script_quality_report": script_quality_report,
         "stage_quality_report": metadata_stage_report,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
@@ -7586,6 +7604,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if not tq_id:
                 job_log.info("No topic_queue_id in script result - skipping Supabase update")
                 return
+            sfx_cues = result_payload.get("sfx_cues") or []
+            sfx_cues_json = result_payload.get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
             patch_data = {
                 # Keep pre-generated topics claimable. The queue row becomes
                 # completed only when the user claims it.
@@ -7601,6 +7621,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                     "main_character": result_payload.get("main_character"),
                     "supporting_characters": result_payload.get("supporting_characters") or [],
                     "character_anchors": result_payload.get("character_anchors") or {},
+                    "sfx_cues": sfx_cues,
+                    "sfx_cues_json": sfx_cues_json,
                     "pregenerated_script_status": "ready",
                     "prepared_topic_ready": True,
                     "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -7677,6 +7699,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 or len(structure.get("scenes") or [])
                 or result_payload.get("total_scenes")
             )
+            sfx_cues = result_payload.get("sfx_cues") or []
+            sfx_cues_json = result_payload.get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
             progress_payload = {
                 "publish_metadata": result_payload.get("publish_metadata"),
                 "main_character": result_payload.get("main_character") or structure.get("main_character"),
@@ -7686,6 +7710,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                     "supporting_characters": result_payload.get("supporting_characters") or structure.get("supporting_characters") or [],
                     "max_character_anchors": 3,
                 },
+                "sfx_cues": sfx_cues,
+                "sfx_cues_json": sfx_cues_json,
                 "pregenerated_script_status": "ready",
                 "pregenerated_structure_status": "ready",
                 "prepared_topic_ready": True,

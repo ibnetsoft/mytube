@@ -590,7 +590,14 @@ async def save_subtitles_api(req: dict = Body(...)):
                  json.dump(image_effects, f, indent=2)
              db.update_project_setting(project_id, 'image_effects_path', ef_path)
 
-        return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": timeline_images, "image_effects": image_effects}
+        sfx_cues = req.get("sfx_cues")
+        if sfx_cues is not None:
+             if not isinstance(sfx_cues, list):
+                 raise HTTPException(400, "sfx_cues must be a list")
+             from services.sfx_service import save_project_sfx_cues
+             save_project_sfx_cues(project_id, sfx_cues)
+
+        return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": timeline_images, "image_effects": image_effects, "sfx_cues": sfx_cues}
     except Exception as e:
         print(f"Save Subtitles Error: {e}")
         return {"status": "error", "error": str(e)}
@@ -1837,6 +1844,17 @@ async def render_project_video(
                         shutil.copy2(template_path_arg, os.path.join(requests_dir, new_template))
 
                     # 렌더링 작업 명세서 JSON 생성
+                    from services.sfx_service import build_render_sfx_cues, package_sfx_cues
+                    sfx_cues = package_sfx_cues(
+                        build_render_sfx_cues(
+                            p_settings,
+                            subs,
+                            project_id=project_id,
+                            image_timing_starts=forced_timings if isinstance(forced_timings, list) else None,
+                        ),
+                        requests_dir,
+                    )
+
                     job_spec = {
                         "project_id": project_id,
                         "output_filename": os.path.basename(final_output_path),
@@ -1851,6 +1869,7 @@ async def render_project_video(
                         "duration_per_image": duration_per_image,
                         "fade_in_flags": fade_in_flags,
                         "image_effects": image_effects,
+                        "sfx_cues": sfx_cues,
                         "transition_effects": transition_effects,
                         "intro_video_path": new_intro
                     }
@@ -1880,6 +1899,13 @@ async def render_project_video(
                     print(f"프로젝트 {project_id} 구글 드라이브 렌더링 요청 완료: {requests_dir}")
 
                 else:
+                    from services.sfx_service import build_render_sfx_cues
+                    sfx_cues = build_render_sfx_cues(
+                        p_settings,
+                        subs,
+                        project_id=project_id,
+                        image_timing_starts=forced_timings if isinstance(forced_timings, list) else None,
+                    )
                     video_path = video_service.create_slideshow(
                         images=images,
                         audio_path=effective_audio_path,
@@ -1894,6 +1920,7 @@ async def render_project_video(
                         fade_in_flags=fade_in_flags,
                         image_effects=image_effects,
                         intro_video_path=intro_video_path_arg,
+                        sfx_cues=sfx_cues,
                         project_id=project_id
                     )
 

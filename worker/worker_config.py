@@ -57,12 +57,15 @@ MANAGER_STATUS_FILE = STATE_DIR / "manager_status.json"
 OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp"            # reserved - render scratch still uses tempfile.mkdtemp() under system %TEMP%, not migrated here
 CONFIG_DIR = BASE_DIR / "config"        # reserved - no user-editable config file lives here yet
+ASSET_DIR = BASE_DIR / "assets"
+SFX_LIBRARY_DIR = ASSET_DIR / "sfx"
+SFX_CATALOG_PATH = SFX_LIBRARY_DIR / "catalog.json"
 CRASH_DIR = BASE_DIR / "crash"          # reserved - no crash-dump writer exists yet
 UPDATE_DIR = BASE_DIR / "update"        # reserved worker runtime directory
 QUARANTINE_DIR = BASE_DIR / "quarantine"  # reserved - partial/abandoned render outputs are not yet moved here (see docs/AIR_WORKER_JOB_RECOVERY.md for current abandon policy)
 for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, IPC_DIR, COMMAND_DIR, RESULT_DIR,
            CANCEL_FLAG_DIR, SHUTDOWN_FLAG_DIR, OUTPUT_DIR, TEMP_DIR, CONFIG_DIR,
-           CRASH_DIR, UPDATE_DIR, QUARANTINE_DIR):
+           ASSET_DIR, SFX_LIBRARY_DIR, CRASH_DIR, UPDATE_DIR, QUARANTINE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 JOB_DB_PATH = STATE_DIR / "jobs.db"

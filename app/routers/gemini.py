@@ -71,6 +71,14 @@ def _sync_claimed_topic_pregeneration(project_id: int, settings: dict) -> dict:
         if result.get("status") != "ok":
             return settings
         topic = result.get("topic") or {}
+        progress_payload = topic.get("progress_payload") or {}
+        if isinstance(progress_payload, str):
+            try:
+                progress_payload = json.loads(progress_payload)
+            except json.JSONDecodeError:
+                progress_payload = {}
+        if not isinstance(progress_payload, dict):
+            progress_payload = {}
         structure_status = topic.get("pregenerated_structure_status") or "queued"
         script_status = topic.get("pregenerated_script_status") or "queued"
         db.update_project_setting(project_id, "pregenerated_structure_status", structure_status)
@@ -99,6 +107,12 @@ def _sync_claimed_topic_pregeneration(project_id: int, settings: dict) -> dict:
             db.update_project_setting(
                 project_id, "benchmark_analysis_json", json.dumps(benchmark, ensure_ascii=False)
             )
+        sfx_cues_json = progress_payload.get("sfx_cues_json")
+        sfx_cues = progress_payload.get("sfx_cues")
+        if sfx_cues_json:
+            db.update_project_setting(project_id, "sfx_cues_json", str(sfx_cues_json))
+        elif isinstance(sfx_cues, list):
+            db.update_project_setting(project_id, "sfx_cues_json", json.dumps(sfx_cues, ensure_ascii=False))
         return db.get_project_settings(project_id) or settings
     except Exception as exc:
         print(f"[Gemini] Failed to refresh pregeneration for project {project_id}: {exc}")

@@ -292,6 +292,12 @@ def restore_project_from_remote(remote_project: Dict[str, Any]) -> Optional[int]
         settings = project_payload.get("settings") or {}
         if settings:
             db.save_project_settings(project_id, settings)
+        sfx_cues_json = project_payload.get("sfx_cues_json")
+        sfx_cues = project_payload.get("sfx_cues")
+        if sfx_cues_json:
+            db.update_project_setting(project_id, "sfx_cues_json", str(sfx_cues_json))
+        elif isinstance(sfx_cues, list):
+            db.update_project_setting(project_id, "sfx_cues_json", json.dumps(sfx_cues, ensure_ascii=False))
 
         return project_id
 

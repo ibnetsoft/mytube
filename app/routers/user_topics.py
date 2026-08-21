@@ -208,6 +208,21 @@ def _image_grid_prompts_from_pregenerated_structure(structure: dict) -> list[dic
 
 def _copy_prepared_topic_assets_to_project(project_id: int, topic_data: dict, normalized: dict | None = None) -> None:
     copied_ready_media = False
+    progress_payload = topic_data.get("progress_payload")
+    if isinstance(progress_payload, str):
+        try:
+            progress_payload = json.loads(progress_payload)
+        except Exception:
+            progress_payload = {}
+    if not isinstance(progress_payload, dict):
+        progress_payload = {}
+    sfx_cues_json = progress_payload.get("sfx_cues_json")
+    sfx_cues = progress_payload.get("sfx_cues")
+    if sfx_cues_json:
+        db.update_project_setting(project_id, "sfx_cues_json", str(sfx_cues_json))
+    elif isinstance(sfx_cues, list):
+        db.update_project_setting(project_id, "sfx_cues_json", json.dumps(sfx_cues, ensure_ascii=False))
+
     structure = topic_data.get("pregenerated_structure")
     if isinstance(structure, dict):
         prepared_structure = dict(structure)
