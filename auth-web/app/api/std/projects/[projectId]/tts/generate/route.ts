@@ -15,6 +15,7 @@ export const maxDuration = 300
 const DEFAULT_ELEVENLABS_VOICE_ID = '4JJwo477JUAx3HV0T7n7'
 const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
 const MAX_CHARS_PER_REQUEST = 4500
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function cleanTtsText(value: string) {
     return String(value || '')
@@ -51,7 +52,14 @@ function splitText(text: string, maxChars = MAX_CHARS_PER_REQUEST) {
                 current = (current ? `${current} ` : '') + sentence
             } else {
                 if (current) chunks.push(current)
-                current = sentence.length <= maxChars ? sentence : sentence.slice(0, maxChars)
+                if (sentence.length <= maxChars) {
+                    current = sentence
+                } else {
+                    for (let i = 0; i < sentence.length; i += maxChars) {
+                        chunks.push(sentence.slice(i, i + maxChars))
+                    }
+                    current = ''
+                }
             }
         }
     }
@@ -171,6 +179,38 @@ async function generateElevenLabsMp3(input: {
     return Buffer.concat(buffers)
 }
 
+async function generateSingleGoogleTranslateChunk(chunk: string): Promise<Buffer> {
+    const url = new URL('https://translate.google.com/translate_tts')
+    url.searchParams.set('ie', 'UTF-8')
+    url.searchParams.set('client', 'tw-ob')
+    url.searchParams.set('tl', 'ko')
+    url.searchParams.set('q', chunk)
+
+    const res = await fetch(url.toString(), {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 AIR Studio TTS',
+            Accept: 'audio/mpeg,*/*',
+        },
+    })
+    if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        throw new Error(`Google free TTS error (${res.status}): ${errText.slice(0, 200)}`)
+    }
+
+    return Buffer.from(await res.arrayBuffer())
+}
+
+async function generateGoogleFreeMp3(text: string) {
+    const chunks = splitText(text, 180)
+    if (!chunks.length) throw new Error('TTS text is empty')
+
+    const buffers: Buffer[] = []
+    for (const chunk of chunks) {
+        buffers.push(await generateSingleGoogleTranslateChunk(chunk))
+    }
+    return Buffer.concat(buffers)
+}
+
 function buildTtsText(project: any, scenes: any[], overrideText?: string) {
     const raw = String(
         overrideText
@@ -186,46 +226,60 @@ function buildTtsText(project: any, scenes: any[], overrideText?: string) {
     return parts.join('\n\n').trim()
 }
 
+function topicIdFromProjectParam(projectId: string) {
+    const value = String(projectId || '').trim()
+    const legacyMatch = value.match(/^proj--?(\d+)$/i)
+    if (legacyMatch) return Number(legacyMatch[1])
+
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric >= 1_000_000_000) return numeric - 1_000_000_000
+    return null
+}
+
+async function loadStdProject(projectId: string, employeeEmail: string) {
+    let query = supabaseAdmin.from('std_projects').select('*').eq('employee_email', employeeEmail)
+    const topicQueueId = topicIdFromProjectParam(projectId)
+
+    if (UUID_RE.test(projectId)) {
+        query = query.eq('id', projectId)
+    } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
+        query = query.eq('topic_queue_id', topicQueueId)
+    } else {
+        return { data: null, error: null }
+    }
+
+    return await query.maybeSingle()
+}
+
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
 
     const body = await req.json().catch(() => ({}))
 
-    const { data: project, error: projectError } = await supabaseAdmin
-        .from('std_projects')
-        .select('*')
-        .eq('id', params.projectId)
-        .eq('employee_email', auth.requester.email)
-        .maybeSingle()
+    const { data: project, error: projectError } = await loadStdProject(params.projectId, auth.requester.email)
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
-    const { data: scenes, error: scenesError } = await supabaseAdmin
+    const { data: scenesData, error: scenesError } = await supabaseAdmin
         .from('std_project_scenes')
         .select('*')
         .eq('project_id', project.id)
         .order('scene_number', { ascending: true })
-    if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
+    const canIgnoreScenesError = scenesError?.message?.includes('invalid input syntax for type uuid')
+    const scenes = canIgnoreScenesError ? [] : (scenesData || [])
+    if (scenesError && !canIgnoreScenesError) {
+        return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
+    }
 
+    let stage = 'prepare'
     try {
-        let apiKey = ''
-        try {
-            apiKey = await getGlobalSetting('sys_api_elevenlabs')
-        } catch {
-            apiKey = ''
-        }
-        if (!apiKey) {
-            apiKey = process.env.ELEVENLABS_API_KEY || ''
-        }
-        if (!apiKey) {
-            return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
-        }
-
-        const text = buildTtsText(project, scenes || [], body?.text)
+        stage = 'build_text'
+        const text = buildTtsText(project, scenes, body?.text)
         if (!text) return NextResponse.json({ success: false, error: 'TTS text is empty' }, { status: 400 })
 
+        const provider = String(body?.provider || 'elevenlabs').trim()
         const voiceId = String(
             body?.voice_id
             || project.progress_payload?.voice_id
@@ -236,23 +290,64 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
 
-        const audioBuffer = await generateElevenLabsMp3({
-            apiKey,
-            voiceId,
-            modelId,
-            text,
-            speed: Number(body?.speed || 1),
-            stability: body?.stability == null ? undefined : Number(body.stability),
-            similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
-            style: body?.style == null ? undefined : Number(body.style),
-            multiVoice,
-            voiceMap,
-        })
+        let audioBuffer: Buffer
+        if (provider === 'google_free' || voiceId.startsWith('google_')) {
+            stage = 'generate_google_free'
+            audioBuffer = await generateGoogleFreeMp3(text)
+        } else {
+            stage = 'load_elevenlabs_key'
+            let apiKey = ''
+            try {
+                apiKey = await getGlobalSetting('sys_api_elevenlabs')
+            } catch {
+                apiKey = ''
+            }
+            if (!apiKey) {
+                apiKey = process.env.ELEVENLABS_API_KEY || ''
+            }
+            if (!apiKey) {
+                return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
+            }
 
-        const folders = await ensureStdProjectDriveFolders(project)
+            stage = 'generate_elevenlabs'
+            audioBuffer = await generateElevenLabsMp3({
+                apiKey,
+                voiceId,
+                modelId,
+                text,
+                speed: Number(body?.speed || 1),
+                stability: body?.stability == null ? undefined : Number(body.stability),
+                similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
+                style: body?.style == null ? undefined : Number(body.style),
+                multiVoice,
+                voiceMap,
+            })
+        }
+
         const now = new Date().toISOString()
         const safeProjectKey = String(project.topic_queue_id || project.id).replace(/[^a-zA-Z0-9_-]/g, '')
         const fileName = `std_tts_${safeProjectKey}_${Date.now()}.mp3`
+        stage = 'ensure_drive_folders'
+        let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>>
+        try {
+            folders = await ensureStdProjectDriveFolders(project)
+        } catch (driveConfigError: any) {
+            if (driveConfigError?.message === 'drive_root_folder_not_configured') {
+                const audioDataUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`
+                return NextResponse.json({
+                    success: true,
+                    asset: null,
+                    drive_file: null,
+                    audio_url: audioDataUrl,
+                    download_url: audioDataUrl,
+                    web_view_link: null,
+                    transient: true,
+                    message: 'TTS audio generated for immediate playback. Drive storage is not configured.',
+                })
+            }
+            throw driveConfigError
+        }
+        stage = 'upload_drive_file'
         const driveFile = await uploadStdDriveBuffer(
             folders.originalsFolderId,
             fileName,
@@ -261,44 +356,53 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             `AIR STD web TTS audio for project ${project.id}`
         )
 
-        await supabaseAdmin
-            .from('std_project_assets')
-            .update({ status: 'replaced', updated_at: now })
-            .eq('project_id', project.id)
-            .eq('asset_type', 'audio')
-            .in('status', ['uploaded', 'assigned'])
+        let asset: any = null
+        try {
+            stage = 'replace_existing_audio_assets'
+            await supabaseAdmin
+                .from('std_project_assets')
+                .update({ status: 'replaced', updated_at: now })
+                .eq('project_id', project.id)
+                .eq('asset_type', 'audio')
+                .in('status', ['uploaded', 'assigned'])
 
-        const { data: asset, error: assetError } = await supabaseAdmin
-            .from('std_project_assets')
-            .insert({
-                project_id: project.id,
-                scene_id: null,
-                scene_number: null,
-                asset_type: 'audio',
-                drive_file_id: driveFile.id,
-                drive_folder_id: folders.originalsFolderId,
-                file_name: driveFile.name || fileName,
-                mime_type: 'audio/mpeg',
-                file_size: driveFile.size ? Number(driveFile.size) : audioBuffer.length,
-                status: 'uploaded',
-                uploaded_by: auth.requester.user.id,
-                metadata: {
-                    provider: 'elevenlabs',
-                    voice_id: voiceId,
-                    model_id: modelId,
-                    multi_voice: multiVoice,
-                    voice_map: voiceMap,
-                    text_length: text.length,
-                    chunk_count: splitText(text).length,
-                    generated_by: auth.requester.email,
-                    web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                },
-            })
-            .select('*')
-            .single()
-        if (assetError) throw assetError
+            stage = 'insert_audio_asset'
+            const { data: insertedAsset, error: assetError } = await supabaseAdmin
+                .from('std_project_assets')
+                .insert({
+                    project_id: project.id,
+                    scene_id: null,
+                    scene_number: null,
+                    asset_type: 'audio',
+                    drive_file_id: driveFile.id,
+                    drive_folder_id: folders.originalsFolderId,
+                    file_name: driveFile.name || fileName,
+                    mime_type: 'audio/mpeg',
+                    file_size: driveFile.size ? Number(driveFile.size) : audioBuffer.length,
+                    status: 'uploaded',
+                    uploaded_by: auth.requester.user.id,
+                    metadata: {
+                        provider,
+                        voice_id: voiceId,
+                        model_id: modelId,
+                        multi_voice: multiVoice,
+                        voice_map: voiceMap,
+                        text_length: text.length,
+                        chunk_count: splitText(text).length,
+                        generated_by: auth.requester.email,
+                        web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+                    },
+                })
+                .select('*')
+                .single()
+            if (assetError) throw assetError
+            asset = insertedAsset
+        } catch (assetError: any) {
+            console.warn('[STD TTS] asset row could not be saved; continuing with Drive file playback', assetError?.message)
+        }
 
         const progressPayload = project.progress_payload || {}
+        stage = 'update_project_tts_state'
         await supabaseAdmin
             .from('std_projects')
             .update({
@@ -307,7 +411,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     ...progressPayload,
                     has_tts_audio: true,
                     tts_generated_at: now,
-                    tts_asset_id: asset.id,
+                    tts_asset_id: asset?.id || null,
                     tts_drive_file_id: driveFile.id,
                     tts_file_name: driveFile.name || fileName,
                     voice_id: voiceId,
@@ -327,10 +431,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .eq('id', project.id)
 
         try {
+            stage = 'sync_legacy'
             await syncStdProjectToLegacy(project.id)
         } catch {}
 
-        const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
+        const audioUrl = asset?.id
+            ? `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
+            : `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(driveFile.id)}`
 
         return NextResponse.json({
             success: true,
@@ -343,7 +450,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         })
     } catch (error: any) {
         return NextResponse.json(
-            { success: false, error: error?.message || 'TTS generation failed' },
+            { success: false, error: error?.message || 'TTS generation failed', stage },
             { status: 500 }
         )
     }

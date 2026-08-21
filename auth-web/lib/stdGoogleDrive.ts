@@ -1,3 +1,5 @@
+import { supabaseAdmin } from './supabaseAdmin'
+
 const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder'
 
 type DriveFolderSet = {
@@ -26,6 +28,18 @@ type DriveFileMetadata = {
 
 function driveRootFolderId(): string {
     return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || process.env.REMOTE_RENDER_DRIVE_FOLDER_ID || ''
+}
+
+async function resolveDriveRootFolderId(): Promise<string> {
+    const envRootFolderId = driveRootFolderId()
+    if (envRootFolderId) return envRootFolderId
+
+    const { data } = await supabaseAdmin
+        .from('global_settings')
+        .select('value')
+        .eq('key', 'remote_render_drive_folder_id')
+        .maybeSingle()
+    return String(data?.value || '').trim()
 }
 
 export function requireStdDriveRootFolderId(): string {
@@ -123,7 +137,8 @@ export async function ensureDriveFolder(parentId: string, name: string): Promise
 }
 
 export async function ensureStdProjectDriveFolders(project: any): Promise<DriveFolderSet> {
-    const rootFolderId = requireStdDriveRootFolderId()
+    const rootFolderId = await resolveDriveRootFolderId()
+    if (!rootFolderId) throw new Error('drive_root_folder_not_configured')
     const projectPayload = project?.progress_payload || {}
     const existing = projectPayload?.std_drive?.folder_ids || {}
     if (existing.project && existing.images && existing.videos && existing.originals) {

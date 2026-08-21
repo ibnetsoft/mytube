@@ -76,7 +76,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 publish_metadata: topic.publish_metadata || topic.progress_payload?.publish_metadata || {},
                 audio_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
                 tts_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
-                tts_provider: (topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url) ? 'voicebox' : null,
+                tts_provider: null,
             },
             progress_payload: {
                 scene_count: summary.scene_count,
@@ -85,7 +85,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 main_character: topic.progress_payload?.main_character || topic.pregenerated_structure?.main_character || null,
                 has_tts_audio: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
                 tts_completed: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
-                tts_provider: (topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url) ? 'voicebox' : null,
+                tts_provider: null,
             },
         })
         .select('*')

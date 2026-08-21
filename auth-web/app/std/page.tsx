@@ -1998,6 +1998,7 @@ export default function StdPortalPage() {
         setGeneratingTts(true)
         setMessage('')
         const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
+        const ttsProvider = selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
         try {
             // 화자별 성우 맵 구성 (기본 나레이터 포함)
             const finalVoiceMap: Record<string, string> = {
@@ -2013,14 +2014,14 @@ export default function StdPortalPage() {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
-                    provider: 'elevenlabs',
+                    provider: ttsProvider,
                     voice_id: selectedVoice,
                     model_id: 'eleven_multilingual_v2',
                     speed: Number(ttsSpeed),
                     stability: Number(elStability),
                     style: Number(elStyle),
                     text: customScriptText || selectedProject.project.project_payload?.script,
-                    multi_voice: multiVoice,
+                    multi_voice: ttsProvider === 'elevenlabs' ? multiVoice : false,
                     voice_map: finalVoiceMap,
                 }),
             })
@@ -2038,6 +2039,13 @@ export default function StdPortalPage() {
             }
             const audioBlob = await audioRes.blob()
             setAudioResultUrl(URL.createObjectURL(audioBlob))
+            queueMicrotask(() => {
+                setMessage(
+                    payload.transient
+                        ? `${voiceObj.name} TTS audio generated for immediate playback.`
+                        : `${voiceObj.name} TTS audio generated and saved to Google Drive.`
+                )
+            })
             setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되어 Google Drive에 저장되었습니다!`)
         } catch (error: any) {
             setAudioResultUrl('')
@@ -3911,11 +3919,6 @@ export default function StdPortalPage() {
                                     <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">
                                         ⚡ Multilingual v2
                                     </span>
-                                    {selectedProject?.project?.project_payload?.tts_provider === 'voicebox' && (
-                                        <span className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 flex items-center gap-1 animate-pulse">
-                                            <span>⚡</span> Voicebox GPU 사전 생성 음성 연동됨
-                                        </span>
-                                    )}
                                 </div>
 
                                 <div className="flex items-center gap-3 flex-wrap">
