@@ -11,7 +11,7 @@ const STD_OFFICIAL_CATEGORIES = [
     { id: 9, name: '황혼19금', key: 'cat_twilight19' },
 ]
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     AlertCircle,
     ArrowRight,
@@ -769,6 +769,7 @@ export default function StdPortalPage() {
     const [thumbStep, setThumbStep] = useState<number>(1)
     const [thumbBgUrl, setThumbBgUrl] = useState('')
     const [thumbBgUploadFile, setThumbBgUploadFile] = useState<File | null>(null)
+    const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
         id: string
         text: string
@@ -913,6 +914,74 @@ export default function StdPortalPage() {
         }
     }
 
+    const getProjectSyncedTitle = (projectPayload: SelectedProjectPayload | null | undefined) => {
+        return String(
+            projectPayload?.project?.title ||
+            projectPayload?.project?.project_payload?.title ||
+            projectPayload?.project?.project_payload?.video_title ||
+            ''
+        )
+    }
+
+    const persistProjectTitle = (projectId: string, title: string) => {
+        if (!projectId || projectId.startsWith('proj-') || !token) return
+        if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current)
+        titleSaveTimerRef.current = setTimeout(async () => {
+            try {
+                await fetch('/api/std/projects/' + projectId, {
+                    method: 'PATCH',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        title,
+                        project_payload: {
+                            title,
+                            video_title: title,
+                        },
+                    }),
+                })
+            } catch (error) {
+                console.warn('[STD] project title sync failed:', error)
+            }
+        }, 600)
+    }
+
+    const syncProjectTitle = (rawTitle: string, options: { persist?: boolean } = {}) => {
+        const nextTitle = rawTitle
+        const currentProjectId = selectedProject?.project?.id || ''
+        setThumbTitle(nextTitle)
+
+        setSelectedProject(prev => {
+            if (!prev) return prev
+            const updated: SelectedProjectPayload = {
+                ...prev,
+                project: {
+                    ...prev.project,
+                    title: nextTitle,
+                    project_payload: {
+                        ...(prev.project.project_payload || {}),
+                        title: nextTitle,
+                        video_title: nextTitle,
+                    },
+                },
+            }
+            try {
+                localStorage.setItem('std_active_project_state', JSON.stringify(updated))
+            } catch (error) {}
+            return updated
+        })
+        setProjects(prev => prev.map(project => project.id === currentProjectId ? { ...project, title: nextTitle } : project))
+
+        if (options.persist !== false) {
+            persistProjectTitle(currentProjectId, nextTitle.trim() || 'Untitled Project')
+        }
+    }
+
+    useEffect(() => {
+        return () => {
+            if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current)
+        }
+    }, [])
+
     // 스크립트 컨텍스트에서 AI 생성 메타 지시문(First-minute micro beat 1/12... 등)을 제거하고 순수 대본만 정제하는 함수
     const cleanScriptContextText = (text: string | null | undefined): string => {
         if (!text) return ''
@@ -929,10 +998,104 @@ export default function StdPortalPage() {
     const sanitizeAssetUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
         const str = String(url).trim()
+        if (str.startsWith('blob:')) return null
         if (str.includes('images.unsplash.com') || str.includes('commondatastorage.googleapis.com')) {
             return null
         }
         return str
+    }
+
+    const driveFileViewLink = (fileId: string | null | undefined): string | null => {
+        const id = String(fileId || '').trim()
+        return id ? `https://drive.google.com/file/d/${id}/view` : null
+    }
+
+    const assetDisplayUrl = (asset: any): string | null => {
+        return sanitizeAssetUrl(
+            asset?.metadata?.thumbnail_link ||
+            asset?.metadata?.web_view_link ||
+            asset?.drive_file_link ||
+            driveFileViewLink(asset?.drive_file_id)
+        )
+    }
+
+    const mergeAssetsIntoScenes = (scenes: any[], assets: any[] = []) => {
+        const latestBySceneType = new Map<string, any>()
+        ;(assets || [])
+            .filter((asset: any) => ['uploaded', 'assigned'].includes(asset?.status))
+            .forEach((asset: any) => {
+                const sceneNumber = Number(asset?.scene_number)
+                if (!Number.isFinite(sceneNumber)) return
+                const assetType = String(asset?.asset_type || '').toLowerCase()
+                if (!['image', 'video'].includes(assetType)) return
+                const key = `${sceneNumber}:${assetType}`
+                if (!latestBySceneType.has(key)) latestBySceneType.set(key, asset)
+            })
+
+        return (scenes || []).map((scene: any) => {
+            const sceneNumber = Number(scene?.scene_number)
+            const imageAsset = latestBySceneType.get(`${sceneNumber}:image`)
+            const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
+            const imageUrl = assetDisplayUrl(imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image)
+            const videoUrl = assetDisplayUrl(videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video)
+            return {
+                ...scene,
+                image_url: imageUrl,
+                video_url: videoUrl,
+                asset_status: videoUrl || imageUrl ? 'ready' : (scene?.asset_status || 'missing'),
+            }
+        })
+    }
+
+    const audioPlaybackEndpoint = (projectId: string, asset: any): string | null => {
+        if (!projectId) return null
+        if (asset?.id) {
+            return `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
+        }
+        if (asset?.drive_file_id) {
+            return `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?driveFileId=${encodeURIComponent(asset.drive_file_id)}`
+        }
+        return null
+    }
+
+    const restorePersistedProjectMedia = async (
+        projectPayload: SelectedProjectPayload,
+        headers: Record<string, string>
+    ) => {
+        const projectId = projectPayload?.project?.id
+        const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
+
+        const thumbnailAsset = assets.find((asset: any) =>
+            asset?.asset_type === 'thumbnail' && ['uploaded', 'assigned'].includes(asset?.status)
+        )
+        const thumbnailUrl = assetDisplayUrl(thumbnailAsset)
+            || sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
+        if (thumbnailUrl) {
+            setThumbBgUrl(thumbnailUrl)
+            setThumbBgUploadFile(null)
+        }
+
+        const audioAsset = assets.find((asset: any) =>
+            asset?.asset_type === 'audio' && ['uploaded', 'assigned'].includes(asset?.status)
+        )
+        const audioEndpoint = audioPlaybackEndpoint(projectId, audioAsset)
+            || (projectPayload?.project?.progress_payload?.tts_drive_file_id
+                ? `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?driveFileId=${encodeURIComponent(projectPayload.project.progress_payload.tts_drive_file_id)}`
+                : null)
+
+        if (!audioEndpoint) {
+            setAudioResultUrl('')
+            return
+        }
+
+        try {
+            const audioRes = await fetch(audioEndpoint, { headers })
+            if (!audioRes.ok) throw new Error('Persisted TTS audio could not be loaded.')
+            setAudioResultUrl(URL.createObjectURL(await audioRes.blob()))
+        } catch (error) {
+            console.warn('[STD] persisted audio restore failed:', error)
+            setAudioResultUrl('')
+        }
     }
 
     // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
@@ -1114,7 +1277,11 @@ export default function StdPortalPage() {
             const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
             const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
 
-            if (savedProjectStateRaw) {
+            if (savedActiveProjectId && loadedProjects.some(p => p.id === savedActiveProjectId)) {
+                await openProject(savedActiveProjectId, accessToken).catch(() => {})
+            } else if (loadedProjects.length > 0) {
+                await openProject(loadedProjects[0].id, accessToken).catch(() => {})
+            } else if (savedProjectStateRaw) {
                 try {
                     const parsed = JSON.parse(savedProjectStateRaw)
                     if (parsed?.project?.id) {
@@ -1141,10 +1308,6 @@ export default function StdPortalPage() {
                 } catch {
                     // Fallback to loadedProjects
                 }
-            } else if (savedActiveProjectId && loadedProjects.some(p => p.id === savedActiveProjectId)) {
-                await openProject(savedActiveProjectId, accessToken).catch(() => {})
-            } else if (loadedProjects.length > 0) {
-                await openProject(loadedProjects[0].id, accessToken).catch(() => {})
             } else if (loadedTopics.length > 0) {
                 const firstRealTopic = loadedTopics[0]
                 const loaded = buildProjectFromSupabaseTopic(firstRealTopic)
@@ -1277,11 +1440,14 @@ export default function StdPortalPage() {
 
         // 1~12씬(5초 비디오 훅) + 13~53씬(동적 런닝타임) 3중 싱크 자막 생성
         const scenes = selectedProject?.scenes || []
-        const subs = generateSynchronizedSubtitles(
-            selectedProject?.project?.project_payload?.script || customScriptText || '',
-            scenes,
-            Number(subMaxChars) || 25
-        )
+        const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
+        const subs = Array.isArray(savedSubtitles) && savedSubtitles.length > 0
+            ? savedSubtitles
+            : generateSynchronizedSubtitles(
+                selectedProject?.project?.project_payload?.script || customScriptText || '',
+                scenes,
+                Number(subMaxChars) || 25
+            )
         setLocalSubtitles(subs)
         setSelectedSubIndex(0)
 
@@ -1292,6 +1458,13 @@ export default function StdPortalPage() {
         )
         setIsSubtitleSaved(isSaved)
     }, [selectedProject?.project?.id])
+
+    useEffect(() => {
+        const syncedTitle = getProjectSyncedTitle(selectedProject)
+        if (syncedTitle) {
+            setThumbTitle(syncedTitle)
+        }
+    }, [selectedProject])
 
     const signIn = async () => {
         setLoading(true)
@@ -1590,11 +1763,81 @@ export default function StdPortalPage() {
         }
     }
 
-    const handleUploadExternalAudio = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleUploadExternalAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
+        if (!selectedProject?.project?.id) return
         const fakeUrl = URL.createObjectURL(file)
         setAudioResultUrl(fakeUrl)
+        setUploadingKey('audio-upload')
+        try {
+            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    asset_type: 'audio',
+                    mime_type: file.type || 'audio/mpeg',
+                    file_name: file.name,
+                    file_size: file.size,
+                }),
+            })
+            const initPayload = await safeParseJson(initRes, 'Audio upload init failed')
+            if (!initRes.ok || !initPayload.upload_url) throw new Error(initPayload.error || 'Audio upload init failed')
+
+            const uploadRes = await fetch(initPayload.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file,
+            })
+            const uploadPayload = await safeParseJson(uploadRes, 'Drive audio upload failed')
+            if (!uploadRes.ok || !uploadPayload.id) throw new Error(uploadPayload.error || 'Drive audio upload failed')
+
+            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    drive_file_id: uploadPayload.id,
+                    asset_type: 'audio',
+                    target_folder_id: initPayload.target_folder_id,
+                    file_name: file.name,
+                    mime_type: file.type,
+                    file_size: file.size,
+                }),
+            })
+            const completePayload = await safeParseJson(completeRes, 'Audio upload complete failed')
+            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                throw new Error(completePayload.error || 'Audio upload complete failed')
+            }
+
+            setSelectedProject(prev => {
+                if (!prev) return prev
+                const updated = {
+                    ...prev,
+                    assets: [
+                        completePayload.asset,
+                        ...prev.assets.filter(a => a.asset_type !== 'audio'),
+                    ],
+                    project: {
+                        ...prev.project,
+                        progress_payload: {
+                            ...(prev.project.progress_payload || {}),
+                            has_tts_audio: true,
+                            tts_asset_id: completePayload.asset.id,
+                            tts_drive_file_id: completePayload.asset.drive_file_id,
+                        },
+                    },
+                }
+                try {
+                    localStorage.setItem('std_active_project_state', JSON.stringify(updated))
+                } catch (error) {}
+                return updated
+            })
+        } catch (error: any) {
+            setMessage(error.message || 'Audio upload failed')
+        } finally {
+            setUploadingKey('')
+            e.target.value = ''
+        }
         alert(`외부 오디오 파일 '${file.name}'이(가) 업로드되었습니다.`)
     }
 
@@ -1690,8 +1933,9 @@ export default function StdPortalPage() {
         }
     }
 
-    const handleSaveSubtitles = () => {
+    const handleSaveSubtitles = async () => {
         setIsSubtitleSaved(true)
+        let updatedFullForStorage: any = null
         setSelectedProject((prev: any) => {
             if (!prev) return prev
             const updatedProject = {
@@ -1712,11 +1956,44 @@ export default function StdPortalPage() {
                 ...prev,
                 project: updatedProject,
             }
+            updatedFullForStorage = updatedFull
             try {
                 localStorage.setItem('std_active_project_state', JSON.stringify(updatedFull))
             } catch (e) {}
             return updatedFull
         })
+        if (selectedProject?.project?.id) {
+            try {
+                const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
+                    method: 'PATCH',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        progress_payload: {
+                            subtitles_saved: true,
+                            subtitles_completed: true,
+                        },
+                        project_payload: {
+                            subtitles: localSubtitles,
+                            subtitles_saved: true,
+                        },
+                    }),
+                })
+                const payload = await safeParseJson(res, 'Subtitle save failed')
+                if (!res.ok || payload.success === false) {
+                    throw new Error(payload.error || 'Subtitle save failed')
+                }
+                if (payload.project && updatedFullForStorage) {
+                    const updatedFull = { ...updatedFullForStorage, project: payload.project }
+                    setSelectedProject(updatedFull)
+                    try {
+                        localStorage.setItem('std_active_project_state', JSON.stringify(updatedFull))
+                    } catch (e) {}
+                }
+            } catch (error: any) {
+                setMessage(error.message || 'Subtitle save failed')
+                throw error
+            }
+        }
         alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다! (상단 헤더 자막 단계 완료)')
     }
 
@@ -1742,25 +2019,29 @@ export default function StdPortalPage() {
                 const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => cleanScriptContextText(s.scene_text || s.script_excerpt)).join('\n\n')
                 setCustomScriptText(fullScript)
 
+                const normalizedScenes = serverScenes.map((s: any, idx: number) => {
+                    const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
+                    const cleanedText = cleanScriptContextText(rawText)
+                    return {
+                        ...s,
+                        scene_text: cleanedText,
+                        script_excerpt: cleanedText,
+                        video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
+                        video_url: s.video_url || s.video || null,
+                        image_url: s.image_url || s.image || null,
+                    }
+                })
+
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
-                    scenes: serverScenes.map((s: any, idx: number) => {
-                        const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
-                        const cleanedText = cleanScriptContextText(rawText)
-                        return {
-                            ...s,
-                            scene_text: cleanedText,
-                            script_excerpt: cleanedText,
-                            video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
-                            video_url: s.video_url || s.video || null,
-                            image_url: s.image_url || s.image || null,
-                        }
-                    })
+                    scenes: mergeAssetsIntoScenes(normalizedScenes, payload.assets || []),
+                    assets: Array.isArray(payload.assets) ? payload.assets : [],
                 }
 
                 setSelectedProject(fullProjectPayload)
                 localStorage.setItem('std_active_project_id', projectId)
                 localStorage.setItem('std_active_project_state', JSON.stringify(fullProjectPayload))
+                restorePersistedProjectMedia(fullProjectPayload, fetchHeaders).catch(() => {})
                 return
             }
             throw new Error(payload.error || '작업 조회 실패')
@@ -1785,19 +2066,21 @@ export default function StdPortalPage() {
     const uploadAsset = async (scene: any, assetType: 'image' | 'video' | 'thumbnail', file: File | null) => {
         if (!file || !selectedProject) return
         const sceneNum = scene?.scene_number || 1
-        const key = `${sceneNum}-${assetType}`
+        const actualAssetType = file.type?.startsWith('video/') ? 'video' : assetType
+        const key = `${sceneNum}-${actualAssetType}`
         setUploadingKey(key)
         setMessage('')
+        let objectUrl = ''
         try {
-            const objectUrl = URL.createObjectURL(file)
+            objectUrl = URL.createObjectURL(file)
             setSelectedProject(prev => {
                 if (!prev) return prev
                 const updatedScenes = prev.scenes.map(s => {
                     if (s.scene_number === sceneNum) {
                         return {
                             ...s,
-                            image_url: assetType === 'image' ? objectUrl : s.image_url,
-                            video_url: assetType === 'video' ? objectUrl : s.video_url,
+                            image_url: actualAssetType === 'image' ? objectUrl : s.image_url,
+                            video_url: actualAssetType === 'video' ? objectUrl : s.video_url,
                             asset_status: 'ready',
                         }
                     }
@@ -1806,17 +2089,97 @@ export default function StdPortalPage() {
                 const newAsset = {
                     id: `local-asset-${Date.now()}`,
                     scene_number: sceneNum,
-                    asset_type: assetType,
+                    asset_type: actualAssetType,
                     file_name: file.name,
-                    status: 'uploaded',
+                    status: 'uploading',
                     metadata: { web_view_link: objectUrl }
                 }
                 return {
                     ...prev,
                     scenes: updatedScenes,
-                    assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === assetType))]
+                    assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType))]
                 }
             })
+            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    asset_type: actualAssetType,
+                    mime_type: file.type || 'application/octet-stream',
+                    file_name: file.name,
+                    file_size: file.size,
+                    scene_number: sceneNum,
+                }),
+            })
+            const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
+            if (!initRes.ok || !initPayload.upload_url) throw new Error(initPayload.error || 'Asset upload init failed')
+
+            const uploadRes = await fetch(initPayload.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file,
+            })
+            const uploadPayload = await safeParseJson(uploadRes, 'Drive asset upload failed')
+            if (!uploadRes.ok || !uploadPayload.id) throw new Error(uploadPayload.error || 'Drive asset upload failed')
+
+            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    drive_file_id: uploadPayload.id,
+                    asset_type: actualAssetType,
+                    target_folder_id: initPayload.target_folder_id,
+                    file_name: file.name,
+                    mime_type: file.type,
+                    file_size: file.size,
+                    scene_number: sceneNum,
+                }),
+            })
+            const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
+            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                throw new Error(completePayload.error || 'Asset upload complete failed')
+            }
+
+            setSelectedProject(prev => {
+                if (!prev) return prev
+                const persistedAsset = completePayload.asset
+                const persistedUrl = assetDisplayUrl(persistedAsset) || objectUrl
+                const updatedScenes = prev.scenes.map(s => {
+                    if (s.scene_number !== sceneNum) return s
+                    return {
+                        ...s,
+                        image_url: actualAssetType === 'image' ? persistedUrl : s.image_url,
+                        video_url: actualAssetType === 'video' ? persistedUrl : s.video_url,
+                        asset_status: 'ready',
+                    }
+                })
+                const updatedProject = {
+                    ...prev,
+                    scenes: updatedScenes,
+                    assets: [
+                        persistedAsset,
+                        ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType)),
+                    ],
+                    project: {
+                        ...prev.project,
+                        status: prev.project.status === 'claimed' ? 'in_progress' : prev.project.status,
+                        progress_payload: {
+                            ...(prev.project.progress_payload || {}),
+                            last_asset_uploaded_at: new Date().toISOString(),
+                        },
+                    },
+                }
+                try {
+                    localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
+                    localStorage.setItem('std_active_project_id', updatedProject.project.id)
+                } catch (e) {}
+                return updatedProject
+            })
+            setProjects(prev => prev.map(p => p.id === selectedProject.project.id ? {
+                ...p,
+                status: p.status === 'claimed' ? 'in_progress' : p.status,
+                updated_at: new Date().toISOString(),
+            } as any : p))
             setMessage(`에셋 (${file.name}) 등록 완료!`)
         } catch (error: any) {
             setMessage(error.message || '업로드 실패')
@@ -1881,9 +2244,10 @@ export default function StdPortalPage() {
             const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
             if (!completeRes.ok || completePayload.success === false) throw new Error(completePayload.error || '썸네일 업로드 완료 처리 실패')
 
+            const persistedThumbnailUrl = assetDisplayUrl(completePayload.asset) || objectUrl
             setSelectedProject(prev => {
                 if (!prev) return prev
-                return {
+                const updated = {
                     ...prev,
                     assets: [completePayload.asset, ...prev.assets.filter(a => a.asset_type !== 'thumbnail')],
                     project: {
@@ -1891,23 +2255,31 @@ export default function StdPortalPage() {
                         progress_payload: {
                             ...(prev.project.progress_payload || {}),
                             thumbnail_completed: true,
+                            thumbnail_url: persistedThumbnailUrl,
                         },
                     },
                 }
+                try {
+                    localStorage.setItem('std_active_project_state', JSON.stringify(updated))
+                } catch (error) {}
+                return updated
             })
+            setThumbBgUrl(persistedThumbnailUrl)
             setThumbBgUploadFile(null)
+            setMessage('Thumbnail image uploaded.')
+            return persistedThumbnailUrl
             setMessage('썸네일 이미지 (' + file.name + ') 업로드가 완료되었습니다.')
         } finally {
             setUploadingKey('')
         }
     }
 
-    const markThumbnailConfirmed = async () => {
+    const markThumbnailConfirmed = async (thumbnailUrlOverride?: string) => {
         if (!selectedProject?.project?.id) return
         const confirmedAt = new Date().toISOString()
         const progressPatch = {
             thumbnail_completed: true,
-            thumbnail_url: thumbBgUrl || '',
+            thumbnail_url: thumbnailUrlOverride || thumbBgUrl || '',
             thumbnail_confirmed_at: confirmedAt,
         }
 
@@ -2008,6 +2380,33 @@ export default function StdPortalPage() {
 
         try {
             let audioUrl = ''
+            let persistedAudioAsset: any = null
+            const rememberPersistedAudioAsset = (asset: any) => {
+                if (!asset) return
+                setSelectedProject(prev => {
+                    if (!prev) return prev
+                    const updated = {
+                        ...prev,
+                        assets: [
+                            asset,
+                            ...prev.assets.filter(a => a.asset_type !== 'audio'),
+                        ],
+                        project: {
+                            ...prev.project,
+                            progress_payload: {
+                                ...(prev.project.progress_payload || {}),
+                                has_tts_audio: true,
+                                tts_asset_id: asset.id,
+                                tts_drive_file_id: asset.drive_file_id,
+                            },
+                        },
+                    }
+                    try {
+                        localStorage.setItem('std_active_project_state', JSON.stringify(updated))
+                    } catch (error) {}
+                    return updated
+                })
+            }
 
             if (ttsProvider === 'google_free') {
                 setMessage('🎙️ Google 무료 한국어 TTS 준비 중...')
@@ -2071,6 +2470,25 @@ export default function StdPortalPage() {
                 }
                 const blob = new Blob([combined], { type: 'audio/mpeg' })
                 audioUrl = URL.createObjectURL(blob)
+                const persistRes = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        provider: 'google_free',
+                        voice_id: selectedVoice,
+                        text: ttsText,
+                        multi_voice: false,
+                        voice_map: {},
+                    }),
+                })
+                const persistPayload = await safeParseJson(persistRes, 'TTS persistence failed')
+                if (persistRes.ok && persistPayload?.audio_url) {
+                    persistedAudioAsset = persistPayload.asset || null
+                    const persistedAudioRes = await fetch(persistPayload.audio_url, { headers: authedJsonHeaders })
+                    if (persistedAudioRes.ok) {
+                        audioUrl = URL.createObjectURL(await persistedAudioRes.blob())
+                    }
+                }
             } else {
                 const finalVoiceMap: Record<string, string> = {}
                 if (multiVoice) {
@@ -2102,6 +2520,7 @@ export default function StdPortalPage() {
                 })
                 const payload = await safeParseJson(res, 'TTS generation failed')
                 if (!res.ok) throw new Error(payload.error || 'TTS generation failed')
+                persistedAudioAsset = payload.asset || null
 
                 const generatedAudioUrl = payload.audio_url || payload.download_url
                 if (!generatedAudioUrl) {
@@ -2120,6 +2539,7 @@ export default function StdPortalPage() {
                 }
 
                 setAudioResultUrl(audioUrl)
+                rememberPersistedAudioAsset(persistedAudioAsset)
                 setMessage(
                     multiVoice
                         ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).`
@@ -2215,6 +2635,7 @@ export default function StdPortalPage() {
             }
 
             setAudioResultUrl(audioUrl)
+            rememberPersistedAudioAsset(persistedAudioAsset)
             setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!`)
         } catch (error: any) {
             setAudioResultUrl('')
@@ -5062,7 +5483,7 @@ export default function StdPortalPage() {
                                             </label>
                                             <textarea
                                                 value={thumbTitle}
-                                                onChange={e => setThumbTitle(e.target.value)}
+                                                onChange={e => syncProjectTitle(e.target.value)}
                                                 placeholder="영상의 주요 내용이나 기획 의도를 입력하세요."
                                                 className="w-full bg-[#14181f] border border-white/10 rounded-xl p-3 text-xs text-white resize-none h-[110px] focus:outline-none focus:border-blue-500 leading-relaxed"
                                             />
@@ -5306,10 +5727,11 @@ export default function StdPortalPage() {
                                         type="button"
                                         onClick={async () => {
                                             try {
+                                                let persistedThumbnailUrl: string | undefined
                                                 if (thumbBgUploadFile) {
-                                                    await uploadThumbnailBgToDrive(thumbBgUploadFile)
+                                                    persistedThumbnailUrl = await uploadThumbnailBgToDrive(thumbBgUploadFile)
                                                 }
-                                                await markThumbnailConfirmed()
+                                                await markThumbnailConfirmed(persistedThumbnailUrl)
                                                 alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
                                             } catch (error: any) {
                                                 alert(error.message || '썸네일 이미지 업로드에 실패했습니다.')

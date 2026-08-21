@@ -62,24 +62,47 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
 
     const incomingProgress = body?.progress_payload || {}
-    const allowedProgressKeys = new Set(['thumbnail_completed', 'thumbnail_url', 'thumbnail_confirmed_at'])
+    const incomingProjectPayload = body?.project_payload || {}
+    const allowedProgressKeys = new Set([
+        'thumbnail_completed',
+        'thumbnail_url',
+        'thumbnail_confirmed_at',
+        'subtitles_saved',
+        'subtitles_completed',
+    ])
+    const allowedProjectPayloadKeys = new Set(['subtitles', 'subtitles_saved', 'title', 'video_title'])
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
     )
+    const projectPayloadPatch = Object.fromEntries(
+        Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
+    )
+    const titlePatch = typeof body?.title === 'string' ? body.title.trim() : ''
 
-    if (Object.keys(progressPatch).length === 0) {
+    if (Object.keys(progressPatch).length === 0 && Object.keys(projectPayloadPatch).length === 0 && !titlePatch) {
         return NextResponse.json({ success: false, error: 'No supported fields to update' }, { status: 400 })
     }
 
+    const updatePayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+    }
+    if (Object.keys(progressPatch).length > 0) {
+        updatePayload.progress_payload = {
+            ...(project.progress_payload || {}),
+            ...progressPatch,
+        }
+    }
+    if (Object.keys(projectPayloadPatch).length > 0) {
+        updatePayload.project_payload = {
+            ...(project.project_payload || {}),
+            ...projectPayloadPatch,
+        }
+    }
+    if (titlePatch) updatePayload.title = titlePatch
+
     const { data: updated, error: updateError } = await supabaseAdmin
         .from('std_projects')
-        .update({
-            progress_payload: {
-                ...(project.progress_payload || {}),
-                ...progressPatch,
-            },
-            updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', project.id)
         .select('*')
         .single()
