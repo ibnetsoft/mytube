@@ -2010,32 +2010,67 @@ export default function StdPortalPage() {
             let audioUrl = ''
 
             if (ttsProvider === 'google_free') {
-                // Google 무료 TTS는 서버를 통해 생성 (CORS 우회)
-                const finalVoiceMap: Record<string, string> = { '나레이터': selectedVoice, ...characterVoices }
-                detectedCharacters.forEach(char => { if (!finalVoiceMap[char]) finalVoiceMap[char] = selectedVoice })
-                const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
-                    method: 'POST',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        provider: 'google_free',
-                        voice_id: selectedVoice,
-                        text: ttsText,
-                        multi_voice: false,
-                        voice_map: finalVoiceMap,
-                    }),
-                })
-                const payload = await safeParseJson(res, 'Google TTS 생성 실패')
-                if (!res.ok) throw new Error(payload.error || 'Google TTS 생성 실패')
-                const generatedAudioUrl = payload.audio_url || payload.download_url
-                if (!generatedAudioUrl) throw new Error('Google TTS: 오디오 URL이 없습니다.')
-                if (generatedAudioUrl.startsWith('data:')) {
-                    audioUrl = generatedAudioUrl
-                } else {
-                    const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
-                    if (!audioRes.ok) throw new Error('Google TTS 오디오 로드 실패')
-                    const audioBlob = await audioRes.blob()
-                    audioUrl = URL.createObjectURL(audioBlob)
+                setMessage('🎙️ Google 무료 한국어 TTS 준비 중...')
+                // 180자 단위로 문장 분할
+                const cleanText = ttsText.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+                const rawSentences = cleanText.split(/(?<=[.!?。！？\n])\s+/).filter(Boolean)
+                const chunks: string[] = []
+                let currChunk = ''
+                for (const s of rawSentences) {
+                    if ((currChunk + ' ' + s).trim().length <= 180) {
+                        currChunk = (currChunk ? `${currChunk} ` : '') + s
+                    } else {
+                        if (currChunk) chunks.push(currChunk)
+                        if (s.length <= 180) {
+                            currChunk = s
+                        } else {
+                            for (let i = 0; i < s.length; i += 180) {
+                                chunks.push(s.slice(i, i + 180))
+                            }
+                            currChunk = ''
+                        }
+                    }
                 }
+                if (currChunk) chunks.push(currChunk)
+                if (!chunks.length) throw new Error('대본이 비어있습니다.')
+
+                // 6개씩 배치(Batch)로 병렬 처리하여 대용량 대본도 수 초 내에 고속 완료
+                const batchSize = 6
+                const batches: string[][] = []
+                for (let i = 0; i < chunks.length; i += batchSize) {
+                    batches.push(chunks.slice(i, i + batchSize))
+                }
+
+                const buffers: ArrayBuffer[] = []
+                for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+                    const batch = batches[bIdx]
+                    const currentPercent = Math.round(((bIdx + 1) / batches.length) * 100)
+                    setMessage(`🎙️ Google 무료 TTS 생성 중... (${bIdx + 1}/${batches.length} 구간, ${currentPercent}%)`)
+
+                    const res = await fetch('/api/std/tts-proxy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chunks: batch,
+                            lang: 'ko',
+                        }),
+                    })
+                    if (!res.ok) {
+                        const err = await res.text().catch(() => '')
+                        throw new Error(`Google 무료 TTS 생성 오류: ${err.slice(0, 100)}`)
+                    }
+                    buffers.push(await res.arrayBuffer())
+                }
+
+                const totalLength = buffers.reduce((sum, b) => sum + b.byteLength, 0)
+                const combined = new Uint8Array(totalLength)
+                let offset = 0
+                for (const buf of buffers) {
+                    combined.set(new Uint8Array(buf), offset)
+                    offset += buf.byteLength
+                }
+                const blob = new Blob([combined], { type: 'audio/mpeg' })
+                audioUrl = URL.createObjectURL(blob)
             } else {
                 // ElevenLabs TTS: 클라이언트에서 직접 API 호출 (Vercel 타임아웃 우회)
                 setMessage('🔑 API 키 확인 중...')

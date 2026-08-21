@@ -268,8 +268,8 @@ export async function GET(req: Request) {
             gender: 'neutral',
             category: 'google',
             language: 'ko',
-            description: '무료 Google 한국어 TTS입니다. 긴 대본은 자동 분할 생성됩니다.',
-            preview_url: '',
+            description: '무료 Google 한국어 TTS입니다. 긴 대본은 자동 분할 초고속 생성됩니다.',
+            preview_url: '/api/std/tts-proxy?text=%EC%95%88%EB%85%95%ED%95%98%EC%84%B8%EC%9A%94.+Google+%ED%95%9C%EA%B5%AD%EC%96%B4+%EB%AC%B4%EB%A3%8C+TTS+%EC%9E%85%EB%8B%88%EB%8B%A4.',
         },
     ]
 
