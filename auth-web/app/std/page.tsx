@@ -571,7 +571,7 @@ export default function StdPortalPage() {
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
     const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
-    const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // ElevenLabs Yooni 기본값
+    const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
     const [ttsSpeed, setTtsSpeed] = useState('1.0')
     const [elStability, setElStability] = useState('0.35')
     const [elStyle, setElStyle] = useState('0.45')
@@ -2027,12 +2027,21 @@ export default function StdPortalPage() {
             const payload = await safeParseJson(res, 'TTS 생성 실패')
             if (!res.ok) throw new Error(payload.error || 'TTS 생성 실패')
             
-            const audioLink = payload.web_view_link || voiceObj.preview_url
-            setAudioResultUrl(audioLink)
-            setMessage(`🔊 ElevenLabs (${voiceObj.name}) TTS 음성이 성공적으로 생성되어 Google Drive에 저장되었습니다!`)
+            const generatedAudioUrl = payload.audio_url || payload.download_url
+            if (!generatedAudioUrl) {
+                throw new Error('TTS audio was generated, but no playable audio URL was returned.')
+            }
+            const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
+            if (!audioRes.ok) {
+                const errorText = await audioRes.text().catch(() => '')
+                throw new Error(errorText || 'Generated TTS audio could not be loaded.')
+            }
+            const audioBlob = await audioRes.blob()
+            setAudioResultUrl(URL.createObjectURL(audioBlob))
+            setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되어 Google Drive에 저장되었습니다!`)
         } catch (error: any) {
-            setAudioResultUrl(voiceObj.preview_url)
-            setMessage(`🔊 ElevenLabs (${voiceObj.name}) TTS 고품질 음성 생성이 완료되었습니다!`)
+            setAudioResultUrl('')
+            setMessage(error?.message || 'TTS generation failed')
         } finally {
             setGeneratingTts(false)
         }
@@ -3900,11 +3909,11 @@ export default function StdPortalPage() {
                                         <span>📜</span> {selectedProject.scenes.length}개 씬 · {scriptCharCount.toLocaleString()}자 대본 로드됨
                                     </span>
                                     <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">
-                                        ⚡ ElevenLabs (Multilingual v2)
+                                        ⚡ Multilingual v2
                                     </span>
                                     {selectedProject?.project?.project_payload?.tts_provider === 'voicebox' && (
                                         <span className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 flex items-center gap-1 animate-pulse">
-                                            <span>⚡</span> Voicebox GPU 사전 생성 음성 연동됨 (ElevenLabs 생략 가능)
+                                            <span>⚡</span> Voicebox GPU 사전 생성 음성 연동됨
                                         </span>
                                     )}
                                 </div>
@@ -3972,7 +3981,7 @@ export default function StdPortalPage() {
                                         className="px-4 py-1.5 text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
                                     >
                                         <Volume2 className={`h-3.5 w-3.5 ${generatingTts ? 'animate-bounce' : ''}`} />
-                                        {generatingTts ? 'ElevenLabs 음성 생성 중...' : '음성 생성 (ElevenLabs)'}
+                                        {generatingTts ? '음성 생성 중...' : '음성 생성'}
                                     </button>
                                 </div>
                             </div>
@@ -4122,23 +4131,6 @@ export default function StdPortalPage() {
                                                 <span className="text-[10px] font-bold text-emerald-400 font-mono">약 {estimatedAudioMinutes}분 분량</span>
                                             </div>
                                             <audio src={audioResultUrl} controls className="w-full h-8" />
-                                            <div className="flex items-center gap-2 pt-1">
-                                                <a
-                                                    href={audioResultUrl}
-                                                    download="std_elevenlabs_tts.mp3"
-                                                    target="_blank"
-                                                    rel="noopener"
-                                                    className="flex-1 text-center py-2 bg-[#202632] hover:bg-[#28303e] text-white rounded text-xs font-bold border border-white/10"
-                                                >
-                                                    오디오 다운로드
-                                                </a>
-                                                <button
-                                                    onClick={() => setCurrentNav('subtitle_gen')}
-                                                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold"
-                                                >
-                                                    자막 단계로 이동 →
-                                                </button>
-                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -4149,7 +4141,7 @@ export default function StdPortalPage() {
                                             <h4 className="text-xs font-bold text-white flex items-center gap-2">
                                                 <span>📝</span> TTS 나레이션 전체 대본 에디터
                                             </h4>
-                                            <p className="text-[10px] text-gray-400 mt-0.5">이곳에서 직접 대본을 수정하면 수정된 대본으로 ElevenLabs 음성이 생성됩니다.</p>
+                                            <p className="text-[10px] text-gray-400 mt-0.5">이곳에서 직접 대본을 수정하면 수정된 대본으로 음성이 생성됩니다.</p>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <button
@@ -4836,7 +4828,7 @@ export default function StdPortalPage() {
                                                     <span>💡</span> 안내 사항
                                                 </span>
                                                 <p className="text-gray-300 text-[11px] leading-relaxed">
-                                                    이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, ElevenLabs 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.
+                                                    이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.
                                                 </p>
                                             </div>
                                         </div>
@@ -6190,7 +6182,7 @@ export default function StdPortalPage() {
                                                 🖼️ 이미지 프롬프트 (준비됨)
                                             </div>
                                             <div className="p-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-center font-bold">
-                                                🔊 ElevenLabs 음성 (연동)
+                                                🔊 음성 (연동)
                                             </div>
                                             <div className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-center font-bold">
                                                 💬 자막 레이아웃 (설정됨)

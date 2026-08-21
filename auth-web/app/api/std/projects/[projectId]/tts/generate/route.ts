@@ -217,7 +217,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             apiKey = ''
         }
         if (!apiKey) {
-            apiKey = process.env.ELEVENLABS_API_KEY || 'sk_d86b5fe40c6a6f7012affbc13135fa4adfc171eaf9c58332'
+            apiKey = process.env.ELEVENLABS_API_KEY || ''
         }
         if (!apiKey) {
             return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
@@ -330,10 +330,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             await syncStdProjectToLegacy(project.id)
         } catch {}
 
+        const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
+
         return NextResponse.json({
             success: true,
             asset,
             drive_file: driveFile,
+            audio_url: audioUrl,
+            download_url: audioUrl,
             web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })
