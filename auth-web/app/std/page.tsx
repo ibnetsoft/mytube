@@ -564,8 +564,27 @@ export default function StdPortalPage() {
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
     type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'template' | 'render' | 'settings'
-    const [currentNav, setCurrentNav] = useState<StdNavKey>('topics')
+    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'tts', 'subtitle_gen', 'thumbnail', 'projects', 'template', 'render', 'settings']
+    const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
+        return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
+    }
+    const [currentNav, setCurrentNav] = useState<StdNavKey>(() => {
+        if (typeof window === 'undefined') return 'topics'
+        const params = new URLSearchParams(window.location.search)
+        return normalizeStdNav(params.get('tab') || params.get('page'))
+            || normalizeStdNav(localStorage.getItem('std_current_nav'))
+            || 'topics'
+    })
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('std_current_nav', currentNav)
+            const url = new URL(window.location.href)
+            url.searchParams.set('tab', currentNav)
+            window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+        } catch (error) {}
+    }, [currentNav])
 
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
