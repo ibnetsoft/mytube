@@ -6,6 +6,8 @@ logs/
 data/
 temp/
 projects/
+!auth-web/app/api/std/projects/
+!auth-web/app/api/std/projects/**
 auth-web/.next/
 auth-web/node_modules/
 __pycache__/
