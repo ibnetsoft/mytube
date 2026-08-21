@@ -2294,8 +2294,18 @@ def _split_script_into_scene_excerpts(script_text: str, scene_count: int, max_ch
     return excerpts
 
 
-def _attach_script_excerpts_to_scenes(scenes: list[dict], script_text: str) -> list[dict]:
-    excerpts = _split_script_into_scene_excerpts(script_text, len(scenes))
+def _attach_script_excerpts_to_scenes(
+    scenes: list[dict],
+    script_text: str,
+    scene_script_sections: list[str] | None = None,
+) -> list[dict]:
+    if scene_script_sections and len(scene_script_sections) == len(scenes):
+        excerpts = [
+            str(section or "").strip()[:900]
+            for section in scene_script_sections
+        ]
+    else:
+        excerpts = _split_script_into_scene_excerpts(script_text, len(scenes))
     enriched = []
     for index, scene in enumerate(scenes):
         merged = dict(scene)
@@ -2491,6 +2501,7 @@ def _generate_scene_media_prompts(
     language: str,
     job_log,
     script_text: str = "",
+    scene_script_sections: list[str] | None = None,
     main_character: dict | None = None,
     supporting_characters: list[dict] | None = None,
 ) -> dict:
@@ -2507,7 +2518,7 @@ def _generate_scene_media_prompts(
     model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
     if str(model).lower().startswith("claude"):
         model = "gemini-2.5-flash"
-    scenes = _attach_script_excerpts_to_scenes(scenes, script_text)
+    scenes = _attach_script_excerpts_to_scenes(scenes, script_text, scene_script_sections)
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
     visual_direction_plan = _build_visual_direction_plan(
         ai_router,
@@ -2714,6 +2725,30 @@ Return ONLY valid JSON in this shape:
             job_log,
             character_anchors_context=character_anchors_context,
         )
+        image_prompt_by_scene: dict[str, str] = {}
+        for grid in image_grid_prompts:
+            panels = grid.get("panels") if isinstance(grid, dict) else None
+            if not isinstance(panels, list):
+                continue
+            shared_style = str(grid.get("shared_style") or "").strip()
+            for panel in panels:
+                if not isinstance(panel, dict):
+                    continue
+                scene_number = str(panel.get("scene_number") or "").strip()
+                panel_prompt = str(panel.get("panel_prompt") or panel.get("brief") or "").strip()
+                if scene_number and panel_prompt:
+                    image_prompt_by_scene[scene_number] = (
+                        f"{shared_style}\nPanel image prompt: {panel_prompt}".strip()
+                        if shared_style
+                        else panel_prompt
+                    )
+        if image_prompt_by_scene:
+            for scene in enriched_scenes:
+                scene_number = str(scene.get("scene_order") or scene.get("scene_number") or "").strip()
+                image_prompt = image_prompt_by_scene.get(scene_number)
+                if image_prompt:
+                    scene["image_prompt"] = image_prompt
+
         image_grid_prompt_mode = "direct_2x2_only"
         validate_image_grid_prompt_readiness(enriched_scenes, image_grid_prompts, status="ready", require_status="ready")
         result = dict(structure)
@@ -7062,7 +7097,7 @@ Hard retry rules:
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts)
     script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
 
-    async def _run_generation() -> tuple[str, dict, dict, dict, int, dict]:
+    async def _run_generation() -> tuple[str, dict, dict, dict, int, dict, list[str]]:
         if old_story_context and grave_vigil_context:
             narrative_blueprint = {
                 "protagonist": "순옥",
@@ -7085,7 +7120,7 @@ Hard retry rules:
                 ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
             )
             if not _script_needs_revision(rescue_quality):
-                return rescue_script, narrative_blueprint, rescue_quality, rescue_quality, 0, main_character
+                return rescue_script, narrative_blueprint, rescue_quality, rescue_quality, 0, main_character, []
             rescue_issues = rescue_quality.get("critical_issues") or rescue_quality.get("revision_notes") or []
             job_log.warning(
                 "Old-story grave-vigil script path did not pass QA; falling back to section generation "
@@ -7204,6 +7239,7 @@ Hard retry rules:
         final_script = draft_script
         final_quality = initial_quality
         revision_count = 0
+        scene_script_sections = list(final_parts)
 
         if _script_needs_revision(initial_quality):
             job_log.info(
@@ -7230,6 +7266,7 @@ Hard retry rules:
                         final_script = revised
                         final_quality = revised_quality
                         revision_count = 1
+                        scene_script_sections = []
             except Exception as e:
                 job_log.warning(f"Script rewrite failed (keeping draft): {e}")
 
@@ -7268,10 +7305,19 @@ Hard retry rules:
                     final_script = rescue_script
                     final_quality = rescue_quality
                     revision_count = max(revision_count, 1)
+                    scene_script_sections = []
 
-        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character
+        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character, scene_script_sections
 
-    final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character = asyncio.run(_run_generation())
+    (
+        final_script,
+        narrative_blueprint,
+        initial_quality,
+        final_quality,
+        revision_count,
+        main_character,
+        scene_script_sections,
+    ) = asyncio.run(_run_generation())
     if not final_script:
         raise ValueError("Generated script was empty after all sections were processed")
     if _script_needs_revision(final_quality):
@@ -7337,6 +7383,7 @@ Hard retry rules:
         language=language,
         job_log=job_log,
         script_text=final_script,
+        scene_script_sections=scene_script_sections,
         main_character=main_character,
         supporting_characters=supporting_characters,
     )

@@ -857,6 +857,40 @@ export default function StdPortalPage() {
         return Math.max(60.0, last.end_num || Number(last.end_time) || 60.0)
     }, [localSubtitles])
 
+    const subtitleSceneGroups = useMemo(() => {
+        const groups: any[] = []
+        const byScene = new Map<number, any>()
+        ;(localSubtitles || []).forEach((sub: any, index: number) => {
+            const sceneNumber = Number(sub?.scene_number || index + 1)
+            const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
+            let group = byScene.get(normalizedSceneNumber)
+            if (!group) {
+                group = {
+                    scene_number: normalizedSceneNumber,
+                    firstIndex: index,
+                    lastIndex: index,
+                    start_num: sub?.start_num ?? Number(sub?.start_time) ?? 0,
+                    end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
+                    start_time: sub?.start_time || '0.0',
+                    end_time: sub?.end_time || '0.0',
+                    image_url: sub?.image_url || '',
+                    video_url: sub?.video_url || null,
+                    is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
+                    subtitles: [],
+                }
+                byScene.set(normalizedSceneNumber, group)
+                groups.push(group)
+            }
+            group.lastIndex = index
+            group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
+            group.end_time = sub?.end_time || group.end_time
+            if (!group.image_url && sub?.image_url) group.image_url = sub.image_url
+            if (!group.video_url && sub?.video_url) group.video_url = sub.video_url
+            group.subtitles.push({ ...sub, subtitleIndex: index })
+        })
+        return groups
+    }, [localSubtitles])
+
     const formatTime = (sec: number): string => {
         if (isNaN(sec) || !isFinite(sec)) return "00:00"
         const m = Math.floor(sec / 60)
@@ -1137,6 +1171,7 @@ export default function StdPortalPage() {
             const rawScript = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
             const videoPromptText = s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`
+            const imagePromptText = s.image_prompt || `Image prompt: visualize this narration beat with the selected project style, consistent characters, no text, no captions: ${scriptText}`
 
             return {
                 id: `scene-${dummyId}-${num}`,
@@ -1148,7 +1183,7 @@ export default function StdPortalPage() {
                 prompt_ko: s.prompt_ko || scriptText,
                 prompt_en: videoPromptText,
                 video_prompt: videoPromptText,
-                image_prompt: s.image_prompt || videoPromptText,
+                image_prompt: imagePromptText,
                 video_url: videoUrl,
                 image_url: imageUrl,
                 asset_status: videoUrl ? 'ready' : (imageUrl ? 'ready' : 'pending'),
@@ -4253,23 +4288,32 @@ export default function StdPortalPage() {
                                     <div className="flex flex-1 overflow-hidden">
                                         {/* 세로 이미지 썸네일 스트립 */}
                                         <div className="w-20 bg-[#13171e] border-r border-white/5 p-1.5 flex flex-col gap-2 overflow-y-auto shrink-0">
-                                            {localSubtitles.map((sub, idx) => {
-                                                const isHook = (sub.scene_number || 1) <= 12
+                                            {subtitleSceneGroups.map((group) => {
+                                                const isHook = (group.scene_number || 1) <= 12
+                                                const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 return (
                                                     <div
-                                                        key={sub.id}
+                                                        key={`scene-group-thumb-${group.scene_number}`}
                                                         onClick={() => {
-                                                            setSelectedSubIndex(idx)
-                                                            setPlaybackTime(sub.start_num ?? Number(sub.start_time) ?? 0)
+                                                            setSelectedSubIndex(group.firstIndex)
+                                                            setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
                                                         className={`w-full aspect-video rounded overflow-hidden cursor-pointer border relative transition-all ${
-                                                            selectedSubIndex === idx ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
+                                                            isActive ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
                                                         }`}
                                                     >
-                                                        <img src={sub.image_url} alt={`Scene ${sub.scene_number || idx + 1}`} className="w-full h-full object-cover" />
+                                                        <img src={group.image_url} alt={`Scene ${group.scene_number}`} className="w-full h-full object-cover" />
                                                         {isHook && (
                                                             <span className="absolute top-0.5 left-0.5 bg-orange-600 text-white text-[7px] font-bold px-1 rounded">
                                                                 5s 훅
+                                                            </span>
+                                                        )}
+                                                        <span className="absolute bottom-0.5 right-0.5 bg-black/80 text-white text-[7px] font-bold px-1 rounded">
+                                                            #{group.scene_number}
+                                                        </span>
+                                                        {group.subtitles.length > 1 && (
+                                                            <span className="absolute bottom-0.5 left-0.5 bg-blue-600/90 text-white text-[7px] font-bold px-1 rounded">
+                                                                {group.subtitles.length} lines
                                                             </span>
                                                         )}
                                                     </div>
@@ -4279,18 +4323,20 @@ export default function StdPortalPage() {
 
                                         {/* 자막 카드 목록 */}
                                         <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                                            {localSubtitles.map((sub, idx) => {
-                                                const isActive = selectedSubIndex === idx
-                                                const sNum = sub.scene_number || idx + 1
+                                            {subtitleSceneGroups.map((group) => {
+                                                const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
+                                                const sNum = group.scene_number
                                                 const isHook = sNum <= 12
+                                                const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
+                                                const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 return (
                                                     <div
-                                                        key={sub.id}
+                                                        key={`scene-group-card-${sNum}`}
                                                         onClick={() => {
-                                                            setSelectedSubIndex(idx)
-                                                            setPlaybackTime(sub.start_num ?? Number(sub.start_time) ?? 0)
+                                                            setSelectedSubIndex(group.firstIndex)
+                                                            setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
-                                                        className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${
+                                                        className={`p-3 rounded-xl border flex gap-3 cursor-pointer transition-all ${
                                                             isActive
                                                                 ? 'bg-blue-600/10 border-blue-500 shadow-md'
                                                                 : 'bg-[#14181f] border-white/5 hover:border-white/20'
@@ -4298,9 +4344,9 @@ export default function StdPortalPage() {
                                                     >
                                                         {/* 이미지 & 타임 */}
                                                         <div className="w-20 aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0">
-                                                            <img src={sub.image_url} alt="" className="w-full h-full object-cover" />
+                                                            <img src={group.image_url} alt="" className="w-full h-full object-cover" />
                                                             <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
-                                                                Random
+                                                                {group.subtitles.length} lines
                                                             </span>
                                                             {isHook ? (
                                                                 <span className="absolute top-0.5 left-0.5 bg-orange-600/90 text-white text-[8px] font-bold px-1 rounded">
@@ -4313,10 +4359,45 @@ export default function StdPortalPage() {
                                                             )}
                                                         </div>
                                                         <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0">
-                                                            {sub.start_time}s<br />~{sub.end_time}s
+                                                            {group.start_time}s<br />~{group.end_time}s
+                                                            <div className="mt-1 text-[9px] text-gray-500">
+                                                                {duration.toFixed(1)}s
+                                                            </div>
                                                         </div>
-                                                        <div className="flex-1 text-xs text-white leading-relaxed font-sans">
-                                                            {sub.text}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
+                                                                    Scene {sNum}
+                                                                </span>
+                                                                <span className="text-[10px] text-gray-500">
+                                                                    {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-xs text-white leading-relaxed font-sans">
+                                                                {groupText}
+                                                            </div>
+                                                            {group.subtitles.length > 1 && (
+                                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                                    {group.subtitles.map((item: any, lineIndex: number) => (
+                                                                        <button
+                                                                            key={item.id || `${sNum}-${lineIndex}`}
+                                                                            type="button"
+                                                                            onClick={(event) => {
+                                                                                event.stopPropagation()
+                                                                                setSelectedSubIndex(item.subtitleIndex)
+                                                                                setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
+                                                                            }}
+                                                                            className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
+                                                                                selectedSubIndex === item.subtitleIndex
+                                                                                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                                                                                    : 'bg-black/20 border-white/10 text-gray-400 hover:text-white'
+                                                                            }`}
+                                                                        >
+                                                                            {lineIndex + 1}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )

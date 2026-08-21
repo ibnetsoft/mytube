@@ -165,6 +165,8 @@ export function normalizeImageGridPrompts(structure: any): any[] {
             scene_numbers: Array.isArray(grid?.scene_numbers) ? grid.scene_numbers : [],
             scene_ids: Array.isArray(grid?.scene_ids) ? grid.scene_ids : [],
             panel_count: Number(grid?.panel_count || 4),
+            shared_style: firstText(grid?.shared_style),
+            panels: Array.isArray(grid?.panels) ? grid.panels : [],
             prompt: firstText(grid?.prompt, grid?.grid_prompt),
         }))
         .filter((grid: any) =>
@@ -194,6 +196,37 @@ export function isPreparedStdTopic(topic: any): boolean {
     return isPreparedUserTopic(topic)
 }
 
+export function sceneImagePromptFromGrid(structure: any, scene: any, normalizedSceneNumber: number): string {
+    const grids = Array.isArray(structure?.image_grid_prompts) ? structure.image_grid_prompts : []
+    const sceneId = firstText(scene?.scene_id, scene?.id)
+    for (const grid of grids) {
+        const panels = Array.isArray(grid?.panels) ? grid.panels : []
+        for (const panel of panels) {
+            const panelSceneNumber = Number(panel?.scene_number)
+            const panelSceneId = firstText(panel?.scene_id)
+            const matchesNumber = Number.isFinite(panelSceneNumber) && panelSceneNumber === normalizedSceneNumber
+            const matchesId = sceneId && panelSceneId && panelSceneId === sceneId
+            if (!matchesNumber && !matchesId) continue
+            const panelPrompt = firstText(panel?.panel_prompt, panel?.brief, panel?.prompt)
+            if (!panelPrompt) continue
+            const sharedStyle = firstText(grid?.shared_style)
+            return firstText(
+                sharedStyle ? `${sharedStyle}\nPanel image prompt: ${panelPrompt}` : panelPrompt,
+                panelPrompt
+            )
+        }
+    }
+    const scriptBeat = firstText(
+        scene?.script_excerpt,
+        scene?.scene_situation,
+        scene?.scene_summary,
+        scene?.narration,
+        scene?.visual_description,
+        scene?.description
+    )
+    return scriptBeat ? `Image prompt: visualize this narration beat with the selected project style, consistent characters, no text, no captions: ${scriptBeat}` : ''
+}
+
 export function buildStdScenes(topic: any) {
     const struct = topic?.pregenerated_structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
@@ -201,7 +234,11 @@ export function buildStdScenes(topic: any) {
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
-            const prompt = firstText(scene?.video_prompt, scene?.prompt_en, scene?.prompt, scene?.image_prompt)
+            const videoPrompt = sceneVideoPrompt(scene)
+            const imagePrompt = firstText(
+                scene?.image_prompt,
+                sceneImagePromptFromGrid(struct, scene, normalizedSceneNumber)
+            )
             return {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
@@ -213,8 +250,8 @@ export function buildStdScenes(topic: any) {
                     scene?.visual_description,
                     scene?.description
                 ),
-                image_prompt: firstText(scene?.image_prompt, prompt),
-                video_prompt: prompt,
+                image_prompt: imagePrompt,
+                video_prompt: videoPrompt,
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }
