@@ -17,7 +17,7 @@ def test_pipeline_cards_keep_details_open_across_refreshes():
 def test_failed_pipeline_explains_error_and_can_resume():
     source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
 
-    assert "const failedJob = latestFailedJob(g.jobs);" in source
+    assert "const failedJob = latestFailedJob(g.jobs, completedTypes);" in source
     assert "const matchingJob = [...g.jobs].reverse().find(j => j.job_type === step.type);" in source
     assert "if (completedCount === totalSteps) overallStatus = 'COMPLETED';" in source
     assert "if (completedCount === totalSteps && !hasFailed)" not in source
@@ -25,6 +25,15 @@ def test_failed_pipeline_explains_error_and_can_resume():
     assert "pipeline-error-summary" in source
     assert "오류 이유:" in source
     assert "pipeline-header-resume" in source
+
+
+def test_hermes_process_card_disables_start_while_busy():
+    source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
+
+    assert "const processBusyStatuses = ['running', 'starting', 'busy', 'claimed', 'preparing', 'rendering', 'uploading'];" in source
+    assert "const hasCurrentJob = Boolean(info.current_job || currentJobId);" in source
+    assert "const hermesStartDisabled = hermesBusy;" in source
+    assert "const hermesStopDisabled = !hermesBusy || normalizedStatus === 'stopped';" in source
 
 
 def test_pipeline_error_summary_is_rendered_inside_details():

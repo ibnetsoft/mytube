@@ -3763,8 +3763,12 @@ function renderProcessCards(status, jobs = []) {
     const displayLabel = name === 'remote_drive_worker' ? 'Drive API Render Worker' : label;
     const displayIcon = name === 'remote_drive_worker' ? '\u{2601}' : icon;
     const hermesPipelineDone = name === 'hermes_worker' && hermesReadyAfterCompletedPipeline(jobs);
-    const hermesStartDisabled = !hermesPipelineDone && s === 'running';
-    const hermesStopDisabled = hermesPipelineDone || ['stopped', 'idle'].includes(String(s || '').toLowerCase());
+    const normalizedStatus = String(s || '').toLowerCase();
+    const processBusyStatuses = ['running', 'starting', 'busy', 'claimed', 'preparing', 'rendering', 'uploading'];
+    const hasCurrentJob = Boolean(info.current_job || currentJobId);
+    const hermesBusy = name === 'hermes_worker' && (processBusyStatuses.includes(normalizedStatus) || hasCurrentJob);
+    const hermesStartDisabled = hermesBusy;
+    const hermesStopDisabled = !hermesBusy || normalizedStatus === 'stopped';
 
     html += `<div class="status-card">
       <div class="name">${displayIcon} ${displayLabel} ${statusBadge(s)}</div>
