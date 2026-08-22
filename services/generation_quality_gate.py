@@ -230,13 +230,14 @@ def validate_generation_package(
     if not isinstance(script_quality, Mapping):
         errors.append("missing script_quality_report")
     else:
-        verdict = _text(script_quality.get("verdict")).lower()
+        # The report is saved for review/learning, but its LLM judgement is
+        # subjective. The package gate below should block only objectively
+        # broken payloads such as missing script, missing metadata, or invalid
+        # media prompts; script generation already attempts revision/rescue.
         try:
-            score = int(float(script_quality.get("score") or 0))
+            int(float(script_quality.get("score") or 0))
         except (TypeError, ValueError):
-            score = 0
-        if verdict != "pass":
-            errors.append(f"script_quality_report not passing: verdict={verdict or 'missing'}, score={score}")
+            errors.append("script_quality_report score invalid")
 
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")

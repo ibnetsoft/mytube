@@ -165,7 +165,7 @@ def test_generation_quality_gate_rejects_bad_script_and_metadata():
     assert any("tags/hashtags missing" in error for error in errors)
 
 
-def test_generation_quality_gate_rejects_revise_script_quality():
+def test_generation_quality_gate_keeps_revise_script_quality_informational():
     payload = _valid_payload()
     payload["script_quality_report"] = {
         "verdict": "revise",
@@ -175,7 +175,7 @@ def test_generation_quality_gate_rejects_revise_script_quality():
 
     errors = validate_generation_package(payload, category="옛날이야기")
 
-    assert any("script_quality_report not passing" in error for error in errors)
+    assert not any("script_quality_report not passing" in error for error in errors)
 
 
 def test_old_story_contamination_ignores_benchmark_analysis_body():

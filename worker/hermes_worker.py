@@ -94,6 +94,33 @@ RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 AUDIT_DIR = OUTPUT_DIR / "hermes_audit"
 logger = get_logger("hermes_worker")
 
+_hermes_mutex_handle = None
+_HERMES_MUTEX_NAME = "Global\\AIRWorker_HermesWorker_SingleInstance"
+
+
+def _acquire_hermes_single_instance_or_exit() -> None:
+    """Exit duplicate Hermes workers before they can race on the same queue."""
+    global _hermes_mutex_handle
+    if sys.platform != "win32":
+        return
+    try:
+        import win32api
+        import win32event
+        import winerror
+    except Exception as exc:
+        logger.warning(f"Hermes single-instance mutex unavailable; continuing without it: {exc}")
+        return
+
+    handle = win32event.CreateMutex(None, False, _HERMES_MUTEX_NAME)
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        logger.warning(
+            f"Another Hermes Worker already holds mutex '{_HERMES_MUTEX_NAME}' - "
+            "exiting duplicate before claiming jobs."
+        )
+        win32api.CloseHandle(handle)
+        sys.exit(0)
+    _hermes_mutex_handle = handle
+
 
 def _load_project_env() -> None:
     """Load the repository .env even when Manager starts us with cwd=worker/."""
@@ -191,7 +218,7 @@ def write_state(status: str, current_job: dict | None, progress: int, job_id: st
     STATE_FILE.write_text(
         json.dumps(
             {
-                "pid": None,
+                "pid": os.getpid(),
                 "status": status,
                 "current_job": current_job,
                 "current_job_id": job_id,
@@ -7039,11 +7066,17 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         for key in ("category", "category_name")
     ).strip()
     script_style_context = f"{script_style} {category_context}".strip()
+    image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
+    image_style_selection = (
+        (job.get("payload") or {}).get("image_style_selection")
+        if isinstance((job.get("payload") or {}).get("image_style_selection"), dict)
+        else {}
+    )
     if _is_old_story_plan_context(
         script_style_context,
         topic,
         upload_title,
-        str((job.get("payload") or {}).get("image_style") or ""),
+        image_style,
     ):
         old_story_script_guard = """
 
@@ -7073,7 +7106,13 @@ Hard retry rules:
         script_style_context,
         topic,
         upload_title,
-        str((job.get("payload") or {}).get("image_style") or ""),
+        image_style,
+    )
+    finance_plan_context = _is_finance_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        image_style,
     )
     grave_vigil_context = any(
         term in _text_with_mojibake_repairs(topic, upload_title)
@@ -7362,12 +7401,6 @@ Hard retry rules:
         },
     }
 
-    image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
-    image_style_selection = (
-        (job.get("payload") or {}).get("image_style_selection")
-        if isinstance((job.get("payload") or {}).get("image_style_selection"), dict)
-        else {}
-    )
     job_store.update_progress(job_id, 90, "generating media prompts from final script")
     write_state("running", job, 90, job_id)
     job_log.info(
@@ -7946,6 +7979,7 @@ def run_forever():
 
 
 def main():
+    _acquire_hermes_single_instance_or_exit()
     signal.signal(signal.SIGINT, _handle_signal)
     try:
         signal.signal(signal.SIGTERM, _handle_signal)

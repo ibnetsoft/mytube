@@ -80,6 +80,16 @@ def _read_manager_status() -> dict:
         return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "manager_alive": False}
 
 
+def _read_process_state(name: str) -> dict | None:
+    path = STATE_DIR / f"{name}.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 def _read_job_result(job_id: str) -> dict | None:
     """Read the Hermes result JSON if it exists on disk."""
     result_path = OUTPUT_DIR / "hermes_results" / f"{job_id}.json"
@@ -107,6 +117,23 @@ def _active_hermes_job_from_local_queue(limit: int = 50) -> dict | None:
 def _sync_hermes_process_status(snap: dict, autopilot_status: dict) -> dict:
     """Keep the Hermes process card aligned with the visible pipeline rows."""
     hermes_process = snap.setdefault("processes", {}).setdefault("hermes_worker", {})
+    hermes_state = _read_process_state("hermes_worker")
+    if hermes_state:
+        heartbeat_at = float(hermes_state.get("heartbeat_at") or 0)
+        if not snap.get("manager_alive") or heartbeat_at >= float(hermes_process.get("last_heartbeat_at") or 0):
+            status = str(hermes_state.get("status") or "").strip() or hermes_process.get("status") or "stopped"
+            is_fresh = heartbeat_at and (time.time() - heartbeat_at) < 45
+            hermes_process.update(
+                {
+                    "pid": hermes_state.get("pid") if is_fresh else None,
+                    "status": status if is_fresh else "stopped",
+                    "last_heartbeat_at": heartbeat_at or hermes_process.get("last_heartbeat_at"),
+                    "last_error": hermes_state.get("last_error") or "",
+                    "current_job": hermes_state.get("current_job"),
+                    "progress": hermes_state.get("progress") or 0,
+                    "last_success_at": hermes_state.get("last_success_at") or hermes_process.get("last_success_at"),
+                }
+            )
     active_job = _active_hermes_job_from_local_queue()
     if active_job:
         payload = active_job.get("payload") or {}
@@ -1846,25 +1873,80 @@ async def api_autopilot_stop(
 
 
 def _delayed_restart():
-    time.sleep(0.8)
-    python_exe = sys.executable
-    if len(sys.argv) > 1 and ("uvicorn" in sys.argv[0] or "dashboard_app" in " ".join(sys.argv)):
-        cmd = [python_exe] + sys.argv
-    else:
-        cmd = [python_exe, "-m", "uvicorn", "dashboard_app:app", "--host", "127.0.0.1", "--port", "3002"]
-    logger.info(f"Restarting worker server: {cmd}")
-    flags = 0
-    if sys.platform == "win32":
-        flags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
-    subprocess.Popen(cmd, cwd=str(Path(__file__).resolve().parent), creationflags=flags)
-    time.sleep(0.5)
-    os._exit(0)
+    _launch_worker_server_lifecycle_helper(restart=True)
 
 
 def _delayed_shutdown():
-    time.sleep(0.8)
-    logger.info("Worker server shutting down upon user request")
-    os._exit(0)
+    _launch_worker_server_lifecycle_helper(restart=False)
+
+
+def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
+    """Stop every AIR Worker server/process, optionally starting a clean set.
+
+    The dashboard server is one of the processes being stopped, so the actual
+    lifecycle work must happen in a detached helper after this HTTP response is
+    returned. On this desktop target Windows PowerShell is available and gives
+    us reliable command-line process filtering without adding a runtime dep.
+    """
+    worker_dir = Path(__file__).resolve().parent
+    project_root = worker_dir.parent
+    python_exe = Path(sys.executable)
+    dashboard_args = "-m uvicorn dashboard_app:app --host 127.0.0.1 --port 3002"
+    roles_to_start = ["manager", "hermes_worker"] if restart else []
+
+    ps_lines = [
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        "Start-Sleep -Milliseconds 900",
+        f"$project = {json.dumps(str(project_root))}",
+        f"$worker = {json.dumps(str(worker_dir))}",
+        f"$python = {json.dumps(str(python_exe))}",
+        "$patterns = @(",
+        "  'air_worker_entry.py --role manager',",
+        "  'air_worker_entry.py --role render_worker',",
+        "  'air_worker_entry.py --role remote_drive_worker',",
+        "  'air_worker_entry.py --role hermes_worker',",
+        "  'air_worker_entry.py --role local_api',",
+        "  'uvicorn dashboard_app:app --host 127.0.0.1 --port 3002',",
+        "  'worker\\manager.py',",
+        "  'worker\\render_worker.py',",
+        "  'worker\\remote_drive_worker_process.py',",
+        "  'worker\\hermes_worker.py',",
+        "  'worker\\local_api_process.py'",
+        ")",
+        "$procs = Get-CimInstance Win32_Process | Where-Object {",
+        "  $cmd = $_.CommandLine",
+        "  $_.ProcessId -ne $PID -and $cmd -and",
+        "  ($cmd -like \"*$project*\") -and",
+        "  ($patterns | Where-Object { $cmd -like \"*$_*\" })",
+        "}",
+        "foreach ($proc in $procs) {",
+        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/F') -WindowStyle Hidden -Wait",
+        "}",
+        "Start-Sleep -Seconds 2",
+    ]
+    if restart:
+        for role in roles_to_start:
+            ps_lines.append(
+                "Start-Process -FilePath $python "
+                f"-ArgumentList {json.dumps(str(worker_dir / 'air_worker_entry.py') + ' --role ' + role)} "
+                "-WorkingDirectory $worker -WindowStyle Hidden"
+            )
+        ps_lines.append(
+            "Start-Process -FilePath $python "
+            f"-ArgumentList {json.dumps(dashboard_args)} "
+            "-WorkingDirectory $worker -WindowStyle Hidden"
+        )
+    ps_script = "; ".join(ps_lines)
+    logger.info(
+        "Launching full worker lifecycle helper "
+        f"restart={restart}, python={python_exe}, worker_dir={worker_dir}"
+    )
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    subprocess.Popen(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+        cwd=str(worker_dir),
+        creationflags=flags if sys.platform == "win32" else 0,
+    )
 
 
 @app.post("/api/server/restart")
@@ -2282,7 +2364,15 @@ async def auth_logout(response: Response):
 
 @app.get("/")
 async def dashboard_page():
-    return Response(content=DASHBOARD_HTML, media_type="text/html; charset=utf-8")
+    return Response(
+        content=DASHBOARD_HTML,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 # =========================================================================
@@ -3704,9 +3794,21 @@ function stableHash(input) {
   return Math.abs(hash).toString(36);
 }
 
-function latestFailedJob(jobs) {
+function pipelineTitleKey(category, title) {
+  return `${String(category || '').trim().toLowerCase()}:::${String(title || '').trim().toLowerCase()}`;
+}
+
+function pipelineTitleOnlyKey(title) {
+  return String(title || '').trim().toLowerCase();
+}
+
+function latestFailedJob(jobs, completedTypes = new Set()) {
   return [...(jobs || [])]
-    .filter(j => String(j.status || '').toUpperCase() === 'FAILED' || j.error_message)
+    .filter(j => {
+      const type = String(j.job_type || '');
+      if (completedTypes.has(type)) return false;
+      return String(j.status || '').toUpperCase() === 'FAILED' || j.error_message;
+    })
     .sort((a, b) => (b.completed_at || b.created_at || 0) - (a.completed_at || a.created_at || 0))[0] || null;
 }
 
@@ -3717,12 +3819,17 @@ function groupJobsIntoPipelines(jobs) {
 
   // Pass 1: Build queueId -> title map so jobs with queueId can find their video title
   const queueIdToTitle = new Map();
+  const titleToQueueId = new Map();
+  const titleOnlyToQueueId = new Map();
   for (const job of jobs) {
     const payload = job.payload || {};
     const title = (payload.upload_title || payload.generated_title || payload.topic || '').trim();
+    const category = jobCategory(job) || '?쇰컲';
     const qId = payload.topic_queue_id || payload.topic_id;
     if (qId && title) {
       queueIdToTitle.set(String(qId), title);
+      titleToQueueId.set(pipelineTitleKey(category, title), String(qId));
+      titleOnlyToQueueId.set(pipelineTitleOnlyKey(title), String(qId));
     }
   }
 
@@ -3730,11 +3837,14 @@ function groupJobsIntoPipelines(jobs) {
     const payload = job.payload || {};
     let title = (payload.upload_title || payload.generated_title || payload.topic || '').trim();
     const category = jobCategory(job) || '일반';
-    const queueId = payload.topic_queue_id || payload.topic_id || '';
+    let queueId = payload.topic_queue_id || payload.topic_id || '';
     
     // If title was missing on this job, try looking up from queueId
     if (!title && queueId && queueIdToTitle.has(String(queueId))) {
       title = queueIdToTitle.get(String(queueId));
+    }
+    if (!queueId && title) {
+      queueId = titleToQueueId.get(pipelineTitleKey(category, title)) || titleOnlyToQueueId.get(pipelineTitleOnlyKey(title)) || '';
     }
 
     if (job.job_type === 'topic_benchmark_analyze' && !title) {
@@ -3755,15 +3865,17 @@ function groupJobsIntoPipelines(jobs) {
       batch.jobs.push(job);
       if (job.created_at > batch.updated_at) batch.updated_at = job.created_at;
       if (job.created_at < batch.created_at) batch.created_at = job.created_at;
-    } else if (title) {
+    } else if (title || queueId) {
       // Hermes Video Production Pipeline
-      const groupKey = `video:::${category}:::${title}`;
+      const groupKey = queueId
+        ? `video_queue:::${String(queueId)}`
+        : `video:::${category}:::${title}`;
       if (!pipelineMap.has(groupKey)) {
         pipelineMap.set(groupKey, {
           id: 'pipe_' + stableHash(groupKey),
           isPipeline: true,
           category: category,
-          title: title,
+          title: title || `Topic #${queueId}`,
           queueId: queueId,
           jobs: [],
           created_at: job.created_at,
@@ -3771,6 +3883,7 @@ function groupJobsIntoPipelines(jobs) {
         });
       }
       const group = pipelineMap.get(groupKey);
+      if (title && (!group.title || group.title.startsWith('Topic #'))) group.title = title;
       group.jobs.push(job);
       if (job.created_at > group.updated_at) group.updated_at = job.created_at;
       if (job.created_at < group.created_at) group.created_at = job.created_at;
@@ -3810,10 +3923,15 @@ function groupJobsIntoPipelines(jobs) {
     const completedCount = PIPELINE_STEPS_CONFIG.filter(s => {
       return stepStatuses[s.key]?.status === 'COMPLETED';
     }).length;
-    const hasFailed = g.jobs.some(j => String(j.status || '').toUpperCase() === 'FAILED');
+    const completedTypes = new Set(
+      g.jobs
+        .filter(j => String(j.status || '').toUpperCase() === 'COMPLETED')
+        .map(j => String(j.job_type || ''))
+    );
+    const failedJob = latestFailedJob(g.jobs, completedTypes);
+    const hasFailed = Boolean(failedJob);
     const hasCanceled = g.jobs.some(j => String(j.status || '').toUpperCase() === 'CANCELED');
     const hasRunning = g.jobs.some(j => ['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED'].includes(String(j.status || '').toUpperCase()));
-    const failedJob = latestFailedJob(g.jobs);
 
     let overallStatus = 'PENDING';
     if (completedCount === totalSteps) overallStatus = 'COMPLETED';
@@ -5232,7 +5350,7 @@ function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;
 async function refreshAll() {
   countdown = 3;
   try {
-    const jobs = await api('GET', '/api/jobs?limit=10');
+    const jobs = await api('GET', '/api/jobs?limit=100');
     const status = await api('GET', '/api/status');
     const renderJobsData = await api('GET', '/api/rendering-jobs?limit=10');
     if (renderJobsData) {
@@ -6511,7 +6629,7 @@ async function confirmShutdownServer() {
 }
 
 function showRestartModal() {
-  let count = 4;
+  let count = 10;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.style.zIndex = '9999';
@@ -6519,7 +6637,7 @@ function showRestartModal() {
     <div class="modal" style="text-align:center;max-width:380px;padding:30px 20px;">
       <div style="font-size:36px;margin-bottom:12px;">🔄</div>
       <h3 style="margin-bottom:8px;">워커 서버 재시작 중</h3>
-      <p style="color:#8b949e;margin:12px 0 20px;font-size:13px;" id="restart-countdown-text">서버를 다시 시작하고 있습니다... (<span id="restart-sec" style="color:#58a6ff;font-weight:bold;">4</span>초)</p>
+      <p style="color:#8b949e;margin:12px 0 20px;font-size:13px;" id="restart-countdown-text">서버를 다시 시작하고 있습니다... (<span id="restart-sec" style="color:#58a6ff;font-weight:bold;">10</span>초)</p>
       <div class="refresh-indicator" style="display:inline-block;padding:6px 14px;background:#21262d;border-radius:20px;font-size:12px;color:#58a6ff;">잠시 후 자동 새로고침됩니다</div>
     </div>
   `;
