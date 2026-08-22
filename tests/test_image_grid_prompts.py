@@ -315,3 +315,85 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     assert len(grids) == 2
     assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert all(grid["template"] == "strict_2x2_compact_v1" for grid in grids)
+
+
+def test_worker_rebuilds_image_grid_prompts_when_ai_json_is_malformed():
+    class FakeRouter:
+        async def generate_text(self, *_args, **_kwargs):
+            return '{"grids": [{"grid_number": 1, "scene_numbers": [1, 2, 3, 4]'
+
+    class FakeLog:
+        def info(self, *_args, **_kwargs):
+            pass
+
+        def warning(self, *_args, **_kwargs):
+            pass
+
+    scenes = [
+        {
+            "scene_id": f"scene{number:03d}",
+            "scene_order": number,
+            "scene_summary": f"Summary {number}",
+            "scene_situation": f"Situation {number}",
+            "scene_emotion": "tense",
+            "script_excerpt": f"Narration excerpt {number}",
+        }
+        for number in range(1, 9)
+    ]
+
+    grids = hermes_worker._generate_direct_image_grid_prompts(
+        FakeRouter(),
+        "fake-model",
+        "topic",
+        "upload title",
+        scenes,
+        {},
+        "watercolor",
+        "soft documentary watercolor style",
+        FakeLog(),
+    )
+
+    assert len(grids) == 2
+    assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
+    validate_image_grid_prompt_readiness(scenes, grids, status="ready", require_status="ready")
+
+
+def test_worker_skips_ai_json_for_large_image_grid_batches():
+    class FailIfCalledRouter:
+        async def generate_text(self, *_args, **_kwargs):
+            raise AssertionError("large image grid batches should not request one giant AI JSON response")
+
+    class FakeLog:
+        def info(self, *_args, **_kwargs):
+            pass
+
+        def warning(self, *_args, **_kwargs):
+            pass
+
+    scenes = [
+        {
+            "scene_id": f"scene{number:03d}",
+            "scene_order": number,
+            "scene_summary": f"Summary {number}",
+            "scene_situation": f"Situation {number}",
+            "scene_emotion": "tense",
+            "script_excerpt": f"Narration excerpt {number}",
+        }
+        for number in range(1, 53)
+    ]
+
+    grids = hermes_worker._generate_direct_image_grid_prompts(
+        FailIfCalledRouter(),
+        "fake-model",
+        "topic",
+        "upload title",
+        scenes,
+        {},
+        "watercolor",
+        "soft documentary watercolor style",
+        FakeLog(),
+    )
+
+    assert len(grids) == 13
+    assert grids[-1]["scene_numbers"] == [49, 50, 51, 52]
+    validate_image_grid_prompt_readiness(scenes, grids, status="ready", require_status="ready")

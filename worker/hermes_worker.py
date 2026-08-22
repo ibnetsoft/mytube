@@ -2391,6 +2391,60 @@ def _generate_direct_image_grid_prompts(
             "panels": panels,
         })
 
+    def _fallback_grids(reason: str) -> list[dict]:
+        job_log.warning(
+            "Rebuilding compact 2x2 image grid prompts without AI JSON "
+            f"({reason}). grid_count={len(grid_inputs)}"
+        )
+        fallback = []
+        for grid_input in grid_inputs:
+            panels = []
+            for panel in grid_input["panels"]:
+                scene_number = panel.get("scene_number")
+                scene_id = panel.get("scene_id")
+                position = panel.get("position")
+                excerpt = str(panel.get("script_excerpt") or "").strip()
+                situation = str(panel.get("scene_situation") or panel.get("scene_summary") or "").strip()
+                emotion = str(panel.get("scene_emotion") or "").strip()
+                anchor = str(panel.get("keyframe_subject") or panel.get("continuity_identity") or "").strip()
+                panel_prompt = (
+                    f"Scene {scene_number}: visualize the final narration beat. "
+                    f"Story excerpt: {excerpt[:360] or situation[:360]}. "
+                    f"Emotion: {emotion or 'quiet dramatic tension'}. "
+                    f"Unique visual anchor: {anchor or situation[:160] or 'period location and character action'}."
+                )
+                panels.append({
+                    "scene_number": scene_number,
+                    "scene_id": scene_id,
+                    "position": position,
+                    "panel_prompt": panel_prompt,
+                })
+            fallback.append({
+                "grid_number": grid_input["grid_number"],
+                "scene_numbers": grid_input["scene_numbers"],
+                "scene_ids": grid_input["scene_ids"],
+                "shared_style": (
+                    f"{image_style_key}: {image_style_directive} "
+                    f"{character_anchors_context} "
+                    "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
+                ),
+                "negative_prompt": (
+                    "no text, no words, no letters, no labels, no captions, no watermarks, "
+                    "No borders, NO grid lines, no dividers, correct anatomy, no extra limbs"
+                ),
+                "panels": panels,
+            })
+        return fallback
+
+    # Longform jobs can have dozens of 2x2 grid windows. Asking the model to
+    # return all windows as one JSON document is brittle and often truncates.
+    if len(grid_inputs) > 12:
+        grids = _fallback_grids("large grid batch")
+        compact_grids = build_compact_image_grid_prompts(grids)
+        validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
+        job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
+        return compact_grids
+
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
 
@@ -2447,52 +2501,18 @@ Schema:
         ),
         timeout=90,
     ))
-    generated = _extract_json(raw)
-    grids = generated.get("grids") if isinstance(generated, dict) else None
+    try:
+        generated = _extract_json(raw)
+        grids = generated.get("grids") if isinstance(generated, dict) else None
+    except Exception as exc:
+        grids = _fallback_grids(f"AI JSON parse failed: {exc}")
     if not isinstance(grids, list) or len(grids) != len(grid_inputs):
         got_count = len(grids) if isinstance(grids, list) else 0
         job_log.warning(
             "Image grid prompt count mismatch from AI; rebuilding compact 2x2 prompts "
             f"from grid inputs. expected={len(grid_inputs)}, got={got_count}"
         )
-        grids = []
-        for grid_input in grid_inputs:
-            panels = []
-            for panel in grid_input["panels"]:
-                scene_number = panel.get("scene_number")
-                scene_id = panel.get("scene_id")
-                position = panel.get("position")
-                excerpt = str(panel.get("script_excerpt") or "").strip()
-                situation = str(panel.get("scene_situation") or panel.get("scene_summary") or "").strip()
-                emotion = str(panel.get("scene_emotion") or "").strip()
-                anchor = str(panel.get("keyframe_subject") or panel.get("continuity_identity") or "").strip()
-                panel_prompt = (
-                    f"Scene {scene_number}: visualize the final narration beat. "
-                    f"Story excerpt: {excerpt[:360] or situation[:360]}. "
-                    f"Emotion: {emotion or 'quiet dramatic tension'}. "
-                    f"Unique visual anchor: {anchor or situation[:160] or 'period location and character action'}."
-                )
-                panels.append({
-                    "scene_number": scene_number,
-                    "scene_id": scene_id,
-                    "position": position,
-                    "panel_prompt": panel_prompt,
-                })
-            grids.append({
-                "grid_number": grid_input["grid_number"],
-                "scene_numbers": grid_input["scene_numbers"],
-                "scene_ids": grid_input["scene_ids"],
-                "shared_style": (
-                    f"{image_style_key}: {image_style_directive} "
-                    f"{character_anchors_context} "
-                    "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
-                ),
-                "negative_prompt": (
-                    "no text, no words, no letters, no labels, no captions, no watermarks, "
-                    "No borders, NO grid lines, no dividers, correct anatomy, no extra limbs"
-                ),
-                "panels": panels,
-            })
+        grids = _fallback_grids("AI grid count mismatch")
 
     by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
     for grid in grids:
