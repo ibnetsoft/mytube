@@ -885,8 +885,10 @@ class HermesAutopilotManager:
         async with self._lock:
             resume = bool((custom_settings or {}).get("resume"))
             self._resume_requested = resume
+            self._apply_external_running_state()
+            self._apply_external_terminal_state()
             if self.is_running:
-                return {"success": False, "error": "이미 실행 중입니다."}
+                return {"success": True, "already_running": True}
             
             if custom_settings:
                 self._apply_settings(custom_settings)
