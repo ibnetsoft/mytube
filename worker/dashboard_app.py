@@ -28,6 +28,9 @@ from hermes_autopilot import CATEGORIES, HermesAutopilotManager
 logger = get_logger("dashboard")
 app = FastAPI(title="AIR Worker Dashboard")
 autopilot_manager = HermesAutopilotManager()
+_MANAGER_RECOVERY_LOCK = threading.Lock()
+_MANAGER_RECOVERY_LAST_AT = 0.0
+_MANAGER_RECOVERY_COOLDOWN_SECONDS = 20.0
 
 HERMES_JOB_TYPES = {
     "topic_benchmark_analyze",
@@ -78,6 +81,48 @@ def _read_manager_status() -> dict:
         return data
     except (json.JSONDecodeError, OSError):
         return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "manager_alive": False}
+
+
+def _launch_manager_recovery_if_needed() -> dict:
+    """Best-effort self-heal for standalone dashboards.
+
+    In the normal desktop runtime, the dashboard is hosted inside Manager.
+    During development or after a partial restart, the dashboard can remain
+    alive while Manager is gone.  When that happens, the status endpoint starts
+    Manager again so the supervisor heartbeat does not stay red forever.
+    """
+    global _MANAGER_RECOVERY_LAST_AT
+    now = time.time()
+    with _MANAGER_RECOVERY_LOCK:
+        if now - _MANAGER_RECOVERY_LAST_AT < _MANAGER_RECOVERY_COOLDOWN_SECONDS:
+            return {"attempted": False, "reason": "cooldown"}
+        _MANAGER_RECOVERY_LAST_AT = now
+
+    worker_dir = Path(__file__).resolve().parent
+    entry_script = worker_dir / "air_worker_entry.py"
+    cmd = [sys.executable, str(entry_script), "--role", "manager"]
+    try:
+        flags = 0
+        startupinfo = None
+        if sys.platform == "win32":
+            flags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0
+        popen = subprocess.Popen(
+            cmd,
+            cwd=str(worker_dir),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=flags,
+            startupinfo=startupinfo,
+        )
+        logger.warning("Manager heartbeat is stale; launched recovery Manager pid=%s", popen.pid)
+        return {"attempted": True, "pid": popen.pid}
+    except Exception as exc:
+        logger.exception("Failed to launch Manager recovery process")
+        return {"attempted": True, "error": str(exc)}
 
 
 def _read_process_state(name: str) -> dict | None:
@@ -886,6 +931,8 @@ async def api_status(
 ):
     require_auth(authorization, cookie)
     snap = _read_manager_status()
+    if not snap.get("manager_alive"):
+        snap["manager_recovery"] = _launch_manager_recovery_if_needed()
     autopilot_status = autopilot_manager.get_status()
     _sync_hermes_process_status(snap, autopilot_status)
     snap["render_status"] = render_status_display()
@@ -1924,17 +1971,18 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "Start-Sleep -Seconds 2",
     ]
     if restart:
+        ps_lines.append(
+            "Start-Process -FilePath $python "
+            f"-ArgumentList {json.dumps(dashboard_args)} "
+            "-WorkingDirectory $worker -WindowStyle Hidden"
+        )
+        ps_lines.append("Start-Sleep -Milliseconds 700")
         for role in roles_to_start:
             ps_lines.append(
                 "Start-Process -FilePath $python "
                 f"-ArgumentList {json.dumps(str(worker_dir / 'air_worker_entry.py') + ' --role ' + role)} "
                 "-WorkingDirectory $worker -WindowStyle Hidden"
             )
-        ps_lines.append(
-            "Start-Process -FilePath $python "
-            f"-ArgumentList {json.dumps(dashboard_args)} "
-            "-WorkingDirectory $worker -WindowStyle Hidden"
-        )
     ps_script = "; ".join(ps_lines)
     logger.info(
         "Launching full worker lifecycle helper "
