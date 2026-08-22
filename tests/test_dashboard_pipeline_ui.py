@@ -32,8 +32,9 @@ def test_hermes_process_card_disables_start_while_busy():
 
     assert "const processBusyStatuses = ['running', 'starting', 'busy', 'claimed', 'preparing', 'rendering', 'uploading'];" in source
     assert "const hasCurrentJob = Boolean(info.current_job || currentJobId);" in source
-    assert "const hermesStartDisabled = hermesBusy;" in source
-    assert "const hermesStopDisabled = !hermesBusy || normalizedStatus === 'stopped';" in source
+    assert "const disabledByProfile = !allowedProcesses.has(name) || normalizedStatus === 'disabled';" in source
+    assert "const hermesStartDisabled = disabledByProfile || hermesBusy;" in source
+    assert "const hermesStopDisabled = disabledByProfile || !hermesBusy || normalizedStatus === 'stopped';" in source
 
 
 def test_pipeline_error_summary_is_rendered_inside_details():

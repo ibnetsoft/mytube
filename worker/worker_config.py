@@ -108,6 +108,30 @@ WORKER_ID = os.environ.get("AIRWORKER_ID", "poc-worker-not-real")
 # docs/AIR_WORKER_SECURITY.md §4 - never a real Worker Token, never committed.
 WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
 
+WORKER_PROFILES = ("full", "content_only", "render_only")
+PROFILE_CHILD_SCRIPTS = {
+    "full": ("render_worker", "remote_drive_worker", "hermes_worker", "local_api"),
+    "content_only": ("hermes_worker", "local_api"),
+    "render_only": ("render_worker", "remote_drive_worker", "local_api"),
+}
+
+
+def normalize_worker_profile(value: str | None) -> str:
+    profile = str(value or "full").strip().lower().replace("-", "_")
+    if profile in ("content", "generator", "generation_only", "content_only"):
+        return "content_only"
+    if profile in ("render", "renderer", "render_only"):
+        return "render_only"
+    if profile in WORKER_PROFILES:
+        return profile
+    return "full"
+
+
+WORKER_PROFILE = normalize_worker_profile(
+    os.environ.get("AIRWORKER_PROFILE") or os.environ.get("AIR_WORKER_PROFILE")
+)
+ALLOWED_CHILD_SCRIPTS = PROFILE_CHILD_SCRIPTS[WORKER_PROFILE]
+
 # [AIR-0227C Stage 6] Identity of THIS Manager run, not the OS PID.
 # docs/AIR_WORKER_LEASE_PROTOCOL.md: PID is unusable as a stable identity
 # (AIR-0227B found the venv launcher relaunches into a child with a

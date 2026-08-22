@@ -23,7 +23,7 @@ from fastapi.concurrency import run_in_threadpool
 from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
-from worker_config import LOG_DIR, MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID
+from worker_config import LOG_DIR, MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID, WORKER_PROFILE
 from hermes_autopilot import CATEGORIES, DEFAULT_CATEGORY_TARGET_DURATION_SECONDS, HermesAutopilotManager
 
 logger = get_logger("dashboard")
@@ -75,13 +75,14 @@ def require_auth(
 
 def _read_manager_status() -> dict:
     if not MANAGER_STATUS_FILE.exists():
-        return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "manager_alive": False}
+        return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "worker_profile": WORKER_PROFILE, "manager_alive": False}
     try:
         data = json.loads(MANAGER_STATUS_FILE.read_text(encoding="utf-8"))
+        data.setdefault("worker_profile", WORKER_PROFILE)
         data["manager_alive"] = (time.time() - data.get("written_at", 0)) < 5
         return data
     except (json.JSONDecodeError, OSError):
-        return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "manager_alive": False}
+        return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "worker_profile": WORKER_PROFILE, "manager_alive": False}
 
 
 def _existing_manager_process_ids() -> list[int]:
@@ -3914,6 +3915,8 @@ function hermesReadyAfterCompletedPipeline(jobs = []) {
 function renderProcessCards(status, jobs = []) {
   const el = document.getElementById('process-cards');
   const procs = status.processes || {};
+  const allowedProcesses = new Set(status.allowed_processes || Object.keys(procs));
+  const workerProfile = status.worker_profile || 'full';
   let html = '';
   for (const [name, info] of Object.entries(procs)) {
     const s = info.status || 'stopped';
@@ -3943,7 +3946,9 @@ function renderProcessCards(status, jobs = []) {
     }[name] || '';
     const hasError = info.last_error && info.last_error.length > 0;
     const isRecentError = hasError && (!info.last_success_at || info.last_success_at < (Date.now()/1000 - 300));
-    const autoStart = (name === 'render_worker' || name === 'local_api');
+    const disabledByProfile = !allowedProcesses.has(name) || normalizedStatus === 'disabled';
+    const disabledReason = info.disabled_reason || `disabled by AIRWORKER_PROFILE=${workerProfile}`;
+    const autoStart = !disabledByProfile && (name === 'render_worker' || name === 'local_api');
     const displayLabel = name === 'remote_drive_worker' ? 'Drive API Render Worker' : label;
     const displayIcon = name === 'remote_drive_worker' ? '\u{2601}' : icon;
     const hermesPipelineDone = name === 'hermes_worker' && hermesReadyAfterCompletedPipeline(jobs);
@@ -3951,14 +3956,15 @@ function renderProcessCards(status, jobs = []) {
     const processBusyStatuses = ['running', 'starting', 'busy', 'claimed', 'preparing', 'rendering', 'uploading'];
     const hasCurrentJob = Boolean(info.current_job || currentJobId);
     const hermesBusy = name === 'hermes_worker' && (processBusyStatuses.includes(normalizedStatus) || hasCurrentJob);
-    const hermesStartDisabled = hermesBusy;
-    const hermesStopDisabled = !hermesBusy || normalizedStatus === 'stopped';
+    const hermesStartDisabled = disabledByProfile || hermesBusy;
+    const hermesStopDisabled = disabledByProfile || !hermesBusy || normalizedStatus === 'stopped';
 
     html += `<div class="status-card">
       <div class="name">${displayIcon} ${displayLabel} ${statusBadge(s)}</div>
       <div class="info">${currentJob}</div>
       ${workerDescription ? `<div class="info" style="margin-top:4px">${workerDescription}</div>` : ''}
       <div class="info" style="margin-top:4px">프로세스 번호: ${info.pid || '-'}</div>
+      ${disabledByProfile ? `<div class="info" style="color:#f0ad4e;margin-top:6px;font-size:12px">프로파일 비활성화: ${escapeHtml(disabledReason)}</div>` : ''}
       ${progress > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>` : ''}
       
       ${autoStart ? `<div class="info" style="color:#8b949e;margin-top:6px;font-size:12px">\u2705 프로그램 시작 시 자동 실행</div>` : name === 'hermes_worker' ? `
@@ -5550,6 +5556,10 @@ const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', rem
 
 async function startProcess(name) {
   try {
+    if (window.latestWorkerStatus?.allowed_processes && !window.latestWorkerStatus.allowed_processes.includes(name)) {
+      showToast(`${name} is disabled by AIRWORKER_PROFILE=${window.latestWorkerStatus.worker_profile || 'full'}`, 'warning');
+      return;
+    }
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/start`);
     showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
@@ -5609,6 +5619,10 @@ async function stopHermesGeneration() {
 
 async function stopProcess(name) {
   try {
+    if (window.latestWorkerStatus?.allowed_processes && !window.latestWorkerStatus.allowed_processes.includes(name)) {
+      showToast(`${name} is disabled by AIRWORKER_PROFILE=${window.latestWorkerStatus.worker_profile || 'full'}`, 'warning');
+      return;
+    }
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/stop`);
     showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
@@ -5639,6 +5653,7 @@ async function refreshAll() {
       checkNewRenderJobs(renderJobsData.jobs, renderJobsData.pending_count || 0);
     }
     if (!status) return;
+    window.latestWorkerStatus = status;
     const recentJobs = jobs?.jobs || [];
     renderProcessCards(status, recentJobs);
     renderRecentJobs(recentJobs);

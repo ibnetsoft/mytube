@@ -10,13 +10,23 @@ if str(WORKER_DIR) not in sys.path:
 
 import dashboard_app
 import manager
+import worker_config
 
 
-def test_manager_always_on_child_scripts_includes_remote_drive_worker():
+def test_manager_default_profile_starts_all_child_scripts():
+    assert worker_config.WORKER_PROFILE == 'full'
     assert 'remote_drive_worker' in manager.ALWAYS_ON_CHILD_SCRIPTS
     assert 'render_worker' in manager.ALWAYS_ON_CHILD_SCRIPTS
     assert 'hermes_worker' in manager.ALWAYS_ON_CHILD_SCRIPTS
     assert 'local_api' in manager.ALWAYS_ON_CHILD_SCRIPTS
+
+
+def test_worker_profiles_split_generation_and_rendering_roles():
+    assert worker_config.normalize_worker_profile('content-only') == 'content_only'
+    assert worker_config.normalize_worker_profile('render') == 'render_only'
+    assert worker_config.normalize_worker_profile('bad-value') == 'full'
+    assert worker_config.PROFILE_CHILD_SCRIPTS['content_only'] == ('hermes_worker', 'local_api')
+    assert worker_config.PROFILE_CHILD_SCRIPTS['render_only'] == ('render_worker', 'remote_drive_worker', 'local_api')
 
 
 def test_api_rendering_jobs_endpoint_returns_combined_queue_structure():

@@ -43,6 +43,8 @@ from worker_config import (
     SHUTDOWN_GRACE_SECONDS,
     SHUTDOWN_JOB_ABORT_GRACE_SECONDS,
     STATE_DIR,
+    ALLOWED_CHILD_SCRIPTS,
+    WORKER_PROFILE,
     WORKER_ID,
     ensure_project_root_on_path,
 )
@@ -63,7 +65,7 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")  # [AIR-0227E-P3] hermes_worker now runs the real hermes_worker.py (topic_research via services.ai_router) - see air_worker_entry.py's role dispatch
 # Hermes is part of the core generation path, so a full server restart brings
 # it back with the other worker services.
-ALWAYS_ON_CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")
+ALWAYS_ON_CHILD_SCRIPTS = tuple(ALLOWED_CHILD_SCRIPTS)
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
     "remote_drive_worker": STATE_DIR / "remote_drive_worker.json",
@@ -107,7 +109,10 @@ class WorkerManager:
         self.worker_instance_id = uuid.uuid4().hex
         logger.info(f"Worker instance id for this Manager run: {self.worker_instance_id}")
         for name in CHILD_SCRIPTS:
-            self.registry.register(name)
+            rec = self.registry.register(name)
+            if name not in ALWAYS_ON_CHILD_SCRIPTS:
+                rec.status = "disabled"
+                rec.disabled_reason = f"disabled by AIRWORKER_PROFILE={WORKER_PROFILE}"
         self.registry.register("updater")
 
     # ---- process lifecycle -------------------------------------------------
@@ -115,6 +120,15 @@ class WorkerManager:
     def start_process(self, name: str) -> bool:
         with self._lock:
             rec = self.registry.get(name)
+            if rec is None:
+                logger.warning(f"Refusing to start unknown process '{name}'")
+                return False
+            if name not in ALWAYS_ON_CHILD_SCRIPTS:
+                rec.status = "disabled"
+                rec.pid = None
+                rec.disabled_reason = f"disabled by AIRWORKER_PROFILE={WORKER_PROFILE}"
+                logger.info(f"Refusing to start '{name}' - {rec.disabled_reason}")
+                return False
             if rec.status == "disabled":
                 logger.warning(f"Refusing to start '{name}' - disabled ({rec.disabled_reason})")
                 return False
@@ -212,7 +226,11 @@ class WorkerManager:
         self.start_process(name)
 
     def start_all(self):
-        logger.info("Worker Manager starting all worker server processes")
+        logger.info(
+            "Worker Manager starting profile=%s processes: %s",
+            WORKER_PROFILE,
+            ", ".join(ALWAYS_ON_CHILD_SCRIPTS),
+        )
         for name in ALWAYS_ON_CHILD_SCRIPTS:
             self.start_process(name)
 
@@ -413,6 +431,11 @@ class WorkerManager:
         """docs/AIR_WORKER_RESOURCE_POLICY.md §2/§3: if the render worker
         currently reports a running job, pause Hermes by writing the pause
         flag file; otherwise clear it."""
+        if "render_worker" not in ALWAYS_ON_CHILD_SCRIPTS:
+            if PAUSE_FLAG_FILE.exists():
+                logger.info("Render worker disabled by profile -> clearing Hermes pause flag")
+                PAUSE_FLAG_FILE.unlink(missing_ok=True)
+            return
         render_state = self._read_state_file("render_worker")
         render_busy = bool(render_state and render_state.get("current_job"))
         if render_busy and not PAUSE_FLAG_FILE.exists():
@@ -452,6 +475,8 @@ class WorkerManager:
                 processes[name]["last_error"] = state.get("last_error")
         return {
             "worker_id": WORKER_ID,
+            "worker_profile": WORKER_PROFILE,
+            "allowed_processes": list(ALWAYS_ON_CHILD_SCRIPTS),
             "worker_instance_id": self.worker_instance_id,
             "processes": processes,
             "hermes_paused": PAUSE_FLAG_FILE.exists(),
