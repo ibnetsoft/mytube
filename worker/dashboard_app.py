@@ -998,6 +998,33 @@ async def api_jobs(
     jobs = job_store.list_jobs(status=status, limit=limit)
     if job_type:
         jobs = [j for j in jobs if j.get("job_type") == job_type]
+    if not status and not job_type:
+        autopilot_status = autopilot_manager.get_status()
+        if autopilot_status.get("is_running"):
+            now = time.time()
+            jobs.insert(0, {
+                "job_id": "hermes-autopilot-current",
+                "job_type": "hermes_autopilot_step",
+                "source": "autopilot",
+                "priority": 100,
+                "payload": {
+                    "category": autopilot_status.get("current_category") or "",
+                    "current_step": autopilot_status.get("current_step") or "Autopilot running",
+                },
+                "status": "RUNNING",
+                "worker_pid": None,
+                "progress": 0,
+                "progress_message": autopilot_status.get("current_step") or "Autopilot running",
+                "created_at": now,
+                "started_at": now,
+                "completed_at": None,
+                "retry_count": 0,
+                "max_retries": 0,
+                "error_code": "",
+                "error_message": autopilot_status.get("last_error") or "",
+                "output_path": None,
+            })
+            jobs = jobs[:limit]
     return {"jobs": jobs}
 
 
@@ -3693,6 +3720,7 @@ const JOB_TYPE_LABELS = {
   script_plan_generate: '대본 기획 생성',
   script_generate: '대본 생성',
   publish_metadata_generate: '설명·태그 생성',
+  hermes_autopilot_step: 'Hermes 진행 상태',
 };
 const JOB_TYPE_DESCRIPTIONS = {
   render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
@@ -3702,6 +3730,7 @@ const JOB_TYPE_DESCRIPTIONS = {
   script_plan_generate: '제목을 바탕으로 훅, 전개, 결말을 포함한 대본 기획을 만들고 있습니다.',
   script_generate: '기획을 바탕으로 시청 흐름을 고려한 대본을 작성하고 검수하고 있습니다.',
   publish_metadata_generate: '완성된 대본을 바탕으로 유튜브 설명, 태그, 해시태그를 만들고 있습니다.',
+  hermes_autopilot_step: 'Autopilot이 다음 작업을 준비하고 있습니다.',
 };
 function humanStatus(s) {
   return STATUS_LABELS[s] || STATUS_LABELS[String(s || '').toLowerCase()] || s || '-';

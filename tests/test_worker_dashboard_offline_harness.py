@@ -51,3 +51,27 @@ def test_autopilot_start_blocks_before_worker_start_when_harness_fails(monkeypat
     assert data["success"] is False
     assert "offline preflight failed" in data["error"]
     assert data["offline_harness"]["failed_count"] == 1
+
+
+def test_jobs_endpoint_includes_running_autopilot_internal_step(monkeypatch):
+    monkeypatch.setattr(dashboard_app.job_store, "list_jobs", lambda status=None, limit=50: [])
+    monkeypatch.setattr(
+        dashboard_app.autopilot_manager,
+        "get_status",
+        lambda: {
+            "is_running": True,
+            "current_category": "황혼19금",
+            "current_step": "신규 오리지널 영상 제목 생성",
+            "last_error": "",
+        },
+    )
+    client = TestClient(dashboard_app.app)
+
+    response = client.get("/api/jobs?limit=10")
+
+    assert response.status_code == 200
+    jobs = response.json()["jobs"]
+    assert jobs[0]["job_id"] == "hermes-autopilot-current"
+    assert jobs[0]["job_type"] == "hermes_autopilot_step"
+    assert jobs[0]["status"] == "RUNNING"
+    assert jobs[0]["payload"]["current_step"] == "신규 오리지널 영상 제목 생성"
