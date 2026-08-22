@@ -104,8 +104,8 @@ def test_resume_rejects_pipeline_without_completed_artifact():
     result = dashboard_app._submit_resume_job_from_pipeline(
         [
             {
-                "job_id": "research-job",
-                "job_type": "web_research",
+                "job_id": "benchmark-job",
+                "job_type": "topic_benchmark_analyze",
                 "status": "COMPLETED",
                 "payload": {"topic_queue_id": "3285", "category": "무협"},
             }
@@ -114,3 +114,47 @@ def test_resume_rejects_pipeline_without_completed_artifact():
 
     assert result["success"] is False
     assert "이어갈 수 있는 완료 단계" in result["error"]
+
+
+def test_resume_from_completed_web_research_submits_plan_job(monkeypatch):
+    submitted = {}
+
+    def fake_submit_job(**kwargs):
+        submitted.update(kwargs)
+        return "new-plan-job"
+
+    monkeypatch.setattr(dashboard_app.job_store, "submit_job", fake_submit_job)
+    monkeypatch.setattr(
+        dashboard_app,
+        "_read_job_result",
+        lambda job_id: {
+            "research_bundle": {
+                "category": "황혼19금",
+                "upload_title": "아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
+                "sources": [{"title": "source", "url": "https://example.com"}],
+            }
+        },
+    )
+
+    result = dashboard_app._submit_resume_job_from_pipeline(
+        [
+            {
+                "job_id": "research-job",
+                "job_type": "web_research",
+                "status": "COMPLETED",
+                "payload": {"topic_queue_id": "local-auto-1", "category": "황혼19금"},
+            }
+        ]
+    )
+
+    assert result == {
+        "success": True,
+        "job_id": "new-plan-job",
+        "resumed_stage": "script_plan_generate",
+    }
+    assert submitted["job_type"] == "script_plan_generate"
+    assert submitted["payload"]["topic_queue_id"] == "local-auto-1"
+    assert submitted["payload"]["category"] == "황혼19금"
+    assert submitted["payload"]["upload_title"] == "아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지"
+    assert submitted["payload"]["benchmark_analysis"]["web_research"]["sources"]
+    assert submitted["payload"]["resume_from_job_id"] == "research-job"

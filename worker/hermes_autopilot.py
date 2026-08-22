@@ -1956,9 +1956,10 @@ Return ONLY a JSON array of strings.
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    error_detail = str(e) or repr(e) or type(e).__name__
                     self.last_run_status = "failed"
-                    self.last_error = str(e)
-                    self.add_log(f"❌ 카테고리 '{category}' 처리 중 에러 발생: {e}")
+                    self.last_error = error_detail
+                    self.add_log(f"❌ 카테고리 '{category}' 처리 중 에러 발생: {error_detail}")
                     logger.error(traceback.format_exc())
                     await self._mark_current_topic_failed(e)
                     if self.settings.get("mode") == "target_limit":
@@ -2333,8 +2334,12 @@ Return ONLY a JSON array of strings.
                         raise RuntimeError("Supabase approved topic insert did not return an ID")
                     self.add_log(f"Supabase: 검증된 업로드 제목 '{generated_title}' 등록 완료")
             except Exception as e:
-                self.add_log(f"Supabase 검증 제목 등록 실패: {e}")
-                raise
+                reason = str(e) or repr(e) or type(e).__name__
+                self.current_topic_queue_id = str(topic_queue_id)
+                self.add_log(
+                    "Supabase 검증 제목 등록 실패: "
+                    f"{reason}. 로컬 작업 ID({topic_queue_id})로 계속 생성합니다."
+                )
 
         # 4. 구조 및 씬 기획 생성
         self.current_step = "대본 구조 및 씬 기획"

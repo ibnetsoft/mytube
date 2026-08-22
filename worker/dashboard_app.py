@@ -23,7 +23,7 @@ from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
 from worker_config import MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID
-from hermes_autopilot import CATEGORIES, HermesAutopilotManager
+from hermes_autopilot import CATEGORIES, DEFAULT_CATEGORY_TARGET_DURATION_SECONDS, HermesAutopilotManager
 
 logger = get_logger("dashboard")
 app = FastAPI(title="AIR Worker Dashboard")
@@ -316,7 +316,54 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
         )
         return {"success": True, "job_id": new_job_id, "resumed_stage": "script_generate"}
 
-    return {"success": False, "error": "이어갈 수 있는 완료 단계가 없습니다. 기획 또는 대본 결과가 필요합니다."}
+    research_job, research_data = _completed_result_for_type(jobs, "web_research")
+    if research_job and research_data:
+        research_payload = research_job.get("payload") or {}
+        research_bundle = research_data.get("research_bundle") if isinstance(research_data.get("research_bundle"), dict) else {}
+        topic_queue_id = (
+            research_data.get("topic_queue_id")
+            or research_payload.get("topic_queue_id")
+            or f"resume-{research_job.get('job_id')}"
+        )
+        category = (
+            research_bundle.get("category")
+            or research_data.get("category")
+            or research_payload.get("category")
+            or research_payload.get("category_name")
+        )
+        title = (
+            research_bundle.get("upload_title")
+            or research_data.get("upload_title")
+            or research_payload.get("upload_title")
+            or research_payload.get("topic")
+        )
+        if not title:
+            return {"success": False, "error": "웹 조사 결과에 이어갈 제목이 없습니다."}
+        new_job_id = job_store.submit_job(
+            job_type="script_plan_generate",
+            payload={
+                "topic_queue_id": topic_queue_id,
+                "category": category,
+                "category_name": category,
+                "topic": title,
+                "target_duration_seconds": DEFAULT_CATEGORY_TARGET_DURATION_SECONDS,
+                "script_style": research_payload.get("script_style") or "story",
+                "image_style": research_payload.get("image_style") or "realistic",
+                "language": research_payload.get("language") or "ko",
+                "benchmark_analysis": {"web_research": research_bundle},
+                "upload_title": title,
+                "title_generation": research_payload.get("title_generation") or {"generated_title": title},
+                "research_bundle": research_bundle,
+                "defer_ready_until_quality_gate": True,
+                "resume_from_job_id": research_job.get("job_id"),
+            },
+            priority=100,
+            source="autopilot",
+            max_retries=0,
+        )
+        return {"success": True, "job_id": new_job_id, "resumed_stage": "script_plan_generate"}
+
+    return {"success": False, "error": "이어갈 수 있는 완료 단계가 없습니다. 웹조사, 기획 또는 대본 결과가 필요합니다."}
 
 
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
