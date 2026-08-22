@@ -12,6 +12,34 @@ if str(WORKER) not in sys.path:
 from worker import dashboard_app
 
 
+def test_resolve_job_by_dashboard_short_id(monkeypatch):
+    full_job = {
+        "job_id": "0f591bd3-d8b7-4503-b506-479d8e7dd94d",
+        "job_type": "script_generate",
+        "status": "FAILED",
+        "payload": {},
+    }
+
+    monkeypatch.setattr(dashboard_app.job_store, "get_job", lambda job_id: None)
+    monkeypatch.setattr(dashboard_app.job_store, "list_jobs", lambda limit=100: [full_job])
+
+    assert dashboard_app._resolve_job_by_id_or_prefix("0f591bd3") == full_job
+
+
+def test_resolve_job_by_short_id_rejects_ambiguous_prefix(monkeypatch):
+    monkeypatch.setattr(dashboard_app.job_store, "get_job", lambda job_id: None)
+    monkeypatch.setattr(
+        dashboard_app.job_store,
+        "list_jobs",
+        lambda limit=100: [
+            {"job_id": "0f591bd3-d8b7-4503-b506-479d8e7dd94d"},
+            {"job_id": "0f591bd3-1111-4503-b506-479d8e7dd94d"},
+        ],
+    )
+
+    assert dashboard_app._resolve_job_by_id_or_prefix("0f591bd3") is None
+
+
 def test_resume_from_completed_plan_submits_script_job(monkeypatch):
     submitted = {}
 

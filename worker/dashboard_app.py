@@ -226,6 +226,34 @@ def _related_hermes_pipeline_jobs(seed_job: dict, limit: int = 500) -> list[dict
     return related
 
 
+def _resolve_job_by_id_or_prefix(job_id: str) -> dict | None:
+    """Resolve full job ids and dashboard short ids such as the first 8 chars."""
+    requested = str(job_id or "").strip()
+    if not requested:
+        return None
+
+    exact = job_store.get_job(requested)
+    if exact:
+        return exact
+
+    if len(requested) < 8:
+        return None
+
+    matches = [
+        job for job in job_store.list_jobs(limit=2000)
+        if str(job.get("job_id") or "").startswith(requested)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        logger.warning(
+            "Ambiguous dashboard job id prefix %s matched %s jobs",
+            requested,
+            len(matches),
+        )
+    return None
+
+
 def _completed_result_for_type(jobs: list[dict], job_type: str) -> tuple[dict, dict] | tuple[None, None]:
     for job in reversed(jobs):
         if job.get("job_type") != job_type or str(job.get("status") or "").upper() != "COMPLETED":
@@ -1183,7 +1211,7 @@ async def api_resume_hermes_pipeline(
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
     require_auth(authorization, cookie)
-    seed_job = job_store.get_job(job_id)
+    seed_job = _resolve_job_by_id_or_prefix(job_id)
     if not seed_job:
         return {"success": False, "error": "작업을 찾을 수 없습니다."}
     related_jobs = _related_hermes_pipeline_jobs(seed_job)
