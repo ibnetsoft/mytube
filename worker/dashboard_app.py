@@ -1892,7 +1892,7 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
     project_root = worker_dir.parent
     python_exe = Path(sys.executable)
     dashboard_args = "-m uvicorn dashboard_app:app --host 127.0.0.1 --port 3002"
-    roles_to_start = ["manager", "hermes_worker"] if restart else []
+    roles_to_start = ["manager"] if restart else []
 
     ps_lines = [
         "$ErrorActionPreference = 'SilentlyContinue'",
@@ -1916,7 +1916,6 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "$procs = Get-CimInstance Win32_Process | Where-Object {",
         "  $cmd = $_.CommandLine",
         "  $_.ProcessId -ne $PID -and $cmd -and",
-        "  ($cmd -like \"*$project*\") -and",
         "  ($patterns | Where-Object { $cmd -like \"*$_*\" })",
         "}",
         "foreach ($proc in $procs) {",
@@ -5863,6 +5862,9 @@ function parseDuration(dur) {
 /* ── Autopilot functions ── */
 let autopilotSettingsInitialized = false;
 let autopilotStatusSnapshot = null;
+let offlineHarnessLastRunAt = 0;
+let offlineHarnessLastReport = null;
+const OFFLINE_HARNESS_REFRESH_MS = 30000;
 const ALL_CATEGORIES = ["탈북사연", "해외감동", "노후금융", "황혼19금", "옛날이야기", "한국사연", "무협", "경제"];
 
 function toggleLimitInput() {
@@ -6058,6 +6060,7 @@ async function saveAutopilotSettings() {
 }
 
 function renderOfflineHarness(report) {
+  offlineHarnessLastReport = report;
   const badge = document.getElementById('auto-harness-badge');
   const summary = document.getElementById('auto-harness-summary');
   const failures = document.getElementById('auto-harness-failures');
@@ -6084,16 +6087,21 @@ function renderOfflineHarness(report) {
 }
 
 async function runOfflineHarness({silent=false} = {}) {
+  const now = Date.now();
+  if (silent && offlineHarnessLastReport && (now - offlineHarnessLastRunAt) < OFFLINE_HARNESS_REFRESH_MS) {
+    return offlineHarnessLastReport;
+  }
   const badge = document.getElementById('auto-harness-badge');
   const summary = document.getElementById('auto-harness-summary');
-  if (badge) {
+  if (!silent && badge) {
     badge.className = 'badge badge-starting';
     badge.textContent = '검증 중';
   }
-  if (summary) summary.textContent = '오프라인 사전검증을 실행 중입니다...';
+  if (!silent && summary) summary.textContent = '오프라인 사전검증을 실행 중입니다...';
   try {
     const report = await api('GET', '/api/autopilot/hermes/offline-harness' + (silent ? '' : '?force=true'));
     if (!report) return null;
+    offlineHarnessLastRunAt = Date.now();
     renderOfflineHarness(report);
     if (!silent) {
       showToast(report.status === 'pass' ? '오프라인 사전검증 통과' : '오프라인 사전검증 실패: 자동 생성이 차단됩니다.', report.status === 'pass' ? 'success' : 'warning');
@@ -6129,7 +6137,7 @@ async function loadAutopilotStatus() {
       statusBadgeEl.textContent = '동작 중';
     } else if (isFailed) {
       statusBadgeEl.className = 'badge badge-failed';
-      statusBadgeEl.textContent = '실패';
+      statusBadgeEl.textContent = '최근 실행 실패';
     } else if (isCompleted) {
       statusBadgeEl.className = 'badge badge-completed';
       statusBadgeEl.textContent = '완료';
@@ -6141,11 +6149,11 @@ async function loadAutopilotStatus() {
     const runLabel = isRunning
       ? '<span style="color:#3fb950;font-weight:bold;">실행 중</span>'
       : (isFailed
-        ? '<span style="color:#f85149;font-weight:bold;">실패</span>'
+        ? '<span style="color:#f85149;font-weight:bold;">최근 실행 실패</span>'
         : (isCompleted ? '<span style="color:#3fb950;font-weight:bold;">완료</span>' : '중지됨'));
     document.getElementById('auto-info-running').innerHTML = runLabel;
     document.getElementById('auto-info-step').textContent = isFailed && data.last_error
-      ? `failed - ${data.last_error}`
+      ? `마지막 오류 - ${data.last_error}`
       : (data.current_step || '-');
     document.getElementById('auto-info-category').textContent = data.current_category || '-';
     document.getElementById('auto-info-topic').textContent = data.current_topic || '-';

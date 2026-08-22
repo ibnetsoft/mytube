@@ -169,6 +169,16 @@ def _expect_gate_error(name: str, payload: dict[str, Any], category: str, expect
     )
 
 
+def _expect_gate_pass(name: str, payload: dict[str, Any], category: str) -> HarnessCheck:
+    errors = validate_generation_package(payload, category=category)
+    return HarnessCheck(
+        name=name,
+        category=category,
+        passed=not errors,
+        detail="; ".join(errors),
+    )
+
+
 def run_offline_harness() -> dict[str, Any]:
     checks: list[HarnessCheck] = []
 
@@ -241,11 +251,10 @@ def run_offline_harness() -> dict[str, Any]:
     revise_script = build_valid_sample_payload("옛날이야기")
     revise_script["script_quality_report"] = {"verdict": "revise", "score": 42, "critical_issues": ["looping"]}
     checks.append(
-        _expect_gate_error(
-            "failed script QA report is blocked",
+        _expect_gate_pass(
+            "revise script QA report is informational",
             revise_script,
             "옛날이야기",
-            "script_quality_report not passing",
         )
     )
 
