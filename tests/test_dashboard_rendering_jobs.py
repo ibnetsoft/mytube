@@ -15,6 +15,7 @@ import manager
 def test_manager_always_on_child_scripts_includes_remote_drive_worker():
     assert 'remote_drive_worker' in manager.ALWAYS_ON_CHILD_SCRIPTS
     assert 'render_worker' in manager.ALWAYS_ON_CHILD_SCRIPTS
+    assert 'hermes_worker' in manager.ALWAYS_ON_CHILD_SCRIPTS
     assert 'local_api' in manager.ALWAYS_ON_CHILD_SCRIPTS
 
 

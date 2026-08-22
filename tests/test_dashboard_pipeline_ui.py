@@ -98,5 +98,7 @@ def test_server_restart_helper_matches_project_dashboard_processes():
     source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
 
     assert "'dashboard_app:app'," in source
-    assert "$cmd.Contains($project)" in source
-    assert "'air_worker_entry.py --role hermes_worker'," in source
+    assert "$cmd -like '*LongformGenerator*'" in source
+    assert "'air_worker_entry.py'," in source
+    assert "server_lifecycle.log" in source
+    assert "taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F')" in source

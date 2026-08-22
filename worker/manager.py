@@ -61,9 +61,9 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 # `--role <name>` instead - see _child_command() below and
 # worker/air_worker_entry.py's docstring for the full rationale.
 CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")  # [AIR-0227E-P3] hermes_worker now runs the real hermes_worker.py (topic_research via services.ai_router) - see air_worker_entry.py's role dispatch
-# Hermes creates editorial content and must be explicitly started by an
-# administrator.  The render worker and local API are infrastructure services.
-ALWAYS_ON_CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "local_api")
+# Hermes is part of the core generation path, so a full server restart brings
+# it back with the other worker services.
+ALWAYS_ON_CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
     "remote_drive_worker": STATE_DIR / "remote_drive_worker.json",
@@ -212,7 +212,7 @@ class WorkerManager:
         self.start_process(name)
 
     def start_all(self):
-        logger.info("Worker Manager starting infrastructure processes; Hermes is manual-start only")
+        logger.info("Worker Manager starting all worker server processes")
         for name in ALWAYS_ON_CHILD_SCRIPTS:
             self.start_process(name)
 

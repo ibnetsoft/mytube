@@ -22,7 +22,7 @@ from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, 
 from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
-from worker_config import MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID
+from worker_config import LOG_DIR, MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID
 from hermes_autopilot import CATEGORIES, DEFAULT_CATEGORY_TARGET_DURATION_SECONDS, HermesAutopilotManager
 
 logger = get_logger("dashboard")
@@ -2010,61 +2010,82 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
     us reliable command-line process filtering without adding a runtime dep.
     """
     worker_dir = Path(__file__).resolve().parent
-    project_root = worker_dir.parent
     python_exe = Path(sys.executable)
     dashboard_args = "-m uvicorn dashboard_app:app --host 127.0.0.1 --port 3002"
     roles_to_start = ["manager"] if restart else []
+    helper_script = STATE_DIR / ("restart_worker_server.ps1" if restart else "shutdown_worker_server.ps1")
+    lifecycle_log = LOG_DIR / "server_lifecycle.log"
 
     ps_lines = [
         "$ErrorActionPreference = 'SilentlyContinue'",
+        f"$log = {json.dumps(str(lifecycle_log))}",
+        "function Write-LifeLog([string]$message) {",
+        "  $line = ('{0} {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'), $message)",
+        "  Add-Content -LiteralPath $log -Value $line -Encoding UTF8",
+        "}",
+        "Write-LifeLog 'helper started'",
         "Start-Sleep -Milliseconds 900",
-        f"$project = {json.dumps(str(project_root))}",
         f"$worker = {json.dumps(str(worker_dir))}",
         f"$python = {json.dumps(str(python_exe))}",
         "$patterns = @(",
         "  'dashboard_app:app',",
-        "  'air_worker_entry.py --role manager',",
-        "  'air_worker_entry.py --role render_worker',",
-        "  'air_worker_entry.py --role remote_drive_worker',",
-        "  'air_worker_entry.py --role hermes_worker',",
-        "  'air_worker_entry.py --role local_api',",
+        "  'air_worker_entry.py',",
         "  'worker\\manager.py',",
         "  'worker\\render_worker.py',",
         "  'worker\\remote_drive_worker_process.py',",
         "  'worker\\hermes_worker.py',",
         "  'worker\\local_api_process.py'",
         ")",
-        "$procs = Get-CimInstance Win32_Process | Where-Object {",
-        "  $cmd = $_.CommandLine",
-        "  $_.ProcessId -ne $PID -and $cmd -and $cmd.Contains($project) -and",
-        "  ($patterns | Where-Object { $cmd -like \"*$_*\" })",
+        "function Get-AirWorkerProcesses {",
+        "  Get-CimInstance Win32_Process | Where-Object {",
+        "    $cmd = $_.CommandLine",
+        "    $_.ProcessId -ne $PID -and $cmd -and $cmd -like '*LongformGenerator*' -and",
+        "    (($patterns | Where-Object { $cmd -like \"*$_*\" }).Count -gt 0)",
+        "  }",
         "}",
+        "$procs = @(Get-AirWorkerProcesses | Sort-Object ProcessId -Unique)",
+        "Write-LifeLog ('matched processes: ' + (($procs | ForEach-Object { \"$($_.ProcessId):$($_.Name)\" }) -join ', '))",
         "foreach ($proc in $procs) {",
-        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/F') -WindowStyle Hidden -Wait",
+        "  Write-LifeLog ('killing pid=' + $proc.ProcessId + ' cmd=' + $proc.CommandLine)",
+        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden -Wait",
         "}",
-        "Start-Sleep -Seconds 2",
+        "$deadline = (Get-Date).AddSeconds(12)",
+        "do {",
+        "  Start-Sleep -Milliseconds 500",
+        "  $remaining = @(Get-AirWorkerProcesses | Sort-Object ProcessId -Unique)",
+        "} while ($remaining.Count -gt 0 -and (Get-Date) -lt $deadline)",
+        "if ($remaining.Count -gt 0) {",
+        "  Write-LifeLog ('remaining after kill: ' + (($remaining | ForEach-Object { \"$($_.ProcessId):$($_.Name)\" }) -join ', '))",
+        "} else {",
+        "  Write-LifeLog 'all matched processes stopped'",
+        "}",
     ]
     if restart:
+        ps_lines.append(
+            "Write-LifeLog 'starting dashboard'"
+        )
         ps_lines.append(
             "Start-Process -FilePath $python "
             f"-ArgumentList {json.dumps(dashboard_args)} "
             "-WorkingDirectory $worker -WindowStyle Hidden"
         )
-        ps_lines.append("Start-Sleep -Milliseconds 700")
+        ps_lines.append("Start-Sleep -Milliseconds 1200")
         for role in roles_to_start:
+            ps_lines.append(f"Write-LifeLog 'starting role {role}'")
             ps_lines.append(
                 "Start-Process -FilePath $python "
                 f"-ArgumentList {json.dumps(str(worker_dir / 'air_worker_entry.py') + ' --role ' + role)} "
                 "-WorkingDirectory $worker -WindowStyle Hidden"
             )
-    ps_script = "; ".join(ps_lines)
+    ps_lines.append("Write-LifeLog 'helper completed'")
+    helper_script.write_text("\n".join(ps_lines) + "\n", encoding="utf-8")
     logger.info(
         "Launching full worker lifecycle helper "
         f"restart={restart}, python={python_exe}, worker_dir={worker_dir}"
     )
     flags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
     subprocess.Popen(
-        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(helper_script)],
         cwd=str(worker_dir),
         creationflags=flags if sys.platform == "win32" else 0,
     )
