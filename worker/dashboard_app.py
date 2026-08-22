@@ -3935,17 +3935,37 @@ function isHermesGenerationJob(job) {
   ].includes(job?.job_type);
 }
 
-async function restartHermesFromCancelled(jobId) {
+async function restartHermesFromCancelled(jobId, buttonEl) {
+  const btn = buttonEl || null;
+  const originalText = btn ? btn.textContent : '';
+  if (!jobId) {
+    showToast('이어하기 실패: 작업 ID가 없습니다.', 'error');
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '요청 중...';
+  }
+  showToast(`이어하기 요청 중: ${String(jobId).substring(0, 8)}`, 'info');
   try {
     const result = await api('POST', `/api/hermes/pipelines/${jobId}/resume`);
     if (!result || result.success === false) {
       showToast(`재시작 실패: ${result?.error || '응답 없음'}`, 'error');
       return;
     }
-    showToast(`중단된 작업 ${String(jobId).substring(0, 8)}부터 이어서 시작했습니다.`, 'success');
+    const nextJob = result.job_id ? ` 새 작업: ${String(result.job_id).substring(0, 8)}` : '';
+    const nextStage = result.resumed_stage ? ` (${result.resumed_stage})` : '';
+    showToast(`이어하기 시작됨.${nextJob}${nextStage}`, 'success');
     setTimeout(refreshAll, 800);
   } catch (e) {
     showToast(`재시작 실패: ${e}`, 'error');
+  } finally {
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = originalText || '이어하기';
+      }, 1200);
+    }
   }
 }
 
@@ -4328,7 +4348,7 @@ function renderPipelineCard(item, prefix = 'rec') {
           <span style="font-size:12px;font-weight:bold;color:${isAllComplete ? '#7ee787' : '#58a6ff'};font-family:monospace;">${item.overallProgress}%</span>
           <span class="pipeline-time">${fmtTime(item.updated_at)}</span>
           ${item.canResume ? `
-            <button class="btn btn-sm btn-start pipeline-header-resume" onclick="restartHermesFromCancelled('${resumeJobId}')">
+            <button class="btn btn-sm btn-start pipeline-header-resume" onclick="restartHermesFromCancelled('${resumeJobId}', this)">
               이어하기
             </button>
           ` : ''}
@@ -4359,7 +4379,7 @@ function renderPipelineCard(item, prefix = 'rec') {
           </div>
         ` : item.canResume ? `
           <div class="pipeline-actions-footer">
-            <button class="btn btn-sm btn-start" onclick="restartHermesFromCancelled('${resumeJobId}')" style="font-size:11px;">
+            <button class="btn btn-sm btn-start" onclick="restartHermesFromCancelled('${resumeJobId}', this)" style="font-size:11px;">
               이어하기
             </button>
           </div>

@@ -207,6 +207,28 @@ def is_paused() -> bool:
     return PAUSE_FLAG_FILE.exists()
 
 
+def _state_job_summary(current_job: dict | None) -> dict | None:
+    if not isinstance(current_job, dict):
+        return None
+    payload = current_job.get("payload") if isinstance(current_job.get("payload"), dict) else {}
+    project_name = (
+        current_job.get("project_name")
+        or payload.get("project_name")
+        or payload.get("upload_title")
+        or payload.get("topic")
+        or payload.get("category_name")
+        or payload.get("category")
+    )
+    return {
+        "job_id": current_job.get("job_id"),
+        "job_type": current_job.get("job_type"),
+        "source": current_job.get("source"),
+        "status": current_job.get("status"),
+        "project_name": project_name,
+        "progress_message": current_job.get("progress_message"),
+    }
+
+
 def write_state(status: str, current_job: dict | None, progress: int, job_id: str | None = None,
                  last_success_at: float | None = None, last_error: str | None = None):
     prev = {}
@@ -220,7 +242,7 @@ def write_state(status: str, current_job: dict | None, progress: int, job_id: st
             {
                 "pid": os.getpid(),
                 "status": status,
-                "current_job": current_job,
+                "current_job": _state_job_summary(current_job),
                 "current_job_id": job_id,
                 "progress": progress,
                 "heartbeat_at": time.time(),
