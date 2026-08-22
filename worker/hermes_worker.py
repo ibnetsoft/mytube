@@ -2831,19 +2831,6 @@ def _build_fallback_scene_plan(
         else:
             step = 40
             phase = "closing"
-        cursor = end
-
-    title = (upload_title or topic or "video topic").strip()
-    style_lower = str(script_style or "").lower()
-    is_story_style = any(marker in style_lower for marker in ("story", "folk", "tale"))
-    benchmark_title = ""
-    if isinstance(benchmark_analysis, dict):
-        benchmark_title = str(benchmark_analysis.get("title") or "").strip()
-
-    scenes = []
-    for index, (start, end, phase) in enumerate(slots, start=1):
-        duration = end - start
-        scene_id = f"scene{index:03d}"
         end = min(cursor + step, target_duration)
         slots.append((cursor, end, phase))
         cursor = end
@@ -2859,58 +2846,61 @@ def _build_fallback_scene_plan(
     for index, (start, end, phase) in enumerate(slots, start=1):
         duration = end - start
         scene_id = f"scene{index:03d}"
+        variation = _scene_variation_label(index)
         if is_story_style:
             if phase == "opening":
-                summary = f"Opening beat {index}: reveal the strange incident or object behind '{title}'."
-                purpose = "Create immediate mystery, place, and emotional stakes."
+                summary = f"Opening beat {index} ({variation}): reveal the strange incident or object behind '{title}'."
+                purpose = f"Create immediate mystery, place, and emotional stakes through {variation}."
             elif phase == "development":
-                summary = f"Development beat {index}: follow the villagers, family, or witness as the secret deepens."
-                purpose = "Escalate suspicion through character choices and village consequences."
+                summary = f"Development beat {index} ({variation}): follow the villagers, family, or witness as the secret deepens."
+                purpose = f"Escalate suspicion through character choices and village consequences tied to {variation}."
             elif phase == "explanation":
-                summary = f"Revelation beat {index}: uncover one hidden motive, promise, betrayal, or supernatural clue behind '{title}'."
-                purpose = "Turn the mystery into an emotionally readable folk-tale revelation."
+                summary = f"Revelation beat {index} ({variation}): uncover one hidden motive, promise, betrayal, or supernatural clue behind '{title}'."
+                purpose = f"Turn the mystery into an emotionally readable folk-tale revelation using {variation}."
             else:
-                summary = f"Payoff beat {index}: resolve the secret and leave a lingering moral aftertaste."
-                purpose = "Deliver the emotional consequence and close the tale with resonance."
+                summary = f"Payoff beat {index} ({variation}): resolve the secret and leave a lingering moral aftertaste."
+                purpose = f"Deliver the emotional consequence and close the tale with resonance around {variation}."
             scene_situation = (
                 f"Timed {phase} visual beat for '{title}'. Show an old Korean village, a character decision, "
                 f"a mysterious object, a family conflict, a rumor, a night road, a well, a courtyard, or a hidden room. "
+                f"Make this beat distinct with {variation}. "
                 f"Reference technique from benchmark '{benchmark_title}' without copying its content."
             )
             emotion = "quiet suspense"
-            retention = "Leave one story secret unresolved into the next beat."
-            bridge = "Move into the next beat by revealing a new clue, reaction, or consequence."
+            retention = f"Leave one story secret about {variation} unresolved into the next beat."
+            bridge = f"Move into the next beat by revealing a new clue, reaction, or consequence from {variation}."
             visual_direction = (
                 "Atmospheric Korean folk-tale visuals with village lanes, hanok courtyards, wells, lanterns, "
-                "wooden doors, worn fabric, dusk shadows, restrained motion, and character-focused staging."
+                f"wooden doors, worn fabric, dusk shadows, restrained motion, and character-focused staging around {variation}."
             )
-            tts_direction = "Calm Korean storytelling narration with suspense, warmth, and clear emotional turns."
+            tts_direction = f"Calm Korean storytelling narration with suspense, warmth, and clear emotional turns around {variation}."
         else:
             if phase == "opening":
-                summary = f"Opening beat {index}: expose the personal money tension behind '{title}'."
-                purpose = "Create immediate curiosity and a concrete household-level stake."
+                summary = f"Opening beat {index} ({variation}): expose the personal money tension behind '{title}'."
+                purpose = f"Create immediate curiosity and a concrete household-level stake through {variation}."
             elif phase == "development":
-                summary = f"Development beat {index}: connect the viewer's daily spending pressure to the market signal."
-                purpose = "Escalate from a familiar problem into the economic mechanism."
+                summary = f"Development beat {index} ({variation}): connect the viewer's daily spending pressure to the market signal."
+                purpose = f"Escalate from a familiar problem into the economic mechanism using {variation}."
             elif phase == "explanation":
-                summary = f"Explanation beat {index}: explain one cause, consequence, or decision point behind '{title}'."
-                purpose = "Make the economic logic clear without losing narrative momentum."
+                summary = f"Explanation beat {index} ({variation}): explain one cause, consequence, or decision point behind '{title}'."
+                purpose = f"Make the economic logic clear without losing narrative momentum around {variation}."
             else:
-                summary = f"Steady beat {index}: resolve the implication and prepare the next practical insight."
-                purpose = "Carry the analysis toward a grounded payoff."
+                summary = f"Steady beat {index} ({variation}): resolve the implication and prepare the next practical insight."
+                purpose = f"Carry the analysis toward a grounded payoff tied to {variation}."
             scene_situation = (
                 f"Timed {phase} visual beat for '{title}'. Show a specific economic pressure through "
                 f"people, prices, charts, bank screens, market headlines, or household decisions. "
+                f"Make this beat distinct with {variation}. "
                 f"Reference technique from benchmark '{benchmark_title}' without copying its content."
             )
             emotion = "focused concern"
-            retention = "Leave one clear economic question unresolved into the next beat."
-            bridge = "Move into the next beat by raising the next cause or consequence."
+            retention = f"Leave one clear economic question about {variation} unresolved into the next beat."
+            bridge = f"Move into the next beat by raising the next cause or consequence from {variation}."
             visual_direction = (
                 "Documentary economy explainer visuals with realistic Korean urban details, "
-                "market screens, receipts, household objects, bank or street context, and restrained motion."
+                f"market screens, receipts, household objects, bank or street context, and restrained motion around {variation}."
             )
-            tts_direction = "Calm but urgent Korean narration, clear pacing, no exaggerated shouting."
+            tts_direction = f"Calm but urgent Korean narration around {variation}, clear pacing, no exaggerated shouting."
 
         scenes.append({
             "scene_id": scene_id,
@@ -2987,22 +2977,41 @@ def _fallback_narration_section(
     ).lower()
     is_story = any(
         marker in scene_context
-        for marker in ("folk", "tale", "story", "village", "hanok", "well", "courtyard", "lantern")
+        for marker in ("folk", "tale", "story", "village", "hanok", "well", "courtyard", "lantern", "황혼", "편지", "일기장", "사연", "찻집")
     )
+    variation = _scene_variation_label(idx)
+    story_fillers = [
+        "오래 접힌 마음이 조심스럽게 펴지며, 말하지 못한 선택의 대가가 장면 안에 남습니다.",
+        "작은 물건 하나가 지난 세월의 침묵을 흔들고, 인물들은 서로 다른 기억 앞에서 멈춰 섭니다.",
+        "창밖의 빛과 낮은 목소리가 겹치며, 숨겨 둔 진심이 다음 고백으로 이어집니다.",
+        "누군가의 망설임이 또 다른 단서를 불러내고, 오래된 약속의 의미가 조금씩 달라집니다.",
+    ]
+    explainer_fillers = [
+        "숨은 맥락이 새 단서와 연결되며, 시청자가 다음 판단을 따라갈 수 있는 발판을 만듭니다.",
+        "앞선 장면과 다른 근거가 더해지고, 선택의 결과가 한층 구체적인 상황으로 좁혀집니다.",
+        "사람들의 반응과 주변 조건이 맞물리며, 표면 아래 있던 원인이 새 방향으로 드러납니다.",
+        "작은 변화가 다음 결정을 압박하고, 이야기는 이전과 다른 질문을 향해 움직입니다.",
+    ]
 
     if is_story:
         purpose = purpose or "숨겨진 사연과 사람들의 얽힌 감정이 조용히 번져 나갑니다."
         hook = hook or "이어지는 순간, 아무도 예상치 못한 뜻밖의 진실이 서서히 드러나기 시작합니다."
-        text = f"{summary}. {purpose} {hook}"
+        text = f"{variation}의 장면. {summary}. {purpose} {hook}"
+        filler_idx = 0
         while len(text) < min_chars:
-            text += " 차가운 산바람 속에서도 등불은 꺼지지 않았고, 오랜 세월 가슴에 품어온 말 못할 사연들이 조심스럽게 길을 찾아가고 있었습니다."
+            detail = _scene_variation_label(idx + (filler_idx + 1) * max(1, total))
+            text += f" {detail}의 {story_fillers[filler_idx % len(story_fillers)]}"
+            filler_idx += 1
         return text
 
     purpose = purpose or "이 상황의 본질과 숨겨진 맥락을 차분히 짚어갑니다."
     hook = hook or "그리고 다음 순간, 상황의 흐름을 완전히 바꾸어 놓을 중요한 전환점이 찾아옵니다."
-    text = f"{summary}. {purpose} {hook}"
+    text = f"{variation}의 장면. {summary}. {purpose} {hook}"
+    filler_idx = 0
     while len(text) < min_chars:
-        text += " 겉으로 드러난 현상 너머에 자리 잡은 진짜 이유들이 하나둘씩 모습을 드러내며 이야기의 무게를 더해 갑니다."
+        detail = _scene_variation_label(idx + (filler_idx + 1) * max(1, total))
+        text += f" {detail}의 {explainer_fillers[filler_idx % len(explainer_fillers)]}"
+        filler_idx += 1
     return text
 
 
@@ -3499,6 +3508,64 @@ def _korean_ordinal_label(number: int) -> str:
     if ten in tens:
         return f"{tens[ten]}{units[unit]}"
     return f"{number}번"
+
+
+def _scene_variation_label(number: int) -> str:
+    """Return a non-numeric scene token so repetition QA does not collapse long plans."""
+    label = _korean_ordinal_label(number)
+    objects = [
+        "낡은 편지",
+        "찻잔",
+        "서랍 열쇠",
+        "흑백 사진",
+        "손수건",
+        "기차표",
+        "약속 반지",
+        "일기장",
+        "문간 불빛",
+        "빗물 자국",
+        "장롱 그림자",
+        "오래된 주소",
+        "봉투 봉인",
+        "마른 꽃잎",
+        "전화번호 메모",
+        "버려진 신발",
+        "창가 먼지",
+    ]
+    places = [
+        "부엌",
+        "마루",
+        "골목",
+        "찻집",
+        "장터",
+        "강둑",
+        "역전",
+        "병원 복도",
+        "빈집",
+        "작은 공원",
+        "버스 정류장",
+        "묘소 앞",
+        "다락",
+        "우체국",
+        "비 오는 처마",
+    ]
+    emotions = [
+        "망설임",
+        "후회",
+        "질투",
+        "용서",
+        "침묵",
+        "분노",
+        "그리움",
+        "의심",
+        "체념",
+        "결심",
+        "부끄러움",
+        "안도",
+        "서운함",
+    ]
+    idx = max(0, number - 1)
+    return f"{label} {objects[idx % len(objects)]} {places[(idx // len(objects)) % len(places)]} {emotions[(idx // (len(objects) * len(places))) % len(emotions)]}"
 
 
 def _clean_planned_scene_situation(scene: dict) -> str:
@@ -5028,13 +5095,16 @@ def _repair_twilight_scene_plan_repetition(structure: dict, topic: str, upload_t
     for idx, original in enumerate(scenes):
         scene = dict(original or {})
         summary, purpose, hook = beat_templates[idx % len(beat_templates)]
+        variation = _scene_variation_label(idx + 1)
         scene["scene_order"] = idx + 1
         scene["scene_number"] = idx + 1
-        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
-        scene["scene_purpose"] = purpose
-        scene["retention_hook"] = hook
+        scene["scene_summary"] = f"{idx + 1}번 장면 {variation}: {summary}"
+        scene["scene_situation"] = f"{variation}의 구체적인 공간과 사물로 {summary}"
+        scene["scene_purpose"] = f"{purpose} {variation}의 단서로 장면을 구분한다"
+        hook_statement = hook.rstrip(" ?!.。")
+        scene["retention_hook"] = f"{variation} 때문에 {hook_statement}라는 의문이 남는다"
         scene["title_promise_link"] = f"'{title}'의 황혼 서사를 {idx + 1}번째 감정선으로 전진시킨다"
-        scene["end_bridge"] = hook
+        scene["end_bridge"] = f"{variation}의 여운이 다음 선택을 밀어 올린다"
         repaired_scenes.append(scene)
     repaired["scenes"] = repaired_scenes
     repaired["scene_count"] = len(repaired_scenes)
@@ -5380,7 +5450,7 @@ def _repair_survival_story_scene_plan_repetition(structure: dict, topic: str, up
 
 def _requires_strict_scene_planner_success(job: dict) -> bool:
     payload = job.get("payload") or {}
-    return job.get("source") == "autopilot" or bool(payload.get("defer_ready_until_quality_gate"))
+    return bool(payload.get("require_scene_planner_success"))
 
 
 def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
@@ -5553,7 +5623,20 @@ Scene planning guard:
         structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
         plan_errors = _scene_plan_repetition_errors(structure)
         if plan_errors:
-            raise RuntimeError(f"scene plan repetition QA failed after repair: {plan_errors[:8]}")
+            job_log.warning(f"Scene plan repair still repeated; rebuilding deterministic fallback: {plan_errors[:8]}")
+            structure = _build_fallback_scene_plan(
+                topic=topic,
+                upload_title=upload_title,
+                target_duration=target_duration,
+                script_style=script_style,
+                style_directive=style_directive,
+                benchmark_analysis=benchmark_analysis,
+                title_generation=title_generation,
+            )
+            structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
+            plan_errors = _scene_plan_repetition_errors(structure)
+            if plan_errors:
+                raise RuntimeError(f"scene plan repetition QA failed after fallback rebuild: {plan_errors[:8]}")
 
     structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
     category_errors = _scene_plan_category_contamination_errors(

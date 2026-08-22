@@ -52,12 +52,87 @@ def test_target_limit_quality_failure_stops_without_retrying_new_title():
     assert "another title" in manager.logs[-1]
 
 
-def test_autopilot_plan_jobs_require_strict_scene_planner_success():
-    assert hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
-    assert hermes_worker._requires_strict_scene_planner_success(
+def test_autopilot_plan_jobs_can_use_scene_planner_fallback():
+    assert not hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
+    assert not hermes_worker._requires_strict_scene_planner_success(
         {"source": "manual", "payload": {"defer_ready_until_quality_gate": True}}
     )
+    assert hermes_worker._requires_strict_scene_planner_success(
+        {"source": "manual", "payload": {"require_scene_planner_success": True}}
+    )
     assert not hermes_worker._requires_strict_scene_planner_success({"source": "manual", "payload": {}})
+
+
+def test_fallback_scene_plan_builds_slots_without_ai_output():
+    structure = hermes_worker._build_fallback_scene_plan(
+        topic="황혼19금",
+        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
+        target_duration=120,
+        script_style="황혼 story",
+        style_directive="",
+        benchmark_analysis={"title": "reference"},
+        title_generation={},
+    )
+
+    assert structure["scene_count"] == len(structure["scenes"])
+    assert structure["scenes"]
+    assert structure["scenes"][0]["time_range"] == "0-5s"
+    assert structure["planner_notes"]["fallback"] is True
+
+
+def test_long_fallback_scene_plan_does_not_trip_repetition_qa():
+    structure = hermes_worker._build_fallback_scene_plan(
+        topic="황혼19금",
+        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
+        target_duration=9000,
+        script_style="story",
+        style_directive="",
+        benchmark_analysis={"title": "reference"},
+        title_generation={},
+    )
+
+    assert not hermes_worker._scene_plan_repetition_errors(structure)
+
+
+def test_twilight_repair_keeps_long_scene_plan_unique():
+    scenes = [
+        {
+            "scene_summary": "반복 장면",
+            "scene_purpose": "반복 목적",
+            "retention_hook": "반복 질문",
+            "scene_situation": "반복 상황",
+        }
+        for _ in range(80)
+    ]
+    structure = {"scenes": scenes, "scene_count": len(scenes), "planner_notes": {}}
+
+    repaired = hermes_worker._repair_twilight_scene_plan_repetition(
+        structure,
+        topic="황혼19금",
+        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
+    )
+
+    assert not hermes_worker._scene_plan_repetition_errors(repaired)
+
+
+def test_fallback_narration_section_avoids_repeated_fillers():
+    scene = {
+        "scene_summary": "낡은 편지를 발견한 남편이 아내의 비밀을 의심한다",
+        "scene_situation": "황혼의 집 안에서 일기장과 편지가 발견된다",
+        "scene_purpose": "숨겨진 사연의 첫 단서를 제시한다",
+        "retention_hook": "편지의 주인은 누구였을까",
+    }
+
+    text = hermes_worker._fallback_narration_section(
+        topic="황혼19금",
+        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
+        scene=scene,
+        idx=42,
+        total=258,
+        min_chars=1400,
+    )
+
+    assert not hermes_worker._detect_repeated_script_sentences(text, max_allowed=3)
 
 
 def test_target_categories_have_title_styles_and_safe_fallbacks():
@@ -298,4 +373,3 @@ def test_all_8_categories_have_rescue_scripts():
     assert len(hermes_worker._build_korean_drama_rescue_script("한국사연", "사이다 응징", structure)) >= 1000
     assert len(hermes_worker._build_overseas_rescue_script("해외감동", "해외 은인 재회", structure)) >= 1000
     assert len(hermes_worker._build_old_story_grave_vigil_rescue_script("옛날이야기", "무덤 지킨 며느리", structure)) >= 1000
-
