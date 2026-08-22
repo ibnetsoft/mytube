@@ -45,6 +45,14 @@ HERMES_PIPELINE_JOB_TYPES = {
 }
 HERMES_ACTIVE_STATUSES = {"CLAIMED", "PREPARING", "RENDERING", "UPLOADING"}
 HERMES_RESUMABLE_JOB_TYPES = {"web_research", "script_plan_generate", "script_generate"}
+TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS = {
+    "benchmark_status",
+    "title_status",
+    "web_research_status",
+    "publish_metadata_status",
+    "narrative_blueprint",
+    "script_quality_report",
+}
 
 CATEGORIES = [
     "탈북사연",
@@ -1086,6 +1094,65 @@ class HermesAutopilotManager:
                     )
         except Exception as exc:
             logger.warning("Failed to publish pre-generation failure for %s: %s", topic_id, exc)
+
+    async def _write_completed_topic_to_supabase(
+        self,
+        client: httpx.AsyncClient,
+        supabase_url: str,
+        headers: dict,
+        topic_queue_id: str,
+        payload: dict,
+        insert_payload: dict,
+    ) -> str:
+        """Persist a completed Hermes topic, inserting if the initial row never existed."""
+        if not supabase_url or not headers.get("apikey"):
+            return topic_queue_id
+
+        def legacy_payload(data: dict) -> dict:
+            return {
+                key: value
+                for key, value in data.items()
+                if key not in TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS
+            }
+
+        is_local_id = str(topic_queue_id or "").startswith(("local-auto-", "resume-"))
+        if topic_queue_id and not is_local_id:
+            for body in (payload, legacy_payload(payload)):
+                response = await client.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_queue_id}",
+                    headers={**headers, "Prefer": "return=representation"},
+                    json=body,
+                )
+                if response.status_code in (200, 201, 204):
+                    try:
+                        rows = response.json() if response.text else []
+                    except Exception:
+                        rows = []
+                    if rows:
+                        return str(rows[0].get("id") or topic_queue_id)
+                    break
+                if "Could not find" not in response.text and "column" not in response.text:
+                    raise RuntimeError(
+                        f"Supabase completed topic patch failed: {response.status_code} {response.text[:200]}"
+                    )
+
+        for body in (insert_payload, legacy_payload(insert_payload)):
+            response = await client.post(
+                f"{supabase_url}/rest/v1/topics_queue",
+                headers={**headers, "Prefer": "return=representation"},
+                json=body,
+            )
+            if response.status_code in (200, 201, 204):
+                rows = response.json() if response.text else []
+                if not rows:
+                    raise RuntimeError("Supabase completed topic insert did not return an ID")
+                return str(rows[0].get("id") or topic_queue_id)
+            if "Could not find" not in response.text and "column" not in response.text:
+                raise RuntimeError(
+                    f"Supabase completed topic insert failed: {response.status_code} {response.text[:200]}"
+                )
+
+        raise RuntimeError("Supabase completed topic insert failed after legacy-column fallback")
 
     def get_status(self) -> dict:
         self._apply_settings()
@@ -2918,6 +2985,67 @@ Return ONLY a JSON array of strings.
             for error in quality_errors[:12]:
                 self.add_log(f"  - {error}")
             raise QualityGateError(quality_errors)
+
+        # If the first Supabase insert failed, topic_queue_id is a local
+        # correlation ID. A PATCH with return=minimal can look successful even
+        # when it matched zero rows, so recover by inserting the completed row
+        # before the legacy patch block below runs.
+        if supabase_url and supabase_key and str(topic_queue_id).startswith(("local-auto-", "resume-")):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    scene_count_value = structure.get("scene_count") or len(structure.get("scenes") or [])
+                    completed_topic_payload = {
+                        "topic": generated_title,
+                        "pregenerated_script": final_script,
+                        "pregenerated_script_status": "ready",
+                        "pregenerated_structure": structure,
+                        "pregenerated_structure_status": "ready",
+                        "total_scenes": scene_count_value,
+                        "generated_title": generated_title,
+                        "title_candidates": title_plan["title_candidates"],
+                        "benchmark_analysis": benchmark_payload,
+                        "narrative_blueprint": narrative_blueprint,
+                        "script_quality_report": script_quality_report,
+                        "publish_metadata": publish_metadata,
+                        "progress_payload": {
+                            "publish_metadata": publish_metadata,
+                            "sfx_cues": sfx_cues,
+                            "sfx_cues_json": sfx_cues_json,
+                            "pregenerated_script_status": "ready",
+                            "prepared_topic_ready": True,
+                            "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                        },
+                        "publish_metadata_status": "ready",
+                        "status": "pending",
+                    }
+                    insert_payload = {
+                        **completed_topic_payload,
+                        "assigned_employee_email": "hermes_worker@local",
+                        "language": "ko",
+                        "is_auto_generated": True,
+                        "assigned_script_style": category_script_style,
+                        "assigned_image_style": assigned_image_style,
+                    }
+                    if category_id:
+                        insert_payload["category_id"] = category_id
+
+                    synced_topic_queue_id = await self._write_completed_topic_to_supabase(
+                        client,
+                        supabase_url,
+                        headers,
+                        str(topic_queue_id),
+                        completed_topic_payload,
+                        insert_payload,
+                    )
+                    if synced_topic_queue_id and str(synced_topic_queue_id) != str(topic_queue_id):
+                        self.add_log(
+                            f"Supabase: local topic {topic_queue_id} recovered as topics_queue#{synced_topic_queue_id}"
+                        )
+                        topic_queue_id = synced_topic_queue_id
+                        self.current_topic_queue_id = str(topic_queue_id)
+                        summary_payload["topic_queue_id"] = str(topic_queue_id)
+            except Exception as e:
+                self.add_log(f"Supabase completed topic recovery insert failed: {e}")
         self.add_log("✅ 품질 게이트 통과: 대본/이미지/영상프롬프트/2x2/메타데이터 검증 완료")
 
         # Supabase에 최종 대본 동기화 및 큐 완료 처리
