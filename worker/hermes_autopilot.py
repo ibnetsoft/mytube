@@ -36,6 +36,15 @@ RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 EXTERNAL_RUNNING_STATE_GRACE_SECONDS = 10 * 60
 TITLE_GENERATION_TIMEOUT_SECONDS = 90.0
+HERMES_PIPELINE_JOB_TYPES = {
+    "topic_benchmark_analyze",
+    "web_research",
+    "script_plan_generate",
+    "script_generate",
+    "publish_metadata_generate",
+}
+HERMES_ACTIVE_STATUSES = {"CLAIMED", "PREPARING", "RENDERING", "UPLOADING"}
+HERMES_RESUMABLE_JOB_TYPES = {"web_research", "script_plan_generate", "script_generate"}
 
 CATEGORIES = [
     "탈북사연",
@@ -117,6 +126,7 @@ class HermesAutopilotManager:
             "benchmark_channel_discovery_last_at": {},
             "target_duration_seconds_by_category": DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.copy(),
             "force_generate": False,
+            "start_new_pipeline": False,
             "quality_max_attempts": 1,
         }
         self.session_stats = {
@@ -410,6 +420,7 @@ class HermesAutopilotManager:
         if self.settings.get("mode") not in {"infinite", "target_limit"}:
             self.settings["mode"] = "target_limit"
         self.settings["force_generate"] = bool(self.settings.get("force_generate", False))
+        self.settings["start_new_pipeline"] = bool(self.settings.get("start_new_pipeline", False))
         self.settings["benchmark_channel_auto_discovery_enabled"] = bool(
             self.settings.get("benchmark_channel_auto_discovery_enabled", True)
         )
@@ -476,6 +487,250 @@ class HermesAutopilotManager:
                 DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.get(category)
                 or DEFAULT_CATEGORY_TARGET_DURATION_SECONDS
             )
+
+    def _job_pipeline_identity(self, job: dict) -> tuple[str, str, str]:
+        payload = job.get("payload") or {}
+        queue_id = str(payload.get("topic_queue_id") or payload.get("topic_id") or "").strip()
+        category = str(payload.get("category") or payload.get("category_name") or "").strip()
+        title = str(
+            payload.get("upload_title")
+            or payload.get("generated_title")
+            or payload.get("title")
+            or payload.get("topic")
+            or ""
+        ).strip()
+        return queue_id, category, title
+
+    def _job_pipeline_key(self, job: dict) -> str:
+        queue_id, category, title = self._job_pipeline_identity(job)
+        if title and title != category:
+            return f"title:{category}:{title}"
+        if queue_id:
+            return f"queue:{queue_id}"
+        return f"job:{job.get('job_id') or id(job)}"
+
+    def _completed_result_for_type(self, jobs: list[dict], job_type: str) -> tuple[dict, dict] | tuple[None, None]:
+        for job in reversed(jobs):
+            if job.get("job_type") != job_type or str(job.get("status") or "").upper() != "COMPLETED":
+                continue
+            result = self._read_result_file(str(job.get("job_id") or ""))
+            if isinstance(result, dict):
+                return job, result
+        return None, None
+
+    def _existing_unfinished_pipeline_for_category(self, category: str) -> list[dict] | None:
+        try:
+            all_jobs = job_store.list_jobs(limit=500)
+        except Exception as exc:
+            self.add_log(f"기존 Hermes 작업 조회 실패(무시): {exc}")
+            return None
+
+        grouped: dict[str, list[dict]] = {}
+        for job in all_jobs:
+            if job.get("job_type") not in HERMES_PIPELINE_JOB_TYPES:
+                continue
+            _queue_id, job_category, title = self._job_pipeline_identity(job)
+            if job_category != category:
+                continue
+            if not title and job.get("job_type") not in {"topic_benchmark_analyze"}:
+                continue
+            grouped.setdefault(self._job_pipeline_key(job), []).append(job)
+
+        candidates: list[list[dict]] = []
+        for jobs in grouped.values():
+            jobs.sort(key=lambda item: float(item.get("created_at") or 0))
+            if any(
+                job.get("job_type") == "publish_metadata_generate"
+                and str(job.get("status") or "").upper() == "COMPLETED"
+                for job in jobs
+            ):
+                continue
+            has_active = any(str(job.get("status") or "").upper() in HERMES_ACTIVE_STATUSES for job in jobs)
+            has_resume_anchor = any(
+                job.get("job_type") in HERMES_RESUMABLE_JOB_TYPES
+                and str(job.get("status") or "").upper() == "COMPLETED"
+                for job in jobs
+            )
+            if has_active or has_resume_anchor:
+                candidates.append(jobs)
+
+        if not candidates:
+            return None
+        candidates.sort(
+            key=lambda jobs: max(
+                float(job.get("completed_at") or job.get("started_at") or job.get("created_at") or 0)
+                for job in jobs
+            ),
+            reverse=True,
+        )
+        return candidates[0]
+
+    def _submit_resume_job_from_pipeline(self, jobs: list[dict]) -> dict:
+        metadata_job, _metadata_data = self._completed_result_for_type(jobs, "publish_metadata_generate")
+        if metadata_job:
+            return {"success": False, "error": "이미 설명·태그 단계까지 완료된 작업입니다."}
+
+        script_job, script_data = self._completed_result_for_type(jobs, "script_generate")
+        if script_job and script_data:
+            script_payload = script_job.get("payload") or {}
+            topic_queue_id = script_data.get("topic_queue_id") or script_payload.get("topic_queue_id")
+            title = (
+                script_data.get("upload_title")
+                or script_data.get("generated_title")
+                or script_payload.get("upload_title")
+                or script_payload.get("topic")
+            )
+            new_job_id = job_store.submit_job(
+                job_type="publish_metadata_generate",
+                payload={
+                    "topic_queue_id": topic_queue_id,
+                    "category": script_data.get("category") or script_payload.get("category"),
+                    "category_name": script_data.get("category_name") or script_payload.get("category_name"),
+                    "category_id": script_data.get("category_id") or script_payload.get("category_id"),
+                    "topic": title,
+                    "script": script_data.get("script"),
+                    "structure": script_data.get("structure") or script_payload.get("structure"),
+                    "upload_title": title,
+                    "title_generation": script_data.get("title_generation") or script_payload.get("title_generation"),
+                    "narrative_blueprint": script_data.get("narrative_blueprint") or {},
+                    "script_quality_report": script_data.get("script_quality_report") or {},
+                    "language": script_data.get("language") or script_payload.get("language") or "ko",
+                    "defer_ready_until_quality_gate": True,
+                    "resume_from_job_id": script_job.get("job_id"),
+                },
+                priority=100,
+                source="autopilot",
+                max_retries=0,
+            )
+            return {"success": True, "job_id": new_job_id, "resumed_stage": "publish_metadata_generate", "title": title, "topic_queue_id": topic_queue_id}
+
+        plan_job, plan_data = self._completed_result_for_type(jobs, "script_plan_generate")
+        if plan_job and plan_data:
+            plan_payload = plan_job.get("payload") or {}
+            topic_queue_id = plan_data.get("topic_queue_id") or plan_payload.get("topic_queue_id")
+            title = (
+                plan_data.get("upload_title")
+                or plan_data.get("generated_title")
+                or plan_payload.get("upload_title")
+                or plan_payload.get("topic")
+            )
+            category = plan_data.get("category") or plan_payload.get("category")
+            new_job_id = job_store.submit_job(
+                job_type="script_generate",
+                payload={
+                    "topic_queue_id": topic_queue_id,
+                    "category": category,
+                    "category_name": plan_data.get("category_name") or plan_payload.get("category_name") or category,
+                    "category_id": plan_data.get("category_id") or plan_payload.get("category_id"),
+                    "topic": title,
+                    "structure": plan_data.get("structure"),
+                    "target_duration_seconds": plan_data.get("target_duration_seconds") or plan_payload.get("target_duration_seconds") or self._target_duration_seconds_for_category(str(category or "")),
+                    "script_style": plan_data.get("script_style") or plan_payload.get("script_style") or "default",
+                    "image_style": plan_data.get("image_style") or plan_payload.get("image_style"),
+                    "image_style_selection": plan_data.get("image_style_selection") or plan_payload.get("image_style_selection"),
+                    "language": plan_data.get("language") or plan_payload.get("language") or "ko",
+                    "narration_mode": plan_payload.get("narration_mode") or "dramatic_single",
+                    "upload_title": title,
+                    "title_generation": plan_data.get("title_generation") or plan_payload.get("title_generation"),
+                    "learning_profile": plan_data.get("learning_profile") or plan_payload.get("learning_profile"),
+                    "defer_ready_until_quality_gate": True,
+                    "resume_from_job_id": plan_job.get("job_id"),
+                },
+                priority=100,
+                source="autopilot",
+                max_retries=0,
+            )
+            return {"success": True, "job_id": new_job_id, "resumed_stage": "script_generate", "title": title, "topic_queue_id": topic_queue_id}
+
+        research_job, research_data = self._completed_result_for_type(jobs, "web_research")
+        if research_job and research_data:
+            research_payload = research_job.get("payload") or {}
+            research_bundle = research_data.get("research_bundle") if isinstance(research_data.get("research_bundle"), dict) else {}
+            topic_queue_id = research_data.get("topic_queue_id") or research_payload.get("topic_queue_id") or f"resume-{research_job.get('job_id')}"
+            category = research_bundle.get("category") or research_data.get("category") or research_payload.get("category") or research_payload.get("category_name")
+            title = research_bundle.get("upload_title") or research_data.get("upload_title") or research_payload.get("upload_title") or research_payload.get("topic")
+            if not title:
+                return {"success": False, "error": "웹 조사 결과에 이어갈 제목이 없습니다."}
+            new_job_id = job_store.submit_job(
+                job_type="script_plan_generate",
+                payload={
+                    "topic_queue_id": topic_queue_id,
+                    "category": category,
+                    "category_name": category,
+                    "topic": title,
+                    "target_duration_seconds": research_payload.get("target_duration_seconds") or self._target_duration_seconds_for_category(str(category or "")),
+                    "script_style": research_payload.get("script_style") or "story",
+                    "image_style": research_payload.get("image_style") or "realistic",
+                    "language": research_payload.get("language") or "ko",
+                    "benchmark_analysis": {"web_research": research_bundle},
+                    "upload_title": title,
+                    "title_generation": research_payload.get("title_generation") or {"generated_title": title},
+                    "research_bundle": research_bundle,
+                    "defer_ready_until_quality_gate": True,
+                    "resume_from_job_id": research_job.get("job_id"),
+                },
+                priority=100,
+                source="autopilot",
+                max_retries=0,
+            )
+            return {"success": True, "job_id": new_job_id, "resumed_stage": "script_plan_generate", "title": title, "topic_queue_id": topic_queue_id}
+
+        return {"success": False, "error": "이어갈 수 있는 완료 단계가 없습니다. 웹조사, 기획 또는 대본 결과가 필요합니다."}
+
+    async def _resume_existing_category_pipeline_if_any(self, category: str) -> bool:
+        if self.settings.get("start_new_pipeline"):
+            return False
+
+        resumed_any = False
+        while self.is_running:
+            jobs = self._existing_unfinished_pipeline_for_category(category)
+            if not jobs:
+                return resumed_any
+
+            active_jobs = [
+                job for job in jobs
+                if str(job.get("status") or "").upper() in HERMES_ACTIVE_STATUSES
+            ]
+            if active_jobs:
+                active_jobs.sort(key=lambda item: float(item.get("started_at") or item.get("created_at") or 0), reverse=True)
+                active_job = active_jobs[0]
+                payload = active_job.get("payload") or {}
+                title = payload.get("upload_title") or payload.get("topic") or payload.get("title") or category
+                self.current_topic = str(title or "")
+                self.current_topic_queue_id = str(payload.get("topic_queue_id") or payload.get("topic_id") or "")
+                self.current_step = f"[{category}] 기존 진행 작업 완료 대기"
+                self.add_log(
+                    f"같은 카테고리의 진행 중 작업을 먼저 기다립니다: "
+                    f"{active_job.get('job_type')} ({str(active_job.get('job_id') or '')[:8]})"
+                )
+                await self._wait_for_job(str(active_job.get("job_id") or ""))
+                resumed_any = True
+                continue
+
+            resume_result = self._submit_resume_job_from_pipeline(jobs)
+            if not resume_result.get("success"):
+                return resumed_any
+
+            resumed_any = True
+            title = str(resume_result.get("title") or "")
+            self.current_topic = title
+            self.current_topic_queue_id = str(resume_result.get("topic_queue_id") or "")
+            self.current_step = f"[{category}] 기존 중단 작업 이어가기"
+            self.add_log(
+                f"같은 카테고리의 미완료 작업을 새 작업보다 먼저 이어갑니다: "
+                f"{resume_result.get('resumed_stage')} ({str(resume_result.get('job_id') or '')[:8]})"
+            )
+            await self._wait_for_job(str(resume_result.get("job_id") or ""))
+
+            refreshed = self._existing_unfinished_pipeline_for_category(category)
+            if not refreshed:
+                self.session_stats["generated_count"] = int(self.session_stats.get("generated_count", 0)) + 1
+                self.last_completed_result_id = self.current_topic_queue_id or str(resume_result.get("job_id") or "")
+                self.last_run_status = "completed"
+                self.current_step = "completed"
+                self.add_log(f"기존 '{category}' 미완료 작업을 끝까지 완료했습니다.")
+                self._save_state()
+                return True
 
     def _merge_channel_ids(self, *groups: list[str]) -> list[str]:
         merged = []
@@ -2198,6 +2453,9 @@ Return ONLY a JSON array of strings.
                                 break
             except Exception as e:
                 self.add_log(f"Supabase 카테고리 ID 조회 실패 (무시): {e}")
+
+        if await self._resume_existing_category_pipeline_if_any(category):
+            return
 
         # [신규] 카테고리별 최소 대기주제 유지량(min_buffer_per_category) 검사
         if supabase_url and supabase_key and category_id and not self.settings.get("force_generate"):

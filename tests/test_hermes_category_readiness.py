@@ -244,6 +244,100 @@ def test_autopilot_status_promotes_completed_resume_pipeline(monkeypatch, tmp_pa
     assert status["current_topic"] == "완료된 주제"
 
 
+def test_category_autopilot_resumes_unfinished_pipeline_before_new_topic(monkeypatch):
+    submitted = {}
+
+    jobs = [
+        {
+            "job_id": "failed-script",
+            "job_type": "script_generate",
+            "status": "FAILED",
+            "created_at": 30,
+            "completed_at": 40,
+            "payload": {
+                "topic_queue_id": "queue-1",
+                "category": "탈북사연",
+                "topic": "멈춘 탈북사연 제목",
+            },
+        },
+        {
+            "job_id": "plan-job",
+            "job_type": "script_plan_generate",
+            "status": "COMPLETED",
+            "created_at": 20,
+            "completed_at": 25,
+            "payload": {
+                "topic_queue_id": "queue-1",
+                "category": "탈북사연",
+                "topic": "멈춘 탈북사연 제목",
+            },
+        },
+        {
+            "job_id": "research-job",
+            "job_type": "web_research",
+            "status": "COMPLETED",
+            "created_at": 10,
+            "completed_at": 15,
+            "payload": {
+                "topic_queue_id": "queue-1",
+                "category": "탈북사연",
+                "upload_title": "멈춘 탈북사연 제목",
+            },
+        },
+    ]
+
+    def fake_submit_job(**kwargs):
+        submitted.update(kwargs)
+        return "new-script-job"
+
+    monkeypatch.setattr(hermes_autopilot.job_store, "list_jobs", lambda limit=500: jobs)
+    monkeypatch.setattr(hermes_autopilot.job_store, "submit_job", fake_submit_job)
+
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.settings = {"target_duration_seconds_by_category": {}, "start_new_pipeline": False}
+    manager._read_result_file = lambda job_id: {
+        "topic_queue_id": "queue-1",
+        "category": "탈북사연",
+        "upload_title": "멈춘 탈북사연 제목",
+        "structure": {"scenes": [{"scene_order": 1}]},
+        "script_style": "dramatic_single",
+        "image_style": "realistic",
+        "title_generation": {"generated_title": "멈춘 탈북사연 제목"},
+    } if job_id == "plan-job" else None
+
+    pipeline = manager._existing_unfinished_pipeline_for_category("탈북사연")
+    result = manager._submit_resume_job_from_pipeline(pipeline)
+
+    assert result["success"] is True
+    assert result["resumed_stage"] == "script_generate"
+    assert submitted["job_type"] == "script_generate"
+    assert submitted["payload"]["topic_queue_id"] == "queue-1"
+    assert submitted["payload"]["resume_from_job_id"] == "plan-job"
+
+
+def test_category_autopilot_can_bypass_resume_when_explicit_new_pipeline(monkeypatch):
+    monkeypatch.setattr(
+        hermes_autopilot.job_store,
+        "list_jobs",
+        lambda limit=500: [
+            {
+                "job_id": "plan-job",
+                "job_type": "script_plan_generate",
+                "status": "COMPLETED",
+                "created_at": 1,
+                "completed_at": 2,
+                "payload": {"category": "탈북사연", "topic": "멈춘 제목"},
+            }
+        ],
+    )
+
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.settings = {"start_new_pipeline": True}
+    manager.is_running = True
+
+    assert asyncio.run(manager._resume_existing_category_pipeline_if_any("탈북사연")) is False
+
+
 def test_autopilot_plan_jobs_can_use_scene_planner_fallback():
     assert not hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
     assert not hermes_worker._requires_strict_scene_planner_success(
