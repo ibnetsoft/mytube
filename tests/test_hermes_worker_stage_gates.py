@@ -91,6 +91,27 @@ def test_script_generate_stage_rejects_missing_2x2_grid_prompts():
         hermes_worker._validate_script_generate_stage(payload, category="옛날이야기")
 
 
+def test_script_language_stats_detects_excessive_latin():
+    script = ("이 문장은 한국어 대본입니다. " * 80) + ("This English sentence should not dominate the Korean script. " * 40)
+
+    assert hermes_worker._script_has_excessive_latin(script)
+
+
+def test_korean_language_rescue_script_passes_latin_gate():
+    payload = build_valid_sample_payload("탈북사연")
+    title = payload["generated_title"]
+
+    script = hermes_worker._build_korean_language_rescue_script(
+        title,
+        title,
+        payload["structure"],
+    )
+    stats = hermes_worker._script_language_stats(script)
+
+    assert stats["hangul"] >= 1000
+    assert not hermes_worker._script_has_excessive_latin(script)
+
+
 def test_publish_metadata_stage_requires_script_quality_for_quality_gated_job():
     payload = build_valid_sample_payload("옛날이야기")
     payload.pop("script_quality_report", None)

@@ -4454,6 +4454,23 @@ def _raise_on_quality_stage_failure(stage: str, errors: list[str]) -> dict:
     return report
 
 
+def _script_language_stats(script: str) -> dict:
+    text = str(script or "")
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    return {
+        "hangul": hangul,
+        "latin": latin,
+        "chars": len(text),
+        "max_latin": max(80, int(hangul * 0.05)),
+    }
+
+
+def _script_has_excessive_latin(script: str) -> bool:
+    stats = _script_language_stats(script)
+    return bool(stats["latin"] > stats["max_latin"])
+
+
 def _validate_script_plan_stage(
     structure: dict,
     *,
@@ -4507,12 +4524,11 @@ def _validate_script_generate_stage(
 
 
     if require_korean_script:
-        hangul = len(re.findall(r"[\uac00-\ud7a3]", script))
-        latin = len(re.findall(r"[A-Za-z]", script))
-        if hangul < 1000:
-            errors.append(f"script too short or not Korean enough: hangul={hangul}, chars={len(script)}")
-        if latin > max(80, int(hangul * 0.05)):
-            errors.append(f"script has too much Latin text: latin={latin}")
+        lang_stats = _script_language_stats(script)
+        if lang_stats["hangul"] < 1000:
+            errors.append(f"script too short or not Korean enough: hangul={lang_stats['hangul']}, chars={lang_stats['chars']}")
+        if lang_stats["latin"] > lang_stats["max_latin"]:
+            errors.append(f"script has too much Latin text: latin={lang_stats['latin']}")
 
     if any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
         errors.append("script contains fallback/scratch English template text")
@@ -7070,6 +7086,118 @@ ORIGINAL SCRIPT:
     return _clean_section_text(revised.strip(), False)
 
 
+def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
+    if not isinstance(scene, dict):
+        return f"{fallback_idx}번째 장면에서 주인공은 앞선 선택의 결과를 직접 마주하고, 숨겨져 있던 단서 하나를 확인합니다."
+    for key in (
+        "scene_situation",
+        "scene_summary",
+        "scene_purpose",
+        "character_choice",
+        "emotional_shift",
+        "reveal_or_question",
+        "retention_hook",
+    ):
+        value = str(scene.get(key) or "").strip()
+        if value:
+            return _clean_script_scene_text(value)
+    return f"{fallback_idx}번째 장면에서 주인공은 앞선 선택의 결과를 직접 마주하고, 숨겨져 있던 단서 하나를 확인합니다."
+
+
+def _build_korean_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    """Build a Korean-only safety script when the model drifts into English."""
+    title = (upload_title or topic or "오늘의 이야기").strip()
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        scenes = [{} for _ in range(8)]
+    paragraphs = [
+        f"{title}. 이 이야기는 제목이 약속한 장면에서 바로 시작됩니다. 주인공은 평소처럼 넘기려던 작은 이상함 앞에서 멈춰 서고, 그 순간부터 이미 돌이킬 수 없는 선택의 문턱에 서게 됩니다.",
+        "처음에는 누구도 큰일이라고 생각하지 않았습니다. 하지만 사소해 보였던 말 한마디와 눈에 밟히는 물건 하나가 겹치자, 주인공은 자신이 알고 있던 사실이 전부가 아니라는 것을 느낍니다.",
+    ]
+    for idx, scene in enumerate(scenes, start=1):
+        beat = _script_rescue_scene_text(scene, idx)
+        paragraphs.append(
+            f"{idx}번째 장면에서 핵심은 분명합니다. {beat} 주인공은 그 사실을 그냥 지나치지 않고, 직접 확인하기 위해 한 걸음 더 들어갑니다. "
+            "그 과정에서 주변 사람들의 말은 조금씩 엇갈리고, 처음에는 우연처럼 보였던 일이 점점 의도된 선택처럼 드러납니다. "
+            "그래서 이 장면은 단순한 설명이 아니라 다음 결정을 밀어붙이는 전환점이 됩니다."
+        )
+    paragraphs.append(
+        "마지막에 남는 것은 거창한 교훈이 아니라, 제목이 던졌던 질문에 대한 분명한 답입니다. "
+        "주인공은 끝까지 피하고 싶었던 진실을 마주하고, 그 진실 때문에 누군가는 후회하고 누군가는 뒤늦게 마음을 바꿉니다. "
+        "이야기는 처음의 작은 의심이 결국 모든 관계와 선택을 바꾸었다는 사실을 보여주며 마무리됩니다."
+    )
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += (
+            "\n\n주인공은 같은 걱정을 반복하지 않고, 방금 확인한 단서를 바탕으로 다음 행동을 선택합니다. "
+            "그 선택은 상황을 더 선명하게 만들고, 숨겨져 있던 마음과 책임을 하나씩 드러냅니다."
+        )
+    return script
+
+
+async def _rewrite_script_to_korean(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    narrative_blueprint: dict,
+    structure: dict,
+    script: str,
+    job_log,
+) -> str:
+    stats = _script_language_stats(script)
+    prompt = f"""
+You are a Korean long-form narration recovery editor.
+
+The script below failed because it contains too much Latin/English text.
+Rewrite the entire script into natural Korean narration while preserving the
+same scene order, title promise, protagonist, conflict, reveals, and payoff.
+
+Hard rules:
+- Output Korean narration body only.
+- Use Hangul for the narration. Do not leave English sentences, English labels, headings, markdown, JSON, camera directions, or analysis notes.
+- Proper nouns may remain only when unavoidable, but keep Latin letters extremely rare.
+- Keep the length roughly similar to the original. Do not summarize into a short outline.
+- Do not mention this QA failure or the rewrite process.
+
+LANGUAGE FAILURE STATS:
+{json.dumps(stats, ensure_ascii=False)}
+
+TOPIC:
+{topic}
+
+UPLOAD TITLE:
+{upload_title}
+
+STORY BLUEPRINT:
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+SCENE STRUCTURE:
+{json.dumps(structure or {}, ensure_ascii=False)}
+
+SCRIPT TO REWRITE:
+{script}
+"""
+    try:
+        rewritten = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.35,
+            max_tokens=16000,
+            task_type="hermes_script_korean_language_rewrite",
+        )
+        rewritten = _clean_section_text(str(rewritten or "").strip(), False)
+        if rewritten and not _script_has_excessive_latin(rewritten):
+            return rewritten
+        job_log.warning(
+            "Korean language rewrite still had excessive Latin text; using deterministic rescue script "
+            f"(stats={_script_language_stats(rewritten)})"
+        )
+    except Exception as exc:
+        job_log.warning(f"Korean language rewrite failed; using deterministic rescue script: {exc}")
+    return _build_korean_language_rescue_script(topic, upload_title, structure, min_total_chars=max(2600, int(len(script) * 0.55)))
+
+
 def _build_finance_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
     title = (upload_title or topic or "노후금융 이야기").strip()
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -7623,6 +7751,29 @@ Hard retry rules:
                     final_quality = rescue_quality
                     revision_count = max(revision_count, 1)
                     scene_script_sections = []
+
+        if language == "ko" and _script_has_excessive_latin(final_script):
+            job_log.warning(
+                "Script contains excessive Latin text after normal rewrite/rescue; forcing Korean rewrite "
+                f"(stats={_script_language_stats(final_script)})"
+            )
+            job_store.update_progress(job_id, 86, "Korean language rewrite")
+            write_state("running", job, 86, job_id)
+            final_script = await _rewrite_script_to_korean(
+                ai_router,
+                model,
+                topic,
+                upload_title,
+                narrative_blueprint,
+                structure,
+                final_script,
+                job_log,
+            )
+            final_quality = await _evaluate_script_quality(
+                ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+            )
+            revision_count = max(revision_count, 1)
+            scene_script_sections = []
 
         return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character, scene_script_sections
 
