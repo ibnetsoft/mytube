@@ -73,6 +73,11 @@ def test_server_restart_waits_until_manager_is_alive_before_reload():
 
     assert "보통 10~20초 정도 걸리며" in source
     assert "let count = 45;" in source
+    assert "const reloadAfterRestart = () => {" in source
+    assert "url.searchParams.set('restarted', String(Date.now()));" in source
+    assert "window.location.replace(url.toString());" in source
+    assert "const controller = new AbortController();" in source
+    assert "setTimeout(() => controller.abort(), 2500)" in source
     assert "restart_probe=${Date.now()}" in source
     assert "data?.manager_alive" in source
     assert "준비되면 자동 새로고침됩니다" in source

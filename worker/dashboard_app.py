@@ -6800,25 +6800,38 @@ function showRestartModal() {
   `;
   document.body.appendChild(overlay);
   
+  const reloadAfterRestart = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('restarted', String(Date.now()));
+    window.location.replace(url.toString());
+  };
   const startedAt = Date.now();
   const timer = setInterval(async () => {
     count--;
     const secEl = document.getElementById('restart-sec');
     if (secEl) secEl.textContent = Math.max(count, 0);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     try {
-      const res = await fetch(`/api/status?restart_probe=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch(`/api/status?restart_probe=${Date.now()}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (res.ok) {
         const data = await res.json();
         if (data?.manager_alive) {
           clearInterval(timer);
-          window.location.reload();
+          reloadAfterRestart();
           return;
         }
       }
     } catch (e) {}
+    finally {
+      clearTimeout(timeoutId);
+    }
     if (count <= 0 || Date.now() - startedAt > 45000) {
       clearInterval(timer);
-      window.location.reload();
+      reloadAfterRestart();
     }
   }, 1000);
 }
