@@ -19,6 +19,7 @@ from xml.etree import ElementTree
 
 import job_store
 from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from local_api_token import verify_token
 from logging_setup import get_logger
 from render_pipeline_adapter import render_status_display
@@ -30,7 +31,7 @@ app = FastAPI(title="AIR Worker Dashboard")
 autopilot_manager = HermesAutopilotManager()
 _MANAGER_RECOVERY_LOCK = threading.Lock()
 _MANAGER_RECOVERY_LAST_AT = 0.0
-_MANAGER_RECOVERY_COOLDOWN_SECONDS = 20.0
+_MANAGER_RECOVERY_COOLDOWN_SECONDS = 120.0
 
 HERMES_JOB_TYPES = {
     "topic_benchmark_analyze",
@@ -83,6 +84,47 @@ def _read_manager_status() -> dict:
         return {"processes": {}, "hermes_paused": False, "worker_id": WORKER_ID, "manager_alive": False}
 
 
+def _existing_manager_process_ids() -> list[int]:
+    """Return manager PIDs already running for this worker app.
+
+    The dashboard may keep serving while the heartbeat file is stale. In that
+    state, repeatedly spawning a recovery manager makes the whole local server
+    slower, so recovery first checks for an existing manager process.
+    """
+    if sys.platform != "win32":
+        return []
+    ps_script = r"""
+$items = Get-CimInstance Win32_Process | Where-Object {
+  $_.CommandLine -and (
+    ($_.CommandLine -like '*air_worker_entry.py*--role manager*') -or
+    ($_.CommandLine -like '*AIRWorker.exe*--role manager*')
+  )
+}
+$items | ForEach-Object { $_.ProcessId }
+"""
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except Exception as exc:
+        logger.debug("Failed to inspect existing Manager processes: %s", exc)
+        return []
+    pids: list[int] = []
+    for line in (result.stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            pid = int(line)
+        except ValueError:
+            continue
+        pids.append(pid)
+    return pids
+
+
 def _launch_manager_recovery_if_needed() -> dict:
     """Best-effort self-heal for standalone dashboards.
 
@@ -91,11 +133,22 @@ def _launch_manager_recovery_if_needed() -> dict:
     alive while Manager is gone.  When that happens, the status endpoint starts
     Manager again so the supervisor heartbeat does not stay red forever.
     """
+    if "--role" in sys.argv and "manager" in sys.argv:
+        return {"attempted": False, "reason": "dashboard_hosted_by_manager"}
+
     global _MANAGER_RECOVERY_LAST_AT
     now = time.time()
     with _MANAGER_RECOVERY_LOCK:
         if now - _MANAGER_RECOVERY_LAST_AT < _MANAGER_RECOVERY_COOLDOWN_SECONDS:
             return {"attempted": False, "reason": "cooldown"}
+        existing_pids = _existing_manager_process_ids()
+        if existing_pids:
+            _MANAGER_RECOVERY_LAST_AT = now
+            return {
+                "attempted": False,
+                "reason": "manager_process_already_running",
+                "pids": existing_pids,
+            }
         _MANAGER_RECOVERY_LAST_AT = now
 
     worker_dir = Path(__file__).resolve().parent
@@ -1000,7 +1053,7 @@ async def health():
 
 
 @app.get("/api/status")
-async def api_status(
+def api_status(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1015,7 +1068,7 @@ async def api_status(
 
 
 @app.get("/api/jobs")
-async def api_jobs(
+def api_jobs(
     status: str | None = None,
     limit: int = 50,
     job_type: str | None = None,
@@ -1117,7 +1170,7 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
 
 
 @app.get("/api/rendering-jobs")
-async def api_rendering_jobs(
+def api_rendering_jobs(
     limit: int = 30,
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
@@ -1194,7 +1247,7 @@ async def api_submit_job(
 
 
 @app.post("/api/jobs/{job_id}/cancel")
-async def api_cancel_job(
+def api_cancel_job(
     job_id: str,
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
@@ -1205,7 +1258,7 @@ async def api_cancel_job(
 
 
 @app.post("/api/hermes/pipelines/{job_id}/resume")
-async def api_resume_hermes_pipeline(
+def api_resume_hermes_pipeline(
     job_id: str,
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
@@ -1372,7 +1425,7 @@ async def api_save_category_image_style_mapping(
 
 
 @app.post("/api/processes/hermes/start")
-async def api_hermes_start(
+def api_hermes_start(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1382,7 +1435,7 @@ async def api_hermes_start(
 
 
 @app.post("/api/processes/hermes/stop")
-async def api_hermes_stop(
+def api_hermes_stop(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1392,7 +1445,7 @@ async def api_hermes_stop(
 
 
 @app.post("/api/processes/render/start")
-async def api_render_start(
+def api_render_start(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1402,7 +1455,7 @@ async def api_render_start(
 
 
 @app.post("/api/processes/render/stop")
-async def api_render_stop(
+def api_render_stop(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1412,7 +1465,7 @@ async def api_render_stop(
 
 
 @app.post("/api/processes/remote-drive/start")
-async def api_remote_drive_start(
+def api_remote_drive_start(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1422,7 +1475,7 @@ async def api_remote_drive_start(
 
 
 @app.post("/api/processes/remote-drive/stop")
-async def api_remote_drive_stop(
+def api_remote_drive_stop(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1932,7 +1985,7 @@ async def api_set_setting(
 # ---------------------------------------------------------------------------
 
 @app.get("/api/autopilot/hermes/status")
-async def api_autopilot_status(
+def api_autopilot_status(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
@@ -1941,7 +1994,7 @@ async def api_autopilot_status(
 
 
 @app.get("/api/autopilot/hermes/offline-harness")
-async def api_autopilot_offline_harness(
+def api_autopilot_offline_harness(
     force: bool = False,
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
@@ -1958,7 +2011,7 @@ async def api_autopilot_start(
 ):
     require_auth(authorization, cookie)
     custom_settings = body.get("settings") if body else None
-    harness_report = _run_hermes_offline_harness(force=True)
+    harness_report = await run_in_threadpool(_run_hermes_offline_harness, force=True)
     if harness_report.get("status") != "pass":
         failed_checks = [
             check
@@ -1977,7 +2030,10 @@ async def api_autopilot_start(
         }
     from ipc import submit_command, wait_for_result
 
-    worker_result = wait_for_result(submit_command("start_process", {"name": "hermes_worker"}))
+    worker_result = await run_in_threadpool(
+        wait_for_result,
+        submit_command("start_process", {"name": "hermes_worker"}),
+    )
     if not worker_result.get("success"):
         return {
             "success": False,
@@ -2009,7 +2065,10 @@ async def api_autopilot_stop(
     require_auth(authorization, cookie)
     autopilot_result = await autopilot_manager.stop()
     from ipc import submit_command, wait_for_result
-    worker_result = wait_for_result(submit_command("stop_process", {"name": "hermes_worker"}))
+    worker_result = await run_in_threadpool(
+        wait_for_result,
+        submit_command("stop_process", {"name": "hermes_worker"}),
+    )
     cancelled_jobs = job_store.cancel_nonterminal_jobs_by_source(
         "autopilot",
         reason="autopilot stopped by administrator",
@@ -5565,11 +5624,17 @@ function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;
 
 /* ── Refresh all ── */
 async function refreshAll() {
+  if (refreshAllInFlight) {
+    return;
+  }
+  refreshAllInFlight = true;
   countdown = 3;
   try {
-    const jobs = await api('GET', '/api/jobs?limit=100');
-    const status = await api('GET', '/api/status');
-    const renderJobsData = await api('GET', '/api/rendering-jobs?limit=10');
+    const [jobs, status, renderJobsData] = await Promise.all([
+      api('GET', '/api/jobs?limit=50'),
+      api('GET', '/api/status'),
+      api('GET', '/api/rendering-jobs?limit=10'),
+    ]);
     if (renderJobsData) {
       checkNewRenderJobs(renderJobsData.jobs, renderJobsData.pending_count || 0);
     }
@@ -5584,6 +5649,9 @@ async function refreshAll() {
     if (activeTab === 'history') loadHistory();
     if (activeTab === 'hermes-autopilot') loadAutopilotStatus();
   } catch(e) { /* silent */ }
+  finally {
+    refreshAllInFlight = false;
+  }
 }
 
 /* ── Auto-refresh countdown ── */
@@ -6082,7 +6150,11 @@ let autopilotSettingsInitialized = false;
 let autopilotStatusSnapshot = null;
 let offlineHarnessLastRunAt = 0;
 let offlineHarnessLastReport = null;
-const OFFLINE_HARNESS_REFRESH_MS = 30000;
+let offlineHarnessInFlight = null;
+const OFFLINE_HARNESS_REFRESH_MS = 5 * 60 * 1000;
+let refreshAllInFlight = false;
+let autopilotStatusInFlight = null;
+let renderingJobsPollInFlight = false;
 const ALL_CATEGORIES = ["탈북사연", "해외감동", "노후금융", "황혼19금", "옛날이야기", "한국사연", "무협", "경제"];
 
 function toggleLimitInput() {
@@ -6309,6 +6381,12 @@ async function runOfflineHarness({silent=false} = {}) {
   if (silent && offlineHarnessLastReport && (now - offlineHarnessLastRunAt) < OFFLINE_HARNESS_REFRESH_MS) {
     return offlineHarnessLastReport;
   }
+  if (silent && !offlineHarnessLastReport) {
+    return null;
+  }
+  if (offlineHarnessInFlight) {
+    return offlineHarnessInFlight;
+  }
   const badge = document.getElementById('auto-harness-badge');
   const summary = document.getElementById('auto-harness-summary');
   if (!silent && badge) {
@@ -6316,8 +6394,9 @@ async function runOfflineHarness({silent=false} = {}) {
     badge.textContent = '검증 중';
   }
   if (!silent && summary) summary.textContent = '오프라인 사전검증을 실행 중입니다...';
+  offlineHarnessInFlight = api('GET', '/api/autopilot/hermes/offline-harness' + (silent ? '' : '?force=true'));
   try {
-    const report = await api('GET', '/api/autopilot/hermes/offline-harness' + (silent ? '' : '?force=true'));
+    const report = await offlineHarnessInFlight;
     if (!report) return null;
     offlineHarnessLastRunAt = Date.now();
     renderOfflineHarness(report);
@@ -6333,10 +6412,16 @@ async function runOfflineHarness({silent=false} = {}) {
     });
     if (!silent) showToast('오프라인 사전검증 요청 실패', 'error');
     return null;
+  } finally {
+    offlineHarnessInFlight = null;
   }
 }
 
 async function loadAutopilotStatus() {
+  if (autopilotStatusInFlight) {
+    return autopilotStatusInFlight;
+  }
+  autopilotStatusInFlight = (async () => {
   try {
     const data = await api('GET', '/api/autopilot/hermes/status');
     if (!data) return;
@@ -6387,7 +6472,6 @@ async function loadAutopilotStatus() {
     } else {
       renderActiveCategoryBadges(null);
     }
-    runOfflineHarness({silent:true});
     updateCategoryRunControls(data);
     
     // UI 초기화 (최초 1회만 설정 채워넣음)
@@ -6422,7 +6506,11 @@ async function loadAutopilotStatus() {
     }
   } catch(e) {
     console.error('loadAutopilotStatus error:', e);
+  } finally {
+    autopilotStatusInFlight = null;
   }
+  })();
+  return autopilotStatusInFlight;
 }
 
 async function startCategoryAutopilot(category, index) {
@@ -6449,7 +6537,7 @@ async function startCategoryAutopilot(category, index) {
   document.getElementById('auto-setting-buffer').value = 1;
   toggleLimitInput();
   try {
-    const harness = await runOfflineHarness({silent:true});
+    const harness = await runOfflineHarness({silent:false});
     if (!harness || harness.status !== 'pass') {
       showToast('오프라인 사전검증 실패로 자동 생성 시작을 중단했습니다.', 'warning');
       return;
@@ -6492,7 +6580,7 @@ async function startAutopilot() {
   document.getElementById('auto-setting-limit').value = startLimit;
   toggleLimitInput();
   try {
-    const harness = await runOfflineHarness({silent:true});
+    const harness = await runOfflineHarness({silent:false});
     if (!harness || harness.status !== 'pass') {
       showToast('오프라인 사전검증 실패로 자동 생성 시작을 중단했습니다.', 'warning');
       return;
@@ -6911,12 +6999,16 @@ refreshAll();
 
 // 3초마다 렌더링 상황 배지 실시간 동기화
 setInterval(() => {
+  if (refreshAllInFlight || renderingJobsPollInFlight) return;
+  renderingJobsPollInFlight = true;
   api('GET', '/api/rendering-jobs?limit=10').then(data => {
     if (data) {
       checkNewRenderJobs(data.jobs || [], data.pending_count || 0);
     }
-  }).catch(() => {});
-}, 3000);
+  }).catch(() => {}).finally(() => {
+    renderingJobsPollInFlight = false;
+  });
+}, 10000);
 </script>
 </body>
 </html>"""

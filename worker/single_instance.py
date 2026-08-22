@@ -19,17 +19,20 @@ rendering PC" (docs/AIR_WORKER_ARCHITECTURE.md's whole premise), not
 Windows when its owning process exits for any reason (graceful shutdown or
 crash), so no manual cleanup/unlock step is needed here.
 """
+import os
 import sys
 
 MUTEX_NAME = "Global\\AIRWorker_Manager_SingleInstance"
 
 _mutex_handle = None  # module-level reference - must outlive the process, never closed except on the refused-second-instance path
+_lock_file_handle = None  # module-level reference - holds the cross-process file lock for the Manager lifetime
 
 
 def acquire_or_exit(logger) -> None:
     """Call once, at the very top of the Manager's main(). Exits the process
     (sys.exit(1)) if another Manager already holds the mutex - never returns
     in that case."""
+    _acquire_lock_file_or_exit(logger)
     global _mutex_handle
     if sys.platform != "win32":
         logger.warning("single_instance: non-Windows platform, skipping Named Mutex check (dev-only no-op)")
@@ -53,6 +56,49 @@ def acquire_or_exit(logger) -> None:
 
     _mutex_handle = handle
     logger.info(f"Acquired single-instance mutex '{MUTEX_NAME}'")
+
+
+def _acquire_lock_file_or_exit(logger) -> None:
+    """Use an OS file lock as the primary single-instance guard.
+
+    The Windows mutex is kept for compatibility, but the local desktop runtime
+    can launch multiple Python processes close together during self-restart.
+    A held file lock is simple, observable, and released automatically when the
+    owning process exits.
+    """
+    global _lock_file_handle
+    try:
+        from worker_config import STATE_DIR
+
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        lock_path = STATE_DIR / "manager.lock"
+        handle = lock_path.open("a+b")
+        handle.seek(0)
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()).encode("ascii"))
+        handle.flush()
+        _lock_file_handle = handle
+        logger.info("Acquired Manager file lock '%s'", lock_path)
+    except OSError as exc:
+        logger.error(
+            "Another AIR Worker Manager already holds the file lock - "
+            "refusing to start a second instance. %s",
+            exc,
+        )
+        try:
+            handle.close()  # type: ignore[name-defined]
+        except Exception:
+            pass
+        sys.exit(1)
 
 
 def _describe_existing_instance() -> str:
