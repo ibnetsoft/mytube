@@ -3939,6 +3939,15 @@ function latestFailedJob(jobs, completedTypes = new Set()) {
     .sort((a, b) => (b.completed_at || b.created_at || 0) - (a.completed_at || a.created_at || 0))[0] || null;
 }
 
+function hasCompletedDownstreamHermesStep(jobs) {
+  return (jobs || []).some(j => {
+    const type = String(j.job_type || '');
+    const status = String(j.status || '').toUpperCase();
+    return ['script_plan_generate', 'script_generate', 'publish_metadata_generate'].includes(type)
+      && status === 'COMPLETED';
+  });
+}
+
 function groupJobsIntoPipelines(jobs) {
   const pipelineMap = new Map();
   const benchmarkBatches = new Map();
@@ -4024,6 +4033,7 @@ function groupJobsIntoPipelines(jobs) {
     g.jobs.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
 
     const stepStatuses = {};
+    const completedDownstream = hasCompletedDownstreamHermesStep(g.jobs);
     for (const step of PIPELINE_STEPS_CONFIG) {
       const matchingJob = [...g.jobs].reverse().find(j => j.job_type === step.type);
       if (matchingJob) {
@@ -4037,6 +4047,11 @@ function groupJobsIntoPipelines(jobs) {
         stepStatuses[step.key] = {
           status,
           job: matchingJob,
+        };
+      } else if (step.key === 'research' && completedDownstream) {
+        stepStatuses[step.key] = {
+          status: 'COMPLETED',
+          job: null,
         };
       } else {
         stepStatuses[step.key] = {
@@ -4055,6 +4070,9 @@ function groupJobsIntoPipelines(jobs) {
         .filter(j => String(j.status || '').toUpperCase() === 'COMPLETED')
         .map(j => String(j.job_type || ''))
     );
+    if (completedDownstream) {
+      completedTypes.add('topic_benchmark_analyze');
+    }
     const failedJob = latestFailedJob(g.jobs, completedTypes);
     const hasFailed = Boolean(failedJob);
     const hasCanceled = g.jobs.some(j => String(j.status || '').toUpperCase() === 'CANCELED');

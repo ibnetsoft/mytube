@@ -44,3 +44,13 @@ def test_pipeline_error_summary_is_rendered_inside_details():
     subjobs_index = source.index("${subjobsHtml}", details_index)
 
     assert details_index < error_index < subjobs_index
+
+
+def test_benchmark_failure_does_not_override_completed_downstream_pipeline():
+    source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
+
+    assert "function hasCompletedDownstreamHermesStep(jobs)" in source
+    assert "['script_plan_generate', 'script_generate', 'publish_metadata_generate'].includes(type)" in source
+    assert "const completedDownstream = hasCompletedDownstreamHermesStep(g.jobs);" in source
+    assert "step.key === 'research' && completedDownstream" in source
+    assert "completedTypes.add('topic_benchmark_analyze');" in source
