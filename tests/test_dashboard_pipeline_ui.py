@@ -51,7 +51,9 @@ def test_benchmark_failure_is_ignored_only_after_real_web_research_completes():
 
     assert "function hasCompletedHermesJobType(jobs, jobType)" in source
     assert "const completedWebResearch = hasCompletedHermesJobType(g.jobs, 'web_research');" in source
+    assert "const completedPublishMetadata = hasCompletedHermesJobType(g.jobs, 'publish_metadata_generate');" in source
     assert "step.key === 'research' && completedDownstream" not in source
+    assert "} else if (completedPublishMetadata) {" in source
     assert "completedTypes.add('topic_benchmark_analyze');" in source
 
 

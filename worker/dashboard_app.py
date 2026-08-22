@@ -4033,6 +4033,7 @@ function groupJobsIntoPipelines(jobs) {
 
     const stepStatuses = {};
     const completedWebResearch = hasCompletedHermesJobType(g.jobs, 'web_research');
+    const completedPublishMetadata = hasCompletedHermesJobType(g.jobs, 'publish_metadata_generate');
     for (const step of PIPELINE_STEPS_CONFIG) {
       const matchingJob = [...g.jobs].reverse().find(j => j.job_type === step.type);
       if (matchingJob) {
@@ -4046,6 +4047,11 @@ function groupJobsIntoPipelines(jobs) {
         stepStatuses[step.key] = {
           status,
           job: matchingJob,
+        };
+      } else if (completedPublishMetadata) {
+        stepStatuses[step.key] = {
+          status: 'COMPLETED',
+          job: null,
         };
       } else {
         stepStatuses[step.key] = {
@@ -4064,7 +4070,7 @@ function groupJobsIntoPipelines(jobs) {
         .filter(j => String(j.status || '').toUpperCase() === 'COMPLETED')
         .map(j => String(j.job_type || ''))
     );
-    if (completedWebResearch) {
+    if (completedWebResearch || completedPublishMetadata) {
       completedTypes.add('topic_benchmark_analyze');
     }
     const failedJob = latestFailedJob(g.jobs, completedTypes);
