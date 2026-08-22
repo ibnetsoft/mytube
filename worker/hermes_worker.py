@@ -2810,6 +2810,7 @@ def _build_fallback_scene_plan(
     style_directive: str,
     benchmark_analysis: dict | None,
     title_generation: dict | None,
+    category: str = "",
 ) -> dict:
     """Create a deterministic scene plan when the AI planner returns no scenes."""
     target_duration = max(60, int(target_duration or 900))
@@ -2836,71 +2837,226 @@ def _build_fallback_scene_plan(
         cursor = end
 
     title = (upload_title or topic or "video topic").strip()
-    style_lower = str(script_style or "").lower()
-    is_story_style = any(marker in style_lower for marker in ("story", "folk", "tale"))
+    context = " ".join(str(part or "") for part in (category, script_style, style_directive, topic, title)).strip()
+    context_lower = context.lower()
+    is_old_story_style = _is_old_story_plan_context(context, topic, title, "")
+    is_survival_style = _is_survival_story_plan_context(context, topic, title, "")
+    is_martial_style = _is_martial_plan_context(context, topic, title, "")
+    is_twilight_style = _is_twilight_plan_context(context, topic, title, "")
+    is_korean_drama_style = _is_korean_drama_plan_context(context, topic, title, "")
+    is_overseas_style = _is_overseas_touching_plan_context(context, topic, title, "")
+    is_finance_style = _is_finance_plan_context(context, topic, title, "")
+    is_economy_style = _is_macro_economy_plan_context(context, topic, title, "") or "경제" in context
+    is_story_style = any(marker in context_lower for marker in ("story", "folk", "tale", "drama", "survival"))
     benchmark_title = ""
     if isinstance(benchmark_analysis, dict):
         benchmark_title = str(benchmark_analysis.get("title") or "").strip()
+
+    if is_old_story_style:
+        profile = {
+            "opening": ("reveal the strange incident or object behind", "Create immediate mystery, place, and emotional stakes"),
+            "development": ("follow the villagers, family, or witness as the secret deepens", "Escalate suspicion through character choices and village consequences"),
+            "explanation": ("uncover one hidden motive, promise, betrayal, or supernatural clue behind", "Turn the mystery into an emotionally readable folk-tale revelation"),
+            "steady": ("resolve the secret and leave a lingering moral aftertaste", "Deliver the emotional consequence"),
+            "situation": "Show an old Korean village, a character decision, a mysterious object, a family conflict, a rumor, a night road, a well, a courtyard, or a hidden room.",
+            "emotion": "quiet suspense",
+            "retention": "Leave one story secret about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing a new clue, reaction, or consequence from {variation}.",
+            "visual": "Atmospheric Korean folk-tale visuals with village lanes, hanok courtyards, wells, lanterns, wooden doors, worn fabric, dusk shadows, restrained motion, and character-focused staging around {variation}.",
+            "tts": "Calm Korean storytelling narration with suspense, warmth, and clear emotional turns around {variation}.",
+            "promise": f"Reveal the secret behind '{title}' through character choices, village rumor, and emotional payoff.",
+            "hook": f"Start with the impossible incident inside '{title}' and make the viewer want the hidden truth.",
+            "payoff": "Resolve the mystery with a clear emotional reveal and a folk-tale moral aftertaste.",
+            "mood": "atmospheric Korean folk tale mystery",
+        }
+    elif is_survival_style:
+        profile = {
+            "opening": ("show the concrete danger, choice, or separation behind", "Create immediate survival stakes through one person's memory"),
+            "development": ("follow the family pressure, border risk, broker threat, or hidden promise as the escape tightens", "Escalate the testimony through a specific decision and consequence"),
+            "explanation": ("reveal one withheld fact, betrayal, document, route, or sacrifice behind", "Make the survival logic emotionally clear without sensationalizing it"),
+            "steady": ("resolve the testimony through present-day confession, loss, or reunion", "Carry the story toward a restrained human payoff"),
+            "situation": "Show a concrete North Korean escape or testimony scene: family separation, border routes, safe houses, documents, whispered decisions, cold roads, or a present-day interview.",
+            "emotion": "restrained survival tension",
+            "retention": "Leave one human survival question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next risk, sacrifice, or memory from {variation}.",
+            "visual": "Restrained documentary survival-story visuals with cold border landscapes, sparse rooms, hidden documents, tense faces, family objects, and present-day testimony framing around {variation}.",
+            "tts": "Grounded Korean testimony narration with restrained emotion and clear human stakes around {variation}.",
+            "promise": f"Reveal the survival choice, sacrifice, and present-day truth behind '{title}'.",
+            "hook": f"Start with the dangerous human contradiction inside '{title}' and make the viewer understand the stakes.",
+            "payoff": "Resolve the testimony through the cost of escape, the person left behind, and the truth carried into the present.",
+            "mood": "restrained North Korean defector testimony",
+        }
+    elif is_martial_style:
+        profile = {
+            "opening": ("stage the oath, duel, betrayal, or forbidden technique behind", "Create immediate martial stakes through honor and danger"),
+            "development": ("follow the sect conflict, master-disciple bond, pursuit, or hidden manual as pressure rises", "Escalate through action, strategy, and loyalty"),
+            "explanation": ("reveal one secret lineage, technique, betrayal, or debt behind", "Make the martial conflict legible and emotionally charged"),
+            "steady": ("resolve the duel, sacrifice, or justice arc", "Carry the story toward a decisive martial payoff"),
+            "situation": "Show a martial-world scene: training hall, mountain path, inn, sect gate, battlefield, hidden manual, oath, pursuit, duel, or betrayal.",
+            "emotion": "tense martial resolve",
+            "retention": "Leave one martial question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat through the next clue, challenge, or duel from {variation}.",
+            "visual": "Cinematic martial arts visuals with mountain paths, rain, blades, robes, training halls, sect banners, restrained action, and character-focused staging around {variation}.",
+            "tts": "Epic but controlled Korean narration with honor, tension, and clear action around {variation}.",
+            "promise": f"Reveal the oath, betrayal, technique, and final justice behind '{title}'.",
+            "hook": f"Start with the martial contradiction inside '{title}' and make the first conflict unavoidable.",
+            "payoff": "Resolve the martial promise through sacrifice, truth, and a decisive final confrontation.",
+            "mood": "cinematic martial arts drama",
+        }
+    elif is_twilight_style:
+        profile = {
+            "opening": ("open the late-life reunion, diary, photograph, or confession behind", "Create mature emotional stakes through memory and regret"),
+            "development": ("follow the old promise, family reaction, hidden relationship, or delayed apology as tension grows", "Escalate through time, choice, and restrained emotion"),
+            "explanation": ("reveal one old misunderstanding, sacrifice, or secret behind", "Make the late-life truth emotionally readable"),
+            "steady": ("resolve the confession, reconciliation, or farewell", "Carry the story toward a dignified emotional payoff"),
+            "situation": "Show a late-life romance or memory scene: old diary, tea table, hospital room, reunion place, family home, letter, photograph, or quiet confession.",
+            "emotion": "mature longing",
+            "retention": "Leave one late-life emotional question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next memory, regret, or choice from {variation}.",
+            "visual": "Warm restrained twilight-story visuals with old letters, tea cups, dim rooms, autumn streets, family photos, and mature close-ups around {variation}.",
+            "tts": "Warm Korean narration with mature restraint, longing, and emotional clarity around {variation}.",
+            "promise": f"Reveal the old promise, regret, and late-life truth behind '{title}'.",
+            "hook": f"Start with the late-life emotional contradiction inside '{title}'.",
+            "payoff": "Resolve the story through confession, forgiveness, or a dignified farewell.",
+            "mood": "mature late-life emotional drama",
+        }
+    elif is_korean_drama_style:
+        profile = {
+            "opening": ("show the injustice, betrayal, family conflict, or workplace insult behind", "Create immediate empathy and anger through a concrete scene"),
+            "development": ("follow the evidence, humiliation, alliance, or reversal as pressure builds", "Escalate the drama through choices and consequences"),
+            "explanation": ("reveal one hidden motive, document, witness, or secret behind", "Turn the conflict toward a satisfying reversal"),
+            "steady": ("resolve the payback, apology, or restored dignity", "Carry the story toward a cathartic payoff"),
+            "situation": "Show a Korean real-life drama scene: family meeting, company office, hospital corridor, neighborhood dispute, legal document, recording, or public confrontation.",
+            "emotion": "grounded catharsis",
+            "retention": "Leave one dramatic question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat through the next evidence, insult, or reversal from {variation}.",
+            "visual": "Realistic Korean drama visuals with apartments, offices, family tables, documents, phones, tense faces, and restrained confrontation around {variation}.",
+            "tts": "Clear Korean narration with grounded anger, empathy, and cathartic pacing around {variation}.",
+            "promise": f"Reveal the conflict, evidence, and reversal behind '{title}'.",
+            "hook": f"Start with the unfair incident inside '{title}' and make the viewer want justice.",
+            "payoff": "Resolve the conflict through evidence, consequence, and restored dignity.",
+            "mood": "grounded Korean real-life drama",
+        }
+    elif is_overseas_style:
+        profile = {
+            "opening": ("show the foreign place, misunderstanding, kindness, or crisis behind", "Create immediate vulnerability and human warmth"),
+            "development": ("follow the cultural barrier, stranger's help, memory, or promise as emotion grows", "Escalate through human connection across distance"),
+            "explanation": ("reveal one hidden reason, past kindness, or sacrifice behind", "Make the touching turn feel earned"),
+            "steady": ("resolve the gratitude, reunion, or lasting promise", "Carry the story toward a warm emotional payoff"),
+            "situation": "Show an overseas touching-story scene: airport, foreign street, hospital, small shop, translation moment, stranger's home, old photo, or reunion.",
+            "emotion": "warm gratitude",
+            "retention": "Leave one touching human question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next kindness, memory, or connection from {variation}.",
+            "visual": "Warm documentary overseas-story visuals with foreign streets, airports, small shops, handwritten notes, gentle faces, and cultural contrast around {variation}.",
+            "tts": "Warm Korean narration with gratitude, curiosity, and restrained emotion around {variation}.",
+            "promise": f"Reveal the overseas encounter, kindness, and emotional reason behind '{title}'.",
+            "hook": f"Start with the unexpected human encounter inside '{title}'.",
+            "payoff": "Resolve the story through gratitude, connection, and a believable emotional reveal.",
+            "mood": "warm overseas human-interest story",
+        }
+    elif is_finance_style:
+        profile = {
+            "opening": ("show the retirement, pension, debt, or household finance pressure behind", "Create immediate household-level financial stakes"),
+            "development": ("connect the person's daily pressure to policy, pension rules, or asset decisions", "Escalate from lived pressure into practical financial context"),
+            "explanation": ("explain one cause, consequence, or decision point behind", "Make the retirement-finance logic clear"),
+            "steady": ("resolve the implication and prepare the next practical insight", "Carry the analysis toward a grounded payoff"),
+            "situation": "Show a retirement-finance scene: pension notice, bank visit, hospital bill, family budget, housing choice, insurance document, or household decision.",
+            "emotion": "practical concern",
+            "retention": "Leave one retirement-finance question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by raising the next financial consequence from {variation}.",
+            "visual": "Documentary retirement-finance visuals with pension papers, bank counters, household budgets, medical bills, family conversations, and restrained motion around {variation}.",
+            "tts": "Calm Korean finance narration with practical clarity and human concern around {variation}.",
+            "promise": f"Explain why '{title}' matters to retirement, pension, and household financial decisions.",
+            "hook": f"Start with the personal finance contradiction inside '{title}'.",
+            "payoff": "Give a grounded explanation of the retirement-finance signal and what viewers should check next.",
+            "mood": "practical retirement finance explainer",
+        }
+    elif is_economy_style:
+        profile = {
+            "opening": ("expose the personal money tension behind", "Create immediate curiosity and a concrete household-level stake"),
+            "development": ("connect the viewer's daily spending pressure to the market signal", "Escalate from a familiar problem into the economic mechanism"),
+            "explanation": ("explain one cause, consequence, or decision point behind", "Make the economic logic clear without losing narrative momentum"),
+            "steady": ("resolve the implication and prepare the next practical insight", "Carry the analysis toward a grounded payoff"),
+            "situation": "Show a specific economic pressure through people, prices, charts, bank screens, market headlines, or household decisions.",
+            "emotion": "focused concern",
+            "retention": "Leave one clear economic question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by raising the next cause or consequence from {variation}.",
+            "visual": "Documentary economy explainer visuals with realistic Korean urban details, market screens, receipts, household objects, bank or street context, and restrained motion around {variation}.",
+            "tts": "Calm but urgent Korean narration around {variation}, clear pacing, no exaggerated shouting.",
+            "promise": f"Explain why '{title}' matters to the viewer's money decisions.",
+            "hook": f"Start with the contradiction inside '{title}' and make it personal.",
+            "payoff": "Give a grounded explanation of the economic signal and what viewers should watch next.",
+            "mood": "urgent economic explainer",
+        }
+    else:
+        profile = {
+            "opening": ("show the concrete human incident behind", "Create immediate curiosity and emotional stakes"),
+            "development": ("follow the person's choice, conflict, or hidden truth as pressure grows", "Escalate through specific actions and consequences"),
+            "explanation": ("reveal one motive, misunderstanding, sacrifice, or turning point behind", "Make the human truth emotionally clear"),
+            "steady": ("resolve the story promise with a clear emotional consequence", "Carry the story toward a satisfying payoff"),
+            "situation": "Show a grounded human-story scene with a specific place, object, choice, conflict, witness, and emotional consequence.",
+            "emotion": "grounded emotional tension",
+            "retention": "Leave one human story question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next choice, clue, or consequence from {variation}.",
+            "visual": "Realistic human-story visuals with specific locations, meaningful objects, restrained close-ups, and clear character staging around {variation}.",
+            "tts": "Grounded Korean narration with clear emotion, restraint, and narrative momentum around {variation}.",
+            "promise": f"Reveal the human choice, conflict, and emotional truth behind '{title}'.",
+            "hook": f"Start with the concrete contradiction inside '{title}' and make the viewer want the truth.",
+            "payoff": "Resolve the story through a clear emotional reveal and consequence.",
+            "mood": "grounded human story",
+        }
 
     scenes = []
     for index, (start, end, phase) in enumerate(slots, start=1):
         duration = end - start
         scene_id = f"scene{index:03d}"
         variation = _scene_variation_label(index)
-        if is_story_style:
+        if is_story_style or not (is_finance_style or is_economy_style):
             if phase == "opening":
-                summary = f"Opening beat {index} ({variation}): reveal the strange incident or object behind '{title}'."
-                purpose = f"Create immediate mystery, place, and emotional stakes through {variation}."
+                summary = f"Opening beat {index} ({variation}): {profile['opening'][0]} '{title}'."
+                purpose = f"{profile['opening'][1]} through {variation}."
             elif phase == "development":
-                summary = f"Development beat {index} ({variation}): follow the villagers, family, or witness as the secret deepens."
-                purpose = f"Escalate suspicion through character choices and village consequences tied to {variation}."
+                summary = f"Development beat {index} ({variation}): {profile['development'][0]}."
+                purpose = f"{profile['development'][1]} tied to {variation}."
             elif phase == "explanation":
-                summary = f"Revelation beat {index} ({variation}): uncover one hidden motive, promise, betrayal, or supernatural clue behind '{title}'."
-                purpose = f"Turn the mystery into an emotionally readable folk-tale revelation using {variation}."
+                summary = f"Revelation beat {index} ({variation}): {profile['explanation'][0]} '{title}'."
+                purpose = f"{profile['explanation'][1]} using {variation}."
             else:
-                summary = f"Payoff beat {index} ({variation}): resolve the secret and leave a lingering moral aftertaste."
-                purpose = f"Deliver the emotional consequence and close the tale with resonance around {variation}."
+                summary = f"Payoff beat {index} ({variation}): {profile['steady'][0]}."
+                purpose = f"{profile['steady'][1]} around {variation}."
             scene_situation = (
-                f"Timed {phase} visual beat for '{title}'. Show an old Korean village, a character decision, "
-                f"a mysterious object, a family conflict, a rumor, a night road, a well, a courtyard, or a hidden room. "
+                f"Timed {phase} visual beat for '{title}'. {profile['situation']} "
                 f"Make this beat distinct with {variation}. "
                 f"Reference technique from benchmark '{benchmark_title}' without copying its content."
             )
-            emotion = "quiet suspense"
-            retention = f"Leave one story secret about {variation} unresolved into the next beat."
-            bridge = f"Move into the next beat by revealing a new clue, reaction, or consequence from {variation}."
-            visual_direction = (
-                "Atmospheric Korean folk-tale visuals with village lanes, hanok courtyards, wells, lanterns, "
-                f"wooden doors, worn fabric, dusk shadows, restrained motion, and character-focused staging around {variation}."
-            )
-            tts_direction = f"Calm Korean storytelling narration with suspense, warmth, and clear emotional turns around {variation}."
+            emotion = profile["emotion"]
+            retention = profile["retention"].format(variation=variation)
+            bridge = profile["bridge"].format(variation=variation)
+            visual_direction = profile["visual"].format(variation=variation)
+            tts_direction = profile["tts"].format(variation=variation)
         else:
             if phase == "opening":
-                summary = f"Opening beat {index} ({variation}): expose the personal money tension behind '{title}'."
-                purpose = f"Create immediate curiosity and a concrete household-level stake through {variation}."
+                summary = f"Opening beat {index} ({variation}): {profile['opening'][0]} '{title}'."
+                purpose = f"{profile['opening'][1]} through {variation}."
             elif phase == "development":
-                summary = f"Development beat {index} ({variation}): connect the viewer's daily spending pressure to the market signal."
-                purpose = f"Escalate from a familiar problem into the economic mechanism using {variation}."
+                summary = f"Development beat {index} ({variation}): {profile['development'][0]}."
+                purpose = f"{profile['development'][1]} using {variation}."
             elif phase == "explanation":
-                summary = f"Explanation beat {index} ({variation}): explain one cause, consequence, or decision point behind '{title}'."
-                purpose = f"Make the economic logic clear without losing narrative momentum around {variation}."
+                summary = f"Explanation beat {index} ({variation}): {profile['explanation'][0]} '{title}'."
+                purpose = f"{profile['explanation'][1]} around {variation}."
             else:
-                summary = f"Steady beat {index} ({variation}): resolve the implication and prepare the next practical insight."
-                purpose = f"Carry the analysis toward a grounded payoff tied to {variation}."
+                summary = f"Steady beat {index} ({variation}): {profile['steady'][0]}."
+                purpose = f"{profile['steady'][1]} tied to {variation}."
             scene_situation = (
-                f"Timed {phase} visual beat for '{title}'. Show a specific economic pressure through "
-                f"people, prices, charts, bank screens, market headlines, or household decisions. "
+                f"Timed {phase} visual beat for '{title}'. {profile['situation']} "
                 f"Make this beat distinct with {variation}. "
                 f"Reference technique from benchmark '{benchmark_title}' without copying its content."
             )
-            emotion = "focused concern"
-            retention = f"Leave one clear economic question about {variation} unresolved into the next beat."
-            bridge = f"Move into the next beat by raising the next cause or consequence from {variation}."
-            visual_direction = (
-                "Documentary economy explainer visuals with realistic Korean urban details, "
-                f"market screens, receipts, household objects, bank or street context, and restrained motion around {variation}."
-            )
-            tts_direction = f"Calm but urgent Korean narration around {variation}, clear pacing, no exaggerated shouting."
+            emotion = profile["emotion"]
+            retention = profile["retention"].format(variation=variation)
+            bridge = profile["bridge"].format(variation=variation)
+            visual_direction = profile["visual"].format(variation=variation)
+            tts_direction = profile["tts"].format(variation=variation)
 
         scenes.append({
             "scene_id": scene_id,
@@ -2921,16 +3077,10 @@ def _build_fallback_scene_plan(
             "tts_direction": tts_direction,
         })
 
-    if is_story_style:
-        title_promise = f"Reveal the secret behind '{title}' through character choices, village rumor, and emotional payoff."
-        opening_hook = f"Start with the impossible incident inside '{title}' and make the viewer want the hidden truth."
-        payoff = "Resolve the mystery with a clear emotional reveal and a folk-tale moral aftertaste."
-        global_mood = "atmospheric Korean folk tale mystery"
-    else:
-        title_promise = f"Explain why '{title}' matters to the viewer's money decisions."
-        opening_hook = f"Start with the contradiction inside '{title}' and make it personal."
-        payoff = "Give a grounded explanation of the economic signal and what viewers should watch next."
-        global_mood = "urgent economic explainer"
+    title_promise = profile["promise"]
+    opening_hook = profile["hook"]
+    payoff = profile["payoff"]
+    global_mood = profile["mood"]
 
     return {
         "topic": topic,
@@ -5556,6 +5706,13 @@ Scene planning guard:
         )
     )
 
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    detected_cat = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+
     planner_notes = structure.get("planner_notes") or {}
     if planner_notes.get("error"):
         planner_error = planner_notes.get("error_message") or "scene_planner_service.plan_scenes() failed"
@@ -5570,16 +5727,11 @@ Scene planning guard:
             style_directive=style_directive,
             benchmark_analysis=benchmark_analysis,
             title_generation=title_generation,
+            category=detected_cat,
         )
     research_bundle = (benchmark_analysis or {}).get("web_research")
     if isinstance(research_bundle, dict):
         structure["research_bundle"] = research_bundle
-    category_context = " ".join(
-        str((job.get("payload") or {}).get(key) or "")
-        for key in ("category", "category_name")
-    ).strip()
-    script_style_context = f"{script_style} {category_context}".strip()
-    detected_cat = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     finance_plan_context = _is_finance_plan_context(script_style_context, topic, upload_title, image_style)
     old_story_plan_context = _is_old_story_plan_context(script_style_context, topic, upload_title, image_style)
     if old_story_plan_context and not _old_story_title_is_grave_vigil(topic, upload_title):
@@ -5632,6 +5784,7 @@ Scene planning guard:
                 style_directive=style_directive,
                 benchmark_analysis=benchmark_analysis,
                 title_generation=title_generation,
+                category=detected_cat,
             )
             structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
             plan_errors = _scene_plan_repetition_errors(structure)

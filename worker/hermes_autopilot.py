@@ -35,6 +35,7 @@ STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 EXTERNAL_RUNNING_STATE_GRACE_SECONDS = 10 * 60
+TITLE_GENERATION_TIMEOUT_SECONDS = 90.0
 
 CATEGORIES = [
     "탈북사연",
@@ -1289,25 +1290,44 @@ class HermesAutopilotManager:
         max_tokens: int,
         task_type: str,
     ) -> str:
+        async def _with_thread_timeout(call_factory):
+            def runner():
+                return asyncio.run(call_factory())
+
+            return await asyncio.wait_for(
+                asyncio.to_thread(runner),
+                timeout=TITLE_GENERATION_TIMEOUT_SECONDS,
+            )
+
         last_error: Exception | None = None
         for model in self._title_generation_models():
             try:
                 if model.lower().startswith("gemini"):
                     from services.gemini_service import gemini_service
 
-                    return await gemini_service.generate_text(
+                    return await _with_thread_timeout(
+                        lambda: gemini_service.generate_text(
+                            prompt,
+                            model=model,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            task_type=task_type,
+                        )
+                    )
+                return await _with_thread_timeout(
+                    lambda: ai_router.generate_text(
                         prompt,
                         model=model,
                         temperature=temperature,
                         max_tokens=max_tokens,
                         task_type=task_type,
                     )
-                return await ai_router.generate_text(
-                    prompt,
-                    model=model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    task_type=task_type,
+                )
+            except asyncio.TimeoutError as e:
+                last_error = e
+                logger.warning(
+                    f"{task_type} timed out with model={model} after "
+                    f"{TITLE_GENERATION_TIMEOUT_SECONDS}s; trying fallback if available"
                 )
             except Exception as e:
                 last_error = e
@@ -1678,13 +1698,29 @@ Return ONLY valid JSON in this schema:
   ]
 }}
 """
-        raw_text = await self._generate_title_text_with_fallback(
-            prompt,
-            temperature=0.85,
-            max_tokens=2500,
-            task_type="hermes_autopilot_title_gen",
-        )
-        raw_plan = self._extract_json_object(raw_text)
+        try:
+            raw_text = await asyncio.wait_for(
+                self._generate_title_text_with_fallback(
+                    prompt,
+                    temperature=0.85,
+                    max_tokens=2500,
+                    task_type="hermes_autopilot_title_gen",
+                ),
+                timeout=TITLE_GENERATION_TIMEOUT_SECONDS,
+            )
+            raw_plan = self._extract_json_object(raw_text)
+        except Exception as e:
+            fallback = self._clean_title_text(self._category_fallback_title(category))
+            self.add_log(f"Title generation timed out/failed; using category fallback title: {fallback} ({e})")
+            raw_plan = {
+                "title_candidates": [
+                    {
+                        "title": fallback,
+                        "angle": "category_fallback_after_title_generation_error",
+                    }
+                ],
+                "title_generation_error": str(e),
+            }
         raw_plan.pop("production_topic", None)
         raw_plan.pop("topic", None)
         plan = self._select_title_plan(raw_plan, category, benchmark_titles, learning_profile)

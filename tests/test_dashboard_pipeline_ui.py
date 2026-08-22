@@ -68,6 +68,17 @@ def test_cached_benchmark_still_submits_real_web_research_job():
     assert "job_type=\"web_research\"" in source
 
 
+def test_hermes_title_generation_has_timeout_and_fallback():
+    source = (ROOT / "worker" / "hermes_autopilot.py").read_text(encoding="utf-8")
+
+    assert "TITLE_GENERATION_TIMEOUT_SECONDS = 90.0" in source
+    assert "asyncio.wait_for(" in source
+    assert "asyncio.to_thread(" in source
+    assert "timeout=TITLE_GENERATION_TIMEOUT_SECONDS" in source
+    assert "Title generation timed out/failed; using category fallback title" in source
+    assert "category_fallback_after_title_generation_error" in source
+
+
 def test_server_restart_waits_until_manager_is_alive_before_reload():
     source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
 

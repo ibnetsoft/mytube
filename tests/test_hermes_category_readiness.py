@@ -286,6 +286,53 @@ def test_long_fallback_scene_plan_does_not_trip_repetition_qa():
     assert not hermes_worker._scene_plan_repetition_errors(structure)
 
 
+def test_fallback_scene_plan_uses_category_when_style_is_generic():
+    structure = hermes_worker._build_fallback_scene_plan(
+        topic="탈북사연",
+        upload_title="고아원에서 함께 자란 친구, 내 대신 붙잡히다...3년 만에 마주친 그녀의 눈빛",
+        target_duration=120,
+        script_style="dramatic_single",
+        style_directive="",
+        benchmark_analysis={"title": "reference"},
+        title_generation={},
+        category="탈북사연",
+    )
+
+    serialized = json.dumps(structure, ensure_ascii=False)
+    assert "money decisions" not in serialized
+    assert "economic signal" not in serialized
+    assert "urgent economic explainer" not in serialized
+    assert "survival" in serialized.lower()
+    assert "North Korean defector testimony" in serialized
+
+
+def test_non_economy_category_fallbacks_do_not_use_economy_copy():
+    categories = [
+        ("탈북사연", "국경을 넘은 딸이 10년 뒤 어머니에게 보낸 편지"),
+        ("해외감동", "공항에서 잃어버린 지갑을 들고 3시간을 기다린 노인"),
+        ("황혼19금", "아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지"),
+        ("한국사연", "회사에서 쫓겨난 엄마가 회의실에 들고 온 녹음파일"),
+        ("무협", "사부의 검을 숨긴 제자가 십 년 만에 돌아온 밤"),
+        ("옛날이야기", "도깨비 할머니가 숨긴 금화 - 마을 사람들이 60년을 찾던 이유"),
+    ]
+
+    for category, title in categories:
+        structure = hermes_worker._build_fallback_scene_plan(
+            topic=category,
+            upload_title=title,
+            target_duration=120,
+            script_style="dramatic_single",
+            style_directive="",
+            benchmark_analysis={"title": "reference"},
+            title_generation={},
+            category=category,
+        )
+        serialized = json.dumps(structure, ensure_ascii=False)
+        assert "money decisions" not in serialized, category
+        assert "economic signal" not in serialized, category
+        assert "urgent economic explainer" not in serialized, category
+
+
 def test_twilight_repair_keeps_long_scene_plan_unique():
     scenes = [
         {
