@@ -46,12 +46,15 @@ def test_pipeline_error_summary_is_rendered_inside_details():
     assert details_index < error_index < subjobs_index
 
 
-def test_benchmark_failure_is_ignored_only_after_real_web_research_completes():
+def test_benchmark_failure_does_not_override_downstream_generation_progress():
     source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
 
     assert "function hasCompletedHermesJobType(jobs, jobType)" in source
     assert "const completedWebResearch = hasCompletedHermesJobType(g.jobs, 'web_research');" in source
+    assert "const completedPlan = hasCompletedHermesJobType(g.jobs, 'script_plan_generate');" in source
+    assert "const completedScript = hasCompletedHermesJobType(g.jobs, 'script_generate');" in source
     assert "const completedPublishMetadata = hasCompletedHermesJobType(g.jobs, 'publish_metadata_generate');" in source
+    assert "const completedGenerationAfterBenchmark = completedWebResearch || completedPlan || completedScript || completedPublishMetadata;" in source
     assert "step.key === 'research' && completedDownstream" not in source
     assert "} else if (completedPublishMetadata) {" in source
     assert "completedTypes.add('topic_benchmark_analyze');" in source
