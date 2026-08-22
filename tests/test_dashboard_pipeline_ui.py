@@ -61,3 +61,21 @@ def test_cached_benchmark_still_submits_real_web_research_job():
     assert "Cached benchmark data is only a seed; submitting a real web_research job before planning." in source
     assert "cached_benchmark_sources" not in source
     assert "job_type=\"web_research\"" in source
+
+
+def test_server_restart_waits_until_manager_is_alive_before_reload():
+    source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
+
+    assert "보통 10~20초 정도 걸리며" in source
+    assert "let count = 45;" in source
+    assert "restart_probe=${Date.now()}" in source
+    assert "data?.manager_alive" in source
+    assert "준비되면 자동 새로고침됩니다" in source
+
+
+def test_server_restart_helper_matches_project_dashboard_processes():
+    source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
+
+    assert "'dashboard_app:app'," in source
+    assert "$cmd.Contains($project)" in source
+    assert "'air_worker_entry.py --role hermes_worker'," in source

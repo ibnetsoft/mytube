@@ -2022,12 +2022,12 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         f"$worker = {json.dumps(str(worker_dir))}",
         f"$python = {json.dumps(str(python_exe))}",
         "$patterns = @(",
+        "  'dashboard_app:app',",
         "  'air_worker_entry.py --role manager',",
         "  'air_worker_entry.py --role render_worker',",
         "  'air_worker_entry.py --role remote_drive_worker',",
         "  'air_worker_entry.py --role hermes_worker',",
         "  'air_worker_entry.py --role local_api',",
-        "  'uvicorn dashboard_app:app --host 127.0.0.1 --port 3002',",
         "  'worker\\manager.py',",
         "  'worker\\render_worker.py',",
         "  'worker\\remote_drive_worker_process.py',",
@@ -2036,7 +2036,7 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         ")",
         "$procs = Get-CimInstance Win32_Process | Where-Object {",
         "  $cmd = $_.CommandLine",
-        "  $_.ProcessId -ne $PID -and $cmd -and",
+        "  $_.ProcessId -ne $PID -and $cmd -and $cmd.Contains($project) -and",
         "  ($patterns | Where-Object { $cmd -like \"*$_*\" })",
         "}",
         "foreach ($proc in $procs) {",
@@ -6753,7 +6753,7 @@ async function saveVoiceboxToSupabase() {
 
 /* ── Server Process Management ── */
 async function confirmRestartServer() {
-  if (!confirm('워커 서버를 완전히 재시작하시겠습니까?\n\n약 3~4초 후 서버가 새로 시작되며 페이지가 자동 새로고침됩니다.')) return;
+  if (!confirm('워커 서버를 완전히 재시작하시겠습니까?\n\n프로세스를 모두 종료한 뒤 다시 시작합니다. 보통 10~20초 정도 걸리며, 준비되면 페이지가 자동 새로고침됩니다.')) return;
   showToast('워커 서버를 재시작하는 중입니다... 잠시만 기다려주세요.', 'info');
   try {
     await api('POST', '/api/server/restart');
@@ -6777,7 +6777,7 @@ async function confirmShutdownServer() {
 }
 
 function showRestartModal() {
-  let count = 10;
+  let count = 45;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.style.zIndex = '9999';
@@ -6785,17 +6785,29 @@ function showRestartModal() {
     <div class="modal" style="text-align:center;max-width:380px;padding:30px 20px;">
       <div style="font-size:36px;margin-bottom:12px;">🔄</div>
       <h3 style="margin-bottom:8px;">워커 서버 재시작 중</h3>
-      <p style="color:#8b949e;margin:12px 0 20px;font-size:13px;" id="restart-countdown-text">서버를 다시 시작하고 있습니다... (<span id="restart-sec" style="color:#58a6ff;font-weight:bold;">10</span>초)</p>
-      <div class="refresh-indicator" style="display:inline-block;padding:6px 14px;background:#21262d;border-radius:20px;font-size:12px;color:#58a6ff;">잠시 후 자동 새로고침됩니다</div>
+      <p style="color:#8b949e;margin:12px 0 20px;font-size:13px;" id="restart-countdown-text">서버가 다시 응답할 때까지 확인 중입니다... (<span id="restart-sec" style="color:#58a6ff;font-weight:bold;">45</span>초)</p>
+      <div class="refresh-indicator" style="display:inline-block;padding:6px 14px;background:#21262d;border-radius:20px;font-size:12px;color:#58a6ff;">준비되면 자동 새로고침됩니다</div>
     </div>
   `;
   document.body.appendChild(overlay);
   
-  const timer = setInterval(() => {
+  const startedAt = Date.now();
+  const timer = setInterval(async () => {
     count--;
     const secEl = document.getElementById('restart-sec');
-    if (secEl) secEl.textContent = count;
-    if (count <= 0) {
+    if (secEl) secEl.textContent = Math.max(count, 0);
+    try {
+      const res = await fetch(`/api/status?restart_probe=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.manager_alive) {
+          clearInterval(timer);
+          window.location.reload();
+          return;
+        }
+      }
+    } catch (e) {}
+    if (count <= 0 || Date.now() - startedAt > 45000) {
       clearInterval(timer);
       window.location.reload();
     }
