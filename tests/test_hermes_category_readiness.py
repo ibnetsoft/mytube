@@ -52,6 +52,110 @@ def test_target_limit_quality_failure_stops_without_retrying_new_title():
     assert "another title" in manager.logs[-1]
 
 
+def test_autopilot_status_reconciles_stale_running_memory(monkeypatch, tmp_path):
+    state_path = tmp_path / "hermes_autopilot_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "is_running": False,
+                "current_step": "completed",
+                "current_category": "황혼19금",
+                "current_topic": "완료된 주제",
+                "last_run_status": "completed",
+                "last_error": "",
+                "logs": ["완료"],
+                "settings": {},
+                "session_stats": {"generated_count": 1},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hermes_autopilot, "STATE_FILE", state_path)
+    monkeypatch.setattr(hermes_autopilot.job_store, "list_jobs", lambda limit=100: [])
+
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.is_running = True
+    manager.current_step = "유튜브 탐색 및 고성과 분석"
+    manager.current_category = "황혼19금"
+    manager.current_topic = ""
+    manager.current_topic_queue_id = ""
+    manager.current_image_style = ""
+    manager.last_run_status = "running"
+    manager.last_error = ""
+    manager.last_completed_result_id = ""
+    manager.logs = []
+    manager.settings = {}
+    manager.session_stats = {"generated_count": 0}
+    manager._apply_settings = lambda *args, **kwargs: None
+    manager._save_state = lambda: None
+
+    status = manager.get_status()
+
+    assert status["is_running"] is False
+    assert status["last_run_status"] == "completed"
+    assert status["current_step"] == "completed"
+    assert status["session_stats"]["generated_count"] == 1
+
+
+def test_autopilot_status_promotes_completed_resume_pipeline(monkeypatch, tmp_path):
+    state_path = tmp_path / "hermes_autopilot_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "is_running": False,
+                "current_step": "failed",
+                "last_run_status": "failed",
+                "updated_at": 1000,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hermes_autopilot, "STATE_FILE", state_path)
+    monkeypatch.setattr(
+        hermes_autopilot.job_store,
+        "list_jobs",
+        lambda limit=100: [
+            {
+                "job_id": "metadata-job",
+                "source": "autopilot",
+                "job_type": "publish_metadata_generate",
+                "status": hermes_autopilot.job_store.COMPLETED,
+                "completed_at": 2000,
+                "payload": {
+                    "category": "황혼19금",
+                    "topic": "완료된 주제",
+                },
+            }
+        ],
+    )
+
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.is_running = False
+    manager.current_step = "failed"
+    manager.current_category = "황혼19금"
+    manager.current_topic = ""
+    manager.current_topic_queue_id = ""
+    manager.current_image_style = ""
+    manager.last_run_status = "failed"
+    manager.last_error = "old error"
+    manager.last_completed_result_id = ""
+    manager.logs = []
+    manager.settings = {}
+    manager.session_stats = {"generated_count": 0}
+    manager._apply_settings = lambda *args, **kwargs: None
+
+    status = manager.get_status()
+
+    assert status["is_running"] is False
+    assert status["last_run_status"] == "completed"
+    assert status["current_step"] == "completed"
+    assert status["last_error"] == ""
+    assert status["last_completed_result_id"] == "metadata-job"
+    assert status["current_topic"] == "완료된 주제"
+
+
 def test_autopilot_plan_jobs_can_use_scene_planner_fallback():
     assert not hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
     assert not hermes_worker._requires_strict_scene_planner_success(

@@ -193,6 +193,92 @@ class HermesAutopilotManager:
         except Exception as e:
             logger.error(f"Failed to save autopilot state: {e}")
 
+    def _apply_external_terminal_state(self) -> None:
+        """Let the persisted terminal state win over stale in-memory running state.
+
+        During dashboard/manager restarts there can briefly be two dashboard
+        processes. One process may finish or stop Autopilot and persist
+        ``is_running=False`` while another still has an old in-memory
+        ``is_running=True`` snapshot. The status endpoint powers the page
+        buttons, so reconcile before returning it.
+        """
+        if not self.is_running or not STATE_FILE.exists():
+            return
+        try:
+            data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+        if not isinstance(data, dict) or data.get("is_running"):
+            return
+
+        active_jobs = [
+            job
+            for job in job_store.list_jobs(limit=100)
+            if job.get("source") == "autopilot"
+            and job.get("status") in {job_store.QUEUED, *job_store.ACTIVE_STATUSES}
+        ]
+        if active_jobs:
+            return
+
+        self.is_running = False
+        self.current_step = data.get("current_step") or "stopped"
+        self.current_category = data.get("current_category", self.current_category)
+        self.current_topic = data.get("current_topic", self.current_topic)
+        self.current_topic_queue_id = str(data.get("current_topic_queue_id") or self.current_topic_queue_id or "")
+        self.current_image_style = data.get("current_image_style", self.current_image_style)
+        self.last_run_status = data.get("last_run_status") or "stopped"
+        self.last_error = data.get("last_error", self.last_error)
+        self.last_completed_result_id = str(data.get("last_completed_result_id") or self.last_completed_result_id or "")
+        if isinstance(data.get("logs"), list):
+            self.logs = data["logs"]
+        if isinstance(data.get("session_stats"), dict):
+            self.session_stats.update(data["session_stats"])
+        if isinstance(data.get("settings"), dict):
+            for key, value in data["settings"].items():
+                if key in self.settings:
+                    self.settings[key] = value
+
+    def _apply_completed_worker_pipeline_state(self) -> None:
+        """Reflect completed resume-driven Worker pipelines on the Autopilot page."""
+        if self.is_running:
+            return
+        latest = None
+        for job in job_store.list_jobs(limit=100):
+            if (
+                job.get("source") == "autopilot"
+                and job.get("job_type") == "publish_metadata_generate"
+                and job.get("status") == job_store.COMPLETED
+            ):
+                if latest is None or float(job.get("completed_at") or 0) > float(latest.get("completed_at") or 0):
+                    latest = job
+        if not latest:
+            return
+
+        latest_completed_at = float(latest.get("completed_at") or 0)
+        state_updated_at = 0.0
+        if STATE_FILE.exists():
+            try:
+                data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    state_updated_at = float(data.get("updated_at") or 0)
+            except (json.JSONDecodeError, OSError, TypeError, ValueError):
+                state_updated_at = 0.0
+
+        if self.last_run_status == "completed" and self.last_completed_result_id == latest.get("job_id"):
+            return
+        if state_updated_at and state_updated_at > latest_completed_at and self.last_run_status not in {"failed", "stopped"}:
+            return
+
+        payload = latest.get("payload") if isinstance(latest.get("payload"), dict) else {}
+        self.current_step = "completed"
+        self.current_category = str(payload.get("category") or payload.get("category_name") or self.current_category or "")
+        self.current_topic = str(payload.get("topic") or payload.get("upload_title") or self.current_topic or "")
+        self.last_run_status = "completed"
+        self.last_error = ""
+        self.last_completed_result_id = str(latest.get("job_id") or self.last_completed_result_id or "")
+        self.session_stats["generated_count"] = max(1, int(self.session_stats.get("generated_count") or 0))
+        self._save_state()
+
     def _normalize_active_categories(self, value) -> list[str]:
         if not isinstance(value, list):
             return CATEGORIES.copy()
@@ -715,6 +801,8 @@ class HermesAutopilotManager:
 
     def get_status(self) -> dict:
         self._apply_settings()
+        self._apply_external_terminal_state()
+        self._apply_completed_worker_pipeline_state()
         if not self.is_running and self.last_run_status == "running":
             self.last_run_status = "stopped"
             self.current_step = "stopped"
