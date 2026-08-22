@@ -2325,47 +2325,30 @@ Return ONLY a JSON array of strings.
             raise RuntimeError(f"Title QA rejected generated upload title: {generated_title!r}")
         self.current_step = "Gemini 웹 자료 조사"
         if result_data.get("cached"):
-            research_sources = [
-                {
-                    "title": str(candidate.get("title") or "YouTube benchmark video"),
-                    "url": f"https://www.youtube.com/watch?v={candidate.get('video_id')}",
-                }
-                for candidate in candidates[:3]
-                if candidate.get("video_id")
-            ]
-            research_bundle = {
-                "research_brief": "최근 실제 YouTube 벤치마크의 제목과 공개 성과를 바탕으로 기획을 이어갑니다.",
-                "verified_facts": [],
-                "story_material": "벤치마크 영상의 구조와 시청 반응을 참고하되 사실 주장은 별도로 검증합니다.",
-                "risk_notes": ["실시간 웹 조사 대신 최근 저장된 YouTube 벤치마크를 사용함"],
-                "sources": research_sources,
-                "research_mode": "cached_benchmark_sources",
-            }
-            self.add_log(f"최근 실제 벤치마크 출처 {len(research_sources)}개로 웹 조사 단계를 대체합니다.")
-        else:
-            self.add_log(f"🔎 Gemini 웹 검색으로 '{generated_title}' 대본 자료를 조사합니다.")
-            research_job_id = job_store.submit_job(
-                job_type="web_research",
-                payload={
-                    "category": category,
-                    "topic": category,
-                    "upload_title": generated_title,
-                    "benchmark_sources": [
-                        {
-                            "title": str(candidate.get("title") or "YouTube benchmark video"),
-                            "url": f"https://www.youtube.com/watch?v={candidate.get('video_id')}",
-                        }
-                        for candidate in candidates[:3]
-                        if candidate.get("video_id")
-                    ],
-                },
-                priority=100,
-                source="autopilot",
-            )
-            await self._wait_for_job(research_job_id)
-            research_result = self._read_result_file(research_job_id) or {}
-            research_bundle = research_result.get("research_bundle") or {}
-            research_sources = research_bundle.get("sources") or []
+            self.add_log("Cached benchmark data is only a seed; submitting a real web_research job before planning.")
+        self.add_log(f"Submitting web_research for '{generated_title}' before script planning.")
+        research_job_id = job_store.submit_job(
+            job_type="web_research",
+            payload={
+                "category": category,
+                "topic": category,
+                "upload_title": generated_title,
+                "benchmark_sources": [
+                    {
+                        "title": str(candidate.get("title") or "YouTube benchmark video"),
+                        "url": f"https://www.youtube.com/watch?v={candidate.get('video_id')}",
+                    }
+                    for candidate in candidates[:3]
+                    if candidate.get("video_id")
+                ],
+            },
+            priority=100,
+            source="autopilot",
+        )
+        await self._wait_for_job(research_job_id)
+        research_result = self._read_result_file(research_job_id) or {}
+        research_bundle = research_result.get("research_bundle") or {}
+        research_sources = research_bundle.get("sources") or []
         if not research_sources:
             raise RuntimeError("Gemini 웹 조사 결과에 검증 가능한 출처가 없습니다.")
         self.add_log(f"📚 Gemini 웹 자료 조사 완료: 출처 {len(research_sources)}개")

@@ -46,11 +46,18 @@ def test_pipeline_error_summary_is_rendered_inside_details():
     assert details_index < error_index < subjobs_index
 
 
-def test_benchmark_failure_does_not_override_completed_downstream_pipeline():
+def test_benchmark_failure_is_ignored_only_after_real_web_research_completes():
     source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
 
-    assert "function hasCompletedDownstreamHermesStep(jobs)" in source
-    assert "['script_plan_generate', 'script_generate', 'publish_metadata_generate'].includes(type)" in source
-    assert "const completedDownstream = hasCompletedDownstreamHermesStep(g.jobs);" in source
-    assert "step.key === 'research' && completedDownstream" in source
+    assert "function hasCompletedHermesJobType(jobs, jobType)" in source
+    assert "const completedWebResearch = hasCompletedHermesJobType(g.jobs, 'web_research');" in source
+    assert "step.key === 'research' && completedDownstream" not in source
     assert "completedTypes.add('topic_benchmark_analyze');" in source
+
+
+def test_cached_benchmark_still_submits_real_web_research_job():
+    source = (ROOT / "worker" / "hermes_autopilot.py").read_text(encoding="utf-8")
+
+    assert "Cached benchmark data is only a seed; submitting a real web_research job before planning." in source
+    assert "cached_benchmark_sources" not in source
+    assert "job_type=\"web_research\"" in source
