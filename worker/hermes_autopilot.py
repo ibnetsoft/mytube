@@ -34,6 +34,7 @@ if not logger.handlers:
 STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+EXTERNAL_RUNNING_STATE_GRACE_SECONDS = 10 * 60
 
 CATEGORIES = [
     "탈북사연",
@@ -193,6 +194,56 @@ class HermesAutopilotManager:
         except Exception as e:
             logger.error(f"Failed to save autopilot state: {e}")
 
+    def _active_autopilot_jobs(self) -> list[dict]:
+        return [
+            job
+            for job in job_store.list_jobs(limit=100)
+            if job.get("source") == "autopilot"
+            and job.get("status") in {job_store.QUEUED, *job_store.ACTIVE_STATUSES}
+        ]
+
+    def _apply_persisted_status_fields(self, data: dict) -> None:
+        self.current_step = data.get("current_step") or self.current_step
+        self.current_category = data.get("current_category", self.current_category)
+        self.current_topic = data.get("current_topic", self.current_topic)
+        self.current_topic_queue_id = str(data.get("current_topic_queue_id") or self.current_topic_queue_id or "")
+        self.current_image_style = data.get("current_image_style", self.current_image_style)
+        self.last_run_status = data.get("last_run_status") or self.last_run_status
+        self.last_error = data.get("last_error", self.last_error)
+        self.last_completed_result_id = str(data.get("last_completed_result_id") or self.last_completed_result_id or "")
+        if isinstance(data.get("logs"), list):
+            self.logs = data["logs"]
+        if isinstance(data.get("session_stats"), dict):
+            self.session_stats.update(data["session_stats"])
+        if isinstance(data.get("settings"), dict):
+            for key, value in data["settings"].items():
+                if key in self.settings:
+                    self.settings[key] = value
+
+    def _apply_external_running_state(self) -> None:
+        """Hydrate a running Autopilot state saved by another dashboard process."""
+        if self.is_running or not STATE_FILE.exists():
+            return
+        try:
+            data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+        if not isinstance(data, dict) or not data.get("is_running"):
+            return
+
+        updated_at = 0.0
+        try:
+            updated_at = float(data.get("updated_at") or 0)
+        except (TypeError, ValueError):
+            updated_at = 0.0
+        is_recent = bool(updated_at and time.time() - updated_at <= EXTERNAL_RUNNING_STATE_GRACE_SECONDS)
+        if not is_recent and not self._active_autopilot_jobs():
+            return
+
+        self.is_running = True
+        self._apply_persisted_status_fields(data)
+        self.last_run_status = "running"
+
     def _apply_external_terminal_state(self) -> None:
         """Let the persisted terminal state win over stale in-memory running state.
 
@@ -211,32 +262,13 @@ class HermesAutopilotManager:
         if not isinstance(data, dict) or data.get("is_running"):
             return
 
-        active_jobs = [
-            job
-            for job in job_store.list_jobs(limit=100)
-            if job.get("source") == "autopilot"
-            and job.get("status") in {job_store.QUEUED, *job_store.ACTIVE_STATUSES}
-        ]
-        if active_jobs:
+        if self._active_autopilot_jobs():
             return
 
         self.is_running = False
+        self._apply_persisted_status_fields(data)
         self.current_step = data.get("current_step") or "stopped"
-        self.current_category = data.get("current_category", self.current_category)
-        self.current_topic = data.get("current_topic", self.current_topic)
-        self.current_topic_queue_id = str(data.get("current_topic_queue_id") or self.current_topic_queue_id or "")
-        self.current_image_style = data.get("current_image_style", self.current_image_style)
         self.last_run_status = data.get("last_run_status") or "stopped"
-        self.last_error = data.get("last_error", self.last_error)
-        self.last_completed_result_id = str(data.get("last_completed_result_id") or self.last_completed_result_id or "")
-        if isinstance(data.get("logs"), list):
-            self.logs = data["logs"]
-        if isinstance(data.get("session_stats"), dict):
-            self.session_stats.update(data["session_stats"])
-        if isinstance(data.get("settings"), dict):
-            for key, value in data["settings"].items():
-                if key in self.settings:
-                    self.settings[key] = value
 
     def _apply_completed_worker_pipeline_state(self) -> None:
         """Reflect completed resume-driven Worker pipelines on the Autopilot page."""
@@ -801,6 +833,7 @@ class HermesAutopilotManager:
 
     def get_status(self) -> dict:
         self._apply_settings()
+        self._apply_external_running_state()
         self._apply_external_terminal_state()
         self._apply_completed_worker_pipeline_state()
         if not self.is_running and self.last_run_status == "running":

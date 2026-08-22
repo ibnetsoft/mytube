@@ -98,6 +98,53 @@ def test_autopilot_status_reconciles_stale_running_memory(monkeypatch, tmp_path)
     assert status["session_stats"]["generated_count"] == 1
 
 
+def test_autopilot_status_hydrates_running_state_saved_by_another_process(monkeypatch, tmp_path):
+    state_path = tmp_path / "hermes_autopilot_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "is_running": True,
+                "current_step": "[category-a] preparing",
+                "current_category": "category-a",
+                "current_topic": "topic-a",
+                "last_run_status": "running",
+                "last_error": "",
+                "logs": ["started"],
+                "settings": {"mode": "target_limit", "target_limit": 1},
+                "session_stats": {"generated_count": 0},
+                "updated_at": 1000,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hermes_autopilot, "STATE_FILE", state_path)
+    monkeypatch.setattr(hermes_autopilot.time, "time", lambda: 1005)
+    monkeypatch.setattr(hermes_autopilot.job_store, "list_jobs", lambda limit=100: [])
+
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.is_running = False
+    manager.current_step = "idle"
+    manager.current_category = ""
+    manager.current_topic = ""
+    manager.current_topic_queue_id = ""
+    manager.current_image_style = ""
+    manager.last_run_status = "idle"
+    manager.last_error = ""
+    manager.last_completed_result_id = ""
+    manager.logs = []
+    manager.settings = {"mode": "target_limit", "target_limit": 1}
+    manager.session_stats = {"generated_count": 0}
+    manager._apply_settings = lambda *args, **kwargs: None
+
+    status = manager.get_status()
+
+    assert status["is_running"] is True
+    assert status["last_run_status"] == "running"
+    assert status["current_step"] == "[category-a] preparing"
+    assert status["current_category"] == "category-a"
+
+
 def test_autopilot_status_promotes_completed_resume_pipeline(monkeypatch, tmp_path):
     state_path = tmp_path / "hermes_autopilot_state.json"
     state_path.write_text(
