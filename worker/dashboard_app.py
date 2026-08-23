@@ -3826,10 +3826,6 @@ tr:hover { background: #161b22; }
 /* ── Globals ── */
 let refreshInterval = null;
 let countdown = 3;
-let refreshAllInFlight = false;
-let renderingJobsPollInFlight = false;
-let generatedResultsLoaded = false;
-let latestWorkerStatus = null;
 
 /* ── API helpers ── */
 async function api(method, path, body) {
