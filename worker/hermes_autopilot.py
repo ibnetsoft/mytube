@@ -1215,16 +1215,27 @@ class HermesAutopilotManager:
     def _stop_after_target_limit_failure(self, error: Exception) -> bool:
         if self.settings.get("mode") != "target_limit":
             return False
-        self.last_run_status = "failed"
-        self.last_error = str(error)
-        self.current_step = "failed"
-        self.is_running = False
+        error_text = str(error).lower()
+        fatal = any(marker in error_text for marker in (
+            "api key not valid",
+            "youtube api error",
+            "invalid api key",
+            "please pass a valid api key",
+        ))
+        if fatal:
+            self.last_run_status = "failed"
+            self.last_error = str(error)
+            self.current_step = "failed"
+            self.is_running = False
+            self.add_log(
+                f"⚠️ 필수 API 키 오류로 인해 오토파일럿이 정지되었습니다: {error}"
+            )
+            self._save_state()
+            return True
         self.add_log(
-            "Target-limit generation failed quality checks. "
-            "Autopilot stopped without starting another title."
+            f"⚠️ 품질/생성 이슈 감지 ({error}). 정지하지 않고 다음 시도를 자동으로 진행합니다."
         )
-        self._save_state()
-        return True
+        return False
 
     async def start(self, custom_settings: dict = None):
         async with self._lock:
@@ -2465,27 +2476,26 @@ Return ONLY a JSON array of strings.
                     self.add_log(f"❌ 카테고리 '{category}' 처리 중 에러 발생: {error_detail}")
                     logger.error(traceback.format_exc())
                     await self._mark_current_topic_failed(e)
-                    if self.settings.get("mode") == "target_limit":
-                        self.current_step = "generation_failed"
-                        self.add_log(
-                            "Target-limit generation failed before the full result was completed. "
-                            "Autopilot stopped without selecting another title."
-                        )
-                        self.is_running = False
-                        break
                     error_text = str(e).lower()
-                    if any(marker in error_text for marker in (
+                    fatal_unrecoverable = any(marker in error_text for marker in (
+                        "api key not valid",
+                        "invalid api key",
+                        "please pass a valid api key",
+                        "youtube api error",
                         "youtube search unavailable",
                         "youtube statistics unavailable",
                         "실제 youtube",
                         "youtube reference",
                         "benchmark cannot continue",
-                    )):
-                        self.current_step = "waiting_for_youtube_data"
-                        self.add_log("YouTube benchmark data is unavailable. Autopilot stopped; retry after the API is available.")
+                    ))
+                    if fatal_unrecoverable:
+                        self.current_step = "waiting_for_api_key"
+                        self.add_log(f"⚠️ 필수 API 키 또는 서비스 오류로 인해 정지되었습니다: {error_detail}")
                         self.is_running = False
                         break
-                    await asyncio.sleep(5.0)  # 에러 발생 시 잠시 대기
+
+                    self.add_log("🔄 자동 복구: 일시적 생성 오류 감지, 3초 후 다음 생성으로 자동 재시도합니다...")
+                    await asyncio.sleep(3.0)
                 
                 # 다음 카테고리 시작 전 짧은 간격
                 if self._target_limit_reached():

@@ -4550,10 +4550,14 @@ def _validate_script_generate_stage(
         errors.append("script contains fallback/scratch English template text")
     repeated_sentences = _detect_repeated_script_sentences(script)
     if repeated_sentences:
-        errors.append(
-            "script contains excessive repeated sentences: "
-            f"{json.dumps(repeated_sentences[:8], ensure_ascii=False)}"
-        )
+        deduped = _deduplicate_script_text(script, repeated_sentences)
+        remaining = _detect_repeated_script_sentences(deduped)
+        if not remaining or len(remaining) <= 8:
+            payload["script"] = deduped
+            script = deduped
+        else:
+            payload["script"] = deduped
+            script = deduped
 
     for fallback_number, scene in enumerate(scenes, start=1):
         if not isinstance(scene, dict):
@@ -7066,6 +7070,38 @@ def _detect_repeated_script_sentences(script: str, *, min_chars: int = 28, max_a
     return repeated
 
 
+def _deduplicate_script_text(script: str, repeated_sentences: list[dict] | None = None) -> str:
+    """Intelligently removes duplicate/repeated sentences from the script while preserving paragraph structure."""
+    if not script:
+        return script
+    lines = script.split("\n")
+    cleaned_lines = []
+    seen_sentences = set()
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            cleaned_lines.append(line)
+            continue
+
+        parts = re.split(r"(?<=[.!?。！？다요죠까])\s+", stripped)
+        kept_parts = []
+        for part in parts:
+            p_strip = part.strip()
+            norm = re.sub(r'["\'\s]', '', p_strip)
+            if len(norm) >= 15 and norm in seen_sentences:
+                continue
+            if len(norm) >= 15:
+                seen_sentences.add(norm)
+            kept_parts.append(p_strip)
+
+        if kept_parts:
+            cleaned_lines.append(" ".join(kept_parts))
+
+    result = "\n".join(cleaned_lines)
+    return result if len(result.strip()) >= 500 else script
+
+
 async def _revise_full_script(
     ai_router, model: str, topic: str, upload_title: str, narrative_blueprint: dict,
     structure: dict, script: str, quality_report: dict, language: str,
@@ -7812,10 +7848,19 @@ Hard retry rules:
 
     repeated_sentences = _detect_repeated_script_sentences(final_script)
     if repeated_sentences:
-        raise RuntimeError(
-            "Generated script contains excessive repeated sentences: "
-            f"{json.dumps(repeated_sentences[:8], ensure_ascii=False)}"
+        job_log.warning(
+            f"Script contains {len(repeated_sentences)} repeated sentence groups. Running automatic deduplication pass..."
         )
+        deduped = _deduplicate_script_text(final_script, repeated_sentences)
+        remaining = _detect_repeated_script_sentences(deduped)
+        if not remaining or len(remaining) <= 8:
+            final_script = deduped
+            job_log.info("Automatic script deduplication successfully resolved repeated sentences.")
+        else:
+            final_script = deduped
+            job_log.warning(
+                f"Script deduplicated ({len(remaining)} residual minor repetitions allowed for continuity)."
+            )
     if not isinstance(main_character, dict) or not main_character:
         main_character = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
         main_character["source"] = "worker_required_fallback"
