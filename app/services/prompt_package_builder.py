@@ -75,10 +75,14 @@ class PromptPackageBuilderService:
                 
                 # We skip reuse from generating a prompt file
                 if asset_type != "reuse":
-                    content = self._format_prompt_text(item)
-                    full_path = f"{dir_path}/{filename}"
-                    zf.writestr(full_path, content)
-                    file_tree.append(full_path)
+                    # If it's a video asset but has no positive prompt, skip writing empty txt
+                    if asset_type == "video" and not item.get("prompt", {}).get("positive"):
+                        pass
+                    else:
+                        content = self._format_prompt_text(item)
+                        full_path = f"{dir_path}/{filename}"
+                        zf.writestr(full_path, content)
+                        file_tree.append(full_path)
                 
                 # Add to metadata
                 meta_item = {

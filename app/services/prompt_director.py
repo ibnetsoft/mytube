@@ -5,7 +5,14 @@ class PromptDirectorService:
     def __init__(self):
         self.gemini = GeminiService()
 
-    async def enhance_scenes(self, planning_schema: dict) -> dict:
+    async def enhance_scenes(self, planning_schema: dict, mode: str = "basic") -> dict:
+        is_all_mode = str(mode or "").strip().lower() in ["all", "full"]
+        mode_instruction = (
+            "3. Generate a highly detailed `video_prompt` for ALL scenes."
+            if is_all_mode else
+            "3. VIDEO PROMPT MODE (BASIC): Generate a highly detailed `video_prompt` ONLY for the first 12 scenes (scene order 1 to 12, the first minute). For any scenes beyond scene 12 (order > 12), set `video_prompt` to an empty string \"\" and do not generate video prompts."
+        )
+
         prompt = f"""
 You are an expert Prompt Director and AI video production enhancer.
 Analyze the provided Scene Planning Schema and ENHANCE each scene with video prompts and shot hints.
@@ -16,7 +23,7 @@ SCENE SCHEMA JSON:
 Instructions:
 1. Iterate over every scene in the `scenes` array.
 2. DO NOT change the number of scenes, their `id`, `order`, or `estimated_seconds`. The scene boundaries are fixed.
-3. For each scene, generate a highly detailed `video_prompt` only.
+{mode_instruction}
 4. Return only the fields shown in the JSON schema below; do not add extra scene fields.
 5. Provide a `lighting_hint` and `visual_style` for the scene.
 6. Generate an array of `shot_hints` for the scene. These are merely internal camera/composition guidelines and DO NOT split the scene timeline.
@@ -28,6 +35,7 @@ JSON SCHEMA:
   "total_duration": 60,
   "director_notes": {{
     "overall_vision": "...",
+    "video_prompt_mode": "{"all" if is_all_mode else "basic"}",
     "error": false
   }},
   "scenes": [
@@ -35,7 +43,7 @@ JSON SCHEMA:
       "id": "scene001",
       "order": 1,
       "estimated_seconds": 20,
-      "video_prompt": "Highly detailed visual and motion description for video generation.",
+      "video_prompt": "Highly detailed visual and motion description for video generation (or empty string if order > 12 in basic mode).",
       "lighting_hint": "cinematic lighting, golden hour...",
       "visual_style": "photorealistic, cinematic...",
       "shot_hints": [
@@ -69,6 +77,14 @@ JSON SCHEMA:
             response_text = response_text.strip()
             
             result = json.loads(response_text)
+
+            # Enforce basic mode rule: no video prompt for scenes > 12
+            if not is_all_mode and isinstance(result.get("scenes"), list):
+                for idx, scene in enumerate(result["scenes"]):
+                    scene_order = int(scene.get("order") or (idx + 1))
+                    if scene_order > 12:
+                        scene["video_prompt"] = ""
+
             return result
         except Exception as e:
             print(f"[PromptDirector] Failed to enhance scenes: {e}")
@@ -78,6 +94,7 @@ JSON SCHEMA:
                 "total_duration": 0,
                 "director_notes": {
                     "overall_vision": "Enhancement failed",
+                    "video_prompt_mode": "all" if is_all_mode else "basic",
                     "error": True,
                     "error_message": str(e)
                 }

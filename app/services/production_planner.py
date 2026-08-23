@@ -11,7 +11,14 @@ class ProductionPlannerService:
     def __init__(self):
         self.gemini = GeminiService()
 
-    async def plan_production(self, enhanced_scenes: dict) -> dict:
+    async def plan_production(self, enhanced_scenes: dict, mode: str = "basic") -> dict:
+        is_all_mode = str(mode or "").strip().lower() in ["all", "full"]
+        mode_instruction = (
+            "2. Decide the `asset_type` strictly from: [\"image\", \"video\", \"reuse\"]."
+            if is_all_mode else
+            "2. Decide the `asset_type` strictly from: [\"image\", \"video\", \"reuse\"]. IMPORTANT: In 'basic' mode (default), \"video\" can ONLY be assigned to the first 12 scenes (scene 1 to 12). For scenes beyond scene 12 (scene 13+), you MUST choose \"image\" or \"reuse\"."
+        )
+
         prompt = f"""
 You are an expert Production Planner AI. Your job is to take a sequence of enhanced scenes and determine how each scene should be produced (Image Generation, Video Generation, or Reuse).
 
@@ -20,7 +27,7 @@ ENHANCED SCENES JSON:
 
 Instructions:
 1. Iterate over every scene in the `scenes` array.
-2. Decide the `asset_type` strictly from: ["image", "video", "reuse"].
+{mode_instruction}
    - "video": For scenes with high movement, character action, or dynamic camera motion required.
    - "image": For static scenes, mood/establishing scenes, or when Ken Burns effect is sufficient.
    - "reuse": For repetitive background or stock scenes.
@@ -37,6 +44,7 @@ JSON SCHEMA:
   "total_estimated_duration": 25,
   "planner_notes": {{
     "strategy": "...",
+    "video_prompt_mode": "{"all" if is_all_mode else "basic"}",
     "error": false
   }},
   "production_items": [
@@ -80,15 +88,24 @@ JSON SCHEMA:
             result = json.loads(response_text)
             
             # Enforce constraints
-            for item in result.get("production_items", []):
+            for idx, item in enumerate(result.get("production_items", [])):
+                scene_num = idx + 1
+                scene_id = str(item.get("scene_id") or "")
+                if scene_id.startswith("scene") and scene_id[5:].isdigit():
+                    scene_num = int(scene_id[5:])
+
                 atype = item.get("asset_type")
+                if not is_all_mode and scene_num > 12 and atype == "video":
+                    item["asset_type"] = "image"
+                    atype = "image"
+
                 if atype not in self.DEFAULT_GENERATORS:
                     item["asset_type"] = "image"
                     atype = "image"
                 
                 # If generator is empty or missing, apply default
-                if not item.get("generator"):
-                    item["generator"] = self.DEFAULT_GENERATORS[atype]
+                if not item.get("generator") or (not is_all_mode and scene_num > 12 and item.get("generator") == "kling"):
+                    item["generator"] = self.DEFAULT_GENERATORS[item.get("asset_type", "image")]
                     
             return result
         except Exception as e:
@@ -99,6 +116,7 @@ JSON SCHEMA:
                 "total_estimated_duration": 0,
                 "planner_notes": {
                     "strategy": "Failed to generate plan",
+                    "video_prompt_mode": "all" if is_all_mode else "basic",
                     "error": True,
                     "error_message": str(e)
                 }

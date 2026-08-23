@@ -903,21 +903,38 @@ async def generate_character_image(
 @router.post("/api/image/generate-motion-from-image")
 async def generate_motion_from_image(
     project_id: int = Body(...),
-    scene_numbers: list = Body(...)   # 선택된 씬 번호 목록
+    scene_numbers: list = Body(...),   # 선택된 씬 번호 목록
+    mode: str = Body("basic")          # "basic" (기본모드: 최초 12씬) | "all" / "full" (전체모드: 전체 씬)
 ):
-    """생성된 이미지를 Gemini Vision으로 분석해 motion_desc 생성"""
+    """생성된 이미지를 Gemini Vision으로 분석해 motion_desc 생성 (기본모드: 1~12씬 / 전체모드: 전체 씬)"""
     try:
         scene_prompts = db.get_image_prompts(project_id)
         if not scene_prompts:
             return {"status": "error", "error": "프롬프트가 없습니다."}
 
-        targets = [
-            p for p in scene_prompts
-            if p.get('scene_number') in scene_numbers
-            and int(p.get('scene_number') or 0) <= MAX_VIDEO_PROMPT_SCENES
-        ]
+        settings = db.get_project_settings(project_id) or {}
+        effective_mode = (mode or settings.get("video_prompt_mode") or "basic").lower()
+
+        if effective_mode in ["all", "full"]:
+            targets = [
+                p for p in scene_prompts
+                if p.get('scene_number') in scene_numbers
+            ]
+        else:
+            targets = [
+                p for p in scene_prompts
+                if p.get('scene_number') in scene_numbers
+                and int(p.get('scene_number') or 0) <= MAX_VIDEO_PROMPT_SCENES
+            ]
+
         if not targets:
-            return {"status": "error", "error": f"영상 프롬프트는 Scene 1~{MAX_VIDEO_PROMPT_SCENES}까지만 생성합니다."}
+            if effective_mode in ["all", "full"]:
+                return {"status": "error", "error": "선택된 씬에 대한 프롬프트가 없습니다."}
+            else:
+                return {
+                    "status": "error",
+                    "error": f"기본 모드에서는 영상 프롬프트가 최초 1분(Scene 1~{MAX_VIDEO_PROMPT_SCENES})까지만 생성됩니다. 전체 씬 생성을 원하시면 전체 모드를 사용해주세요."
+                }
 
         results = []
         errors = []
@@ -985,13 +1002,17 @@ async def generate_flow_prompt_api(
     scene_text: str = Body(""),
     prompt_en: str = Body(""),
     style_key: str = Body(""),
+    mode: str = Body("basic"),         # "basic" (기본모드: 최초 12씬) | "all" / "full" (전체모드: 전체 씬)
 ):
-    """단일 씬의 flow_prompt를 5-Layer Cinematic Framework로 재생성"""
+    """단일 씬의 flow_prompt를 5-Layer Cinematic Framework로 재생성 (기본모드: 1~12씬 / 전체모드: 전체 씬)"""
     try:
-        if int(scene_number or 0) > MAX_VIDEO_PROMPT_SCENES:
+        settings = db.get_project_settings(project_id) or {}
+        effective_mode = (mode or settings.get("video_prompt_mode") or "basic").lower()
+
+        if effective_mode not in ["all", "full"] and int(scene_number or 0) > MAX_VIDEO_PROMPT_SCENES:
             return {
                 "status": "skipped",
-                "error": f"영상 프롬프트는 Scene 1~{MAX_VIDEO_PROMPT_SCENES}까지만 생성합니다.",
+                "error": f"기본 모드에서는 영상 프롬프트가 최초 1분(Scene 1~{MAX_VIDEO_PROMPT_SCENES})까지만 생성됩니다. 전체 생성을 원하시면 전체 모드를 선택하세요.",
             }
         result = await gemini_service.generate_flow_prompt(
             scene_text=scene_text,
@@ -1040,28 +1061,47 @@ async def generate_dual_prompts_api(
 @router.post("/api/image/bulk-generate-motion")
 async def bulk_generate_motion(
     project_id: int = Body(...),
-    max_scene: int = Body(5),        # 1~max_scene 씬까지 생성
-    scene_numbers: list = Body(None) # 특정 씬만 지정 시 (없으면 1~max_scene)
+    max_scene: int = Body(None),        # 1~max_scene 씬까지 생성
+    scene_numbers: list = Body(None),   # 특정 씬만 지정 시
+    mode: str = Body("basic")           # "basic" (기본모드: 최초 12씬) | "all" / "full" (전체모드: 전체 씬)
 ):
-    """씬 목록의 motion_desc(영상 모션 프롬프트)를 Gemini AI로 일괄 자동 생성"""
+    """씬 목록의 motion_desc(영상 모션 프롬프트)를 Gemini AI로 일괄 자동 생성 (기본모드: 1~12씬 / 전체모드: 전체 씬)"""
     try:
         scene_prompts = db.get_image_prompts(project_id)
         if not scene_prompts:
             return {"status": "error", "error": "프롬프트가 없습니다. 먼저 이미지 프롬프트를 생성해주세요."}
 
+        settings = db.get_project_settings(project_id) or {}
+        effective_mode = (mode or settings.get("video_prompt_mode") or "basic").lower()
+
         # 대상 씬 결정
-        capped_max_scene = min(int(max_scene or 0) or MAX_VIDEO_PROMPT_SCENES, MAX_VIDEO_PROMPT_SCENES)
-        if scene_numbers:
-            targets = [
-                p for p in scene_prompts
-                if p.get('scene_number') in scene_numbers
-                and int(p.get('scene_number') or 0) <= MAX_VIDEO_PROMPT_SCENES
-            ]
+        if effective_mode in ["all", "full"]:
+            if scene_numbers:
+                targets = [p for p in scene_prompts if p.get('scene_number') in scene_numbers]
+            elif max_scene:
+                targets = [p for p in scene_prompts if int(p.get('scene_number', 0) or 0) <= int(max_scene)]
+            else:
+                targets = scene_prompts
         else:
-            targets = [p for p in scene_prompts if int(p.get('scene_number', 0) or 0) <= capped_max_scene]
+            # 기본 모드: 최초 12씬까지만 대상
+            capped_max_scene = min(int(max_scene or 0) or MAX_VIDEO_PROMPT_SCENES, MAX_VIDEO_PROMPT_SCENES)
+            if scene_numbers:
+                targets = [
+                    p for p in scene_prompts
+                    if p.get('scene_number') in scene_numbers
+                    and int(p.get('scene_number') or 0) <= MAX_VIDEO_PROMPT_SCENES
+                ]
+            else:
+                targets = [p for p in scene_prompts if int(p.get('scene_number', 0) or 0) <= capped_max_scene]
 
         if not targets:
-            return {"status": "error", "error": f"영상 프롬프트는 Scene 1~{MAX_VIDEO_PROMPT_SCENES}까지만 생성합니다."}
+            if effective_mode in ["all", "full"]:
+                return {"status": "error", "error": "대상 씬이 없습니다."}
+            else:
+                return {
+                    "status": "error",
+                    "error": f"기본 모드에서는 영상 프롬프트가 최초 1분(Scene 1~{MAX_VIDEO_PROMPT_SCENES})까지만 생성됩니다. 전체 씬 생성을 원하시면 전체 모드를 사용해주세요."
+                }
 
         results = []
         errors = []

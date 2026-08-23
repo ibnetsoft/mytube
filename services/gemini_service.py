@@ -1600,8 +1600,8 @@ Motion prompt for this image:"""
             result = cut[:last_sep].rstrip(', ') if last_sep > 100 else cut
         return result
 
-    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None, model: str = None) -> List[dict]:
-        """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용)"""
+    async def generate_image_prompts_from_script(self, script: str, duration_seconds: int, style_prompt: str = None, characters: List[dict] = None, target_scene_count: int = None, style_key: str = None, gemini_instruction: str = None, reference_image_url: str = None, char_ethnicity: str = None, project_id: int = None, model: str = None, video_prompt_mode: str = "basic") -> List[dict]:
+        """대본을 분석하여 장면별 이미지 프롬프트 생성 (가변 페이싱 및 캐릭터 일관성 적용, 영상프롬프트 기본모드: 1~12씬 / 전체모드: 전체 씬)"""
 
         # target_scene_count가 전달된 경우 우선 사용 (씬 분석 결과)
         if target_scene_count and target_scene_count > 0:
@@ -1628,12 +1628,15 @@ Motion prompt for this image:"""
             num_scenes = max(3, int(num_scenes))
             print(f"[Gemini] Calculated scene count (5-Step Pacing) from {duration_seconds}s: {num_scenes}")
         
-        # [NEW] Get project aspect ratio
+        # [NEW] Get project aspect ratio and video prompt mode
         project_aspect_ratio = "16:9"
+        effective_video_mode = (video_prompt_mode or "basic").lower()
         if project_id:
             try:
                 settings = db.get_project_settings(project_id) or {}
                 project_aspect_ratio = settings.get('aspect_ratio', '16:9')
+                if not video_prompt_mode:
+                    effective_video_mode = (settings.get('video_prompt_mode') or 'basic').lower()
             except Exception: pass
         
         # 스타일 분류 — wimpy/졸라맨 키워드 기반
@@ -2078,11 +2081,26 @@ Motion prompt for this image:"""
                         cleaned = f"{cleaned}, {grounding_suffix}"
                     scene[field] = cleaned
 
+        # [VIDEO PROMPT MODE ENFORCEMENT]
+        # 기본모드(basic): 최초 1분, 12씬에 대해서만 영상프롬프트(flow_prompt, motion_desc) 유지. 13씬 이상은 비워둠.
+        # 전체모드(all/full): 전체 씬에 대해 영상프롬프트 유지.
+        if effective_video_mode not in ["all", "full"]:
+            for scene in scenes:
+                s_num = int(scene.get("scene_number") or 0)
+                if s_num > 12:
+                    scene["flow_prompt"] = ""
+                    scene["motion_desc"] = ""
+                    scene["video_prompt"] = ""
+
         # [FIX] target_scene_count가 지정된 경우 씬 분리 없이 그대로 반환
         if target_scene_count and target_scene_count > 0:
             for idx, scene in enumerate(scenes):
                 scene["scene_number"] = idx + 1
-            print(f"[Gemini] Returning {len(scenes)} scenes (target={target_scene_count})")
+                if effective_video_mode not in ["all", "full"] and (idx + 1) > 12:
+                    scene["flow_prompt"] = ""
+                    scene["motion_desc"] = ""
+                    scene["video_prompt"] = ""
+            print(f"[Gemini] Returning {len(scenes)} scenes (target={target_scene_count}, video_mode={effective_video_mode})")
             return scenes
         
         # [NEW] Hybrid Approach: Time-based correction
@@ -2137,8 +2155,12 @@ Motion prompt for this image:"""
 
         for idx, scene in enumerate(corrected_scenes):
             scene["scene_number"] = idx + 1
+            if effective_video_mode not in ["all", "full"] and (idx + 1) > 12:
+                scene["flow_prompt"] = ""
+                scene["motion_desc"] = ""
+                scene["video_prompt"] = ""
 
-        print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes")
+        print(f"[Hybrid] Original: {len(scenes)} scenes → Corrected: {len(corrected_scenes)} scenes (video_mode={effective_video_mode})")
         return corrected_scenes
 
     async def generate_dual_prompts_for_scene(self, project_id: int, scene: dict, characters: list) -> dict:
