@@ -126,7 +126,7 @@ def load_catalog() -> dict[str, Any]:
     if not path.exists():
         return {"version": 1, "items": []}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
         return {"version": 1, "items": []}
 

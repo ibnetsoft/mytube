@@ -18,11 +18,20 @@ from worker_config import SFX_CATALOG_PATH, SFX_LIBRARY_DIR  # noqa: E402
 MIXKIT_TAGS = {
     "whoosh": {"category": "transition", "default_volume_db": -16.0},
     "impact": {"category": "impact", "default_volume_db": -14.0},
+    "explosion": {"category": "impact", "default_volume_db": -14.0},
+    "suspense": {"category": "transition", "default_volume_db": -18.0},
+    "horror": {"category": "transition", "default_volume_db": -18.0},
     "door": {"category": "doors", "default_volume_db": -15.0},
     "rain": {"category": "ambience", "default_volume_db": -24.0},
+    "wind": {"category": "ambience", "default_volume_db": -24.0},
+    "fire": {"category": "ambience", "default_volume_db": -22.0},
+    "water": {"category": "ambience", "default_volume_db": -23.0},
+    "nature": {"category": "ambience", "default_volume_db": -24.0},
+    "city": {"category": "ambience", "default_volume_db": -23.0},
     "footsteps": {"category": "footsteps", "default_volume_db": -18.0},
     "glass": {"category": "glass", "default_volume_db": -13.0},
     "keyboard": {"category": "technology", "default_volume_db": -20.0},
+    "notification": {"category": "ui", "default_volume_db": -18.0},
     "pop": {"category": "ui", "default_volume_db": -18.0},
 }
 
