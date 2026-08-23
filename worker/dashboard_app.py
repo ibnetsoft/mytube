@@ -3163,14 +3163,16 @@ tr:hover { background: #161b22; }
               <div class="form-group">
                 <label>카테고리</label>
                 <select id="nlm-category">
-                  <option value="탈북사연">탈북사연</option>
-                  <option value="해외감동">해외감동</option>
-                  <option value="노후금융">노후금융</option>
-                  <option value="황혼19금">황혼19금</option>
-                  <option value="옛날이야기" selected>옛날이야기</option>
-                  <option value="한국사연">한국사연</option>
-                  <option value="무협">무협</option>
-                  <option value="경제">경제</option>
+                  <option value="옛날이야기" selected>옛날이야기 [KO]</option>
+                  <option value="경제">경제 [KO]</option>
+                  <option value="탈북사연">탈북사연 [KO]</option>
+                  <option value="한국사연">한국사연 [KO]</option>
+                  <option value="해외감동">해외감동 [KO]</option>
+                  <option value="무협">무협 [KO]</option>
+                  <option value="노후금융">노후금융 [KO]</option>
+                  <option value="황혼19금">황혼19금 [KO]</option>
+                  <option value="English Folktales">English Folktales [EN]</option>
+                  <option value="日本昔話">日本昔話 [JA]</option>
                 </select>
               </div>
               <div class="form-group">
@@ -3720,7 +3722,7 @@ tr:hover { background: #161b22; }
         <div class="card">
           <div class="card-title">&#x1F916; Hermes 자동 대본 생성기 (Autopilot)</div>
           <p style="color:#8b949e;margin-bottom:16px;font-size:13px;">
-            설정된 8가지 카테고리(탈북사연, 해외감동, 노후금융, 황혼19금, 옛날이야기, 한국사연, 무협, 경제)에 대해 
+            어드민(Supabase) 및 워커에 설정된 다국어 카테고리(한국어, 영어, 일본어 등)에 대해 
             유튜브 탐색 및 고성과 영상 분석 → 신규 주제 발굴 → 구조 기획 → 대본 생성을 자동으로 진행합니다.<br>
             생성된 대본 결과는 로컬 및 중앙 Supabase 서버(topics_queue)에 즉시 저장됩니다.
           </p>
@@ -3737,7 +3739,7 @@ tr:hover { background: #161b22; }
             <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
               <div>
                 <div class="name">오프라인 사전검증</div>
-                <div class="info">API 호출 없이 8개 카테고리 공통 게이트를 먼저 검사합니다.</div>
+                <div class="info">API 호출 없이 카테고리 공통 게이트를 먼저 검사합니다.</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center;">
                 <span id="auto-harness-badge" class="badge badge-starting">확인 전</span>
@@ -3761,7 +3763,7 @@ tr:hover { background: #161b22; }
               </table>
             </div>
             <div class="status-card">
-              <div class="name" id="auto-active-category-title">설정된 카테고리 (8개)</div>
+              <div class="name" id="auto-active-category-title">설정된 카테고리 (10개)</div>
               <div id="auto-active-category-badges" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
             </div>
           </div>
@@ -3814,7 +3816,15 @@ tr:hover { background: #161b22; }
             </div>
             
             <div class="status-card" style="padding:16px;background:rgba(255,255,255,0.01);">
-              <div class="name" style="margin-bottom:12px;">🎛️ 생성할 카테고리 필터</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+                <div class="name" style="margin-bottom:0;">🎛️ 생성할 카테고리 필터</div>
+                <div class="category-lang-tabs" style="display:flex;gap:4px;background:rgba(0,0,0,0.4);padding:3px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);">
+                  <button type="button" class="btn-lang-tab" data-lang="all" onclick="filterCategoryLangTab('all')" style="padding:3px 8px;font-size:11px;border:none;border-radius:4px;background:#1f6feb;color:#fff;cursor:pointer;">전체</button>
+                  <button type="button" class="btn-lang-tab" data-lang="ko" onclick="filterCategoryLangTab('ko')" style="padding:3px 8px;font-size:11px;border:none;border-radius:4px;background:transparent;color:#8b949e;cursor:pointer;">한국어 (KO)</button>
+                  <button type="button" class="btn-lang-tab" data-lang="en" onclick="filterCategoryLangTab('en')" style="padding:3px 8px;font-size:11px;border:none;border-radius:4px;background:transparent;color:#8b949e;cursor:pointer;">영어 (EN)</button>
+                  <button type="button" class="btn-lang-tab" data-lang="ja" onclick="filterCategoryLangTab('ja')" style="padding:3px 8px;font-size:11px;border:none;border-radius:4px;background:transparent;color:#8b949e;cursor:pointer;">일본어 (JA)</button>
+                </div>
+              </div>
               <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">체크한 카테고리만 자동 생성에 포함됩니다.</p>
               <div style="display:grid;grid-template-columns:1fr;gap:8px;" id="auto-categories-checkboxes">
                 <!-- Javascript will render checkboxes -->
@@ -6442,7 +6452,60 @@ const OFFLINE_HARNESS_REFRESH_MS = 5 * 60 * 1000;
 let refreshAllInFlight = false;
 let autopilotStatusInFlight = null;
 let renderingJobsPollInFlight = false;
-const ALL_CATEGORIES = ["탈북사연", "해외감동", "노후금융", "황혼19금", "옛날이야기", "한국사연", "무협", "경제"];
+const DEFAULT_CATEGORIES_DATA = [
+  { id: 2, name: "옛날이야기", language: "ko" },
+  { id: 3, name: "경제", language: "ko" },
+  { id: 4, name: "탈북사연", language: "ko" },
+  { id: 5, name: "한국사연", language: "ko" },
+  { id: 6, name: "해외감동", language: "ko" },
+  { id: 7, name: "무협", language: "ko" },
+  { id: 8, name: "노후금융", language: "ko" },
+  { id: 9, name: "황혼19금", language: "ko" },
+  { id: 12, name: "English Folktales", language: "en" },
+  { id: 13, name: "日本昔話", language: "ja" },
+];
+
+let ALL_CATEGORIES = DEFAULT_CATEGORIES_DATA.map(c => c.name);
+let CATEGORIES_META = DEFAULT_CATEGORIES_DATA.reduce((acc, c) => { acc[c.name] = c; return acc; }, {});
+let currentCategoryLangTab = 'all';
+let cachedActiveCategories = null;
+
+function updateCategoriesFromStatus(data) {
+  if (data?.all_categories && Array.isArray(data.all_categories) && data.all_categories.length > 0) {
+    ALL_CATEGORIES = data.all_categories;
+  }
+  if (data?.categories_meta && Array.isArray(data.categories_meta)) {
+    data.categories_meta.forEach(c => {
+      if (c && c.name) {
+        CATEGORIES_META[c.name] = c;
+      }
+    });
+  }
+}
+
+function getCategoryLang(cat) {
+  return String(CATEGORIES_META[cat]?.language || 'ko').toLowerCase();
+}
+
+function getCategoryLangBadge(lang) {
+  if (lang === 'en') return '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(56,139,253,0.2);color:#58a6ff;font-weight:700;margin-left:5px;border:1px solid rgba(56,139,253,0.4);">EN</span>';
+  if (lang === 'ja') return '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(210,168,255,0.2);color:#d2a8ff;font-weight:700;margin-left:5px;border:1px solid rgba(210,168,255,0.4);">JA</span>';
+  return '<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(63,185,80,0.2);color:#3fb950;font-weight:700;margin-left:5px;border:1px solid rgba(63,185,80,0.4);">KO</span>';
+}
+
+function filterCategoryLangTab(lang) {
+  currentCategoryLangTab = lang;
+  document.querySelectorAll('.btn-lang-tab').forEach(btn => {
+    const isTarget = btn.dataset.lang === lang;
+    btn.style.background = isTarget ? '#1f6feb' : 'transparent';
+    btn.style.color = isTarget ? '#fff' : '#8b949e';
+    if (isTarget) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+  const currentActive = getActiveCategoriesFromUI();
+  const currentDurations = getCategoryDurationSettingsFromUI();
+  renderCategoryCheckboxes(currentActive, currentDurations);
+}
 
 function toggleLimitInput() {
   const mode = document.getElementById('auto-setting-mode').value;
@@ -6453,20 +6516,41 @@ function renderCategoryCheckboxes(activeCats, durationMap) {
   const container = document.getElementById('auto-categories-checkboxes');
   if (!container) return;
   container.innerHTML = '';
+  
+  if (activeCats && Array.isArray(activeCats)) {
+    cachedActiveCategories = activeCats.slice();
+  }
+  const effectiveActive = cachedActiveCategories || ALL_CATEGORIES;
   const durations = durationMap && typeof durationMap === 'object' ? durationMap : {};
   
-  ALL_CATEGORIES.forEach((cat, index) => {
-    const isChecked = activeCats ? activeCats.includes(cat) : true;
+  const displayCategories = ALL_CATEGORIES.filter(cat => {
+    if (currentCategoryLangTab === 'all') return true;
+    return getCategoryLang(cat) === currentCategoryLangTab;
+  });
+
+  if (displayCategories.length === 0) {
+    const emptyEl = document.createElement('div');
+    emptyEl.style.cssText = 'color:#8b949e;font-size:12px;padding:12px;text-align:center;';
+    emptyEl.textContent = '해당 언어의 카테고리가 없습니다.';
+    container.appendChild(emptyEl);
+    return;
+  }
+  
+  displayCategories.forEach((cat, index) => {
+    const isChecked = effectiveActive.includes(cat);
     const savedSeconds = parseInt(durations[cat], 10);
     const durationMinutes = Number.isFinite(savedSeconds) && savedSeconds > 0 ? Math.max(5, Math.min(150, Math.round(savedSeconds / 60))) : 150;
+    const lang = getCategoryLang(cat);
     const row = document.createElement('div');
     row.className = 'auto-cat-row';
     row.dataset.category = cat;
-    row.style.cssText = 'display:grid;grid-template-columns:minmax(130px,1fr) 76px 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
+    row.dataset.lang = lang;
+    row.style.cssText = 'display:grid;grid-template-columns:minmax(140px,1fr) 76px 86px auto auto;gap:8px;align-items:center;font-size:12px;color:#c9d1d9;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);';
     row.innerHTML = `
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
-        <input type="checkbox" class="auto-cat-checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''} style="cursor:pointer;" />
+        <input type="checkbox" class="auto-cat-checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''} onchange="onCategoryCheckboxChange(this)" style="cursor:pointer;" />
         <span style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(cat)}</span>
+        ${getCategoryLangBadge(lang)}
       </label>
       <input type="number" class="auto-cat-duration-minutes" data-category="${escapeHtml(cat)}" value="${durationMinutes}" min="5" max="150" title="Target video length in minutes" style="width:76px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
       <input type="number" class="auto-cat-limit" id="auto-cat-limit-${index}" value="1" min="1" max="100" title="생성 수" style="width:86px;padding:7px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
@@ -6478,6 +6562,21 @@ function renderCategoryCheckboxes(activeCats, durationMap) {
     row.querySelector('.auto-cat-stop')?.addEventListener('click', () => stopCategoryAutopilot(cat));
   });
   updateCategoryRunControls(autopilotStatusSnapshot);
+}
+
+function onCategoryCheckboxChange(cb) {
+  const cat = cb.value;
+  if (!cachedActiveCategories) {
+    cachedActiveCategories = ALL_CATEGORIES.slice();
+  }
+  if (cb.checked) {
+    if (!cachedActiveCategories.includes(cat)) {
+      cachedActiveCategories.push(cat);
+    }
+  } else {
+    cachedActiveCategories = cachedActiveCategories.filter(c => c !== cat);
+  }
+  renderActiveCategoryBadges(cachedActiveCategories);
 }
 
 function parseBenchmarkChannelIds(value) {
@@ -6495,10 +6594,14 @@ function renderBenchmarkChannelSettings(savedMap) {
   container.innerHTML = '';
   ALL_CATEGORIES.forEach((cat, index) => {
     const ids = Array.isArray(map[cat]) ? map[cat] : parseBenchmarkChannelIds(map[cat]);
+    const lang = getCategoryLang(cat);
     const item = document.createElement('label');
     item.style.cssText = 'display:block;min-width:0;';
     item.innerHTML = `
-      <span style="display:block;font-size:12px;color:#c9d1d9;font-weight:700;margin-bottom:5px;">${escapeHtml(cat)}</span>
+      <span style="display:flex;align-items:center;gap:4px;font-size:12px;color:#c9d1d9;font-weight:700;margin-bottom:5px;">
+        <span>${escapeHtml(cat)}</span>
+        ${getCategoryLangBadge(lang)}
+      </span>
       <textarea
         id="auto-benchmark-channels-${index}"
         data-category="${escapeHtml(cat)}"
@@ -6553,11 +6656,25 @@ function renderActiveCategoryBadges(activeCats) {
   }
 
   categories.forEach(cat => {
+    const lang = getCategoryLang(cat);
     const badge = document.createElement('span');
     badge.className = 'badge badge-preparing';
-    badge.textContent = cat;
+    badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+    badge.innerHTML = `<span>${escapeHtml(cat)}</span><span style="font-size:9px;opacity:0.85;font-weight:700;">[${lang.toUpperCase()}]</span>`;
     container.appendChild(badge);
   });
+}
+
+function getActiveCategoriesFromUI() {
+  if (cachedActiveCategories && Array.isArray(cachedActiveCategories)) {
+    return cachedActiveCategories.slice();
+  }
+  const checkboxes = document.querySelectorAll('.auto-cat-checkbox');
+  const active = [];
+  checkboxes.forEach(cb => {
+    if (cb.checked) active.push(cb.value);
+  });
+  return active.length > 0 ? active : ALL_CATEGORIES.slice();
 }
 
 function getSettingsFromUI() {
@@ -6569,11 +6686,7 @@ function getSettingsFromUI() {
   const discoveryInterval = parseInt(document.getElementById('auto-setting-channel-interval')?.value) || 24;
   const discoverySearchCalls = parseInt(document.getElementById('auto-setting-channel-search-calls')?.value) || 0;
   
-  const checkboxes = document.querySelectorAll('.auto-cat-checkbox');
-  const active_categories = [];
-  checkboxes.forEach(cb => {
-    if (cb.checked) active_categories.push(cb.value);
-  });
+  const active_categories = getActiveCategoriesFromUI();
   
   return {
     mode,
@@ -6713,6 +6826,7 @@ async function loadAutopilotStatus() {
     const data = await api('GET', '/api/autopilot/hermes/status');
     if (!data) return;
     autopilotStatusSnapshot = data;
+    updateCategoriesFromStatus(data);
     
     const isRunning = data.is_running;
     const lastRunStatus = String(data.last_run_status || '').toLowerCase();

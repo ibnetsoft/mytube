@@ -5,14 +5,16 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 export const dynamic = 'force-dynamic'
 
 export const STD_OFFICIAL_CATEGORIES = [
-    { id: 2, name: '옛날이야기' },
-    { id: 3, name: '경제' },
-    { id: 4, name: '탈북사연' },
-    { id: 5, name: '한국사연' },
-    { id: 6, name: '해외감동' },
-    { id: 7, name: '무협' },
-    { id: 8, name: '노후금융' },
-    { id: 9, name: '황혼19금' },
+    { id: 2, name: '옛날이야기', language: 'ko' },
+    { id: 3, name: '경제', language: 'ko' },
+    { id: 4, name: '탈북사연', language: 'ko' },
+    { id: 5, name: '한국사연', language: 'ko' },
+    { id: 6, name: '해외감동', language: 'ko' },
+    { id: 7, name: '무협', language: 'ko' },
+    { id: 8, name: '노후금융', language: 'ko' },
+    { id: 9, name: '황혼19금', language: 'ko' },
+    { id: 12, name: 'English Folktales', language: 'en' },
+    { id: 13, name: '日本昔話', language: 'ja' },
 ]
 
 export async function POST(req: Request) {

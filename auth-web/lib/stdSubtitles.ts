@@ -51,6 +51,21 @@ export function cleanKoreanScriptLine(text: string): string {
     return cleaned.replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * 롱폼 씬별 표준 런닝타임 (초) 규칙 (PACING_PHASES 규격)
+ * - 1~12씬 (0~1분, Hook 훅 구간): 5.0초 고정 (12개 씬 × 5s = 60s)
+ * - 13~28씬 (1~5분, Development 전개 구간): 15.0초 고정 (16개 씬 × 15s = 240s)
+ * - 29~43씬 (5~10분, Explanation/Conflict 심화 구간): 20.0초 고정 (15개 씬 × 20s = 300s)
+ * - 44~53씬 (10~15분+, Climax/Ending 결말 구간): 30.0초 고정 (10개 씬 × 30s = 300s)
+ * (총 53개 씬 = 900초 = 정확히 15분 완성)
+ */
+export function getStandardSceneDuration(sceneNumber: number): number {
+    if (sceneNumber <= 12) return 5.0
+    if (sceneNumber <= 28) return 15.0
+    if (sceneNumber <= 43) return 20.0
+    return 30.0
+}
+
 // 2. 전체 53개 씬의 타임코드 경계선(Scene Timings) 계산
 export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
     const totalScenes = Math.max(53, scenes.length || 53)
@@ -58,18 +73,12 @@ export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
     let currentTime = 0.0
 
     for (let i = 1; i <= totalScenes; i++) {
-        let duration = 5.0
         const isHook = i <= 12
-
-        if (isHook) {
-            // 씬 1~12: 초반 1분 훅 구간 (정확히 5.0초 고정)
-            duration = 5.0
-        } else {
-            // 씬 13~53: 대본 글자수에 비례한 동적 런닝타임 (6.0s ~ 15.0s)
-            const sceneData = scenes[i - 1] || {}
-            const text = cleanKoreanScriptLine(sceneData.script_excerpt || sceneData.scene_text || sceneData.prompt_ko || '')
-            const charCount = text.replace(/\s/g, '').length || 30
-            duration = Math.max(6.0, Math.min(15.0, Math.round((charCount * 0.22 + 1.2) * 10) / 10))
+        const sceneData = scenes[i - 1] || {}
+        
+        let duration = getStandardSceneDuration(i)
+        if (typeof sceneData.target_duration === 'number' && sceneData.target_duration > 0) {
+            duration = sceneData.target_duration
         }
 
         const start = Math.round(currentTime * 10) / 10
@@ -122,7 +131,7 @@ export function splitTextToSingleLineChunks(text: string, maxChars: number = 18)
     return chunks
 }
 
-// 4. 전체 대본을 53개 씬에 맞게 균등/지능형으로 분할 매핑하는 유틸리티
+// 4. 전체 대본을 씬별 지속시간(5s, 15s, 20s, 30s)에 비례하여 지능형으로 분할 매핑하는 유틸리티
 export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCount: number = 53): string[] {
     if (!rawScriptText || !rawScriptText.trim()) {
         return Array.from({ length: totalScenesCount }, (_, i) => `씬 ${i + 1} 나레이션`)
@@ -145,38 +154,65 @@ export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCoun
     const sentences = fullText.match(/[^.!?]+[.!?]+/g) || fullText.split('\n')
     const cleanedSentences = sentences.map(s => s.trim()).filter(s => s.length > 0)
 
+    const durations = Array.from({ length: totalScenesCount }, (_, i) => getStandardSceneDuration(i + 1))
+
     if (cleanedSentences.length >= totalScenesCount) {
-        const sentencesPerScene = Math.max(1, Math.floor(cleanedSentences.length / totalScenesCount))
         const result: string[] = []
-        let curIdx = 0
+        let sentCursor = 0
+        const totalSents = cleanedSentences.length
+
         for (let i = 0; i < totalScenesCount; i++) {
             if (i === totalScenesCount - 1) {
-                result.push(cleanedSentences.slice(curIdx).join(' '))
-            } else {
-                result.push(cleanedSentences.slice(curIdx, curIdx + sentencesPerScene).join(' '))
-                curIdx += sentencesPerScene
+                result.push(cleanedSentences.slice(sentCursor).join(' ').trim())
+                break
             }
+
+            const remainingScenes = totalScenesCount - i
+            const remainingSents = totalSents - sentCursor
+            const remainingDuration = durations.slice(i).reduce((a, b) => a + b, 0)
+            const weight = durations[i] / (remainingDuration || 1)
+
+            const allocatedSents = Math.max(
+                1,
+                Math.min(remainingSents - (remainingScenes - 1), Math.round(remainingSents * weight))
+            )
+
+            const chunk = cleanedSentences.slice(sentCursor, sentCursor + allocatedSents)
+            result.push(chunk.join(' ').trim())
+            sentCursor += allocatedSents
         }
         return result
     }
 
-    // 문장 수가 53개보다 적으면 글자수 기준으로 53개 블록으로 분할
+    // 문장 수가 씬 수보다 적으면 글자수를 씬 지속시간 비율에 맞춰 분할
     const totalChars = fullText.length
-    const charsPerScene = Math.max(15, Math.floor(totalChars / totalScenesCount))
     const result: string[] = []
-    let offset = 0
+    let charCursor = 0
+
     for (let i = 0; i < totalScenesCount; i++) {
         if (i === totalScenesCount - 1) {
-            result.push(fullText.slice(offset).trim())
-        } else {
-            let nextOffset = offset + charsPerScene
-            const spaceIdx = fullText.indexOf(' ', nextOffset - 5)
-            if (spaceIdx !== -1 && spaceIdx < nextOffset + 15) {
-                nextOffset = spaceIdx + 1
-            }
-            result.push(fullText.slice(offset, nextOffset).trim())
-            offset = nextOffset
+            result.push(fullText.slice(charCursor).trim())
+            break
         }
+
+        const remainingScenes = totalScenesCount - i
+        const remainingChars = totalChars - charCursor
+        const remainingDuration = durations.slice(i).reduce((a, b) => a + b, 0)
+        const weight = durations[i] / (remainingDuration || 1)
+
+        const allocatedChars = Math.max(
+            15,
+            Math.min(remainingChars - (remainingScenes - 1) * 15, Math.round(remainingChars * weight))
+        )
+
+        let nextCursor = charCursor + allocatedChars
+        const spaceIdx = fullText.indexOf(' ', nextCursor - 6)
+        if (spaceIdx !== -1 && spaceIdx < nextCursor + 12) {
+            nextCursor = spaceIdx + 1
+        }
+
+        result.push(fullText.slice(charCursor, nextCursor).trim())
+        charCursor = nextCursor
     }
     return result
 }
@@ -206,7 +242,7 @@ export function generateSynchronizedSubtitles(
 
         const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)
         const chunkCount = Math.max(1, chunks.length)
-        const sceneDuration = timing.duration || 5.0
+        const sceneDuration = timing.duration || getStandardSceneDuration(sNum)
         const chunkDuration = Math.round((sceneDuration / chunkCount) * 10) / 10
 
         chunks.forEach((chunkText, cIdx) => {

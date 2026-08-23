@@ -1,14 +1,16 @@
 'use client'
 
 const STD_OFFICIAL_CATEGORIES = [
-    { id: 2, name: '옛날이야기', key: 'cat_folktales' },
-    { id: 3, name: '경제', key: 'cat_economy' },
-    { id: 4, name: '탈북사연', key: 'cat_defector' },
-    { id: 5, name: '한국사연', key: 'cat_korean_stories' },
-    { id: 6, name: '해외감동', key: 'cat_overseas_touching' },
-    { id: 7, name: '무협', key: 'cat_wuxia' },
-    { id: 8, name: '노후금융', key: 'cat_retirement_finance' },
-    { id: 9, name: '황혼19금', key: 'cat_twilight19' },
+    { id: 2, name: '옛날이야기', key: 'cat_folktales', language: 'ko' },
+    { id: 3, name: '경제', key: 'cat_economy', language: 'ko' },
+    { id: 4, name: '탈북사연', key: 'cat_defector', language: 'ko' },
+    { id: 5, name: '한국사연', key: 'cat_korean_stories', language: 'ko' },
+    { id: 6, name: '해외감동', key: 'cat_overseas_touching', language: 'ko' },
+    { id: 7, name: '무협', key: 'cat_wuxia', language: 'ko' },
+    { id: 8, name: '노후금융', key: 'cat_retirement_finance', language: 'ko' },
+    { id: 9, name: '황혼19금', key: 'cat_twilight19', language: 'ko' },
+    { id: 12, name: 'English Folktales', key: 'cat_english_folktales', language: 'en' },
+    { id: 13, name: '日本昔話', key: 'cat_japanese_folktales', language: 'ja' },
 ]
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -504,7 +506,7 @@ export default function StdPortalPage() {
     const [forgotModalOpen, setForgotModalOpen] = useState(false)
     const [forgotEmail, setForgotEmail] = useState('')
     const [forgotMsg, setForgotMsg] = useState('')
-    const [signupCategories, setSignupCategories] = useState<string[]>(['옛날이야기', '경제', '탈북사연', '한국사연', '해외감동', '무협', '노후금융', '황혼19금'])
+    const [signupCategories, setSignupCategories] = useState<string[]>(STD_OFFICIAL_CATEGORIES.map(c => c.name))
     const [emailVerified, setEmailVerified] = useState(false)
     const [verifyCodeSent, setVerifyCodeSent] = useState(false)
     const [verifyCodeInput, setVerifyCodeInput] = useState('')
@@ -866,7 +868,7 @@ export default function StdPortalPage() {
         setLocalSubtitles(updatedSubs)
         localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
         if (showSuccessAlert) {
-            alert('✅ 전체 대본 내용이 53개 씬 및 자막과 100% 완벽하게 일치 동기화되었습니다!')
+            alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) 표준 페이싱으로 53개 씬과 자막이 완벽 동기화되었습니다!')
         }
     }
 
@@ -4201,7 +4203,7 @@ export default function StdPortalPage() {
                                                 )
                                                 setLocalSubtitles(subs)
                                                 setSelectedSubIndex(0)
-                                                alert('초반 1분 12개 비디오 훅(5초) + 13~53씬 동적 배분 규칙으로 자막 싱크가 초기화되었습니다.')
+                                                alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
                                             }}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >

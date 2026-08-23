@@ -54,16 +54,20 @@ TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS = {
     "script_quality_report",
 }
 
-CATEGORIES = [
-    "탈북사연",
-    "해외감동",
-    "노후금융",
-    "황혼19금",
-    "옛날이야기",
-    "한국사연",
-    "무협",
-    "경제"
+DEFAULT_OFFICIAL_CATEGORIES = [
+    {"id": 2, "name": "옛날이야기", "language": "ko", "keywords": "조선 야사, 구전동화, 한국 전설", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 3, "name": "경제", "language": "ko", "keywords": "재테크, 주식, 부동산, 거시경제", "default_script_style": "news", "default_image_style": "cinematic"},
+    {"id": 4, "name": "탈북사연", "language": "ko", "keywords": "탈북, 북한 실상, 정착 실화", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 5, "name": "한국사연", "language": "ko", "keywords": "국내 사연, 시청자 제보, 부부 갈등", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 6, "name": "해외감동", "language": "ko", "keywords": "해외 미담, 감동 실화, 기적", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 7, "name": "무협", "language": "ko", "keywords": "무협 소설, 강호, 낭인, 동양풍", "default_script_style": "mystery_thriller", "default_image_style": "cinematic"},
+    {"id": 8, "name": "노후금융", "language": "ko", "keywords": "연금, 노후 준비, 자산 관리", "default_script_style": "news", "default_image_style": "realistic"},
+    {"id": 9, "name": "황혼19금", "language": "ko", "keywords": "황혼 로맨스, 시니어 부부, 남녀 심리", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 12, "name": "English Folktales", "language": "en", "keywords": "ancient folklore, folktales, classic bedtime stories, fairy tales, mythology storytelling, historical narration", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 13, "name": "日本昔話", "language": "ja", "keywords": "江戸時代 昔話,民話,日本の民話,歴史物語 朗読,怖い話,神話伝説", "default_script_style": "story", "default_image_style": "realistic"},
 ]
+
+CATEGORIES = [item["name"] for item in DEFAULT_OFFICIAL_CATEGORIES]
 
 MIN_CATEGORY_TARGET_DURATION_SECONDS = 5 * 60
 DEFAULT_CATEGORY_TARGET_DURATION_SECONDS = 150 * 60
@@ -340,6 +344,41 @@ class HermesAutopilotManager:
                 merged.append(cat_name)
         return merged
 
+    def get_all_categories_metadata(self) -> list[dict]:
+        meta_by_name = {c["name"]: dict(c) for c in DEFAULT_OFFICIAL_CATEGORIES}
+        for name, remote in self.remote_categories.items():
+            if name in meta_by_name:
+                meta_by_name[name].update(remote)
+            else:
+                meta_by_name[name] = remote
+        return list(meta_by_name.values())
+
+    def _get_category_language(self, category: str) -> str:
+        meta = self.remote_categories.get(category)
+        if meta and meta.get("language"):
+            return str(meta["language"]).strip().lower()
+        for item in DEFAULT_OFFICIAL_CATEGORIES:
+            if item["name"] == category:
+                return str(item.get("language") or "ko").strip().lower()
+        return "ko"
+
+    def _sync_remote_categories_sync(self) -> list[str]:
+        try:
+            from services.web_admin_client import web_admin_client
+            if not web_admin_client.has_supabase():
+                return self.get_all_categories()
+            rows = web_admin_client.fetch_categories("id,name,keywords,benchmark_channel_url,assigned_employee_email,default_script_style,default_image_style,language")
+            if rows:
+                new_remote = {}
+                for row in rows:
+                    name = str(row.get("name") or "").strip()
+                    if name:
+                        new_remote[name] = row
+                self.remote_categories = new_remote
+        except Exception as e:
+            logger.warning(f"카테고리 동기화 실패(동기): {e}")
+        return self.get_all_categories()
+
     async def _sync_remote_categories(self) -> list[str]:
         from services.web_admin_client import web_admin_client
         supabase_url = self.settings.get("supabase_url") or web_admin_client.supabase_url
@@ -483,7 +522,7 @@ class HermesAutopilotManager:
         if not isinstance(value, dict):
             return {}
         normalized = {}
-        for category in CATEGORIES:
+        for category in self.get_all_categories():
             raw = value.get(category)
             if isinstance(raw, str):
                 parts = re.split(r"[\s,;]+", raw)
@@ -503,7 +542,7 @@ class HermesAutopilotManager:
         if not isinstance(value, dict):
             return {}
         normalized = {}
-        for category in CATEGORIES:
+        for category in self.get_all_categories():
             try:
                 timestamp = float(value.get(category) or 0)
             except (TypeError, ValueError):
@@ -516,7 +555,7 @@ class HermesAutopilotManager:
         normalized = DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.copy()
         if not isinstance(value, dict):
             return normalized
-        for category in CATEGORIES:
+        for category in self.get_all_categories():
             try:
                 seconds = int(value.get(category) or 0)
             except (TypeError, ValueError):
@@ -1227,6 +1266,8 @@ class HermesAutopilotManager:
         raise RuntimeError("Supabase completed topic insert failed after legacy-column fallback")
 
     def get_status(self) -> dict:
+        if not self.remote_categories:
+            self._sync_remote_categories_sync()
         self._apply_settings()
         self._apply_external_running_state()
         self._apply_external_terminal_state()
@@ -1246,7 +1287,9 @@ class HermesAutopilotManager:
             "last_completed_result_id": self.last_completed_result_id,
             "logs": self.logs,
             "settings": self.settings,
-            "session_stats": self.session_stats
+            "session_stats": self.session_stats,
+            "all_categories": self.get_all_categories(),
+            "categories_meta": self.get_all_categories_metadata(),
         }
 
     def _target_limit_reached(self) -> bool:
@@ -2695,12 +2738,13 @@ Return ONLY a JSON array of strings.
                 f"⚠️ {category} 벤치마크 채널 풀을 확보하지 못했습니다. "
                 "YouTube 검색 쿼터/키 상태를 확인해야 합니다."
             )
+        category_language = self._get_category_language(category)
         benchmark_job_id = job_store.submit_job(
             job_type="topic_benchmark_analyze",
             payload={
                 "keyword": category,
                 "category": category,
-                "language": "ko",
+                "language": category_language,
                 "video_type": "longform",
                 "max_candidates": 3,
                 "search_pool_size": 20,
@@ -2833,7 +2877,7 @@ Return ONLY a JSON array of strings.
                     row_data = {
                         "topic": generated_title,
                         "assigned_employee_email": "hermes_worker@local",
-                        "language": "ko",
+                        "language": category_language,
                         "status": "pending",
                         "is_auto_generated": True,
                         "pregenerated_structure_status": "queued",
@@ -2912,7 +2956,7 @@ Return ONLY a JSON array of strings.
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
-                "language": "ko",
+                "language": category_language,
                 "benchmark_analysis": {**(best_candidate.get("analysis") or best_candidate), "web_research": research_bundle},
                 "upload_title": generated_title,
                 "title_generation": title_plan,
@@ -2971,7 +3015,7 @@ Return ONLY a JSON array of strings.
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
-                "language": "ko",
+                "language": category_language,
                 "narration_mode": "dramatic_single",
                 "upload_title": generated_title,
                 "title_generation": title_plan,
@@ -3024,7 +3068,7 @@ Return ONLY a JSON array of strings.
                 "script_quality_report": script_quality_report or {},
                 "sfx_cues": sfx_cues,
                 "sfx_cues_json": sfx_cues_json,
-                "language": "ko",
+                "language": category_language,
                 "defer_ready_until_quality_gate": True,
                 "quality_feedback": getattr(self, "_quality_feedback", []),
             },
@@ -3108,7 +3152,7 @@ Return ONLY a JSON array of strings.
                     insert_payload = {
                         **completed_topic_payload,
                         "assigned_employee_email": "hermes_worker@local",
-                        "language": "ko",
+                        "language": category_language,
                         "is_auto_generated": True,
                         "assigned_script_style": category_script_style,
                         "assigned_image_style": assigned_image_style,
