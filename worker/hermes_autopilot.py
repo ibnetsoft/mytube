@@ -140,6 +140,7 @@ class HermesAutopilotManager:
         self.session_stats = {
             "generated_count": 0
         }
+        self.remote_categories: dict[str, dict] = {}
         
         self.initialized = True
         self._load_state()
@@ -330,10 +331,54 @@ class HermesAutopilotManager:
         self.session_stats["generated_count"] = max(1, int(self.session_stats.get("generated_count") or 0))
         self._save_state()
 
+
+    def get_all_categories(self) -> list[str]:
+        merged = []
+        for cat in list(self.remote_categories.keys()) + CATEGORIES:
+            cat_name = str(cat or "").strip()
+            if cat_name and cat_name not in merged:
+                merged.append(cat_name)
+        return merged
+
+    async def _sync_remote_categories(self) -> list[str]:
+        from services.web_admin_client import web_admin_client
+        supabase_url = self.settings.get("supabase_url") or web_admin_client.supabase_url
+        supabase_key = self.settings.get("supabase_key") or web_admin_client.supabase_key
+        if not supabase_url or not supabase_key:
+            return self.get_all_categories()
+        
+        headers = {
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": "application/json"
+        }
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get(
+                    f"{supabase_url}/rest/v1/categories?select=id,name,keywords,benchmark_channel_url,assigned_employee_email,default_script_style,default_image_style,language",
+                    headers=headers
+                )
+                if r.status_code == 200:
+                    rows = r.json()
+                    new_remote = {}
+                    for row in rows:
+                        name = str(row.get("name") or "").strip()
+                        if name:
+                            new_remote[name] = row
+                    prev_count = len(self.remote_categories)
+                    self.remote_categories = new_remote
+                    if len(new_remote) != prev_count or not getattr(self, "_initial_cat_synced", False):
+                        self._initial_cat_synced = True
+                        self.add_log(f"Supabase 카테고리 동기화: {len(new_remote)}개 카테고리 로드됨 ({', '.join(list(new_remote.keys())[:5])}...)")
+        except Exception as e:
+            logger.warning(f"카테고리 원격 동기화 실패: {e}")
+        return self.get_all_categories()
+
     def _normalize_active_categories(self, value) -> list[str]:
+        all_cats = self.get_all_categories()
         if not isinstance(value, list):
-            return CATEGORIES.copy()
-        valid = set(CATEGORIES)
+            return all_cats.copy()
+        valid = set(all_cats)
         normalized = []
         for item in value:
             category = str(item or "").strip()
@@ -354,8 +399,9 @@ class HermesAutopilotManager:
         current = dict(self.settings.get("category_image_style_overrides") or {})
         if not isinstance(value, dict) or not value:
             return current
+        all_cats = set(self.get_all_categories())
         for cat, style in value.items():
-            if cat not in CATEGORIES:
+            if cat not in all_cats:
                 continue
             style_str = str(style or "").strip().lower()
             if style_str:
@@ -2417,6 +2463,11 @@ Return ONLY a JSON array of strings.
                 if self._target_limit_reached():
                     self.add_log("Target limit already reached. Autopilot stopped.")
                     break
+
+                try:
+                    await self._sync_remote_categories()
+                except Exception as sync_e:
+                    logger.warning(f"Category sync failed in loop: {sync_e}")
 
                 active_cats = self._normalize_active_categories(
                     self.settings.get("active_categories", CATEGORIES)

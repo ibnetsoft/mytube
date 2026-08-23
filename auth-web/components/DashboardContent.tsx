@@ -426,7 +426,7 @@ export default function DashboardContent() {
     const canManageSystemSettings = isSuperAdmin;
     const canManageStyles = isSuperAdmin;
     const canManageRenderQueue = isSuperAdmin;
-    const canManageTopics = isSuperAdmin;
+    const canManageTopics = isAdmin;
     const canManageSensitiveUserSettings = isSuperAdmin;
     const ui = useMemo(() => {
         if (language === 'th') {
@@ -3118,7 +3118,7 @@ export default function DashboardContent() {
                                 👤 부관리자는 카테고리/주제 조회만 가능합니다. 생성·삭제·자동배정은 최고 관리자만 실행할 수 있습니다.
                             </div>
                         )}
-                        {false && canManageTopics && (
+                        {canManageTopics && (
                         <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
                             <h2 className="font-black text-xl tracking-tight mb-6 flex items-center gap-2">
                                 카테고리 및 직원 매핑 추가

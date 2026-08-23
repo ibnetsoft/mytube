@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
+import { isAuthResponse, requireAdmin, SUPER_ADMIN_EMAIL } from '../_auth'
 import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
 
 const CATEGORIES_CACHE_KEY = 'admin:categories'
@@ -73,9 +73,10 @@ export async function GET(req: Request) {
     }
 }
 
+// POST: 카테고리 생성
 export async function POST(req: Request) {
     try {
-        const requester = await requireSuperAdmin(req)
+        const requester = await requireAdmin(req)
         if (isAuthResponse(requester)) return requester
 
         const {
@@ -84,7 +85,7 @@ export async function POST(req: Request) {
             benchmark_channel_url,
             assigned_employee_email,
             default_script_style,
-            video_type,
+            default_image_style,
             upload_channel_id,
             upload_channel_name,
             upload_channel_handle,
@@ -97,15 +98,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 })
         }
 
+        const fallbackEmail = requester.user?.email || SUPER_ADMIN_EMAIL || 'ejsh0519@naver.com'
+        const effectiveEmail = assigned_employee_email || fallbackEmail
+
         const supabase = getAdmin()
 
-        const categoryPayload = {
+        const categoryPayload: any = {
             name,
             keywords: keywords || '',
             benchmark_channel_url: benchmark_channel_url || '',
-            assigned_employee_email: assigned_employee_email || null,
+            assigned_employee_email: effectiveEmail,
             default_script_style: default_script_style || 'default',
-            video_type: video_type || 'longform',
+            default_image_style: default_image_style || 'realistic',
             upload_channel_id: upload_channel_id || null,
             upload_channel_name: upload_channel_name || '',
             upload_channel_handle: upload_channel_handle || '',
@@ -118,10 +122,10 @@ export async function POST(req: Request) {
             .select()
 
         if (isMissingColumnError(error)) {
-            const { language: _language, ...fallbackPayload } = categoryPayload
+            const { language: _lang, upload_channel_id: _ucid, upload_channel_name: _ucname, upload_channel_handle: _uchandle, ...minimalPayload } = categoryPayload
             const retry = await supabase
                 .from('categories')
-                .insert([fallbackPayload])
+                .insert([minimalPayload])
                 .select()
             data = retry.data
             error = retry.error
@@ -133,45 +137,44 @@ export async function POST(req: Request) {
 
         const shouldSeedSampleTopics = Boolean(seed_sample_topics)
         if (shouldSeedSampleTopics) {
+            const categoryId = createdCategory.id
+            const fallbackKeyword = keywords || (categoryLanguage === 'en' ? 'latest trends' : categoryLanguage === 'ja' ? '最新トレンド' : '최신 트렌드')
+            const sampleTopics = categoryLanguage === 'en'
+                ? [
+                    `[${name}] First recommended topic about ${fallbackKeyword}`,
+                    `[${name}] Second recommended topic about ${fallbackKeyword}`,
+                    `[${name}] Core target analysis based on benchmark channels`
+                ]
+                : categoryLanguage === 'ja'
+                ? [
+                    `[${name}] ${fallbackKeyword}に関するおすすめトピック 1`,
+                    `[${name}] ${fallbackKeyword}に関するおすすめトピック 2`,
+                    `[${name}] ベンチマークチャンネル分析に基づく主要ターゲット分析`
+                ]
+                : [
+                    `[${name}] ${fallbackKeyword} 관련 첫 번째 추천 주제`,
+                    `[${name}] ${fallbackKeyword} 관련 두 번째 추천 주제`,
+                    `[${name}] 벤치마킹 채널 분석 기반 핵심 타겟 분석`
+                ]
+            
+            const queueInserts = sampleTopics.map(topic => ({
+                category_id: categoryId,
+                topic,
+                assigned_employee_email: effectiveEmail,
+                assigned_script_style: default_script_style || 'default',
+                language: categoryLanguage,
+                status: 'pending'
+            }))
 
-        // 카테고리 생성 성공 시 임시 트리거: AI 주제 생성을 모방하여 큐에 즉시 샘플 주제 3개 적재 (또는 배치 스케줄러가 나중에 채움)
-        // 일단 UI 연동 및 빠른 테스트를 위해 카테고리 추가 시 기본 샘플 주제 3개를 큐에 넣어둡니다.
-        const categoryId = createdCategory.id
-        const fallbackKeyword = keywords || (categoryLanguage === 'en' ? 'latest trends' : categoryLanguage === 'ja' ? '最新トレンド' : '최신 트렌드')
-        const sampleTopics = categoryLanguage === 'en'
-            ? [
-                `[${name}] First recommended topic about ${fallbackKeyword}`,
-                `[${name}] Second recommended topic about ${fallbackKeyword}`,
-                `[${name}] Core target analysis based on benchmark channels`
-            ]
-            : categoryLanguage === 'ja'
-            ? [
-                `[${name}] ${fallbackKeyword}に関するおすすめトピック 1`,
-                `[${name}] ${fallbackKeyword}に関するおすすめトピック 2`,
-                `[${name}] ベンチマークチャンネル分析に基づく主要ターゲット分析`
-            ]
-            : [
-                `[${name}] ${fallbackKeyword} 관련 첫 번째 추천 주제`,
-                `[${name}] ${fallbackKeyword} 관련 두 번째 추천 주제`,
-                `[${name}] 벤치마킹 채널 분석 기반 핵심 타겟 분석`
-            ]
-        
-        const queueInserts = sampleTopics.map(topic => ({
-            category_id: categoryId,
-            topic,
-            assigned_employee_email: assigned_employee_email || null,
-            assigned_script_style: default_script_style || 'default',
-            language: categoryLanguage,
-            status: 'pending'
-        }))
-
-        let { error: queueInsertError } = await supabase.from('topics_queue').insert(queueInserts)
-        if (isMissingColumnError(queueInsertError)) {
-            const fallbackInserts = queueInserts.map(({ assigned_script_style, language: _language, ...rest }) => rest)
-            const retry = await supabase.from('topics_queue').insert(fallbackInserts)
-            queueInsertError = retry.error
-        }
-        if (queueInsertError) throw queueInsertError
+            try {
+                let { error: queueInsertError } = await supabase.from('topics_queue').insert(queueInserts)
+                if (isMissingColumnError(queueInsertError)) {
+                    const fallbackInserts = queueInserts.map(({ assigned_script_style, language: _language, ...rest }) => rest)
+                    await supabase.from('topics_queue').insert(fallbackInserts)
+                }
+            } catch (qErr) {
+                console.warn('Failed to seed sample topics:', qErr)
+            }
         }
 
         await deleteServerCache(CATEGORIES_CACHE_KEY)
@@ -185,7 +188,7 @@ export async function POST(req: Request) {
 // DELETE: 카테고리 삭제
 export async function DELETE(req: Request) {
     try {
-        const requester = await requireSuperAdmin(req)
+        const requester = await requireAdmin(req)
         if (isAuthResponse(requester)) return requester
 
         const { searchParams } = new URL(req.url)
@@ -211,7 +214,7 @@ export async function DELETE(req: Request) {
 // PUT: 카테고리 수정
 export async function PUT(req: Request) {
     try {
-        const requester = await requireSuperAdmin(req)
+        const requester = await requireAdmin(req)
         if (isAuthResponse(requester)) return requester
 
         const body = await req.json()
@@ -222,7 +225,7 @@ export async function PUT(req: Request) {
             benchmark_channel_url,
             assigned_employee_email,
             default_script_style,
-            video_type,
+            default_image_style,
             upload_channel_id,
             upload_channel_name,
             upload_channel_handle,
@@ -240,9 +243,11 @@ export async function PUT(req: Request) {
         if (name !== undefined) updateData.name = name
         if (keywords !== undefined) updateData.keywords = keywords
         if (benchmark_channel_url !== undefined) updateData.benchmark_channel_url = benchmark_channel_url
-        if (assigned_employee_email !== undefined) updateData.assigned_employee_email = assigned_employee_email || null
+        if (assigned_employee_email !== undefined && assigned_employee_email !== null) {
+            updateData.assigned_employee_email = assigned_employee_email
+        }
         if (default_script_style !== undefined) updateData.default_script_style = default_script_style
-        if (video_type !== undefined) updateData.video_type = video_type
+        if (default_image_style !== undefined) updateData.default_image_style = default_image_style
         if (upload_channel_id !== undefined) updateData.upload_channel_id = upload_channel_id || null
         if (upload_channel_name !== undefined) updateData.upload_channel_name = upload_channel_name || ''
         if (upload_channel_handle !== undefined) updateData.upload_channel_handle = upload_channel_handle || ''
@@ -254,8 +259,8 @@ export async function PUT(req: Request) {
             .eq('id', id)
             .select()
 
-        if (isMissingColumnError(error) && updateData.language !== undefined) {
-            const { language: _language, ...fallbackUpdate } = updateData
+        if (isMissingColumnError(error)) {
+            const { upload_channel_id: _ucid, upload_channel_name: _ucname, upload_channel_handle: _uchandle, language: _lang, ...fallbackUpdate } = updateData
             const retry = await supabase
                 .from('categories')
                 .update(fallbackUpdate)
@@ -269,30 +274,16 @@ export async function PUT(req: Request) {
         const updatedCategory = data?.[0]
         if (!updatedCategory) throw new Error('Category update returned no row')
 
-        // 언어가 바뀐 기존 미완료 토픽은 이전 담당자의 언어 지원 여부를 보장할 수 없으므로 미배정으로 돌립니다.
-        // 담당자 변경만으로는 언어 매칭 배정을 덮어쓰지 않습니다. 새 담당자는 이후 생성되는 토픽에서 검증됩니다.
-        const queueUpdate: any = {}
+        // 언어가 변경된 경우 대기 중인 토픽들의 언어도 안전하게 동기화
         if (categoryLanguage !== undefined) {
-            queueUpdate.language = categoryLanguage
-            queueUpdate.assigned_employee_email = null
-        }
-        if (Object.keys(queueUpdate).length > 0) {
-            const { error: queueUpdateError } = await supabase
-                .from('topics_queue')
-                .update(queueUpdate)
-                .eq('category_id', id)
-                .in('status', ['pending', 'assigned'])
-            if (isMissingColumnError(queueUpdateError) && queueUpdate.language !== undefined) {
-                const { language: _language, ...fallbackQueueUpdate } = queueUpdate
-                if (Object.keys(fallbackQueueUpdate).length > 0) {
-                    await supabase
-                        .from('topics_queue')
-                        .update(fallbackQueueUpdate)
-                        .eq('category_id', id)
-                        .in('status', ['pending', 'assigned'])
-                }
-            } else if (queueUpdateError) {
-                console.warn('Failed to propagate category queue fields:', queueUpdateError)
+            try {
+                await supabase
+                    .from('topics_queue')
+                    .update({ language: categoryLanguage, assigned_employee_email: null })
+                    .eq('category_id', id)
+                    .in('status', ['pending', 'assigned'])
+            } catch (queueErr) {
+                console.warn('Failed to propagate category queue language update:', queueErr)
             }
         }
 

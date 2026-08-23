@@ -1375,6 +1375,7 @@ async def api_category_image_style_mappings(
     by_name = {str(row.get("name") or ""): row for row in category_rows}
     styles = web_admin_client.fetch_style_presets(["image"])
     overrides = (autopilot_manager.get_status().get("settings") or {}).get("category_image_style_overrides") or {}
+    all_cat_names = autopilot_manager.get_all_categories()
     categories = [
         {
             "id": (by_name.get(name) or {}).get("id"),
@@ -1382,7 +1383,7 @@ async def api_category_image_style_mappings(
             "automatic_default": (by_name.get(name) or {}).get("default_image_style") or "realistic",
             "manual_override": overrides.get(name),
         }
-        for name in CATEGORIES
+        for name in all_cat_names
     ]
     return {
         "categories": categories,
@@ -1400,7 +1401,7 @@ async def api_save_category_image_style_mapping(
 ):
     """Save a Worker manual override; it takes precedence over AI selection."""
     require_auth(authorization, cookie)
-    if category not in CATEGORIES:
+    if category not in autopilot_manager.get_all_categories():
         raise HTTPException(404, "지원하지 않는 Hermes 카테고리입니다.")
     from worker_config import ensure_project_root_on_path
     ensure_project_root_on_path()
@@ -1517,7 +1518,7 @@ async def api_notebooklm_generate(
     duration_minutes = int(body.get("duration_minutes") or 15)
     duration_minutes = max(5, min(duration_minutes, 60))
     category = str(body.get("category") or "옛날이야기").strip() or "옛날이야기"
-    if category not in CATEGORIES:
+    if category not in autopilot_manager.get_all_categories():
         raise HTTPException(400, "지원하지 않는 카테고리입니다.")
     custom_title = str(body.get("custom_title") or "").strip() or None
 
