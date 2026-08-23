@@ -161,6 +161,8 @@ def save_worker_settings(new_settings: dict) -> dict:
     global WORKER_PROFILE, ALLOWED_CHILD_SCRIPTS, WORKER_ID, WORKER_TOKEN
 
     key_map = {
+        "supabase_url": "NEXT_PUBLIC_SUPABASE_URL",
+        "supabase_service_role_key": "SUPABASE_SERVICE_ROLE_KEY",
         "worker_profile": "AIRWORKER_PROFILE",
         "worker_id": "AIRWORKER_ID",
         "central_server_url": "AIRWORKER_CENTRAL_SERVER_URL",

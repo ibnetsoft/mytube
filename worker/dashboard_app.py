@@ -1834,6 +1834,8 @@ async def api_get_settings(
     require_auth(authorization, cookie)
     from config import Config
     keys = [
+        ("NEXT_PUBLIC_SUPABASE_URL", "Supabase 프로젝트 URL"),
+        ("SUPABASE_SERVICE_ROLE_KEY", "Supabase Service Role Key"),
         ("GEMINI_API_KEY", "Gemini API 키"),
         ("CLAUDE_API_KEY", "Claude API 키"),
         ("DEEPSEEK_API_KEY", "DeepSeek API 키"),
@@ -1874,6 +1876,7 @@ async def api_set_setting(
         return {"ok": True, "message": "변경 없음 (마스킹된 값)"}
 
     allowed = {
+        "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
         "GEMINI_API_KEY", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
@@ -5801,6 +5804,8 @@ async function doLogout() {
 
 /* Setting label map for Korean UI */
 const settingLabels = {
+  'NEXT_PUBLIC_SUPABASE_URL': 'Supabase 프로젝트 URL',
+  'SUPABASE_SERVICE_ROLE_KEY': 'Supabase Service Role Key',
   'GEMINI_API_KEY': 'Gemini API Key',
   'CLAUDE_API_KEY': 'Claude API Key',
   'DEEPSEEK_API_KEY': 'DeepSeek API Key',
@@ -5820,6 +5825,8 @@ const settingLabels = {
 
 /* Icons for API keys vs model settings */
 const settingIcons = {
+  'NEXT_PUBLIC_SUPABASE_URL': '&#x2601;',
+  'SUPABASE_SERVICE_ROLE_KEY': '&#x1F511;',
   'GEMINI_API_KEY': '&#x1F4E7;',
   'CLAUDE_API_KEY': '&#x1F4E7;',
   'DEEPSEEK_API_KEY': '&#x1F4E7;',
@@ -6029,6 +6036,8 @@ async function loadSettings() {
   }
   container.innerHTML = html;
   const apiSettingKeys = new Set([
+    'NEXT_PUBLIC_SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
     'GEMINI_API_KEY',
     'CLAUDE_API_KEY',
     'DEEPSEEK_API_KEY',

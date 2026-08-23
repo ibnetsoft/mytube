@@ -56,6 +56,10 @@ _load_packaged_env()
 _load_project_env_override()
 
 class Config:
+    # Supabase (Cloud Sync)
+    NEXT_PUBLIC_SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+    SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
     # Google API
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
     # Optional comma/semicolon/newline-separated failover keys.
@@ -334,6 +338,7 @@ class Config:
     def update_api_key(cls, key_name: str, value: str):
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
+            'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
             'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'CLAUDE_API_KEY',
             'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'GLM_API_KEY', 'GLM_BASE_URL',
             'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
