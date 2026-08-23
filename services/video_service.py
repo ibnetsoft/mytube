@@ -2029,6 +2029,24 @@ class VideoService:
         result.convert("RGB").save(out_buf, format="PNG")
         return out_buf.getvalue()
 
+    def clean_subtitle_text(self, text: str) -> str:
+        """자막 표시용 텍스트 정제 (화자명, 감정 지문, 모든 괄호, 마크다운 기호 100% 제거)"""
+        if not text:
+            return ""
+        # 1. 화자 레이블 제거 (예: "철수:", "나레이터:", "시동생) ")
+        text = re.sub(r'^[가-힣\w\s]+[ \t]*[:：][ \t]*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^[가-힣\w\s]+[ \t]*[\)）\]][ \t]*', '', text, flags=re.MULTILINE)
+
+        # 2. 모든 괄호 및 꺾쇠 지문 제거 (소괄호, 대괄호, 전각 괄호, 특수 괄호, 감정 태그)
+        text = re.sub(r'\([^)]*\)|\[[^\]]*\]|（[^）]*）|［[^］]*］|【[^】]*】|<[^>]*>|\{[^}]*\}', '', text)
+
+        # 3. 마크다운 및 강조 기호 제거 (*, #, _, ~, `)
+        text = re.sub(r'[\*#_~`]+', '', text)
+
+        # 4. 공백 정리
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
     def generate_aligned_subtitles(self, audio_path: str, script_text: str = None) -> List[dict]:
         """
         Faster-Whisper를 사용하여 오디오 자막 생성 (정확한 타이밍)
@@ -2170,8 +2188,8 @@ class VideoService:
                     if should_break:
                         # Commit Current Block
                         block_text = " ".join([w["word"] for w in current_words]).strip()
-                        # Brackets clean
-                        block_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', block_text).strip()
+                        # Brackets and speaker clean
+                        block_text = self.clean_subtitle_text(block_text)
                         
                         # [Quality] Ensure start < end
                         c_end = prev_end
@@ -2193,7 +2211,7 @@ class VideoService:
                 # Commit Final Block
                 if current_words:
                     block_text = " ".join([w["word"] for w in current_words]).strip()
-                    block_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', block_text).strip()
+                    block_text = self.clean_subtitle_text(block_text)
                     if block_text:
                         subtitles.append({
                             "start": current_block_start,
@@ -2230,8 +2248,8 @@ class VideoService:
         import re
         import unicodedata
 
-        # 1. 스크립트 전처리 (지문 제거)
-        clean_script = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*\*.*?\*\*', '', script_text)
+        # 1. 스크립트 전처리 (화자/지문/괄호 제거)
+        clean_script = self.clean_subtitle_text(script_text)
         script_tokens = clean_script.split()
 
         # [DEBUG] Log Inputs
@@ -3303,6 +3321,7 @@ class VideoService:
                         start = parse_vtt_time(times[0])
                         end = parse_vtt_time(times[1])
                         text = " ".join(text_lines).strip()
+                        text = self.clean_subtitle_text(text)
                         if text:
                             subtitles.append({"start": start, "end": end, "text": text})
                 
@@ -3354,11 +3373,13 @@ class VideoService:
                         if " " not in text and len(current_block) > 1:
                              text = " ".join(current_block)
                         
-                        subtitles.append({
-                            "start": current_start,
-                            "end": end,
-                            "text": text.strip()
-                        })
+                        text = self.clean_subtitle_text(text)
+                        if text:
+                            subtitles.append({
+                                "start": current_start,
+                                "end": end,
+                                "text": text
+                            })
                         current_block = []
                         current_chars = 0
                 
@@ -3413,8 +3434,8 @@ class VideoService:
         except Exception:
             max_chars = 25
         
-        # 괄호, 대괄호 및 별표 지문 제거 (자막 노출 방지)
-        script_text = re.sub(r'\([^)]*\)|\[[^\]]*\]|\*+[^*]+\*+', '', script_text).strip()
+        # 괄호, 화자명 및 마크다운 지문 완전 제거 (자막 노출 방지)
+        script_text = self.clean_subtitle_text(script_text)
         
         # 1. Atomic Split (split by punctuation)
         raw_sentences = []

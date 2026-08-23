@@ -6196,24 +6196,25 @@ def _script_gen_mode_instruction(is_multi: bool, known_characters: list[str], is
             )
         return f"""
 1. **기본은 나레이터의 서술**입니다. 인물의 행동이나 상황은 나레이터가 설명하듯 전달하세요 (예: "철수는 화를 내며 소리쳤다").
-2. 인물이 **직접 한 말을 그대로 전달할 필요가 있는 대목에서만** 그 인물 이름으로 화자를 전환하세요. (예: "철수: 당장 나가!") 그 외에는 전부 나레이터입니다.
+2. 인물이 **직접 한 말을 그대로 전달할 필요가 있는 대목에서만** `화자: (감정/연기톤) "대사"` 형식으로 화자를 전환하세요. (예: `철수: (분노하며) "당장 나가!"`, `영희: (울먹이며) "가지 마세요..."`)
 3. 나레이터 화자 이름은 "나레이터:"로 표시하세요.
-4. 한 문장짜리 대사 때문에 새로운 이름을 만들지 마세요 - 비중이 작은 인물의 말은 나레이터가 요약해서 전달하는 쪽을 우선하세요.
-5. 이 파트에서 실제로 등장인물이 몇 명 필요한지는 스토리 전개가 결정합니다 - 인위적으로 늘리거나 줄이지 마세요. 단, 같은 인물은 항상 같은 이름을 쓰세요.{known_chars_line}
+4. 대사 앞에는 반드시 `(슬프게)`, `(분노하며)`, `(낮은 목소리로)`, `(속삭이듯)` 등의 연기 톤 지문을 부여하여 성우 연기력을 극대화하세요.
+5. 한 문장짜리 대사 때문에 새로운 이름을 남발하지 마세요. 비중이 작은 인물의 말은 나레이터가 요약해서 전달하는 쪽을 우선하세요.{known_chars_line}
 """
     if is_dramatic_single:
         return """
 1. Write as a single narrator-led dramatic narration. The narrator carries the story; do NOT write screenplay format.
-2. You MAY include short direct quotes at decisive emotional moments, but embed them naturally inside the narration.
-3. Do NOT use speaker labels such as "철수:" or "사부:". If a line is spoken, write it as quoted speech within the paragraph.
+2. For short direct character dialogue, wrap speech in quotes "..." and prepend an expressive vocal/emotion tone in parentheses right before the quote: e.g. (낮게 속삭이며) "형수님도 여자예요.", (울먹이며) "제발 그만해요.", (단호하게) "더 이상은 안 됩니다."
+3. Do NOT use standalone speaker labels such as "철수:" or "(철수)" in the narration. Describe who speaks naturally in the preceding sentence: e.g. '시동생이 내 손을 잡으며 나직하게 속삭였다. (낮은 목소리로) "형수님..."'
 4. Keep dialogue sparse and purposeful: roughly 5-15% of the section. Use it only for betrayal, confession, threat, realization, or final payoff.
 5. Maintain one consistent narrative voice. Do not switch into a multi-character roleplay script.
 6. Make every quote reveal character, raise tension, or pay off the title promise. No casual filler dialogue.
 """
     return """
-1. 반드시 **독백(Monologue) 또는 나레이션(Narration) 형식**으로 작성하세요. (대화체 절대 금지)
-2. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다. 대화 형식으로 역할을 나누지 마세요.
-5. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+1. 반드시 **독백(Monologue) 또는 1인 나레이션(Narration) 형식**으로 작성하세요.
+2. 인물의 직접 대사가 나올 때는 반드시 큰따옴표(`"..."`)로 감싸고, 대사 바로 앞에 감정/연기 톤을 괄호로 표기하세요 (예: `(낮게 읊조리며) "오늘 밤만은..."`, `(울먹이며) "제발..."`).
+3. 괄호 안에 화자 이름만 단독으로 적는 것(예: `(철수)`, `(영희)`)이나 `철수:` 형식의 화자 라벨 표기는 금지합니다. 누가 말하는지는 나레이션 문맥으로 자연스럽게 서술하세요.
+4. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다.
 """
 
 

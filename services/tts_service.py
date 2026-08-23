@@ -151,36 +151,42 @@ class TTSService:
                 "duration": float (총 재생 시간)
             }
         """
-        # [FIX] 텍스트 정제 (지문 제거 및 한국어 감정 괄호를 ElevenLabs용 영어 태그로 치환)
+        # [FIX] 텍스트 정제 (지문/화자 제거 및 한국어 감정 괄호를 ElevenLabs용 영어 태그로 치환)
         import re
         
         EMOTION_MAP = {
-            # --- Sad (슬픔) ---
+            # --- Sad / Crying (슬픔, 울먹임, 절망) ---
             "슬프": "sad", "슬픈": "sad", "눈물": "sad", "울먹": "sad", "서글": "sad", "애절": "sad", "아련": "sad", 
             "씁쓸": "sad", "체념": "sad", "낙담": "sad", "외로운": "sad", "외롭게": "sad", "쓸쓸": "sad", 
             "떨리는": "sad", "애통": "sad", "비통": "sad", "절망": "sad", "우울": "sad", "괴로": "sad",
+            "흐느끼": "sad", "목메": "sad", "애원": "sad", "간청": "sad", "한탄": "sad", "서러": "sad",
             
-            # --- Quiet / Calm (차분함, 조용함, 덤덤함) ---
+            # --- Quiet / Calm / Whisper (차분함, 조용함, 덤덤함, 속삭임) ---
             "차분": "quietly", "조용": "quietly", "나직": "quietly", "잔잔": "quietly", "덤덤": "quietly", 
-            "평온": "quietly", "나긋": "quietly", "낮게": "quietly", "낮은": "quietly", "속삭": "whispers",
+            "평온": "quietly", "나긋": "quietly", "낮게": "quietly", "낮은": "quietly", "은밀": "whispers",
+            "속삭": "whispers", "귓속말": "whispers", "조심스레": "whispers", "숨죽이": "whispers",
             
-            # --- Thoughtful / Serious / Cold (진지함, 무게감, 차가움) ---
+            # --- Thoughtful / Serious / Cold (진지함, 무게감, 차가움, 냉소) ---
             "진지": "thoughtful", "무게": "thoughtful", "차갑": "thoughtful", "냉정": "thoughtful", 
             "냉혹": "thoughtful", "단호": "thoughtful", "엄숙": "thoughtful", "설명": "thoughtful", 
             "강조": "thoughtful", "묵직": "thoughtful", "조심": "thoughtful", "어두운": "thoughtful", 
-            "어둡게": "thoughtful", "경고": "thoughtful",
+            "어둡게": "thoughtful", "경고": "thoughtful", "냉소": "thoughtful", "비웃": "thoughtful",
+            "조롱": "thoughtful", "의심": "thoughtful", "결연": "thoughtful", "차분히": "thoughtful",
             
             # --- Happy / Exciting (기쁨, 흥분, 밝음) ---
             "기쁘": "happy", "기쁜": "happy", "신나": "excited", "활기": "excited", "즐겁": "happy", 
             "밝게": "happy", "밝은": "happy", "웃음": "happy", "웃으": "happy", "환희": "happy",
-            "유쾌": "happy", "당차": "excited", "희망": "happy",
+            "유쾌": "happy", "당차": "excited", "희망": "happy", "반갑": "happy", "설레": "excited",
             
-            # --- Angry (분노, 짜증, 분개) ---
+            # --- Angry / Frustrated (분노, 짜증, 분개, 억울함) ---
             "화나": "angry", "분노": "angry", "적대": "angry", "짜증": "angry", "신경": "angry", 
             "윽박": "angry", "질책": "angry", "독설": "angry", "거칠": "angry", "울화": "angry",
+            "격양": "angry", "호통": "angry", "노기": "angry", "치밀": "angry", "억울": "angry",
             
-            # --- Shout (크게 소리침) ---
+            # --- Shout / Desperate (크게 소리침, 절규, 다급함) ---
             "소리": "shouts", "크게": "shouts", "외치": "shouts", "강하": "shouts", "질러": "shouts",
+            "절규": "shouts", "울부짖": "shouts", "비명": "shouts", "다급": "shouts", "황급": "shouts",
+            "악을": "shouts", "긴박": "shouts", "놀라": "shouts", "경악": "shouts", "충격": "shouts",
             
             # --- Pauses ---
             "쉬고": "pause", "pause": "pause", "정적": "long pause"
@@ -191,9 +197,11 @@ class TTSService:
             "탄식": "하아... ",
             "하~": "하아... ",
             "휴~": "휴... ",
+            "휴우": "휴... ",
             "흡": "흡... ",
             "놀람": "앗... ",
             "경악": "앗... ",
+            "쳇": "쳇... ",
         }
         
         def replace_ko_emotions(match):
@@ -215,9 +223,11 @@ class TTSService:
             
             if emotion_tag or phonetic_str:
                 return f"{emotion_tag} {phonetic_str}".strip()
-            return "" # 매핑되지 않은 지문은 소리내어 읽지 않도록 제거
+            # 화자 이름(예: (철수), (영희), (시동생))이나 매핑되지 않은 지문은 소리내어 읽지 않도록 완전 제거
+            return ""
             
-        text = re.sub(r'\(([^)]*)\)', replace_ko_emotions, text)
+        # 전각/반각 괄호 및 꺾쇠 내 화자/감정 처리
+        text = re.sub(r'[\(（]([^)]*?)[\)）]', replace_ko_emotions, text)
         text = self.clean_text(text)
         
         # [FIX] ElevenLabs 실제 제한은 5,000자 (초과 시 text_too_long 오류). 안전빵 4,500자.
@@ -282,18 +292,21 @@ class TTSService:
             "Content-Type": "application/json"
         }
 
+        # 대화체(따옴표) 감지: 대사가 포함된 경우 연기력/표현력을 극대화하기 위해 stability를 낮추고 style을 높임
+        has_dialogue = bool(re.search(r'["\'“‘「『][^"\'”’」』]{2,}["\'”’」』]', text))
+        
         # [NEW] Voice Settings Override for Expressive Emotions
         final_settings = {
-            "stability": 0.35,          # Lower stability (30-50%) allows voice to be much more emotional and natural
+            "stability": 0.28 if has_dialogue else 0.35,  # 대화체일 때 28%로 낮춰 풍부한 감정 연기 유도
             "similarity_boost": 0.75,
-            "style": 0.45               # Style Exaggeration (20-50%) amplifies the emotion tags
+            "style": 0.52 if has_dialogue else 0.45       # 대화체일 때 스타일 표현력 52%로 강화
         }
         speed_factor = 1.0
         
         if voice_settings:
-            final_settings["stability"] = float(voice_settings.get("stability", 0.35))
+            final_settings["stability"] = float(voice_settings.get("stability", final_settings["stability"]))
             final_settings["similarity_boost"] = float(voice_settings.get("similarity_boost", 0.75))
-            final_settings["style"] = float(voice_settings.get("style", 0.45))
+            final_settings["style"] = float(voice_settings.get("style", final_settings["style"]))
             speed_factor = float(voice_settings.get("speed", 1.0))
 
         # [NEW] Pre-prompting for emotional steering in ElevenLabs (English prompts are much more effective)
@@ -309,6 +322,7 @@ class TTSService:
             "angry": "In an extremely angry, furious, and harsh voice, they say: ",
             "shouting": "Yelling loudly in a very high-pitched and intense voice, they say: ",
             "shouts": "Yelling loudly in a very high-pitched and intense voice, they say: ",
+            "sigh": "With a deep, tired sigh, they say: ",
         }
         
         # Check if the text contains any of these tags
@@ -705,7 +719,10 @@ class TTSService:
             raise ImportError("gTTS 라이브러리가 설치되지 않았습니다")
 
         try:
-            tts = gTTS(text=text, lang=lang)
+            clean_text = self.clean_text(text, preserve_emotion_tags=False)
+            if not clean_text:
+                return None
+            tts = gTTS(text=clean_text, lang=lang)
             output_path = os.path.join(self.output_dir, filename)
             tts.save(output_path)
             return output_path
@@ -747,7 +764,7 @@ class TTSService:
 
         try:
             # [FIX] 텍스트 정제
-            clean_text = self.clean_text(text)
+            clean_text = self.clean_text(text, preserve_emotion_tags=False)
             input_text = texttospeech.SynthesisInput(text=clean_text)
             
             # 음성 설정
@@ -817,7 +834,7 @@ class TTSService:
             safe_speed = max(0.25, min(4.0, speed))
 
             # [FIX] 텍스트 정제
-            clean_text = self.clean_text(text)
+            clean_text = self.clean_text(text, preserve_emotion_tags=False)
 
             response = self.openai_client.audio.speech.create(
                 model=model,
@@ -835,36 +852,49 @@ class TTSService:
             raise Exception(f"OpenAI TTS 생성 실패: {str(e)}")
 
 
-    def clean_text(self, text: str) -> str:
-        """TTS를 위한 텍스트 정제 (괄호, 마크다운 제거)
-        단, ElevenLabs용 감정 태그 [annoyed], [excited] 등은 유지함.
+    def clean_text(self, text: str, preserve_emotion_tags: bool = True) -> str:
+        """TTS를 위한 텍스트 정제 (화자명, 지문, 괄호, 마크다운 제거)
+        - preserve_emotion_tags=True: ElevenLabs용 감정 태그 [sad], [whispers] 등 유지
+        - preserve_emotion_tags=False: 일반 TTS(Edge, Google, OpenAI 등)용으로 모든 태그 완전 제거
         """
         import re
-        # 1. 마크다운 헤더/볼드 제거 (**, ## 등)
-        text = re.sub(r'[\*#\-]+', '', text)
-        
-        # 2. 감정 태그/일시정지 태그 화이트리스트 (ElevenLabs용)
-        # [annoyed], [excited], [sad], [angry], [shouting], [whispering], [long pause], [pause] 등
-        emotion_tags = ["annoyed", "excited", "sad", "angry", "shouting", "whispering", "long pause", "pause", "appalled", "happy", "quietly", "thoughtful", "whispers", "shouts", "sigh"]
-        
-        # 괄호 내용 중 화이트리스트에 없는 것만 제거
-        def remove_brackets_except_emotions(match):
-            content = match.group(1).lower().strip()
-            if any(tag in content for tag in emotion_tags):
-                return match.group(0) # 유지
-            return "" # 제거
+        if not text:
+            return ""
 
-        # [], () 중 ()는 한글 감정 지시어(예: (신나게))를 위해 보존하고 나머지만 처리
-        text = re.sub(r'\[([^\]]*)\]', remove_brackets_except_emotions, text)
-        # text = re.sub(r'\(([^)]*)\)', remove_brackets_except_emotions, text)  # 괄호 태그 전체 유지
-        text = re.sub(r'<([^>]*)>', remove_brackets_except_emotions, text)
+        # 1. 화자 레이블 제거 (예: "철수:", "나레이터:", "시동생) ")
+        text = re.sub(r'^[가-힣\w\s]+[ \t]*[:：][ \t]*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^[가-힣\w\s]+[ \t]*[\)）\]][ \t]*', '', text, flags=re.MULTILINE)
+
+        # 2. 마크다운 헤더/볼드/이모지 기호 제거 (**, ##, ~~ 등)
+        text = re.sub(r'[\*#_~`]+', '', text)
         
-        # 전각 괄호 (일본어/한국어) - 이것도 지시어일 수 있으므로 유지
-        # text = re.sub(r'（[^）]*）', '', text)
-        # text = re.sub(r'［[^］]*］', '', text)
+        # 3. 감정 태그/일시정지 태그 화이트리스트 (ElevenLabs용)
+        emotion_tags = {
+            "annoyed", "excited", "sad", "angry", "shouting", "whispering",
+            "long pause", "pause", "appalled", "happy", "quietly", "thoughtful",
+            "whispers", "shouts", "sigh"
+        }
         
-        # 3. 여러 공백 및 불필요한 기호 정리
-        text = re.sub(r'\s+', ' ', text).strip()
+        def filter_brackets(match):
+            content = match.group(1).lower().strip()
+            if preserve_emotion_tags and content in emotion_tags:
+                return f"[{content}]"
+            return ""
+
+        # 대괄호 [] 필터링 (화이트리스트 감정 태그만 유지 또는 전체 제거)
+        text = re.sub(r'\[([^\]]*)\]', filter_brackets, text)
+        text = re.sub(r'［([^］]*)］', filter_brackets, text)
+
+        # 소괄호 (), 전각 괄호 （）, 꺾쇠 <>, 【】 등 일반 지문/화자 괄호는 완전 제거
+        text = re.sub(r'\([^)]*\)', '', text)
+        text = re.sub(r'（[^）]*）', '', text)
+        text = re.sub(r'<[^>]*>', '', text)
+        text = re.sub(r'【[^】]*】', '', text)
+        text = re.sub(r'\{[^}]*\}', '', text)
+        
+        # 4. 여러 공백 및 불필요한 기호 정리
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n\s*\n', '\n', text).strip()
         return text
 
     async def generate_edge_tts(
@@ -907,8 +937,8 @@ class TTSService:
             # VTT는 합치기 복잡하므로 일단 무시 (MP3라도 건짐)
             return output_path
 
-        # 텍스트 정제
-        clean_text = self.clean_text(text)
+        # 텍스트 정제 (Edge TTS는 감정 태그 미지원이므로 완전 제거)
+        clean_text = self.clean_text(text, preserve_emotion_tags=False)
         if not clean_text:
             return None
 
