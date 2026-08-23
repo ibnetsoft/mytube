@@ -56,14 +56,15 @@ export function cleanKoreanScriptLine(text: string): string {
  * - 1~12씬 (0~1분, Hook 훅 구간): 5.0초 고정 (12개 씬 × 5s = 60s)
  * - 13~28씬 (1~5분, Development 전개 구간): 15.0초 고정 (16개 씬 × 15s = 240s)
  * - 29~43씬 (5~10분, Explanation/Conflict 심화 구간): 20.0초 고정 (15개 씬 × 20s = 300s)
- * - 44~53씬 (10~15분+, Climax/Ending 결말 구간): 30.0초 고정 (10개 씬 × 30s = 300s)
- * (총 53개 씬 = 900초 = 정확히 15분 완성)
+ * - 44~53씬 (10~15분, Climax/Ending 결말 구간): 30.0초 고정 (10개 씬 × 30s = 300s)
+ * - 54씬 이후 (15분 초과 확장 구간): 60.0초 고정 (1분당 1개 씬)
  */
 export function getStandardSceneDuration(sceneNumber: number): number {
     if (sceneNumber <= 12) return 5.0
     if (sceneNumber <= 28) return 15.0
     if (sceneNumber <= 43) return 20.0
-    return 30.0
+    if (sceneNumber <= 53) return 30.0
+    return 60.0 // 54씬부터는 무조건 1분(60초) 고정
 }
 
 // 2. 전체 53개 씬의 타임코드 경계선(Scene Timings) 계산

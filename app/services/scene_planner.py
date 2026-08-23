@@ -7,11 +7,11 @@ OPENING_MICRO_SCENE_SECONDS = 5
 OPENING_WINDOW_SECONDS = OPENING_MICRO_SCENE_COUNT * OPENING_MICRO_SCENE_SECONDS
 LONGFORM_OPENING_RULE_MIN_SECONDS = 600
 PACING_PHASES = [
-    {"name": "opening", "until": 60, "step": 5},
-    {"name": "development", "until": 300, "step": 15},
-    {"name": "explanation", "until": 600, "step": 20},
-    {"name": "steady", "until": 1200, "step": 30},
-    {"name": "closing", "until": None, "step": 40},
+    {"name": "opening", "until": 60, "step": 5},          # 0 ~ 1분: 5초 (1~12씬)
+    {"name": "development", "until": 300, "step": 15},    # 1 ~ 5분: 15초 (13~28씬)
+    {"name": "explanation", "until": 600, "step": 20},    # 5 ~ 10분: 20초 (29~43씬)
+    {"name": "steady", "until": 900, "step": 30},         # 10 ~ 15분: 30초 (44~53씬)
+    {"name": "extended", "until": None, "step": 60},      # 15분 이상: 60초 (54씬부터 1분 고정)
 ]
 
 class ScenePlannerService:
@@ -125,7 +125,7 @@ class ScenePlannerService:
                 "required_duration_each": OPENING_MICRO_SCENE_SECONDS,
                 "opening_window_seconds": OPENING_WINDOW_SECONDS,
                 "total_scene_count": len(pacing_slots),
-                "policy": "0-1m:5s, 1-5m:15s, 5-10m:20s, 10-20m:30s, 20m+:40s",
+                "policy": "0-1m:5s, 1-5m:15s, 5-10m:20s, 10-15m:30s, 15m+:60s",
             }
             structure["target_duration_seconds"] = target_duration
             return structure

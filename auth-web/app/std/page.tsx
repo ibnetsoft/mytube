@@ -868,7 +868,7 @@ export default function StdPortalPage() {
         setLocalSubtitles(updatedSubs)
         localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
         if (showSuccessAlert) {
-            alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) 표준 페이싱으로 53개 씬과 자막이 완벽 동기화되었습니다!')
+            alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱으로 씬과 자막이 완벽 동기화되었습니다!')
         }
     }
 
@@ -4203,7 +4203,7 @@ export default function StdPortalPage() {
                                                 )
                                                 setLocalSubtitles(subs)
                                                 setSelectedSubIndex(0)
-                                                alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
+                                                alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
                                             }}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
