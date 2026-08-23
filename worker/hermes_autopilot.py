@@ -950,6 +950,10 @@ class HermesAutopilotManager:
         attempted = False
         try:
             from services.youtube_data_api import async_youtube_get
+            from services.tts_service import normalize_content_language
+            search_lang = normalize_content_language(
+                self.settings.get("target_language") or self.settings.get("language") or "ko"
+            )
             for query in queries:
                 discovery_query = discovery_query or query
                 attempted = True
@@ -961,7 +965,7 @@ class HermesAutopilotManager:
                         "type": "video",
                         "maxResults": 5,
                         "order": "viewCount",
-                        "relevanceLanguage": "ko",
+                        "relevanceLanguage": search_lang,
                         "videoDuration": "medium",
                     },
                     timeout=12,

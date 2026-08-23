@@ -701,7 +701,10 @@ Return JSON only:
         """AI를 사용하여 제목, 설명, 태그 생성"""
         print(f"📝 [Auto-Pilot] 제목 및 설명 생성 시작...")
         try:
-            metadata = await gemini_service.generate_video_metadata(script_text)
+            p_data = db.get_project(project_id) or {}
+            p_settings = db.get_project_settings(project_id) or {}
+            target_lang = p_settings.get("target_language") or p_data.get("language") or "ko"
+            metadata = await gemini_service.generate_video_metadata(script_text, target_language=target_lang)
             if metadata:
                 db.update_project_setting(project_id, "title", metadata.get("title"))
                 db.update_project_setting(project_id, "description", metadata.get("description"))
@@ -968,11 +971,15 @@ Create a production-ready playlist script/brief in Korean from this planning dat
                 duration_minutes_for_fallback = max(1, round(duration_seconds_for_fallback / 60))
                 # 이 앱이 이미 써오던 "1분 ≈ 300자" 환산 비율을 실제 목표 길이에 비례 적용.
                 target_chars_for_fallback = duration_seconds_for_fallback / 60 * 300
+                p_settings = db.get_project_settings(project_id) or {}
+                target_lang = config_dict.get("target_language") or p_settings.get("target_language") or "ko"
+                lang_instruction = prompts.get_language_instruction(target_lang)
                 prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
                     analysis_json=json.dumps(analysis, ensure_ascii=False),
                     duration_minutes=duration_minutes_for_fallback,
                     target_chars_min=max(200, int(target_chars_for_fallback * 0.85)),
                     target_chars_max=int(target_chars_for_fallback * 1.15),
+                    language_instruction=lang_instruction,
                 )
                 prompt += f"\n\n[Benchmarked Successful Video Formulas from DB]\n{viral_benchmarks_str}\n\n[Instructions]\n- Make sure to copy the successful hook patterns and address the viewer needs highlighted in the benchmarked cases above to maximize viral potential." 
             if style_directive:
@@ -1241,8 +1248,11 @@ JSON만 출력하세요:
         
         sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         
+                from services.tts_service import normalize_content_language, language_code_for_tts, edge_voice_for_language, default_voice_name_for_language
+        p_settings = db.get_project_settings(project_id) or {}
+        project_lang = normalize_content_language(config_dict.get("target_language") or p_settings.get("target_language") or "ko")
+
         if not provider or not voice_id:
-             p_settings = db.get_project_settings(project_id) or {}
              provider = p_settings.get("voice_provider")
              voice_id = p_settings.get("voice_id") or p_settings.get("voice_name")
              
@@ -1255,8 +1265,10 @@ JSON만 출력하세요:
                  voice_id = "4JJwo477JUAx3HV0T7n7"  # Default ElevenLabs voice
 
              # Ultimate Fallback
-             if not provider: provider = "google_cloud"
-             if not voice_id: voice_id = "ko-KR-Neural2-A"
+             if not provider:
+                 provider = "elevenlabs" if project_lang == "ko" else "gemini"
+             if not voice_id:
+                 voice_id = default_voice_name_for_language(project_lang)
         
         scene_audio_map = {} # scene_number -> local_audio_path
         scene_audio_files = []
@@ -1370,7 +1382,8 @@ JSON만 출력하세요:
                     if (not s_out or not os.path.exists(s_out)) and provider != "google_cloud":
                         try:
                             print(f"🎙️ [SDK Autopilot] Fallback Layer 1: Attempting Google Cloud TTS...")
-                            s_out = await tts_service.generate_google_cloud(text, "ko-KR-Neural2-A", filename=scene_filename)
+                            fallback_google_voice = "ja-JP-Neural2-B" if project_lang == "ja" else ("en-US-Neural2-F" if project_lang == "en" else "ko-KR-Neural2-A")
+                            s_out = await tts_service.generate_google_cloud(text, fallback_google_voice, filename=scene_filename)
                         except Exception as e:
                             print(f"⚠️ [SDK Autopilot] Google Cloud Fallback failed: {e}")
 
@@ -1378,8 +1391,8 @@ JSON만 출력하세요:
                     if not s_out or not os.path.exists(s_out):
                         try:
                             print(f"🎙️ [SDK Autopilot] Fallback Layer 2: Attempting Edge TTS...")
-                            edge_voice = "ko-KR-SunHiNeural" if "ko" in (current_voice_id or "").lower() else "en-US-AriaNeural"
-                            s_out = await tts_service.generate_edge_tts(text, voice=edge_voice, filename=scene_filename)
+                            fallback_edge_voice = edge_voice_for_language(project_lang)
+                            s_out = await tts_service.generate_edge_tts(text, voice=fallback_edge_voice, filename=scene_filename)
                         except Exception as e:
                             print(f"⚠️ [SDK Autopilot] Edge TTS Fallback failed: {e}")
 
@@ -1387,7 +1400,8 @@ JSON만 출력하세요:
                     if not s_out or not os.path.exists(s_out):
                         try:
                             print(f"🎙️ [SDK Autopilot] Fallback Layer 3: Attempting gTTS...")
-                            s_out = await tts_service.generate_gtts(text, lang="ko" if "ko" in (current_voice_id or "").lower() else "en", filename=scene_filename)
+                            fallback_gtts_lang = language_code_for_tts(project_lang, provider="gtts")
+                            s_out = await tts_service.generate_gtts(text, lang=fallback_gtts_lang, filename=scene_filename)
                         except Exception as e:
                             print(f"⚠️ [SDK Autopilot] gTTS Fallback failed: {e}")
 
@@ -1800,11 +1814,13 @@ JSON만 출력하세요:
                 char_names = [c.get("name") for c in characters if c.get("name")]
                 char_context = f"\n[Featured Characters]: {', '.join(char_names)}"
 
+            from services.tts_service import normalize_content_language
+            thumb_target_lang = normalize_content_language(config_dict.get("target_language") or project_settings.get("target_language") or "ko")
             hook_prompt = prompts.GEMINI_THUMBNAIL_HOOK_TEXT.format(
                 script=f"{script[:2000]}{char_context}",
                 thumbnail_style=thumb_style,
                 image_style=image_style,
-                target_language="ko"
+                target_language=thumb_target_lang
             )
 
             hook_result = await gemini_service.generate_text(hook_prompt, temperature=0.7)
@@ -1819,7 +1835,8 @@ JSON만 출력하세요:
 
             idea_prompt = prompts.THUMBNAIL_IDEA_PROMPT.format(
                 topic=project_settings.get("topic", "AI Video"),
-                script_summary=script[:1000]
+                script_summary=script[:1000],
+                language_instruction=prompts.get_language_instruction(thumb_target_lang)
             )
             idea_result = await gemini_service.generate_text(idea_prompt, temperature=0.7)
             json_match_idea = re.search(r'\{[\s\S]*\}', idea_result)

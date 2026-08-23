@@ -179,11 +179,18 @@ async function generateElevenLabsMp3(input: {
     return Buffer.concat(buffers)
 }
 
-async function generateSingleGoogleTranslateChunk(chunk: string): Promise<Buffer> {
+async function generateSingleGoogleTranslateChunk(chunk: string, lang: string = 'ko'): Promise<Buffer> {
+    const normalizedLang = String(lang || 'ko').trim().toLowerCase()
+    const tl = normalizedLang.startsWith('ja') || normalizedLang.startsWith('jp')
+        ? 'ja'
+        : normalizedLang.startsWith('en')
+        ? 'en'
+        : 'ko'
+
     const url = new URL('https://translate.google.com/translate_tts')
     url.searchParams.set('ie', 'UTF-8')
     url.searchParams.set('client', 'tw-ob')
-    url.searchParams.set('tl', 'ko')
+    url.searchParams.set('tl', tl)
     url.searchParams.set('q', chunk)
 
     const res = await fetch(url.toString(), {
@@ -200,13 +207,13 @@ async function generateSingleGoogleTranslateChunk(chunk: string): Promise<Buffer
     return Buffer.from(await res.arrayBuffer())
 }
 
-async function generateGoogleFreeMp3(text: string) {
+async function generateGoogleFreeMp3(text: string, lang: string = 'ko') {
     const chunks = splitText(text, 180)
     if (!chunks.length) throw new Error('TTS text is empty')
 
     const buffers: Buffer[] = []
     for (const chunk of chunks) {
-        buffers.push(await generateSingleGoogleTranslateChunk(chunk))
+        buffers.push(await generateSingleGoogleTranslateChunk(chunk, lang))
     }
     return Buffer.concat(buffers)
 }
@@ -365,7 +372,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         let audioBuffer: Buffer
         if (provider === 'google_free' || voiceId.startsWith('google_')) {
             stage = 'generate_google_free'
-            audioBuffer = await generateGoogleFreeMp3(text)
+            const projectLang = String(
+                body?.target_language
+                || body?.language
+                || project.language
+                || project.project_payload?.target_language
+                || project.project_payload?.language
+                || 'ko'
+            ).trim().toLowerCase()
+            audioBuffer = await generateGoogleFreeMp3(text, projectLang)
         } else {
             stage = 'load_elevenlabs_key'
             let apiKey = ''

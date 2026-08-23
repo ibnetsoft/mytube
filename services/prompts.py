@@ -34,6 +34,7 @@ class Prompts:
         - 훅이 끝나면 곧바로 본론(구체적 사건 전개, 핵심 정보)으로 들어간다. 모든 문장은 새로운 정보나 사건 진행을 담아야 하며, 이미 말한 내용을 다른 표현으로 반복하지 않는다.
         - 독백 또는 나레이션 형식으로 작성 (대화체 절대 금지)
         - 화자는 무조건 딱 1명으로 제한
+        - **[언어 규칙]**: {language_instruction}
 
         **[절대 금지 사항 - TTS 읽기 오류 방지]**
         1. 대화 형식(A:, B: 등 가상 대화) 금지
@@ -410,6 +411,7 @@ JSON만 반환하세요."""
     THUMBNAIL_IDEA_PROMPT = """
         Topic: {topic}
         Script Summary: {script_summary}
+        Language: {language_instruction}
         
         Suggest a high Click-Through-Rate (CTR) Thumbnail Plan.
         JSON Output:
@@ -426,17 +428,20 @@ JSON만 반환하세요."""
         [영상 대본]
         {script_text}
 
+        [언어 규칙]
+        {language_instruction}
+
         [요구사항]
         1. 제목: 호기심을 유발하고 클릭을 부르는 강렬한 제목 (50자 이내)
         2. 설명: 영상의 내용을 요약하고 관련 키워드를 자연스럽게 포함 (300자 내외). 해시태그 3개 포함.
         3. 태그: 연관도가 높은 검색 키워드 10개 내외 (배열 형식)
 
         반드시 다음 JSON 형식으로만 반환하세요:
-        {
+        {{
             "title": "여기에 제목",
             "description": "여기에 설명",
             "tags": ["태그1", "태그2", ...]
-        }
+        }}
     """
 
     GEMINI_DEEP_DIVE_SCRIPT = """당신은 '노트북LM'과 같은 지능을 가진 세계 최고의 콘텐츠 분석가이자 유튜브 다큐멘터리 작가입니다.
@@ -688,3 +693,13 @@ JSON만 반환하세요."""
 
 
 prompts = Prompts()
+
+
+def get_language_instruction(lang: str) -> str:
+    lang = (str(lang or 'ko').strip().lower() or 'ko')
+    if lang.startswith('ja') or lang.startswith('jp'):
+        return '重要: 本文・タイトル・説明文・テキスト等のすべての出力は必ず自然な日本語で作成してください。'
+    elif lang.startswith('en'):
+        return 'IMPORTANT: You MUST write the entire output (script, title, description, text, etc.) in natural English.'
+    else:
+        return '중요: 본문, 제목, 설명, 텍스트 등 모든 출력은 반드시 자연스러운 한국어로 작성하세요.'

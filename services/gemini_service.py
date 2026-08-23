@@ -1141,9 +1141,13 @@ class GeminiService:
             print(f"Blog Generation Error: {e}")
             return {"error": str(e)}
 
-    async def generate_video_metadata(self, script_text: str) -> dict:
+    async def generate_video_metadata(self, script_text: str, target_language: str = "ko") -> dict:
         """대본을 바탕으로 제목, 설명, 태그 생성"""
-        prompt = prompts.AUTOPILOT_GENERATE_METADATA.format(script_text=script_text)
+        lang_instruction = prompts.get_language_instruction(target_language)
+        prompt = prompts.AUTOPILOT_GENERATE_METADATA.format(
+            script_text=script_text,
+            language_instruction=lang_instruction
+        )
         try:
             response_text = await self.generate_text(prompt, temperature=0.7)
             
