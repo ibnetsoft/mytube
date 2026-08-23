@@ -1068,6 +1068,26 @@ def api_status(
     return snap
 
 
+def _prune_job_for_list(job: dict) -> dict:
+    item = dict(job)
+    raw_payload = item.get("payload")
+    if isinstance(raw_payload, dict):
+        item["payload"] = {
+            "category": raw_payload.get("category"),
+            "category_name": raw_payload.get("category_name"),
+            "topic": raw_payload.get("topic"),
+            "upload_title": raw_payload.get("upload_title"),
+            "generated_title": raw_payload.get("generated_title"),
+            "topic_queue_id": raw_payload.get("topic_queue_id"),
+            "topic_id": raw_payload.get("topic_id"),
+            "keyword": raw_payload.get("keyword"),
+            "target_duration_seconds": raw_payload.get("target_duration_seconds"),
+            "script_style": raw_payload.get("script_style"),
+            "image_style": raw_payload.get("image_style"),
+        }
+    return item
+
+
 @app.get("/api/jobs")
 def api_jobs(
     status: str | None = None,
@@ -1107,7 +1127,7 @@ def api_jobs(
                 "output_path": None,
             })
             jobs = jobs[:limit]
-    return {"jobs": jobs}
+    return {"jobs": [_prune_job_for_list(j) for j in jobs]}
 
 
 def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
@@ -3806,6 +3826,10 @@ tr:hover { background: #161b22; }
 /* ── Globals ── */
 let refreshInterval = null;
 let countdown = 3;
+let refreshAllInFlight = false;
+let renderingJobsPollInFlight = false;
+let generatedResultsLoaded = false;
+let latestWorkerStatus = null;
 
 /* ── API helpers ── */
 async function api(method, path, body) {
