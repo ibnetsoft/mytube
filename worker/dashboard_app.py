@@ -4048,7 +4048,10 @@ function pipelineTitleKey(category, title) {
 }
 
 function pipelineTitleOnlyKey(title) {
-  return String(title || '').trim().toLowerCase();
+  return String(title || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u00a0]+/g, ' ');
 }
 
 function latestFailedJob(jobs, completedTypes = new Set()) {
@@ -4128,7 +4131,7 @@ function groupJobsIntoPipelines(jobs) {
       // user-facing video pipeline. Group by category+title whenever a title
       // exists so synthetic resume-* ids cannot create duplicate cards.
       const groupKey = title
-        ? `video:::${category}:::${title}`
+        ? `video_title:::${pipelineTitleOnlyKey(title)}`
         : `video_queue:::${String(queueId)}`;
       if (!pipelineMap.has(groupKey)) {
         pipelineMap.set(groupKey, {
@@ -4144,6 +4147,9 @@ function groupJobsIntoPipelines(jobs) {
       }
       const group = pipelineMap.get(groupKey);
       if (title && (!group.title || group.title.startsWith('Topic #'))) group.title = title;
+      if ((!group.category || group.category === '일반') && category && category !== '일반') {
+        group.category = category;
+      }
       if (queueId && (!group.queueId || String(group.queueId).startsWith('resume-')) && !String(queueId).startsWith('resume-')) {
         group.queueId = queueId;
       }
