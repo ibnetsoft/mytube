@@ -3999,6 +3999,7 @@ function renderProcessCards(status, jobs = []) {
   const workerProfile = status.worker_profile || 'full';
   let html = '';
   for (const [name, info] of Object.entries(procs)) {
+    if (name === 'updater') continue;
     const s = info.status || 'stopped';
     const label = {render_worker:'영상 작업 Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
     const icon = {render_worker:'\u{1F3AC}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
