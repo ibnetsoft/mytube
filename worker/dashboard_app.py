@@ -2160,6 +2160,94 @@ async def api_server_shutdown(
     return {"success": True, "message": "워커 서버가 완전히 종료됩니다."}
 
 
+@app.get("/api/system/git-info")
+def api_system_git_info(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    try:
+        from worker_config import PROJECT_ROOT
+        log_res = subprocess.run(
+            ["git", "log", "-n", "3", "--oneline"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        status_res = subprocess.run(
+            ["git", "status", "-s"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        branch_res = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        recent_commits = [line.strip() for line in (log_res.stdout or "").strip().splitlines() if line.strip()]
+        return {
+            "success": True,
+            "branch": (branch_res.stdout or "").strip() or "main",
+            "recent_commits": recent_commits,
+            "modified_files": [line.strip() for line in (status_res.stdout or "").strip().splitlines() if line.strip()],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/system/git-pull")
+def api_system_git_pull(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    try:
+        from worker_config import PROJECT_ROOT
+        pull_res = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=45,
+        )
+        log_res = subprocess.run(
+            ["git", "log", "-n", "3", "--oneline"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        stdout = (pull_res.stdout or "").strip()
+        stderr = (pull_res.stderr or "").strip()
+        recent_commits = [line.strip() for line in (log_res.stdout or "").strip().splitlines() if line.strip()]
+
+        is_already_up_to_date = "Already up to date" in stdout
+        is_success = pull_res.returncode == 0
+
+        return {
+            "success": is_success,
+            "already_up_to_date": is_already_up_to_date,
+            "stdout": stdout,
+            "stderr": stderr,
+            "recent_commits": recent_commits,
+            "message": "이미 최신 상태입니다." if is_already_up_to_date else ("최신 업데이트를 성공적으로 가져왔습니다!" if is_success else "업데이트 중 오류가 발생했습니다."),
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "GitHub 연결 시간 초과 (45초)"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 # ---------------------------------------------------------------------------
 # Login page (serves HTML — no auth required)
 # ---------------------------------------------------------------------------
@@ -2882,6 +2970,9 @@ tr:hover { background: #161b22; }
         <span class="icon">&#x2699;</span> 설정
       </div>
       <div style="margin: 14px 10px 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 6px;">
+        <button class="btn btn-sm" id="sidebar-update-btn" onclick="updateWorkerCode(true)" style="width: 100%; font-size: 11px; background: rgba(163, 113, 247, 0.15); border: 1px solid rgba(163, 113, 247, 0.4); color: #d2a8ff; font-weight: bold; padding: 7px 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+          <span>⚡</span> 최신 업데이트 (Git Pull)
+        </button>
         <button class="btn btn-sm" onclick="confirmRestartServer()" style="width: 100%; font-size: 11px; background: rgba(56, 139, 253, 0.15); border: 1px solid rgba(56, 139, 253, 0.4); color: #58a6ff; font-weight: bold; padding: 7px 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
           <span>🔄</span> 서버 완전 재시작
         </button>
@@ -3348,6 +3439,33 @@ tr:hover { background: #161b22; }
 
       <!-- ═══ Tab: Settings ═══ -->
       <div class="tab-content" id="tab-settings">
+        <!-- ═══ Git Auto Update Card ═══ -->
+        <div class="card" style="margin-bottom:20px;border:1px solid rgba(163,113,247,0.4);background:rgba(163,113,247,0.04);">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span>⚡</span> 워커 최신 업데이트 (Git Pull & 자동 동기화)
+            </div>
+            <span id="git-branch-badge" style="font-size:12px;padding:3px 10px;border-radius:12px;background:#30363d;color:#d2a8ff;font-weight:bold;font-family:monospace;">main</span>
+          </div>
+          <p style="color:#8b949e;margin-bottom:14px;font-size:13px;line-height:1.5;">
+            터미널 명령어를 직접 칠 필요 없이, 버튼 한 번으로 GitHub 최신 워커 코드(기능 개선, 버그 수정)를 가져와 적용합니다.
+          </p>
+
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+            <button class="btn btn-primary" id="git-pull-btn" onclick="updateWorkerCode(true)" style="background:#8957e5;border-color:#a371f7;font-weight:bold;padding:9px 18px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <span>🚀</span> GitHub 최신 커밋 업데이트 (Pull & 재시작)
+            </button>
+            <button class="btn" onclick="loadGitInfo()" style="padding:9px 14px;cursor:pointer;">
+              <span>🔍</span> 최신 커밋 정보 확인
+            </button>
+          </div>
+
+          <div id="git-recent-commits-container" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:monospace;font-size:12px;color:#c9d1d9;max-height:160px;overflow-y:auto;">
+            <div style="color:#8b949e;">최신 커밋 정보를 불러오는 중...</div>
+          </div>
+          <div id="git-pull-result-log" style="display:none;margin-top:10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:monospace;font-size:11px;color:#7ee787;white-space:pre-wrap;"></div>
+        </div>
+
         <!-- ═══ Worker Profile & PC Settings Card ═══ -->
         <div class="card" style="margin-bottom:20px;border:1px solid #388bfd;background:rgba(56,139,253,0.04);">
           <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
@@ -5789,7 +5907,88 @@ async function saveWorkerProfileSettings(restartAfterSave = true) {
   }
 }
 
+async function loadGitInfo() {
+  const branchBadge = document.getElementById('git-branch-badge');
+  const container = document.getElementById('git-recent-commits-container');
+  if (!container) return;
+
+  try {
+    const data = await api('GET', '/api/system/git-info');
+    if (!data || !data.success) {
+      container.innerHTML = `<div style="color:#f85149;">커밋 정보 조회 실패: ${escapeHtml(data?.error || '알 수 없음')}</div>`;
+      return;
+    }
+    if (branchBadge) branchBadge.textContent = data.branch || 'main';
+    const commits = data.recent_commits || [];
+    if (!commits.length) {
+      container.innerHTML = '<div style="color:#8b949e;">최근 커밋 내역이 없습니다.</div>';
+      return;
+    }
+    container.innerHTML = `
+      <div style="font-weight:bold;color:#8b949e;margin-bottom:6px;">📌 최근 반영된 커밋 목록 (최신순):</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        ${commits.map(c => `<div style="line-height:1.4;">• <span style="color:#79c0ff;font-weight:bold;">${escapeHtml(c.split(' ')[0])}</span> ${escapeHtml(c.substring(c.indexOf(' ') + 1))}</div>`).join('')}
+      </div>
+    `;
+  } catch (e) {
+    container.innerHTML = `<div style="color:#f85149;">통신 오류: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+async function updateWorkerCode(confirmRestart = true) {
+  const pullBtn = document.getElementById('git-pull-btn');
+  const sidebarBtn = document.getElementById('sidebar-update-btn');
+  const resultLog = document.getElementById('git-pull-result-log');
+
+  if (pullBtn) {
+    pullBtn.disabled = true;
+    pullBtn.innerHTML = '<span>⏳</span> GitHub 업데이트 확인 중...';
+  }
+  if (sidebarBtn) {
+    sidebarBtn.disabled = true;
+    sidebarBtn.innerHTML = '<span>⏳</span> 업데이트 중...';
+  }
+  showToast('GitHub에서 최신 워커 코드를 가져오는 중입니다...', 'info');
+
+  try {
+    const res = await api('POST', '/api/system/git-pull');
+    if (resultLog) {
+      resultLog.style.display = 'block';
+      resultLog.textContent = `[Git Pull 출력]\n${res?.stdout || ''}\n${res?.stderr || ''}`;
+    }
+
+    if (res && res.success) {
+      if (res.already_up_to_date) {
+        showToast('✅ 이미 최신 상태입니다. (추가 업데이트 없음)', 'success');
+      } else {
+        showToast('🎉 최신 업데이트를 성공적으로 가져왔습니다!', 'success');
+        if (confirmRestart) {
+          if (confirm('최신 코드가 다운로드되었습니다.\n\n새 기능을 즉시 적용하기 위해 지금 워커 서버를 재시작하시겠습니까?')) {
+            confirmRestartServer();
+            return;
+          }
+        }
+      }
+      await loadGitInfo();
+    } else {
+      showToast(`업데이트 실패: ${res?.error || res?.stderr || '알 수 없음'}`, 'error');
+    }
+  } catch (e) {
+    showToast('업데이트 통신 오류: ' + (e.message || e), 'error');
+  } finally {
+    if (pullBtn) {
+      pullBtn.disabled = false;
+      pullBtn.innerHTML = '<span>🚀</span> GitHub 최신 커밋 업데이트 (Pull & 재시작)';
+    }
+    if (sidebarBtn) {
+      sidebarBtn.disabled = false;
+      sidebarBtn.innerHTML = '<span>⚡</span> 최신 업데이트 (Git Pull)';
+    }
+  }
+}
+
 async function loadSettings() {
+  loadGitInfo();
   loadWorkerProfileSettings();
   const data = await api('GET', '/api/settings');
   if (!data) return;
