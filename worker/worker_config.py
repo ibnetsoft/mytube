@@ -7,36 +7,46 @@ Process now imports services/remote_render_service.py, which itself does
 config.py. Since worker/ is the child script's own directory, it is always
 sys.path[0] for these subprocess.Popen'd scripts - a module named
 config.py living in here would permanently shadow the real one and break
-every real-pipeline import. Renaming this module is the fix (AIR-0227A's
-worker/config.py caused no problem only because nothing under worker/ ever
-imported the real pipeline yet - AIR-0227B is the first Task that does).
+every real-pipeline import. Renaming this module is the fix.
 """
 import os
 import sys
 from pathlib import Path
 
+
+def _load_worker_env():
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    candidates = []
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir / ".env")
+        candidates.append(exe_dir / "_internal" / ".env")
+        if getattr(sys, "_MEIPASS", None):
+            candidates.append(Path(sys._MEIPASS) / ".env")
+    candidates.append(Path.cwd() / ".env")
+    candidates.append(Path(__file__).resolve().parent / ".env")
+    candidates.append(Path(__file__).resolve().parent.parent / ".env")
+    seen = set()
+    for p in candidates:
+        try:
+            rp = p.resolve()
+            if rp not in seen and rp.is_file():
+                seen.add(rp)
+                load_dotenv(rp, override=False)
+        except Exception:
+            pass
+
+
+_load_worker_env()
+
 # [AIR-0227E-P2-VALIDATION] The installed binaries live under Program Files
 # (Inno Setup's AIRWorker.iss, admin-required) - a standard user cannot
 # write there. All mutable state must live somewhere the user account
 # running AIRWorker.exe can always write to, regardless of install location
-# or privilege level. Final confirmed path (per this Task's explicit
-# decision, superseding the P2 hardening branch's standalone
-# %LOCALAPPDATA%\AIRWorker\): %LOCALAPPDATA%\AIRStudio\AIRWorker\ - nested
-# under the same top-level vendor folder AIR Studio Desktop already uses
-# (%LOCALAPPDATA%\AIRStudio\), as a SIBLING data directory. This is a data-
-# location choice only, not a channel merge: install path, registry Run key,
-# version source (worker_version.py), and update mechanism all remain fully
-# independent of AIR Studio Desktop's own channel.
-#
-# No production users exist yet for AIR Worker (still Conditional Go, never
-# deployed) - there is nothing to migrate, so this is a direct default-path
-# change, not a migration. A pre-existing dev-only %LOCALAPPDATA%\AIRWorker\
-# directory from earlier PoC/QA sessions is simply orphaned (ignored, not
-# read, not deleted) - it holds no real data.
-#
-# AIRWORKER_HOME remains the override for dev/QA/tests that want an
-# isolated, disposable location instead of touching the real user profile -
-# confirmed still takes priority whenever set (regression-tested).
+# or privilege level. Final confirmed path: %LOCALAPPDATA%\AIRStudio\AIRWorker\
 _DEFAULT_LOCALAPPDATA_HOME = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "AIRStudio" / "AIRWorker"
 BASE_DIR = Path(os.environ.get("AIRWORKER_HOME", _DEFAULT_LOCALAPPDATA_HOME))
 STATE_DIR = BASE_DIR / "state"
@@ -48,21 +58,16 @@ RESULT_DIR = IPC_DIR / "results"
 CANCEL_FLAG_DIR = STATE_DIR / "cancel_flags"
 SHUTDOWN_FLAG_DIR = STATE_DIR / "shutdown_flags"
 MANAGER_STATUS_FILE = STATE_DIR / "manager_status.json"
-# [P2-VALIDATION §1] Canonical subpath set. output/ is in active use
-# (render_worker.py's DELIVERED_DIR, renamed from state/delivered/). temp/,
-# config/, crash/, update/, quarantine/ are created for structural
-# completeness but have no consumer yet - reserved, not wired into any
-# code path this Task (documented honestly in the worknote, not claimed as
-# implemented features).
+
 OUTPUT_DIR = BASE_DIR / "output"
-TEMP_DIR = BASE_DIR / "temp"            # reserved - render scratch still uses tempfile.mkdtemp() under system %TEMP%, not migrated here
-CONFIG_DIR = BASE_DIR / "config"        # reserved - no user-editable config file lives here yet
+TEMP_DIR = BASE_DIR / "temp"
+CONFIG_DIR = BASE_DIR / "config"
 ASSET_DIR = BASE_DIR / "assets"
 SFX_LIBRARY_DIR = ASSET_DIR / "sfx"
 SFX_CATALOG_PATH = SFX_LIBRARY_DIR / "catalog.json"
-CRASH_DIR = BASE_DIR / "crash"          # reserved - no crash-dump writer exists yet
-UPDATE_DIR = BASE_DIR / "update"        # reserved worker runtime directory
-QUARANTINE_DIR = BASE_DIR / "quarantine"  # reserved - partial/abandoned render outputs are not yet moved here (see docs/AIR_WORKER_JOB_RECOVERY.md for current abandon policy)
+CRASH_DIR = BASE_DIR / "crash"
+UPDATE_DIR = BASE_DIR / "update"
+QUARANTINE_DIR = BASE_DIR / "quarantine"
 for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, IPC_DIR, COMMAND_DIR, RESULT_DIR,
            CANCEL_FLAG_DIR, SHUTDOWN_FLAG_DIR, OUTPUT_DIR, TEMP_DIR, CONFIG_DIR,
            ASSET_DIR, SFX_LIBRARY_DIR, CRASH_DIR, UPDATE_DIR, QUARANTINE_DIR):
@@ -92,20 +97,18 @@ MAX_CRASHES_IN_WINDOW = 3           # disable the module after this many crashes
 RESTART_BACKOFF_SECONDS = 2         # small delay before restarting a crashed process
 
 # docs/AIR_WORKER_SECURITY.md §2 - Local API bind address.
-# MUST be loopback-only, never configurable to a real interface address.
 LOCAL_API_HOST = "127.0.0.1"
 LOCAL_API_PORT = int(os.environ.get("AIRWORKER_LOCAL_API_PORT", "8765"))
 
 HEARTBEAT_STALE_SECONDS = 15        # a process is considered unresponsive if its heartbeat file is older than this
 MANAGER_TICK_SECONDS = 1.0          # how often the manager's supervisor loop runs
 
-# [AIR-0227B Stage 3] graceful shutdown protocol timings (docs/AIR_WORKER_SHUTDOWN_PROTOCOL.md).
-SHUTDOWN_GRACE_SECONDS = 8.0        # time given to a child process to exit cleanly after SIGTERM/terminate()
-SHUTDOWN_JOB_ABORT_GRACE_SECONDS = 5.0  # extra time given to Render Worker to reach a safe checkpoint if a job is active
-COMMAND_RESULT_TIMEOUT_SECONDS = 10.0   # how long Local API waits for Manager to answer a command via ipc.py
+# [AIR-0227B Stage 3] graceful shutdown protocol timings
+SHUTDOWN_GRACE_SECONDS = 8.0
+SHUTDOWN_JOB_ABORT_GRACE_SECONDS = 5.0
+COMMAND_RESULT_TIMEOUT_SECONDS = 10.0
 
 WORKER_ID = os.environ.get("AIRWORKER_ID", "poc-worker-not-real")
-# docs/AIR_WORKER_SECURITY.md §4 - never a real Worker Token, never committed.
 WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
 
 WORKER_PROFILES = ("full", "content_only", "render_only")
@@ -132,27 +135,8 @@ WORKER_PROFILE = normalize_worker_profile(
 )
 ALLOWED_CHILD_SCRIPTS = PROFILE_CHILD_SCRIPTS[WORKER_PROFILE]
 
-# [AIR-0227C Stage 6] Identity of THIS Manager run, not the OS PID.
-# docs/AIR_WORKER_LEASE_PROTOCOL.md: PID is unusable as a stable identity
-# (AIR-0227B found the venv launcher relaunches into a child with a
-# different pid than the one subprocess.Popen returns - see
-# AIR_WORKER_JOB_RECOVERY.md's "pid 불일치" bug writeup). manager.py
-# generates ONE uuid4 per Manager process start and exports it via this env
-# var to every child it spawns, so Render Worker's lease claims are
-# attributable to a stable "this Manager session" identity instead. A
-# script run standalone (no Manager) falls back to generating its own -
-# only meaningful for ad hoc local testing, never for a real lease claim.
 WORKER_INSTANCE_ID = os.environ.get("AIRWORKER_INSTANCE_ID") or __import__("uuid").uuid4().hex
 
-# [AIR-0227B Stage 4] Root of the main AIR Studio app (this repo), needed so
-# the Render Worker Process can import services/remote_render_service.py and
-# services/video_service.py - the one real, already-battle-tested rendering
-# code path (docs/AIR_WORKER_RENDER_ADAPTER.md). This does NOT pull in any
-# Supabase/service_role dependency - services/remote_render_service.py's
-# remote_render_executor_func() takes no credentials at all, and
-# database.py (imported transitively) is pure local SQLite (verified
-# Stage 1). Only the Render Worker Process needs this; Manager/Hermes/Local
-# API never import project-root modules.
 PROJECT_ROOT = Path(os.environ.get("AIRWORKER_PROJECT_ROOT", Path(__file__).resolve().parent.parent))
 
 
@@ -162,19 +146,98 @@ def ensure_project_root_on_path():
         sys.path.insert(0, root)
 
 
-# [AIR-0227B Stage 9] Honest GPU/CPU status display - docs/AIR_WORKER_ARCHITECTURE.md
-# Stage 1 finding: no encoding path in this codebase actually uses GPU
-# acceleration (zero hits for nvenc|qsv|amf|cuda|hwaccel anywhere in the
-# rendering code). remote_render_executor_func's use_gpu parameter is
-# accepted but never read. Do not imply GPU accel is happening.
 RENDER_ENCODER = "libx264"
 RENDER_ACCELERATION = "CPU"
 GPU_RENDERING_ACTIVE = False
 
 # ── 시스템 트레이 설정 ──
-TRAY_POLL_INTERVAL_SECONDS = 3.0   # 상태 폴링 주기
+TRAY_POLL_INTERVAL_SECONDS = 3.0
 TRAY_ICON_NAME = "AIR Worker"
 
 # ── 웹 대시보드 설정 ──
 DASHBOARD_HOST = "127.0.0.1"
 DASHBOARD_PORT = 3002
+
+
+def save_worker_settings(new_settings: dict) -> dict:
+    """Save worker settings (profile, worker_id, central url, token, etc.) to .env and os.environ."""
+    global WORKER_PROFILE, ALLOWED_CHILD_SCRIPTS, WORKER_ID, WORKER_TOKEN
+
+    key_map = {
+        "worker_profile": "AIRWORKER_PROFILE",
+        "worker_id": "AIRWORKER_ID",
+        "central_server_url": "AIRWORKER_CENTRAL_SERVER_URL",
+        "worker_token": "AIRWORKER_TOKEN",
+        "remote_worker_id": "REMOTE_RENDER_WORKER_ID",
+        "remote_google_token_path": "REMOTE_RENDER_GOOGLE_TOKEN_PATH",
+        "remote_drive_folder_id": "REMOTE_RENDER_DRIVE_FOLDER_ID",
+        "use_gpu_render": "USE_GPU_RENDER",
+    }
+
+    updates = {}
+    for param_key, env_key in key_map.items():
+        if param_key in new_settings:
+            val = str(new_settings[param_key] or "").strip()
+            if param_key == "worker_token" and (val == "••••••••" or val.startswith("••••")):
+                continue  # skip masked token
+            updates[env_key] = val
+            os.environ[env_key] = val
+
+    # Apply in-memory variables
+    if "AIRWORKER_PROFILE" in updates:
+        WORKER_PROFILE = normalize_worker_profile(updates["AIRWORKER_PROFILE"])
+        ALLOWED_CHILD_SCRIPTS = PROFILE_CHILD_SCRIPTS[WORKER_PROFILE]
+    if "AIRWORKER_ID" in updates:
+        WORKER_ID = updates["AIRWORKER_ID"]
+    if "AIRWORKER_TOKEN" in updates:
+        WORKER_TOKEN = updates["AIRWORKER_TOKEN"]
+
+    # Write to target .env files
+    target_env_files = []
+    if getattr(sys, "frozen", False):
+        target_env_files.append(Path(sys.executable).resolve().parent / ".env")
+    target_env_files.append(Path.cwd() / ".env")
+    target_env_files.append(PROJECT_ROOT / ".env")
+    target_env_files.append(BASE_DIR / ".env")
+
+    written_paths = []
+    seen = set()
+    for env_path in target_env_files:
+        try:
+            rp = env_path.resolve()
+            if rp in seen:
+                continue
+            seen.add(rp)
+
+            lines = []
+            if rp.exists():
+                lines = rp.read_text(encoding="utf-8").splitlines()
+
+            existing_keys = set()
+            new_lines = []
+            for line in lines:
+                if "=" in line and not line.strip().startswith("#"):
+                    k = line.split("=", 1)[0].strip()
+                    if k in updates:
+                        new_lines.append(f"{k}={updates[k]}")
+                        existing_keys.add(k)
+                        continue
+                new_lines.append(line)
+
+            for k, v in updates.items():
+                if k not in existing_keys:
+                    new_lines.append(f"{k}={v}")
+
+            rp.parent.mkdir(parents=True, exist_ok=True)
+            rp.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+            written_paths.append(str(rp))
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "worker_profile": WORKER_PROFILE,
+        "worker_id": WORKER_ID,
+        "updated_keys": list(updates.keys()),
+        "written_files": written_paths,
+    }

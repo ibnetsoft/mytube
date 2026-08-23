@@ -1751,7 +1751,7 @@ async def api_notebooklm_send_to_hermes(
             "tags": [category, "NotebookLM", "자료기반대본"],
             "hashtags": [f"#{category}", "#NotebookLM"],
         },
-        "material_statuses": {
+"material_statuses": {
             "benchmark": "ready",
             "title": "ready",
             "web_research": "ready",
@@ -1781,7 +1781,6 @@ async def api_notebooklm_send_to_hermes(
         "scene_count": len(scenes),
         "script_chars": len(script),
     }
-
 
 @app.get("/api/yt/trending-keywords")
 async def yt_trending_keywords(
@@ -1813,8 +1812,6 @@ async def yt_trending_keywords(
         and not getattr(Config, "GLM_API_KEY", "")
     ):
         return {"status": "ok", "keywords": fallback_keywords, "source": "fallback"}
-    if False and not Config.GEMINI_API_KEY:
-        return {"error": "GEMINI_API_KEY이 설정되지 않았습니다"}
     lang_map = {"ko": "South Korea (Korean)", "ja": "Japan (Japanese)", "en": "USA/International (English)"}
     period_map = {"now": "REAL-TIME / NOW", "week": "THIS WEEK (Last 7 days)", "month": "THIS MONTH (Last 30 days)"}
     age_map = {"all": "ALL Ages", "10s": "Teenagers (10-19)", "20s": "Young Adults (20-29)", "30s": "Adults (30-39)", "40s": "Middle-aged (40+)"}
@@ -1860,30 +1857,13 @@ async def yt_trending_keywords(
         logger.error(f"trending-keywords error: {e}")
         return {"status": "ok", "keywords": fallback_keywords, "source": "fallback"}
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={Config.GEMINI_API_KEY}",
-                json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.9}},
-            )
-            if r.status_code != 200:
-                return {"error": f"Gemini API 오류: {r.status_code}"}
-            text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            match = _re.search(r'\[[\s\S]*\]', text)
-            if match:
-                return {"status": "ok", "keywords": json.loads(match.group(0))}
-            return {"status": "ok", "keywords": []}
-    except Exception as e:
-        logger.error(f"trending-keywords error: {e}")
-        return {"status": "ok", "keywords": []}
-
 
 # ---------------------------------------------------------------------------
-# Settings endpoints (Hermes / AI API keys)
+# Settings endpoints (Hermes / AI API keys & Worker Profile)
 # ---------------------------------------------------------------------------
 
-# 키 값은 마스킹해서 응답
 _MASKED = "••••••••"
+
 
 def _mask_value(v: str) -> str:
     if not v:
@@ -1920,7 +1900,6 @@ async def api_get_settings(
     result = []
     for attr, label in keys:
         val = getattr(Config, attr, "")
-        is_key = "KEY" in attr
         result.append({"key": attr, "label": label, "value": _mask_value(val), "set": bool(val)})
     return {"settings": result}
 
@@ -1936,12 +1915,11 @@ async def api_set_setting(
     value = (body.get("value") or "").strip()
     if not key:
         return {"error": "key가 필요합니다"}
-    
-    # 보안: 마스킹된 값이 그대로 들어오면 변경하지 않음 (API 키 계열만 해당)
+
     is_key = "KEY" in key
     if is_key and (value == _MASKED or value.startswith(_MASKED)):
         return {"ok": True, "message": "변경 없음 (마스킹된 값)"}
-        
+
     allowed = {
         "GEMINI_API_KEY", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
@@ -1954,8 +1932,7 @@ async def api_set_setting(
         from config import Config
         Config.update_api_key(key, value)
         logger.info(f"설정 변경 (대시보드): {key} = {value if 'KEY' not in key else '••••'}")
-        
-        # Supabase 원격 동시 저장 시도 (Dual-write)
+
         try:
             from services.web_admin_client import web_admin_client
             sb_key = None
@@ -1963,9 +1940,8 @@ async def api_set_setting(
                 if v == key:
                     sb_key = k
                     break
-            
+
             if sb_key and web_admin_client.has_supabase():
-                # bool 값일 경우 문자열로 형변환해서 전송
                 str_val = str(value).lower() if isinstance(value, bool) else str(value)
                 ok = web_admin_client.save_global_setting(sb_key, str_val)
                 if ok:
@@ -1974,11 +1950,43 @@ async def api_set_setting(
                     logger.warning(f"Supabase 원격 동기화 실패 (응답 에러): {sb_key}")
         except Exception as sb_err:
             logger.warning(f"Supabase 원격 저장 실패 (로컬 저장은 유지됨): {sb_err}")
-            
+
         return {"ok": True, "success": True, "message": f"{key} 저장 완료 (원격 동기화 시도 완료)"}
     except Exception as e:
         logger.error(f"설정 저장 실패: {key} — {e}")
         return {"error": f"저장 실패: {e}"}
+
+
+@app.get("/api/worker-profile-settings")
+async def api_get_worker_profile_settings(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    import worker_config
+    token_val = os.environ.get("AIRWORKER_TOKEN") or worker_config.WORKER_TOKEN or ""
+    masked_token = (token_val[:4] + "••••••••") if len(token_val) > 4 else ("••••••••" if token_val else "")
+    return {
+        "worker_profile": worker_config.WORKER_PROFILE,
+        "worker_id": os.environ.get("AIRWORKER_ID") or worker_config.WORKER_ID,
+        "central_server_url": os.environ.get("AIRWORKER_CENTRAL_SERVER_URL", ""),
+        "worker_token": masked_token,
+        "worker_token_set": bool(token_val),
+        "remote_worker_id": os.environ.get("REMOTE_RENDER_WORKER_ID", ""),
+        "use_gpu_render": os.environ.get("USE_GPU_RENDER", "false").lower() in ("true", "1", "yes"),
+    }
+
+
+@app.post("/api/worker-profile-settings")
+async def api_save_worker_profile_settings(
+    body: dict,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    import worker_config
+    result = worker_config.save_worker_settings(body)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -3411,6 +3419,58 @@ tr:hover { background: #161b22; }
 
       <!-- ═══ Tab: Settings ═══ -->
       <div class="tab-content" id="tab-settings">
+        <!-- ═══ Worker Profile & PC Settings Card ═══ -->
+        <div class="card" style="margin-bottom:20px;border:1px solid #388bfd;background:rgba(56,139,253,0.04);">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span>💻</span> 워커 실행 모드 및 PC 설정
+            </div>
+            <span id="worker-profile-badge" style="font-size:12px;padding:3px 10px;border-radius:12px;background:#238636;color:#fff;font-weight:bold;">현재 모드: -</span>
+          </div>
+          <p style="color:#8b949e;margin-bottom:16px;font-size:13px;line-height:1.5;">
+            이 컴퓨터가 수행할 워커 역할(렌더링 전용 / 대본 기획 전용 / 전체 통합)과 컴퓨터 이름을 설정합니다.<br>
+            저장 시 로컬 .env 파일에 자동으로 기록되어 재시작 후에도 안전하게 유지됩니다.
+          </p>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;margin-bottom:16px;">
+            <div class="form-group">
+              <label style="font-weight:bold;color:#f0f6fc;margin-bottom:6px;display:block;">🔘 워커 동작 역할 (Profile) *</label>
+              <select id="worker-set-profile" style="width:100%;padding:10px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-weight:600;outline:none;">
+                <option value="render_only">🎬 렌더링 전용 (render_only) - 영상 조립 및 렌더링만 처리 (렌더 PC 권장)</option>
+                <option value="content_only">📝 대본·기획 전용 (content_only) - YouTube 탐색 및 대본 생성만 처리 (기획 PC 권장)</option>
+                <option value="full">🚀 전체 통합 모드 (full) - 대본 생성 + 영상 렌더링 모두 실행</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label style="font-weight:bold;color:#f0f6fc;margin-bottom:6px;display:block;">🏷️ 이 컴퓨터 워커 이름 (Worker ID) *</label>
+              <input id="worker-set-id" type="text" placeholder="예: render-pc-01, worker-office-1" style="width:100%;padding:9px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;" />
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">여러 PC에서 분산 렌더링 시 컴퓨터를 구분하는 고유 이름입니다.</div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #21262d;padding-top:14px;margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">🌐 중앙 서버 연동 주소 (선택)</label>
+              <input id="worker-set-server-url" type="text" placeholder="예: https://your-server.com (미입력 시 단독 로컬 동작)" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+            </div>
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">🔑 워커 인증 토큰 (선택)</label>
+              <input id="worker-set-token" type="password" placeholder="중앙 서버 발급 토큰" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+            </div>
+          </div>
+
+          <div style="margin-top:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="saveWorkerProfileSettings(true)" style="background:#238636;border-color:#2ea043;font-weight:bold;padding:9px 18px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <span>💾</span> 워커 설정 저장 & 서버 즉시 재시작
+            </button>
+            <button class="btn" onclick="saveWorkerProfileSettings(false)" style="padding:9px 14px;cursor:pointer;">
+              설정만 저장
+            </button>
+            <span id="worker-settings-status" style="font-size:13px;color:#8b949e"></span>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-title">&#x2699; Hermes / AI API 설정</div>
           <p style="color:#8b949e;margin-bottom:16px;font-size:13px;">
@@ -3946,13 +4006,13 @@ function renderProcessCards(status, jobs = []) {
     }[name] || '';
     const hasError = info.last_error && info.last_error.length > 0;
     const isRecentError = hasError && (!info.last_success_at || info.last_success_at < (Date.now()/1000 - 300));
+    const normalizedStatus = String(s || '').toLowerCase();
     const disabledByProfile = !allowedProcesses.has(name) || normalizedStatus === 'disabled';
     const disabledReason = info.disabled_reason || `disabled by AIRWORKER_PROFILE=${workerProfile}`;
     const autoStart = !disabledByProfile && (name === 'render_worker' || name === 'local_api');
     const displayLabel = name === 'remote_drive_worker' ? 'Drive API Render Worker' : label;
-    const displayIcon = name === 'remote_drive_worker' ? '\u{2601}' : icon;
+    const displayIcon = name === 'remote_drive_worker' ? '☁️' : icon;
     const hermesPipelineDone = name === 'hermes_worker' && hermesReadyAfterCompletedPipeline(jobs);
-    const normalizedStatus = String(s || '').toLowerCase();
     const processBusyStatuses = ['running', 'starting', 'busy', 'claimed', 'preparing', 'rendering', 'uploading'];
     const hasCurrentJob = Boolean(info.current_job || currentJobId);
     const hermesBusy = name === 'hermes_worker' && (processBusyStatuses.includes(normalizedStatus) || hasCurrentJob);
@@ -5727,7 +5787,75 @@ const settingIcons = {
 /* Track original values for dirty detection */
 let settingsOriginal = {};
 
+
+async function loadWorkerProfileSettings() {
+  try {
+    const data = await api('GET', '/api/worker-profile-settings');
+    if (!data) return;
+    const profileEl = document.getElementById('worker-set-profile');
+    const idEl = document.getElementById('worker-set-id');
+    const urlEl = document.getElementById('worker-set-server-url');
+    const tokenEl = document.getElementById('worker-set-token');
+    const badgeEl = document.getElementById('worker-profile-badge');
+
+    if (profileEl) profileEl.value = data.worker_profile || 'full';
+    if (idEl) idEl.value = data.worker_id || '';
+    if (urlEl) urlEl.value = data.central_server_url || '';
+    if (tokenEl) {
+      tokenEl.value = data.worker_token || '';
+      tokenEl.placeholder = data.worker_token_set ? '•••••••• (설정됨)' : '중앙 서버 발급 토큰';
+    }
+    if (badgeEl) {
+      const modeNames = { 'render_only': '🎬 렌더링 전용', 'content_only': '📝 대본 기획 전용', 'full': '🚀 전체 통합' };
+      badgeEl.textContent = `현재 모드: ${modeNames[data.worker_profile] || data.worker_profile}`;
+    }
+  } catch (e) {
+    console.error('loadWorkerProfileSettings error:', e);
+  }
+}
+
+async function saveWorkerProfileSettings(restartAfterSave = true) {
+  const profile = document.getElementById('worker-set-profile').value;
+  const worker_id = document.getElementById('worker-set-id').value.trim();
+  const central_server_url = document.getElementById('worker-set-server-url').value.trim();
+  const worker_token = document.getElementById('worker-set-token').value.trim();
+  const statusEl = document.getElementById('worker-settings-status');
+
+  statusEl.textContent = '저장 중...';
+  statusEl.style.color = '#8b949e';
+
+  try {
+    const res = await api('POST', '/api/worker-profile-settings', {
+      worker_profile: profile,
+      worker_id: worker_id,
+      central_server_url: central_server_url,
+      worker_token: worker_token,
+    });
+
+    if (res && res.success) {
+      showToast('워커 설정이 .env에 성공적으로 저장되었습니다.');
+      statusEl.textContent = '저장 완료';
+      statusEl.style.color = '#3fb950';
+      await loadWorkerProfileSettings();
+
+      if (restartAfterSave) {
+        if (confirm('수정된 워커 모드를 적용하기 위해 지금 워커 서버를 재시작하시겠습니까?')) {
+          confirmRestartServer();
+        }
+      }
+    } else {
+      showToast(`저장 실패: ${res?.error || '알 수 없음'}`, 'error');
+      statusEl.textContent = '저장 실패';
+      statusEl.style.color = '#f85149';
+    }
+  } catch (e) {
+    statusEl.textContent = '오류: ' + e.message;
+    statusEl.style.color = '#f85149';
+  }
+}
+
 async function loadSettings() {
+  loadWorkerProfileSettings();
   const data = await api('GET', '/api/settings');
   if (!data) return;
   const list = data.settings || [];
