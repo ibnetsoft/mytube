@@ -102,20 +102,6 @@ class TrayApp:
         snap = self._collector.latest
         parts = ["📊 AIR Worker"]
 
-        # 렌더 워커
-        rw = snap.processes.get("render_worker")
-        if rw:
-            if rw.status == "running" and rw.progress is not None:
-                parts.append(f"  렌더: {rw.progress}%")
-            elif rw.status == "running":
-                parts.append("  렌더: 작업 중")
-            elif rw.status == "disabled":
-                parts.append(f"  렌더: 비활성 ({rw.disabled_reason or ''})")
-            elif rw.status == "stopped":
-                parts.append("  렌더: 정지")
-            else:
-                parts.append(f"  렌더: {rw.status}")
-
         # Hermes 워커
         hw = snap.processes.get("hermes_worker")
         if hw:
@@ -127,8 +113,6 @@ class TrayApp:
                 parts.append("  Hermes: 정지")
             else:
                 parts.append(f"  Hermes: {hw.status}")
-            if snap.hermes_paused:
-                parts.append("  Hermes: 일시정지 (렌더 중)")
 
         # Local API
         la = snap.processes.get("local_api")
@@ -159,13 +143,6 @@ class TrayApp:
         # 구분선
         sep1 = pystray.Menu.SEPARATOR
 
-        # 렌더 워커 상태
-        render_status = pystray.MenuItem(
-            "🎬 렌더 워커",
-            None,
-            enabled=False,
-        )
-
         # Hermes 워커 상태
         hermes_status = pystray.MenuItem(
             "📊 Hermes 워커",
@@ -184,16 +161,6 @@ class TrayApp:
         sep2 = pystray.Menu.SEPARATOR
 
         # 알림 설정 토글
-        notify_render_complete = pystray.MenuItem(
-            "✅ 렌더 완료 알림",
-            self._toggle_notify_render_complete,
-            checked=lambda item: self._notification.notify_render_complete_enabled,
-        )
-        notify_render_failed = pystray.MenuItem(
-            "❌ 렌더 실패 알림",
-            self._toggle_notify_render_failed,
-            checked=lambda item: self._notification.notify_render_failed_enabled,
-        )
         notify_hermes_complete = pystray.MenuItem(
             "✅ Hermes 완료 알림",
             self._toggle_notify_hermes_complete,
@@ -217,23 +184,14 @@ class TrayApp:
         return pystray.Menu(
             status_text,
             sep1,
-            render_status,
             hermes_status,
             api_status,
             sep2,
-            notify_render_complete,
-            notify_render_failed,
             notify_hermes_complete,
             notify_hermes_failed,
             sep3,
             quit_item,
         )
-
-    def _toggle_notify_render_complete(self, icon, item):
-        self._notification.notify_render_complete_enabled = not self._notification.notify_render_complete_enabled
-
-    def _toggle_notify_render_failed(self, icon, item):
-        self._notification.notify_render_failed_enabled = not self._notification.notify_render_failed_enabled
 
     def _toggle_notify_hermes_complete(self, icon, item):
         self._notification.notify_hermes_complete_enabled = not self._notification.notify_hermes_complete_enabled
@@ -266,42 +224,30 @@ class TrayApp:
                 return
 
             # 메뉴 항목 인덱스 매핑:
-            # 0: 상태, 1: separator, 2: 렌더, 3: Hermes, 4: API,
-            # 5: separator, 6-9: 알림 토글, 10: separator, 11: 종료
+            # 0: 상태, 1: separator, 2: Hermes, 3: API,
+            # 4: separator, 5-6: 알림 토글, 7: separator, 8: 종료
             items = list(menu.items)
 
             # 상태 텍스트 갱신
-            rw = snap.processes.get("render_worker")
             hw = snap.processes.get("hermes_worker")
             la = snap.processes.get("local_api")
 
             # tooltip 갱신
             self._icon.title = snap.tooltip
 
-            # 렌더 워커 텍스트
-            if len(items) > 2 and rw:
-                if rw.status == "running" and rw.progress is not None:
-                    items[2].text = f"🎬 렌더: {rw.progress}%"
-                elif rw.status == "running":
-                    items[2].text = "🎬 렌더: 작업 중"
-                elif rw.status == "disabled":
-                    items[2].text = f"🎬 렌더: 비활성"
-                else:
-                    items[2].text = f"🎬 렌더: {rw.status}"
-
             # Hermes 워커 텍스트
-            if len(items) > 3 and hw:
+            if len(items) > 2 and hw:
                 if hw.status == "running":
                     paused_tag = " (일시정지)" if snap.hermes_paused else ""
-                    items[3].text = f"📊 Hermes: 작업 중{paused_tag}"
+                    items[2].text = f"📊 Hermes: 작업 중{paused_tag}"
                 elif hw.status == "disabled":
-                    items[3].text = "📊 Hermes: 비활성"
+                    items[2].text = "📊 Hermes: 비활성"
                 else:
-                    items[3].text = f"📊 Hermes: {hw.status}"
+                    items[2].text = f"📊 Hermes: {hw.status}"
 
             # Local API 텍스트
-            if len(items) > 4 and la:
-                items[4].text = f"🌐 API: {la.status if la.status else '알 수 없음'}"
+            if len(items) > 3 and la:
+                items[3].text = f"🌐 API: {la.status if la.status else '알 수 없음'}"
 
         except Exception as e:
             logger.debug(f"메뉴 갱신 오류: {e}")
@@ -311,37 +257,12 @@ class TrayApp:
         # 완료/실패 알림
         for job in snap.completed_jobs:
             logger.info(f"작업 완료 감지: {job.job_id} ({job.job_type})")
-            if job.job_type == "render_video":
-                # 작업 이름 추출 (payload에서)
-                try:
-                    import job_store
-                    full_job = job_store.get_job(job.job_id)
-                    if full_job:
-                        payload = full_job.get("payload", {})
-                        name = payload.get("project_name") or payload.get("source_path", job.job_id)
-                        self._notification.notify_render_complete(name)
-                    else:
-                        self._notification.notify_render_complete(job.job_id)
-                except Exception:
-                    self._notification.notify_render_complete(job.job_id)
-            elif job.job_type.startswith("topic_") or job.job_type in ("script_plan_generate", "script_generate"):
+            if job.job_type.startswith("topic_") or job.job_type in ("script_plan_generate", "script_generate"):
                 self._notification.notify_hermes_complete(job.job_type)
 
         for job in snap.failed_jobs:
             logger.info(f"작업 실패 감지: {job.job_id} ({job.job_type})")
-            if job.job_type == "render_video":
-                try:
-                    import job_store
-                    full_job = job_store.get_job(job.job_id)
-                    if full_job:
-                        payload = full_job.get("payload", {})
-                        name = payload.get("project_name") or payload.get("source_path", job.job_id)
-                        self._notification.notify_render_failed(name)
-                    else:
-                        self._notification.notify_render_failed(job.job_id)
-                except Exception:
-                    self._notification.notify_render_failed(job.job_id)
-            elif job.job_type.startswith("topic_") or job.job_type in ("script_plan_generate", "script_generate"):
+            if job.job_type.startswith("topic_") or job.job_type in ("script_plan_generate", "script_generate"):
                 self._notification.notify_hermes_failed(job.job_type)
 
         # 메뉴/tooltip 갱신

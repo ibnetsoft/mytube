@@ -517,6 +517,19 @@ class HermesAutopilotManager:
             return f"queue:{queue_id}"
         return f"job:{job.get('job_id') or id(job)}"
 
+    def _canonical_topic_queue_id(self, jobs: list[dict], fallback: str = "") -> str:
+        """Keep resumed stages attached to the original user-facing pipeline."""
+        candidates: list[str] = []
+        for job in jobs:
+            payload = job.get("payload") or {}
+            value = str(payload.get("topic_queue_id") or payload.get("topic_id") or "").strip()
+            if value:
+                candidates.append(value)
+        for value in reversed(candidates):
+            if not value.startswith(("resume-", "local-auto-")):
+                return value
+        return candidates[-1] if candidates else str(fallback or "")
+
     def _completed_result_for_type(self, jobs: list[dict], job_type: str) -> tuple[dict, dict] | tuple[None, None]:
         for job in reversed(jobs):
             if job.get("job_type") != job_type or str(job.get("status") or "").upper() != "COMPLETED":
@@ -581,7 +594,9 @@ class HermesAutopilotManager:
         script_job, script_data = self._completed_result_for_type(jobs, "script_generate")
         if script_job and script_data:
             script_payload = script_job.get("payload") or {}
-            topic_queue_id = script_data.get("topic_queue_id") or script_payload.get("topic_queue_id")
+            topic_queue_id = self._canonical_topic_queue_id(
+                jobs, script_data.get("topic_queue_id") or script_payload.get("topic_queue_id")
+            )
             title = (
                 script_data.get("upload_title")
                 or script_data.get("generated_title")
@@ -615,7 +630,9 @@ class HermesAutopilotManager:
         plan_job, plan_data = self._completed_result_for_type(jobs, "script_plan_generate")
         if plan_job and plan_data:
             plan_payload = plan_job.get("payload") or {}
-            topic_queue_id = plan_data.get("topic_queue_id") or plan_payload.get("topic_queue_id")
+            topic_queue_id = self._canonical_topic_queue_id(
+                jobs, plan_data.get("topic_queue_id") or plan_payload.get("topic_queue_id")
+            )
             title = (
                 plan_data.get("upload_title")
                 or plan_data.get("generated_title")
@@ -654,7 +671,12 @@ class HermesAutopilotManager:
         if research_job and research_data:
             research_payload = research_job.get("payload") or {}
             research_bundle = research_data.get("research_bundle") if isinstance(research_data.get("research_bundle"), dict) else {}
-            topic_queue_id = research_data.get("topic_queue_id") or research_payload.get("topic_queue_id") or f"resume-{research_job.get('job_id')}"
+            topic_queue_id = self._canonical_topic_queue_id(
+                jobs,
+                research_data.get("topic_queue_id")
+                or research_payload.get("topic_queue_id")
+                or f"resume-{research_job.get('job_id')}",
+            )
             category = research_bundle.get("category") or research_data.get("category") or research_payload.get("category") or research_payload.get("category_name")
             title = research_bundle.get("upload_title") or research_data.get("upload_title") or research_payload.get("upload_title") or research_payload.get("topic")
             if not title:

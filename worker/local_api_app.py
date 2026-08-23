@@ -21,7 +21,6 @@ from fastapi import FastAPI, Header, HTTPException
 from ipc import submit_command, wait_for_result
 from local_api_token import verify_token
 from logging_setup import get_logger
-from render_pipeline_adapter import render_status_display
 from worker_config import LOG_FILES, STATE_DIR, WORKER_ID
 
 logger = get_logger("local_api")
@@ -68,7 +67,6 @@ async def health():
 async def status(authorization: str | None = Header(default=None)):
     require_auth(authorization)
     snap = _read_manager_status()
-    snap["render_status"] = render_status_display()
     return snap
 
 
@@ -76,34 +74,6 @@ async def status(authorization: str | None = Header(default=None)):
 async def processes(authorization: str | None = Header(default=None)):
     require_auth(authorization)
     return _read_manager_status().get("processes", {})
-
-
-@app.post("/processes/render/start")
-async def render_start(authorization: str | None = Header(default=None)):
-    require_auth(authorization)
-    audit("processes/render/start")
-    return wait_for_result(submit_command("start_process", {"name": "render_worker"}))
-
-
-@app.post("/processes/render/stop")
-async def render_stop(authorization: str | None = Header(default=None)):
-    require_auth(authorization)
-    audit("processes/render/stop")
-    return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
-
-
-@app.post("/processes/remote-drive/start")
-async def remote_drive_start(authorization: str | None = Header(default=None)):
-    require_auth(authorization)
-    audit("processes/remote-drive/start")
-    return wait_for_result(submit_command("start_process", {"name": "remote_drive_worker"}))
-
-
-@app.post("/processes/remote-drive/stop")
-async def remote_drive_stop(authorization: str | None = Header(default=None)):
-    require_auth(authorization)
-    audit("processes/remote-drive/stop")
-    return wait_for_result(submit_command("stop_process", {"name": "remote_drive_worker"}))
 
 
 @app.post("/processes/hermes/start")
@@ -140,13 +110,13 @@ async def job_detail(job_id: str, authorization: str | None = Header(default=Non
 async def submit_job(body: dict, authorization: str | None = Header(default=None)):
     require_auth(authorization)
     job_id = job_store.submit_job(
-        job_type=body.get("job_type", "render_video"),
+        job_type=body.get("job_type", "script_generate"),
         payload=body.get("payload", {}),
         priority=body.get("priority", 100),
         source=body.get("source", "local_api"),
         max_retries=body.get("max_retries", 3),
     )
-    audit("jobs/submit", f"job_id={job_id} job_type={body.get('job_type', 'render_video')}")
+    audit("jobs/submit", f"job_id={job_id} job_type={body.get('job_type', 'script_generate')}")
     return {"job_id": job_id}
 
 

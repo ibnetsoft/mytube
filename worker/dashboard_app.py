@@ -22,7 +22,6 @@ from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, 
 from fastapi.concurrency import run_in_threadpool
 from local_api_token import verify_token
 from logging_setup import get_logger
-from render_pipeline_adapter import render_status_display
 from worker_config import LOG_DIR, MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID, WORKER_PROFILE
 from hermes_autopilot import CATEGORIES, DEFAULT_CATEGORY_TARGET_DURATION_SECONDS, HermesAutopilotManager
 
@@ -318,6 +317,20 @@ def _completed_result_for_type(jobs: list[dict], job_type: str) -> tuple[dict, d
     return None, None
 
 
+def _canonical_topic_queue_id(jobs: list[dict], fallback: str = "") -> str:
+    """Prefer the original queue id over synthetic resume ids."""
+    candidates: list[str] = []
+    for job in jobs:
+        payload = job.get("payload") or {}
+        value = str(payload.get("topic_queue_id") or payload.get("topic_id") or "").strip()
+        if value:
+            candidates.append(value)
+    for value in reversed(candidates):
+        if not value.startswith(("resume-", "local-auto-")):
+            return value
+    return candidates[-1] if candidates else str(fallback or "")
+
+
 def _pipeline_has_active_job(jobs: list[dict]) -> bool:
     return any(str(job.get("status") or "").upper() in HERMES_ACTIVE_STATUSES for job in jobs)
 
@@ -330,7 +343,9 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
     script_job, script_data = _completed_result_for_type(jobs, "script_generate")
     if script_job and script_data:
         script_payload = script_job.get("payload") or {}
-        topic_queue_id = script_data.get("topic_queue_id") or script_payload.get("topic_queue_id")
+        topic_queue_id = _canonical_topic_queue_id(
+            jobs, script_data.get("topic_queue_id") or script_payload.get("topic_queue_id")
+        )
         title = (
             script_data.get("upload_title")
             or script_data.get("generated_title")
@@ -364,7 +379,9 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
     plan_job, plan_data = _completed_result_for_type(jobs, "script_plan_generate")
     if plan_job and plan_data:
         plan_payload = plan_job.get("payload") or {}
-        topic_queue_id = plan_data.get("topic_queue_id") or plan_payload.get("topic_queue_id")
+        topic_queue_id = _canonical_topic_queue_id(
+            jobs, plan_data.get("topic_queue_id") or plan_payload.get("topic_queue_id")
+        )
         title = (
             plan_data.get("upload_title")
             or plan_data.get("generated_title")
@@ -402,7 +419,7 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
     if research_job and research_data:
         research_payload = research_job.get("payload") or {}
         research_bundle = research_data.get("research_bundle") if isinstance(research_data.get("research_bundle"), dict) else {}
-        topic_queue_id = (
+        topic_queue_id = _canonical_topic_queue_id(jobs,
             research_data.get("topic_queue_id")
             or research_payload.get("topic_queue_id")
             or f"resume-{research_job.get('job_id')}"
@@ -1064,7 +1081,6 @@ def api_status(
         snap["manager_recovery"] = _launch_manager_recovery_if_needed()
     autopilot_status = autopilot_manager.get_status()
     _sync_hermes_process_status(snap, autopilot_status)
-    snap["render_status"] = render_status_display()
     return snap
 
 
@@ -1190,49 +1206,6 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
         return []
 
 
-@app.get("/api/rendering-jobs")
-def api_rendering_jobs(
-    limit: int = 30,
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    local_jobs = [j for j in job_store.list_jobs(limit=limit) if j.get("job_type") == "render_video"]
-    formatted_local = []
-    for j in local_jobs:
-        payload = j.get("payload") or {}
-        formatted_local.append({
-            "job_id": j.get("job_id"),
-            "raw_id": j.get("job_id"),
-            "source": "local",
-            "job_type": "render_video",
-            "project_id": payload.get("project_id"),
-            "project_name": payload.get("project_name") or payload.get("title") or f"Local Job {j.get('job_id', '')[:8]}",
-            "status": j.get("status", "QUEUED"),
-            "progress": j.get("progress", 0),
-            "progress_message": j.get("progress_message", ""),
-            "worker_id": j.get("worker_instance_id") or "local_worker",
-            "result_url": j.get("output_path"),
-            "created_at": j.get("created_at"),
-            "started_at": j.get("started_at"),
-            "error_message": j.get("error_message", ""),
-        })
-    remote_jobs = _fetch_remote_drive_render_queue(limit=limit)
-    all_jobs = formatted_local + remote_jobs
-    all_jobs.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-    
-    active_jobs = [j for j in all_jobs if j.get("status") in ("RENDERING", "PREPARING", "CLAIMED", "UPLOADING")]
-    pending_jobs = [j for j in all_jobs if j.get("status") in ("PENDING", "QUEUED")]
-    
-    return {
-        "jobs": all_jobs[:limit],
-        "active_job": active_jobs[0] if active_jobs else None,
-        "active_count": len(active_jobs),
-        "pending_count": len(pending_jobs),
-        "total_count": len(all_jobs),
-    }
-
-
 @app.get("/api/jobs/{job_id}")
 async def api_job_detail(
     job_id: str,
@@ -1258,7 +1231,7 @@ async def api_submit_job(
 ):
     require_auth(authorization, cookie)
     job_id = job_store.submit_job(
-        job_type=body.get("job_type", "render_video"),
+        job_type=body.get("job_type", "script_generate"),
         payload=body.get("payload", {}),
         priority=body.get("priority", 100),
         source="dashboard",
@@ -1463,46 +1436,6 @@ def api_hermes_stop(
     require_auth(authorization, cookie)
     from ipc import submit_command, wait_for_result
     return wait_for_result(submit_command("stop_process", {"name": "hermes_worker"}))
-
-
-@app.post("/api/processes/render/start")
-def api_render_start(
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    from ipc import submit_command, wait_for_result
-    return wait_for_result(submit_command("start_process", {"name": "render_worker"}))
-
-
-@app.post("/api/processes/render/stop")
-def api_render_stop(
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    from ipc import submit_command, wait_for_result
-    return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
-
-
-@app.post("/api/processes/remote-drive/start")
-def api_remote_drive_start(
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    from ipc import submit_command, wait_for_result
-    return wait_for_result(submit_command("start_process", {"name": "remote_drive_worker"}))
-
-
-@app.post("/api/processes/remote-drive/stop")
-def api_remote_drive_stop(
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    from ipc import submit_command, wait_for_result
-    return wait_for_result(submit_command("stop_process", {"name": "remote_drive_worker"}))
 
 
 # ---------------------------------------------------------------------------
@@ -2912,11 +2845,6 @@ tr:hover { background: #161b22; }
       <div class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
         <span class="icon">&#x1F4CA;</span> 대시보드
       </div>
-      <div class="nav-item" data-tab="rendering" onclick="switchTab('rendering')">
-        <span class="icon">&#x1F3AC;</span>
-        <span>렌더링 상황</span>
-        <span id="render-nav-badge" style="display:none;background:#ef4444;color:#ffffff;font-size:10px;font-weight:900;min-width:18px;height:18px;line-height:18px;border-radius:50%;text-align:center;padding:0 3px;margin-left:6px;box-shadow:0 0 6px rgba(239,68,68,0.8);">0</span>
-      </div>
       <div class="nav-item" data-tab="topic-search" onclick="switchTab('topic-search')">
         <span class="icon">&#x1F50D;</span> 주제 찾기
       </div>
@@ -2991,25 +2919,6 @@ tr:hover { background: #161b22; }
           </div>
           <div id="recent-jobs-container" class="pipeline-list"></div>
           <div class="empty" id="recent-empty" style="display:none"><div class="icon">&#x1F4ED;</div>아직 작업이 없습니다</div>
-        </div>
-      </div>
-
-      <!-- ═══ Tab: Rendering ═══ -->
-      <div class="tab-content" id="tab-rendering">
-        <div class="card" id="render-active-card">
-          <div class="card-title">현재 렌더 작업</div>
-          <div id="render-active-content"></div>
-        </div>
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div class="card-title" style="margin-bottom:0">렌더 작업 목록</div>
-            <button class="btn btn-sm" onclick="loadRenderTab()">&#x1F504; 렌더 목록 새로고침</button>
-          </div>
-          <table>
-            <thead><tr><th>출처</th><th>ID / 프로젝트</th><th>상태</th><th>진행률</th><th>메시지 / 작업자</th><th>접수/시작</th><th>결과</th></tr></thead>
-            <tbody id="render-jobs-body"></tbody>
-          </table>
-          <div class="empty" id="render-empty" style="display:none"><div class="icon">&#x1F3AC;</div>렌더 작업이 없습니다</div>
         </div>
       </div>
 
@@ -3850,7 +3759,6 @@ const tabTitles = {
   'generated-results': '생성 결과 확인',
   'voicebox-tts': 'Voicebox TTS 음성 생성',
   'overview': '대시보드',
-  'rendering': '렌더링 상황',
   'topic-search': '주제 찾기',
   'yt-explore': 'YouTube 탐색',
   'hermes-autopilot': 'Hermes 자동 생성',
@@ -3871,7 +3779,6 @@ function switchTab(tabId) {
   document.getElementById('page-title').textContent = tabTitles[tabId] || tabId;
   if (tabId === 'history') loadHistory();
   if (tabId === 'logs') loadLogs();
-  if (tabId === 'rendering') loadRenderTab();
   if (tabId === 'settings') loadSettings();
   if (tabId === 'styles') loadStylePresets();
   if (tabId === 'category-image-styles') loadCategoryImageStyles();
@@ -4217,9 +4124,12 @@ function groupJobsIntoPipelines(jobs) {
       if (job.created_at < batch.created_at) batch.created_at = job.created_at;
     } else if (title || queueId) {
       // Hermes Video Production Pipeline
-      const groupKey = queueId
-        ? `video_queue:::${String(queueId)}`
-        : `video:::${category}:::${title}`;
+      // A retry/resume is a new immutable Job but still belongs to the same
+      // user-facing video pipeline. Group by category+title whenever a title
+      // exists so synthetic resume-* ids cannot create duplicate cards.
+      const groupKey = title
+        ? `video:::${category}:::${title}`
+        : `video_queue:::${String(queueId)}`;
       if (!pipelineMap.has(groupKey)) {
         pipelineMap.set(groupKey, {
           id: 'pipe_' + stableHash(groupKey),
@@ -4234,6 +4144,9 @@ function groupJobsIntoPipelines(jobs) {
       }
       const group = pipelineMap.get(groupKey);
       if (title && (!group.title || group.title.startsWith('Topic #'))) group.title = title;
+      if (queueId && (!group.queueId || String(group.queueId).startsWith('resume-')) && !String(queueId).startsWith('resume-')) {
+        group.queueId = queueId;
+      }
       group.jobs.push(job);
       if (job.created_at > group.updated_at) group.updated_at = job.created_at;
       if (job.created_at < group.created_at) group.created_at = job.created_at;
@@ -5725,14 +5638,10 @@ async function refreshAll() {
   refreshAllInFlight = true;
   countdown = 3;
   try {
-    const [jobs, status, renderJobsData] = await Promise.all([
+    const [jobs, status] = await Promise.all([
       api('GET', '/api/jobs?limit=50'),
       api('GET', '/api/status'),
-      api('GET', '/api/rendering-jobs?limit=10'),
     ]);
-    if (renderJobsData) {
-      checkNewRenderJobs(renderJobsData.jobs, renderJobsData.pending_count || 0);
-    }
     if (!status) return;
     window.latestWorkerStatus = status;
     const recentJobs = jobs?.jobs || [];
@@ -5741,7 +5650,6 @@ async function refreshAll() {
 
     // Refresh active tab-specific data
     const activeTab = document.querySelector('.nav-item.active')?.dataset.tab;
-    if (activeTab === 'rendering') loadRenderTab();
     if (activeTab === 'history') loadHistory();
     if (activeTab === 'hermes-autopilot') loadAutopilotStatus();
   } catch(e) { /* silent */ }

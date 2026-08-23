@@ -62,7 +62,7 @@ try:
 except Exception:
     pass
 
-ROLES = ("manager", "render_worker", "remote_drive_worker", "hermes_worker", "local_api")
+ROLES = ("manager", "hermes_worker", "local_api")
 
 
 def _dispatch(role: str, crash_now: bool):
@@ -77,10 +77,6 @@ def _dispatch(role: str, crash_now: bool):
             except Exception:
                 pass
         import manager as mod
-    elif role == "render_worker":
-        import render_worker as mod
-    elif role == "remote_drive_worker":
-        import remote_drive_worker_process as mod
     elif role == "hermes_worker":
         import hermes_worker as mod  # [AIR-0227E-P3] real Hermes Worker - hermes_worker_mock.py remains for test-only direct import, never dispatched here
     elif role == "local_api":

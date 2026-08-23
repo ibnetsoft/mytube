@@ -62,13 +62,11 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 # Every child is now spawned by re-invoking the current running program with
 # `--role <name>` instead - see _child_command() below and
 # worker/air_worker_entry.py's docstring for the full rationale.
-CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")  # [AIR-0227E-P3] hermes_worker now runs the real hermes_worker.py (topic_research via services.ai_router) - see air_worker_entry.py's role dispatch
+CHILD_SCRIPTS = ("hermes_worker", "local_api")
 # Hermes is part of the core generation path, so a full server restart brings
 # it back with the other worker services.
 ALWAYS_ON_CHILD_SCRIPTS = tuple(ALLOWED_CHILD_SCRIPTS)
 STATE_FILES = {
-    "render_worker": STATE_DIR / "render_worker.json",
-    "remote_drive_worker": STATE_DIR / "remote_drive_worker.json",
     "hermes_worker": STATE_DIR / "hermes_worker.json",
     "local_api": STATE_DIR / "local_api.json",
 }
@@ -183,6 +181,12 @@ class WorkerManager:
         with self._lock:
             popen = self.popens.get(name)
             rec = self.registry.get(name)
+            # Content-only builds do not register renderer roles. Shutdown is
+            # intentionally shared with the full build, so an absent role is
+            # already stopped and must be a harmless no-op.
+            if rec is None:
+                logger.debug(f"Skipping stop for unavailable process role '{name}'")
+                return True
             if not popen or popen.poll() is not None:
                 rec.status = "stopped"
                 rec.pid = None

@@ -4479,6 +4479,22 @@ def _validate_script_plan_stage(
     upload_title: str,
     image_style: str,
 ) -> dict:
+    # The planner can return a valid scene list without the old-story
+    # story_core fields.  Do not rely on every caller having already run the
+    # category repair pipeline: normalize in place immediately before the
+    # gate so retries, restored jobs, and alternate entry points all validate
+    # the same canonical structure.
+    old_story_context = _is_old_story_plan_context(
+        script_style, topic, upload_title, image_style
+    )
+    if old_story_context and isinstance(structure, dict):
+        repaired = _apply_old_story_story_core_to_structure(
+            structure, topic, upload_title
+        )
+        if repaired is not structure:
+            structure.clear()
+            structure.update(repaired)
+
     errors: list[str] = []
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     if not isinstance(scenes, list) or not scenes:
@@ -4498,7 +4514,7 @@ def _validate_script_plan_stage(
             image_style=image_style,
         )
     )
-    if _is_old_story_plan_context(script_style, topic, upload_title, image_style):
+    if old_story_context:
         errors.extend(_old_story_drama_plan_errors(structure, topic, upload_title))
     return _raise_on_quality_stage_failure("script_plan", errors)
 
