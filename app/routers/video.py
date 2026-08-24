@@ -1442,20 +1442,23 @@ async def render_project_video(
                 subs = []
                 s_settings = {}
                 if use_subtitles_arg:
-                    s_settings = db.get_project_settings(project_id) or {}
+                    raw_s_settings = db.get_project_settings(project_id) or {}
+                    s_settings = dict(raw_s_settings)
                     s_settings = {
-                        "font": s_settings.get("subtitle_font", config.DEFAULT_FONT_PATH),
-                        "font_color": s_settings.get("subtitle_base_color", "white"),
-                        "style_name": s_settings.get("subtitle_style_enum", "Basic_White"),
-                        "font_size": float(s_settings.get("subtitle_font_size", 5.4)),
-                        "stroke_color": s_settings.get("subtitle_stroke_color", "black"),
-                        "stroke_width": float(s_settings.get("subtitle_stroke_width") or 0.0),
-                        "subtitle_stroke_enabled": 1 if str(s_settings.get("subtitle_stroke_enabled", 0)).lower() in ['true', '1'] else 0, 
-                        "subtitle_pos_y": s_settings.get("subtitle_pos_y"),
-                        "bg_enabled": 1 if str(s_settings.get("subtitle_bg_enabled", 1)).lower() in ['true', '1'] else 0,
-                        "line_spacing": float(s_settings.get("subtitle_line_spacing", 0.1)),
-                        "bg_color": s_settings.get("subtitle_bg_color", "#000000"),
-                        "bg_opacity": float(s_settings.get("subtitle_bg_opacity", 0.5))
+                        **s_settings,
+                        "font": raw_s_settings.get("subtitle_font", config.DEFAULT_FONT_PATH),
+                        "font_color": raw_s_settings.get("subtitle_base_color", "white"),
+                        "style_name": raw_s_settings.get("subtitle_style_enum", "Basic_White"),
+                        "font_size": float(raw_s_settings.get("subtitle_font_size", 5.4)),
+                        "stroke_color": raw_s_settings.get("subtitle_stroke_color", "black"),
+                        "stroke_width": float(raw_s_settings.get("subtitle_stroke_width") or 0.0),
+                        "subtitle_stroke_enabled": 1 if str(raw_s_settings.get("subtitle_stroke_enabled", 0)).lower() in ['true', '1'] else 0,
+                        "subtitle_pos_y": raw_s_settings.get("subtitle_pos_y"),
+                        "bg_enabled": 1 if str(raw_s_settings.get("subtitle_bg_enabled", 1)).lower() in ['true', '1'] else 0,
+                        "line_spacing": float(raw_s_settings.get("subtitle_line_spacing", 0.1)),
+                        "bg_color": raw_s_settings.get("subtitle_bg_color", "#000000"),
+                        "bg_opacity": float(raw_s_settings.get("subtitle_bg_opacity", 0.5)),
+                        "bg_v_offset": int(raw_s_settings.get("bg_v_offset") or 0),
                     }
 
                     # 자막 데이터 로드
@@ -2045,11 +2048,19 @@ async def submit_project_to_drive(project_id: int, background_tasks: BackgroundT
     from services.remote_drive_render_service import remote_drive_render_service
     from services.topic_queue_sync_service import sync_topic_progress
 
+    def _sync_project_metadata_snapshot(pid: int, phase: str):
+        try:
+            from services.project_sync_service import sync_project_metadata
+            sync_project_metadata(pid)
+        except Exception as sync_err:
+            print(f"[Submit] Failed to sync project metadata during {phase}: {sync_err}")
+
     try:
         # 제출 즉시 웹어드민 큐에 "제출됨" 상태가 보이도록 동기화한다.
         sync_topic_progress(project_id)
     except Exception as sync_err:
         print(f"[Submit] Failed to sync topic progress on submit: {sync_err}")
+    _sync_project_metadata_snapshot(project_id, "submit_start")
 
     def _enqueue_submit(pid=project_id):
         try:
@@ -2063,6 +2074,7 @@ async def submit_project_to_drive(project_id: int, background_tasks: BackgroundT
                 sync_topic_progress(pid)
             except Exception as sync_err:
                 print(f"[Submit] Failed to sync topic progress after enqueue: {sync_err}")
+            _sync_project_metadata_snapshot(pid, "enqueue_complete")
 
     background_tasks.add_task(_enqueue_submit)
     return {

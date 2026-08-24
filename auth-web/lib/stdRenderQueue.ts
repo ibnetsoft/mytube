@@ -223,10 +223,17 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     }
 
     const renderSettings = {
+        ...(project.project_payload?.settings || {}),
         ...(project.project_payload?.render_settings || {}),
         app_mode: 'longform',
-        subtitle_bg_enabled: 1,
-        bg_enabled: 1,
+        subtitle_bg_enabled: project.project_payload?.render_settings?.subtitle_bg_enabled
+            ?? project.project_payload?.settings?.subtitle_bg_enabled
+            ?? 1,
+        bg_enabled: project.project_payload?.render_settings?.bg_enabled
+            ?? project.project_payload?.settings?.bg_enabled
+            ?? project.project_payload?.render_settings?.subtitle_bg_enabled
+            ?? project.project_payload?.settings?.subtitle_bg_enabled
+            ?? 1,
         title: project.title,
         language: project.language || 'ko',
     }

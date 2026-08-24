@@ -89,10 +89,19 @@ def build_project_payload(project_id: int) -> Optional[Dict[str, Any]]:
     media_summary["has_tts_audio"] = bool(full_data.get("tts"))
     media_summary["has_thumbnail"] = bool(settings.get("thumbnail_url") or full_data.get("thumbnails"))
 
+    render_settings = dict(settings)
+    if render_settings.get("subtitle_bg_enabled") is None and render_settings.get("bg_enabled") is None:
+        render_settings["subtitle_bg_enabled"] = 1
+    elif render_settings.get("subtitle_bg_enabled") is None:
+        render_settings["subtitle_bg_enabled"] = render_settings.get("bg_enabled", 1)
+    if render_settings.get("bg_enabled") is None:
+        render_settings["bg_enabled"] = render_settings.get("subtitle_bg_enabled", 1)
+
     payload = {
         "version": 1,
         "project": full_data.get("project"),
         "settings": full_data.get("settings"),
+        "render_settings": render_settings,
         "analysis": full_data.get("analysis"),
         "script_structure": full_data.get("script_structure"),
         "script": full_data.get("script"),
