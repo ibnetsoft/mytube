@@ -195,9 +195,10 @@
 
                 <!-- Template -->
                 <div class="flex items-center gap-1 shrink-0">
+                    <span class="text-[10px] font-bold text-indigo-300">템플릿</span>
                     <select id="shortsTemplateSelect" onchange="applyShortsTemplate(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer bg-[#1c2027] text-white">
-                        <option value="">-- {{ t('opt_select_template') }} --</option>
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-indigo-200 dark:border-indigo-900 rounded-md py-1 px-2 w-36 focus:ring-1 focus:ring-indigo-500 focus:outline-none cursor-pointer bg-[#1c2027] text-white">
+                        <option value="">템플릿 프레임 선택</option>
                     </select>
                     <button onclick="refreshShortsTemplatePresets()" class="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all" title="{{ t('title_refresh') }}">
                         {{ t('btn_refresh') }}
@@ -208,9 +209,10 @@
 
                 <!-- Preset -->
                 <div class="flex items-center gap-1 shrink-0">
+                    <span class="text-[10px] font-bold text-blue-300">프리셋</span>
                     <select id="subtitlePresetSelect" onchange="applySubtitlePreset(this.value)"
-                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer bg-[#1c2027] text-white">
-                        <option value="">{{ t('opt_select') }}</option>
+                        class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-32 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer bg-[#1c2027] text-white">
+                        <option value="">스타일 프리셋 선택</option>
                     </select>
                     <button onclick="deleteCurrentSubtitlePreset()" class="text-[10px] font-bold px-1.5 py-1 text-red-500 hover:text-white border border-red-900/50 hover:bg-red-900 rounded transition-all" title="{{ t('title_delete_preset') }}">
                         {{ t('btn_delete') }}
@@ -226,6 +228,7 @@
 
                 <!-- Font -->
                 <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="text-[10px] font-bold text-gray-300">폰트</span>
                     <select id="fontFamilySelect"
                         class="text-[11px] font-medium text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-2 w-28 focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer bg-[#1c2027] text-white">
                         <option value="GmarketSansBold" selected>{{ t('font_gmarket') }}</option>
@@ -323,26 +326,9 @@
 
                 <!-- Action Buttons: 아이콘 + 짧은 텍스트, tooltip으로 전체 번역 표시 -->
                 <div class="flex items-center gap-1 flex-wrap">
-                    <button onclick="resetAndReload(this)" title="{{ t('btn_reset_reload') }}"
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
-                        {{ t('btn_reset_reload') }}
-                    </button>
                     <button onclick="distributeImages(this)" title="{{ t('btn_ai_sync') }}"
                         class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
                         {{ t('btn_ai_sync') }}
-                    </button>
-                    <button onclick="splitAllSubtitles(this)" title="{{ t('btn_split_2lines') }}"
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
-                        {{ t('btn_split_2lines') }}
-                    </button>
-                    <button onclick="regenerateSubtitles(this)" title="{{ t('btn_regen_all') }}"
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-white transition-all disabled:opacity-50">
-                        {{ t('btn_regen_all') }}
-                    </button>
-                    <!-- [NEW] Translate Subtitles to UI Lang -->
-                    <button onclick="translateSubtitlesToUILang(this)" title="Translate text below phonetics to match your UI language"
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/5 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all disabled:opacity-50">
-                        Translate
                     </button>
                     <button id="saveBtn" onclick="saveSubtitles(this)" title="{{ t('tooltip_save_sync') }}"
                         class="btn-primary text-[10px] px-3 py-1.5 rounded-md transition-all disabled:opacity-50">
@@ -1486,10 +1472,9 @@
             if (el) el.value = s.subtitle_stroke_color;
         }
         if (s.subtitle_stroke_width !== undefined) {
-            const el = document.getElementById('strokeWidthSlider');
+            const el = document.getElementById('strokeWidthInput');
             if (el) {
                 el.value = s.subtitle_stroke_width;
-                document.getElementById('strokeWidthValue').textContent = s.subtitle_stroke_width;
             }
         }
         // [NEW] Aspect Ratio — shorts 모드는 항상 9:16 강제
@@ -1887,7 +1872,6 @@
             const bgColor = bgColorEl.value; // HEX (#rrggbb)
             const bgOpacity = parseFloat(bgOpacityEl.value || 0.5);
 
-            const bgVOffsetEl = document.getElementById('bgVOffsetInput');
             const bgVOffset = parseFloat(bgVOffsetEl?.value || 0);
 
             const lineSpacing = parseFloat(document.getElementById('lineSpacingInput')?.value || 0.1);
@@ -2048,6 +2032,7 @@
         const strokeColor = strokeColorEl ? strokeColorEl.value : '#000000';
         const strokeWidth = strokeWidthEl ? parseFloat(strokeWidthEl.value || 3) : 3;
         const bgEnabled = bgToggle ? bgToggle.checked : true;
+        const bgVOffset = bgVOffsetEl ? parseInt(bgVOffsetEl.value || 0) : 0;
 
         let bgColor = 'rgba(0,0,0,0.6)';
         if (bgColorEl && bgOpacityEl) {
@@ -2084,6 +2069,7 @@
             stroke_width: scaledStrokeWidth,
             bg_enabled: bgEnabled,
             bg_color: bgColor,
+            bg_v_offset: bgVOffset,
             style_name: 'Custom',
             width: width,
             height: height,
@@ -2313,7 +2299,16 @@
         }
 
         const colorEl = document.getElementById('textColorInput');
-        if (colorEl) colorEl.addEventListener('change', e => update('subtitle_base_color', e.target.value));
+        if (colorEl) {
+            colorEl.addEventListener('input', e => updateSubtitlePreview());
+            colorEl.addEventListener('change', e => update('subtitle_base_color', e.target.value));
+        }
+
+        const strokeColorInput = document.getElementById('strokeColorInput');
+        if (strokeColorInput) {
+            strokeColorInput.addEventListener('input', e => updateSubtitlePreview());
+            strokeColorInput.addEventListener('change', e => update('subtitle_stroke_color', e.target.value));
+        }
 
         const strokeWidthInput = document.getElementById('strokeWidthInput');
         if (strokeWidthInput) {
@@ -2352,7 +2347,10 @@
         }
 
         const bgColorInput = document.getElementById('bgColorInput');
-        if (bgColorInput) bgColorInput.addEventListener('change', e => update('subtitle_bg_color', e.target.value));
+        if (bgColorInput) {
+            bgColorInput.addEventListener('input', e => updateSubtitlePreview());
+            bgColorInput.addEventListener('change', e => update('subtitle_bg_color', e.target.value));
+        }
 
         const bgVOffsetInput = document.getElementById('bgVOffsetInput');
         if (bgVOffsetInput) {
@@ -2507,6 +2505,42 @@
             const sizeSlider = document.getElementById('fontSizeSlider');
             if (sizeSlider) {
                 await API.project.updateSetting(projectId, 'subtitle_font_size', parseFloat(sizeSlider.value));
+            }
+            const fontSelect = document.getElementById('fontFamilySelect');
+            if (fontSelect) {
+                await API.project.updateSetting(projectId, 'subtitle_font', fontSelect.value);
+            }
+            const textColorInput = document.getElementById('textColorInput');
+            if (textColorInput) {
+                await API.project.updateSetting(projectId, 'subtitle_base_color', textColorInput.value);
+            }
+            const strokeColorInput = document.getElementById('strokeColorInput');
+            if (strokeColorInput) {
+                await API.project.updateSetting(projectId, 'subtitle_stroke_color', strokeColorInput.value);
+            }
+            const strokeWidthInput = document.getElementById('strokeWidthInput');
+            if (strokeWidthInput) {
+                await API.project.updateSetting(projectId, 'subtitle_stroke_width', parseFloat(strokeWidthInput.value || 0));
+            }
+            const bgToggle = document.getElementById('bgStripToggle');
+            if (bgToggle) {
+                await API.project.updateSetting(projectId, 'subtitle_bg_enabled', bgToggle.checked ? 1 : 0);
+            }
+            const bgColorInput = document.getElementById('bgColorInput');
+            if (bgColorInput) {
+                await API.project.updateSetting(projectId, 'subtitle_bg_color', bgColorInput.value);
+            }
+            const bgOpacityInput = document.getElementById('bgOpacityInput');
+            if (bgOpacityInput) {
+                await API.project.updateSetting(projectId, 'subtitle_bg_opacity', parseFloat(bgOpacityInput.value || 0.5));
+            }
+            const bgVOffsetInput = document.getElementById('bgVOffsetInput');
+            if (bgVOffsetInput) {
+                await API.project.updateSetting(projectId, 'bg_v_offset', parseInt(bgVOffsetInput.value || 0));
+            }
+            const lineSpacingInput = document.getElementById('lineSpacingInput');
+            if (lineSpacingInput) {
+                await API.project.updateSetting(projectId, 'subtitle_line_spacing', parseFloat(lineSpacingInput.value || 0.1));
             }
             const maxCharsInput = document.getElementById('subtitleMaxCharsInput');
             if (maxCharsInput) {
@@ -3949,6 +3983,9 @@
                     const colorEl = document.getElementById('textColorInput');
                     if (colorEl) colorEl.value = styleSettings.color;
 
+                    const strokeColorEl = document.getElementById('strokeColorInput');
+                    if (strokeColorEl) strokeColorEl.value = styleSettings.strokeColor;
+
                     const strokeWidthInput = document.getElementById('strokeWidthInput');
                     if (strokeWidthInput) strokeWidthInput.value = styleSettings.strokeWidth;
 
@@ -4300,7 +4337,7 @@
             const select = document.getElementById('shortsTemplateSelect');
             if (select && data.presets) {
                 const currentVal = select.value;
-                select.innerHTML = '<option value="">-- ' + (i18n.label_template || '템플릿') + ' ' + i18n.opt_select + ' --</option>';
+                select.innerHTML = '<option value="">템플릿 프레임 선택</option>';
                 data.presets.forEach(p => {
                     const name = typeof p === 'string' ? p : p.name;
                     if (!name) return;
@@ -4387,6 +4424,11 @@
             if (settings.strokeWidth !== undefined) document.getElementById('strokeWidthInput').value = settings.strokeWidth;
             if (settings.lineSpacing !== undefined) document.getElementById('lineSpacingInput').value = settings.lineSpacing;
             if (settings.subtitleMaxChars !== undefined) document.getElementById('subtitleMaxCharsInput').value = clampSubtitleMaxChars(settings.subtitleMaxChars);
+            if (settings.narrationPace !== undefined) {
+                narrationPace = normalizeNarrationPace(settings.narrationPace);
+                const paceEl = document.getElementById('narrationPaceSelect');
+                if (paceEl) paceEl.value = narrationPace;
+            }
 
             if (settings.bgStripEnabled !== undefined) {
                 const toggle = document.getElementById('bgStripToggle');
@@ -4395,6 +4437,7 @@
             }
             if (settings.bgStripColor) document.getElementById('bgColorInput').value = settings.bgStripColor;
             if (settings.bgStripOpacity !== undefined) document.getElementById('bgOpacityInput').value = settings.bgStripOpacity;
+            if (settings.bgVOffset !== undefined) document.getElementById('bgVOffsetInput').value = settings.bgVOffset;
 
             // Update Preview
             if (typeof updateStyleSettingsLocally === 'function') {
@@ -4426,9 +4469,11 @@
             strokeWidth: parseFloat(document.getElementById('strokeWidthInput').value),
             lineSpacing: parseFloat(document.getElementById('lineSpacingInput').value),
             subtitleMaxChars: clampSubtitleMaxChars(document.getElementById('subtitleMaxCharsInput')?.value || 25),
+            narrationPace: normalizeNarrationPace(document.getElementById('narrationPaceSelect')?.value || narrationPace),
             bgStripEnabled: document.getElementById('bgStripToggle').checked,
             bgStripColor: document.getElementById('bgColorInput').value,
-            bgStripOpacity: parseFloat(document.getElementById('bgOpacityInput').value)
+            bgStripOpacity: parseFloat(document.getElementById('bgOpacityInput').value),
+            bgVOffset: parseInt(document.getElementById('bgVOffsetInput').value || 0)
         };
 
         try {
@@ -4480,10 +4525,11 @@
             strokeWidth: parseFloat(document.getElementById('strokeWidthInput').value),
             lineSpacing: parseFloat(document.getElementById('lineSpacingInput').value),
             subtitleMaxChars: clampSubtitleMaxChars(document.getElementById('subtitleMaxCharsInput')?.value || 25),
+            narrationPace: normalizeNarrationPace(document.getElementById('narrationPaceSelect')?.value || narrationPace),
             bgStripEnabled: document.getElementById('bgStripToggle').checked,
             bgStripColor: document.getElementById('bgColorInput').value,
             bgStripOpacity: parseFloat(document.getElementById('bgOpacityInput').value),
-            bg_v_offset: parseInt(document.getElementById('bgVOffsetInput').value || 0)
+            bgVOffset: parseInt(document.getElementById('bgVOffsetInput').value || 0)
         };
 
         // Trigger preview update if a subtitle is selected
