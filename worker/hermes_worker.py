@@ -5980,9 +5980,9 @@ def _clean_section_text(text: str, is_multi: bool) -> str:
     return text.strip()
 
 
-def _trim_section_to_limit(text: str, max_chars: int) -> str:
+def _trim_section_to_limit(text: str, max_chars: int, *, strict: bool = False) -> str:
     value = (text or "").strip()
-    hard_limit = max(180, int(max_chars * 1.4))
+    hard_limit = max(20, int(max_chars)) if strict else max(180, int(max_chars * 1.4))
     if len(value) <= hard_limit:
         return value
     sentences = [s.strip() for s in re.split(r"(?<=[.!?。！？다요죠까니다습니까])\s+", value) if s.strip()]
@@ -6018,16 +6018,24 @@ def _extract_speaker_names(text: str) -> list[str]:
     return names
 
 
-def _script_gen_length_instruction(duration_seconds: int, is_shorts: bool) -> tuple[float, str]:
+def _script_gen_length_instruction(duration_seconds: int, is_shorts: bool, narration_pace: str = "senior") -> tuple[float, str]:
+    from services.narration_policy import get_narration_policy
+
+    policy = get_narration_policy(narration_pace)
     if is_shorts:
-        total_target_chars = duration_seconds * 7.5
+        total_target_chars = duration_seconds * policy.chars_per_second
         length_instruction = (
             f"[매우 중요] 이 대본은 {duration_seconds}초 숏폼(Shorts) 영상용입니다. "
-            f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 빠르게 전달하세요."
+            f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 전달하세요. "
+            f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, 분당 약 {policy.chars_per_minute}자 기준입니다."
         )
     else:
-        total_target_chars = (duration_seconds / 60) * 450
-        length_instruction = f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다."
+        total_target_chars = duration_seconds * policy.chars_per_second
+        length_instruction = (
+            f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다. "
+            f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, "
+            f"분당 약 {policy.chars_per_minute}자 기준으로 천천히 들리게 작성하세요."
+        )
     return total_target_chars, length_instruction
 
 
@@ -6062,21 +6070,25 @@ def _scene_char_budgets(
     duration_seconds: int,
     total_target_chars: float,
     is_shorts: bool,
+    narration_pace: str = "senior",
 ) -> list[dict]:
+    from services.narration_policy import get_narration_policy
+
+    policy = get_narration_policy(narration_pace)
     durations = _scene_duration_map(scenes, duration_seconds)
     total_duration = max(1.0, sum(durations))
     budgets: list[dict] = []
     for idx, (scene, scene_duration) in enumerate(zip(scenes, durations), start=1):
         target_chars = max(20.0, total_target_chars * (scene_duration / total_duration))
         if is_shorts:
-            min_chars = max(18, round(target_chars * 0.7))
-            max_chars = max(min_chars + 8, round(target_chars * 1.25))
+            min_chars = max(14, round(target_chars * 0.65))
+            max_chars = max(min_chars + 8, round(target_chars * 1.15))
         elif scene_duration <= 6:
-            min_chars = max(35, round(target_chars * 0.65))
-            max_chars = min(180, max(min_chars + 20, round(target_chars * 1.35)))
+            min_chars = max(policy.short_scene_min_chars, round(target_chars * 0.65))
+            max_chars = min(policy.short_scene_max_chars, max(min_chars + 6, round(target_chars * 1.15)))
         else:
-            min_chars = max(70, round(target_chars * 0.78))
-            max_chars = max(min_chars + 30, round(target_chars * 1.22))
+            min_chars = max(45, round(target_chars * 0.72))
+            max_chars = max(min_chars + 16, round(target_chars * 1.12))
         budgets.append({
             "scene_order": scene.get("scene_order") or scene.get("order") or idx,
             "duration_seconds": round(scene_duration, 2),
@@ -7427,7 +7439,7 @@ def _build_old_story_grave_vigil_rescue_script(topic: str, upload_title: str, st
     return script
 
 
-def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, dict, str, str, str, int, str, dict]:
+def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, dict, str, str, str, str, int, str, dict]:
     topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
     if not topic_queue_id:
         raise ValueError("payload.topic_queue_id is required for script_generate")
@@ -7447,6 +7459,9 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     narration_mode = str(payload.get("narration_mode") or "dramatic_single").strip().lower()
     if narration_mode not in ("single", "dramatic_single", "multi"):
         narration_mode = "dramatic_single"
+    from services.narration_policy import normalize_narration_pace
+
+    narration_pace = normalize_narration_pace(payload.get("narration_pace"))
 
     duration_seconds = payload.get("target_duration_seconds", 60)
     try:
@@ -7457,7 +7472,7 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
 
-    return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, duration_seconds, upload_title, title_generation
+    return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, narration_pace, duration_seconds, upload_title, title_generation
 
 
 def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, str, dict, dict, str, dict]:
@@ -7484,13 +7499,13 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     write_state("preparing", job, 0, job_id)
     job_log.info("-> PREPARING (validating payload)")
 
-    topic_queue_id, topic, scenes, structure, script_style, language, narration_mode, duration_seconds, upload_title, title_generation = _validate_script_generate_payload(job["payload"])
+    topic_queue_id, topic, scenes, structure, script_style, language, narration_mode, narration_pace, duration_seconds, upload_title, title_generation = _validate_script_generate_payload(job["payload"])
     is_multi = narration_mode == "multi"
     is_shorts = duration_seconds <= 60
 
     job_store.transition(job_id, job_store.RENDERING, reason="generating duration-aware narration chunks")
     write_state("running", job, 10, job_id)
-    job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode})")
+    job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode}, pace={narration_pace})")
 
     ensure_project_root_on_path()
     from config import Config, config
@@ -7591,8 +7606,8 @@ Hard retry rules:
         structure = dict(structure)
         structure.pop("image_grid_prompts", None)
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
-    total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts)
-    scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts)
+    total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts, narration_pace)
+    scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts, narration_pace)
     script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int, dict, list[str]]:
@@ -7706,6 +7721,7 @@ Hard retry rules:
                 section_text = _trim_section_to_limit(
                     section_text,
                     int(budget.get("max_chars") or 220),
+                    strict=float(budget.get("duration_seconds") or 0) <= 6,
                 )
                 if section_text:
                     final_parts.append(section_text)
@@ -7984,6 +8000,7 @@ Hard retry rules:
         "char_count": char_count,
         "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
         "narration_mode": narration_mode,
+        "narration_pace": narration_pace,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
         "error": None,

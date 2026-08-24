@@ -338,7 +338,8 @@ class HermesAutopilotManager:
 
     def get_all_categories(self) -> list[str]:
         merged = []
-        for cat in list(self.remote_categories.keys()) + CATEGORIES:
+        remote_categories = getattr(self, "remote_categories", {}) or {}
+        for cat in list(remote_categories.keys()) + CATEGORIES:
             cat_name = str(cat or "").strip()
             if cat_name and cat_name not in merged:
                 merged.append(cat_name)

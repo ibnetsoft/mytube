@@ -257,6 +257,13 @@
                     <input type="number" id="subtitleMaxCharsInput" value="25" min="20" max="40" step="1"
                         class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-12 text-center focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         title="한 자막 최대 글자 수 (롱폼)">
+                    <select id="narrationPaceSelect"
+                        class="text-[11px] text-gray-800 dark:text-gray-100 bg-[#1c2027]/50 border border-gray-300 dark:border-gray-500 rounded-md py-1 px-1 w-24 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        title="대본/자막 읽기 속도">
+                        <option value="senior">시니어 기본</option>
+                        <option value="normal">일반 속도</option>
+                        <option value="fast">약간 빠름</option>
+                    </select>
                 </div>
 
                 <div class="w-px h-5 bg-white/5 shrink-0"></div>
@@ -819,13 +826,28 @@
     let styleSettings = {};
     let audioDuration = 0;
     let selectedIndex = -1;
+    let narrationPace = 'senior';
+
+    const NARRATION_PACE_POLICIES = {
+        senior: { cps: 5.0, subtitleMaxChars: 20, maxTotalChars: 44 },
+        normal: { cps: 6.2, subtitleMaxChars: 24, maxTotalChars: 56 },
+        fast: { cps: 7.0, subtitleMaxChars: 28, maxTotalChars: 68 }
+    };
+
+    function normalizeNarrationPace(value) {
+        return Object.prototype.hasOwnProperty.call(NARRATION_PACE_POLICIES, value) ? value : 'senior';
+    }
+
+    function getNarrationPolicy() {
+        return NARRATION_PACE_POLICIES[normalizeNarrationPace(narrationPace)];
+    }
 
     let imageTimings = []; // [NEW] Image Start Times based on backend Pacing
     let imageEffects = []; // [NEW] Zoom/Pan Effects (1:1 with images)
 
     function clampSubtitleMaxChars(value) {
         const parsed = parseInt(value, 10);
-        if (!Number.isFinite(parsed)) return 25;
+        if (!Number.isFinite(parsed)) return getNarrationPolicy().subtitleMaxChars;
         return Math.max(20, Math.min(40, parsed));
     }
 
@@ -2313,6 +2335,21 @@
                 update('subtitle_max_chars', value);
             });
         }
+        const narrationPaceSelect = document.getElementById('narrationPaceSelect');
+        if (narrationPaceSelect) {
+            narrationPaceSelect.addEventListener('change', e => {
+                narrationPace = normalizeNarrationPace(e.target.value);
+                e.target.value = narrationPace;
+                const maxCharsInput = document.getElementById('subtitleMaxCharsInput');
+                if (maxCharsInput) {
+                    maxCharsInput.value = getNarrationPolicy().subtitleMaxChars;
+                    update('subtitle_max_chars', clampSubtitleMaxChars(maxCharsInput.value));
+                }
+                update('narration_pace', narrationPace);
+                autoSplitSubtitlesIfNeeded();
+                renderSubtitles();
+            });
+        }
 
         const bgColorInput = document.getElementById('bgColorInput');
         if (bgColorInput) bgColorInput.addEventListener('change', e => update('subtitle_bg_color', e.target.value));
@@ -2393,6 +2430,7 @@
             const strokeWidth = parseFloat(document.getElementById('strokeWidthInput').value || 0);
             const lineSpacing = parseFloat(document.getElementById('lineSpacingInput').value || 0.1);
             const subtitleMaxChars = clampSubtitleMaxChars(document.getElementById('subtitleMaxCharsInput')?.value || 25);
+            const selectedNarrationPace = normalizeNarrationPace(document.getElementById('narrationPaceSelect')?.value || narrationPace);
             const bgEnabled = document.getElementById('bgStripToggle').checked ? 1 : 0;
             const bgColor = document.getElementById('bgColorInput').value;
             const bgOpacity = parseFloat(document.getElementById('bgOpacityInput').value || 0.5);
@@ -2414,6 +2452,7 @@
                 subtitle_stroke_width: strokeWidth,
                 subtitle_line_spacing: lineSpacing,
                 subtitle_max_chars: subtitleMaxChars,
+                narration_pace: selectedNarrationPace,
                 subtitle_bg_enabled: bgEnabled,
                 subtitle_bg_color: bgColor,
                 subtitle_bg_opacity: bgOpacity,
@@ -2473,6 +2512,11 @@
             if (maxCharsInput) {
                 await API.project.updateSetting(projectId, 'subtitle_max_chars', clampSubtitleMaxChars(maxCharsInput.value));
             }
+            const paceSelect = document.getElementById('narrationPaceSelect');
+            if (paceSelect) {
+                narrationPace = normalizeNarrationPace(paceSelect.value);
+                await API.project.updateSetting(projectId, 'narration_pace', narrationPace);
+            }
 
             const res = await fetch('/api/subtitle/save', {
                 method: 'POST',
@@ -2520,10 +2564,11 @@
         Utils.showToast(i18n.toast_request_subtitle, 'info');
         try {
             const subtitleMaxChars = clampSubtitleMaxChars(document.getElementById('subtitleMaxCharsInput')?.value || 25);
+            const selectedNarrationPace = normalizeNarrationPace(document.getElementById('narrationPaceSelect')?.value || narrationPace);
             const res = await fetch('/api/subtitle/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId, subtitle_max_chars: subtitleMaxChars })
+                body: JSON.stringify({ project_id: projectId, subtitle_max_chars: subtitleMaxChars, narration_pace: selectedNarrationPace })
             });
             const data = await res.json();
             if (data.status === 'ok') {
@@ -2544,10 +2589,11 @@
         Utils.showToast(i18n.toast_reanalyzing, 'info');
         try {
             const subtitleMaxChars = clampSubtitleMaxChars(document.getElementById('subtitleMaxCharsInput')?.value || 25);
+            const selectedNarrationPace = normalizeNarrationPace(document.getElementById('narrationPaceSelect')?.value || narrationPace);
             const res = await fetch('/api/subtitle/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId, subtitle_max_chars: subtitleMaxChars })
+                body: JSON.stringify({ project_id: projectId, subtitle_max_chars: subtitleMaxChars, narration_pace: selectedNarrationPace })
             });
             const data = await res.json();
             if (data.status === 'ok') {
@@ -3687,16 +3733,18 @@
     function autoSplitSubtitlesIfNeeded() {
         if (subtitles.length === 0) return;
 
-        const maxCharsPerLine = 35;  // 20→35: 한 줄에 더 많은 텍스트 허용
+        const policy = getNarrationPolicy();
+        const maxCharsPerLine = Math.max(20, Math.min(35, policy.subtitleMaxChars));
         const maxLines = 2;
-        const maxTotalChars = 140;   // 40→140: 자동 재분할 거의 발동 안 되도록
+        const maxTotalChars = policy.maxTotalChars;
 
-        // Check if any subtitle needs splitting (매우 긴 경우에만 처리)
         let needsSplit = false;
         for (const sub of subtitles) {
             const text = (sub.text || "").trim();
             const lineCount = (text.match(/\n/g) || []).length + 1;
-            if (lineCount > maxLines || text.length > maxTotalChars) {
+            const duration = Math.max(0.1, parseFloat(sub.end || 0) - parseFloat(sub.start || 0));
+            const charsPerSecond = text.replace(/\s+/g, '').length / duration;
+            if (lineCount > maxLines || text.length > maxTotalChars || charsPerSecond > policy.cps * 1.25) {
                 needsSplit = true;
                 break;
             }
@@ -3862,7 +3910,8 @@
                         strokeWidth: parseFloat(data.settings.subtitle_stroke_width || 0),
                         bgEnabled: parseInt(data.settings.subtitle_bg_enabled || 0) === 1,
                         lineSpacing: parseFloat(data.settings.subtitle_line_spacing || 0.1),
-                        subtitle_max_chars: clampSubtitleMaxChars(data.settings.subtitle_max_chars || 25),
+                        narration_pace: normalizeNarrationPace(data.settings.narration_pace || 'senior'),
+                        subtitle_max_chars: clampSubtitleMaxChars(data.settings.subtitle_max_chars || NARRATION_PACE_POLICIES[normalizeNarrationPace(data.settings.narration_pace || 'senior')].subtitleMaxChars),
                         bgColor: data.settings.subtitle_bg_color || '#000000',
                         bgOpacity: parseFloat(data.settings.subtitle_bg_opacity || 0.5),
                         aspect_ratio: data.settings.aspect_ratio || '9:16',
@@ -3870,6 +3919,7 @@
                         subtitle_pos_y: data.settings.subtitle_pos_y || null,
                         shorts_template_preset: data.settings.shorts_template_preset || null
                     };
+                    narrationPace = styleSettings.narration_pace;
 
                     // [NEW] Store App Mode for UI Logic — project setting > global APP_MODE > 'longform'
                     window.currentAppMode = data.settings.app_mode || window.APP_MODE || 'longform';
@@ -3910,6 +3960,9 @@
 
                     const maxCharsEl = document.getElementById('subtitleMaxCharsInput');
                     if (maxCharsEl) maxCharsEl.value = styleSettings.subtitle_max_chars;
+
+                    const narrationPaceEl = document.getElementById('narrationPaceSelect');
+                    if (narrationPaceEl) narrationPaceEl.value = narrationPace;
 
                     const bgColorEl = document.getElementById('bgColorInput');
                     if (bgColorEl) bgColorEl.value = styleSettings.bgColor;

@@ -3133,6 +3133,14 @@ tr:hover { background: #161b22; }
                 <option value="multi">다인 (멀티)</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>읽기 속도</label>
+              <select id="sg-narration-pace">
+                <option value="senior" selected>시니어 기본</option>
+                <option value="normal">일반 속도</option>
+                <option value="fast">약간 빠름</option>
+              </select>
+            </div>
           </div>
           <div class="form-group">
             <label>대본 스타일</label>
@@ -5657,6 +5665,7 @@ async function submitScriptGenerate() {
     script_style: document.getElementById('sg-style').value,
     language: 'ko',
     narration_mode: document.getElementById('sg-narration-mode').value,
+    narration_pace: document.getElementById('sg-narration-pace').value || 'senior',
   };
   const res = await api('POST', '/api/jobs/submit', { job_type: 'script_generate', payload });
   if (res && res.job_id) {

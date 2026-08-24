@@ -1735,7 +1735,7 @@ Motion prompt for this image:"""
 - 반드시 정확히 **{num_scenes}개**의 장면을 생성해야 합니다. 더 많거나 적으면 안 됩니다.
 - 아래 대본 구간 전체를 **처음부터 끝까지** {num_scenes}개로 균등하게 나누세요.
 - ⚠️ 절대 금지: 어떤 구간도 건너뛰지 마세요. 도입부 전환(소개, 예고, 목차 설명, 시나리오 소개)도 반드시 씬으로 포함하세요.
-- 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요 (최소 50자 이상).
+- 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요. 단, 5초 내외의 짧은 도입 씬은 시니어 낭독 속도에 맞게 20~35자도 허용합니다.
 - 연속된 씬들의 scene_text를 이어 붙이면 대본 전체가 순서대로 재구성되어야 합니다.
 - JSON 배열에 반드시 scene_number 1번부터 {num_scenes}번까지 순서대로 포함하세요.
 """
@@ -1750,7 +1750,7 @@ Motion prompt for this image:"""
 4. **안정 단계 (10~20분)**: 30초당 1장 수준으로 흐름을 이어가세요.
 5. **마무리 단계 (20분 이후)**: 40초당 1장 수준으로 대미를 장식하세요.
 - ⚠️ 절대 금지: 대본의 어떤 구간도 건너뛰지 마세요. 도입부 전환(소개, 예고, 목차 설명)도 반드시 씬으로 포함하세요.
-- 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요 (최소 50자 이상).
+- 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요. 단, 5초 내외의 짧은 도입 씬은 시니어 낭독 속도에 맞게 20~35자도 허용합니다.
 - 연속된 씬들의 scene_text를 이어 붙이면 대본 전체가 순서대로 재구성되어야 합니다.
 - 위 페이싱에 맞춰 총 **{num_scenes}개**의 장면을 시간 순서대로 골고루 배분하여 JSON을 생성하세요.
 """
@@ -2131,7 +2131,7 @@ Motion prompt for this image:"""
 
             if not estimated_sec or estimated_sec <= 0:
                 scene_text_len = scene.get("scene_text", "")
-                estimated_sec = max(5, len(scene_text_len) / 6)
+                estimated_sec = max(5, len(scene_text_len) / 5.0)
 
             if estimated_sec <= MAX_SCENE_SECONDS:
                 scene["estimated_seconds"] = estimated_sec

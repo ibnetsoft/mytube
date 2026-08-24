@@ -100,6 +100,7 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     upload_title: job.result_payload?.upload_title || jobPayload.upload_title,
                     title_generation: job.result_payload?.title_generation || jobPayload.title_generation,
                     narration_mode: jobPayload.narration_mode || 'dramatic_single',
+                    narration_pace: jobPayload.narration_pace || 'senior',
                 },
                 status: 'pending',
             })

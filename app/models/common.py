@@ -120,6 +120,7 @@ class ProjectSettingsSave(BaseModel):
     voice_style_prompt: Optional[str] = None
     voice_provider: Optional[str] = None
     voice_speed: Optional[float] = None
+    narration_pace: Optional[str] = None
     voice_multi_enabled: Optional[int] = None
     voice_mapping_json: Optional[str] = None
     app_mode: Optional[str] = None
@@ -137,6 +138,7 @@ class ProjectSettingsSave(BaseModel):
     subtitle_line_spacing: Optional[float] = None
     subtitle_bg_color: Optional[str] = None
     subtitle_bg_opacity: Optional[float] = None
+    subtitle_max_chars: Optional[int] = None
     target_language: Optional[str] = None
     youtube_video_id: Optional[str] = None
     is_published: Optional[int] = None

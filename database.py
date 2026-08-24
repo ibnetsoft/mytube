@@ -374,6 +374,7 @@ def init_db():
             voice_style_prompt TEXT,
             voice_provider TEXT DEFAULT 'elevenlabs',
             voice_speed REAL DEFAULT 1.0,
+            narration_pace TEXT DEFAULT 'senior',
             voice_multi_enabled INTEGER DEFAULT 0,
             voice_mapping_json TEXT, -- 인물별 성우 매핑 (JSON)
             video_command TEXT,
@@ -1572,6 +1573,12 @@ scene_type별 구조:
             pass
 
     try:
+        cursor.execute("ALTER TABLE project_settings ADD COLUMN narration_pace TEXT DEFAULT 'senior'")
+        print("[Migration] Added narration_pace to project_settings")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
         cursor.execute("PRAGMA table_info(music_track_plans)")
         music_plan_columns = [info[1] for info in cursor.fetchall()]
         if "instruments" not in music_plan_columns:
@@ -1698,15 +1705,15 @@ def create_project(name: str, topic: str = None, app_mode: str = 'longform', lan
         """INSERT OR IGNORE INTO project_settings
            (project_id, title, voice_name, voice_language, voice_style_prompt,
             subtitle_font, subtitle_font_size, subtitle_color, subtitle_style_enum, subtitle_stroke_color, subtitle_stroke_width,
-            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, voice_multi_enabled, app_mode,
+            subtitle_bg_enabled, subtitle_stroke_enabled, voice_provider, voice_speed, narration_pace, voice_multi_enabled, app_mode,
             target_language, script_style, image_style)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (project_id, name, settings_voice_name or default_voice_name,
          default_voice_language, defaults.get("style_prompt", ""),
          initial_font, sub_defaults.get("subtitle_font_size"),
          sub_defaults.get("subtitle_color"), sub_defaults.get("subtitle_style_enum"),
          sub_defaults.get("subtitle_stroke_color"), sub_defaults.get("subtitle_stroke_width"),
-         1, 0, default_voice_provider, 1.0, 0, app_mode,
+         1, 0, default_voice_provider, 1.0, 'senior', 0, app_mode,
          language, script_style or 'default', image_style or 'realistic') # Default styles if not provided
     )
 
@@ -2584,7 +2591,7 @@ def save_project_settings(project_id: int, settings: Dict):
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
                     'subtitle_line_spacing', 'subtitle_bg_color', 'subtitle_bg_opacity',
-                    'voice_provider', 'voice_speed', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style',
+                    'voice_provider', 'voice_speed', 'narration_pace', 'voice_multi_enabled', 'voice_mapping_json', 'sfx_mapping_json', 'app_mode', 'intro_video_path', 'thumbnail_style', 'image_style',
                     'actual_payout', 'asset_mix_summary_json', 'video_clip_ratio', 'total_scenes', 'video_scenes', 'image_scenes',
                     'webtoon_auto_split', 'webtoon_smart_pan', 'webtoon_convert_zoom', 'webtoon_scenes_json', 'webtoon_plan_json']: # [NEW] Webtoon
             if key in settings:
@@ -2607,10 +2614,10 @@ def save_project_settings(project_id: int, settings: Dict):
               video_command, video_path, is_uploaded,
               image_style_prompt, subtitle_font, subtitle_color, target_language, subtitle_style_enum, subtitle_font_size, subtitle_stroke_color, subtitle_stroke_width, subtitle_position_y, background_video_url, character_ref_text, character_ref_image_path, script_style,
               subtitle_base_color, subtitle_pos_y, subtitle_pos_x, subtitle_bg_enabled, subtitle_stroke_enabled, subtitle_line_spacing, subtitle_bg_color, subtitle_bg_opacity,
-              voice_provider, voice_speed, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path, thumbnail_style, image_style,
+              voice_provider, voice_speed, narration_pace, voice_multi_enabled, voice_mapping_json, app_mode, intro_video_path, thumbnail_style, image_style,
               actual_payout, asset_mix_summary_json, video_clip_ratio, total_scenes, video_scenes, image_scenes,
               webtoon_auto_split, webtoon_smart_pan, webtoon_convert_zoom, webtoon_scenes_json, webtoon_plan_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          """, (
             project_id,
             settings.get('title'),
@@ -2650,6 +2657,7 @@ def save_project_settings(project_id: int, settings: Dict):
             settings.get('subtitle_bg_opacity', 0.5),
             settings.get('voice_provider', 'elevenlabs'),
             settings.get('voice_speed', 1.0),
+            settings.get('narration_pace', 'senior'),
             settings.get('voice_multi_enabled', 0),
             settings.get('voice_mapping_json'),
             settings.get('app_mode', 'longform'),
@@ -2754,9 +2762,12 @@ def update_project_setting(project_id: int, key: str, value: Any):
             # [NEW] 'script' 업데이트 시 scripts 테이블도 동기화
             if key == 'script' and value:
                 try:
-                    # 대략적인 시간 계산 (한국어 1분당 450자 기준)
+                    from services.narration_policy import estimated_duration_seconds_for_text
+                    cursor.execute("SELECT narration_pace FROM project_settings WHERE project_id = ?", (project_id,))
+                    pace_row = cursor.fetchone()
+                    pace = pace_row["narration_pace"] if pace_row and "narration_pace" in pace_row.keys() else None
                     char_count = len(str(value))
-                    est_duration = max(5, int(char_count / 7.5)) # 최소 5초
+                    est_duration = estimated_duration_seconds_for_text(str(value), pace)
                     
                     cursor.execute("DELETE FROM scripts WHERE project_id = ?", (project_id,))
                     cursor.execute("""

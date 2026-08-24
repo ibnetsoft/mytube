@@ -56,6 +56,7 @@ class ProjectSettingsSave(BaseModel):
     voice_style_prompt: Optional[str] = None
     voice_provider: Optional[str] = None
     voice_speed: Optional[float] = None
+    narration_pace: Optional[str] = None
     # [FIX] Was "multi_voice", which doesn't match the DB column (voice_multi_enabled)
     # or what the frontend actually sends. Pydantic silently drops unrecognized keys,
     # so voice_multi_enabled saves via POST /api/projects/{id}/settings were always
@@ -78,6 +79,7 @@ class ProjectSettingsSave(BaseModel):
     subtitle_line_spacing: Optional[float] = None
     subtitle_bg_color: Optional[str] = None
     subtitle_bg_opacity: Optional[float] = None
+    subtitle_max_chars: Optional[int] = None
     
     # Project status
     target_language: Optional[str] = None

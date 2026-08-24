@@ -98,6 +98,15 @@
                             </label>
                         </div>
                     </div>
+                    <div class="flex items-center gap-2 bg-[#1c2027] px-3 py-1.5 rounded-lg border border-gray-700">
+                        <span class="text-xs text-gray-400">읽기 속도</span>
+                        <select id="scriptNarrationPace"
+                            class="text-[11px] text-gray-100 bg-[#111827] border border-gray-700 rounded-md py-1 px-2 focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            <option value="senior">시니어 기본</option>
+                            <option value="normal">일반 속도</option>
+                            <option value="fast">약간 빠름</option>
+                        </select>
+                    </div>
 
                     <div class="flex gap-2">
                         <button onclick="stopAndSave()" id="stopBtn"
@@ -230,6 +239,14 @@
     let activeScriptTab = 'original';
     let currentFileId = null;
     let explorerData = { folders: [], files: [] };
+    const NARRATION_PACE_POLICIES = {
+        senior: { label: '시니어 기본', cps: 5.0, subtitleMaxChars: 20 },
+        normal: { label: '일반 속도', cps: 6.2, subtitleMaxChars: 24 },
+        fast: { label: '약간 빠름', cps: 7.0, subtitleMaxChars: 28 }
+    };
+    function normalizeNarrationPace(value) {
+        return Object.prototype.hasOwnProperty.call(NARRATION_PACE_POLICIES, value) ? value : 'senior';
+    }
 
     // i18n for JS
     var i18n = {
@@ -1052,6 +1069,11 @@
             try {
                 const projectFull = await API.project.getFull(projectId);
                 restoreNarrationMode(projectFull?.settings);
+                const paceSelect = document.getElementById('scriptNarrationPace');
+                if (paceSelect) {
+                    paceSelect.value = normalizeNarrationPace(projectFull?.settings?.narration_pace || 'senior');
+                    paceSelect.addEventListener('change', e => API.project.updateSetting(projectId, 'narration_pace', normalizeNarrationPace(e.target.value)));
+                }
                 if (projectFull && projectFull.script_structure) {
                     Utils.storage.set('scriptStructure', projectFull.script_structure);
                     document.getElementById('analysisInfo').classList.remove('hidden');
@@ -1218,6 +1240,10 @@
 
         const projectFull = await API.project.getFull(projectId);
         const settings = projectFull.settings || {};
+        const paceSelect = document.getElementById('scriptNarrationPace');
+        const narrationPace = normalizeNarrationPace(paceSelect?.value || settings.narration_pace || 'senior');
+        if (paceSelect) paceSelect.value = narrationPace;
+        await API.project.updateSetting(projectId, 'narration_pace', narrationPace);
         const projectLanguage = projectFull.project?.language || 'ko';
         // [FIX][AIR-0230] projectLanguage was fetched but never actually used -
         // every section prompt below wrote "한국어 대본을 작성하세요" regardless
@@ -1234,24 +1260,24 @@
         const durationSeconds = settings.duration_seconds || 60;
         const isShorts = (window.APP_MODE === 'shorts') || (durationSeconds <= 60);
 
-        // 글자 수 계산 (한국어 기준)
-        // 롱폼: 분당 450자 (빠름)
-        // 숏폼: 초당 7자 (매우 빠름) ~ 6자 (보통) -> 20초면 120~140자
+        // 글자 수 계산: 시니어 기본을 디폴트로 두고 프로젝트별 속도 옵션을 반영.
         let totalTargetChars = 0;
         let lengthInstruction = "";
+        const pacePolicy = NARRATION_PACE_POLICIES[narrationPace] || NARRATION_PACE_POLICIES.senior;
+        const charsPerMinute = Math.round(pacePolicy.cps * 60);
 
         if (isShorts) {
-            totalTargetChars = durationSeconds * 7.5; // 숏폼은 말을 좀 더 빨리 함
-            lengthInstruction = `[매우 중요] 이 대본은 **${durationSeconds}초 숏폼(Shorts)** 영상용입니다. 전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 빠르게 전달하세요.`;
+            totalTargetChars = durationSeconds * pacePolicy.cps;
+            lengthInstruction = `[매우 중요] 이 대본은 **${durationSeconds}초 숏폼(Shorts)** 영상용입니다. 읽기 속도는 '${pacePolicy.label}' 기준(초당 약 ${pacePolicy.cps.toFixed(1)}자, 분당 약 ${charsPerMinute}자)입니다. 군더더기 없이 핵심만 전달하세요.`;
         } else {
-            totalTargetChars = (durationSeconds / 60) * 450;
-            lengthInstruction = `이 영상은 약 ${Math.floor(durationSeconds / 60)}분 ${durationSeconds % 60}초 길이입니다.`;
+            totalTargetChars = durationSeconds * pacePolicy.cps;
+            lengthInstruction = `이 영상은 약 ${Math.floor(durationSeconds / 60)}분 ${durationSeconds % 60}초 길이입니다. 읽기 속도는 '${pacePolicy.label}' 기준(초당 약 ${pacePolicy.cps.toFixed(1)}자, 분당 약 ${charsPerMinute}자)이므로 시청자가 따라오기 쉽게 여백을 두고 작성하세요.`;
         }
 
         const charsPerSection = Math.round(totalTargetChars / sections.length);
         // 숏폼일 경우 최소 글자 수 제한을 낮춤
-        const minChars = isShorts ? Math.max(20, Math.round(charsPerSection * 0.7)) : Math.max(50, Math.round(charsPerSection * 0.8));
-        const maxChars = Math.round(charsPerSection * 1.2);
+        const minChars = isShorts ? Math.max(16, Math.round(charsPerSection * 0.65)) : Math.max(35, Math.round(charsPerSection * 0.72));
+        const maxChars = Math.round(charsPerSection * 1.12);
 
         console.log(`Target: ${durationSeconds}s (${isShorts ? 'Shorts' : 'Longform'}), Total Chars: ${totalTargetChars}, Per Section: ${charsPerSection}`);
 

@@ -434,10 +434,15 @@ async def generate_subtitles_api(req: dict = Body(...)):
             
         project = db.get_project(project_id)
         project_settings = db.get_project_settings(project_id) or {}
+        from services.narration_policy import get_narration_policy, get_project_narration_policy, normalize_narration_pace
+        narration_policy = get_project_narration_policy(project_settings)
+        narration_pace = normalize_narration_pace(req.get("narration_pace") or project_settings.get("narration_pace"))
+        narration_policy = get_narration_policy(narration_pace)
         subtitle_max_chars = _subtitle_max_chars(
             req.get("subtitle_max_chars") or project_settings.get("subtitle_max_chars"),
-            25
+            narration_policy.subtitle_max_chars
         )
+        db.update_project_setting(project_id, 'narration_pace', narration_pace)
         db.update_project_setting(project_id, 'subtitle_max_chars', subtitle_max_chars)
         
         # Script text for alignment (optional)

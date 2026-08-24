@@ -969,9 +969,10 @@ Create a production-ready playlist script/brief in Korean from this planning dat
             else:
                 duration_seconds_for_fallback = config_dict.get("duration_seconds", 300)
                 duration_minutes_for_fallback = max(1, round(duration_seconds_for_fallback / 60))
-                # 이 앱이 이미 써오던 "1분 ≈ 300자" 환산 비율을 실제 목표 길이에 비례 적용.
-                target_chars_for_fallback = duration_seconds_for_fallback / 60 * 300
                 p_settings = db.get_project_settings(project_id) or {}
+                from services.narration_policy import get_project_narration_policy
+                narration_policy = get_project_narration_policy(p_settings)
+                target_chars_for_fallback = duration_seconds_for_fallback * narration_policy.chars_per_second
                 target_lang = config_dict.get("target_language") or p_settings.get("target_language") or "ko"
                 lang_instruction = prompts.get_language_instruction(target_lang)
                 prompt = prompts.AUTOPILOT_GENERATE_SCRIPT.format(
@@ -1248,7 +1249,7 @@ JSON만 출력하세요:
         
         sorted_prompts = sorted(image_prompts, key=lambda x: x.get('scene_number', 0))
         
-                from services.tts_service import normalize_content_language, language_code_for_tts, edge_voice_for_language, default_voice_name_for_language
+        from services.tts_service import normalize_content_language, language_code_for_tts, edge_voice_for_language, default_voice_name_for_language
         p_settings = db.get_project_settings(project_id) or {}
         project_lang = normalize_content_language(config_dict.get("target_language") or p_settings.get("target_language") or "ko")
 
@@ -1561,10 +1562,12 @@ JSON만 출력하세요:
                 # 2. Save Initial Subtitles
                 # [NEW] ElevenLabs alignment 정보가 있으면 정밀 자막 생성
                 auto_subtitles = []
+                from services.narration_policy import get_project_narration_policy
+                narration_policy = get_project_narration_policy(db.get_project_settings(project_id) or {})
                 
                 if all_alignments:
                     # 단어 타이밍을 2줄 자막으로 변환
-                    auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=40)
+                    auto_subtitles = self._alignment_to_subtitles(all_alignments, max_chars=narration_policy.subtitle_max_chars)
                     
                     # 괄호 태그(TTS용 감정 지시어) 제거
                     for sub in auto_subtitles:
@@ -1582,7 +1585,7 @@ JSON만 출력하세요:
                         
                         import re
                         clean_text = re.sub(r'\([^)]*\)', '', text).strip()
-                        chunks = split_text_to_subtitle_chunks(clean_text, max_chars_per_line=40, max_lines=1)
+                        chunks = split_text_to_subtitle_chunks(clean_text, max_chars_per_line=narration_policy.subtitle_max_chars, max_lines=1)
                         if not chunks:
                             continue
                         
