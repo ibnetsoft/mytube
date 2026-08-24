@@ -225,6 +225,8 @@ def validate_generation_package(
     script = _text(payload.get("script"))
     metadata = payload.get("publish_metadata") if isinstance(payload.get("publish_metadata"), Mapping) else {}
     category = _text(category or payload.get("category"))
+    language = _text(payload.get("language")).lower() or "ko"
+    require_korean_script = require_korean_script and language == "ko"
     script_quality = payload.get("script_quality_report")
 
     if not isinstance(script_quality, Mapping):

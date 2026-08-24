@@ -23,6 +23,7 @@ DB_PATH = Path(getattr(config, "DB_PATH", LEGACY_DB_PATH))
 _local = threading.local()
 _migration_lock = threading.Lock()
 _migration_checked = False
+_readonly_ai_log_warning_emitted = False
 
 
 def get_db_path() -> Path:
@@ -4546,6 +4547,7 @@ def resolve_remote_user_id_for_log(project_id=None) -> str:
 
 def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status: str, prompt_summary: str = "", error_msg: str = "", elapsed_time: float = 0.0, input_tokens: int = 0, output_tokens: int = 0, balance_after: int = None, thinking_tokens: int = 0):
     """AI 생성 로그 추가 (로컬 DB + Supabase 원격 동기화)"""
+    global _readonly_ai_log_warning_emitted
     # 실패한 작업은 토큰 사용량 0으로 처리
     if status == 'failed':
         input_tokens = 0
@@ -4577,7 +4579,13 @@ def add_ai_log(project_id, task_type: str, model_id: str, provider: str, status:
         """, (project_id, task_type, model_id, provider, status, prompt_summary, error_msg, elapsed_time, input_tokens, output_tokens, balance_after, thinking_tokens, worker_email))
         conn.commit()
     except Exception as e:
-        print(f"[DB] Failed to add AI log: {e}")
+        message = str(e or "")
+        if "readonly" in message.lower():
+            if not _readonly_ai_log_warning_emitted:
+                _readonly_ai_log_warning_emitted = True
+                print("[DB] AI log DB is read-only in this run. Skipping local AI log writes.")
+        else:
+            print(f"[DB] Failed to add AI log: {e}")
     finally:
         conn.close()
 

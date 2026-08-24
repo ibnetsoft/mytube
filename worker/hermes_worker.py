@@ -304,6 +304,46 @@ def _metadata_language_name(language: str) -> str:
     }.get(str(language or "").lower(), "Korean")
 
 
+def _script_writer_role(language: str) -> str:
+    return {
+        "ko": "You are an expert Korean YouTube long-form narration writer.",
+        "en": "You are an expert English YouTube long-form narration writer.",
+        "ja": "You are an expert Japanese YouTube long-form narration writer.",
+    }.get(str(language or "").lower(), "You are an expert YouTube long-form narration writer.")
+
+
+def _script_output_rule(language: str) -> str:
+    return {
+        "ko": "Output Korean narration body only inside JSON.",
+        "en": "Output English narration body only inside JSON.",
+        "ja": "Output Japanese narration body only inside JSON.",
+    }.get(str(language or "").lower(), "Output narration body only inside JSON.")
+
+
+def _script_blueprint_role(language: str) -> str:
+    return {
+        "ko": "You are a senior story editor for retention-focused Korean YouTube longform narration.",
+        "en": "You are a senior story editor for retention-focused English YouTube longform narration.",
+        "ja": "You are a senior story editor for retention-focused Japanese YouTube longform narration.",
+    }.get(str(language or "").lower(), "You are a senior story editor for retention-focused YouTube longform narration.")
+
+
+def _script_qa_role(language: str) -> str:
+    return {
+        "ko": "You are a ruthless Korean YouTube story QA editor.",
+        "en": "You are a ruthless English YouTube story QA editor.",
+        "ja": "You are a ruthless Japanese YouTube story QA editor.",
+    }.get(str(language or "").lower(), "You are a ruthless YouTube story QA editor.")
+
+
+def _script_rewrite_role(language: str) -> str:
+    return {
+        "ko": "You are a senior Korean YouTube script doctor.",
+        "en": "You are a senior English YouTube script doctor.",
+        "ja": "You are a senior Japanese YouTube script doctor.",
+    }.get(str(language or "").lower(), "You are a senior YouTube script doctor.")
+
+
 def _u(text: str) -> str:
     return text.encode("ascii").decode("unicode_escape")
 
@@ -338,8 +378,19 @@ def _fallback_publish_metadata(topic: str, upload_title: str, script: str, langu
         ]
     else:
         description = "\n\n".join(part for part in [title, script_excerpt] if part)
-        tags = [tag for tag in [topic, "story", "life", "inspiration"] if tag]
-        hashtags = ["#story", "#inspiration"]
+        tags = [
+            tag for tag in [
+                topic,
+                title[:24],
+                "story",
+                "folktale",
+                "bedtime story",
+                "legend",
+                "myth",
+                "inspiration",
+            ] if tag
+        ]
+        hashtags = ["#story", "#folktale", "#legend", "#myth", "#bedtimestory"]
     return {
         "titles": [title],
         "description": description,
@@ -503,11 +554,18 @@ def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, scrip
 
     description = _clean_metadata_description(str(data.get("description") or ""), fallback["description"])
 
+    cleaned_tags = _clean_metadata_list(tags, fallback["tags"])[:15]
+    cleaned_hashtags = _clean_metadata_list(hashtags, fallback["hashtags"], hashtag=True)[:10]
+    if len(cleaned_tags) < 5:
+        cleaned_tags = _clean_metadata_list(cleaned_tags + list(fallback["tags"]), fallback["tags"])[:15]
+    if len(cleaned_hashtags) < 3:
+        cleaned_hashtags = _clean_metadata_list(cleaned_hashtags + list(fallback["hashtags"]), fallback["hashtags"], hashtag=True)[:10]
+
     return {
         "titles": titles[:5],
         "description": description,
-        "tags": _clean_metadata_list(tags, fallback["tags"])[:15],
-        "hashtags": _clean_metadata_list(hashtags, fallback["hashtags"], hashtag=True)[:10],
+        "tags": cleaned_tags,
+        "hashtags": cleaned_hashtags,
         "source": data.get("source") or "air_worker",
     }
 
@@ -517,6 +575,13 @@ async def _generate_publish_metadata(
     language: str, narrative_blueprint: dict, structure: dict,
 ) -> dict:
     language_name = _metadata_language_name(language)
+    tag_language = {
+        "ko": "Korean",
+        "en": "English",
+        "ja": "Japanese",
+        "vi": "Vietnamese",
+        "th": "Thai",
+    }.get(str(language or "").lower(), language_name)
     prompt = f"""
 You are a YouTube upload metadata editor.
 
@@ -539,10 +604,11 @@ Rules:
 - Description must not reveal spoilers too early, but it must honestly represent the title promise.
 - Do not mention AI, worker, prompt, benchmark, QA, learning, scene plan, quality gate, internal process, or generated assets.
 - Do not include markdown tables, production notes, JSON explanation, timestamps, scene numbers, or labels such as "Title:".
-- Tags should be topical Korean search phrases, not sentences, no #.
+- Tags should be topical {tag_language} search phrases, not sentences, no #.
 - Hashtags must start with # and be short.
 - Avoid unrelated category contamination. For example, old-story metadata must not include economy/investment tags.
 - Return at least 8 tags and at least 5 hashtags.
+- Keep every field in {language_name}. Do not switch to Korean when the requested language is English or Japanese.
 
 TOPIC: {topic}
 PRIMARY TITLE: {upload_title}
@@ -1836,11 +1902,11 @@ def _process_web_research(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     from config import Config, config
     from services.gemini_service import gemini_service
     Config.refresh_remote_keys_if_stale()
-    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash"
+    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
     # Google Search grounding is a Gemini operation. A stale admin setting
     # may contain a Claude model id, which Gemini rejects as "not found".
     if str(model).lower().startswith("claude"):
-        model = "gemini-3-flash-preview"
+        model = "gemini-3.6-flash"
     prompt = f"""Research factual material for a Korean YouTube script.
 CATEGORY: {category}
 UPLOAD TITLE: {upload_title}
@@ -2613,7 +2679,7 @@ def _generate_scene_media_prompts(
     Config.refresh_remote_keys_if_stale()
     model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
     if str(model).lower().startswith("claude"):
-        model = "gemini-2.5-flash"
+        model = "gemini-3.6-flash"
     scenes = _attach_script_excerpts_to_scenes(scenes, script_text, scene_script_sections)
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
     visual_direction_plan = _build_visual_direction_plan(
@@ -3349,17 +3415,25 @@ def _is_finance_plan_context(script_style: str, topic: str, upload_title: str, i
     )
 
 
-def _is_old_story_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+def _is_old_story_plan_context(
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str = "",
+    category: str = "",
+) -> bool:
+    normalized_category = str(category or "").strip()
+    if normalized_category:
+        if normalized_category == "옛날이야기":
+            return True
+        if normalized_category in {"English Folktales", "日本昔話"}:
+            return False
     blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
     return any(
         term in blob
         for term in (
-            "folk",
             "old_story",
-            "tale",
-            "village",
             "hanok",
-            "forest story",
             "\uc61b\ub0a0\uc774\uc57c\uae30",
             "\uc804\ub798",
             "\ubbfc\ub2f4",
@@ -4505,6 +4579,7 @@ def _validate_script_plan_stage(
     topic: str,
     upload_title: str,
     image_style: str,
+    category: str = "",
 ) -> dict:
     # The planner can return a valid scene list without the old-story
     # story_core fields.  Do not rely on every caller having already run the
@@ -4512,7 +4587,7 @@ def _validate_script_plan_stage(
     # gate so retries, restored jobs, and alternate entry points all validate
     # the same canonical structure.
     old_story_context = _is_old_story_plan_context(
-        script_style, topic, upload_title, image_style
+        script_style, topic, upload_title, image_style, category=category
     )
     if old_story_context and isinstance(structure, dict):
         repaired = _apply_old_story_story_core_to_structure(
@@ -4557,6 +4632,8 @@ def _validate_script_generate_stage(
     scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
     script = str(payload.get("script") or "").strip()
     script_quality = payload.get("script_quality_report") if isinstance(payload.get("script_quality_report"), dict) else {}
+    language = str(payload.get("language") or "ko").strip().lower()
+    require_korean_script = require_korean_script and language == "ko"
 
     try:
         score = int(float(script_quality.get("score") or 0))
@@ -4573,7 +4650,7 @@ def _validate_script_generate_stage(
         if lang_stats["latin"] > lang_stats["max_latin"]:
             errors.append(f"script has too much Latin text: latin={lang_stats['latin']}")
 
-    if any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
+    if require_korean_script and any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
         errors.append("script contains fallback/scratch English template text")
     repeated_sentences = _detect_repeated_script_sentences(script)
     if repeated_sentences:
@@ -4632,7 +4709,13 @@ def _validate_publish_metadata_stage(payload: dict, *, category: str) -> dict:
         try:
             from services.generation_quality_gate import validate_generation_package
 
-            errors.extend(validate_generation_package(payload, category=category))
+            errors.extend(
+                validate_generation_package(
+                    payload,
+                    category=category,
+                    require_korean_script=str(payload.get("language") or "ko").strip().lower() == "ko",
+                )
+            )
         except Exception as exc:
             errors.append(f"final package validation failed: {exc}")
     elif payload.get("defer_ready_until_quality_gate"):
@@ -5761,8 +5844,15 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
         str((job.get("payload") or {}).get(key) or "")
         for key in ("category", "category_name")
     ).strip()
+    category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     script_style_context = f"{script_style} {category_context}".strip()
-    if _is_old_story_plan_context(script_style_context, topic, upload_title, str((job.get("payload") or {}).get("image_style") or "")):
+    if _is_old_story_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        str((job.get("payload") or {}).get("image_style") or ""),
+        category=category_name,
+    ):
         old_story_script_guard = """
 
 Old-story script guard:
@@ -5926,6 +6016,7 @@ Scene planning guard:
         topic=topic,
         upload_title=upload_title,
         image_style=image_style,
+        category=category_name,
     )
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
@@ -6231,10 +6322,12 @@ def _prefer_gemini_text_model(config, selected: str = "") -> str:
     """Respect user's configured model (Claude, DeepSeek, GLM, etc.) and fallback to Gemini only if empty."""
     current = str(selected or "").strip()
     if current:
+        if current.lower() in {"gemini-2.5-flash", "gemini-3-flash-preview"}:
+            return "gemini-3.6-flash"
         return current
     if (getattr(config, "GEMINI_API_KEY", "") or "").strip():
-        return "gemini-3-flash-preview"
-    return "gemini-3-flash-preview"
+        return "gemini-3.6-flash"
+    return "gemini-3.6-flash"
 
 
 
@@ -6372,7 +6465,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 - This scene must add exactly one new concrete action, fact, decision, or consequence.
 """
 
-    clean_prompt = f"""You are an expert {'Shorts' if is_shorts else 'YouTube long-form'} narration writer. Write the body for this planned scene so a real viewer wants to keep listening.
+    clean_prompt = f"""{_script_writer_role(language)} Write the body for this planned scene so a real viewer wants to keep listening.
 
 [TOPIC]
 {topic}
@@ -6473,7 +6566,7 @@ Verified facts: {json.dumps((research_bundle.get("verified_facts") or [])[:10], 
 Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=False)}
 """
 
-    return f"""You are an expert Korean YouTube long-form narration writer. Write multiple planned scenes as one continuous script chunk.
+    return f"""{_script_writer_role(language)} Write multiple planned scenes as one continuous script chunk.
 
 [TOPIC]
 {topic}
@@ -6510,7 +6603,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 2. A 5-second scene is a short micro beat: one or two vivid sentences only. Longer scenes may carry more action, emotion, or explanation.
 {mode_instruction}
 4. {language_instruction}
-5. Output Korean narration body only inside JSON. No scene titles, headings, markdown, timecodes, camera directions, subtitle notes, or sound-effect labels.
+5. {_script_output_rule(language)} No scene titles, headings, markdown, timecodes, camera directions, subtitle notes, or sound-effect labels.
 6. Use story_beat and purpose as the only scene instructions. Ignore any planning, visual, TTS, camera, or UI wording from prior stages.
 7. Every scene must add new action, information, decision, or consequence. Do not repeat the same sentence, fact, image, worry, or emotional beat.
 8. Preserve continuity across the scenes in this chunk and from previous_context.
@@ -6950,7 +7043,7 @@ async def _generate_narrative_blueprint(
     title_generation: dict, language: str, style_directive: str,
 ) -> dict:
     prompt = f"""
-You are a senior story editor for retention-focused Korean YouTube longform narration.
+{_script_blueprint_role(language)}
 
 Before writing the script, create a STORY BLUEPRINT. This is not the script.
 It must force a real story arc: hook, character desire, conflict, rising tension,
@@ -7029,7 +7122,7 @@ async def _evaluate_script_quality(
     structure: dict, script: str, language: str,
 ) -> dict:
     prompt = f"""
-You are a ruthless Korean YouTube story QA editor.
+{_script_qa_role(language)}
 
 Score this generated narration script for whether real viewers would keep watching/listening.
 
@@ -7161,7 +7254,7 @@ async def _revise_full_script(
     structure: dict, script: str, quality_report: dict, language: str,
 ) -> str:
     prompt = f"""
-You are a senior Korean YouTube script doctor.
+{_script_rewrite_role(language)}
 
 Rewrite the FULL narration script once, using the QA report below.
 Keep the core story and scene order, but fix weak hook, filler, flat tension,
@@ -7586,6 +7679,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         str((job.get("payload") or {}).get(key) or "")
         for key in ("category", "category_name")
     ).strip()
+    category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     script_style_context = f"{script_style} {category_context}".strip()
     image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
     image_style_selection = (
@@ -7598,6 +7692,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         topic,
         upload_title,
         image_style,
+        category=category_name,
     ):
         old_story_script_guard = """
 
@@ -7628,6 +7723,7 @@ Hard retry rules:
         topic,
         upload_title,
         image_style,
+        category=category_name,
     )
     finance_plan_context = _is_finance_plan_context(
         script_style_context,
@@ -7997,6 +8093,7 @@ Hard retry rules:
         "topic": topic,
         "generated_title": upload_title,
         "upload_title": upload_title,
+        "language": language,
         "script": final_script,
         "structure": structure,
         "script_quality_report": final_quality,
@@ -8027,6 +8124,7 @@ Hard retry rules:
         "status": "COMPLETED",
         "topic_queue_id": topic_queue_id,
         "topic": topic,
+        "language": language,
         "script": final_script,
         "structure": structure,
         "upload_title": upload_title,
@@ -8152,6 +8250,7 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "publish_metadata": publish_metadata,
         "sfx_cues": sfx_cues,
         "sfx_cues_json": sfx_cues_json,
+        "language": language,
         "script_quality_report": script_quality_report,
         "stage_quality_report": metadata_stage_report,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),

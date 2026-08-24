@@ -86,6 +86,38 @@ class QualityGateError(RuntimeError):
         super().__init__("; ".join(errors))
 
 
+def _humanize_job_error_message(message: str) -> str:
+    text = str(message or "").strip()
+    if not text:
+        return "알 수 없는 오류가 발생했습니다."
+
+    replacements = [
+        ("DeepSeek API error (402)", "딥시크 잔액 부족"),
+        ("DeepSeek API error 402", "딥시크 잔액 부족"),
+        ("Insufficient Balance", "딥시크 잔액 부족"),
+        ("media prompt chunk", "미디어 프롬프트 구간"),
+        ("failed after retry", "재시도 후에도 실패했습니다"),
+        ("for scene_media_prompt_generation", "(장면 이미지 프롬프트 생성)"),
+    ]
+    for before, after in replacements:
+        text = text.replace(before, after)
+
+    lowered = text.lower()
+    if "insufficient balance" in lowered or "딥시크 잔액 부족" in text:
+        if "미디어 프롬프트" in text:
+            return "미디어 프롬프트 생성 중 딥시크 잔액이 부족합니다. 충전 후 다시 시도해 주세요."
+        return "딥시크 잔액이 부족합니다. 충전 후 다시 시도해 주세요."
+
+    if "api key is not configured" in lowered:
+        return "API 키가 설정되지 않았습니다. 설정 화면에서 확인해 주세요."
+    if "api 인증에 실패" in text or ("api key" in lowered and "invalid" in lowered):
+        return "API 인증에 실패했습니다. 설정된 키를 확인해 주세요."
+    if "rate limit" in lowered or "too many requests" in lowered:
+        return "요청이 너무 많아 일시적으로 제한되었습니다. 잠시 후 다시 시도해 주세요."
+
+    return text
+
+
 def _format_view_count(value) -> str:
     try:
         return f"{int(value):,}회"
@@ -1577,7 +1609,14 @@ class HermesAutopilotManager:
             "옛날이야기": "마을에서 쫓겨난 며느리가 십 년 뒤 들고 온 보따리",
             "한국사연": "가족을 위해 참아온 가장이 명절 아침에 남긴 한마디",
             "경제": "월급은 그대로인데 장바구니가 먼저 무너진 이유",
+            "English Folktales": "The Widow Who Traded Her Wedding Ring for a Lantern That Knew Her Name",
+            "日本昔話": "吹雪の峠で三度名を呼ばれた旅人の話",
         }
+        lang = self._get_category_language(category)
+        if lang == "en":
+            return fallbacks.get(category, "The Stranger Who Opened the Door Everyone Else Had Nailed Shut")
+        if lang == "ja":
+            return fallbacks.get(category, "村はずれの井戸で約束を破った若者の末路")
         return fallbacks.get(category, f"{category} 속 평범한 선택이 인생을 바꾼 순간")
 
     def _score_title_candidate(
@@ -1716,8 +1755,56 @@ class HermesAutopilotManager:
             "한국사연": "Use a Korean real-life story frame: family conflict, sacrifice, betrayal, workplace or neighborhood detail, and emotional payoff.",
             "무협": "Use a martial-arts fiction frame: weak/abandoned protagonist, sect conflict, hidden skill, revenge or awakening. Keep it genre-native.",
             "경제": "Use an economy-explainer frame: specific money/market signal, personal consequence, and a question viewers need answered.",
+            "English Folktales": "Write an in-world English folktale premise: a place, omen, curse, bargain, secret, or fateful choice. The title must sound like the story itself, not advice about folklore or storytelling.",
+            "日本昔話": "昔話や伝承の世界の出来事そのものを題材にしてください。人物、村、掟、祟り、選択、結末が見える題名にし、昔話の作り方や解説にはしないでください。",
         }
+        lang = self._get_category_language(category)
+        if lang == "en":
+            return styles.get(category, "Use concrete human stakes, a natural English YouTube title rhythm, and a clear curiosity gap.")
+        if lang == "ja":
+            return styles.get(category, "人物、場所、異変、選択、代償が見える自然な日本語タイトルにしてください。")
         return styles.get(category, "Use concrete human stakes, a natural Korean YouTube title rhythm, and a clear curiosity gap.")
+
+    def _title_language_prompt_context(self, category: str) -> dict:
+        language = self._get_category_language(category)
+        if language == "en":
+            return {
+                "strategist_role": "You are a senior English YouTube title strategist.",
+                "video_description": "Create multiple fresh upload-title candidates for an AI-generated longform English video.",
+                "candidate_rule": "Generate 10 English upload title candidates.",
+                "title_naturalness_rule": "Titles must sound like real natural English YouTube titles, not reports or analysis memos.",
+                "length_rule": "Keep titles roughly 35-95 characters.",
+                "json_example": "upload title candidate",
+                "eval_role": "You are a strict English YouTube title editor.",
+                "eval_rule_1": "natural English YouTube phrasing",
+                "qa_role": "You are a strict English YouTube metadata QA editor.",
+                "qa_length_rule": "If you suggest a new title, keep it natural English and under 100 characters.",
+            }
+        if language == "ja":
+            return {
+                "strategist_role": "You are a senior Japanese YouTube title strategist.",
+                "video_description": "Create multiple fresh upload-title candidates for an AI-generated longform Japanese video.",
+                "candidate_rule": "Generate 10 Japanese upload title candidates.",
+                "title_naturalness_rule": "Titles must sound like real natural Japanese YouTube titles, not reports or analysis memos.",
+                "length_rule": "タイトルはおおむね20〜60文字に収めてください。",
+                "json_example": "アップロードタイトル候補",
+                "eval_role": "You are a strict Japanese YouTube title editor.",
+                "eval_rule_1": "natural Japanese YouTube phrasing",
+                "qa_role": "You are a strict Japanese YouTube metadata QA editor.",
+                "qa_length_rule": "新しいタイトルを提案する場合は、自然な日本語で60文字以内にしてください。",
+            }
+        return {
+            "strategist_role": "You are a senior Korean YouTube title strategist.",
+            "video_description": "Create multiple fresh upload-title candidates for an AI-generated longform Korean video.",
+            "candidate_rule": "Generate 10 Korean upload title candidates.",
+            "title_naturalness_rule": "Titles must sound like real Korean YouTube titles, not reports or analysis memos.",
+            "length_rule": "Keep titles roughly 28-58 Korean characters.",
+            "json_example": "업로드 제목 후보",
+            "eval_role": "You are a strict Korean YouTube title editor.",
+            "eval_rule_1": "natural Korean YouTube phrasing",
+            "qa_role": "You are a strict Korean YouTube metadata QA editor.",
+            "qa_length_rule": "If you suggest a new title, keep it natural Korean and 28-58 characters.",
+        }
 
     def _title_generation_models(self) -> list[str]:
         from config import config as app_config
@@ -1725,15 +1812,15 @@ class HermesAutopilotManager:
         candidates = [
             app_config.TITLE_GENERATION_MODEL,
             app_config.TOPIC_GENERATION_MODEL,
+            "gemini-3.6-flash",
             "gemini-3-flash-preview",
-            "gemini-2.5-flash",
         ]
         models: list[str] = []
         for model in candidates:
             model = str(model or "").strip()
             if model and model not in models:
                 models.append(model)
-        return models or ["gemini-2.5-flash"]
+        return models or ["gemini-3.6-flash"]
 
     async def _generate_title_text_with_fallback(
         self,
@@ -1791,12 +1878,13 @@ class HermesAutopilotManager:
         candidates = plan.get("title_candidates") or []
         if not candidates:
             return plan
+        lang_ctx = self._title_language_prompt_context(category)
 
         prompt = f"""
-You are a strict Korean YouTube title editor.
+{lang_ctx["eval_role"]}
 
 Evaluate these candidate titles for:
-1. natural Korean YouTube phrasing
+1. {lang_ctx["eval_rule_1"]}
 2. click desire
 3. fit with the category and the concrete title promise
 4. low plagiarism risk against benchmark titles
@@ -1869,8 +1957,9 @@ Return ONLY JSON:
         current_title = title_plan.get("generated_title") or ""
         candidates = title_plan.get("title_candidates") or []
         script_preview = (script_text or "")[:6000]
+        lang_ctx = self._title_language_prompt_context(category)
         prompt = f"""
-You are a strict Korean YouTube metadata QA editor.
+{lang_ctx["qa_role"]}
 
 Check whether the selected upload title honestly matches the generated script.
 
@@ -1883,7 +1972,7 @@ SCRIPT PREVIEW:
 Rules:
 - If the title promises a fact, twist, money amount, relationship, event, or reveal that the script does not support, status must be "revise".
 - Prefer an existing candidate when it fits the script better.
-- If you suggest a new title, keep it natural Korean and 28-58 characters.
+- {lang_ctx["qa_length_rule"]}
 - Never revise into a title about storytelling, formulas, secrets, rules, principles, content strategy, analysis, or how to create/write the genre.
 - For martial-arts fiction, the title must sound like the title of a martial-arts story incident, not a documentary about 무협 writing or 무협 storytelling.
 - Never revise into a title that literally contains the internal category label, such as 옛날이야기, 황혼19금, 탈북사연, 해외감동, 한국사연, 노후금융, 무협, or 경제.
@@ -2107,10 +2196,11 @@ Return ONLY JSON:
         benchmark_titles = [item.get("title", "") for item in compact_candidates if item.get("title")]
         category_style = self._category_title_style(category)
         learning_profile = learning_profile or {}
+        lang_ctx = self._title_language_prompt_context(category)
         prompt = f"""
-You are a senior Korean YouTube title strategist.
+{lang_ctx["strategist_role"]}
 
-Create multiple fresh upload-title candidates for an AI-generated longform Korean video.
+{lang_ctx["video_description"]}
 
 CATEGORY:
 {category}
@@ -2127,8 +2217,8 @@ LEARNING MEMORY FROM PREVIOUS GENERATED OUTPUTS:
 Rules:
 - CATEGORY is the internal genre/category label, not a generated story topic.
 - Do not generate, return, or invent a separate production_topic, topic, premise, theme, lesson, secret, rule, formula, or storytelling method.
-- Generate 10 Korean upload title candidates.
-- Titles must sound like real Korean YouTube titles, not reports or analysis memos.
+- {lang_ctx["candidate_rule"]}
+- {lang_ctx["title_naturalness_rule"]}
 - The category is an internal label only. Never put the literal category label in the upload title.
 - Bad examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "노후금융", "무협", "경제".
 - Good titles describe the incident itself: a person, place, conflict, secret, decision, consequence, amount, or reveal.
@@ -2140,14 +2230,15 @@ Rules:
 - For martial-arts fiction, titles must describe an in-world premise: a martial artist, sect, master, secret manual, betrayal, revenge, awakening, or Jianghu incident.
 - For martial-arts fiction, NEVER create titles about martial-arts storytelling, martial-arts success rules, martial-arts formulas, martial-arts secrets, or "the way to write martial arts". Create the actual martial-arts story.
 - Prefer concrete situations, human stakes, curiosity, and a natural documentary/story tone.
-- Keep titles roughly 28-58 Korean characters.
+- {lang_ctx["length_rule"]}
 - Use successful learning-memory titles only as structural inspiration; do not copy their wording.
 - Avoid title shapes that are similar to failed or rejected learning-memory titles.
+- Use the category language consistently. Do not output Korean titles for English/Japanese categories, and do not mix languages unless an unavoidable proper noun requires it.
 
 Return ONLY valid JSON in this schema:
 {{
   "title_candidates": [
-    {{"title": "업로드 제목 후보", "angle": "why it may work"}}
+    {{"title": "{lang_ctx["json_example"]}", "angle": "why it may work"}}
   ]
 }}
 """
@@ -2303,7 +2394,7 @@ Return ONLY JSON:
 """.strip()
         try:
             from config import config as app_config
-            model = app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash"
+            model = app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
             raw = await ai_router.generate_text(
                 prompt,
                 model=model,
@@ -2409,7 +2500,7 @@ Return ONLY a JSON array of strings.
             from config import config as app_config
             raw = await ai_router.generate_text(
                 prompt,
-                model=app_config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash",
+                model=app_config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash",
                 temperature=0.55,
                 max_tokens=800,
                 task_type="hermes_benchmark_keyword_discovery",
@@ -3145,6 +3236,7 @@ Return ONLY a JSON array of strings.
             "publish_metadata": publish_metadata,
             "structure": structure,
             "script": final_script,
+            "language": category_language,
             "char_count": char_count,
             "completed_at": time.time()
         }
@@ -3335,8 +3427,9 @@ Return ONLY a JSON array of strings.
                 self.add_log(f"작업 완료: {job_id}")
                 return
             elif status in ("FAILED", "CANCELED"):
-                err_msg = job.get("error_message") or "알 수 없는 에러"
-                raise RuntimeError(f"작업({job_id})이 실패/취소되었습니다. 상태: {status}, 원인: {err_msg}")
+                err_msg = _humanize_job_error_message(job.get("error_message") or "알 수 없는 에러")
+                status_label = "실패" if status == "FAILED" else "취소됨"
+                raise RuntimeError(f"작업({job_id})이 {status_label}되었습니다. 원인: {err_msg}")
                 
             # 진행 상태 로그 노출
             step_desc = f"진행률 {progress}%"

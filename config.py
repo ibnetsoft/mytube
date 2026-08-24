@@ -72,14 +72,14 @@ class Config:
     GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
     # AI Model Settings
-    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3-flash-preview")  # 대본 생성 모델
+    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3.6-flash")  # 대본 생성 모델
     # Keep local/offline defaults on a broadly available text model. The
     # web-admin settings override these values in production.
-    TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3-flash-preview")
-    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3-flash-preview"))
-    SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3-flash-preview")
-    IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3-flash-preview")
-    TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-2.5-flash")
+    TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3.6-flash")
+    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3.6-flash"))
+    SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3.6-flash")
+    IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3.6-flash")
+    TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-3.6-flash")
     IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
     VIDEO_GENERATION_MODEL = os.getenv("VIDEO_GENERATION_MODEL", "veo-3.1-fast-generate-preview")  # 영상 생성 모델
 
@@ -273,9 +273,10 @@ class Config:
     def normalize_generation_models(cls):
         """Normalize text-generation model ids before a worker starts a job."""
         replacements = {
-            "gemini-2.5-pro": "gemini-3-flash-preview",
-            "gemini-2.5-flash": "gemini-3-flash-preview",
-            "gemini-2.0-flash": "gemini-3-flash-preview",
+            "gemini-2.5-pro": "gemini-3.6-flash",
+            "gemini-2.5-flash": "gemini-3.6-flash",
+            "gemini-2.0-flash": "gemini-3.6-flash",
+            "gemini-3-flash-preview": "gemini-3.6-flash",
         }
         for key_name in (
             "TOPIC_GENERATION_MODEL",
