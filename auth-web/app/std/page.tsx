@@ -1426,6 +1426,31 @@ export default function StdPortalPage() {
         setLocalSubtitles(subs)
         setSelectedSubIndex(0)
 
+        const renderSettings = {
+            ...(selectedProject?.project?.project_payload?.settings || {}),
+            ...(selectedProject?.project?.project_payload?.render_settings || {}),
+        }
+        if (renderSettings.subtitle_bg_enabled !== undefined || renderSettings.bg_enabled !== undefined) {
+            setSubBgStrip(Boolean(renderSettings.subtitle_bg_enabled ?? renderSettings.bg_enabled))
+        }
+        if (renderSettings.subtitle_bg_color || renderSettings.bg_color) {
+            setSubBgColor(String(renderSettings.subtitle_bg_color || renderSettings.bg_color))
+        }
+        if (renderSettings.subtitle_bg_opacity !== undefined || renderSettings.bg_opacity !== undefined) {
+            setSubBgOpacity(String(renderSettings.subtitle_bg_opacity ?? renderSettings.bg_opacity))
+        }
+        if (renderSettings.subtitle_bg_v_offset !== undefined) {
+            setSubBgVOffset(String(renderSettings.subtitle_bg_v_offset))
+        }
+        if (renderSettings.subtitle_font_family) setSubFontFamily(String(renderSettings.subtitle_font_family))
+        if (renderSettings.subtitle_font_size) setSubFontSize(String(renderSettings.subtitle_font_size))
+        if (renderSettings.subtitle_text_color) setSubTextColor(String(renderSettings.subtitle_text_color))
+        if (renderSettings.subtitle_stroke_color) setSubStrokeColor(String(renderSettings.subtitle_stroke_color))
+        if (renderSettings.subtitle_stroke_width !== undefined) setSubStrokeWidth(String(renderSettings.subtitle_stroke_width))
+        if (renderSettings.subtitle_line_spacing !== undefined) setSubLineSpacing(String(renderSettings.subtitle_line_spacing))
+        if (renderSettings.subtitle_max_chars !== undefined) setSubMaxChars(String(renderSettings.subtitle_max_chars))
+        if (renderSettings.subtitle_pos_y !== undefined) setSubPosY(Number(renderSettings.subtitle_pos_y))
+
         const isSaved = Boolean(
             selectedProject?.project?.progress_payload?.subtitles_saved ||
             selectedProject?.project?.progress_payload?.subtitles_completed ||
@@ -1896,6 +1921,38 @@ export default function StdPortalPage() {
         }
     }
 
+    const subtitleRenderSettings = () => ({
+        subtitle_bg_enabled: subBgStrip ? 1 : 0,
+        bg_enabled: subBgStrip ? 1 : 0,
+        subtitle_bg_color: subBgColor,
+        bg_color: subBgColor,
+        subtitle_bg_opacity: Number(subBgOpacity) || 0,
+        bg_opacity: Number(subBgOpacity) || 0,
+        subtitle_bg_v_offset: Number(subBgVOffset) || 0,
+        subtitle_font_family: subFontFamily,
+        subtitle_font_size: subFontSize,
+        subtitle_text_color: subTextColor,
+        subtitle_stroke_color: subStrokeColor,
+        subtitle_stroke_width: subStrokeWidth,
+        subtitle_line_spacing: subLineSpacing,
+        subtitle_max_chars: subMaxChars,
+        subtitle_pos_y: subPosY,
+    })
+
+    const hexToRgba = (hex: string, opacity: string | number) => {
+        const normalized = String(hex || '#000000').replace('#', '').trim()
+        const full = normalized.length === 3
+            ? normalized.split('').map(ch => ch + ch).join('')
+            : normalized.padEnd(6, '0').slice(0, 6)
+        const value = Number.parseInt(full, 16)
+        if (!Number.isFinite(value)) return `rgba(0,0,0,${opacity})`
+        const alpha = Math.max(0, Math.min(1, Number(opacity) || 0))
+        const red = (value >> 16) & 255
+        const green = (value >> 8) & 255
+        const blue = value & 255
+        return `rgba(${red},${green},${blue},${alpha})`
+    }
+
     const handleSaveSubtitles = async () => {
         setIsSubtitleSaved(true)
         let updatedFullForStorage: any = null
@@ -1914,6 +1971,10 @@ export default function StdPortalPage() {
                     script: cleanScriptContextText(customScriptText || prev.project.project_payload?.script || ''),
                     subtitles: localSubtitles,
                     scenes: prev.scenes || [],
+                    render_settings: {
+                        ...(prev.project.project_payload?.render_settings || {}),
+                        ...subtitleRenderSettings(),
+                    },
                     subtitles_saved: true,
                 }
             }
@@ -1941,6 +2002,10 @@ export default function StdPortalPage() {
                             script: cleanScriptContextText(customScriptText || selectedProject.project.project_payload?.script || ''),
                             subtitles: localSubtitles,
                             scenes: selectedProject.scenes || [],
+                            render_settings: {
+                                ...(selectedProject.project.project_payload?.render_settings || {}),
+                                ...subtitleRenderSettings(),
+                            },
                             subtitles_saved: true,
                         },
                     }),
@@ -4387,7 +4452,7 @@ export default function StdPortalPage() {
                                                             ${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
                                                             0 0 10px rgba(0,0,0,0.8)
                                                         `,
-                                                        backgroundColor: subBgStrip ? `rgba(0,0,0,${subBgOpacity})` : 'transparent',
+                                                        backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
                                                     {currentSub.text}

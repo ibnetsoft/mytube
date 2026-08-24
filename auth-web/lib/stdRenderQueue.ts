@@ -234,6 +234,26 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
             ?? project.project_payload?.render_settings?.subtitle_bg_enabled
             ?? project.project_payload?.settings?.subtitle_bg_enabled
             ?? 1,
+        subtitle_bg_color: project.project_payload?.render_settings?.subtitle_bg_color
+            ?? project.project_payload?.settings?.subtitle_bg_color
+            ?? project.project_payload?.render_settings?.bg_color
+            ?? project.project_payload?.settings?.bg_color
+            ?? '#000000',
+        bg_color: project.project_payload?.render_settings?.bg_color
+            ?? project.project_payload?.settings?.bg_color
+            ?? project.project_payload?.render_settings?.subtitle_bg_color
+            ?? project.project_payload?.settings?.subtitle_bg_color
+            ?? '#000000',
+        subtitle_bg_opacity: project.project_payload?.render_settings?.subtitle_bg_opacity
+            ?? project.project_payload?.settings?.subtitle_bg_opacity
+            ?? project.project_payload?.render_settings?.bg_opacity
+            ?? project.project_payload?.settings?.bg_opacity
+            ?? 0.5,
+        bg_opacity: project.project_payload?.render_settings?.bg_opacity
+            ?? project.project_payload?.settings?.bg_opacity
+            ?? project.project_payload?.render_settings?.subtitle_bg_opacity
+            ?? project.project_payload?.settings?.subtitle_bg_opacity
+            ?? 0.5,
         title: project.title,
         language: project.language || 'ko',
     }
