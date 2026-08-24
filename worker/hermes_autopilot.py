@@ -2348,9 +2348,29 @@ Return ONLY JSON:
             "한국사연": ["한국 가족 사연", "실화 반전 이야기", "한국인 인생 사연", "시청자 사연"],
             "황혼19금": ["황혼 이혼", "중년 부부 갈등", "노년의 사랑", "50대 인생 사연"],
             "무협": ["무협 소설 명장면", "강호 복수극", "무림 고수 전설", "무협 몰락한 문파"],
+            "English Folktales": [
+                "bedtime stories ancient folklore",
+                "irish mythology folklore tales",
+                "nordic folklore storytelling",
+                "scary folklore tales deep sleep",
+                "greek mythology stories narration",
+                "celtic folklore audio",
+                "legend and myths bedtime sleep story",
+                "traditional folktales audiobook"
+            ],
+            "日本昔話": [
+                "まんが日本昔ばなし 傑作選",
+                "江戸時代 昔話 朗読",
+                "日本の怖い民話 怪談",
+                "日本神話 伝説 朗読",
+                "寝かしつけ 昔話 朗読",
+                "心温まる 日本の民話",
+                "日本昔ばなし 眠れる朗読",
+                "怖い昔話 本当は怖い日本の民話"
+            ],
         }
         seeds = seed_map.get(category, [category])
-        if category == "옛날이야기":
+        if category in ("옛날이야기", "English Folktales", "日本昔話") and len(seeds) >= 8:
             return seeds[:10]
         category_hint = ""
         if category == "경제":
@@ -2359,7 +2379,23 @@ Return ONLY JSON:
                 "interest rates, inflation, exchange rates, housing, companies, and policy rather "
                 "than the word 경제 alone."
             )
-        prompt = f"""
+        lang = self._get_category_language(category)
+        if lang == "ja":
+            prompt = f"""
+You are a Japanese YouTube trend researcher.
+The genre is: {category} (Japanese traditional folk tales, mythology, mukashibanashi, roudoku).
+Generate 8 concrete Japanese YouTube search phrases that people actually search for in Japan (e.g. 昔話 朗読, 江戸時代 民話, 日本神話 伝説, 睡眠用 昔ばなし).
+Return ONLY a JSON array of strings in Japanese.
+"""
+        elif lang == "en":
+            prompt = f"""
+You are an English YouTube trend researcher.
+The genre is: {category} (Folktales, ancient mythology, bedtime lore, historical legends).
+Generate 8 concrete English YouTube search phrases that people actually search for on YouTube (e.g. bedtime stories ancient folklore, celtic mythology tales, sleep story folklore).
+Return ONLY a JSON array of strings in English.
+"""
+        else:
+            prompt = f"""
 You are a Korean YouTube trend researcher.
 The internal genre label is: {category}
 Generate 8 concrete Korean YouTube search phrases that people would actually search for now.

@@ -848,6 +848,33 @@ RSS_RELEVANCE_TERMS_BY_CATEGORY = {
         "오디오북",
         "소설",
     ],
+    "English Folktales": [
+        "folktale",
+        "folklore",
+        "mythology",
+        "myth",
+        "fairy tale",
+        "legend",
+        "story",
+        "ancient",
+        "tales",
+        "bedtime",
+        "audiobook",
+    ],
+    "日本昔話": [
+        "昔話",
+        "昔ばなし",
+        "民話",
+        "朗読",
+        "神話",
+        "伝説",
+        "怪談",
+        "童話",
+        "眠れる",
+        "絵本",
+        "日本昔ばなし",
+        "寝かしつけ",
+    ],
 }
 
 
