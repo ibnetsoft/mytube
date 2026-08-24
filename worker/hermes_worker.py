@@ -376,6 +376,27 @@ def _fallback_publish_metadata(topic: str, upload_title: str, script: str, langu
             _u(r"#\uc0ac\uc5f0"),
             _u(r"#\ub4dc\ub77c\ub9c8"),
         ]
+    elif language == "ja":
+        description = "\n\n".join(
+            part for part in [
+                title,
+                script_excerpt,
+                "最後までご覧いただきありがとうございます。",
+            ] if part
+        )
+        compact_topic = re.sub(r"\s+", " ", (topic or title)).strip()
+        tags = [
+            tag for tag in [
+                compact_topic,
+                title[:24],
+                "昔話",
+                "民話",
+                "日本の伝承",
+                "朗読",
+                "怪談",
+            ] if tag
+        ]
+        hashtags = ["#昔話", "#民話", "#日本の伝承", "#朗読", "#怪談"]
     else:
         description = "\n\n".join(part for part in [title, script_excerpt] if part)
         tags = [
@@ -474,6 +495,24 @@ _METADATA_INTERNAL_TERMS = (
 )
 
 
+def _metadata_contains_internal_term(text: str) -> bool:
+    blob = str(text or "")
+    lowered = blob.lower()
+    for term in _METADATA_INTERNAL_TERMS:
+        normalized = str(term or "").strip()
+        if not normalized:
+            continue
+        term_lower = normalized.lower()
+        if re.fullmatch(r"[a-z0-9_ ]+", term_lower):
+            pattern = r"(?<![a-z0-9_])" + re.escape(term_lower) + r"(?![a-z0-9_])"
+            if re.search(pattern, lowered):
+                return True
+            continue
+        if term_lower in lowered:
+            return True
+    return False
+
+
 def _metadata_hangul_ratio(value: str) -> float:
     text = str(value or "")
     hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
@@ -481,6 +520,18 @@ def _metadata_hangul_ratio(value: str) -> float:
     if hangul + latin == 0:
         return 0.0
     return hangul / (hangul + latin)
+
+
+def _japanese_char_count(value: str) -> int:
+    text = str(value or "")
+    return len(re.findall(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]", text))
+
+
+def _is_japanese_visible_text(value: str, *, min_chars: int) -> bool:
+    text = str(value or "")
+    japanese = _japanese_char_count(text)
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    return japanese >= min_chars and hangul == 0
 
 
 def _metadata_title_matches_script(title: str, script: str) -> bool:
@@ -514,12 +565,22 @@ def _validate_publish_metadata_quality(metadata: dict, topic: str, upload_title:
         raise ValueError("publish_metadata.description too short")
     if language == "ko" and _metadata_hangul_ratio(description) < 0.8:
         raise ValueError("publish_metadata.description is not Korean enough")
-    if any(term.lower() in blob.lower() for term in _METADATA_INTERNAL_TERMS):
+    if language == "ja":
+        if not _is_japanese_visible_text(title, min_chars=2):
+            raise ValueError("publish_metadata title is not Japanese enough")
+        if not _is_japanese_visible_text(description, min_chars=24):
+            raise ValueError("publish_metadata.description is not Japanese enough")
+    if _metadata_contains_internal_term(blob):
         raise ValueError("publish_metadata leaks internal production terms")
     if not _metadata_title_matches_script(title or upload_title, script):
         raise ValueError("publish_metadata title does not match script content")
     clean_tags = [str(tag or "").strip() for tag in tags if str(tag or "").strip()]
     clean_hashtags = [str(tag or "").strip() for tag in hashtags if str(tag or "").strip()]
+    if language == "ja":
+        if any(not _is_japanese_visible_text(tag.lstrip("#"), min_chars=1) for tag in clean_tags[:8]):
+            raise ValueError("publish_metadata tags are not Japanese enough")
+        if any(not _is_japanese_visible_text(tag.lstrip("#"), min_chars=1) for tag in clean_hashtags[:8]):
+            raise ValueError("publish_metadata hashtags are not Japanese enough")
     if len(clean_tags) < 5:
         raise ValueError("publish_metadata requires at least 5 tags")
     if len(clean_hashtags) < 3:
@@ -3245,6 +3306,7 @@ def _fallback_narration_section(
     idx: int,
     total: int,
     min_chars: int,
+    language: str = "ko",
 ) -> str:
     title = (upload_title or topic or "이번 이야기").strip()
     summary = str(scene.get("scene_summary") or scene.get("scene_situation") or title).strip()
@@ -3277,25 +3339,54 @@ def _fallback_narration_section(
         "사람들의 반응과 주변 조건이 맞물리며, 표면 아래 있던 원인이 새 방향으로 드러납니다.",
         "작은 변화가 다음 결정을 압박하고, 이야기는 이전과 다른 질문을 향해 움직입니다.",
     ]
+    if language == "ja":
+        story_fillers = [
+            "長く折りたたまれていた感情がゆっくりほどけ、口にできなかった選択の代償が場面に残ります。",
+            "小さな品物ひとつが過ぎた歳月の沈黙を揺らし、登場人物たちは食い違う記憶の前で立ち止まります。",
+            "窓の外の光と低い声が重なり、隠していた本心が次の告白へとつながっていきます。",
+            "誰かのためらいが新しい手がかりを呼び込み、古い約束の意味が少しずつ変わっていきます。",
+        ]
+        explainer_fillers = [
+            "隠れていた文脈が新しい手がかりと結びつき、聞き手が次の判断を追える足場になります。",
+            "前の場面とは違う根拠が重なり、選択の結果がさらに具体的な状況へと絞られていきます。",
+            "人々の反応と周囲の条件がかみ合い、表面の下にあった原因が別の角度から姿を見せます。",
+            "小さな変化が次の決断を押し出し、物語はそれまでとは違う問いへと動き始めます。",
+        ]
 
     if is_story:
-        purpose = purpose or "숨겨진 사연과 사람들의 얽힌 감정이 조용히 번져 나갑니다."
-        hook = hook or "이어지는 순간, 아무도 예상치 못한 뜻밖의 진실이 서서히 드러나기 시작합니다."
-        text = f"{variation}의 장면. {summary}. {purpose} {hook}"
+        if language == "ja":
+            purpose = purpose or "隠された事情と人々の絡み合った感情が、静かに場面の中へ広がっていきます。"
+            hook = hook or "次の瞬間、誰も予想しなかった真実がゆっくり姿を現し始めます。"
+            text = f"{summary}。{purpose} {hook}"
+        else:
+            purpose = purpose or "숨겨진 사연과 사람들의 얽힌 감정이 조용히 번져 나갑니다."
+            hook = hook or "이어지는 순간, 아무도 예상치 못한 뜻밖의 진실이 서서히 드러나기 시작합니다."
+            text = f"{variation}의 장면. {summary}. {purpose} {hook}"
         filler_idx = 0
         while len(text) < min_chars:
             detail = _scene_variation_label(idx + (filler_idx + 1) * max(1, total))
-            text += f" {detail}의 {story_fillers[filler_idx % len(story_fillers)]}"
+            if language == "ja":
+                text += f" {story_fillers[filler_idx % len(story_fillers)]}"
+            else:
+                text += f" {detail}의 {story_fillers[filler_idx % len(story_fillers)]}"
             filler_idx += 1
         return text
 
-    purpose = purpose or "이 상황의 본질과 숨겨진 맥락을 차분히 짚어갑니다."
-    hook = hook or "그리고 다음 순간, 상황의 흐름을 완전히 바꾸어 놓을 중요한 전환점이 찾아옵니다."
-    text = f"{variation}의 장면. {summary}. {purpose} {hook}"
+    if language == "ja":
+        purpose = purpose or "この状況の本質と隠れていた文脈を、落ち着いた語りで一つずつたどっていきます。"
+        hook = hook or "そして次の瞬間、流れを大きく変えてしまう重要な転換点が訪れます。"
+        text = f"{summary}。{purpose} {hook}"
+    else:
+        purpose = purpose or "이 상황의 본질과 숨겨진 맥락을 차분히 짚어갑니다."
+        hook = hook or "그리고 다음 순간, 상황의 흐름을 완전히 바꾸어 놓을 중요한 전환점이 찾아옵니다."
+        text = f"{variation}의 장면. {summary}. {purpose} {hook}"
     filler_idx = 0
     while len(text) < min_chars:
         detail = _scene_variation_label(idx + (filler_idx + 1) * max(1, total))
-        text += f" {detail}의 {explainer_fillers[filler_idx % len(explainer_fillers)]}"
+        if language == "ja":
+            text += f" {explainer_fillers[filler_idx % len(explainer_fillers)]}"
+        else:
+            text += f" {detail}의 {explainer_fillers[filler_idx % len(explainer_fillers)]}"
         filler_idx += 1
     return text
 
@@ -4649,6 +4740,13 @@ def _validate_script_generate_stage(
             errors.append(f"script too short or not Korean enough: hangul={lang_stats['hangul']}, chars={lang_stats['chars']}")
         if lang_stats["latin"] > lang_stats["max_latin"]:
             errors.append(f"script has too much Latin text: latin={lang_stats['latin']}")
+    elif language == "ja":
+        japanese_chars = _japanese_char_count(script)
+        hangul_chars = len(re.findall(r"[\uac00-\ud7a3]", script))
+        if japanese_chars < 800:
+            errors.append(f"script is not Japanese enough: japanese={japanese_chars}, chars={len(script)}")
+        if hangul_chars > 0:
+            errors.append(f"script contains Hangul for Japanese category: hangul={hangul_chars}")
 
     if require_korean_script and any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
         errors.append("script contains fallback/scratch English template text")
@@ -6150,24 +6248,55 @@ def _extract_speaker_names(text: str) -> list[str]:
     return names
 
 
-def _script_gen_length_instruction(duration_seconds: int, is_shorts: bool, narration_pace: str = "senior") -> tuple[float, str]:
+def _script_gen_length_instruction(
+    duration_seconds: int,
+    is_shorts: bool,
+    narration_pace: str = "senior",
+    language: str = "ko",
+) -> tuple[float, str]:
     from services.narration_policy import get_narration_policy
 
     policy = get_narration_policy(narration_pace)
-    if is_shorts:
-        total_target_chars = duration_seconds * policy.chars_per_second
-        length_instruction = (
-            f"[매우 중요] 이 대본은 {duration_seconds}초 숏폼(Shorts) 영상용입니다. "
-            f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 전달하세요. "
-            f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, 분당 약 {policy.chars_per_minute}자 기준입니다."
-        )
+    total_target_chars = duration_seconds * policy.chars_per_second
+    if language == "ja":
+        if is_shorts:
+            length_instruction = (
+                f"この台本は{duration_seconds}秒のShorts向けです。全体をかなり短く保ち、"
+                f"無駄なく核心だけを書いてください。読み上げ速度ポリシーは'{policy.label}'で、"
+                f"1秒あたり約{policy.chars_per_second:.1f}字、1分あたり約{policy.chars_per_minute}字です。"
+            )
+        else:
+            length_instruction = (
+                f"この動画は約{duration_seconds // 60}分{duration_seconds % 60}秒です。"
+                f"読み上げ速度ポリシーは'{policy.label}'で、1秒あたり約{policy.chars_per_second:.1f}字、"
+                f"1分あたり約{policy.chars_per_minute}字の落ち着いた朗読になるように書いてください。"
+            )
+    elif language == "en":
+        if is_shorts:
+            length_instruction = (
+                f"This script is for a {duration_seconds}-second Shorts video. Keep it very short and focused. "
+                f"The narration pace policy is '{policy.label}', about {policy.chars_per_second:.1f} characters per second "
+                f"and {policy.chars_per_minute} characters per minute."
+            )
+        else:
+            length_instruction = (
+                f"This video runs about {duration_seconds // 60} minutes {duration_seconds % 60} seconds. "
+                f"The narration pace policy is '{policy.label}', about {policy.chars_per_second:.1f} characters per second "
+                f"and {policy.chars_per_minute} characters per minute, so write for a measured spoken pace."
+            )
     else:
-        total_target_chars = duration_seconds * policy.chars_per_second
-        length_instruction = (
-            f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다. "
-            f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, "
-            f"분당 약 {policy.chars_per_minute}자 기준으로 천천히 들리게 작성하세요."
-        )
+        if is_shorts:
+            length_instruction = (
+                f"[매우 중요] 이 대본은 {duration_seconds}초 숏폼(Shorts) 영상용입니다. "
+                f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 전달하세요. "
+                f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, 분당 약 {policy.chars_per_minute}자 기준입니다."
+            )
+        else:
+            length_instruction = (
+                f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다. "
+                f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, "
+                f"분당 약 {policy.chars_per_minute}자 기준으로 천천히 들리게 작성하세요."
+            )
     return total_target_chars, length_instruction
 
 
@@ -6331,8 +6460,28 @@ def _prefer_gemini_text_model(config, selected: str = "") -> str:
 
 
 
-def _script_gen_mode_instruction(is_multi: bool, known_characters: list[str], is_dramatic_single: bool = False) -> str:
+def _script_gen_mode_instruction(
+    is_multi: bool,
+    known_characters: list[str],
+    language: str = "ko",
+    is_dramatic_single: bool = False,
+) -> str:
     if is_multi:
+        if language == "ja":
+            known_chars_line = ""
+            if known_characters:
+                known_chars_line = (
+                    "\n[既に登場した人物。このパートで再登場する場合は同じ名前を再利用してください。"
+                    "新しい人物は物語上どうしても必要な場合だけ追加してください]\n"
+                    f"{', '.join(known_characters)}\n"
+                )
+            return f"""
+1. 基本はナレーター中心の叙述です。人物の行動や状況は、ナレーターが物語として語る形を優先してください。
+2. 人物の直接の発話が本当に必要な場面だけ、`話者: (感情/演技トーン) "台詞"` 形式を使ってください。
+3. ナレーター名を明示する必要がある場合だけ `ナレーター:` を使ってください。
+4. 台詞の前には必ず `(低く)`, `(震えながら)`, `(ささやくように)`, `(きっぱりと)` のような演技トーンを付けてください。
+5. 一言のために新しい人物名を乱発しないでください。重要度の低い発話はナレーターが要約して伝える方を優先してください。{known_chars_line}
+"""
         known_chars_line = ""
         if known_characters:
             known_chars_line = (
@@ -6348,6 +6497,15 @@ def _script_gen_mode_instruction(is_multi: bool, known_characters: list[str], is
 5. 한 문장짜리 대사 때문에 새로운 이름을 남발하지 마세요. 비중이 작은 인물의 말은 나레이터가 요약해서 전달하는 쪽을 우선하세요.{known_chars_line}
 """
     if is_dramatic_single:
+        if language == "ja":
+            return """
+1. 単一の語り手によるドラマチックな朗読として書いてください。脚本形式にはしないでください。
+2. 短い直接台詞を入れる場合は "..." で囲み、その直前に `(低くささやいて)` や `(震えながら)` のような感情・演技トーンを置いてください。
+3. `太郎:` や `(太郎)` のような単独の話者ラベルは禁止です。誰が話したかは直前の地の文で自然に示してください。
+4. 台詞は少なく、意味のある場面にだけ使ってください。裏切り、告白、脅し、気づき、結末の回収に限って使う意識で書いてください。
+5. 語りの声は一貫させ、複数人の掛け合い脚本にしないでください。
+6. すべての台詞は人物理解を深めるか、緊張を高めるか、タイトルの約束を回収する役割を持たせてください。
+"""
         return """
 1. Write as a single narrator-led dramatic narration. The narrator carries the story; do NOT write screenplay format.
 2. For short direct character dialogue, wrap speech in quotes "..." and prepend an expressive vocal/emotion tone in parentheses right before the quote: e.g. (낮게 속삭이며) "형수님도 여자예요.", (울먹이며) "제발 그만해요.", (단호하게) "더 이상은 안 됩니다."
@@ -6389,7 +6547,12 @@ def _build_section_prompt(
     previous_context = previous_context or {}
 
     is_dramatic_single = narration_mode == "dramatic_single"
-    mode_instruction = _script_gen_mode_instruction(is_multi, known_characters, is_dramatic_single=is_dramatic_single)
+    mode_instruction = _script_gen_mode_instruction(
+        is_multi,
+        known_characters,
+        language=language,
+        is_dramatic_single=is_dramatic_single,
+    )
     language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
     extra_context = ""
     if emotion:
@@ -6545,7 +6708,12 @@ def _build_script_chunk_prompt(
     narrative_blueprint = narrative_blueprint or {}
     previous_context = previous_context or {}
     is_dramatic_single = narration_mode == "dramatic_single"
-    mode_instruction = _script_gen_mode_instruction(is_multi, known_characters, is_dramatic_single=is_dramatic_single)
+    mode_instruction = _script_gen_mode_instruction(
+        is_multi,
+        known_characters,
+        language=language,
+        is_dramatic_single=is_dramatic_single,
+    )
     language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
     budget_by_order = {str(item.get("scene_order")): item for item in chunk_budgets}
     scene_payload = []
@@ -7397,6 +7565,98 @@ SCRIPT TO REWRITE:
     return _build_korean_language_rescue_script(topic, upload_title, structure, min_total_chars=max(2600, int(len(script) * 0.55)))
 
 
+def _build_japanese_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "今夜の昔話").strip()
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        scenes = [{} for _ in range(8)]
+    paragraphs = [
+        f"{title}。物語は、ただの言い伝えだと思われていた一言が、ある夜に現実へ変わる瞬間から始まります。主人公は小さな違和感の前で足を止め、その場で引き返せば済んだはずの一歩を、つい踏み出してしまいます。",
+        "最初は取るに足らない出来事に見えました。けれど、同じ言葉を別々の人が口にし、何気ない道具が同じ夜に続けて現れたことで、主人公は自分の知っている世界がすべてではないと気づき始めます。",
+    ]
+    for idx, scene in enumerate(scenes, start=1):
+        beat = re.sub(r"[\uac00-\ud7a3]", "", _script_rescue_scene_text(scene, idx)).strip()
+        if not beat:
+            beat = f"{idx}番目の場面で、主人公は前の選択が残した結果を自分の目で確かめます。"
+        paragraphs.append(
+            f"{idx}番目の場面では、{beat} 主人公は見て見ぬふりをせず、確かめるべきことを自分で確かめに行きます。"
+            "そのたびに、周囲の人々の記憶は少しずつ食い違い、偶然に見えた出来事が誰かの沈黙と結びついていたことが明らかになります。"
+            "だからこの場面は説明では終わらず、次の決断を避けられないものへ変えていきます。"
+        )
+    paragraphs.append(
+        "最後に残るのは大げさな教訓ではありません。題名が最初に投げかけた問いに対する、逃げ場のない答えです。"
+        "主人公はとうとう避けたかった真実を受け入れ、その真実によって誰かは悔い、誰かは遅すぎる告白をします。"
+        "物語は、最初の小さな違和感が人の関係と選択の順番をすべて変えてしまったのだと示して静かに閉じます。"
+    )
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += (
+            "\n\n主人公は同じ不安を言い直すのではなく、直前に得た手がかりを頼りに次の行動を選びます。"
+            "その選択によって状況はさらに輪郭を帯び、隠れていた感情と責任の所在が一つずつ表へ出てきます。"
+        )
+    return script
+
+
+async def _rewrite_script_to_japanese(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    narrative_blueprint: dict,
+    structure: dict,
+    script: str,
+    job_log,
+) -> str:
+    prompt = f"""
+You are a Japanese long-form narration recovery editor.
+
+The script below failed because it drifted into Korean or mixed-language output.
+Rewrite the entire script into natural Japanese narration while preserving the
+same scene order, title promise, protagonist, conflict, reveals, and payoff.
+
+Hard rules:
+- Output Japanese narration body only.
+- Use natural Japanese throughout. Do not leave Korean sentences, Korean labels, headings, markdown, JSON, camera directions, or analysis notes.
+- Proper nouns may remain only when unavoidable.
+- Keep the length roughly similar to the original. Do not collapse it into a short outline.
+- Do not mention this QA failure or the rewrite process.
+
+TOPIC:
+{topic}
+
+UPLOAD TITLE:
+{upload_title}
+
+STORY BLUEPRINT:
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+SCENE STRUCTURE:
+{json.dumps(structure or {}, ensure_ascii=False)}
+
+SCRIPT TO REWRITE:
+{script}
+"""
+    try:
+        rewritten = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.35,
+            max_tokens=16000,
+            task_type="hermes_script_japanese_language_rewrite",
+        )
+        rewritten = _clean_section_text(str(rewritten or "").strip(), False)
+        if rewritten and _japanese_char_count(rewritten) >= max(800, len(rewritten) // 6) and not re.search(r"[\uac00-\ud7a3]", rewritten):
+            return rewritten
+        rewritten_hangul = len(re.findall(r"[\uac00-\ud7a3]", rewritten or ""))
+        job_log.warning(
+            "Japanese language rewrite still failed language validation; using deterministic rescue script "
+            f"(japanese={_japanese_char_count(rewritten)}, chars={len(rewritten)}, hangul={rewritten_hangul})"
+        )
+    except Exception as exc:
+        job_log.warning(f"Japanese language rewrite failed; using deterministic rescue script: {exc}")
+    return _build_japanese_language_rescue_script(topic, upload_title, structure, min_total_chars=max(2600, int(len(script) * 0.55)))
+
+
 def _build_finance_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
     title = (upload_title or topic or "노후금융 이야기").strip()
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -7749,7 +8009,12 @@ Hard retry rules:
         structure = dict(structure)
         structure.pop("image_grid_prompts", None)
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
-    total_target_chars, length_instruction = _script_gen_length_instruction(duration_seconds, is_shorts, narration_pace)
+    total_target_chars, length_instruction = _script_gen_length_instruction(
+        duration_seconds,
+        is_shorts,
+        narration_pace,
+        language,
+    )
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts, narration_pace)
     script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
 
@@ -7841,6 +8106,7 @@ Hard retry rules:
                         start_idx + local_idx,
                         len(scenes),
                         int(chunk_budgets[local_idx].get("min_chars") or 80),
+                        language=language,
                     ),
                 )
             except Exception as e:
@@ -7855,6 +8121,7 @@ Hard retry rules:
                         start_idx + local_idx,
                         len(scenes),
                         int(chunk_budgets[local_idx].get("min_chars") or 80),
+                        language=language,
                     )
                     for local_idx, scene in enumerate(chunk_scenes)
                 ]
@@ -7953,6 +8220,9 @@ Hard retry rules:
             elif old_story_context:
                 job_log.info("Script QA still requested revision; trying old-story rescue script")
                 rescue_script = _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure)
+            elif language == "ja":
+                job_log.info("Script QA still requested revision; trying Japanese rescue script")
+                rescue_script = _build_japanese_language_rescue_script(topic, upload_title, structure)
 
             if rescue_script:
                 rescue_quality = await _evaluate_script_quality(
@@ -7972,6 +8242,31 @@ Hard retry rules:
             job_store.update_progress(job_id, 86, "Korean language rewrite")
             write_state("running", job, 86, job_id)
             final_script = await _rewrite_script_to_korean(
+                ai_router,
+                model,
+                topic,
+                upload_title,
+                narrative_blueprint,
+                structure,
+                final_script,
+                job_log,
+            )
+            final_quality = await _evaluate_script_quality(
+                ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+            )
+            revision_count = max(revision_count, 1)
+            scene_script_sections = []
+        elif language == "ja" and (
+            _japanese_char_count(final_script) < 800 or re.search(r"[\uac00-\ud7a3]", final_script)
+        ):
+            final_script_hangul = len(re.findall(r"[\uac00-\ud7a3]", final_script))
+            job_log.warning(
+                "Script failed Japanese language validation after normal rewrite/rescue; forcing Japanese rewrite "
+                f"(japanese={_japanese_char_count(final_script)}, chars={len(final_script)}, hangul={final_script_hangul})"
+            )
+            job_store.update_progress(job_id, 86, "Japanese language rewrite")
+            write_state("running", job, 86, job_id)
+            final_script = await _rewrite_script_to_japanese(
                 ai_router,
                 model,
                 topic,

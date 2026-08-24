@@ -89,8 +89,31 @@ _METADATA_INTERNAL_TERMS = (
 )
 
 
+def _metadata_contains_internal_term(text: str) -> bool:
+    blob = str(text or "")
+    lowered = blob.lower()
+    for term in _METADATA_INTERNAL_TERMS:
+        normalized = str(term or "").strip()
+        if not normalized:
+            continue
+        term_lower = normalized.lower()
+        if re.fullmatch(r"[a-z0-9_ ]+", term_lower):
+            pattern = r"(?<![a-z0-9_])" + re.escape(term_lower) + r"(?![a-z0-9_])"
+            if re.search(pattern, lowered):
+                return True
+            continue
+        if term_lower in lowered:
+            return True
+    return False
+
+
 def _text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _japanese_char_count(value: str) -> int:
+    text = str(value or "")
+    return len(re.findall(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]", text))
 
 
 def _scene_number(scene: Mapping[str, Any], fallback: int) -> int | str:
@@ -253,6 +276,13 @@ def validate_generation_package(
             errors.append(f"script too short or not Korean enough: hangul={hangul}, chars={len(script)}")
         if latin > max_latin:
             errors.append(f"script has too much Latin text: latin={latin}, max={max_latin}")
+    elif language == "ja":
+        japanese = _japanese_char_count(script)
+        hangul = len(re.findall(r"[\uac00-\ud7a3]", script))
+        if japanese < 800:
+            errors.append(f"script is not Japanese enough: japanese={japanese}, chars={len(script)}")
+        if hangul > 0:
+            errors.append(f"script contains Hangul for Japanese category: hangul={hangul}")
 
     if any(marker in script for marker in _FALLBACK_SCRIPT_MARKERS):
         errors.append("script contains fallback/scratch English template text")
@@ -312,14 +342,19 @@ def validate_generation_package(
         if metadata.get("source") == "worker_fallback":
             errors.append("publish_metadata used worker_fallback")
         description = _text(metadata.get("description"))
+        titles = metadata.get("titles") if isinstance(metadata.get("titles"), list) else []
+        primary_title = _text(titles[0] if titles else payload.get("generated_title") or payload.get("upload_title"))
         if not description:
             errors.append("publish_metadata.description missing")
         elif len(description) < 120:
             errors.append("publish_metadata.description too short")
         elif require_korean_script and _hangul_ratio(description) < 0.8:
             errors.append("publish_metadata.description not Korean enough")
-        titles = metadata.get("titles") if isinstance(metadata.get("titles"), list) else []
-        primary_title = _text(titles[0] if titles else payload.get("generated_title") or payload.get("upload_title"))
+        elif language == "ja":
+            if _japanese_char_count(primary_title) < 2:
+                errors.append("publish_metadata title is not Japanese enough")
+            if _japanese_char_count(description) < 24 or re.search(r"[\uac00-\ud7a3]", description):
+                errors.append("publish_metadata.description is not Japanese enough")
         if primary_title and not _metadata_title_matches_script(primary_title, script):
             errors.append("publish_metadata title does not match script")
         blob = "\n".join([
@@ -328,16 +363,20 @@ def validate_generation_package(
             " ".join(str(tag) for tag in (metadata.get("tags") or [])),
             " ".join(str(tag) for tag in (metadata.get("hashtags") or [])),
         ])
-        if any(term.lower() in blob.lower() for term in _METADATA_INTERNAL_TERMS):
+        if _metadata_contains_internal_term(blob):
             errors.append("publish_metadata leaks internal production terms")
         tags = metadata.get("tags") or metadata.get("hashtags")
         if not isinstance(tags, list) or not any(_text(tag) for tag in tags):
             errors.append("publish_metadata tags/hashtags missing")
         elif len([tag for tag in tags if _text(tag)]) < 5:
             errors.append("publish_metadata has too few tags")
+        elif language == "ja" and any(_japanese_char_count(_text(tag).lstrip("#")) < 1 for tag in tags[:8] if _text(tag)):
+            errors.append("publish_metadata tags are not Japanese enough")
         hashtags = metadata.get("hashtags") if isinstance(metadata.get("hashtags"), list) else []
         if len([tag for tag in hashtags if _text(tag)]) < 3:
             errors.append("publish_metadata has too few hashtags")
+        elif language == "ja" and any(_japanese_char_count(_text(tag).lstrip("#")) < 1 for tag in hashtags[:8] if _text(tag)):
+            errors.append("publish_metadata hashtags are not Japanese enough")
 
     return errors
 

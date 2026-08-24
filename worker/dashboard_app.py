@@ -1837,7 +1837,8 @@ async def api_get_settings(
     keys = [
         ("NEXT_PUBLIC_SUPABASE_URL", "Supabase 프로젝트 URL"),
         ("SUPABASE_SERVICE_ROLE_KEY", "Supabase Service Role Key"),
-        ("GEMINI_API_KEY", "Gemini API 키"),
+        ("GEMINI_API_KEY_FREE", "Gemini 무료 키"),
+        ("GEMINI_API_KEY_PAID", "Gemini 후불 키"),
         ("CLAUDE_API_KEY", "Claude API 키"),
         ("DEEPSEEK_API_KEY", "DeepSeek API 키"),
         ("DEEPSEEK_BASE_URL", "DeepSeek Base URL"),
@@ -1878,7 +1879,7 @@ async def api_set_setting(
 
     allowed = {
         "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
-        "GEMINI_API_KEY", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
+        "GEMINI_API_KEY", "GEMINI_API_KEY_FREE", "GEMINI_API_KEY_PAID", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
         "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
@@ -5826,7 +5827,8 @@ async function doLogout() {
 const settingLabels = {
   'NEXT_PUBLIC_SUPABASE_URL': 'Supabase 프로젝트 URL',
   'SUPABASE_SERVICE_ROLE_KEY': 'Supabase Service Role Key',
-  'GEMINI_API_KEY': 'Gemini API Key',
+  'GEMINI_API_KEY_FREE': 'Gemini 무료 API Key',
+  'GEMINI_API_KEY_PAID': 'Gemini 후불 API Key',
   'CLAUDE_API_KEY': 'Claude API Key',
   'DEEPSEEK_API_KEY': 'DeepSeek API Key',
   'DEEPSEEK_BASE_URL': 'DeepSeek Base URL',
@@ -5847,7 +5849,8 @@ const settingLabels = {
 const settingIcons = {
   'NEXT_PUBLIC_SUPABASE_URL': '&#x2601;',
   'SUPABASE_SERVICE_ROLE_KEY': '&#x1F511;',
-  'GEMINI_API_KEY': '&#x1F4E7;',
+  'GEMINI_API_KEY_FREE': '&#x1F4E7;',
+  'GEMINI_API_KEY_PAID': '&#x1F4B3;',
   'CLAUDE_API_KEY': '&#x1F4E7;',
   'DEEPSEEK_API_KEY': '&#x1F4E7;',
   'DEEPSEEK_BASE_URL': '&#x1F310;',
@@ -6058,7 +6061,8 @@ async function loadSettings() {
   const apiSettingKeys = new Set([
     'NEXT_PUBLIC_SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'GEMINI_API_KEY',
+    'GEMINI_API_KEY_FREE',
+    'GEMINI_API_KEY_PAID',
     'CLAUDE_API_KEY',
     'DEEPSEEK_API_KEY',
     'DEEPSEEK_BASE_URL',
@@ -6083,7 +6087,7 @@ async function loadSettings() {
     <div class="settings-grid">
       <div class="settings-panel">
         <div class="settings-panel-title">API Keys</div>
-        <div class="settings-panel-note">YouTube primary and backup keys live here. Backup keys are used in order, up to 5 total keys.</div>
+        <div class="settings-panel-note">YouTube primary and backup keys live here. Gemini is applied in this order: paid key first, then free key. YouTube backup keys are used in order, up to 5 total keys.</div>
         ${apiRows.join('')}
       </div>
       <div class="settings-panel">

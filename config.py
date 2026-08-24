@@ -65,6 +65,8 @@ class Config:
     # Optional comma/semicolon/newline-separated failover keys.
     YOUTUBE_API_KEYS = _load_youtube_key_pool_from_env_files()
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_KEY_FREE = os.getenv("GEMINI_API_KEY_FREE", "")
+    GEMINI_API_KEY_PAID = os.getenv("GEMINI_API_KEY_PAID", "")
     CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
     DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
@@ -220,7 +222,7 @@ class Config:
         missing = []
         if not cls.YOUTUBE_API_KEY:
             missing.append("YOUTUBE_API_KEY")
-        if not cls.GEMINI_API_KEY:
+        if not cls.active_gemini_api_key():
             missing.append("GEMINI_API_KEY")
 
         if missing:
@@ -234,7 +236,7 @@ class Config:
         """Supabase에서 받은 API 키를 메모리에만 올림 (파일 저장 없음).
         로컬 앱 재시작 시 Supabase에서 다시 받아오므로 로컬 저장 불필요."""
         valid_keys = {
-            'GEMINI_API_KEY', 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'CLAUDE_API_KEY',
+            'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID', 'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'CLAUDE_API_KEY',
             'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'GLM_API_KEY', 'GLM_BASE_URL',
             'ELEVENLABS_API_KEY', 'SUNO_API_KEY', 'SUNO_API_BASE_URL', 'MUSIC_PROVIDER',
             'MUSIC_GEMINI_MODEL', 'MUSIC_GEMINI_BASE_URL', 'MUSIC_GEMINI_PROJECT_ID', 'MUSIC_GEMINI_LOCATION',
@@ -252,7 +254,7 @@ class Config:
                 # A local .env key is an explicit machine-level override. Do
                 # not replace it with a stale web-admin key during worker jobs.
                 local_override_keys = {
-                    'GEMINI_API_KEY', 'CLAUDE_API_KEY', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL',
+                    'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID', 'CLAUDE_API_KEY', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL',
                     'GLM_API_KEY', 'GLM_BASE_URL',
                     'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL',
                     'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL',
@@ -263,6 +265,7 @@ class Config:
                 setattr(cls, key_name, value)
                 os.environ[key_name] = value   # 동일 프로세스 내 서브서비스도 참조 가능
                 loaded.append(key_name)
+        cls.sync_gemini_runtime_key()
         if loaded:
             cls.normalize_generation_models()
             import logging
@@ -340,7 +343,7 @@ class Config:
         """API 키 런타임 업데이트 및 .env 파일 저장"""
         valid_keys = [
             'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
-            'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'CLAUDE_API_KEY',
+            'YOUTUBE_API_KEY', 'YOUTUBE_API_KEYS', 'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID', 'CLAUDE_API_KEY',
             'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'GLM_API_KEY', 'GLM_BASE_URL',
             'ELEVENLABS_API_KEY', 'TYPECAST_API_KEY',
             'VOICEBOX_BASE_URL', 'VOICEBOX_ENGINE', 'VOICEBOX_MODEL_SIZE',
@@ -370,6 +373,8 @@ class Config:
 
         setattr(cls, key_name, value)
         os.environ[key_name] = value  # [ADD] 업기 위해 환경변수도 즉시 업데이트
+        if key_name in {'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID'}:
+            cls.sync_gemini_runtime_key(prefer_explicit_legacy=(key_name == 'GEMINI_API_KEY'))
 
         # .env 파일 업데이트
         env_path = os.path.join(cls.BASE_DIR, '.env')
@@ -397,8 +402,27 @@ class Config:
 
         # [CRITICAL] 명시적으로 클래스 변수 재설정 (get_api_keys_status에서 참조함)
         setattr(cls, key_name, value)
+        if key_name in {'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID'}:
+            cls.sync_gemini_runtime_key(prefer_explicit_legacy=(key_name == 'GEMINI_API_KEY'))
         
         return True
+
+    @classmethod
+    def active_gemini_api_key(cls) -> str:
+        paid = str(getattr(cls, "GEMINI_API_KEY_PAID", "") or "").strip()
+        free = str(getattr(cls, "GEMINI_API_KEY_FREE", "") or "").strip()
+        legacy = str(getattr(cls, "GEMINI_API_KEY", "") or "").strip()
+        return paid or free or legacy
+
+    @classmethod
+    def sync_gemini_runtime_key(cls, *, prefer_explicit_legacy: bool = False):
+        paid = str(getattr(cls, "GEMINI_API_KEY_PAID", "") or "").strip()
+        free = str(getattr(cls, "GEMINI_API_KEY_FREE", "") or "").strip()
+        legacy = str(getattr(cls, "GEMINI_API_KEY", "") or "").strip()
+        selected = legacy if prefer_explicit_legacy and legacy else (paid or free or legacy)
+        cls.GEMINI_API_KEY = selected
+        os.environ["GEMINI_API_KEY"] = selected
+        return selected
 
     @staticmethod
     def mask_key(key: str) -> str:
@@ -413,9 +437,12 @@ class Config:
     def get_api_keys_status(cls):
         """API 키 상태 반환 (마스킹된 값 및 원본 값)"""
         youtube_keys = cls.youtube_api_keys()
+        effective_gemini = cls.active_gemini_api_key()
         return {
             "youtube": {"set": bool(youtube_keys), "masked": cls.mask_key(cls.YOUTUBE_API_KEY), "value": cls.YOUTUBE_API_KEY, "fallback_count": len(youtube_keys[:5])},
-            "gemini": {"set": bool(cls.GEMINI_API_KEY), "masked": cls.mask_key(cls.GEMINI_API_KEY), "value": cls.GEMINI_API_KEY},
+            "gemini": {"set": bool(effective_gemini), "masked": cls.mask_key(effective_gemini), "value": effective_gemini},
+            "gemini_free": {"set": bool(cls.GEMINI_API_KEY_FREE), "masked": cls.mask_key(cls.GEMINI_API_KEY_FREE), "value": cls.GEMINI_API_KEY_FREE},
+            "gemini_paid": {"set": bool(cls.GEMINI_API_KEY_PAID), "masked": cls.mask_key(cls.GEMINI_API_KEY_PAID), "value": cls.GEMINI_API_KEY_PAID},
             "deepseek": {"set": bool(cls.DEEPSEEK_API_KEY), "masked": cls.mask_key(cls.DEEPSEEK_API_KEY), "value": cls.DEEPSEEK_API_KEY},
             "deepseek_base_url": {"set": bool(cls.DEEPSEEK_BASE_URL), "masked": cls.DEEPSEEK_BASE_URL, "value": cls.DEEPSEEK_BASE_URL},
             "glm": {"set": bool(cls.GLM_API_KEY), "masked": cls.mask_key(cls.GLM_API_KEY), "value": cls.GLM_API_KEY},
@@ -456,4 +483,5 @@ class Config:
         return datetime.now(kst)
 
 config = Config()
+config.sync_gemini_runtime_key()
 config.setup_directories()

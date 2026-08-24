@@ -59,6 +59,8 @@ class WebAdminClient:
 
     KEY_MAP = {
         "sys_api_gemini": "GEMINI_API_KEY",
+        "sys_api_gemini_free": "GEMINI_API_KEY_FREE",
+        "sys_api_gemini_paid": "GEMINI_API_KEY_PAID",
         "sys_api_youtube": "YOUTUBE_API_KEY",
         "sys_api_youtube_keys": "YOUTUBE_API_KEYS",
         "sys_api_claude": "CLAUDE_API_KEY",

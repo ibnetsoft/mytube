@@ -1544,6 +1544,9 @@ class HermesAutopilotManager:
 
         normalized_title = re.sub(r"[\s\W_]+", "", (title or "").lower())
         normalized_category = re.sub(r"[\s\W_]+", "", (category or "").lower())
+        language = self._get_category_language(category)
+        japanese_chars = len(re.findall(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]", title or ""))
+        hangul_chars = len(re.findall(r"[\uac00-\ud7a3]", title or ""))
         hard_meta_terms = [
             "스토리텔링", "성공 공식", "공식", "벤치마킹", "패턴", "알고리즘", "콘텐츠",
             "조회수", "분석", "전략", "비법", "비밀", "비결", "노하우", "해부",
@@ -1570,6 +1573,8 @@ class HermesAutopilotManager:
             and normalized_title != normalized_category
             and 12 <= len(title) <= 90
             and has_balanced_quotes(title)
+            and not (language == "ja" and japanese_chars < 2)
+            and not (language == "ja" and hangul_chars > 0)
             and not self._contains_category_label(title, category)
             and not any(term.lower() in (title or "").lower() for term in hard_meta_terms)
             and not any(term in title for term in forbidden_terms)

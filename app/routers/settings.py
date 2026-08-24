@@ -56,6 +56,8 @@ ADVANCED_GLOBAL_SETTING_FIELDS = {
     "youtube_api_key",
     "youtube_api_keys",
     "gemini_api_key",
+    "gemini_api_key_free",
+    "gemini_api_key_paid",
     "elevenlabs_api_key",
     "pexels_api_key",
     "openai_api_key",
@@ -106,6 +108,8 @@ class GlobalSettings(BaseModel):
     youtube_api_key: Optional[str] = None
     youtube_api_keys: Optional[str] = None
     gemini_api_key: Optional[str] = None
+    gemini_api_key_free: Optional[str] = None
+    gemini_api_key_paid: Optional[str] = None
     elevenlabs_api_key: Optional[str] = None
     pexels_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
@@ -377,6 +381,10 @@ async def save_global_settings_api(settings: GlobalSettings):
         config.update_api_key("YOUTUBE_API_KEYS", settings.youtube_api_keys)
     if settings.gemini_api_key is not None:
         config.update_api_key("GEMINI_API_KEY", settings.gemini_api_key)
+    if settings.gemini_api_key_free is not None:
+        config.update_api_key("GEMINI_API_KEY_FREE", settings.gemini_api_key_free)
+    if settings.gemini_api_key_paid is not None:
+        config.update_api_key("GEMINI_API_KEY_PAID", settings.gemini_api_key_paid)
     if settings.elevenlabs_api_key is not None:
         config.update_api_key("ELEVENLABS_API_KEY", settings.elevenlabs_api_key)
     if settings.pexels_api_key is not None:
@@ -1603,6 +1611,8 @@ async def withdraw_account_api():
 class ApiKeySave(BaseModel):
     youtube: Optional[str] = None
     gemini: Optional[str] = None
+    gemini_free: Optional[str] = None
+    gemini_paid: Optional[str] = None
     elevenlabs: Optional[str] = None
     suno: Optional[str] = None
     suno_base_url: Optional[str] = None
@@ -1637,6 +1647,8 @@ async def save_api_keys(req: ApiKeySave):
         'youtube': 'YOUTUBE_API_KEY',
         'youtube_keys': 'YOUTUBE_API_KEYS',
         'gemini': 'GEMINI_API_KEY',
+        'gemini_free': 'GEMINI_API_KEY_FREE',
+        'gemini_paid': 'GEMINI_API_KEY_PAID',
         'elevenlabs': 'ELEVENLABS_API_KEY',
         'suno': 'SUNO_API_KEY',
         'suno_base_url': 'SUNO_API_BASE_URL',
