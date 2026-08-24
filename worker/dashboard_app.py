@@ -6462,14 +6462,14 @@ let refreshAllInFlight = false;
 let autopilotStatusInFlight = null;
 let renderingJobsPollInFlight = false;
 const DEFAULT_CATEGORIES_DATA = [
-  { id: 2, name: "옛날이야기", language: "ko" },
-  { id: 3, name: "경제", language: "ko" },
   { id: 4, name: "탈북사연", language: "ko" },
-  { id: 5, name: "한국사연", language: "ko" },
   { id: 6, name: "해외감동", language: "ko" },
-  { id: 7, name: "무협", language: "ko" },
   { id: 8, name: "노후금융", language: "ko" },
   { id: 9, name: "황혼19금", language: "ko" },
+  { id: 2, name: "옛날이야기", language: "ko" },
+  { id: 5, name: "한국사연", language: "ko" },
+  { id: 7, name: "무협", language: "ko" },
+  { id: 3, name: "경제", language: "ko" },
   { id: 12, name: "English Folktales", language: "en" },
   { id: 13, name: "日本昔話", language: "ja" },
 ];
@@ -6480,15 +6480,27 @@ let currentCategoryLangTab = 'all';
 let cachedActiveCategories = null;
 
 function updateCategoriesFromStatus(data) {
-  if (data?.all_categories && Array.isArray(data.all_categories) && data.all_categories.length > 0) {
-    ALL_CATEGORIES = data.all_categories;
-  }
   if (data?.categories_meta && Array.isArray(data.categories_meta)) {
     data.categories_meta.forEach(c => {
       if (c && c.name) {
         CATEGORIES_META[c.name] = c;
       }
     });
+  }
+  if (data?.all_categories && Array.isArray(data.all_categories) && data.all_categories.length > 0) {
+    const ordered = DEFAULT_CATEGORIES_DATA.map(c => c.name);
+    const result = [];
+    ordered.forEach(cat => {
+      if (data.all_categories.includes(cat) && !result.includes(cat)) {
+        result.push(cat);
+      }
+    });
+    data.all_categories.forEach(cat => {
+      if (!result.includes(cat)) {
+        result.push(cat);
+      }
+    });
+    ALL_CATEGORIES = result;
   }
 }
 
