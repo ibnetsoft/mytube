@@ -305,15 +305,6 @@ const SUBTITLE_FONTS = [
     { value: 'Malgun Gothic', label: 'Malgun Gothic' },
 ]
 
-const SUBTITLE_TEMPLATES = [
-    { id: '', name: '-- 템플릿 선택 --' },
-    { id: 'bold_strip', name: '기본 볼드 자막바', fontFamily: 'GmarketSansBold', fontSize: '5.4', textColor: '#ffffff', strokeColor: '#000000', strokeWidth: '0', lineSpacing: '0.1', subtitleMaxChars: '20', posY: 5, bgStrip: true, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
-    { id: 'neon_cyber', name: '네온 사이버', fontFamily: 'Jalnan', fontSize: '5.8', textColor: '#ffffff', strokeColor: '#00e5ff', strokeWidth: '3.0', lineSpacing: '0.1', subtitleMaxChars: '22', posY: 6, bgStrip: true, bgColor: '#000000', bgOpacity: '0.6', bgVOffset: '0' },
-    { id: 'cinema_gold', name: '골드 시네마틱', fontFamily: 'TmonMonsori', fontSize: '5.6', textColor: '#ffe066', strokeColor: '#1a1a1a', strokeWidth: '2.5', lineSpacing: '0.1', subtitleMaxChars: '24', posY: 5, bgStrip: false, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
-    { id: 'black_impact', name: '블랙 임팩트', fontFamily: 'Black Han Sans', fontSize: '5.8', textColor: '#ffff00', strokeColor: '#000000', strokeWidth: '4.0', lineSpacing: '0.15', subtitleMaxChars: '20', posY: 7, bgStrip: true, bgColor: '#000000', bgOpacity: '0.7', bgVOffset: '0' },
-    { id: 'korean_tale', name: '감성 명조 이야기', fontFamily: 'NanumMyeongjo', fontSize: '5.2', textColor: '#f8fafc', strokeColor: '#0f172a', strokeWidth: '1.5', lineSpacing: '0.2', subtitleMaxChars: '26', posY: 5, bgStrip: false, bgColor: '#000000', bgOpacity: '0.4', bgVOffset: '0' },
-]
-
 const DEFAULT_SUBTITLE_PRESETS = [
     {
         name: 'Gmarket_Default',
@@ -366,104 +357,6 @@ const DEFAULT_SUBTITLE_PRESETS = [
             bgVOffset: '0',
         }
     }
-]
-
-const DEFAULT_THUMBNAIL_TEMPLATE_PRESETS = [
-    {
-        id: 'preset-1',
-        name: '기본 2줄 볼드 강조 템플릿',
-        settings: {
-            bgUrl: '',
-            bgColor: '#000000',
-            textLayers: [
-                {
-                    id: 'layer-1',
-                    text: '30년 연금 납입의 충격 진실',
-                    fontSize: 34,
-                    color: '#ffeb3b',
-                    strokeColor: '#000000',
-                    strokeWidth: 4,
-                    fontFamily: 'GmarketSansBold',
-                    x: 50,
-                    y: 35,
-                },
-                {
-                    id: 'layer-2',
-                    text: '통장에 찍힌 실제 수령액 공개',
-                    fontSize: 26,
-                    color: '#ffffff',
-                    strokeColor: '#000000',
-                    strokeWidth: 3,
-                    fontFamily: 'GmarketSansBold',
-                    x: 50,
-                    y: 65,
-                },
-            ],
-            shapeLayers: [
-                {
-                    id: 'shape-1',
-                    type: 'banner',
-                    color: '#000000',
-                    opacity: 0.6,
-                    y: 55,
-                    height: 25,
-                },
-            ],
-        },
-    },
-    {
-        id: 'preset-2',
-        name: '좌측 상단 고정 훅 템플릿',
-        settings: {
-            bgUrl: '',
-            bgColor: '#000000',
-            textLayers: [
-                {
-                    id: 'layer-1',
-                    text: 'AI로 생성한 영상입니다',
-                    fontSize: 28,
-                    color: '#ffffff',
-                    strokeColor: '#000000',
-                    strokeWidth: 2,
-                    fontFamily: 'Pretendard',
-                    x: 16,
-                    y: 14,
-                },
-            ],
-            shapeLayers: [],
-        },
-    },
-    {
-        id: 'preset-3',
-        name: '중앙 심플 자막바 템플릿',
-        settings: {
-            bgUrl: '',
-            bgColor: '#000000',
-            textLayers: [
-                {
-                    id: 'layer-1',
-                    text: '핵심 장면',
-                    fontSize: 32,
-                    color: '#ffffff',
-                    strokeColor: '#000000',
-                    strokeWidth: 3,
-                    fontFamily: 'GmarketSansBold',
-                    x: 50,
-                    y: 50,
-                },
-            ],
-            shapeLayers: [
-                {
-                    id: 'shape-1',
-                    type: 'banner',
-                    color: '#000000',
-                    opacity: 0.55,
-                    y: 40,
-                    height: 20,
-                },
-            ],
-        },
-    },
 ]
 
 export default function StdPortalPage() {
@@ -629,7 +522,6 @@ export default function StdPortalPage() {
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
     const [newSubPresetName, setNewSubPresetName] = useState('')
-    const [selectedSubTemplate, setSelectedSubTemplate] = useState('')
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
     
@@ -665,8 +557,8 @@ export default function StdPortalPage() {
     const [templateBgUrl, setTemplateBgUrl] = useState('')
     const [templateBgColor, setTemplateBgColor] = useState('#000000')
     const [templatePresetName, setTemplatePresetName] = useState('')
-    const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('preset-1')
-    const [templatePresets, setTemplatePresets] = useState<any[]>(DEFAULT_THUMBNAIL_TEMPLATE_PRESETS)
+    const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('')
+    const [templatePresets, setTemplatePresets] = useState<any[]>([])
     const [selectedImageTemplatePreset, setSelectedImageTemplatePreset] = useState('')
     const [textLayers, setTextLayers] = useState<Array<{
         id: string
@@ -720,15 +612,24 @@ export default function StdPortalPage() {
         }
     ])
 
-    useEffect(() => {
+    const loadTemplatePresetsFromStorage = () => {
         try {
             const saved = localStorage.getItem('std_thumbnail_template_presets')
-            if (!saved) return
+            if (!saved) {
+                setTemplatePresets([])
+                setSelectedImageTemplatePreset('')
+                return
+            }
             const customPresets = JSON.parse(saved)
             if (Array.isArray(customPresets)) {
-                setTemplatePresets([...DEFAULT_THUMBNAIL_TEMPLATE_PRESETS, ...customPresets])
+                setTemplatePresets(customPresets)
+                setSelectedImageTemplatePreset(prev => customPresets.some((preset: any) => preset.id === prev) ? prev : '')
             }
         } catch (e) {}
+    }
+
+    useEffect(() => {
+        loadTemplatePresetsFromStorage()
     }, [])
 
     const applyTemplatePreset = (presetId: string) => {
@@ -765,7 +666,7 @@ export default function StdPortalPage() {
             },
         }
         const customPresets = [...templatePresets.filter(p => String(p.id).startsWith('custom-')), preset]
-        setTemplatePresets([...DEFAULT_THUMBNAIL_TEMPLATE_PRESETS, ...customPresets])
+        setTemplatePresets(customPresets)
         setSelectedTemplatePreset(preset.id)
         localStorage.setItem('std_thumbnail_template_presets', JSON.stringify(customPresets))
         setTemplatePresetName('')
@@ -1986,24 +1887,12 @@ export default function StdPortalPage() {
         alert('프리셋이 삭제되었습니다.')
     }
 
-    const handleApplySubtitleTemplate = (templateId: string) => {
-        setSelectedSubTemplate(templateId)
-        if (!templateId) return
-        const t = SUBTITLE_TEMPLATES.find(tpl => tpl.id === templateId)
-        if (t) {
-            if (t.fontFamily) setSubFontFamily(t.fontFamily)
-            if (t.fontSize) setSubFontSize(t.fontSize)
-            if (t.textColor) setSubTextColor(t.textColor)
-            if (t.strokeColor) setSubStrokeColor(t.strokeColor)
-            if (t.strokeWidth !== undefined) setSubStrokeWidth(t.strokeWidth)
-            if (t.lineSpacing !== undefined) setSubLineSpacing(t.lineSpacing)
-            if (t.subtitleMaxChars !== undefined) setSubMaxChars(t.subtitleMaxChars)
-            if (t.posY !== undefined) setSubPosY(t.posY)
-            if (t.bgStrip !== undefined) setSubBgStrip(t.bgStrip)
-            if (t.bgColor) setSubBgColor(t.bgColor)
-            if (t.bgOpacity !== undefined) setSubBgOpacity(t.bgOpacity)
-            if (t.bgVOffset !== undefined) setSubBgVOffset(t.bgVOffset)
-            setMessage(`'${t.name}' 템플릿이 적용되었습니다.`)
+    const handleSelectImageTemplatePreset = (presetId: string) => {
+        setSelectedImageTemplatePreset(presetId)
+        if (!presetId) return
+        const preset = templatePresets.find(p => p.id === presetId)
+        if (preset) {
+            setMessage("'" + preset.name + "' 이미지 템플릿이 선택되었습니다.")
         }
     }
 
@@ -4015,19 +3904,22 @@ export default function StdPortalPage() {
                                     {/* 템플릿 선택 & 새로고침 */}
                                     <div className="flex items-center gap-1 shrink-0">
                                         <select
-                                            value={selectedSubTemplate}
-                                            onChange={e => handleApplySubtitleTemplate(e.target.value)}
+                                            value={selectedImageTemplatePreset}
+                                            onChange={e => handleSelectImageTemplatePreset(e.target.value)}
                                             className="text-[11px] font-medium bg-[#1c2027]/50 border border-indigo-500/40 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                                         >
-                                            {SUBTITLE_TEMPLATES.map(tpl => (
-                                                <option key={tpl.id} value={tpl.id} className="bg-[#1c2027] text-white">
-                                                    {tpl.name}
+                                            <option value="" className="bg-[#1c2027] text-white">
+                                                -- 템플릿 선택 --
+                                            </option>
+                                            {templatePresets.map(preset => (
+                                                <option key={preset.id} value={preset.id} className="bg-[#1c2027] text-white">
+                                                    {preset.name}
                                                 </option>
                                             ))}
                                         </select>
                                         <button
                                             type="button"
-                                            onClick={() => alert('템플릿 목록이 새로고침되었습니다.')}
+                                            onClick={loadTemplatePresetsFromStorage}
                                             className="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all"
                                         >
                                             새로고침
@@ -4914,14 +4806,7 @@ export default function StdPortalPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                         <select
                                             value={selectedImageTemplatePreset}
-                                            onChange={e => {
-                                                const presetId = e.target.value
-                                                setSelectedImageTemplatePreset(presetId)
-                                                const preset = templatePresets.find(p => p.id === presetId)
-                                                if (preset) {
-                                                    setMessage(`'${preset.name}' 이미지 템플릿이 선택되었습니다.`)
-                                                }
-                                            }}
+                                            onChange={e => handleSelectImageTemplatePreset(e.target.value)}
                                             className="px-3 py-1.5 bg-[#202632] border border-white/10 rounded text-xs font-bold text-gray-200 focus:outline-none focus:border-blue-500"
                                         >
                                             <option value="">템플릿 선택</option>
@@ -6621,6 +6506,7 @@ export default function StdPortalPage() {
                                             onChange={e => applyTemplatePreset(e.target.value)}
                                             className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none"
                                         >
+                                            <option value="">저장된 템플릿 없음</option>
                                             {templatePresets.map(preset => (
                                                 <option key={preset.id} value={preset.id}>
                                                     {preset.name}
