@@ -24,6 +24,18 @@ from services.i18n import Translator
 router = APIRouter(prefix="/api", tags=["video"])
 
 
+def _queue_project_sync(background_tasks: Optional[BackgroundTasks], project_id: int):
+    """Best-effort Supabase project snapshot sync after render-critical saves."""
+    try:
+        from services.project_sync_service import sync_project_metadata
+        if background_tasks is not None:
+            background_tasks.add_task(sync_project_metadata, project_id)
+        else:
+            sync_project_metadata(project_id)
+    except Exception as e:
+        print(f"[ProjectSync] Queue warning for {project_id}: {e}")
+
+
 # ===========================================
 # Pydantic Models
 # ===========================================
@@ -548,7 +560,7 @@ async def generate_subtitles_api(req: dict = Body(...)):
 
 
 @router.post("/subtitle/save")
-async def save_subtitles_api(req: dict = Body(...)):
+async def save_subtitles_api(background_tasks: BackgroundTasks, req: dict = Body(...)):
     """자막 수동 저장"""
     project_id = req.get("project_id")
     subtitles = req.get("subtitles")
@@ -595,12 +607,17 @@ async def save_subtitles_api(req: dict = Body(...)):
                  json.dump(image_effects, f, indent=2)
              db.update_project_setting(project_id, 'image_effects_path', ef_path)
 
+        if "shorts_template_preset" in req:
+             db.update_project_setting(project_id, 'shorts_template_preset', req.get("shorts_template_preset") or "")
+
         sfx_cues = req.get("sfx_cues")
         if sfx_cues is not None:
-             if not isinstance(sfx_cues, list):
-                 raise HTTPException(400, "sfx_cues must be a list")
-             from services.sfx_service import save_project_sfx_cues
-             save_project_sfx_cues(project_id, sfx_cues)
+            if not isinstance(sfx_cues, list):
+                raise HTTPException(400, "sfx_cues must be a list")
+            from services.sfx_service import save_project_sfx_cues
+            save_project_sfx_cues(project_id, sfx_cues)
+
+        _queue_project_sync(background_tasks, project_id)
 
         return {"status": "ok", "subtitles": subtitles, "image_timings": image_timings, "images": timeline_images, "image_effects": image_effects, "sfx_cues": sfx_cues}
     except Exception as e:
