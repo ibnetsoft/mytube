@@ -55,6 +55,7 @@ import {
     cleanKoreanScriptLine,
     estimateRequiredSceneCount,
     partitionScriptTo53Scenes,
+    stripGeneratedPlanningText,
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
@@ -829,7 +830,7 @@ export default function StdPortalPage() {
 
     const handleSyncScriptToScenesAndSubtitles = (showSuccessAlert: boolean = true) => {
         if (!selectedProject) return
-        const scriptToUse = customScriptText || selectedProject.project?.project_payload?.script || ''
+        const scriptToUse = cleanScriptContextText(customScriptText || selectedProject.project?.project_payload?.script || '')
         if (!scriptToUse.trim()) {
             if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
             return
@@ -859,7 +860,9 @@ export default function StdPortalPage() {
             scene_number: s.scene_number || idx + 1,
             text: partitioned[idx] || s.text || '',
             script_excerpt: partitioned[idx] || s.script_excerpt || '',
-            image_prompt: s.image_prompt || buildExtendedSceneImagePrompt(partitioned[idx] || s.text || s.script_excerpt || '', idx + 1),
+            image_prompt: partitioned[idx]
+                ? buildExtendedSceneImagePrompt(partitioned[idx], idx + 1)
+                : (s.image_prompt || buildExtendedSceneImagePrompt(s.text || s.script_excerpt || '', idx + 1)),
         }))
         
         const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 20)
@@ -1054,10 +1057,13 @@ export default function StdPortalPage() {
     // 스크립트 컨텍스트에서 AI 생성 메타 지시문(First-minute micro beat 1/12... 등)을 제거하고 순수 대본만 정제하는 함수
     const cleanScriptContextText = (text: string | null | undefined): string => {
         if (!text) return ''
-        let cleaned = String(text).trim()
+        let cleaned = stripGeneratedPlanningText(text)
         // First-minute micro beat 1/12 (0-5s). Keep this as a separate fast visual cut that advances the hook: 패턴 제거
         cleaned = cleaned.replace(/^First-minute micro beat\s*\d+\/\d+\s*\([^)]*\)\.?\s*(Keep this as a separate fast visual cut that advances the hook:?)?\s*/i, '')
         cleaned = cleaned.replace(/^First-minute micro beat\s*[:\-\d\(\)\w\s\.]*?:\s*/i, '')
+        cleaned = cleaned.replace(/^Opening beat\s*\d*\s*:\s*/i, '')
+        cleaned = cleaned.replace(/^Create immediate\s+[^.?!。！？]*[.?!。！？]\s*/i, '')
+        cleaned = cleaned.replace(/^Leave one story secret unresolved into the next beat\.?\s*/i, '')
         cleaned = cleaned.replace(/^Scene\s*\d+\s*(?:\([^)]*\))?\s*:\s*/i, '')
         cleaned = cleaned.replace(/^Hook Scene\s*\d+\s*:\s*/i, '')
         cleaned = cleaned.replace(/^Panel\s*\d+\s*:\s*/i, '')
@@ -1180,16 +1186,33 @@ export default function StdPortalPage() {
             })
         }
 
+        const projectScript = cleanScriptContextText(
+            topic.pregenerated_script
+            || topic.script
+            || rawScenes.map((s: any) => s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || '').join('\n\n')
+        )
+        const requiredSceneCount = estimateRequiredSceneCount(projectScript, rawScenes.length || 53)
+        const partitionedScript = partitionScriptTo53Scenes(projectScript, requiredSceneCount)
+
+        if (rawScenes.length < requiredSceneCount) {
+            rawScenes = Array.from({ length: requiredSceneCount }, (_, i) => rawScenes[i] || {
+                scene_number: i + 1,
+                scene_order: i + 1,
+                script_excerpt: partitionedScript[i] || '',
+            })
+        }
+
         const scenes = rawScenes.map((s: any, i: number) => {
             const num = Number(s.scene_number || s.scene_order || i + 1)
             // 신규 생성 시 실제 업로드/생성 에셋이 없으면 null (가짜 더미 이미지/비디오 제거)
             const videoUrl: string | null = sanitizeAssetUrl(s.video_url || s.video)
             const imageUrl: string | null = sanitizeAssetUrl(s.image_url || s.image)
 
-            const rawScript = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
+            const rawScript = partitionedScript[i] || s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
             const videoPromptText = s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`
-            const imagePromptText = s.image_prompt || `Image prompt: visualize this narration beat with the selected project style, consistent characters, no text, no captions: ${scriptText}`
+            const generatedImagePrompt = `Image prompt: visualize this narration beat with the selected project style, consistent characters, no text, no captions: ${scriptText}`
+            const imagePromptText = partitionedScript[i] ? generatedImagePrompt : (s.image_prompt || generatedImagePrompt)
 
             return {
                 id: `scene-${dummyId}-${num}`,
@@ -1230,8 +1253,6 @@ export default function StdPortalPage() {
                 })
             }
         }
-
-        const projectScript = topic.pregenerated_script || topic.script || scenes.map((s: any) => s.scene_text).join('\n\n')
 
         const projectData: StdProject = {
             id: dummyId,
@@ -1356,7 +1377,7 @@ export default function StdPortalPage() {
                             const exists = prev.some(p => p.id === cleanedProject.project.id)
                             return exists ? prev : [cleanedProject.project, ...prev]
                         })
-                        setCustomScriptText(cleanedProject.project.project_payload?.script || '')
+                        setCustomScriptText(cleanScriptContextText(cleanedProject.project.project_payload?.script || ''))
                     }
                 } catch {
                     // Fallback to loadedProjects
@@ -1366,7 +1387,7 @@ export default function StdPortalPage() {
                 const loaded = buildProjectFromSupabaseTopic(firstRealTopic)
                 setSelectedProject(loaded)
                 setProjects([loaded.project])
-                setCustomScriptText(loaded.project.project_payload?.script || '')
+                setCustomScriptText(cleanScriptContextText(loaded.project.project_payload?.script || ''))
                 localStorage.setItem('std_active_project_state', JSON.stringify(loaded))
                 localStorage.setItem('std_active_project_id', loaded.project.id)
             }
@@ -1445,7 +1466,7 @@ export default function StdPortalPage() {
                         built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
                         setSelectedProject(built)
                         setProjects([built.project])
-                        setCustomScriptText(built.project.project_payload?.script || '')
+                        setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
                     }
                 } catch (err) {
                     console.error('Failed to load impersonated user data:', err)
@@ -1485,7 +1506,7 @@ export default function StdPortalPage() {
 
     useEffect(() => {
         if (selectedProject?.project?.project_payload?.script) {
-            setCustomScriptText(selectedProject.project.project_payload.script)
+            setCustomScriptText(cleanScriptContextText(selectedProject.project.project_payload.script))
         } else if (selectedProject?.scenes?.length) {
             const joined = selectedProject.scenes.map((s: any) => s.scene_text || s.script_excerpt || '').filter(Boolean).join('\n\n')
             if (joined) setCustomScriptText(joined)
@@ -1718,7 +1739,7 @@ export default function StdPortalPage() {
                 }
                 setProjects(prev => [finalProject.project, ...prev.filter(p => p.id !== finalProject.project.id)])
                 setSelectedProject(finalProject)
-                setCustomScriptText(finalProject.project.project_payload?.script || '')
+                setCustomScriptText(cleanScriptContextText(finalProject.project.project_payload?.script || ''))
                 localStorage.setItem('std_active_project_state', JSON.stringify(finalProject))
                 localStorage.setItem('std_active_project_id', finalProject.project.id)
                 setTopicModalOpen(false)
@@ -1734,7 +1755,7 @@ export default function StdPortalPage() {
                 const built = buildProjectFromSupabaseTopic(targetTopic)
                 setProjects(prev => [built.project, ...prev.filter(p => p.id !== built.project.id)])
                 setSelectedProject(built)
-                setCustomScriptText(built.project.project_payload?.script || '')
+                setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
                 localStorage.setItem('std_active_project_state', JSON.stringify(built))
                 localStorage.setItem('std_active_project_id', built.project.id)
                 setTopicModalOpen(false)
@@ -2001,6 +2022,7 @@ export default function StdPortalPage() {
                 },
                 project_payload: {
                     ...(prev.project.project_payload || {}),
+                    script: cleanScriptContextText(customScriptText || prev.project.project_payload?.script || ''),
                     subtitles: localSubtitles,
                     scenes: prev.scenes || [],
                     subtitles_saved: true,
@@ -2027,6 +2049,7 @@ export default function StdPortalPage() {
                             subtitles_completed: true,
                         },
                         project_payload: {
+                            script: cleanScriptContextText(customScriptText || selectedProject.project.project_payload?.script || ''),
                             subtitles: localSubtitles,
                             scenes: selectedProject.scenes || [],
                             subtitles_saved: true,
@@ -2076,7 +2099,7 @@ export default function StdPortalPage() {
                     : payload.project.project_payload?.structure?.scenes || []
 
                 const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => cleanScriptContextText(s.scene_text || s.script_excerpt)).join('\n\n')
-                setCustomScriptText(fullScript)
+                setCustomScriptText(cleanScriptContextText(fullScript))
 
                 const normalizedScenes = serverScenes.map((s: any, idx: number) => {
                     const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
@@ -2111,7 +2134,7 @@ export default function StdPortalPage() {
                 const built = buildProjectFromSupabaseTopic(targetTopic)
                 built.project.id = projectId
                 setSelectedProject(built)
-                setCustomScriptText(built.project.project_payload?.script || '')
+                setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
                 localStorage.setItem('std_active_project_id', projectId)
                 localStorage.setItem('std_active_project_state', JSON.stringify(built))
             } else {
@@ -4859,7 +4882,7 @@ export default function StdPortalPage() {
                                                 onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
                                                 className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold transition shadow flex items-center gap-1.5"
                                             >
-                                                <span>🔄</span> 대본 ↔ 53개 씬/자막 전체 동기화
+                                                <span>🔄</span> 대본 ↔ 씬/자막 전체 동기화
                                             </button>
                                             <div className="text-right">
                                                 <div className="text-xs font-bold text-purple-400 font-mono">{scriptCharCount.toLocaleString()}자</div>
@@ -5460,7 +5483,7 @@ export default function StdPortalPage() {
                                                     <span className="flex items-center gap-1">
                                                         <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
                                                     </span>
-                                                    <span className="text-cyan-400">53 Scenes</span>
+                                                    <span className="text-cyan-400">{topic.scene_count || 53} Scenes</span>
                                                 </div>
 
                                                 <button
@@ -5521,7 +5544,7 @@ export default function StdPortalPage() {
                                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-white/5 font-mono text-[11px]">
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
                                                     <span className="text-gray-400 block">🎬 씬 구성</span>
-                                                    <span className="font-bold text-emerald-400">총 53개 씬 구조</span>
+                                                    <span className="font-bold text-emerald-400">총 {selectedTopicForModal.scene_count || 53}개 씬 구조</span>
                                                 </div>
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
                                                     <span className="text-gray-400 block">⚡ 초반 1분 훅</span>

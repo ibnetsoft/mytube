@@ -4,6 +4,29 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
 
+function stripGeneratedPlanningText(rawScriptText: string | null | undefined): string {
+    const text = String(rawScriptText || '').trim()
+    if (!text) return ''
+
+    return text
+        .split(/\n\s*\n+/)
+        .map(part => part.trim())
+        .filter(part => {
+            if (!part) return false
+            return !(
+                /\d+\s*\uBC88\uC9F8\s*\uC7A5\uBA74/.test(part)
+                || /Opening beat/i.test(part)
+                || /Create immediate/i.test(part)
+                || /Leave one story secret/i.test(part)
+                || /unresolved into the next beat/i.test(part)
+                || /Reference technique from benchmark/i.test(part)
+                || /Timed\s+\w+\s+visual beat/i.test(part)
+            )
+        })
+        .join('\n\n')
+        .trim()
+}
+
 // [AIR-0230 §2d] script_plan_generate/script_generate's whole purpose is
 // landing their result on ONE specific topics_queue row
 // (payload.topic_queue_id, validated required in
@@ -126,7 +149,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
         if (!job || job.status !== 'completed' || job.job_type !== 'script_generate') return
 
         const topicQueueId = job.payload?.topic_queue_id
-        const script = job.result_payload?.script
+        const script = stripGeneratedPlanningText(job.result_payload?.script)
         if (!topicQueueId || !script) return
 
         const resultPayload = job.result_payload || {}
@@ -235,7 +258,7 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
         const structure = resultPayload.structure && typeof resultPayload.structure === 'object'
             ? resultPayload.structure
             : null
-        const script = typeof resultPayload.script === 'string' ? resultPayload.script : ''
+        const script = typeof resultPayload.script === 'string' ? stripGeneratedPlanningText(resultPayload.script) : ''
         const sceneCount = Array.isArray(structure?.scenes)
             ? structure.scenes.length
             : structure?.scene_count || null

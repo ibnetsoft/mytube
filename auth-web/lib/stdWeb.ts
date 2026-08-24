@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createClient, type User } from '@supabase/supabase-js'
 import { isPreparedUserTopic } from './preparedTopic'
 import { supabaseAdmin } from './supabaseAdmin'
+import {
+    estimateRequiredSceneCount,
+    partitionScriptTo53Scenes,
+    stripGeneratedPlanningText,
+} from './stdSubtitles'
 
 const getAuthClient = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -230,26 +235,47 @@ export function sceneImagePromptFromGrid(structure: any, scene: any, normalizedS
 export function buildStdScenes(topic: any) {
     const struct = topic?.pregenerated_structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    return scenes
+    const topicTitle = firstText(topic?.generated_title, topic?.topic, struct?.title, 'Untitled story')
+    const script = stripGeneratedPlanningText(topic?.pregenerated_script || topic?.script || scenes
+        .map((scene: any) => firstText(scene?.script_excerpt, scene?.scene_text, scene?.narration, scene?.description))
+        .filter(Boolean)
+        .join('\n\n'))
+    const sceneCount = estimateRequiredSceneCount(script, scenes.length || 53)
+    const partitioned = partitionScriptTo53Scenes(script, sceneCount)
+
+    return Array.from({ length: sceneCount }, (_, index) => scenes[index] || {
+        scene_number: index + 1,
+        scene_order: index + 1,
+        script_excerpt: partitioned[index] || '',
+    })
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
             const videoPrompt = sceneVideoPrompt(scene)
-            const imagePrompt = firstText(
-                scene?.image_prompt,
-                sceneImagePromptFromGrid(struct, scene, normalizedSceneNumber)
+            const sceneText = firstText(
+                partitioned[index],
+                scene?.script_excerpt,
+                scene?.scene_text,
+                scene?.scene_situation,
+                scene?.scene_summary,
+                scene?.narration,
+                scene?.visual_description,
+                scene?.description
             )
+            const generatedImagePrompt = sceneText
+                ? `Scene ${normalizedSceneNumber} visual for "${topicTitle}". Narration beat: ${sceneText}. Photorealistic Korean longform story scene, consistent characters, cinematic lighting, no text, no captions, no subtitles, no logos.`
+                : ''
+            const imagePrompt = partitioned[index]
+                ? generatedImagePrompt
+                : firstText(
+                    scene?.image_prompt,
+                    sceneImagePromptFromGrid(struct, scene, normalizedSceneNumber),
+                    generatedImagePrompt
+                )
             return {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
-                scene_text: firstText(
-                    scene?.script_excerpt,
-                    scene?.scene_situation,
-                    scene?.scene_summary,
-                    scene?.narration,
-                    scene?.visual_description,
-                    scene?.description
-                ),
+                scene_text: sceneText,
                 image_prompt: imagePrompt,
                 video_prompt: videoPrompt,
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
@@ -260,13 +286,33 @@ export function buildStdScenes(topic: any) {
 
 export function buildStdImageGridPrompts(topic: any) {
     const struct = topic?.pregenerated_structure || {}
-    return normalizeImageGridPrompts(struct)
+    const existing = normalizeImageGridPrompts(struct)
+    const scenes = buildStdScenes(topic)
+    const requiredGridCount = Math.ceil((scenes.length || 0) / 4)
+    if (existing.length >= requiredGridCount) return existing
+
+    const generated = [...existing]
+    for (let i = existing.length * 4; i < scenes.length; i += 4) {
+        const chunk = scenes.slice(i, i + 4)
+        const start = i + 1
+        const end = Math.min(i + 4, scenes.length)
+        const panelText = chunk
+            .map((scene: any, idx: number) => `Panel ${idx + 1}: ${String(scene.scene_text || '').slice(0, 70)}...`)
+            .join(' ')
+        generated.push({
+            grid_number: Math.floor(i / 4) + 1,
+            label: `${start}-${end}`,
+            scene_numbers: chunk.map((scene: any) => scene.scene_number),
+            prompt: `2x2 Grid Scene ${start}~${end}: Create a strict 2x2 grid layout with no borders, no margins, no text. ${panelText} Cinematic realistic photorealism, consistent characters, no captions, no logos.`,
+        })
+    }
+    return generated
 }
 
 export function normalizeTopicSummary(topic: any) {
     const category = topic?.categories || {}
     const structure = topic?.pregenerated_structure || topic?.structure || {}
-    const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
+    const scenes = buildStdScenes(topic)
     const structureImageStyle = firstText(structure?.image_style)
     return {
         id: topic.id,

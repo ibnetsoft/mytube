@@ -48,20 +48,47 @@ function findNaturalCut(text: string, start: number, hardLimit: number): number 
 }
 
 function normalizedScriptText(rawScriptText: string): string {
-    const cleanLines = String(rawScriptText || '')
+    return stripGeneratedPlanningText(rawScriptText)
         .split('\n')
         .map(l => l.trim())
         .filter(l => l.length > 0)
         .map(l => l.replace(/^(?:speaker\s*\d+|host|narrator)\s*[:：-]\s*/i, '').trim())
         .filter(l => l.length > 0)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
 
-    return cleanLines.join(' ').replace(/\s+/g, ' ').trim()
+export function stripGeneratedPlanningText(rawScriptText: string | null | undefined): string {
+    const text = String(rawScriptText || '').trim()
+    if (!text) return ''
+
+    return text
+        .split(/\n\s*\n+/)
+        .map(part => part.trim())
+        .filter(part => {
+            if (!part) return false
+            return !(
+                /\d+\s*\uBC88\uC9F8\s*\uC7A5\uBA74/.test(part)
+                || /Opening beat/i.test(part)
+                || /Create immediate/i.test(part)
+                || /Leave one story secret/i.test(part)
+                || /unresolved into the next beat/i.test(part)
+                || /Reference technique from benchmark/i.test(part)
+                || /Timed\s+\w+\s+visual beat/i.test(part)
+            )
+        })
+        .join('\n\n')
+        .trim()
 }
 
 export function cleanKoreanScriptLine(text: string): string {
     if (!text) return ''
-    const cleaned = String(text)
+    const cleaned = stripGeneratedPlanningText(text)
         .replace(/First-minute micro beat.*?:/gi, '')
+        .replace(/Opening beat.*?(?:\.|$)/gi, '')
+        .replace(/Create immediate.*?(?:\.|$)/gi, '')
+        .replace(/Leave one story secret.*?(?:\.|$)/gi, '')
         .replace(/Keep this as a separate.*?hook:/gi, '')
         .replace(/The shot uses.*?photorealism\./gi, '')
         .replace(/Cinematic.*?8k/gi, '')
