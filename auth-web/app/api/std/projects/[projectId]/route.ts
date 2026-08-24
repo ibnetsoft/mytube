@@ -63,6 +63,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
+    const incomingScenes = Array.isArray(incomingProjectPayload?.scenes) ? incomingProjectPayload.scenes : []
     const allowedProgressKeys = new Set([
         'thumbnail_completed',
         'thumbnail_url',
@@ -70,7 +71,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'subtitles_saved',
         'subtitles_completed',
     ])
-    const allowedProjectPayloadKeys = new Set(['subtitles', 'subtitles_saved', 'title', 'video_title'])
+    const allowedProjectPayloadKeys = new Set(['subtitles', 'subtitles_saved', 'title', 'video_title', 'scenes'])
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
     )
@@ -79,7 +80,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     )
     const titlePatch = typeof body?.title === 'string' ? body.title.trim() : ''
 
-    if (Object.keys(progressPatch).length === 0 && Object.keys(projectPayloadPatch).length === 0 && !titlePatch) {
+    if (Object.keys(progressPatch).length === 0 && Object.keys(projectPayloadPatch).length === 0 && !titlePatch && incomingScenes.length === 0) {
         return NextResponse.json({ success: false, error: 'No supported fields to update' }, { status: 400 })
     }
 
@@ -109,5 +110,73 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
 
-    return NextResponse.json({ success: true, project: updated })
+    let updatedScenes: any[] | null = null
+    if (incomingScenes.length > 0) {
+        const normalizedScenes = incomingScenes
+            .map((scene: any, index: number) => {
+                const sceneNumber = Number(scene?.scene_number || index + 1)
+                if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
+                return {
+                    scene_number: Math.floor(sceneNumber),
+                    scene_title: String(scene?.scene_title || scene?.title || `Scene ${Math.floor(sceneNumber)}`).slice(0, 500),
+                    scene_text: String(scene?.text || scene?.script_excerpt || scene?.scene_text || '').slice(0, 10000),
+                    image_prompt: String(scene?.image_prompt || scene?.prompt || '').slice(0, 20000),
+                    video_prompt: String(scene?.video_prompt || '').slice(0, 20000),
+                    metadata: {
+                        ...(scene?.metadata || {}),
+                        script_excerpt: scene?.script_excerpt || scene?.text || scene?.scene_text || '',
+                        visual_type: scene?.visual_type || null,
+                    },
+                }
+            })
+            .filter(Boolean) as any[]
+
+        const { data: existingScenes, error: existingScenesError } = await supabaseAdmin
+            .from('std_project_scenes')
+            .select('id,scene_number')
+            .eq('project_id', project.id)
+        if (existingScenesError) return NextResponse.json({ success: false, error: existingScenesError.message }, { status: 500 })
+
+        const existingBySceneNumber = new Map((existingScenes || []).map((scene: any) => [Number(scene.scene_number), scene]))
+        const updates = normalizedScenes
+            .filter(scene => existingBySceneNumber.has(Number(scene.scene_number)))
+            .map(scene => supabaseAdmin
+                .from('std_project_scenes')
+                .update({
+                    scene_title: scene.scene_title,
+                    scene_text: scene.scene_text,
+                    image_prompt: scene.image_prompt,
+                    video_prompt: scene.video_prompt,
+                    metadata: scene.metadata,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', existingBySceneNumber.get(Number(scene.scene_number))?.id)
+            )
+        const inserts = normalizedScenes
+            .filter(scene => !existingBySceneNumber.has(Number(scene.scene_number)))
+            .map(scene => ({
+                ...scene,
+                project_id: project.id,
+                asset_status: 'missing',
+            }))
+
+        const updateResults = await Promise.all(updates)
+        const failedUpdate = updateResults.find((result: any) => result.error)
+        if (failedUpdate?.error) return NextResponse.json({ success: false, error: failedUpdate.error.message }, { status: 500 })
+
+        if (inserts.length > 0) {
+            const { error: insertScenesError } = await supabaseAdmin.from('std_project_scenes').insert(inserts)
+            if (insertScenesError) return NextResponse.json({ success: false, error: insertScenesError.message }, { status: 500 })
+        }
+
+        const { data: scenesAfterSave, error: scenesAfterSaveError } = await supabaseAdmin
+            .from('std_project_scenes')
+            .select('id,project_id,scene_number,scene_title,scene_text,image_prompt,video_prompt,asset_status,metadata,created_at,updated_at')
+            .eq('project_id', project.id)
+            .order('scene_number', { ascending: true })
+        if (scenesAfterSaveError) return NextResponse.json({ success: false, error: scenesAfterSaveError.message }, { status: 500 })
+        updatedScenes = scenesAfterSave || []
+    }
+
+    return NextResponse.json({ success: true, project: updated, scenes: updatedScenes })
 }

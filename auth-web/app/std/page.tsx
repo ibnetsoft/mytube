@@ -53,6 +53,7 @@ import {
     generateSynchronizedSubtitles,
     calculateLongformSceneTimings,
     cleanKoreanScriptLine,
+    estimateRequiredSceneCount,
     partitionScriptTo53Scenes,
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
@@ -305,7 +306,7 @@ const SUBTITLE_FONTS = [
 
 const SUBTITLE_TEMPLATES = [
     { id: '', name: '-- 템플릿 선택 --' },
-    { id: 'bold_strip', name: '기본 볼드 자막바', fontFamily: 'GmarketSansBold', fontSize: '5.4', textColor: '#ffffff', strokeColor: '#000000', strokeWidth: '0', lineSpacing: '0.1', subtitleMaxChars: '25', posY: 5, bgStrip: true, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
+    { id: 'bold_strip', name: '기본 볼드 자막바', fontFamily: 'GmarketSansBold', fontSize: '5.4', textColor: '#ffffff', strokeColor: '#000000', strokeWidth: '0', lineSpacing: '0.1', subtitleMaxChars: '20', posY: 5, bgStrip: true, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
     { id: 'neon_cyber', name: '네온 사이버', fontFamily: 'Jalnan', fontSize: '5.8', textColor: '#ffffff', strokeColor: '#00e5ff', strokeWidth: '3.0', lineSpacing: '0.1', subtitleMaxChars: '22', posY: 6, bgStrip: true, bgColor: '#000000', bgOpacity: '0.6', bgVOffset: '0' },
     { id: 'cinema_gold', name: '골드 시네마틱', fontFamily: 'TmonMonsori', fontSize: '5.6', textColor: '#ffe066', strokeColor: '#1a1a1a', strokeWidth: '2.5', lineSpacing: '0.1', subtitleMaxChars: '24', posY: 5, bgStrip: false, bgColor: '#000000', bgOpacity: '0.5', bgVOffset: '0' },
     { id: 'black_impact', name: '블랙 임팩트', fontFamily: 'Black Han Sans', fontSize: '5.8', textColor: '#ffff00', strokeColor: '#000000', strokeWidth: '4.0', lineSpacing: '0.15', subtitleMaxChars: '20', posY: 7, bgStrip: true, bgColor: '#000000', bgOpacity: '0.7', bgVOffset: '0' },
@@ -322,7 +323,7 @@ const DEFAULT_SUBTITLE_PRESETS = [
             strokeColor: '#000000',
             strokeWidth: '0',
             lineSpacing: '0.1',
-            subtitleMaxChars: '25',
+            subtitleMaxChars: '20',
             posY: 5,
             bgStrip: false,
             bgColor: '#000000',
@@ -610,7 +611,7 @@ export default function StdPortalPage() {
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
     const [subLineSpacing, setSubLineSpacing] = useState('0.1')
-    const [subMaxChars, setSubMaxChars] = useState('25')
+    const [subMaxChars, setSubMaxChars] = useState('20')
     const [subTextColor, setSubTextColor] = useState('#ffffff')
     const [subStrokeColor, setSubStrokeColor] = useState('#000000')
     const [subStrokeWidth, setSubStrokeWidth] = useState('0')
@@ -833,22 +834,35 @@ export default function StdPortalPage() {
             if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
             return
         }
-        const totalCount = Math.max(53, selectedProject.scenes.length || 53)
+        const totalCount = estimateRequiredSceneCount(scriptToUse, selectedProject.scenes.length || 53)
         const partitioned = partitionScriptTo53Scenes(scriptToUse, totalCount)
+        const buildExtendedSceneImagePrompt = (sceneText: string, sceneNumber: number) => {
+            const topicTitle = selectedProject.project?.title || selectedProject.project?.project_payload?.title || ''
+            const style = selectedProject.project?.image_style || selectedProject.project?.project_payload?.image_style || 'realistic cinematic Korean story'
+            return [
+                `Scene ${sceneNumber} visual for "${topicTitle}".`,
+                `Narration beat: ${sceneText || 'quiet emotional story moment'}`,
+                `Style: ${style}.`,
+                'Photorealistic Korean longform story scene, consistent characters, cinematic lighting, no text, no captions, no subtitles, no logos.',
+            ].join(' ')
+        }
         
-        const updatedScenes = (selectedProject.scenes.length >= 53 ? selectedProject.scenes : Array.from({ length: 53 }, (_, i) => ({
-            id: i + 1,
+        const updatedScenes = Array.from({ length: totalCount }, (_, i) => selectedProject.scenes[i] || ({
+            id: `generated-${i + 1}`,
             scene_number: i + 1,
             visual_type: i < 12 ? 'video' : 'image',
             image_url: '',
-            video_url: null
-        }))).map((s: any, idx: number) => ({
+            video_url: null,
+            asset_status: 'missing',
+        })).map((s: any, idx: number) => ({
             ...s,
+            scene_number: s.scene_number || idx + 1,
             text: partitioned[idx] || s.text || '',
-            script_excerpt: partitioned[idx] || s.script_excerpt || ''
+            script_excerpt: partitioned[idx] || s.script_excerpt || '',
+            image_prompt: s.image_prompt || buildExtendedSceneImagePrompt(partitioned[idx] || s.text || s.script_excerpt || '', idx + 1),
         }))
         
-        const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 18)
+        const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 20)
         
         const updatedProject = {
             ...selectedProject,
@@ -1485,7 +1499,7 @@ export default function StdPortalPage() {
             : generateSynchronizedSubtitles(
                 selectedProject?.project?.project_payload?.script || customScriptText || '',
                 scenes,
-                Number(subMaxChars) || 25
+                Number(subMaxChars) || 20
             )
         setLocalSubtitles(subs)
         setSelectedSubIndex(0)
@@ -1988,6 +2002,7 @@ export default function StdPortalPage() {
                 project_payload: {
                     ...(prev.project.project_payload || {}),
                     subtitles: localSubtitles,
+                    scenes: prev.scenes || [],
                     subtitles_saved: true,
                 }
             }
@@ -2013,6 +2028,7 @@ export default function StdPortalPage() {
                         },
                         project_payload: {
                             subtitles: localSubtitles,
+                            scenes: selectedProject.scenes || [],
                             subtitles_saved: true,
                         },
                     }),
@@ -2022,7 +2038,11 @@ export default function StdPortalPage() {
                     throw new Error(payload.error || 'Subtitle save failed')
                 }
                 if (payload.project && updatedFullForStorage) {
-                    const updatedFull = { ...updatedFullForStorage, project: payload.project }
+                    const updatedFull = {
+                        ...updatedFullForStorage,
+                        project: payload.project,
+                        scenes: Array.isArray(payload.scenes) ? payload.scenes : updatedFullForStorage.scenes,
+                    }
                     setSelectedProject(updatedFull)
                     try {
                         localStorage.setItem('std_active_project_state', JSON.stringify(updatedFull))
@@ -4199,7 +4219,7 @@ export default function StdPortalPage() {
                                                 const subs = generateSynchronizedSubtitles(
                                                     selectedProject?.project?.project_payload?.script || customScriptText || '',
                                                     scenes,
-                                                    Number(subMaxChars) || 25
+                                                    Number(subMaxChars) || 20
                                                 )
                                                 setLocalSubtitles(subs)
                                                 setSelectedSubIndex(0)
@@ -4231,7 +4251,7 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const maxChars = Number(subMaxChars) || 25
+                                                const maxChars = Number(subMaxChars) || 20
                                                 setLocalSubtitles(prev => prev.map(s => {
                                                     if (s.text.length > maxChars && !s.text.includes('\n')) {
                                                         const mid = Math.floor(s.text.length / 2)
