@@ -69,6 +69,54 @@ class ScenePlannerService:
             cursor = end
         return slots
 
+    def _build_target_count_pacing_slots(self, target_duration: int, target_scene_count: int) -> list[dict]:
+        if target_scene_count <= 0:
+            return self._build_pacing_slots(target_duration)
+        if target_scene_count == 1:
+            return [{"start": 0, "end": target_duration, "duration": target_duration, "phase": "full", "step": target_duration}]
+
+        opening_count = min(OPENING_MICRO_SCENE_COUNT, target_scene_count)
+        slots = []
+        cursor = 0
+        for _ in range(opening_count):
+            end = min(target_duration, cursor + OPENING_MICRO_SCENE_SECONDS)
+            slots.append({
+                "start": cursor,
+                "end": end,
+                "duration": max(1, end - cursor),
+                "phase": "opening",
+                "step": OPENING_MICRO_SCENE_SECONDS,
+            })
+            cursor = end
+
+        remaining_count = target_scene_count - opening_count
+        remaining_duration = max(0, target_duration - cursor)
+        if remaining_count <= 0:
+            if slots:
+                slots[-1]["end"] = target_duration
+                slots[-1]["duration"] = max(1, target_duration - slots[-1]["start"])
+            return slots[:target_scene_count]
+
+        base_duration = max(1, remaining_duration // remaining_count)
+        remainder = max(0, remaining_duration - (base_duration * remaining_count))
+        for index in range(remaining_count):
+            duration = base_duration + (1 if index < remainder else 0)
+            end = target_duration if index == remaining_count - 1 else min(target_duration, cursor + duration)
+            phase = "development"
+            if cursor >= 600:
+                phase = "steady"
+            elif cursor >= 300:
+                phase = "explanation"
+            slots.append({
+                "start": cursor,
+                "end": end,
+                "duration": max(1, end - cursor),
+                "phase": phase,
+                "step": duration,
+            })
+            cursor = end
+        return slots[:target_scene_count]
+
     def _source_scene_for_time(self, scenes: list[dict], source_offsets: list[tuple[int, int, dict]], slot_start: int) -> dict:
         for start, end, scene in source_offsets:
             if start <= slot_start < end:
@@ -104,14 +152,14 @@ class ScenePlannerService:
         ).strip()
         return scene
 
-    def _enforce_longform_pacing_scenes(self, structure: dict, target_duration: int, upload_title: str) -> dict:
+    def _enforce_longform_pacing_scenes(self, structure: dict, target_duration: int, upload_title: str, target_scene_count: int = None) -> dict:
         if not isinstance(structure, dict) or target_duration < LONGFORM_OPENING_RULE_MIN_SECONDS:
             return structure
         scenes = structure.get("scenes")
         if not isinstance(scenes, list) or not scenes:
             return structure
 
-        pacing_slots = self._build_pacing_slots(target_duration)
+        pacing_slots = self._build_target_count_pacing_slots(target_duration, int(target_scene_count or 0)) if target_scene_count else self._build_pacing_slots(target_duration)
         existing_opening = [
             scene for scene in scenes
             if isinstance(scene, dict)
@@ -156,6 +204,7 @@ class ScenePlannerService:
         structure["pacing_scene_rule"] = {
             "status": "enforced",
             "total_scene_count": len(paced_scenes),
+            "target_scene_count": target_scene_count,
             "policy": "0-1m:5s, 1-5m:15s, 5-10m:20s, 10-20m:30s, 20m+:40s",
             "phase_counts": {
                 "opening": sum(1 for slot in pacing_slots if slot["phase"] == "opening"),
@@ -178,6 +227,7 @@ class ScenePlannerService:
         title_generation: dict = None,
         accumulated_knowledge: list = None,
         recent_titles: list = None,
+        target_scene_count: int = None,
     ) -> dict:
         style_section = f"\n{style_directive}\n" if style_directive else ""
         title_generation = title_generation if isinstance(title_generation, dict) else {}
@@ -260,6 +310,7 @@ This scene structure will act as the Source of Truth for the entire production p
 TOPIC: {topic}
 {title_contract_section}
 TARGET DURATION: {target_duration} seconds
+TARGET SCENE COUNT: {target_scene_count or "auto"}
 {style_section}
 {benchmark_section}
 {research_section}
@@ -271,6 +322,7 @@ Instructions:
 3. Estimate the duration (in seconds) for each scene. The sum of all scene durations MUST approximate {target_duration} seconds.
 3a. LONGFORM OPENING RULE: If TARGET DURATION is {LONGFORM_OPENING_RULE_MIN_SECONDS} seconds or longer, the first {OPENING_WINDOW_SECONDS} seconds MUST be exactly {OPENING_MICRO_SCENE_COUNT} separate opening scenes, each exactly {OPENING_MICRO_SCENE_SECONDS} seconds. Do not merge these opening beats into larger scenes.
 3b. These first {OPENING_MICRO_SCENE_COUNT} scenes are mandatory fast visual cuts for retention. Each must have its own scene_id, scene_order, scene_summary, scene_situation, visual_direction, retention_hook, and end_bridge.
+3c. If TARGET SCENE COUNT is a number, return exactly that many scenes.
 4. Provide a brief summary of what happens in the scene.
 5. Provide a visual hint for the overall background/setting of the scene.
 6. If a Writing Style Directive is provided above, let it shape the scene progression itself — pacing, section count, how much of each scene is dialogue vs narration, and where tension/hooks land — not just the wording of the summaries.
@@ -339,7 +391,7 @@ JSON SCHEMA:
             response_text = response_text.strip()
             
             structure = json.loads(response_text)
-            return self._enforce_longform_pacing_scenes(structure, int(target_duration or 0), upload_title)
+            return self._enforce_longform_pacing_scenes(structure, int(target_duration or 0), upload_title, target_scene_count=target_scene_count)
         except Exception as e:
             print(f"[ScenePlanner] Failed to plan scenes: {e}")
             return {

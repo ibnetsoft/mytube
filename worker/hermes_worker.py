@@ -5719,6 +5719,13 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     job_log.info("-> PREPARING (validating payload)")
 
     topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation = _validate_script_plan_payload(job["payload"])
+    target_scene_count = None
+    try:
+        raw_target_scene_count = (job.get("payload") or {}).get("target_scene_count")
+        if raw_target_scene_count is not None:
+            target_scene_count = max(1, min(400, int(raw_target_scene_count)))
+    except (TypeError, ValueError):
+        target_scene_count = None
     image_style, image_style_selection = _select_worker_image_style_for_plan(job, job["payload"], topic, upload_title)
 
     job_store.transition(job_id, job_store.RENDERING, reason="planning scene structure")
@@ -5740,10 +5747,16 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     style_directive = resolve_script_style_directive(script_style)
     learning_instruction = _learning_profile_instruction(job.get("payload") or {})
     feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
+    repair_instruction = str((job.get("payload") or {}).get("repair_instruction") or "").strip()
+    repair_source_script = str((job.get("payload") or {}).get("repair_source_script") or "").strip()
     if learning_instruction:
         style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
     if feedback_instruction:
         style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
+    if repair_instruction:
+        style_directive = f"{style_directive}\n\nRepair instruction:\n{repair_instruction}".strip()
+    if repair_source_script:
+        style_directive = f"{style_directive}\n\nExisting incomplete draft to reuse, expand, and clean up:\n{repair_source_script[:8000]}".strip()
     category_context = " ".join(
         str((job.get("payload") or {}).get(key) or "")
         for key in ("category", "category_name")
@@ -5808,6 +5821,7 @@ Scene planning guard:
             benchmark_analysis=benchmark_analysis,
             upload_title=upload_title,
             title_generation=title_generation,
+            target_scene_count=target_scene_count,
         )
     )
 
@@ -7558,10 +7572,16 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     style_directive = resolve_script_style_directive(script_style)
     learning_instruction = _learning_profile_instruction(job.get("payload") or {})
     feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
+    repair_instruction = str((job.get("payload") or {}).get("repair_instruction") or "").strip()
+    repair_source_script = str((job.get("payload") or {}).get("repair_source_script") or "").strip()
     if learning_instruction:
         style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
     if feedback_instruction:
         style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
+    if repair_instruction:
+        style_directive = f"{style_directive}\n\nRepair instruction:\n{repair_instruction}".strip()
+    if repair_source_script:
+        style_directive = f"{style_directive}\n\nExisting incomplete draft to reuse, expand, and clean up:\n{repair_source_script[:8000]}".strip()
     category_context = " ".join(
         str((job.get("payload") or {}).get(key) or "")
         for key in ("category", "category_name")

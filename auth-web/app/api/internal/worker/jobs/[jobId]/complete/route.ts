@@ -124,6 +124,10 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     title_generation: job.result_payload?.title_generation || jobPayload.title_generation,
                     narration_mode: jobPayload.narration_mode || 'dramatic_single',
                     narration_pace: jobPayload.narration_pace || 'senior',
+                    target_scene_count: jobPayload.target_scene_count,
+                    repair_mode: jobPayload.repair_mode,
+                    repair_instruction: jobPayload.repair_instruction,
+                    repair_source_script: jobPayload.repair_source_script,
                 },
                 status: 'pending',
             })

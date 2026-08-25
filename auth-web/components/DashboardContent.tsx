@@ -287,6 +287,7 @@ export default function DashboardContent() {
     const [benchmarkTriggeringCatId, setBenchmarkTriggeringCatId] = useState<number | null>(null)
     const [benchmarkJobByCat, setBenchmarkJobByCat] = useState<Record<number, any>>({})
     const [topicActionLoadingId, setTopicActionLoadingId] = useState<string | null>(null)
+    const [topicRepairInputs, setTopicRepairInputs] = useState<Record<string, { minutes: string; scenes: string }>>({})
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
@@ -2389,6 +2390,46 @@ export default function DashboardContent() {
         }
     }
 
+    const handleRepairTopic = async (topicItem: any) => {
+        if (!canManageTopics) return
+        if (!topicItem?.id) return
+        const topicId = String(topicItem.id)
+        const draft = topicRepairInputs[topicId] || {
+            minutes: String(topicItem.assigned_duration_minutes || topicItem.recommended_duration_minutes || 15),
+            scenes: String(topicItem.total_scenes || 53),
+        }
+        const targetMinutes = Number.parseInt(String(draft.minutes || ''), 10)
+        const targetSceneCount = Number.parseInt(String(draft.scenes || ''), 10)
+        if (!Number.isFinite(targetMinutes) || targetMinutes < 1 || targetMinutes > 180) {
+            alert('Repair 분량은 1~180분 사이로 입력해주세요.')
+            return
+        }
+        if (!Number.isFinite(targetSceneCount) || targetSceneCount < 1 || targetSceneCount > 400) {
+            alert('Repair 씬 수는 1~400 사이로 입력해주세요.')
+            return
+        }
+        if (!confirm(`${targetMinutes}분 / ${targetSceneCount}씬 기준으로 이 주제를 다시 생성할까요?`)) return
+
+        setTopicActionLoadingId(`repair-${topicId}`)
+        try {
+            const res = await adminFetch('/api/admin/topics-queue/repair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topicId, targetMinutes, targetSceneCount })
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('Repair 큐 등록 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+            await fetchTopics()
+        } catch (err: any) {
+            alert('Repair 큐 등록 오류: ' + (err?.message || String(err)))
+        } finally {
+            setTopicActionLoadingId(null)
+        }
+    }
+
     const handleDeleteTopicsByYears = async (categoryId: number, years: string[] = ['2024', '2025']) => {
         if (!canManageTopics) return
         const label = years.join(', ')
@@ -3767,6 +3808,13 @@ export default function DashboardContent() {
                                     <tbody className="divide-y divide-white/5 font-medium">
                                         {pagedTopics.map((item) => {
                                             const prep = getTopicPreparation(item)
+                                            const topicId = String(item.id)
+                                            const repairInput = topicRepairInputs[topicId] || {
+                                                minutes: String(item.assigned_duration_minutes || item.recommended_duration_minutes || 15),
+                                                scenes: String(item.total_scenes || prep.scenes || 53),
+                                            }
+                                            const isRepairingTopic = topicActionLoadingId === `repair-${topicId}`
+                                            const isEditingOrDeletingTopic = topicActionLoadingId === topicId
                                             return (
                                             <tr
                                                 key={item.id}
@@ -3921,23 +3969,61 @@ export default function DashboardContent() {
                                                 </td>
                                                 <td className="px-10 py-3 text-right">
                                                     {canManageTopics && item.status === 'pending' ? (
-                                                        <div className="flex items-center justify-end gap-3 text-[11px] font-black">
-                                                            <button
-                                                                type="button"
-                                                                disabled={topicActionLoadingId === String(item.id)}
-                                                                onClick={() => startEditingTopic(item)}
-                                                                className="text-blue-300 hover:text-white disabled:opacity-50"
-                                                            >
-                                                                수정
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={topicActionLoadingId === String(item.id)}
-                                                                onClick={() => handleDeleteTopic(item)}
-                                                                className="text-red-300 hover:text-red-200 disabled:opacity-50"
-                                                            >
-                                                                삭제
-                                                            </button>
+                                                        <div className="flex flex-col items-end justify-center gap-2 text-[11px] font-black">
+                                                            <div className="flex items-center justify-end gap-3">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic}
+                                                                    onClick={() => startEditingTopic(item)}
+                                                                    className="text-blue-300 hover:text-white disabled:opacity-50"
+                                                                >
+                                                                    수정
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic}
+                                                                    onClick={() => handleDeleteTopic(item)}
+                                                                    className="text-red-300 hover:text-red-200 disabled:opacity-50"
+                                                                >
+                                                                    삭제
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    max={180}
+                                                                    value={repairInput.minutes}
+                                                                    onChange={(e) => setTopicRepairInputs(prev => ({
+                                                                        ...prev,
+                                                                        [topicId]: { ...repairInput, minutes: e.target.value }
+                                                                    }))}
+                                                                    className="h-7 w-12 rounded-md border border-white/10 bg-black/30 px-2 text-right text-[11px] font-black text-white outline-none focus:border-blue-400"
+                                                                    aria-label="Repair target minutes"
+                                                                />
+                                                                <span className="text-[10px] text-gray-500">분</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    max={400}
+                                                                    value={repairInput.scenes}
+                                                                    onChange={(e) => setTopicRepairInputs(prev => ({
+                                                                        ...prev,
+                                                                        [topicId]: { ...repairInput, scenes: e.target.value }
+                                                                    }))}
+                                                                    className="h-7 w-14 rounded-md border border-white/10 bg-black/30 px-2 text-right text-[11px] font-black text-white outline-none focus:border-blue-400"
+                                                                    aria-label="Repair target scene count"
+                                                                />
+                                                                <span className="text-[10px] text-gray-500">씬</span>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic}
+                                                                    onClick={() => handleRepairTopic(item)}
+                                                                    className="h-7 rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2.5 text-[10px] font-black text-cyan-200 hover:border-cyan-300 hover:text-white disabled:opacity-50"
+                                                                >
+                                                                    {isRepairingTopic ? '...' : 'Repair'}
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-gray-600">-</span>
