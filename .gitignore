@@ -69,6 +69,7 @@ tmp*/
 .claude/
 .pytest_cache/
 node_modules/
+.npm-cache/
 *.log
 startup_log.txt
 startup_err.txt

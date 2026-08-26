@@ -286,6 +286,30 @@ export default function DashboardContent() {
     // [AIR-0230 §2b] 카테고리별 topic_benchmark_analyze job 상태 (수동 트리거 + 폴링용)
     const [benchmarkTriggeringCatId, setBenchmarkTriggeringCatId] = useState<number | null>(null)
     const [benchmarkJobByCat, setBenchmarkJobByCat] = useState<Record<number, any>>({})
+    const [musicHermesSubmittingAction, setMusicHermesSubmittingAction] = useState<'trend' | 'prompt' | 'pipeline' | null>(null)
+    const [musicHermesStatusLoading, setMusicHermesStatusLoading] = useState(false)
+    const [musicHermesJobs, setMusicHermesJobs] = useState<{ trend_job: any | null; prompt_pack_job: any | null }>({
+        trend_job: null,
+        prompt_pack_job: null,
+    })
+    const [musicHermesTargetCandidates, setMusicHermesTargetCandidates] = useState<Array<{
+        id: string
+        email: string
+        full_name: string
+        preferred_languages: string[]
+        country_code: string
+    }>>([])
+    const [musicHermesTargetEmail, setMusicHermesTargetEmail] = useState('')
+    const [musicHermesDispatching, setMusicHermesDispatching] = useState(false)
+    const [musicHermesTrackListExpanded, setMusicHermesTrackListExpanded] = useState(false)
+    const [musicHermesForm, setMusicHermesForm] = useState({
+        target_market: 'Thailand',
+        playlist_concept: 'Relaxing Thai cafe lofi for work and study',
+        track_count: '60',
+        track_duration_seconds: '180',
+        source_internal: '',
+        source_youtube: '',
+    })
     const [topicActionLoadingId, setTopicActionLoadingId] = useState<string | null>(null)
     const [topicRepairInputs, setTopicRepairInputs] = useState<Record<string, { minutes: string; scenes: string }>>({})
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
@@ -359,7 +383,7 @@ export default function DashboardContent() {
 
     // 시스템 전역 API 키 설정
     const [sysKeys, setSysKeys] = useState({
-        gemini: '', youtube: '', youtube_keys: '', claude: '', elevenlabs: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
+        gemini: '', youtube: '', youtube_keys: '', claude: '', elevenlabs: '', elevenlabs_keys: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
         longform_min_duration_minutes: '15',
@@ -1310,6 +1334,7 @@ export default function DashboardContent() {
                 youtube_keys: data.youtube_keys || '',
                 claude: data.claude || '',
                 elevenlabs: data.elevenlabs || '',
+                elevenlabs_keys: data.elevenlabs_keys || '',
                 suno: data.suno || '',
                 suno_base_url: data.suno_base_url || '',
                 music_provider: data.music_provider || 'elevenlabs',
@@ -1974,9 +1999,14 @@ export default function DashboardContent() {
     }
 
     const handleSyncElevenLabsVoices = async () => {
-        const key = sysKeys.elevenlabs
+        const keyPool = [sysKeys.elevenlabs, sysKeys.elevenlabs_keys]
+            .flatMap(value => String(value || '').split(/[\s,;\r\n]+/))
+            .map(value => value.trim())
+            .filter((value, index, arr) => value && arr.indexOf(value) === index)
+            .slice(0, 4)
+        const key = keyPool[0]
         if (!key) {
-            alert('먼저 AI 핵심 탭에서 ElevenLabs API Key를 입력하고 저장해주세요.')
+            alert('먼저 AI 핵심 탭에서 ElevenLabs 기본/백업 API Key를 입력하고 저장해주세요.')
             return
         }
         if (!confirm('현재 설정된 ElevenLabs 계정의 모든 보이스(Voice Library)를 조회하여 관리 목록에 추가하시겠습니까?')) return
@@ -2282,6 +2312,227 @@ export default function DashboardContent() {
         }
     }
 
+    const fetchMusicHermesStatus = useCallback(async (background: boolean = false) => {
+        if (!background) setMusicHermesStatusLoading(true)
+        try {
+            const params = new URLSearchParams({
+                target_market: musicHermesForm.target_market,
+                playlist_concept: musicHermesForm.playlist_concept,
+                track_count: musicHermesForm.track_count || '60',
+                track_duration_seconds: musicHermesForm.track_duration_seconds || '180',
+            })
+            const res = await adminFetch(`/api/admin/music-hermes?${params.toString()}`)
+            const data = await res.json()
+            setMusicHermesJobs({
+                trend_job: data.trend_job || null,
+                prompt_pack_job: data.prompt_pack_job || null,
+            })
+            const candidates = Array.isArray(data.target_candidates) ? data.target_candidates : []
+            setMusicHermesTargetCandidates(candidates)
+            setMusicHermesTargetEmail(prev => {
+                if (prev && candidates.some((candidate: any) => candidate.email === prev)) return prev
+                return String(candidates[0]?.email || '')
+            })
+        } catch (err) {
+            console.error('music hermes status fetch failed', err)
+        } finally {
+            if (!background) setMusicHermesStatusLoading(false)
+        }
+    }, [adminFetch, musicHermesForm.playlist_concept, musicHermesForm.target_market, musicHermesForm.track_count, musicHermesForm.track_duration_seconds])
+
+    const buildMusicHermesPayload = (action: 'trend' | 'prompt' | 'pipeline') => ({
+        action,
+        target_market: musicHermesForm.target_market.trim() || 'Thailand',
+        playlist_concept: musicHermesForm.playlist_concept.trim() || 'Relaxing Thai cafe lofi for work and study',
+        track_count: Number.parseInt(musicHermesForm.track_count || '60', 10) || 60,
+        track_duration_seconds: Number.parseInt(musicHermesForm.track_duration_seconds || '180', 10) || 180,
+        source_evidence_summary: {
+            internal: musicHermesForm.source_internal.trim(),
+            youtube: musicHermesForm.source_youtube.trim(),
+        },
+        trend_analysis: musicHermesJobs.trend_job?.result_payload || undefined,
+    })
+
+    const handleMusicHermesSubmit = async (action: 'trend' | 'prompt' | 'pipeline') => {
+        if (!canManageTopics) return
+        setMusicHermesSubmittingAction(action)
+        try {
+            const payload = buildMusicHermesPayload(action)
+            const res = await adminFetch('/api/admin/music-hermes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('음악 Hermes 큐 등록 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+            if (action === 'trend') {
+                setMusicHermesJobs(prev => ({
+                    ...prev,
+                    trend_job: data.job || null,
+                }))
+                alert(data.reused ? '최근 음악 트렌드 결과를 재사용합니다.' : '음악 트렌드 분석 작업을 큐에 등록했습니다.')
+            } else if (action === 'prompt') {
+                setMusicHermesJobs(prev => ({
+                    ...prev,
+                    prompt_pack_job: data.job || null,
+                }))
+                alert(data.reused ? '최근 프롬프트 팩 결과를 재사용합니다.' : '음악 프롬프트 팩 작업을 큐에 등록했습니다.')
+            } else {
+                setMusicHermesJobs({
+                    trend_job: data.trend?.job || null,
+                    prompt_pack_job: data.prompt_pack?.job || null,
+                })
+                alert(
+                    data.prompt_pack?.deferred
+                        ? '음악 트렌드 분석 작업을 큐에 등록했습니다. 완료되면 프롬프트 팩이 자동으로 이어집니다.'
+                        : '음악 Hermes 파이프라인을 큐에 등록했습니다.'
+                )
+            }
+        } catch (err: any) {
+            alert('음악 Hermes 요청 오류: ' + (err?.message || String(err)))
+        } finally {
+            setMusicHermesSubmittingAction(null)
+        }
+    }
+
+    const renderMusicHermesJobBadge = (job: any, fallbackLabel: string) => {
+        if (!job) {
+            return (
+                <span className="px-3 py-1 rounded-lg border border-white/10 bg-white/5 text-[11px] font-black text-gray-400">
+                    {fallbackLabel}
+                </span>
+            )
+        }
+        const status = String(job.worker_status || job.status || '').toLowerCase()
+        const text = job.status === 'completed'
+            ? '완료'
+            : job.status === 'failed'
+                ? '실패'
+                : job.worker_status || job.status || 'pending'
+        const tone = job.status === 'completed'
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+            : job.status === 'failed'
+                ? 'bg-red-500/10 border-red-500/20 text-red-300'
+                : status.includes('render') || status.includes('preparing') || status.includes('upload')
+                    ? 'bg-blue-500/10 border-blue-500/20 text-blue-300'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+        return (
+            <span className={`px-3 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider ${tone}`}>
+                {text}
+            </span>
+        )
+    }
+
+    const summarizeMusicTrend = (job: any) => {
+        const result = job?.result_payload
+        if (!result) return null
+        const genres = Array.isArray(result.popular_genres) ? result.popular_genres.slice(0, 4) : []
+        const moods = Array.isArray(result.core_moods) ? result.core_moods.slice(0, 4) : []
+        return {
+            concept: result.playlist_concept || '',
+            genres,
+            moods,
+            summary: result.trend_summary || '',
+        }
+    }
+
+    const summarizeMusicPromptPack = (job: any) => {
+        const result = job?.result_payload
+        if (!result) return null
+        const tracks = Array.isArray(result.tracks) ? result.tracks : []
+        return {
+            trackCount: tracks.length,
+            firstTracks: tracks.slice(0, 3),
+            allTracks: tracks,
+            lyricsDirection: result.lyrics_direction || '',
+            tags: Array.isArray(result.tag_candidates) ? result.tag_candidates.slice(0, 6) : [],
+            rawResult: result,
+        }
+    }
+
+    const copyMusicPromptPackText = async (mode: 'json' | 'tracks') => {
+        const payload = musicHermesJobs.prompt_pack_job?.result_payload
+        if (!payload) {
+            alert('복사할 prompt pack 결과가 없습니다.')
+            return
+        }
+        const tracks = Array.isArray(payload.tracks) ? payload.tracks : []
+        const textValue = mode === 'json'
+            ? JSON.stringify(payload, null, 2)
+            : tracks.map((track: any, index: number) => [
+                `#${index + 1} ${track?.title || `Track ${index + 1}`}`,
+                `Genre: ${track?.genre || '-'}`,
+                `Mood: ${track?.mood || '-'}`,
+                `Prompt: ${track?.prompt || '-'}`,
+                `Negative: ${Array.isArray(track?.negative_rules) ? track.negative_rules.join(', ') : '-'}`,
+            ].join('\n')).join('\n\n')
+        try {
+            await navigator.clipboard.writeText(textValue)
+            alert(mode === 'json' ? 'prompt pack JSON을 복사했습니다.' : '전체 트랙 목록을 복사했습니다.')
+        } catch (err: any) {
+            alert('복사 실패: ' + (err?.message || String(err)))
+        }
+    }
+
+    const exportMusicPromptPackJson = () => {
+        const payload = musicHermesJobs.prompt_pack_job?.result_payload
+        if (!payload) {
+            alert('내보낼 prompt pack 결과가 없습니다.')
+            return
+        }
+        const concept = String(payload.playlist_concept || 'music-hermes-pack')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            || 'music-hermes-pack'
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${concept}-prompt-pack.json`
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        URL.revokeObjectURL(url)
+    }
+
+    const dispatchMusicPromptPackToThaiQueue = async () => {
+        const promptJob = musicHermesJobs.prompt_pack_job
+        if (!promptJob?.id || promptJob?.status !== 'completed') {
+            alert('완료된 prompt pack 결과가 있을 때만 태국 유저 큐로 보낼 수 있습니다.')
+            return
+        }
+        setMusicHermesDispatching(true)
+        try {
+            const res = await adminFetch('/api/admin/music-hermes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'dispatch_prompt_pack',
+                    prompt_pack_job_id: promptJob.id,
+                    target_user_email: musicHermesTargetEmail || undefined,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert('태국 유저 큐 전달 실패: ' + (data.error || `HTTP ${res.status}`))
+                return
+            }
+            const targetEmail = data.dispatch?.target_user_email || musicHermesTargetEmail
+            const reused = Boolean(data.dispatch?.reused)
+            alert(reused
+                ? `기존 Music Hermes 작업이 이미 ${targetEmail} 큐에 있습니다.`
+                : `prompt pack을 ${targetEmail} 작업 큐로 보냈습니다.`)
+        } catch (err: any) {
+            alert('태국 유저 큐 전달 오류: ' + (err?.message || String(err)))
+        } finally {
+            setMusicHermesDispatching(false)
+        }
+    }
+
     const startEditingTopic = (topicItem: any) => {
         if (!canManageTopics) return
         const currentTopic = String(topicItem?.topic || '').trim()
@@ -2554,6 +2805,9 @@ export default function DashboardContent() {
     const fetchRenderQueueRef = useRef(fetchRenderQueue);
     fetchRenderQueueRef.current = fetchRenderQueue;
 
+    const fetchMusicHermesStatusRef = useRef(fetchMusicHermesStatus);
+    fetchMusicHermesStatusRef.current = fetchMusicHermesStatus;
+
     useEffect(() => {
         if (activeTab === 'render-queue') {
             fetchRenderQueueRef.current();
@@ -2574,6 +2828,14 @@ export default function DashboardContent() {
             fetchTopicsRef.current();
             const interval = setInterval(() => fetchTopicsRef.current(), 10000);
             return () => clearInterval(interval);
+        }
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab === 'topics') {
+            fetchMusicHermesStatusRef.current()
+            const interval = setInterval(() => fetchMusicHermesStatusRef.current(true), 10000)
+            return () => clearInterval(interval)
         }
     }, [activeTab]);
 
@@ -3357,6 +3619,289 @@ export default function DashboardContent() {
                                         쇼츠 (Shorts)
                                     </button>
                                 </div>
+                            </div>
+
+                            <div className="mb-8 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/5 p-6">
+                                {(() => {
+                                    const trendSummary = summarizeMusicTrend(musicHermesJobs.trend_job)
+                                    const promptSummary = summarizeMusicPromptPack(musicHermesJobs.prompt_pack_job)
+                                    return (
+                                        <>
+                                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                                    <div className="max-w-2xl">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300 mb-2">
+                                            Music Hermes
+                                        </div>
+                                        <h3 className="text-xl font-black text-white mb-2">
+                                            태국 3시간 음악 프롬프트 팩 큐 생성
+                                        </h3>
+                                        <p className="text-sm text-gray-400 leading-relaxed">
+                                            `music_trend_analyze` 후 `music_prompt_pack_generate`가 자동으로 이어집니다.
+                                            현재 기본값은 2026년 8월 26일 기준 운영안대로 Thailand / 60트랙 / 트랙당 180초입니다.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {renderMusicHermesJobBadge(musicHermesJobs.trend_job, 'Trend 없음')}
+                                        {renderMusicHermesJobBadge(musicHermesJobs.prompt_pack_job, 'Prompt 없음')}
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Target Market</label>
+                                        <input
+                                            value={musicHermesForm.target_market}
+                                            onChange={e => setMusicHermesForm(prev => ({ ...prev, target_market: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
+                                            placeholder="Thailand"
+                                        />
+                                    </div>
+                                    <div className="xl:col-span-2">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Playlist Concept</label>
+                                        <input
+                                            value={musicHermesForm.playlist_concept}
+                                            onChange={e => setMusicHermesForm(prev => ({ ...prev, playlist_concept: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
+                                            placeholder="Relaxing Thai cafe lofi for work and study"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Track Count</label>
+                                            <input
+                                                value={musicHermesForm.track_count}
+                                                onChange={e => setMusicHermesForm(prev => ({ ...prev, track_count: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
+                                                inputMode="numeric"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Sec / Track</label>
+                                            <input
+                                                value={musicHermesForm.track_duration_seconds}
+                                                onChange={e => setMusicHermesForm(prev => ({ ...prev, track_duration_seconds: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
+                                                inputMode="numeric"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Internal Evidence</label>
+                                        <textarea
+                                            value={musicHermesForm.source_internal}
+                                            onChange={e => setMusicHermesForm(prev => ({ ...prev, source_internal: e.target.value }))}
+                                            className="min-h-[88px] w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
+                                            placeholder="AIR 내부 조회수/완성률/승인률 메모"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">YouTube Evidence</label>
+                                        <textarea
+                                            value={musicHermesForm.source_youtube}
+                                            onChange={e => setMusicHermesForm(prev => ({ ...prev, source_youtube: e.target.value }))}
+                                            className="min-h-[88px] w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-emerald-500/40"
+                                            placeholder="태국/글로벌 음악영상 벤치마크 메모"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div className="text-[11px] text-gray-500">
+                                        {musicHermesStatusLoading
+                                            ? '최근 Music Hermes 상태를 불러오는 중...'
+                                            : musicHermesJobs.prompt_pack_job?.status === 'completed'
+                                                ? '최근 프롬프트 팩 결과가 준비되어 있습니다.'
+                                                : '트렌드 완료 후 프롬프트 팩이 자동 큐잉됩니다.'}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => fetchMusicHermesStatus()}
+                                            className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-gray-300 hover:text-white hover:border-white/20 text-[11px] font-black transition-all"
+                                        >
+                                            상태 새로고침
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!canManageTopics || musicHermesSubmittingAction !== null}
+                                            onClick={() => handleMusicHermesSubmit('trend')}
+                                            className="px-4 py-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {musicHermesSubmittingAction === 'trend' ? 'Trend 큐 등록 중...' : 'Trend만 큐 등록'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!canManageTopics || musicHermesSubmittingAction !== null}
+                                            onClick={() => handleMusicHermesSubmit('prompt')}
+                                            className="px-4 py-2.5 rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {musicHermesSubmittingAction === 'prompt' ? 'Prompt 큐 등록 중...' : 'Prompt만 큐 등록'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!canManageTopics || musicHermesSubmittingAction !== null}
+                                            onClick={() => handleMusicHermesSubmit('pipeline')}
+                                            className="px-5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {musicHermesSubmittingAction === 'pipeline' ? 'Pipeline 큐 등록 중...' : 'Thailand Music Pipeline 큐 등록'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {(trendSummary || promptSummary) && (
+                                    <div className="mt-5 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-300 mb-2">
+                                                Trend Result
+                                            </div>
+                                            {trendSummary ? (
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <div className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-1">Concept</div>
+                                                        <div className="text-sm text-white font-bold">{trendSummary.concept}</div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {trendSummary.genres.map((genre: string) => (
+                                                            <span key={genre} className="px-2 py-1 rounded-lg border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-200">
+                                                                {genre}
+                                                            </span>
+                                                        ))}
+                                                        {trendSummary.moods.map((mood: string) => (
+                                                            <span key={mood} className="px-2 py-1 rounded-lg border border-white/10 bg-white/5 text-[10px] font-black text-gray-300">
+                                                                {mood}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    {trendSummary.summary ? (
+                                                        <p className="text-[12px] leading-relaxed text-gray-300">{trendSummary.summary}</p>
+                                                    ) : null}
+                                                </div>
+                                            ) : (
+                                                <div className="text-[12px] text-gray-500">아직 trend 결과가 없습니다.</div>
+                                            )}
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                                            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-violet-300 mb-2">
+                                                Prompt Pack Result
+                                            </div>
+                                            {promptSummary ? (
+                                                <div className="space-y-3">
+                                                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3">
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Thailand Worker Queue Target</label>
+                                                            <select
+                                                                value={musicHermesTargetEmail}
+                                                                onChange={e => setMusicHermesTargetEmail(e.target.value)}
+                                                                className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-violet-500/40"
+                                                            >
+                                                                {musicHermesTargetCandidates.length === 0 ? (
+                                                                    <option value="">태국 승인 유저 없음</option>
+                                                                ) : musicHermesTargetCandidates.map(candidate => (
+                                                                    <option key={candidate.email} value={candidate.email}>
+                                                                        {candidate.full_name ? `${candidate.full_name} · ` : ''}{candidate.email} · {candidate.country_code || 'TH'}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex items-end">
+                                                            <button
+                                                                type="button"
+                                                                disabled={musicHermesDispatching || !canManageTopics || musicHermesTargetCandidates.length === 0}
+                                                                onClick={dispatchMusicPromptPackToThaiQueue}
+                                                                className="w-full lg:w-auto px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {musicHermesDispatching ? '큐 전달 중...' : '태국 유저 큐로 보내기'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-[12px] text-gray-300">
+                                                        총 <span className="font-black text-white">{promptSummary.trackCount}</span>개 트랙 생성
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setMusicHermesTrackListExpanded(prev => !prev)}
+                                                            className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-[11px] font-black text-gray-300 hover:text-white hover:border-white/20 transition-all"
+                                                        >
+                                                            {musicHermesTrackListExpanded ? '전체 트랙 접기' : `전체 ${promptSummary.trackCount}트랙 펼치기`}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyMusicPromptPackText('tracks')}
+                                                            className="px-3 py-2 rounded-xl border border-violet-500/20 bg-violet-500/10 text-[11px] font-black text-violet-200 hover:bg-violet-500 hover:text-white transition-all"
+                                                        >
+                                                            트랙 목록 복사
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyMusicPromptPackText('json')}
+                                                            className="px-3 py-2 rounded-xl border border-violet-500/20 bg-violet-500/10 text-[11px] font-black text-violet-200 hover:bg-violet-500 hover:text-white transition-all"
+                                                        >
+                                                            JSON 복사
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={exportMusicPromptPackJson}
+                                                            className="px-3 py-2 rounded-xl border border-violet-500/20 bg-violet-500/10 text-[11px] font-black text-violet-200 hover:bg-violet-500 hover:text-white transition-all"
+                                                        >
+                                                            JSON 내보내기
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {promptSummary.firstTracks.map((track: any, index: number) => (
+                                                            <div key={`${track.title}-${index}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                                                                <div className="text-[12px] font-black text-white">{track.title}</div>
+                                                                <div className="text-[11px] text-gray-400">{track.genre} · {track.mood}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {promptSummary.tags.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {promptSummary.tags.map((tag: string) => (
+                                                                <span key={tag} className="px-2 py-1 rounded-lg border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-200">
+                                                                    {tag}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {promptSummary.lyricsDirection ? (
+                                                        <p className="text-[12px] leading-relaxed text-gray-300">{promptSummary.lyricsDirection}</p>
+                                                    ) : null}
+                                                    {musicHermesTrackListExpanded && (
+                                                        <div className="rounded-2xl border border-white/10 bg-black/30 p-3 space-y-3 max-h-[760px] overflow-y-auto">
+                                                            {promptSummary.allTracks.map((track: any, index: number) => (
+                                                                <div key={`${track.title}-${index}-full`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-3">
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div>
+                                                                            <div className="text-[12px] font-black text-white">{index + 1}. {track.title}</div>
+                                                                            <div className="text-[11px] text-gray-400 mt-1">{track.genre} · {track.mood}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="mt-2 text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap">{track.prompt}</div>
+                                                                    {Array.isArray(track.negative_rules) && track.negative_rules.length > 0 && (
+                                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                                            {track.negative_rules.map((rule: string, ruleIndex: number) => (
+                                                                                <span key={`${track.title}-${rule}-${ruleIndex}`} className="px-2 py-1 rounded-lg border border-red-500/20 bg-red-500/10 text-[10px] font-black text-red-200">
+                                                                                    {rule}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="text-[12px] text-gray-500">아직 prompt pack 결과가 없습니다.</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                        </>
+                                    )
+                                })()}
                             </div>
 
                             {categoriesLoading ? (
@@ -4652,11 +5197,12 @@ export default function DashboardContent() {
                                             { key: 'claude',  label: 'Claude API Key',         hint: '대본 생성 전용 (Anthropic Claude)' },
                                             { key: 'youtube', label: 'YouTube Data API Key',  hint: '채널/영상 검색 및 통계 조회' },
                                             { key: 'youtube_keys', label: 'YouTube Backup API Keys', hint: '최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용' },
+                                            { key: 'elevenlabs_keys', label: 'ElevenLabs Backup API Keys', hint: '기본 Key 외 백업 Key를 최대 3개까지 쉼표 또는 줄바꿈으로 입력하면 잔액 소진/쿼터 오류 시 다음 Key로 자동 전환' },
                                         ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
                                             <div key={key} className="space-y-1.5">
                                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">{label}</label>
                                                 <p className="text-[10px] text-gray-600">{hint}</p>
-                                                {key === 'youtube_keys' ? (
+                                                {key === 'youtube_keys' || key === 'elevenlabs_keys' ? (
                                                     <textarea
                                                         value={sysKeys[key] as string}
                                                         onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}

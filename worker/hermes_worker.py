@@ -145,6 +145,8 @@ _shutdown_requested = False
 SUPPORTED_JOB_TYPES = [
     "topic_research",
     "topic_benchmark_analyze",
+    "music_trend_analyze",
+    "music_prompt_pack_generate",
     "web_research",
     "script_plan_generate",
     "script_generate",
@@ -309,6 +311,194 @@ def _metadata_language_name(language: str) -> str:
         "vi": "Vietnamese",
         "th": "Thai",
     }.get(str(language or "").lower(), "Korean")
+
+
+def _music_market_language_code(target_market: str) -> str:
+    market = str(target_market or "").strip().lower()
+    return {
+        "thailand": "th",
+        "thai": "th",
+        "japan": "ja",
+        "japanese": "ja",
+        "korea": "ko",
+        "south korea": "ko",
+        "global": "en",
+        "worldwide": "en",
+    }.get(market, "en")
+
+
+def _music_market_defaults(target_market: str) -> dict:
+    market = str(target_market or "").strip().lower()
+    if market in {"thailand", "thai"}:
+        return {
+            "playlist_concept": "Relaxing Thai cafe lofi for work and study",
+            "popular_genres": ["lofi", "thai pop ballad", "city pop", "ambient piano"],
+            "moods": ["calm", "rainy", "warm", "nostalgic"],
+            "title_tokens": ["Bangkok", "Cafe", "Rain", "Night Market", "River", "Lantern"],
+        }
+    if market in {"japan", "japanese"}:
+        return {
+            "playlist_concept": "Quiet Japanese city-pop and piano mix for late-night focus",
+            "popular_genres": ["city pop", "lofi", "ambient piano", "jazzhop"],
+            "moods": ["clean", "nostalgic", "night", "gentle"],
+            "title_tokens": ["Tokyo", "Midnight", "Neon", "Platform", "Window", "Rain"],
+        }
+    if market in {"korea", "south korea"}:
+        return {
+            "playlist_concept": "Warm Korean study cafe instrumental mix for 집중 and rest",
+            "popular_genres": ["lofi", "ambient piano", "city pop", "soft jazz"],
+            "moods": ["focused", "cozy", "gentle", "sentimental"],
+            "title_tokens": ["Seoul", "Han River", "Cafe", "Dawn", "Notebook", "Rain"],
+        }
+    return {
+        "playlist_concept": "Relaxing instrumental lofi and ambient mix for deep focus",
+        "popular_genres": ["lofi", "ambient piano", "city pop", "soft jazz"],
+        "moods": ["calm", "focused", "warm", "dreamy"],
+        "title_tokens": ["Midnight", "Rain", "Window", "Afterglow", "Cloud", "Quiet"],
+    }
+
+
+def _normalize_music_string_list(raw, fallback: list[str], *, limit: int = 8) -> list[str]:
+    values = raw if isinstance(raw, list) else str(raw or "").split(",")
+    normalized = []
+    seen = set()
+    for item in values:
+        text = " ".join(str(item or "").split()).strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(text)
+        if len(normalized) >= limit:
+            break
+    return normalized or list(fallback)
+
+
+def _coerce_music_positive_int(value, default: int, *, minimum: int, maximum: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(minimum, min(maximum, number))
+
+
+def _build_music_track_title(index: int, playlist_concept: str, title_tokens: list[str]) -> str:
+    token_a = title_tokens[(index - 1) % len(title_tokens)]
+    token_b = title_tokens[index % len(title_tokens)]
+    concept_hint = re.sub(r"[^A-Za-z0-9가-힣 ]+", " ", str(playlist_concept or "")).strip()
+    concept_words = [word for word in concept_hint.split() if 2 <= len(word) <= 14]
+    tail = concept_words[(index - 1) % len(concept_words)] if concept_words else "Session"
+    return f"{token_a} {token_b} {tail}".strip()
+
+
+def _default_music_negative_rules() -> list[str]:
+    return ["no artist imitation", "no copyrighted melody", "no watermark"]
+
+
+def _normalize_music_trend_result(
+    data: dict | None,
+    *,
+    target_market: str,
+    playlist_concept: str,
+    track_count: int,
+    track_duration_seconds: int,
+) -> dict:
+    defaults = _music_market_defaults(target_market)
+    result = dict(data or {})
+    genres = _normalize_music_string_list(
+        result.get("popular_genres"),
+        defaults["popular_genres"],
+        limit=6,
+    )
+    moods = _normalize_music_string_list(result.get("core_moods"), defaults["moods"], limit=6)
+    return {
+        "target_market": target_market,
+        "playlist_concept": str(result.get("playlist_concept") or playlist_concept or defaults["playlist_concept"]).strip(),
+        "popular_genres": genres,
+        "core_moods": moods,
+        "track_count": track_count,
+        "track_duration_seconds": track_duration_seconds,
+        "trend_summary": str(result.get("trend_summary") or "").strip() or (
+            f"{target_market} longform music demand leans toward {', '.join(genres[:3])} with a "
+            f"{', '.join(moods[:3])} listening mood."
+        ),
+        "title_pattern_notes": _normalize_music_string_list(
+            result.get("title_pattern_notes"),
+            [
+                "Use place + atmosphere + function wording",
+                "Prefer calm promise over hype language",
+                "Keep titles instrumental-safe and playlist-friendly",
+            ],
+            limit=5,
+        ),
+        "source_evidence_summary": result.get("source_evidence_summary") if isinstance(result.get("source_evidence_summary"), dict) else {},
+    }
+
+
+def _normalize_music_prompt_pack_result(
+    data: dict | None,
+    *,
+    target_market: str,
+    playlist_concept: str,
+    track_count: int,
+    track_duration_seconds: int,
+) -> dict:
+    trend = _normalize_music_trend_result(
+        data,
+        target_market=target_market,
+        playlist_concept=playlist_concept,
+        track_count=track_count,
+        track_duration_seconds=track_duration_seconds,
+    )
+    defaults = _music_market_defaults(target_market)
+    tracks = data.get("tracks") if isinstance(data, dict) and isinstance(data.get("tracks"), list) else []
+    normalized_tracks = []
+    for index in range(1, track_count + 1):
+        source = tracks[index - 1] if index - 1 < len(tracks) and isinstance(tracks[index - 1], dict) else {}
+        genre = str(source.get("genre") or trend["popular_genres"][(index - 1) % len(trend["popular_genres"])]).strip()
+        mood = str(source.get("mood") or ", ".join(trend["core_moods"][:3])).strip()
+        title = str(source.get("title") or "").strip() or _build_music_track_title(
+            index, trend["playlist_concept"], defaults["title_tokens"]
+        )
+        prompt = str(source.get("prompt") or "").strip()
+        if not prompt:
+            prompt = (
+                f"Original instrumental {genre} track with {mood} mood, {trend['playlist_concept']}, "
+                "loopable arrangement, clean intro and outro, no vocals, no copyrighted melody."
+            )
+        negative_rules = _normalize_music_string_list(
+            source.get("negative_rules"),
+            _default_music_negative_rules(),
+            limit=6,
+        )
+        normalized_tracks.append(
+            {
+                "title": title,
+                "genre": genre,
+                "mood": mood,
+                "duration_seconds": _coerce_music_positive_int(
+                    source.get("duration_seconds"),
+                    track_duration_seconds,
+                    minimum=60,
+                    maximum=900,
+                ),
+                "prompt": prompt,
+                "negative_rules": negative_rules,
+            }
+        )
+    return {
+        **trend,
+        "job_focus": "suno_prompt_pack",
+        "generation_language": _music_market_language_code(target_market),
+        "tracks": normalized_tracks,
+        "negative_rules_default": _default_music_negative_rules(),
+        "tag_candidates": _normalize_music_string_list(
+            data.get("tag_candidates") if isinstance(data, dict) else None,
+            trend["popular_genres"] + trend["core_moods"],
+            limit=12,
+        ),
+        "lyrics_direction": str((data or {}).get("lyrics_direction") or "Instrumental-first, no lead vocal, no copyrighted lyric fragments.").strip(),
+    }
 
 
 def _script_writer_role(language: str) -> str:
@@ -785,6 +975,24 @@ def _validate_benchmark_payload(payload: dict) -> tuple[str, str, str, int, int,
     if not search_keywords:
         search_keywords = [keyword]
     return keyword, language, video_type, max_candidates, search_pool_size, search_keywords
+
+
+def _validate_music_trend_payload(payload: dict) -> tuple[str, str, int, int, dict]:
+    target_market = str(payload.get("target_market") or payload.get("market") or "Thailand").strip() or "Thailand"
+    defaults = _music_market_defaults(target_market)
+    playlist_concept = str(payload.get("playlist_concept") or defaults["playlist_concept"]).strip()
+    track_count = _coerce_music_positive_int(payload.get("track_count"), 60, minimum=1, maximum=200)
+    track_duration_seconds = _coerce_music_positive_int(
+        payload.get("track_duration_seconds"), 180, minimum=30, maximum=1800
+    )
+    source_summary = payload.get("source_evidence_summary") if isinstance(payload.get("source_evidence_summary"), dict) else {}
+    return target_market, playlist_concept, track_count, track_duration_seconds, source_summary
+
+
+def _validate_music_prompt_pack_payload(payload: dict) -> tuple[str, str, int, int, dict, dict]:
+    target_market, playlist_concept, track_count, track_duration_seconds, source_summary = _validate_music_trend_payload(payload)
+    trend_analysis = payload.get("trend_analysis") if isinstance(payload.get("trend_analysis"), dict) else {}
+    return target_market, playlist_concept, track_count, track_duration_seconds, source_summary, trend_analysis
 
 
 def _normalize_channel_ids(raw_value) -> list[str]:
@@ -1951,6 +2159,234 @@ def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[s
     job_store.transition(job_id, job_store.COMPLETED, reason="benchmark analysis complete", output_path=str(result_path))
     job_log.info(f"-> COMPLETED, result at {result_path}; audit at {audit_path}")
     logger.info(f"Completed job {job_id} -> {result_path}; audit -> {audit_path}")
+    return str(result_path), result_payload
+
+
+def _process_music_trend_analyze(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating music trend payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating music trend payload)")
+
+    target_market, playlist_concept, track_count, track_duration_seconds, source_summary = _validate_music_trend_payload(
+        job["payload"]
+    )
+
+    job_store.transition(job_id, job_store.RENDERING, reason="analyzing music trend")
+    write_state("running", job, 30, job_id)
+    job_log.info(
+        "-> RENDERING (target_market=%r, concept=%r, tracks=%s)",
+        target_market,
+        playlist_concept,
+        track_count,
+    )
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
+
+    prompt = f"""
+You are a music trend strategist for longform YouTube music videos.
+
+Return ONLY JSON:
+{{
+  "playlist_concept": "string",
+  "popular_genres": ["genre1", "genre2", "genre3", "genre4"],
+  "core_moods": ["mood1", "mood2", "mood3"],
+  "trend_summary": "short paragraph",
+  "title_pattern_notes": ["note1", "note2", "note3"],
+  "source_evidence_summary": {{"internal": "...", "youtube": "...", "notes": "..."}}
+}}
+
+Rules:
+- Target market: {target_market}
+- Playlist concept should suit 2-4 hour work/study/relax listening behavior.
+- Prefer instrumental-safe genres suitable for Suno or similar AI music generation.
+- Avoid artist names, copyrighted songs, brand names, and unsupported factual claims.
+- Track count target: {track_count}
+- Track duration target seconds: {track_duration_seconds}
+- If evidence is sparse, make a conservative recommendation rather than inventing specific charts.
+
+Optional evidence from caller:
+{json.dumps(source_summary, ensure_ascii=False)}
+
+Preferred starting concept: {playlist_concept}
+"""
+
+    try:
+        raw = asyncio.run(
+            ai_router.generate_text(
+                prompt,
+                model,
+                temperature=0.35,
+                max_tokens=1600,
+                task_type="music_trend_analyze",
+            )
+        )
+        analysis = _normalize_music_trend_result(
+            _extract_json(raw),
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+    except Exception as exc:
+        job_log.warning(f"Music trend AI analysis failed, using fallback: {exc}")
+        analysis = _normalize_music_trend_result(
+            {},
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving music trend result")
+    write_state("running", job, 90, job_id)
+    job_log.info("-> UPLOADING (saving music trend result)")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "music_trend_analyze",
+        "status": "COMPLETED",
+        **analysis,
+        "completed_at": time.time(),
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="music trend analysis complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+def _process_music_prompt_pack_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating music prompt pack payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating music prompt pack payload)")
+
+    (
+        target_market,
+        playlist_concept,
+        track_count,
+        track_duration_seconds,
+        source_summary,
+        trend_analysis,
+    ) = _validate_music_prompt_pack_payload(job["payload"])
+
+    job_store.transition(job_id, job_store.RENDERING, reason="generating music prompt pack")
+    write_state("running", job, 30, job_id)
+    job_log.info(
+        "-> RENDERING (target_market=%r, concept=%r, tracks=%s)",
+        target_market,
+        playlist_concept,
+        track_count,
+    )
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
+    trend_seed = _normalize_music_trend_result(
+        trend_analysis,
+        target_market=target_market,
+        playlist_concept=playlist_concept,
+        track_count=track_count,
+        track_duration_seconds=track_duration_seconds,
+    )
+    prompt = f"""
+You are creating a production-ready Suno prompt pack for a 3-hour-class YouTube music video.
+
+Return ONLY JSON:
+{{
+  "playlist_concept": "string",
+  "popular_genres": ["genre1", "genre2", "genre3", "genre4"],
+  "core_moods": ["mood1", "mood2", "mood3"],
+  "lyrics_direction": "short instruction",
+  "tag_candidates": ["tag1", "tag2", "tag3"],
+  "tracks": [
+    {{
+      "title": "track title",
+      "genre": "genre",
+      "mood": "comma separated moods",
+      "duration_seconds": {track_duration_seconds},
+      "prompt": "Suno-safe music prompt",
+      "negative_rules": ["no artist imitation", "no copyrighted melody", "no watermark"]
+    }}
+  ]
+}}
+
+Rules:
+- Market: {target_market}
+- Playlist concept: {trend_seed["playlist_concept"]}
+- Required track count: {track_count}
+- Default duration per track: {track_duration_seconds} seconds
+- Keep prompts original, instrumental-first, loopable, and YouTube-safe.
+- No artist imitation, no copyrighted melody, no watermark, no brand references.
+- Genres should stay close to: {", ".join(trend_seed["popular_genres"])}
+- Moods should stay close to: {", ".join(trend_seed["core_moods"])}
+- The result will be passed to a Thailand user queue, so make the pack practical rather than abstract.
+
+Trend seed:
+{json.dumps(trend_seed, ensure_ascii=False)}
+
+Optional source evidence:
+{json.dumps(source_summary, ensure_ascii=False)}
+"""
+
+    try:
+        raw = asyncio.run(
+            ai_router.generate_text(
+                prompt,
+                model,
+                temperature=0.45,
+                max_tokens=12000,
+                task_type="music_prompt_pack_generate",
+            )
+        )
+        pack = _normalize_music_prompt_pack_result(
+            _extract_json(raw),
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+    except Exception as exc:
+        job_log.warning(f"Music prompt-pack generation failed, using fallback: {exc}")
+        pack = _normalize_music_prompt_pack_result(
+            trend_seed,
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving music prompt pack")
+    write_state("running", job, 90, job_id)
+    job_log.info("-> UPLOADING (saving music prompt pack)")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "music_prompt_pack_generate",
+        "status": "COMPLETED",
+        **pack,
+        "source_evidence_summary": source_summary,
+        "completed_at": time.time(),
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="music prompt pack complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
     return str(result_path), result_payload
 
 def _process_web_research(job: dict, job_id: str, job_log) -> tuple[str, dict]:
@@ -8862,6 +9298,10 @@ def process_one_job(job: dict) -> None:
 
         if job_type == "topic_benchmark_analyze":
             output_ref, result_payload = _process_topic_benchmark_analyze(job, job_id, job_log)
+        elif job_type == "music_trend_analyze":
+            output_ref, result_payload = _process_music_trend_analyze(job, job_id, job_log)
+        elif job_type == "music_prompt_pack_generate":
+            output_ref, result_payload = _process_music_prompt_pack_generate(job, job_id, job_log)
         elif job_type == "web_research":
             output_ref, result_payload = _process_web_research(job, job_id, job_log)
         elif job_type == "script_plan_generate":

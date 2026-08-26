@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { reportJobOutcome } from '@/lib/workerAuth'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { enqueueMusicPromptPackFromTrendJob } from '@/lib/musicHermesTrigger'
 
 export const dynamic = 'force-dynamic'
 
@@ -366,6 +367,26 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
     }
 }
 
+async function syncMusicTrendPromptPack(jobId: string): Promise<void> {
+    try {
+        const { data: job } = await supabaseAdmin
+            .from('remote_hermes_queue')
+            .select('id, job_type, status, payload, result_payload')
+            .eq('id', jobId)
+            .maybeSingle()
+
+        if (!job || job.status !== 'completed' || job.job_type !== 'music_trend_analyze') return
+        if (!job.payload?.enqueue_prompt_pack_on_complete) return
+
+        const result = await enqueueMusicPromptPackFromTrendJob(supabaseAdmin as any, job)
+        if (result.outcome === 'skipped') {
+            console.warn('[complete/route] music prompt-pack enqueue skipped (non-fatal):', result.reason)
+        }
+    } catch (e) {
+        console.warn('[complete/route] music trend prompt-pack chaining failed (non-fatal):', e)
+    }
+}
+
 function clampScore(value: number): number {
     if (!Number.isFinite(value)) return 0
     return Math.max(0, Math.min(100, Math.round(value * 100) / 100))
@@ -533,6 +554,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         await syncPregeneratedStructure(params.jobId)
         await syncPregeneratedScript(params.jobId)
         await syncPublishMetadata(params.jobId)
+        await syncMusicTrendPromptPack(params.jobId)
     }
     return response
 }

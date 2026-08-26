@@ -25,6 +25,8 @@ render_video           → Render Worker Process
 render_audio            → Render Worker Process
 topic_research           → Hermes Worker Process
 topic_benchmark_analyze    → Hermes Worker Process (AIR-0230, §5a — 구현 완료: worker/hermes_worker.py)
+music_trend_analyze        → Hermes Worker Process
+music_prompt_pack_generate → Hermes Worker Process
 script_plan_generate         → Hermes Worker Process (AIR-0230, §5b — 구현 완료: worker/hermes_worker.py)
 script_generate                → Hermes Worker Process (AIR-0230, §5c — 구현 완료: worker/hermes_worker.py)
 topic_generate             → Hermes Worker Process
@@ -160,6 +162,34 @@ AIR Worker의 job_type 세분화(`topic_research`/`topic_generate`/`topic_dedupl
   `generate_script_structure_api()`가 AI를 다시 부르지 않고 이 값을 즉시 반환한다.
 - **대본 본문(narration text) 사전생성**: §5c로 구현 완료(아래 참고) — 처음엔 범위 밖이었으나
   이후 결정으로 착수함.
+
+### 5m. `music_trend_analyze` / `music_prompt_pack_generate` payload (초기 구현)
+
+```json
+{
+  "music_trend_analyze": {
+    "target_market": "Thailand",
+    "playlist_concept": "Relaxing Thai cafe lofi for work and study",
+    "track_count": 60,
+    "track_duration_seconds": 180,
+    "source_evidence_summary": {
+      "internal": "...",
+      "youtube": "..."
+    }
+  },
+  "music_prompt_pack_generate": {
+    "target_market": "Thailand",
+    "playlist_concept": "Relaxing Thai cafe lofi for work and study",
+    "track_count": 60,
+    "track_duration_seconds": 180,
+    "trend_analysis": {"popular_genres": ["lofi", "thai pop ballad"]}
+  }
+}
+```
+
+- `music_trend_analyze`는 시장/장르/무드/플레이리스트 방향을 JSON으로 만든다.
+- `music_prompt_pack_generate`는 위 결과를 받아 트랙별 Suno-safe prompt/negative rules 팩을 만든다.
+- 둘 다 결과는 로컬 `RESULTS_DIR`과 중앙 Hermes outcome payload에 동일 JSON으로 남는다.
 
 ### 5c. `script_generate` payload (AIR-0230, 구현 완료)
 

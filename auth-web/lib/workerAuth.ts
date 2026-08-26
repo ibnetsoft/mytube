@@ -66,6 +66,8 @@ export interface AuthenticatedWorker {
 export const HERMES_JOB_TYPES = [
     'topic_research',
     'topic_benchmark_analyze',
+    'music_trend_analyze',
+    'music_prompt_pack_generate',
     'web_research',
     'script_plan_generate',
     'script_generate',
