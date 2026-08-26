@@ -94,6 +94,13 @@ RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 AUDIT_DIR = OUTPUT_DIR / "hermes_audit"
 logger = get_logger("hermes_worker")
 
+GENERATED_BY_TOPIC_FIELDS = {
+    "generated_by_worker_id",
+    "generated_by_worker_instance_id",
+    "generated_by_worker_job_id",
+    "generated_by_worker_at",
+}
+
 _hermes_mutex_handle = None
 _HERMES_MUTEX_NAME = "Global\\AIRWorker_HermesWorker_SingleInstance"
 
@@ -8616,6 +8623,9 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                     "language": language,
                     "status": "pending",
                     "is_auto_generated": True,
+                    "generated_by_worker_id": WORKER_ID,
+                    "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                    "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 }
                 if category_id:
                     row["category_id"] = category_id
@@ -8623,6 +8633,15 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                     f"{supabase_url}/rest/v1/topics_queue",
                     json=row, headers=headers, timeout=10,
                 )
+                if r.status_code not in (200, 201) and "Could not find" in r.text:
+                    fallback_row = {
+                        key: value for key, value in row.items()
+                        if key not in GENERATED_BY_TOPIC_FIELDS
+                    }
+                    r = _req.post(
+                        f"{supabase_url}/rest/v1/topics_queue",
+                        json=fallback_row, headers=headers, timeout=10,
+                    )
                 if r.status_code in (200, 201):
                     job_log.info(f"Supabase: inserted topic '{title[:60]}'")
                 else:
@@ -8658,6 +8677,9 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 },
                 "narrative_blueprint": result_payload.get("narrative_blueprint"),
                 "script_quality_report": result_payload.get("script_quality_report"),
+                "generated_by_worker_id": WORKER_ID,
+                "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
             r = _req.patch(
                 f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
@@ -8668,7 +8690,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if r.status_code not in (200, 204):
                 fallback = {
                     k: v for k, v in patch_data.items()
-                    if k not in ("narrative_blueprint", "script_quality_report")
+                    if k not in ("narrative_blueprint", "script_quality_report") and k not in GENERATED_BY_TOPIC_FIELDS
                 }
                 r = _req.patch(
                     f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
@@ -8691,6 +8713,9 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             patch_data = {
                 "pregenerated_structure": structure,
                 "pregenerated_structure_status": "ready",
+                "generated_by_worker_id": WORKER_ID,
+                "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
             if scene_count:
                 patch_data["total_scenes"] = scene_count
@@ -8752,6 +8777,9 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 "progress_payload": progress_payload,
                 "pregenerated_script_status": "ready",
                 "pregenerated_structure_status": "ready",
+                "generated_by_worker_id": WORKER_ID,
+                "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
             if result_payload.get("script"):
                 patch_data["pregenerated_script"] = result_payload.get("script")
@@ -8774,7 +8802,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if r.status_code not in (200, 204):
                 fallback = {
                     key: value for key, value in patch_data.items()
-                    if key not in ("narrative_blueprint", "script_quality_report")
+                    if key not in ("narrative_blueprint", "script_quality_report") and key not in GENERATED_BY_TOPIC_FIELDS
                 }
                 r = _req.patch(
                     f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",

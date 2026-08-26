@@ -63,6 +63,10 @@ const TOPICS_QUEUE_LIST_SELECT = `
     pregenerated_structure_status,
     pregenerated_script_status,
     generated_title,
+    generated_by_worker_id,
+    generated_by_worker_instance_id,
+    generated_by_worker_job_id,
+    generated_by_worker_at,
     translation_status,
     categories(id,name,language,upload_channel_id,upload_channel_name,upload_channel_handle)
 `

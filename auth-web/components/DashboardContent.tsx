@@ -3899,6 +3899,11 @@ export default function DashboardContent() {
                                                                                     SCRIPT {item.assigned_script_style}
                                                                                 </span>
                                                                             )}
+                                                                            {item.generated_by_worker_id && (
+                                                                                <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-black text-cyan-300">
+                                                                                    WORKER {item.generated_by_worker_id}
+                                                                                </span>
+                                                                            )}
                                                                             {topicSceneSummary(item) && (
                                                                                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-black text-gray-300">
                                                                                     {topicSceneSummary(item)}

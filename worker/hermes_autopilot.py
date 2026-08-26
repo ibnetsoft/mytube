@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 
 import job_store
-from worker_config import STATE_DIR, OUTPUT_DIR, PROJECT_ROOT
+from worker_config import STATE_DIR, OUTPUT_DIR, PROJECT_ROOT, WORKER_ID, WORKER_INSTANCE_ID
 import logging
 from services import ai_router
 
@@ -52,6 +52,10 @@ TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS = {
     "publish_metadata_status",
     "narrative_blueprint",
     "script_quality_report",
+    "generated_by_worker_id",
+    "generated_by_worker_instance_id",
+    "generated_by_worker_job_id",
+    "generated_by_worker_at",
 }
 
 DEFAULT_OFFICIAL_CATEGORIES = [
@@ -3028,6 +3032,9 @@ Return ONLY a JSON array of strings.
                         "title_candidates": title_plan["title_candidates"],
                         "assigned_script_style": category_script_style,
                         "assigned_image_style": assigned_image_style,
+                        "generated_by_worker_id": WORKER_ID,
+                        "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                        "generated_by_worker_at": datetime.utcnow().isoformat() + "Z",
                     }
                     if category_id:
                         row_data["category_id"] = category_id
@@ -3285,6 +3292,9 @@ Return ONLY a JSON array of strings.
                             "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
                         },
                         "publish_metadata_status": "ready",
+                        "generated_by_worker_id": WORKER_ID,
+                        "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                        "generated_by_worker_at": datetime.utcnow().isoformat() + "Z",
                         "status": "pending",
                     }
                     insert_payload = {
@@ -3346,33 +3356,37 @@ Return ONLY a JSON array of strings.
                                 "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
                             },
                             "publish_metadata_status": "ready",
+                            "generated_by_worker_id": WORKER_ID,
+                            "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                            "generated_by_worker_at": datetime.utcnow().isoformat() + "Z",
                             "status": "pending"
                         }
                     )
                     if r.status_code not in (200, 204):
+                        fallback_payload = {
+                            "topic": generated_title,
+                            "pregenerated_script": final_script,
+                            "pregenerated_script_status": "ready",
+                            "pregenerated_structure": structure,
+                            "pregenerated_structure_status": "ready",
+                            "total_scenes": structure.get("scene_count") or len(structure.get("scenes") or []),
+                            "generated_title": generated_title,
+                            "title_candidates": title_plan["title_candidates"],
+                            "benchmark_analysis": benchmark_payload,
+                            "progress_payload": {
+                                "publish_metadata": publish_metadata,
+                                "sfx_cues": sfx_cues,
+                                "sfx_cues_json": sfx_cues_json,
+                                "pregenerated_script_status": "ready",
+                                "prepared_topic_ready": True,
+                                "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                            },
+                            "status": "pending",
+                        }
                         r = await client.patch(
                             f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_queue_id}",
                             headers={**headers, "Prefer": "return=minimal"},
-                            json={
-                                "topic": generated_title,
-                                "pregenerated_script": final_script,
-                                "pregenerated_script_status": "ready",
-                                "pregenerated_structure": structure,
-                                "pregenerated_structure_status": "ready",
-                                "total_scenes": structure.get("scene_count") or len(structure.get("scenes") or []),
-                                "generated_title": generated_title,
-                                "title_candidates": title_plan["title_candidates"],
-                                "benchmark_analysis": benchmark_payload,
-                                "progress_payload": {
-                                    "publish_metadata": publish_metadata,
-                                    "sfx_cues": sfx_cues,
-                                    "sfx_cues_json": sfx_cues_json,
-                                    "pregenerated_script_status": "ready",
-                                    "prepared_topic_ready": True,
-                                    "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
-                                },
-                                "status": "pending"
-                            }
+                            json=fallback_payload,
                         )
                     if r.status_code in (200, 204):
                         self.add_log("Supabase: 대본 본문 및 상태(completed) 동기화 완료")

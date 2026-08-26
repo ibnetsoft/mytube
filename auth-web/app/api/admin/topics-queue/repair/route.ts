@@ -18,6 +18,18 @@ function objectOrEmpty(value: any): Record<string, any> {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
 
+function isMissingColumnError(err: any): boolean {
+    if (!err) return false
+    const code = String(err.code || '')
+    if (code === 'PGRST204' || code === '42703') return true
+    const msg = String(err.message || '').toLowerCase()
+    return (
+        msg.includes('schema cache') ||
+        /could not find the .* column/.test(msg) ||
+        /column .* does not exist/.test(msg)
+    )
+}
+
 export async function POST(req: Request) {
     try {
         const requester = await requireAdmin(req)
@@ -35,7 +47,7 @@ export async function POST(req: Request) {
         const now = new Date().toISOString()
         const supabase = getAdmin()
 
-        const { data: topic, error: topicError } = await supabase
+        let { data: topic, error: topicError } = await supabase
             .from('topics_queue')
             .select(`
                 id,
@@ -54,10 +66,42 @@ export async function POST(req: Request) {
                 pregenerated_structure,
                 pregenerated_script,
                 narrative_blueprint,
-                script_quality_report
+                script_quality_report,
+                generated_by_worker_id,
+                generated_by_worker_instance_id,
+                generated_by_worker_job_id,
+                generated_by_worker_at
             `)
             .eq('id', topicId)
             .maybeSingle()
+
+        if (isMissingColumnError(topicError)) {
+            const retry = await supabase
+                .from('topics_queue')
+                .select(`
+                    id,
+                    category_id,
+                    topic,
+                    generated_title,
+                    status,
+                    assigned_at,
+                    assigned_duration_minutes,
+                    assigned_script_style,
+                    assigned_image_style,
+                    language,
+                    progress_payload,
+                    publish_metadata,
+                    benchmark_analysis,
+                    pregenerated_structure,
+                    pregenerated_script,
+                    narrative_blueprint,
+                    script_quality_report
+                `)
+                .eq('id', topicId)
+                .maybeSingle()
+            topic = retry.data
+            topicError = retry.error
+        }
 
         if (topicError) throw topicError
         if (!topic) {
@@ -75,6 +119,7 @@ export async function POST(req: Request) {
         const benchmarkAnalysis = objectOrEmpty(topic.benchmark_analysis).script_analysis
             ? objectOrEmpty(topic.benchmark_analysis)
             : objectOrEmpty(progressPayload.benchmark_analysis)
+        const targetWorkerId = String(topic.generated_by_worker_id || progressPayload.generated_by_worker_id || '').trim()
 
         const jobPayload = {
             topic_queue_id: topicId,
@@ -83,6 +128,10 @@ export async function POST(req: Request) {
             upload_title: uploadTitle,
             title_generation: titleGeneration,
             repair_mode: true,
+            target_worker_id: targetWorkerId || null,
+            original_generated_by_worker_id: targetWorkerId || null,
+            original_generated_by_worker_instance_id: topic.generated_by_worker_instance_id || progressPayload.generated_by_worker_instance_id || null,
+            original_generated_by_worker_job_id: topic.generated_by_worker_job_id || progressPayload.generated_by_worker_job_id || null,
             repair_requested_by: requester.user.email,
             repair_requested_at: now,
             repair_source_script: previousScript,
@@ -108,16 +157,32 @@ export async function POST(req: Request) {
             ].join(' ')
         }
 
-        const { data: job, error: jobError } = await supabase
+        let { data: job, error: jobError } = await supabase
             .from('remote_hermes_queue')
             .insert({
                 job_type: 'script_plan_generate',
+                target_worker_id: targetWorkerId || null,
                 category_id: topic.category_id ? String(topic.category_id) : null,
                 payload: jobPayload,
                 status: 'pending',
             })
             .select('id, job_type, status, created_at')
             .single()
+
+        if (isMissingColumnError(jobError)) {
+            const retry = await supabase
+                .from('remote_hermes_queue')
+                .insert({
+                    job_type: 'script_plan_generate',
+                    category_id: topic.category_id ? String(topic.category_id) : null,
+                    payload: jobPayload,
+                    status: 'pending',
+                })
+                .select('id, job_type, status, created_at')
+                .single()
+            job = retry.data
+            jobError = retry.error
+        }
 
         if (jobError) throw jobError
 
@@ -129,6 +194,10 @@ export async function POST(req: Request) {
             repair_requested_at: now,
             repair_target_duration_minutes: targetMinutes,
             repair_target_scene_count: targetSceneCount,
+            target_worker_id: targetWorkerId || null,
+            generated_by_worker_id: topic.generated_by_worker_id || null,
+            generated_by_worker_instance_id: topic.generated_by_worker_instance_id || null,
+            generated_by_worker_job_id: topic.generated_by_worker_job_id || null,
             repair_source_script_chars: previousScript.length,
             repair_job_id: job?.id || null,
             pregenerated_structure_status: 'queued',
