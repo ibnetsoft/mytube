@@ -450,6 +450,31 @@ export default function StdPortalPage() {
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
 
+    const projectStateCacheKey = (projectId: string | null | undefined) => {
+        const id = String(projectId || '').trim()
+        return id ? `std_project_state_${id}` : ''
+    }
+
+    const rememberProjectState = (projectPayload: SelectedProjectPayload | null | undefined) => {
+        if (!projectPayload?.project?.id || typeof window === 'undefined') return
+        try {
+            localStorage.setItem('std_active_project_state', JSON.stringify(projectPayload))
+            localStorage.setItem('std_active_project_id', projectPayload.project.id)
+            localStorage.setItem(projectStateCacheKey(projectPayload.project.id), JSON.stringify(projectPayload))
+        } catch (e) {}
+    }
+
+    const readRememberedProjectState = (projectId: string): SelectedProjectPayload | null => {
+        if (!projectId || typeof window === 'undefined') return null
+        try {
+            const raw = localStorage.getItem(projectStateCacheKey(projectId))
+                || (localStorage.getItem('std_active_project_id') === projectId ? localStorage.getItem('std_active_project_state') : null)
+            return raw ? JSON.parse(raw) : null
+        } catch {
+            return null
+        }
+    }
+
     // 2.1 주제 큐 & 모달 팝업 상태 (유저앱 topic.html 완벽 대응)
     const [selectedTopicForModal, setSelectedTopicForModal] = useState<any>(null)
     const [topicModalOpen, setTopicModalOpen] = useState(false)
@@ -784,7 +809,7 @@ export default function StdPortalPage() {
         
         setSelectedProject(updatedProject)
         setLocalSubtitles(updatedSubs)
-        localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
+        rememberProjectState(updatedProject)
         if (showSuccessAlert) {
             alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱으로 씬과 자막이 완벽 동기화되었습니다!')
         }
@@ -937,9 +962,7 @@ export default function StdPortalPage() {
                     },
                 },
             }
-            try {
-                localStorage.setItem('std_active_project_state', JSON.stringify(updated))
-            } catch (error) {}
+            rememberProjectState(updated)
             return updated
         })
         setProjects(prev => prev.map(project => project.id === currentProjectId ? { ...project, title: nextTitle } : project))
@@ -1289,8 +1312,7 @@ export default function StdPortalPage() {
                 setSelectedProject(loaded)
                 setProjects([loaded.project])
                 setCustomScriptText(cleanScriptContextText(loaded.project.project_payload?.script || ''))
-                localStorage.setItem('std_active_project_state', JSON.stringify(loaded))
-                localStorage.setItem('std_active_project_id', loaded.project.id)
+                rememberProjectState(loaded)
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
@@ -1666,8 +1688,7 @@ export default function StdPortalPage() {
                 setProjects(prev => [finalProject.project, ...prev.filter(p => p.id !== finalProject.project.id)])
                 setSelectedProject(finalProject)
                 setCustomScriptText(cleanScriptContextText(finalProject.project.project_payload?.script || ''))
-                localStorage.setItem('std_active_project_state', JSON.stringify(finalProject))
-                localStorage.setItem('std_active_project_id', finalProject.project.id)
+                rememberProjectState(finalProject)
                 setTopicModalOpen(false)
                 setCurrentNav('image_gen')
                 setMessage(`'${finalProject.project.title}' 작업 프로젝트로 확정되었습니다!`)
@@ -1682,8 +1703,7 @@ export default function StdPortalPage() {
                 setProjects(prev => [built.project, ...prev.filter(p => p.id !== built.project.id)])
                 setSelectedProject(built)
                 setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
-                localStorage.setItem('std_active_project_state', JSON.stringify(built))
-                localStorage.setItem('std_active_project_id', built.project.id)
+                rememberProjectState(built)
                 setTopicModalOpen(false)
                 setCurrentNav('image_gen')
                 setMessage(`'${targetTopic.generated_title || targetTopic.topic}' 작업 프로젝트로 등록되었습니다!`)
@@ -1827,9 +1847,7 @@ export default function StdPortalPage() {
                         },
                     },
                 }
-                try {
-                    localStorage.setItem('std_active_project_state', JSON.stringify(updated))
-                } catch (error) {}
+                rememberProjectState(updated)
                 return updated
             })
         } catch (error: any) {
@@ -1983,9 +2001,7 @@ export default function StdPortalPage() {
                 project: updatedProject,
             }
             updatedFullForStorage = updatedFull
-            try {
-                localStorage.setItem('std_active_project_state', JSON.stringify(updatedFull))
-            } catch (e) {}
+            rememberProjectState(updatedFull)
             return updatedFull
         })
         if (selectedProject?.project?.id) {
@@ -2021,9 +2037,7 @@ export default function StdPortalPage() {
                         scenes: Array.isArray(payload.scenes) ? payload.scenes : updatedFullForStorage.scenes,
                     }
                     setSelectedProject(updatedFull)
-                    try {
-                        localStorage.setItem('std_active_project_state', JSON.stringify(updatedFull))
-                    } catch (e) {}
+                    rememberProjectState(updatedFull)
                 }
             } catch (error: any) {
                 setMessage(error.message || 'Subtitle save failed')
@@ -2054,17 +2068,28 @@ export default function StdPortalPage() {
 
                 const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => cleanScriptContextText(s.scene_text || s.script_excerpt)).join('\n\n')
                 setCustomScriptText(cleanScriptContextText(fullScript))
+                const payloadScenes = Array.isArray(payload.project?.project_payload?.structure?.scenes)
+                    ? payload.project.project_payload.structure.scenes
+                    : (Array.isArray(payload.project?.project_payload?.scenes) ? payload.project.project_payload.scenes : [])
+                const payloadSceneByNumber = new Map(
+                    payloadScenes.map((scene: any, idx: number) => [
+                        Number(scene?.scene_number || scene?.scene_order || idx + 1),
+                        scene,
+                    ])
+                )
 
                 const normalizedScenes = serverScenes.map((s: any, idx: number) => {
+                    const sceneNumber = Number(s.scene_number || s.scene_order || idx + 1)
+                    const payloadScene = payloadSceneByNumber.get(sceneNumber) || {}
                     const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
                     const cleanedText = cleanScriptContextText(rawText)
                     return {
                         ...s,
                         scene_text: cleanedText,
                         script_excerpt: cleanedText,
-                        video_prompt: s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || '',
-                        video_url: s.video_url || s.video || null,
-                        image_url: s.image_url || s.image || null,
+                        video_prompt: s.video_prompt || payloadScene.video_prompt || s.prompt_en || s.prompt || s.image_prompt || payloadScene.prompt_en || payloadScene.prompt || payloadScene.image_prompt || '',
+                        video_url: sanitizeAssetUrl(s.video_url || s.video || payloadScene.video_url || payloadScene.video),
+                        image_url: sanitizeAssetUrl(s.image_url || s.image || payloadScene.image_url || payloadScene.image),
                     }
                 })
 
@@ -2075,13 +2100,19 @@ export default function StdPortalPage() {
                 }
 
                 setSelectedProject(fullProjectPayload)
-                localStorage.setItem('std_active_project_id', projectId)
-                localStorage.setItem('std_active_project_state', JSON.stringify(fullProjectPayload))
+                rememberProjectState(fullProjectPayload)
                 restorePersistedProjectMedia(fullProjectPayload, fetchHeaders).catch(() => {})
                 return
             }
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
+            const remembered = readRememberedProjectState(projectId)
+            if (remembered?.project?.id) {
+                setSelectedProject(remembered)
+                setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
+                rememberProjectState(remembered)
+                return
+            }
             const localProj = projects.find(p => p.id === projectId)
             if (localProj) {
                 const targetTopic = topics.find(t => t.topic === localProj.title) || { topic: localProj.title }
@@ -2089,8 +2120,7 @@ export default function StdPortalPage() {
                 built.project.id = projectId
                 setSelectedProject(built)
                 setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
-                localStorage.setItem('std_active_project_id', projectId)
-                localStorage.setItem('std_active_project_state', JSON.stringify(built))
+                rememberProjectState(built)
             } else {
                 setMessage(error.message || '작업 상세 조회 실패')
             }
@@ -2205,10 +2235,7 @@ export default function StdPortalPage() {
                         },
                     },
                 }
-                try {
-                    localStorage.setItem('std_active_project_state', JSON.stringify(updatedProject))
-                    localStorage.setItem('std_active_project_id', updatedProject.project.id)
-                } catch (e) {}
+                rememberProjectState(updatedProject)
                 return updatedProject
             })
             setProjects(prev => prev.map(p => p.id === selectedProject.project.id ? {
@@ -2295,9 +2322,7 @@ export default function StdPortalPage() {
                         },
                     },
                 }
-                try {
-                    localStorage.setItem('std_active_project_state', JSON.stringify(updated))
-                } catch (error) {}
+                rememberProjectState(updated)
                 return updated
             })
             setThumbBgUrl(persistedThumbnailUrl)
@@ -2331,7 +2356,7 @@ export default function StdPortalPage() {
                     },
                 },
             }
-            localStorage.setItem('std_active_project_state', JSON.stringify(updated))
+            rememberProjectState(updated)
             return updated
         })
 
@@ -2437,9 +2462,7 @@ export default function StdPortalPage() {
                             },
                         },
                     }
-                    try {
-                        localStorage.setItem('std_active_project_state', JSON.stringify(updated))
-                    } catch (error) {}
+                    rememberProjectState(updated)
                     return updated
                 })
             }

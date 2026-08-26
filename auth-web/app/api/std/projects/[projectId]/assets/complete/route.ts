@@ -9,6 +9,69 @@ export const dynamic = 'force-dynamic'
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'thumbnail', 'original'])
 
+function sceneNumberOf(scene: any, index: number) {
+    const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
+    return Number.isFinite(value) ? value : index + 1
+}
+
+function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetType: string, asset: any, assetUrl: string) {
+    const sourceScenes = Array.isArray(scenes) ? scenes : []
+    const minimumLength = Math.max(sourceScenes.length, sceneNumber)
+    const paddedScenes = Array.from({ length: minimumLength }, (_, index) => sourceScenes[index] || {
+        scene_number: index + 1,
+        scene_order: index + 1,
+        scene_title: `Scene ${index + 1}`,
+    })
+
+    return paddedScenes.map((scene: any, index: number) => {
+        const currentSceneNumber = sceneNumberOf(scene, index)
+        if (currentSceneNumber !== sceneNumber) return scene
+        const metadata = {
+            ...(scene?.metadata || {}),
+            [`${assetType}_asset_id`]: asset.id,
+            [`${assetType}_drive_file_id`]: asset.drive_file_id,
+            [`${assetType}_file_name`]: asset.file_name,
+        }
+        return {
+            ...scene,
+            scene_number: currentSceneNumber,
+            scene_order: scene?.scene_order || currentSceneNumber,
+            image_url: assetType === 'image' ? assetUrl : (scene?.image_url || scene?.image || null),
+            video_url: assetType === 'video' ? assetUrl : (scene?.video_url || scene?.video || null),
+            asset_status: 'ready',
+            metadata,
+        }
+    })
+}
+
+function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | null, assetType: string, asset: any) {
+    if (sceneNumber == null || !['image', 'video'].includes(assetType)) return project.project_payload || {}
+    const assetUrl = asset?.metadata?.thumbnail_link
+        || asset?.metadata?.web_view_link
+        || driveFileLink(asset?.drive_file_id)
+    const projectPayload = project.project_payload || {}
+    const structure = projectPayload.structure || {}
+    const payloadScenes = Array.isArray(projectPayload.scenes) ? projectPayload.scenes : []
+    const structureScenes = Array.isArray(structure.scenes) ? structure.scenes : payloadScenes
+    const nextStructureScenes = upsertVisualAssetIntoScenes(structureScenes, sceneNumber, assetType, asset, assetUrl)
+    const nextPayloadScenes = upsertVisualAssetIntoScenes(
+        payloadScenes.length > 0 ? payloadScenes : nextStructureScenes,
+        sceneNumber,
+        assetType,
+        asset,
+        assetUrl
+    )
+
+    return {
+        ...projectPayload,
+        scenes: nextPayloadScenes,
+        structure: {
+            ...structure,
+            scenes: nextStructureScenes,
+        },
+    }
+}
+
 async function updateSceneAssetStatus(projectId: string, sceneNumber: number) {
     const { data: activeAssets } = await supabaseAdmin
         .from('std_project_assets')
@@ -83,8 +146,30 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .eq('scene_number', sceneNumber)
             .maybeSingle()
         if (sceneError) return NextResponse.json({ success: false, error: sceneError.message }, { status: 500 })
-        if (!sceneRow) return NextResponse.json({ success: false, error: 'Scene not found' }, { status: 404 })
-        scene = sceneRow
+        if (!sceneRow) {
+            const payloadScenes = Array.isArray(project.project_payload?.structure?.scenes)
+                ? project.project_payload.structure.scenes
+                : (Array.isArray(project.project_payload?.scenes) ? project.project_payload.scenes : [])
+            const payloadScene = payloadScenes.find((s: any, index: number) => sceneNumberOf(s, index) === sceneNumber) || {}
+            const { data: insertedScene, error: insertSceneError } = await supabaseAdmin
+                .from('std_project_scenes')
+                .insert({
+                    project_id: project.id,
+                    scene_number: sceneNumber,
+                    scene_title: String(payloadScene.scene_title || payloadScene.title || `Scene ${sceneNumber}`).slice(0, 500),
+                    scene_text: String(payloadScene.scene_text || payloadScene.script_excerpt || payloadScene.text || '').slice(0, 10000),
+                    image_prompt: String(payloadScene.image_prompt || payloadScene.prompt || '').slice(0, 20000),
+                    video_prompt: String(payloadScene.video_prompt || '').slice(0, 20000),
+                    asset_status: 'missing',
+                    metadata: payloadScene.metadata || payloadScene || {},
+                })
+                .select('id,scene_number')
+                .single()
+            if (insertSceneError) return NextResponse.json({ success: false, error: insertSceneError.message }, { status: 500 })
+            scene = insertedScene
+        } else {
+            scene = sceneRow
+        }
     }
 
     try {
@@ -139,6 +224,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .eq('asset_status', 'ready')
 
         const progressPayload = project.progress_payload || {}
+        const nextProjectPayload = buildProjectPayloadWithVisualAsset(project, sceneNumber, assetType, asset)
+
         await supabaseAdmin
             .from('std_projects')
             .update({
@@ -148,6 +235,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     ready_scene_count: readySceneCount || 0,
                     last_asset_uploaded_at: new Date().toISOString(),
                 },
+                project_payload: nextProjectPayload,
                 updated_at: new Date().toISOString(),
             })
             .eq('id', project.id)
