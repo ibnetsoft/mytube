@@ -1,0 +1,75 @@
+import assert from 'node:assert/strict'
+import {
+    generateSynchronizedSubtitles,
+    partitionScriptByExistingSceneBoundaries,
+} from '../lib/stdSubtitles'
+
+const sceneCount = 53
+const makeSceneText = (index: number) => `씬 ${index} 원본 문장입니다. 가족은 오래된 약속을 기억합니다.`
+const baseScenes = Array.from({ length: sceneCount }, (_, index) => ({
+    scene_number: index + 1,
+    scene_text: makeSceneText(index + 1),
+    script_excerpt: makeSceneText(index + 1),
+    image_url: `drive-image-${index + 1}`,
+    video_url: index < 12 ? `drive-video-${index + 1}` : null,
+}))
+const baseScript = baseScenes.map(scene => scene.scene_text).join('\n\n')
+
+function syncLikeStdPage(script: string, scenes = baseScenes) {
+    const partitioned = partitionScriptByExistingSceneBoundaries(script, scenes, scenes.length)
+    const syncedScenes = scenes.map((scene, index) => {
+        const text = partitioned[index] || ''
+        return {
+            ...scene,
+            text,
+            scene_text: text,
+            script_text: text,
+            script_excerpt: text,
+            narration: text,
+            narration_text: text,
+            prompt_ko: text,
+        }
+    })
+    return {
+        scenes: syncedScenes,
+        subtitles: generateSynchronizedSubtitles(script, syncedScenes, 20),
+    }
+}
+
+const caseA = syncLikeStdPage(baseScript.replace(
+    '씬 10 원본 문장입니다.',
+    '씬 10 수정된 핵심 문장입니다.'
+))
+assert.match(caseA.scenes[9].scene_text, /수정된 핵심 문장/)
+assert.match(caseA.scenes[9].script_excerpt, /수정된 핵심 문장/)
+assert.match(caseA.scenes[9].narration_text, /수정된 핵심 문장/)
+assert.ok(caseA.subtitles.some(sub => sub.scene_number === 10 && sub.text.includes('수정된')))
+
+const caseB = syncLikeStdPage(baseScript.replace(
+    '씬 10 원본 문장입니다.',
+    '씬 10 원본 문장입니다. 새로 추가된 증거 문장입니다.'
+))
+assert.ok(
+    caseB.scenes.slice(8, 11).some(scene => scene.scene_text.includes('새로 추가된 증거')),
+    'added sentence should remain near the edited scene boundary'
+)
+assert.equal(caseB.scenes[9].image_url, 'drive-image-10')
+assert.equal(caseB.scenes[9].video_url, 'drive-video-10')
+
+const caseC = syncLikeStdPage(baseScript.replace(makeSceneText(10), ''))
+assert.ok(!caseC.scenes.some(scene => scene.scene_text.includes('씬 10 원본 문장입니다')))
+assert.ok(!caseC.subtitles.some(sub => sub.text.includes('씬 10 원본 문장입니다')))
+
+const rewrittenScript = baseScenes
+    .map((scene, index) => index % 2 === 0
+        ? scene.scene_text.replace('가족은 오래된 약속을 기억합니다.', `대량 수정 문단 ${index + 1}입니다.`)
+        : scene.scene_text
+    )
+    .join('\n\n')
+const caseD = syncLikeStdPage(rewrittenScript)
+assert.equal(caseD.scenes.length, sceneCount)
+assert.ok(caseD.scenes[0].scene_text.includes('대량 수정 문단 1'))
+assert.ok(caseD.scenes[52].scene_text.length > 0)
+assert.ok(caseD.subtitles.length >= sceneCount)
+
+console.log('STD script sync regression tests passed')

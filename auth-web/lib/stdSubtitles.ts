@@ -33,7 +33,7 @@ function findNaturalCut(text: string, start: number, hardLimit: number): number 
     const softStart = Math.max(start + 1, hardLimit - 12)
     const softEnd = Math.min(text.length, hardLimit + 6)
     const slice = text.slice(softStart, softEnd)
-    const punctuationMatch = slice.match(/[.!?]/)
+    const punctuationMatch = slice.match(/[.!?。！？…]/)
     if (punctuationMatch?.index !== undefined) {
         return softStart + punctuationMatch.index + 1
     }
@@ -45,6 +45,19 @@ function findNaturalCut(text: string, start: number, hardLimit: number): number 
     if (after !== -1 && after <= hardLimit + 6) return after + 1
 
     return hardLimit
+}
+
+export function sceneNarrationText(scene: any): string {
+    return String(
+        scene?.scene_text
+        || scene?.script_excerpt
+        || scene?.script_text
+        || scene?.narration_text
+        || scene?.narration
+        || scene?.text
+        || scene?.prompt_ko
+        || ''
+    ).trim()
 }
 
 function normalizedScriptText(rawScriptText: string): string {
@@ -228,6 +241,65 @@ export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCoun
     return result
 }
 
+export function partitionScriptByExistingSceneBoundaries(
+    rawScriptText: string,
+    scenes: any[],
+    totalScenesCount: number = BASE_STORY_SCENE_COUNT
+): string[] {
+    const fullText = normalizedScriptText(rawScriptText)
+    if (!fullText) {
+        return Array.from({ length: totalScenesCount }, (_, i) => sceneNarrationText(scenes?.[i]) || `Scene ${i + 1} narration`)
+    }
+
+    const normalizedScenes = Array.from({ length: totalScenesCount }, (_, i) => scenes?.[i] || {})
+    const existingLengths = normalizedScenes.map(scene => sceneNarrationText(scene).length)
+    const hasUsefulBoundaries = existingLengths.filter(length => length > 0).length >= Math.min(3, totalScenesCount)
+    const weights = hasUsefulBoundaries
+        ? existingLengths.map((length, index) => Math.max(length, readingBudgetForDuration(getStandardSceneDuration(index + 1))))
+        : Array.from({ length: totalScenesCount }, (_, i) => readingBudgetForDuration(getStandardSceneDuration(i + 1)))
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || fullText.length || 1
+    const result: string[] = []
+    let charCursor = 0
+    let weightCursor = 0
+    const anchorTextForScene = (scene: any): string => {
+        const text = normalizedScriptText(sceneNarrationText(scene))
+        if (!text) return ''
+        return text.length <= 32 ? text : text.slice(0, 32)
+    }
+
+    for (let i = 0; i < totalScenesCount; i++) {
+        if (charCursor >= fullText.length) {
+            result.push('')
+            continue
+        }
+        if (i === totalScenesCount - 1) {
+            result.push(fullText.slice(charCursor).trim())
+            break
+        }
+
+        const nextAnchor = anchorTextForScene(normalizedScenes[i + 1])
+        if (hasUsefulBoundaries && nextAnchor.length >= 8) {
+            const anchorPos = fullText.indexOf(nextAnchor, charCursor)
+            if (anchorPos >= charCursor) {
+                result.push(fullText.slice(charCursor, anchorPos).trim())
+                charCursor = anchorPos
+                weightCursor += weights[i]
+                continue
+            }
+        }
+
+        weightCursor += weights[i]
+        const proportionalTarget = Math.round((weightCursor / totalWeight) * fullText.length)
+        const hardLimit = Math.max(charCursor + 1, Math.min(fullText.length, proportionalTarget))
+        const nextCursor = findNaturalCut(fullText, charCursor, hardLimit)
+        result.push(fullText.slice(charCursor, nextCursor).trim())
+        charCursor = nextCursor
+    }
+
+    while (result.length < totalScenesCount) result.push('')
+    return result
+}
+
 export function generateSynchronizedSubtitles(
     rawScriptText: string,
     scenes: any[],
@@ -241,7 +313,7 @@ export function generateSynchronizedSubtitles(
         video_url: null,
     })
     const sceneTimings = calculateLongformSceneTimings(normalizedScenes)
-    const partitionedScenes = partitionScriptTo53Scenes(rawScriptText, totalScenes)
+    const partitionedScenes = partitionScriptByExistingSceneBoundaries(rawScriptText, normalizedScenes, totalScenes)
 
     const subtitles: StdSubtitleItem[] = []
 
@@ -250,9 +322,9 @@ export function generateSynchronizedSubtitles(
         const sceneData = normalizedScenes[sNum - 1] || {}
         const isHook = sNum <= 12
 
-        let pureText = cleanKoreanScriptLine(partitionedScenes[sNum - 1] || sceneData.script_excerpt || sceneData.scene_text || sceneData.text || '')
+        let pureText = cleanKoreanScriptLine(partitionedScenes[sNum - 1] || sceneNarrationText(sceneData))
         if (!pureText || pureText.length < 2) {
-            pureText = cleanKoreanScriptLine(sceneData.script_excerpt || sceneData.scene_text || sceneData.text || `Scene ${sNum} narration`)
+            pureText = cleanKoreanScriptLine(sceneNarrationText(sceneData) || `Scene ${sNum} narration`)
         }
 
         const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)

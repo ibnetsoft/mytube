@@ -54,6 +54,7 @@ import {
     calculateLongformSceneTimings,
     cleanKoreanScriptLine,
     estimateRequiredSceneCount,
+    partitionScriptByExistingSceneBoundaries,
     partitionScriptTo53Scenes,
     stripGeneratedPlanningText,
     StdSubtitleItem,
@@ -754,7 +755,7 @@ export default function StdPortalPage() {
         }
     ])
 
-    const handleSyncScriptToScenesAndSubtitles = (showSuccessAlert: boolean = true) => {
+    const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true) => {
         if (!selectedProject) return
         const scriptToUse = cleanScriptContextText(customScriptText || selectedProject.project?.project_payload?.script || '')
         if (!scriptToUse.trim()) {
@@ -762,7 +763,7 @@ export default function StdPortalPage() {
             return
         }
         const totalCount = estimateRequiredSceneCount(scriptToUse, selectedProject.scenes.length || 53)
-        const partitioned = partitionScriptTo53Scenes(scriptToUse, totalCount)
+        const partitioned = partitionScriptByExistingSceneBoundaries(scriptToUse, selectedProject.scenes || [], totalCount)
         const buildExtendedSceneImagePrompt = (sceneText: string, sceneNumber: number) => {
             const topicTitle = selectedProject.project?.title || selectedProject.project?.project_payload?.title || ''
             const style = selectedProject.project?.image_style || selectedProject.project?.project_payload?.image_style || 'realistic cinematic Korean story'
@@ -774,6 +775,7 @@ export default function StdPortalPage() {
             ].join(' ')
         }
         
+        const syncedAt = new Date().toISOString()
         const updatedScenes = Array.from({ length: totalCount }, (_, i) => selectedProject.scenes[i] || ({
             id: `generated-${i + 1}`,
             scene_number: i + 1,
@@ -781,17 +783,38 @@ export default function StdPortalPage() {
             image_url: '',
             video_url: null,
             asset_status: 'missing',
-        })).map((s: any, idx: number) => ({
-            ...s,
-            scene_number: s.scene_number || idx + 1,
-            text: partitioned[idx] || s.text || '',
-            script_excerpt: partitioned[idx] || s.script_excerpt || '',
-            image_prompt: partitioned[idx]
-                ? buildExtendedSceneImagePrompt(partitioned[idx], idx + 1)
-                : (s.image_prompt || buildExtendedSceneImagePrompt(s.text || s.script_excerpt || '', idx + 1)),
-        }))
+        })).map((s: any, idx: number) => {
+            const sceneNumber = s.scene_number || idx + 1
+            const sceneText = partitioned[idx] || ''
+            const fallbackText = sceneText || s.scene_text || s.script_excerpt || s.text || ''
+            return {
+                ...s,
+                scene_number: sceneNumber,
+                scene_order: s.scene_order || sceneNumber,
+                text: fallbackText,
+                scene_text: fallbackText,
+                script_text: fallbackText,
+                script_excerpt: fallbackText,
+                narration: fallbackText,
+                narration_text: fallbackText,
+                prompt_ko: fallbackText,
+                image_prompt: sceneText
+                    ? buildExtendedSceneImagePrompt(sceneText, sceneNumber)
+                    : (s.image_prompt || buildExtendedSceneImagePrompt(fallbackText, sceneNumber)),
+                metadata: {
+                    ...(s.metadata || {}),
+                    script_excerpt: fallbackText,
+                    narration_text: fallbackText,
+                    synced_from_full_script_at: syncedAt,
+                },
+            }
+        })
         
         const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 20)
+        const updatedStructure = {
+            ...(selectedProject.project?.project_payload?.structure || {}),
+            scenes: updatedScenes,
+        }
         
         const updatedProject = {
             ...selectedProject,
@@ -801,8 +824,10 @@ export default function StdPortalPage() {
                 project_payload: {
                     ...selectedProject.project?.project_payload,
                     script: scriptToUse,
+                    structure: updatedStructure,
                     scenes: updatedScenes,
-                    subtitles: updatedSubs
+                    subtitles: updatedSubs,
+                    subtitles_saved: true,
                 }
             }
         }
@@ -810,6 +835,48 @@ export default function StdPortalPage() {
         setSelectedProject(updatedProject)
         setLocalSubtitles(updatedSubs)
         rememberProjectState(updatedProject)
+        if (selectedProject.project?.id) {
+            try {
+                const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
+                    method: 'PATCH',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        progress_payload: {
+                            subtitles_saved: true,
+                            subtitles_completed: true,
+                        },
+                        project_payload: {
+                            script: scriptToUse,
+                            structure: updatedStructure,
+                            scenes: updatedScenes,
+                            subtitles: updatedSubs,
+                            subtitles_saved: true,
+                            render_settings: {
+                                ...(selectedProject.project.project_payload?.render_settings || {}),
+                                subtitle_max_chars: Number(subMaxChars) || 20,
+                            },
+                        },
+                    }),
+                })
+                const payload = await safeParseJson(res, 'Script sync save failed')
+                if (!res.ok || payload.success === false) {
+                    throw new Error(payload.error || 'Script sync save failed')
+                }
+                if (payload.project) {
+                    const persistedProject = {
+                        ...updatedProject,
+                        project: payload.project,
+                        scenes: Array.isArray(payload.scenes) ? mergeAssetsIntoScenes(payload.scenes, updatedProject.assets || []) : updatedScenes,
+                    }
+                    setSelectedProject(persistedProject)
+                    rememberProjectState(persistedProject)
+                }
+            } catch (error: any) {
+                setMessage(error?.message || 'Script sync save failed')
+                if (showSuccessAlert) alert(error?.message || 'Script sync save failed')
+                return
+            }
+        }
         if (showSuccessAlert) {
             alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱으로 씬과 자막이 완벽 동기화되었습니다!')
         }
