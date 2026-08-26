@@ -522,6 +522,7 @@ export default function StdPortalPage() {
     const [newCharInput, setNewCharInput] = useState('')
     const [customAddedCharacters, setCustomAddedCharacters] = useState<string[]>([])
     const [customScriptText, setCustomScriptText] = useState('')
+    const [scriptSyncDirty, setScriptSyncDirty] = useState(false)
     const [audioResultUrl, setAudioResultUrl] = useState('')
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
@@ -756,11 +757,11 @@ export default function StdPortalPage() {
     ])
 
     const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true) => {
-        if (!selectedProject) return
+        if (!selectedProject) return false
         const scriptToUse = cleanScriptContextText(customScriptText || selectedProject.project?.project_payload?.script || '')
         if (!scriptToUse.trim()) {
             if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
-            return
+            return false
         }
         const totalCount = estimateRequiredSceneCount(scriptToUse, selectedProject.scenes.length || 53)
         const partitioned = partitionScriptByExistingSceneBoundaries(scriptToUse, selectedProject.scenes || [], totalCount)
@@ -874,12 +875,24 @@ export default function StdPortalPage() {
             } catch (error: any) {
                 setMessage(error?.message || 'Script sync save failed')
                 if (showSuccessAlert) alert(error?.message || 'Script sync save failed')
-                return
+                return false
             }
         }
+        setScriptSyncDirty(false)
         if (showSuccessAlert) {
             alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱으로 씬과 자막이 완벽 동기화되었습니다!')
         }
+        return true
+    }
+
+    const ensureScriptSyncedBeforeAction = async () => {
+        if (!selectedProject) return false
+        const currentScript = cleanScriptContextText(customScriptText || '')
+        const savedScript = cleanScriptContextText(selectedProject.project?.project_payload?.script || '')
+        if (!currentScript.trim()) return true
+        if (!scriptSyncDirty && currentScript === savedScript) return true
+        setMessage('Script changed. Syncing scenes and subtitles...')
+        return await handleSyncScriptToScenesAndSubtitles(false)
     }
 
     const totalDuration = useMemo(() => {
@@ -2450,6 +2463,7 @@ export default function StdPortalPage() {
 
     const submitProject = async () => {
         if (!selectedProject) return
+        if (!(await ensureScriptSyncedBeforeAction())) return
         const pStatus = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
         if (!pStatus.allDone) {
             const missingList = []
@@ -2497,6 +2511,10 @@ export default function StdPortalPage() {
         if (!selectedProject) return
         setGeneratingTts(true)
         setMessage('')
+        if (!(await ensureScriptSyncedBeforeAction())) {
+            setGeneratingTts(false)
+            return
+        }
         const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
         const ttsProvider = selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
         const ttsText = customScriptText || selectedProject.project.project_payload?.script || ''
@@ -4939,7 +4957,15 @@ export default function StdPortalPage() {
                                     </div>
                                     <textarea
                                         value={customScriptText}
-                                        onChange={e => setCustomScriptText(e.target.value)}
+                                        onChange={e => {
+                                            setCustomScriptText(e.target.value)
+                                            setScriptSyncDirty(true)
+                                        }}
+                                        onBlur={() => {
+                                            ensureScriptSyncedBeforeAction().catch((error: any) => {
+                                                setMessage(error?.message || 'Script sync save failed')
+                                            })
+                                        }}
                                         className="flex-1 w-full p-4 bg-[#14181f] border border-white/10 rounded-xl text-xs text-gray-200 leading-relaxed font-sans focus:outline-none focus:border-purple-500 resize-none min-h-[420px]"
                                         placeholder="이곳에 전체 대본 텍스트가 표시됩니다..."
                                     />
