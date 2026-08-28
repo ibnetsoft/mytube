@@ -2276,12 +2276,112 @@ def api_system_git_info(
         return {"success": False, "error": str(e)}
 
 
+def _perform_safe_git_update() -> dict:
+    from worker_config import PROJECT_ROOT
+
+    def run_git(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+
+    def output_of(res: subprocess.CompletedProcess[str] | None) -> str:
+        if res is None:
+            return ""
+        return "\n".join(part for part in [(res.stdout or "").strip(), (res.stderr or "").strip()] if part)
+
+    status_res = run_git(["status", "--porcelain"], timeout=10)
+    dirty_before = bool((status_res.stdout or "").strip())
+    stash_created = False
+    stash_res = None
+
+    if dirty_before:
+        stash_res = run_git(
+            ["stash", "push", "--include-untracked", "-m", "AIRWorker auto-update safety stash"],
+            timeout=60,
+        )
+        if stash_res.returncode != 0:
+            return {
+                "success": False,
+                "dirty_before": True,
+                "stash_created": False,
+                "stdout": output_of(stash_res),
+                "stderr": "",
+                "recent_commits": [],
+                "error": "Local changes could not be safely stashed before update.",
+                "message": "로컬 변경사항을 안전하게 임시보관하지 못해 업데이트를 중단했습니다.",
+            }
+        stash_created = "No local changes to save" not in output_of(stash_res)
+
+    fetch_res = run_git(["fetch", "origin", "main"], timeout=120)
+    pull_res = run_git(["pull", "--ff-only", "origin", "main"], timeout=120)
+
+    restore_res = None
+    if stash_created:
+        restore_res = run_git(["stash", "pop"], timeout=60)
+
+    if fetch_res.returncode != 0 or pull_res.returncode != 0:
+        return {
+            "success": False,
+            "dirty_before": dirty_before,
+            "stash_created": stash_created,
+            "stash_restored": bool(restore_res and restore_res.returncode == 0),
+            "stdout": "\n".join(part for part in [output_of(fetch_res), output_of(pull_res), output_of(restore_res)] if part),
+            "stderr": "",
+            "recent_commits": [],
+            "error": "Git update failed. See output for details.",
+            "message": "Git 업데이트에 실패했습니다. 출력 로그를 확인해주세요.",
+        }
+
+    if restore_res is not None and restore_res.returncode != 0:
+        return {
+            "success": False,
+            "update_applied": True,
+            "dirty_before": dirty_before,
+            "stash_created": stash_created,
+            "stash_restored": False,
+            "stdout": "\n".join(part for part in [output_of(fetch_res), output_of(pull_res), output_of(restore_res)] if part),
+            "stderr": "",
+            "recent_commits": [],
+            "error": "Update was applied, but local changes could not be restored automatically.",
+            "message": "업데이트는 적용됐지만 로컬 변경사항 복원 중 충돌이 발생했습니다. 재시작 전 Git 상태를 확인해주세요.",
+        }
+
+    log_res = run_git(["log", "-n", "3", "--oneline"], timeout=10)
+    stdout = "\n".join(part for part in [output_of(stash_res), output_of(fetch_res), output_of(pull_res), output_of(restore_res)] if part)
+    recent_commits = [line.strip() for line in (log_res.stdout or "").strip().splitlines() if line.strip()]
+    already_up_to_date = "Already up to date" in stdout or "up to date" in stdout.lower()
+
+    return {
+        "success": True,
+        "already_up_to_date": already_up_to_date,
+        "dirty_before": dirty_before,
+        "stash_created": stash_created,
+        "stash_restored": bool(restore_res and restore_res.returncode == 0) if stash_created else False,
+        "stdout": stdout,
+        "stderr": "",
+        "recent_commits": recent_commits,
+        "message": "이미 최신 상태입니다." if already_up_to_date else "최신 업데이트를 성공적으로 가져왔습니다.",
+    }
+
+
 @app.post("/api/system/git-pull")
 def api_system_git_pull(
     authorization: str | None = Header(default=None),
     cookie: str | None = Header(default=None, alias="Cookie"),
 ):
     require_auth(authorization, cookie)
+    try:
+        return _perform_safe_git_update()
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "GitHub 연결 시간 초과 (120초)", "message": "GitHub 연결 시간이 초과되었습니다. 네트워크 상태를 확인해주세요."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
     try:
         from worker_config import PROJECT_ROOT
         pull_res = subprocess.run(
