@@ -78,6 +78,20 @@ function jsonBlock(label: string, value: any) {
     }
 }
 
+function compactTitleCandidates(titleGeneration: any, limit = 6) {
+    const data = titleGeneration && typeof titleGeneration === 'object' ? titleGeneration : {}
+    const candidates = Array.isArray(data.title_candidates) ? data.title_candidates : []
+    return {
+        generated_title: String(data.generated_title || data.final_title || '').slice(0, 180),
+        selected_score: data.selected_score ?? null,
+        title_candidates: candidates.slice(0, limit).map((candidate: any) => ({
+            title: String(candidate?.title || '').slice(0, 180),
+            angle: String(candidate?.angle || '').slice(0, 220),
+            score: candidate?.final_score ?? candidate?.score ?? null,
+        })).filter((candidate: any) => candidate.title),
+    }
+}
+
 export async function syncContentFeedbackToNotion(row: any): Promise<void> {
     const token = notionToken()
     const databaseId = notionLearningDatabaseId()
@@ -122,6 +136,7 @@ export async function syncContentFeedbackToNotion(row: any): Promise<void> {
             },
             jsonBlock('metrics', row.metrics || {}),
             jsonBlock('title_generation', row.title_generation || {}),
+            jsonBlock('title_candidates_compact', compactTitleCandidates(row.title_generation || {})),
             jsonBlock('benchmark_summary', row.benchmark_summary || {}),
             jsonBlock('evaluation', row.evaluation || {}),
         ],

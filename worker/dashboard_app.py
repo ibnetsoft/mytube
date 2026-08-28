@@ -24,6 +24,7 @@ from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, 
 from fastapi.concurrency import run_in_threadpool
 from local_api_token import verify_token
 from logging_setup import get_logger
+from notion_learning import _first_prop_by_type, _plain_text
 from worker_config import LOG_DIR, MANAGER_STATUS_FILE, OUTPUT_DIR, STATE_DIR, WORKER_ID, WORKER_PROFILE
 from hermes_autopilot import CATEGORIES, DEFAULT_CATEGORY_TARGET_DURATION_SECONDS, HermesAutopilotManager
 
@@ -1060,6 +1061,28 @@ def _notion_json_block(label: str, value) -> dict:
     }
 
 
+def _compact_title_candidates(title_generation: dict | None, limit: int = 6) -> dict:
+    data = title_generation if isinstance(title_generation, dict) else {}
+    candidates = data.get("title_candidates") if isinstance(data.get("title_candidates"), list) else []
+    compact = []
+    for candidate in candidates[:limit]:
+        if not isinstance(candidate, dict):
+            continue
+        title = str(candidate.get("title") or "").strip()
+        if not title:
+            continue
+        compact.append({
+            "title": title[:180],
+            "angle": str(candidate.get("angle") or "").strip()[:220],
+            "score": candidate.get("final_score", candidate.get("score")),
+        })
+    return {
+        "generated_title": str(data.get("generated_title") or data.get("final_title") or "").strip()[:180],
+        "selected_score": data.get("selected_score"),
+        "title_candidates": compact,
+    }
+
+
 def _notion_rich_text_items(value) -> list[dict]:
     content = str(value or "").strip()[:1900]
     return [{"type": "text", "text": {"content": content}}]
@@ -1218,6 +1241,7 @@ def _history_feedback_row(result_id: str, data: dict) -> dict | None:
         "reviewer_note": "Backfilled from local worker history",
         "metrics": metrics,
         "title_generation": data.get("title_generation") if isinstance(data.get("title_generation"), dict) else {},
+        "title_candidates_compact": _compact_title_candidates(data.get("title_generation")),
         "benchmark_summary": {
             "benchmark_analysis": data.get("benchmark_analysis"),
             "research_bundle": data.get("research_bundle") or structure.get("research_bundle"),
@@ -1306,6 +1330,19 @@ def _notion_property_value(prop: dict | None, value):
     return None
 
 
+def _parse_learning_text_fields(text: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        normalized = key.strip().lower()
+        if normalized in {"topic queue id", "source job id", "generated title", "topic", "category"}:
+            result[normalized] = value.strip()
+    return result
+
+
 async def _notion_fetch_database_properties(
     client: httpx.AsyncClient,
     token: str,
@@ -1323,6 +1360,112 @@ async def _notion_fetch_database_properties(
     data = response.json()
     props = data.get("properties")
     return props if isinstance(props, dict) else {}
+
+
+async def _notion_query_database_pages(
+    client: httpx.AsyncClient,
+    token: str,
+    database_id: str,
+    limit: int,
+) -> list[dict]:
+    response = await client.post(
+        f"https://api.notion.com/v1/databases/{database_id}/query",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+        },
+        json={
+            "page_size": max(1, min(100, int(limit or 50))),
+            "sorts": [{"property": "Created At", "direction": "descending"}],
+        },
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Notion page query failed: {response.status_code} {response.text[:240]}")
+    data = response.json()
+    return [page for page in (data.get("results") or []) if isinstance(page, dict)]
+
+
+async def _notion_fetch_page_blocks(
+    client: httpx.AsyncClient,
+    token: str,
+    page_id: str,
+) -> list[dict]:
+    response = await client.get(
+        f"https://api.notion.com/v1/blocks/{page_id}/children?page_size=100",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+        },
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Notion block fetch failed: {response.status_code} {response.text[:240]}")
+    data = response.json()
+    return [block for block in (data.get("results") or []) if isinstance(block, dict)]
+
+
+def _notion_block_json_map(blocks: list[dict]) -> dict[str, object]:
+    parsed: dict[str, object] = {}
+    for block in blocks or []:
+        if not isinstance(block, dict) or str(block.get("type") or "") != "code":
+            continue
+        code = block.get("code")
+        if not isinstance(code, dict):
+            continue
+        text = "".join(
+            str(((item.get("text") or {}).get("content")) or "")
+            for item in (code.get("rich_text") or [])
+            if isinstance(item, dict)
+        ).strip()
+        if not text:
+            continue
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and len(payload) == 1:
+            key = next(iter(payload))
+            parsed[str(key)] = payload.get(key)
+    return parsed
+
+
+async def _notion_append_page_children(
+    client: httpx.AsyncClient,
+    token: str,
+    page_id: str,
+    children: list[dict],
+) -> None:
+    response = await client.patch(
+        f"https://api.notion.com/v1/blocks/{page_id}/children",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+        },
+        json={"children": children},
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Notion append children failed: {response.status_code} {response.text[:240]}")
+
+
+def _local_result_row_index(limit: int = 500) -> dict[str, dict]:
+    index: dict[str, dict] = {}
+    merged_results = _collect_topic_generated_results(limit=limit)
+    for result_id, data in merged_results.items():
+        row = _history_feedback_row(result_id, data)
+        if not row:
+            continue
+        topic_queue_id = str(row.get("topic_queue_id") or "").strip()
+        generated_title = str(row.get("generated_title") or "").strip()
+        source_job_id = str(row.get("source_job_id") or "").strip()
+        if topic_queue_id:
+            index[f"topic:{topic_queue_id}"] = row
+        if source_job_id:
+            index[f"job:{source_job_id}"] = row
+        if generated_title:
+            index[f"title:{generated_title.lower()}"] = row
+    return index
 
 
 async def _notion_page_exists_for_topic_queue_id(
@@ -1429,6 +1572,7 @@ async def _sync_history_row_to_notion(
             },
             _notion_json_block("metrics", row.get("metrics") or {}),
             _notion_json_block("title_generation", row.get("title_generation") or {}),
+            _notion_json_block("title_candidates_compact", row.get("title_candidates_compact") or _compact_title_candidates(row.get("title_generation"))),
             _notion_json_block("benchmark_summary", row.get("benchmark_summary") or {}),
             _notion_json_block("evaluation", row.get("evaluation") or {}),
         ],
@@ -2519,6 +2663,112 @@ async def api_notion_backfill_history(
         "failed_count": len(failed),
         "inserted": inserted[:20],
         "skipped_existing": skipped_existing[:20],
+        "failed": failed[:20],
+    }
+
+
+@app.post("/api/notion/repair-title-candidates")
+async def api_notion_repair_title_candidates(
+    body: dict | None = Body(default=None),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    body = body or {}
+    token = _notion_token()
+    database_id = _notion_learning_database_id()
+    if not token or not database_id:
+        return {
+            "success": False,
+            "error": "Notion API Key 또는 Notion Learning Database ID가 설정되지 않았습니다.",
+        }
+
+    limit = max(1, min(500, int(body.get("limit") or 50)))
+    dry_run = bool(body.get("dry_run", False))
+    local_index = _local_result_row_index(limit=max(limit * 4, 200))
+
+    repaired: list[dict] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        pages = await _notion_query_database_pages(client, token, database_id, limit)
+        for page in pages:
+            page_id = str(page.get("id") or "").strip()
+            props = page.get("properties") if isinstance(page.get("properties"), dict) else {}
+            title_prop = props.get("Name") or props.get("이름") or _first_prop_by_type(props, "title")
+            page_title = _plain_text(title_prop)
+            learning_text = _plain_text(props.get("Learning Text"))
+            fields = _parse_learning_text_fields(learning_text)
+            topic_queue_id = fields.get("topic queue id", "").strip()
+            source_job_id = fields.get("source job id", "").strip()
+            try:
+                blocks = await _notion_fetch_page_blocks(client, token, page_id)
+                block_map = _notion_block_json_map(blocks)
+                compact_block = block_map.get("title_candidates_compact")
+                if isinstance(compact_block, dict) and isinstance(compact_block.get("title_candidates"), list) and compact_block.get("title_candidates"):
+                    skipped.append({
+                        "page_id": page_id,
+                        "generated_title": page_title or fields.get("generated title") or "",
+                        "reason": "compact block already present",
+                    })
+                    continue
+
+                source_row = None
+                for key in (
+                    f"topic:{topic_queue_id}" if topic_queue_id else "",
+                    f"job:{source_job_id}" if source_job_id else "",
+                    f"title:{str(page_title or fields.get('generated title') or '').strip().lower()}",
+                ):
+                    if key and key in local_index:
+                        source_row = local_index[key]
+                        break
+                if not source_row:
+                    failed.append({
+                        "page_id": page_id,
+                        "generated_title": page_title or fields.get("generated title") or "",
+                        "error": "matching local result not found",
+                    })
+                    continue
+
+                compact_payload = source_row.get("title_candidates_compact") or _compact_title_candidates(source_row.get("title_generation"))
+                if not isinstance(compact_payload, dict) or not (compact_payload.get("title_candidates") or []):
+                    failed.append({
+                        "page_id": page_id,
+                        "generated_title": page_title or fields.get("generated title") or "",
+                        "error": "local result has no reusable title candidates",
+                    })
+                    continue
+
+                if not dry_run:
+                    await _notion_append_page_children(
+                        client,
+                        token,
+                        page_id,
+                        [_notion_json_block("title_candidates_compact", compact_payload)],
+                    )
+                repaired.append({
+                    "page_id": page_id,
+                    "generated_title": page_title or fields.get("generated title") or "",
+                    "topic_queue_id": topic_queue_id,
+                    "candidate_count": len(compact_payload.get("title_candidates") or []),
+                })
+            except Exception as exc:
+                failed.append({
+                    "page_id": page_id,
+                    "generated_title": page_title or fields.get("generated title") or "",
+                    "error": str(exc),
+                })
+
+    return {
+        "success": True,
+        "dry_run": dry_run,
+        "scanned_candidates": len(pages),
+        "repaired_count": len(repaired),
+        "skipped_count": len(skipped),
+        "failed_count": len(failed),
+        "repaired": repaired[:20],
+        "skipped": skipped[:20],
         "failed": failed[:20],
     }
 
@@ -4257,6 +4507,9 @@ tr:hover { background: #161b22; }
             <button class="btn" id="notion-backfill-btn" onclick="backfillNotionHistory(false)" style="padding:9px 14px;cursor:pointer;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.45);color:#79c0ff;">
               과거 작업 Notion 백필
             </button>
+            <button class="btn" id="notion-repair-candidates-btn" onclick="repairNotionTitleCandidates(false)" style="padding:9px 14px;cursor:pointer;background:rgba(244,114,182,0.12);border:1px solid rgba(244,114,182,0.35);color:#f9a8d4;">
+              기존 후보 제목 복구
+            </button>
             <span id="notion-settings-status" style="font-size:13px;color:#8b949e"></span>
           </div>
           <div style="font-size:11px;color:#8b949e;margin-top:8px;">
@@ -4264,6 +4517,8 @@ tr:hover { background: #161b22; }
           </div>
           <div id="notion-backfill-summary" style="display:none;margin-top:14px;padding:12px 14px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(13,17,23,0.55);font-size:12px;color:#c9d1d9;"></div>
           <div id="notion-backfill-results" style="display:none;margin-top:12px;"></div>
+          <div id="notion-repair-summary" style="display:none;margin-top:14px;padding:12px 14px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(13,17,23,0.55);font-size:12px;color:#c9d1d9;"></div>
+          <div id="notion-repair-results" style="display:none;margin-top:12px;"></div>
         </div>
 
         <div class="card">
@@ -6871,6 +7126,105 @@ async function previewNotionBackfill() {
 
 async function backfillNotionHistory() {
   await runNotionBackfill(false);
+}
+
+function renderNotionRepairResults(res, mode = 'preview') {
+  const summaryEl = document.getElementById('notion-repair-summary');
+  const resultsEl = document.getElementById('notion-repair-results');
+  if (!summaryEl || !resultsEl) return;
+
+  const repaired = Array.isArray(res?.repaired) ? res.repaired : [];
+  const skipped = Array.isArray(res?.skipped) ? res.skipped : [];
+  const failed = Array.isArray(res?.failed) ? res.failed : [];
+  const modeLabel = mode === 'preview' ? '미리보기' : '실행 결과';
+
+  summaryEl.style.display = 'block';
+  summaryEl.innerHTML = `
+    <div style="font-weight:700;color:#f0f6fc;margin-bottom:6px;">후보 제목 복구 ${modeLabel}</div>
+    <div>스캔 ${Number(res?.scanned_candidates || 0)}건, 복구 ${Number(res?.repaired_count || 0)}건, 건너뜀 ${Number(res?.skipped_count || 0)}건, 실패 ${Number(res?.failed_count || 0)}건</div>
+  `;
+
+  const repairedHtml = repaired.length
+    ? repaired.map(item => `<div style="padding:8px 10px;border-radius:6px;background:rgba(46,160,67,0.12);border:1px solid rgba(46,160,67,0.3);">${escapeHtml(item.generated_title || item.page_id || '-')}<div style="font-size:11px;color:#8b949e;margin-top:2px;">${escapeHtml(item.topic_queue_id || '-')} / 후보 ${escapeHtml(String(item.candidate_count || 0))}건</div></div>`).join('')
+    : '<div class="info">복구 대상이 없습니다.</div>';
+  const skippedHtml = skipped.length
+    ? skipped.map(item => `<div style="padding:8px 10px;border-radius:6px;background:rgba(139,148,158,0.12);border:1px solid rgba(139,148,158,0.25);">${escapeHtml(item.generated_title || item.page_id || '-')}<div style="font-size:11px;color:#8b949e;margin-top:2px;">${escapeHtml(item.reason || '건너뜀')}</div></div>`).join('')
+    : '<div class="info">건너뛴 항목이 없습니다.</div>';
+  const failedHtml = failed.length
+    ? failed.map(item => `<div style="padding:8px 10px;border-radius:6px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);">${escapeHtml(item.generated_title || item.page_id || '-')}<div style="font-size:11px;color:#ffb4a9;margin-top:4px;word-break:break-word;">${escapeHtml(item.error || '오류')}</div></div>`).join('')
+    : '<div class="info">실패한 항목이 없습니다.</div>';
+
+  resultsEl.style.display = 'grid';
+  resultsEl.style.gridTemplateColumns = 'repeat(auto-fit, minmax(240px, 1fr))';
+  resultsEl.style.gap = '12px';
+  resultsEl.innerHTML = `
+    <div style="padding:12px;border:1px solid rgba(46,160,67,0.18);border-radius:8px;background:rgba(46,160,67,0.04);">
+      <div style="font-weight:700;color:#7ee787;margin-bottom:8px;">복구 예정/완료</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">${repairedHtml}</div>
+    </div>
+    <div style="padding:12px;border:1px solid rgba(139,148,158,0.18);border-radius:8px;background:rgba(139,148,158,0.04);">
+      <div style="font-weight:700;color:#c9d1d9;margin-bottom:8px;">건너뜀</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">${skippedHtml}</div>
+    </div>
+    <div style="padding:12px;border:1px solid rgba(248,81,73,0.18);border-radius:8px;background:rgba(248,81,73,0.04);">
+      <div style="font-weight:700;color:#ffb4a9;margin-bottom:8px;">실패</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">${failedHtml}</div>
+    </div>
+  `;
+}
+
+async function runNotionTitleCandidateRepair(dryRun = false) {
+  const statusEl = document.getElementById('notion-settings-status');
+  const repairBtnEl = document.getElementById('notion-repair-candidates-btn');
+  const { limit } = notionBackfillOptions();
+
+  if (!dryRun && !confirm(`최근 노션 학습 행 최대 ${limit}건을 검사해서 비선정 후보 제목 복구 블록을 추가합니다.\n계속할까요?`)) {
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = dryRun ? '후보 제목 복구 미리보기 조회 중...' : '후보 제목 복구 실행 중...';
+    statusEl.style.color = '#8b949e';
+  }
+  if (repairBtnEl) repairBtnEl.disabled = true;
+
+  try {
+    const res = await api('POST', '/api/notion/repair-title-candidates', {
+      limit,
+      dry_run: dryRun,
+    });
+    if (res && res.success) {
+      const message = dryRun
+        ? `복구 미리보기 완료: 복구 예정 ${res.repaired_count || 0}건, 건너뜀 ${res.skipped_count || 0}건, 실패 ${res.failed_count || 0}건`
+        : `후보 제목 복구 완료: ${res.repaired_count || 0}건, 건너뜀 ${res.skipped_count || 0}건, 실패 ${res.failed_count || 0}건`;
+      showToast(message, res.failed_count ? 'info' : 'success');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.style.color = res.failed_count ? '#f0883e' : '#3fb950';
+      }
+      renderNotionRepairResults(res, dryRun ? 'preview' : 'execute');
+    } else {
+      const errorMessage = res?.error || '알 수 없는 오류';
+      showToast(`후보 제목 복구 실패: ${errorMessage}`, 'error');
+      if (statusEl) {
+        statusEl.textContent = `후보 제목 복구 실패: ${errorMessage}`;
+        statusEl.style.color = '#f85149';
+      }
+    }
+  } catch (e) {
+    const errorMessage = e?.message || String(e);
+    showToast(`후보 제목 복구 오류: ${errorMessage}`, 'error');
+    if (statusEl) {
+      statusEl.textContent = `후보 제목 복구 오류: ${errorMessage}`;
+      statusEl.style.color = '#f85149';
+    }
+  } finally {
+    if (repairBtnEl) repairBtnEl.disabled = false;
+  }
+}
+
+async function repairNotionTitleCandidates(dryRun = false) {
+  await runNotionTitleCandidateRepair(dryRun);
 }
 
 async function loadGitInfo() {

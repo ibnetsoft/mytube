@@ -2095,11 +2095,28 @@ Return ONLY JSON:
 
         successful_titles = []
         failed_titles = []
+        successful_title_alternatives = []
+        failed_title_alternatives = []
+        recent_title_candidate_packs = []
         successful_script_patterns = []
         failed_script_patterns = []
         recurring_avoid_rules = []
         for row in rows or []:
             title = str(row.get("generated_title") or "").strip()
+            title_generation = row.get("title_generation") if isinstance(row.get("title_generation"), dict) else {}
+            candidate_rows = title_generation.get("title_candidates") if isinstance(title_generation.get("title_candidates"), list) else []
+            alternative_titles = []
+            for candidate in candidate_rows:
+                if not isinstance(candidate, dict):
+                    continue
+                candidate_title = str(candidate.get("title") or "").strip()
+                if not candidate_title or candidate_title == title:
+                    continue
+                alternative_titles.append({
+                    "title": candidate_title,
+                    "angle": str(candidate.get("angle") or "").strip(),
+                    "score": candidate.get("final_score", candidate.get("score")),
+                })
             evaluation = row.get("evaluation") or {}
             quality_report = evaluation.get("worker_script_quality_report") or {}
             blueprint = evaluation.get("narrative_blueprint") or {}
@@ -2107,9 +2124,20 @@ Return ONLY JSON:
             script_score = float(row.get("script_score") or 0)
             blended = title_score * 0.45 + script_score * 0.55
             quality = row.get("outcome_quality")
+            if title or alternative_titles:
+                recent_title_candidate_packs.append({
+                    "selected_title": title,
+                    "alternatives": alternative_titles[:5],
+                    "quality": quality,
+                    "title_score": title_score,
+                    "script_score": script_score,
+                    "source": row.get("feedback_source"),
+                })
             if quality in ("excellent", "good") or blended >= 75:
                 if title:
                     successful_titles.append(title)
+                for item in alternative_titles[:5]:
+                    successful_title_alternatives.append(item)
                 strengths = [str(item).strip() for item in (quality_report.get("strengths") or []) if str(item or "").strip()]
                 if strengths:
                     successful_script_patterns.extend(strengths[:3])
@@ -2125,6 +2153,8 @@ Return ONLY JSON:
             elif quality in ("poor", "rejected") or blended < 55:
                 if title:
                     failed_titles.append(title)
+                for item in alternative_titles[:5]:
+                    failed_title_alternatives.append(item)
                 issues = [
                     str(item).strip()
                     for item in [
@@ -2170,11 +2200,15 @@ Return ONLY JSON:
             "performance_sample_count": len(performance_rows or []),
             "successful_titles": successful_titles[:8],
             "failed_titles": failed_titles[:8],
+            "successful_title_alternatives": _dedupe(successful_title_alternatives, 20),
+            "failed_title_alternatives": _dedupe(failed_title_alternatives, 20),
+            "recent_title_candidate_packs": _dedupe(recent_title_candidate_packs, 8),
             "successful_script_patterns": _dedupe(successful_script_patterns, 10),
             "failed_script_patterns": _dedupe(failed_script_patterns, 12),
             "performance_lessons": _dedupe(performance_lessons, 8),
             "script_generation_rules": {
                 "reuse": "Reuse only abstract hook, tension, reveal, and payoff patterns from successful rows.",
+                "title_candidate_reuse": "Alternative title candidates can be reused as inspiration when they match the category, but never copy them verbatim.",
                 "avoid": _dedupe(recurring_avoid_rules, 10),
                 "never": [
                     "Do not copy titles, names, incidents, or wording from previous outputs.",
@@ -2251,6 +2285,7 @@ Rules:
 - Prefer concrete situations, human stakes, curiosity, and a natural documentary/story tone.
 - {lang_ctx["length_rule"]}
 - Use successful learning-memory titles only as structural inspiration; do not copy their wording.
+- Alternative title candidates from learning memory are reusable idea-bank material even when they were not selected previously, but treat them as inspiration only and never reuse them verbatim.
 - Avoid title shapes that are similar to failed or rejected learning-memory titles.
 - Use the category language consistently. Do not output Korean titles for English/Japanese categories, and do not mix languages unless an unavoidable proper noun requires it.
 

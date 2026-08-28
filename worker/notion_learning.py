@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import json
 from typing import Any
 
 import httpx
+import worker_config  # noqa: F401  # ensure worker env is loaded before reading Notion settings
 
 
 NOTION_VERSION = "2022-06-28"
@@ -65,8 +67,24 @@ def _row_from_page(page: dict[str, Any]) -> dict[str, Any]:
     props = page.get("properties") if isinstance(page, dict) else {}
     props = props if isinstance(props, dict) else {}
     title_prop = props.get("Name") or props.get("이름") or _first_prop_by_type(props, "title")
+    notion_blocks = page.get("_notion_blocks") if isinstance(page.get("_notion_blocks"), dict) else {}
+    title_generation = notion_blocks.get("title_generation") if isinstance(notion_blocks.get("title_generation"), dict) else {}
+    compact_title_generation = notion_blocks.get("title_candidates_compact") if isinstance(notion_blocks.get("title_candidates_compact"), dict) else {}
+    if not title_generation and compact_title_generation:
+        title_generation = compact_title_generation
+    elif title_generation and compact_title_generation:
+        existing = title_generation.get("title_candidates")
+        if (not isinstance(existing, list) or not existing) and isinstance(compact_title_generation.get("title_candidates"), list):
+            title_generation = {
+                **title_generation,
+                "generated_title": title_generation.get("generated_title") or compact_title_generation.get("generated_title"),
+                "selected_score": title_generation.get("selected_score", compact_title_generation.get("selected_score")),
+                "title_candidates": compact_title_generation.get("title_candidates") or [],
+            }
+    metrics = notion_blocks.get("metrics") if isinstance(notion_blocks.get("metrics"), dict) else {}
+    evaluation = notion_blocks.get("evaluation") if isinstance(notion_blocks.get("evaluation"), dict) else {}
     return {
-        "generated_title": _plain_text(title_prop),
+        "generated_title": _plain_text(title_prop) or str(title_generation.get("generated_title") or title_generation.get("final_title") or "").strip(),
         "production_topic": _plain_text(props.get("Learning Text")),
         "category_id": _plain_text(props.get("Category ID")),
         "category_name": _plain_text(props.get("Category")),
@@ -74,10 +92,13 @@ def _row_from_page(page: dict[str, Any]) -> dict[str, Any]:
         "script_score": _number(props.get("Script Score")),
         "outcome_quality": _select_name(props.get("Quality")) or "unknown",
         "feedback_source": _select_name(props.get("Source")) or "notion",
-        "metrics": {},
+        "metrics": metrics,
+        "title_generation": title_generation,
+        "benchmark_summary": notion_blocks.get("benchmark_summary") if isinstance(notion_blocks.get("benchmark_summary"), dict) else {},
         "evaluation": {
             "type": "notion_text_memory",
             "learning_text": _plain_text(props.get("Learning Text")),
+            **evaluation,
         },
         "created_at": _date_start(props.get("Created At")) or page.get("created_time"),
     }
@@ -149,6 +170,55 @@ def _put_property(target: dict[str, Any], properties: dict[str, Any], name: str,
         target[name] = converted
 
 
+def _parse_code_block_payload(block: dict[str, Any]) -> tuple[str, Any] | None:
+    if not isinstance(block, dict) or str(block.get("type") or "") != "code":
+        return None
+    code = block.get("code")
+    if not isinstance(code, dict):
+        return None
+    text = "".join(
+        str(((item.get("text") or {}).get("content")) or "")
+        for item in (code.get("rich_text") or [])
+        if isinstance(item, dict)
+    ).strip()
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or len(payload) != 1:
+        return None
+    key = next(iter(payload))
+    return str(key), payload.get(key)
+
+
+async def _fetch_page_blocks(
+    client: httpx.AsyncClient,
+    token: str,
+    page_id: str,
+) -> dict[str, Any]:
+    response = await client.get(
+        f"https://api.notion.com/v1/blocks/{page_id}/children?page_size=100",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": NOTION_VERSION,
+        },
+    )
+    if response.status_code != 200:
+        return {}
+    data = response.json()
+    blocks: dict[str, Any] = {}
+    for item in data.get("results") or []:
+        parsed = _parse_code_block_payload(item)
+        if not parsed:
+            continue
+        key, value = parsed
+        blocks[key] = value
+    return blocks
+
+
 async def fetch_learning_rows(category_id: str | None, category_name: str, limit: int = 30) -> list[dict[str, Any]]:
     token = _token()
     database_id = _database_id()
@@ -180,10 +250,18 @@ async def fetch_learning_rows(category_id: str | None, category_name: str, limit
             },
             json=payload,
         )
-    if response.status_code != 200:
-        return []
-    data = response.json()
-    return [_row_from_page(page) for page in data.get("results") or [] if isinstance(page, dict)]
+        if response.status_code != 200:
+            return []
+        data = response.json()
+        rows = []
+        for page in data.get("results") or []:
+            if not isinstance(page, dict):
+                continue
+            page_id = str(page.get("id") or "").strip()
+            if page_id:
+                page["_notion_blocks"] = await _fetch_page_blocks(client, token, page_id)
+            rows.append(_row_from_page(page))
+        return rows
 
 
 async def fetch_music_learning_rows(target_market: str, genre: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
