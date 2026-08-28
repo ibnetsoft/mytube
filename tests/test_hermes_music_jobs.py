@@ -74,3 +74,15 @@ def test_worker_auth_declares_music_job_types():
 
     assert "'music_trend_analyze'" in source
     assert "'music_prompt_pack_generate'" in source
+
+
+def test_music_prompt_pack_uses_notion_music_learning_memory():
+    source = (ROOT / "worker" / "hermes_worker.py").read_text(encoding="utf-8")
+    helper = (ROOT / "worker" / "notion_learning.py").read_text(encoding="utf-8")
+
+    assert "fetch_music_learning_rows" in helper
+    assert "create_music_learning_row" in helper
+    assert "fetch_music_learning_rows(target_market, genre" in source
+    assert "Notion music learning memory JSON" in source
+    assert "notion_music_learning_count" in source
+    assert "create_music_learning_row" in source

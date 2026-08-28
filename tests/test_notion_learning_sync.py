@@ -50,3 +50,16 @@ def test_worker_settings_can_save_notion_env_values():
     assert "worker-set-notion-db-id" in dashboard
     assert "notion_api_key_set" in dashboard
     assert "notionApiKeyEl.value = ''" in dashboard
+
+
+def test_music_learning_sync_uses_notion_database_schema():
+    sync = read("auth-web/lib/notionLearningSync.ts")
+    route = read("auth-web/app/api/std/music-missions/submit/route.ts")
+
+    assert "notionDatabaseProperties" in sync
+    assert "titlePropertyName(databaseProperties)" in sync
+    assert "syncMusicLearningToNotion" in sync
+    assert "String(row.target_market || row.market || 'global').trim().toLowerCase()" in sync
+    assert "syncMusicLearningToNotion" in route
+    assert "source: 'music_submission'" in route
+    assert "prompt_used: promptUsed" in route

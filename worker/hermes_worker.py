@@ -151,6 +151,7 @@ SUPPORTED_JOB_TYPES = [
     "script_plan_generate",
     "script_generate",
     "publish_metadata_generate",
+    "music_prompt_pack_generate",
 ]
 DEFAULT_COUNT = 10
 MAX_COUNT = 30
@@ -2467,6 +2468,248 @@ Return JSON only:
     job_log.info("WEB_RESEARCH complete: %d sources; queries=%r", len(bundle["sources"]), bundle["search_queries"])
     for source in bundle["sources"]:
         job_log.info("WEB_SOURCE title=%r url=%s", source["title"], source["url"])
+    return str(result_path), result_payload
+
+
+def _normalize_music_prompt_tasks(data: dict, payload: dict) -> list[dict]:
+    raw_tracks = data.get("tracks")
+    if not isinstance(raw_tracks, list):
+        raw_tracks = []
+
+    target_market = str(payload.get("target_market") or data.get("target_market") or "th").strip().lower()
+    genre_fallback = str(payload.get("genre") or data.get("genre") or "lofi").strip() or "lofi"
+    duration = payload.get("duration_target_seconds") or payload.get("track_duration_seconds") or 180
+    try:
+        duration = max(30, min(900, int(duration)))
+    except Exception:
+        duration = 180
+    reward = payload.get("reward_usdt", data.get("reward_usdt", 0.5))
+    try:
+        reward = max(0, float(reward))
+    except Exception:
+        reward = 0.5
+
+    tasks: list[dict] = []
+    for index, item in enumerate(raw_tracks, start=1):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or f"Music Mission {index:02d}").strip()
+        prompt = str(item.get("prompt") or item.get("suno_prompt") or "").strip()
+        if not prompt:
+            continue
+        rules = item.get("negative_rules")
+        if not isinstance(rules, list):
+            rules = [
+                "Do not imitate a real artist",
+                "Do not use copyrighted lyrics or melodies",
+                "No watermark or voice tag",
+            ]
+        tasks.append({
+            "title": title[:300],
+            "target_market": target_market,
+            "genre": str(item.get("genre") or genre_fallback).strip()[:120],
+            "mood": str(item.get("mood") or item.get("description") or "").strip()[:1000],
+            "prompt": prompt[:12000],
+            "negative_rules": [str(rule).strip() for rule in rules if str(rule).strip()][:10],
+            "duration_target_seconds": duration,
+            "reward_usdt": reward,
+            "max_submissions": max(1, int(payload.get("max_submissions_per_task") or 1)),
+            "metadata": {
+                "playlist_concept": data.get("playlist_concept") or payload.get("playlist_concept") or "",
+                "trend_summary": data.get("trend_summary") or "",
+                "source": "hermes_worker",
+            },
+        })
+    return tasks
+
+
+def _fallback_music_prompt_tasks(payload: dict) -> list[dict]:
+    track_count = payload.get("track_count") or 10
+    try:
+        track_count = max(1, min(100, int(track_count)))
+    except Exception:
+        track_count = 10
+    target_market = str(payload.get("target_market") or "th").strip().lower()
+    genre = str(payload.get("genre") or "lofi").strip() or "lofi"
+    concept = str(payload.get("playlist_concept") or "Relaxing Thai cafe music for work and study").strip()
+    mood = str(payload.get("mood") or "calm, warm, loopable, late night").strip()
+    tasks = []
+    for index in range(1, track_count + 1):
+        tasks.append({
+            "title": f"{concept[:80]} #{index:02d}",
+            "target_market": target_market,
+            "genre": genre,
+            "mood": mood,
+            "prompt": (
+                f"Original instrumental {genre} track for {concept}. "
+                f"Mood: {mood}. Soft arrangement, clean mix, loopable structure, "
+                "no vocals, no copyrighted melody, no artist imitation, suitable for a long relaxing YouTube playlist."
+            ),
+            "negative_rules": [
+                "Do not imitate a real artist",
+                "Do not use copyrighted lyrics or melodies",
+                "No watermark or voice tag",
+            ],
+            "duration_target_seconds": int(payload.get("duration_target_seconds") or 180),
+            "reward_usdt": float(payload.get("reward_usdt") or 0.5),
+            "max_submissions": max(1, int(payload.get("max_submissions_per_task") or 1)),
+            "metadata": {"playlist_concept": concept, "source": "hermes_worker_fallback"},
+        })
+    return tasks
+
+
+def _process_music_prompt_pack_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    payload = job.get("payload") or {}
+    target_market = str(payload.get("target_market") or "th").strip().lower()
+    playlist_concept = str(payload.get("playlist_concept") or "Relaxing Thai cafe music for work and study").strip()
+    genre = str(payload.get("genre") or "lofi").strip()
+    track_count = payload.get("track_count") or 10
+    try:
+        track_count = max(1, min(100, int(track_count)))
+    except Exception:
+        track_count = 10
+    duration = payload.get("duration_target_seconds") or 180
+    try:
+        duration = max(30, min(900, int(duration)))
+    except Exception:
+        duration = 180
+
+    ensure_project_root_on_path()
+    from config import Config
+    from services import ai_router
+
+    model = str(payload.get("model") or Config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash").strip()
+    market_label = {
+        "th": "Thailand",
+        "ko": "Korea",
+        "ja": "Japan",
+        "en": "global English-speaking",
+    }.get(target_market, target_market)
+    trend_context = payload.get("trend_context") or payload.get("benchmark_analysis") or {}
+    trend_context_text = json.dumps(trend_context, ensure_ascii=False)[:8000] if trend_context else "{}"
+    music_learning_rows: list[dict] = []
+    try:
+        import notion_learning
+
+        music_learning_rows = asyncio.run(notion_learning.fetch_music_learning_rows(target_market, genre, limit=20))
+        if music_learning_rows:
+            job_log.info("Notion music learning memory loaded: %d row(s)", len(music_learning_rows))
+    except Exception as exc:
+        job_log.warning("Notion music learning memory fetch failed (ignored): %s", exc)
+    music_learning_context = json.dumps(
+        [
+            {
+                "category": row.get("category"),
+                "source": row.get("source"),
+                "quality": row.get("quality"),
+                "learning_text": row.get("learning_text"),
+            }
+            for row in music_learning_rows[:20]
+        ],
+        ensure_ascii=False,
+    )[:10000]
+
+    prompt = f"""
+You are AIR Studio's music mission planner.
+Create contributor-ready AI music generation prompts for a long YouTube music video.
+
+Target market: {market_label}
+Playlist concept: {playlist_concept}
+Genre hint: {genre or "choose based on trend fit"}
+Track count: {track_count}
+Target duration per track: {duration} seconds
+Trend/context JSON: {trend_context_text}
+Notion music learning memory JSON: {music_learning_context or "[]"}
+
+Rules:
+- Apply Notion music learning memory as abstract taste and production guidance only.
+- Do not copy lyrics, melodies, titles, or exact prompt text from previous rows.
+- Prefer prompt patterns, genre/mood combinations, and negative rules that previous successful music rows indicate.
+
+Return JSON only:
+{{
+  "target_market": "{target_market}",
+  "playlist_concept": "clear playlist concept",
+  "trend_summary": "short explanation of why these genres/moods fit the market",
+  "tracks": [
+    {{
+      "title": "short original track title",
+      "genre": "specific genre",
+      "mood": "mood and use case",
+      "prompt": "complete English prompt for Suno-compatible music generation. Must request original music, no artist names, no copyrighted melodies, no copyrighted lyrics, clean mix, usable for commercial YouTube background or playlist.",
+      "negative_rules": ["no artist imitation", "no copyrighted melody", "no watermark"]
+    }}
+  ]
+}}
+"""
+    job_store.transition(job_id, job_store.RENDERING, reason="generating music prompt missions")
+    write_state("running", job, 45, job_id)
+
+    try:
+        raw = asyncio.run(
+            asyncio.wait_for(
+                ai_router.generate_text(
+                    prompt,
+                    model=model,
+                    temperature=0.75,
+                    task_type="music_prompt_pack_generate",
+                ),
+                timeout=120,
+            )
+        )
+        data = _extract_json(raw)
+        tasks = _normalize_music_prompt_tasks(data, payload)
+    except Exception as exc:
+        job_log.warning("Music prompt AI generation failed; using fallback prompts: %s", exc)
+        data = {"playlist_concept": playlist_concept, "trend_summary": "", "tracks": []}
+        tasks = _fallback_music_prompt_tasks(payload)
+
+    if not tasks:
+        tasks = _fallback_music_prompt_tasks(payload)
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.music_prompt_pack.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "music_prompt_pack_generate",
+        "status": "COMPLETED",
+        "target_market": target_market,
+        "playlist_concept": data.get("playlist_concept") or playlist_concept,
+        "trend_summary": data.get("trend_summary") or "",
+        "notion_music_learning_count": len(music_learning_rows),
+        "tasks": tasks,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        import notion_learning
+
+        for task in tasks[:20]:
+            asyncio.run(
+                notion_learning.create_music_learning_row(
+                    {
+                        "source": "music_prompt_pack",
+                        "source_id": f"music-prompt-pack:{job_id}:{task.get('title') or ''}",
+                        "job_id": job_id,
+                        "target_market": target_market,
+                        "genre": task.get("genre") or genre,
+                        "mood": task.get("mood"),
+                        "title": task.get("title"),
+                        "prompt": task.get("prompt"),
+                        "negative_rules": task.get("negative_rules"),
+                        "outcome_quality": "generated",
+                        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "metadata": {
+                            "playlist_concept": result_payload.get("playlist_concept"),
+                            "trend_summary": result_payload.get("trend_summary"),
+                        },
+                    }
+                )
+            )
+    except Exception as exc:
+        job_log.warning("Notion music prompt-pack sync failed (ignored): %s", exc)
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving music prompt mission pack")
+    job_store.transition(job_id, job_store.COMPLETED, reason="music prompt mission pack complete", output_path=str(result_path))
+    job_log.info("MUSIC_PROMPT_PACK complete: %d tasks", len(tasks))
     return str(result_path), result_payload
 
 
@@ -9264,6 +9507,40 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
 
         # topic_benchmark_analyze — no Supabase table to write to; results are
         # consumed by subsequent script_plan_generate / script_generate jobs.
+        elif job_type == "music_prompt_pack_generate":
+            tasks = result_payload.get("tasks") if isinstance(result_payload.get("tasks"), list) else []
+            if not tasks:
+                job_log.warning("No music prompt tasks in result_payload - skipping Supabase insert")
+                return
+            inserted = 0
+            for task in tasks:
+                if not isinstance(task, dict) or not task.get("prompt"):
+                    continue
+                row = {
+                    "title": str(task.get("title") or "Music Mission")[:300],
+                    "target_market": str(task.get("target_market") or result_payload.get("target_market") or "th")[:40],
+                    "genre": str(task.get("genre") or "lofi")[:120],
+                    "mood": str(task.get("mood") or "")[:1000],
+                    "prompt": str(task.get("prompt") or "")[:12000],
+                    "negative_rules": task.get("negative_rules") if isinstance(task.get("negative_rules"), list) else [],
+                    "duration_target_seconds": int(task.get("duration_target_seconds") or 180),
+                    "reward_usdt": float(task.get("reward_usdt") or 0),
+                    "max_submissions": int(task.get("max_submissions") or 1),
+                    "status": "open",
+                    "metadata": task.get("metadata") if isinstance(task.get("metadata"), dict) else {},
+                    "created_by_worker_id": WORKER_ID,
+                }
+                r = _req.post(
+                    f"{supabase_url}/rest/v1/music_prompt_tasks",
+                    json=row,
+                    headers=headers,
+                    timeout=10,
+                )
+                if r.status_code in (200, 201):
+                    inserted += 1
+                else:
+                    job_log.warning(f"Supabase music task insert failed: {r.status_code} {r.text[:200]}")
+            job_log.info("Supabase: inserted %d music prompt tasks", inserted)
 
     except Exception as e:
         job_log.warning(f"Supabase save failed (non-fatal): {e}")
@@ -9310,6 +9587,8 @@ def process_one_job(job: dict) -> None:
             output_ref, result_payload = _process_script_generate(job, job_id, job_log)
         elif job_type == "publish_metadata_generate":
             output_ref, result_payload = _process_publish_metadata_generate(job, job_id, job_log)
+        elif job_type == "music_prompt_pack_generate":
+            output_ref, result_payload = _process_music_prompt_pack_generate(job, job_id, job_log)
         else:
             output_ref, result_payload = _process_topic_research(job, job_id, job_log)
 
