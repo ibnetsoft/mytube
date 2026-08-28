@@ -184,13 +184,15 @@ def save_worker_settings(new_settings: dict) -> dict:
         "remote_google_token_path": "REMOTE_RENDER_GOOGLE_TOKEN_PATH",
         "remote_drive_folder_id": "REMOTE_RENDER_DRIVE_FOLDER_ID",
         "use_gpu_render": "USE_GPU_RENDER",
+        "notion_api_key": "NOTION_API_KEY",
+        "notion_learning_database_id": "NOTION_LEARNING_DATABASE_ID",
     }
 
     updates = {}
     for param_key, env_key in key_map.items():
         if param_key in new_settings:
             val = str(new_settings[param_key] or "").strip()
-            if param_key == "worker_token" and (val == "••••••••" or val.startswith("••••")):
+            if param_key in ("worker_token", "notion_api_key") and (val == "••••••••" or val.startswith("••••")):
                 continue  # skip masked token
             updates[env_key] = val
             os.environ[env_key] = val

@@ -46,6 +46,19 @@ def test_entrypoint_supports_split_worker_roles():
     assert '--profile' in source
 
 
+def test_dashboard_hides_script_nav_in_render_only_profile():
+    source = (WORKER_DIR / 'dashboard_app.py').read_text(encoding='utf-8')
+
+    assert 'data-worker-scope="script"' in source
+    assert 'data-worker-scope="all"' in source
+    assert "profile === 'render_only'" in source
+    assert "hiddenScopes.has(scope)" in source
+    assert "profile === 'content_only'" in source
+    assert "RENDER_JOB_TYPES" in source
+    assert "RENDER_PROCESS_NAMES" in source
+    assert "filterJobsForWorkerProfile" in source
+
+
 def test_api_rendering_jobs_endpoint_returns_combined_queue_structure():
     client = TestClient(dashboard_app.app)
     response = client.get('/api/rendering-jobs?limit=10')

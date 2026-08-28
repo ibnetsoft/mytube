@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireAdmin } from '../_auth'
+import { syncContentFeedbackToNotion } from '@/lib/notionLearningSync'
 
 export const dynamic = 'force-dynamic'
 
@@ -301,6 +302,7 @@ export async function POST(req: Request) {
             .single()
 
         if (error) throw error
+        await syncContentFeedbackToNotion(data || row)
         return NextResponse.json({ status: 'ok', feedback: data })
     } catch (error: any) {
         console.error('Learning feedback API error:', error)

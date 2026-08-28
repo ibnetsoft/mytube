@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 
 import job_store
+import notion_learning
 from worker_config import STATE_DIR, OUTPUT_DIR, PROJECT_ROOT, WORKER_ID, WORKER_INSTANCE_ID
 import logging
 from services import ai_router
@@ -2061,6 +2062,15 @@ Return ONLY JSON:
         except Exception as e:
             self.add_log(f"Learning memory fetch failed (ignored): {e}")
             return {}
+
+        notion_rows = []
+        try:
+            notion_rows = await notion_learning.fetch_learning_rows(category_id, category, limit=30)
+            if notion_rows:
+                self.add_log(f"Notion learning memory loaded: {len(notion_rows)} row(s)")
+                rows = list(rows or []) + notion_rows
+        except Exception as e:
+            self.add_log(f"Notion learning memory fetch failed (ignored): {e}")
 
         performance_rows = []
         if category_id:

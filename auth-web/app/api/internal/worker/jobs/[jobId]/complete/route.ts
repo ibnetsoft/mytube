@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { reportJobOutcome } from '@/lib/workerAuth'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { enqueueMusicPromptPackFromTrendJob } from '@/lib/musicHermesTrigger'
+import { syncContentFeedbackToNotion } from '@/lib/notionLearningSync'
 
 export const dynamic = 'force-dynamic'
 
@@ -536,12 +537,16 @@ async function recordContentGenerationFeedback(jobId: string, job: any, topicQue
             updated_at: new Date().toISOString(),
         }
 
-        const { error } = await supabaseAdmin
+        const { data: savedRow, error } = await supabaseAdmin
             .from('content_generation_feedback')
             .upsert(row, { onConflict: 'topic_queue_id,feedback_source' })
+            .select('*')
+            .single()
 
         if (error) {
             console.warn('[complete/route] content_generation_feedback insert failed (non-fatal):', error.message)
+        } else {
+            await syncContentFeedbackToNotion(savedRow || row)
         }
     } catch (e) {
         console.warn('[complete/route] content_generation_feedback sync failed (non-fatal):', e)

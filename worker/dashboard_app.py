@@ -1987,6 +1987,8 @@ async def api_get_worker_profile_settings(
     import worker_config
     token_val = os.environ.get("AIRWORKER_TOKEN") or worker_config.WORKER_TOKEN or ""
     masked_token = (token_val[:4] + "••••••••") if len(token_val) > 4 else ("••••••••" if token_val else "")
+    notion_token_val = os.environ.get("NOTION_API_KEY") or os.environ.get("NOTION_TOKEN") or ""
+    masked_notion_token = (notion_token_val[:4] + "••••••••") if len(notion_token_val) > 4 else ("••••••••" if notion_token_val else "")
     return {
         "worker_profile": worker_config.WORKER_PROFILE,
         "worker_id": os.environ.get("AIRWORKER_ID") or worker_config.WORKER_ID,
@@ -1995,6 +1997,9 @@ async def api_get_worker_profile_settings(
         "worker_token_set": bool(token_val),
         "remote_worker_id": os.environ.get("REMOTE_RENDER_WORKER_ID", ""),
         "use_gpu_render": os.environ.get("USE_GPU_RENDER", "false").lower() in ("true", "1", "yes"),
+        "notion_api_key": masked_notion_token,
+        "notion_api_key_set": bool(notion_token_val),
+        "notion_learning_database_id": os.environ.get("NOTION_LEARNING_DATABASE_ID", ""),
     }
 
 
@@ -2998,43 +3003,43 @@ tr:hover { background: #161b22; }
       <span>대시보드</span>
     </div>
     <div class="nav">
-      <div class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
+      <div class="nav-item active" data-tab="overview" data-worker-scope="all" onclick="switchTab('overview')">
         <span class="icon">&#x1F4CA;</span> 대시보드
       </div>
-      <div class="nav-item" data-tab="topic-search" onclick="switchTab('topic-search')">
+      <div class="nav-item" data-tab="topic-search" data-worker-scope="script" onclick="switchTab('topic-search')">
         <span class="icon">&#x1F50D;</span> 주제 찾기
       </div>
-      <div class="nav-item" data-tab="yt-explore" onclick="switchTab('yt-explore')">
+      <div class="nav-item" data-tab="yt-explore" data-worker-scope="script" onclick="switchTab('yt-explore')">
         <span class="icon">&#x1F30D;</span> YouTube 탐색
       </div>
-      <div class="nav-item" data-tab="hermes-autopilot" onclick="switchTab('hermes-autopilot')">
+      <div class="nav-item" data-tab="hermes-autopilot" data-worker-scope="script" onclick="switchTab('hermes-autopilot')">
         <span class="icon">&#x1F916;</span> Hermes 자동 생성
       </div>
-      <div class="nav-item" data-tab="generated-results" onclick="switchTab('generated-results')">
+      <div class="nav-item" data-tab="generated-results" data-worker-scope="script" onclick="switchTab('generated-results')">
         <span class="icon">&#x1F4D1;</span> 생성 결과 확인
       </div>
-      <div class="nav-item" data-tab="voicebox-tts" onclick="switchTab('voicebox-tts')">
+      <div class="nav-item" data-tab="voicebox-tts" data-worker-scope="script" onclick="switchTab('voicebox-tts')">
         <span class="icon">&#x1F399;</span> TTS 생성
       </div>
-      <div class="nav-item" data-tab="hermes-gen" onclick="switchTab('hermes-gen')">
+      <div class="nav-item" data-tab="hermes-gen" data-worker-scope="script" onclick="switchTab('hermes-gen')">
         <span class="icon">&#x1F4DD;</span> Hermes 제목 생성
       </div>
-      <div class="nav-item" data-tab="notebooklm" onclick="switchTab('notebooklm')">
+      <div class="nav-item" data-tab="notebooklm" data-worker-scope="script" onclick="switchTab('notebooklm')">
         <span class="icon">&#x2728;</span> NotebookLM 대본
       </div>
-      <div class="nav-item" data-tab="styles" onclick="switchTab('styles')">
+      <div class="nav-item" data-tab="styles" data-worker-scope="script" onclick="switchTab('styles')">
         <span class="icon">&#x1F3A8;</span> 스타일 관리
       </div>
-      <div class="nav-item" data-tab="category-image-styles" onclick="switchTab('category-image-styles')">
+      <div class="nav-item" data-tab="category-image-styles" data-worker-scope="script" onclick="switchTab('category-image-styles')">
         <span class="icon">&#x1F5BC;</span> 카테고리 이미지 스타일
       </div>
-      <div class="nav-item" data-tab="history" onclick="switchTab('history')">
+      <div class="nav-item" data-tab="history" data-worker-scope="all" onclick="switchTab('history')">
         <span class="icon">&#x1F4CB;</span> 작업 히스토리
       </div>
-      <div class="nav-item" data-tab="logs" onclick="switchTab('logs')">
+      <div class="nav-item" data-tab="logs" data-worker-scope="all" onclick="switchTab('logs')">
         <span class="icon">&#x1F4C4;</span> 로그
       </div>
-      <div class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+      <div class="nav-item" data-tab="settings" data-worker-scope="all" onclick="switchTab('settings')">
         <span class="icon">&#x2699;</span> 설정
       </div>
       <div style="margin: 14px 10px 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 6px;">
@@ -3583,6 +3588,16 @@ tr:hover { background: #161b22; }
               <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">🔑 워커 인증 토큰 (선택)</label>
               <input id="worker-set-token" type="password" placeholder="중앙 서버 발급 토큰" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
             </div>
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion API Key (선택)</label>
+              <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">대본워커가 Notion 학습 DB에 저장하고 다시 읽을 때 사용합니다.</div>
+            </div>
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion Learning Database ID (선택)</label>
+              <input id="worker-set-notion-db-id" type="text" placeholder="Notion database id" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">여러 PC에서 같은 DB ID를 쓰면 학습 텍스트가 공유됩니다.</div>
+            </div>
           </div>
 
           <div style="margin-top:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -3976,6 +3991,8 @@ const tabTitles = {
 };
 
 function switchTab(tabId) {
+  const nav = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+  if (nav && nav.style.display === 'none') tabId = 'overview';
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tabId).classList.add('active');
@@ -3993,6 +4010,72 @@ function switchTab(tabId) {
 }
 
 /* ── Time formatting ── */
+function applyWorkerProfileNavigation(status) {
+  const profile = status?.worker_profile || 'full';
+  const hiddenScopes = profile === 'render_only' ? new Set(['script']) : new Set();
+  document.querySelectorAll('.nav-item[data-worker-scope]').forEach(item => {
+    const scope = item.dataset.workerScope || 'all';
+    item.style.display = hiddenScopes.has(scope) ? 'none' : '';
+  });
+  updateRoleScopedSelectOptions(profile);
+  const active = document.querySelector('.nav-item.active');
+  if (active && active.style.display === 'none') switchTab('overview');
+}
+
+const RENDER_JOB_TYPES = new Set(['render_video', 'drive_api_render']);
+const SCRIPT_JOB_TYPES = new Set([
+  'topic_research',
+  'topic_benchmark_analyze',
+  'web_research',
+  'script_plan_generate',
+  'script_generate',
+  'publish_metadata_generate',
+  'music_prompt_pack_generate',
+  'hermes_autopilot_step',
+]);
+const RENDER_PROCESS_NAMES = new Set(['render_worker', 'remote_drive_worker']);
+const SCRIPT_PROCESS_NAMES = new Set(['hermes_worker']);
+
+function visibleForWorkerProfile(scope, profile) {
+  if (profile === 'content_only') return scope !== 'render';
+  if (profile === 'render_only') return scope !== 'script';
+  return true;
+}
+
+function jobScope(jobType) {
+  if (RENDER_JOB_TYPES.has(jobType)) return 'render';
+  if (SCRIPT_JOB_TYPES.has(jobType)) return 'script';
+  return 'all';
+}
+
+function processScope(name) {
+  if (RENDER_PROCESS_NAMES.has(name)) return 'render';
+  if (SCRIPT_PROCESS_NAMES.has(name)) return 'script';
+  return 'all';
+}
+
+function filterJobsForWorkerProfile(jobs) {
+  const profile = window.latestWorkerStatus?.worker_profile || 'full';
+  return (jobs || []).filter(job => visibleForWorkerProfile(jobScope(job.job_type), profile));
+}
+
+function updateRoleScopedSelectOptions(profile) {
+  const typeSelect = document.getElementById('hist-filter-type');
+  if (typeSelect) {
+    Array.from(typeSelect.options).forEach(option => {
+      option.hidden = !visibleForWorkerProfile(jobScope(option.value), profile);
+    });
+    if (typeSelect.selectedOptions[0]?.hidden) typeSelect.value = '';
+  }
+  const logSelect = document.getElementById('log-process');
+  if (logSelect) {
+    Array.from(logSelect.options).forEach(option => {
+      option.hidden = !visibleForWorkerProfile(processScope(option.value), profile);
+    });
+    if (logSelect.selectedOptions[0]?.hidden) logSelect.value = 'manager';
+  }
+}
+
 function fmtTime(ts) {
   if (!ts) return '-';
   const d = (typeof ts === 'number' || (!isNaN(Number(ts)) && !String(ts).includes('-') && !String(ts).includes('T'))) ? new Date(Number(ts) * 1000) : new Date(ts);
@@ -4111,6 +4194,7 @@ function renderProcessCards(status, jobs = []) {
   let html = '';
   for (const [name, info] of Object.entries(procs)) {
     if (name === 'updater') continue;
+    if (!visibleForWorkerProfile(processScope(name), workerProfile)) continue;
     const s = info.status || 'stopped';
     const label = {render_worker:'영상 작업 Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
     const icon = {render_worker:'\u{1F3AC}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
@@ -4678,6 +4762,7 @@ function renderRecentJobs(jobs) {
   const el = document.getElementById('recent-jobs-container');
   const empty = document.getElementById('recent-empty');
   if (!el) return;
+  jobs = filterJobsForWorkerProfile(jobs);
   if (!jobs.length) { el.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
 
@@ -5213,7 +5298,7 @@ function loadHistory() {
   if (status) url += `&status=${status}`;
   api('GET', url).then(data => {
     if (!data) return;
-    let jobs = data.jobs || [];
+    let jobs = filterJobsForWorkerProfile(data.jobs || []);
     if (type) jobs = jobs.filter(j => j.job_type === type);
     const el = document.getElementById('history-jobs-container');
     const empty = document.getElementById('history-empty');
@@ -5855,6 +5940,7 @@ async function refreshAll() {
     ]);
     if (!status) return;
     window.latestWorkerStatus = status;
+    applyWorkerProfileNavigation(status);
     const recentJobs = jobs?.jobs || [];
     renderProcessCards(status, recentJobs);
     renderRecentJobs(recentJobs);
@@ -5942,6 +6028,8 @@ async function loadWorkerProfileSettings() {
     const idEl = document.getElementById('worker-set-id');
     const urlEl = document.getElementById('worker-set-server-url');
     const tokenEl = document.getElementById('worker-set-token');
+    const notionApiKeyEl = document.getElementById('worker-set-notion-api-key');
+    const notionDbIdEl = document.getElementById('worker-set-notion-db-id');
     const badgeEl = document.getElementById('worker-profile-badge');
 
     if (profileEl) profileEl.value = data.worker_profile || 'full';
@@ -5951,6 +6039,11 @@ async function loadWorkerProfileSettings() {
       tokenEl.value = data.worker_token || '';
       tokenEl.placeholder = data.worker_token_set ? '•••••••• (설정됨)' : '중앙 서버 발급 토큰';
     }
+    if (notionApiKeyEl) {
+      notionApiKeyEl.value = data.notion_api_key || '';
+      notionApiKeyEl.placeholder = data.notion_api_key_set ? '•••••••• (설정됨)' : 'secret_xxx';
+    }
+    if (notionDbIdEl) notionDbIdEl.value = data.notion_learning_database_id || '';
     if (badgeEl) {
       const modeNames = { 'render_only': '🎬 렌더링 전용', 'content_only': '📝 대본 기획 전용', 'full': '🚀 전체 통합' };
       badgeEl.textContent = `현재 모드: ${modeNames[data.worker_profile] || data.worker_profile}`;
@@ -5965,6 +6058,8 @@ async function saveWorkerProfileSettings(restartAfterSave = true) {
   const worker_id = document.getElementById('worker-set-id').value.trim();
   const central_server_url = document.getElementById('worker-set-server-url').value.trim();
   const worker_token = document.getElementById('worker-set-token').value.trim();
+  const notion_api_key = document.getElementById('worker-set-notion-api-key')?.value.trim() || '';
+  const notion_learning_database_id = document.getElementById('worker-set-notion-db-id')?.value.trim() || '';
   const statusEl = document.getElementById('worker-settings-status');
 
   statusEl.textContent = '저장 중...';
@@ -5976,6 +6071,8 @@ async function saveWorkerProfileSettings(restartAfterSave = true) {
       worker_id: worker_id,
       central_server_url: central_server_url,
       worker_token: worker_token,
+      notion_api_key: notion_api_key,
+      notion_learning_database_id: notion_learning_database_id,
     });
 
     if (res && res.success) {
