@@ -20,6 +20,9 @@ see worker/manager.py's start_process().
 
 Usage:
   AIRWorker.exe                       -> role=manager (double-click default)
+  AIRWorker.exe --profile full        -> manager starts render + script workers
+  AIRWorker.exe --profile content_only -> manager starts script/Hermes worker only
+  AIRWorker.exe --profile render_only -> manager starts render workers only
   AIRWorker.exe --role manager
   AIRWorker.exe --role render_worker
   AIRWorker.exe --role remote_drive_worker
@@ -33,6 +36,14 @@ how each of these scripts was only ever imported by the one process that
 actually plays that role.
 """
 import sys
+
+if "--profile" in sys.argv:
+    try:
+        import os
+        os.environ["AIRWORKER_PROFILE"] = sys.argv[sys.argv.index("--profile") + 1]
+    except IndexError:
+        print("--profile requires a value", file=sys.stderr)
+        sys.exit(2)
 
 # [AIR-0227E, found via live build+run QA] manager.py already sets
 # PYTHONIOENCODING=utf-8 in every child's env - a fix for the known
@@ -62,7 +73,7 @@ try:
 except Exception:
     pass
 
-ROLES = ("manager", "hermes_worker", "local_api")
+ROLES = ("manager", "render_worker", "remote_drive_worker", "hermes_worker", "local_api")
 
 
 def _dispatch(role: str, crash_now: bool):
@@ -77,6 +88,10 @@ def _dispatch(role: str, crash_now: bool):
             except Exception:
                 pass
         import manager as mod
+    elif role == "render_worker":
+        import render_worker as mod
+    elif role == "remote_drive_worker":
+        import remote_drive_worker_process as mod
     elif role == "hermes_worker":
         import hermes_worker as mod  # [AIR-0227E-P3] real Hermes Worker - hermes_worker_mock.py remains for test-only direct import, never dispatched here
     elif role == "local_api":
@@ -106,6 +121,11 @@ def main():
             sys.exit(2)
         if role not in ROLES:
             print(f"unknown --role '{role}', expected one of {ROLES}", file=sys.stderr)
+            sys.exit(2)
+    if "--profile" in args:
+        idx = args.index("--profile")
+        if idx + 1 >= len(args):
+            print("--profile requires a value", file=sys.stderr)
             sys.exit(2)
     crash_now = "--crash-now" in args
     _dispatch(role, crash_now)

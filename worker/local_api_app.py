@@ -90,6 +90,34 @@ async def hermes_stop(authorization: str | None = Header(default=None)):
     return wait_for_result(submit_command("stop_process", {"name": "hermes_worker"}))
 
 
+@app.post("/processes/render/start")
+async def render_start(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/render/start")
+    return wait_for_result(submit_command("start_process", {"name": "render_worker"}))
+
+
+@app.post("/processes/render/stop")
+async def render_stop(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/render/stop")
+    return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
+
+
+@app.post("/processes/remote-drive/start")
+async def remote_drive_start(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/remote-drive/start")
+    return wait_for_result(submit_command("start_process", {"name": "remote_drive_worker"}))
+
+
+@app.post("/processes/remote-drive/stop")
+async def remote_drive_stop(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/remote-drive/stop")
+    return wait_for_result(submit_command("stop_process", {"name": "remote_drive_worker"}))
+
+
 @app.get("/jobs")
 async def jobs(status: str | None = None, limit: int = 50, authorization: str | None = Header(default=None)):
     require_auth(authorization)

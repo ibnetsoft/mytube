@@ -42,14 +42,6 @@ def _load_worker_env():
 
 _load_worker_env()
 
-# This customized worker is intentionally local/content-only.  A parent
-# launcher or an older dashboard may still inject the central URL into the
-# child environment; remove it before hermes_worker imports and calculates
-# REMOTE_ENABLED so no registration, heartbeat, or remote-claim requests are
-# attempted.
-os.environ["AIRWORKER_LOCAL_ONLY"] = "true"
-os.environ.pop("AIRWORKER_CENTRAL_SERVER_URL", None)
-
 # [AIR-0227E-P2-VALIDATION] The installed binaries live under Program Files
 # (Inno Setup's AIRWorker.iss, admin-required) - a standard user cannot
 # write there. All mutable state must live somewhere the user account
@@ -119,12 +111,33 @@ COMMAND_RESULT_TIMEOUT_SECONDS = 10.0
 WORKER_ID = os.environ.get("AIRWORKER_ID", "poc-worker-not-real")
 WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
 
-WORKER_PROFILES = ("content_only",)
-PROFILE_CHILD_SCRIPTS = {"content_only": ("hermes_worker", "local_api")}
+WORKER_PROFILES = ("full", "content_only", "render_only")
+PROFILE_CHILD_SCRIPTS = {
+    "full": ("render_worker", "remote_drive_worker", "hermes_worker", "local_api"),
+    "content_only": ("hermes_worker", "local_api"),
+    "render_only": ("render_worker", "remote_drive_worker", "local_api"),
+}
 
 
 def normalize_worker_profile(value: str | None) -> str:
-    return "content_only"
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "": "full",
+        "all": "full",
+        "default": "full",
+        "both": "full",
+        "content": "content_only",
+        "script": "content_only",
+        "script_only": "content_only",
+        "hermes": "content_only",
+        "hermes_only": "content_only",
+        "generation": "content_only",
+        "generation_only": "content_only",
+        "render": "render_only",
+        "renderer": "render_only",
+        "rendering": "render_only",
+    }
+    return aliases.get(normalized, normalized if normalized in WORKER_PROFILES else "full")
 
 
 WORKER_PROFILE = normalize_worker_profile(

@@ -1206,6 +1206,29 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
         return []
 
 
+@app.get("/api/rendering-jobs")
+def api_rendering_jobs(limit: int = 30):
+    local_jobs = [
+        _prune_job_for_list(job)
+        for job in job_store.list_jobs(limit=limit)
+        if job.get("job_type") == "render_video"
+    ]
+    remote_jobs = _fetch_remote_drive_render_queue(limit=limit)
+    jobs = (remote_jobs + local_jobs)[:limit]
+    active_statuses = {"CLAIMED", "PREPARING", "RENDERING", "UPLOADING", "RUNNING"}
+    pending_statuses = {"QUEUED", "PENDING"}
+    return {
+        "jobs": jobs,
+        "active_job": next(
+            (job for job in jobs if str(job.get("status") or "").upper() in active_statuses),
+            None,
+        ),
+        "active_count": sum(1 for job in jobs if str(job.get("status") or "").upper() in active_statuses),
+        "pending_count": sum(1 for job in jobs if str(job.get("status") or "").upper() in pending_statuses),
+        "total_count": len(jobs),
+    }
+
+
 @app.get("/api/jobs/{job_id}")
 async def api_job_detail(
     job_id: str,
@@ -1437,6 +1460,46 @@ def api_hermes_stop(
     require_auth(authorization, cookie)
     from ipc import submit_command, wait_for_result
     return wait_for_result(submit_command("stop_process", {"name": "hermes_worker"}))
+
+
+@app.post("/api/processes/render/start")
+def api_render_start(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("start_process", {"name": "render_worker"}))
+
+
+@app.post("/api/processes/render/stop")
+def api_render_stop(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
+
+
+@app.post("/api/processes/remote-drive/start")
+def api_remote_drive_start(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("start_process", {"name": "remote_drive_worker"}))
+
+
+@app.post("/api/processes/remote-drive/stop")
+def api_remote_drive_stop(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("stop_process", {"name": "remote_drive_worker"}))
 
 
 # ---------------------------------------------------------------------------

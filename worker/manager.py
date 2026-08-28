@@ -62,11 +62,13 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 # Every child is now spawned by re-invoking the current running program with
 # `--role <name>` instead - see _child_command() below and
 # worker/air_worker_entry.py's docstring for the full rationale.
-CHILD_SCRIPTS = ("hermes_worker", "local_api")
+CHILD_SCRIPTS = ("render_worker", "remote_drive_worker", "hermes_worker", "local_api")
 # Hermes is part of the core generation path, so a full server restart brings
 # it back with the other worker services.
 ALWAYS_ON_CHILD_SCRIPTS = tuple(ALLOWED_CHILD_SCRIPTS)
 STATE_FILES = {
+    "render_worker": STATE_DIR / "render_worker.json",
+    "remote_drive_worker": STATE_DIR / "remote_drive_worker.json",
     "hermes_worker": STATE_DIR / "hermes_worker.json",
     "local_api": STATE_DIR / "local_api.json",
 }

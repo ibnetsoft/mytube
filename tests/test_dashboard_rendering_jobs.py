@@ -24,9 +24,26 @@ def test_manager_default_profile_starts_all_child_scripts():
 def test_worker_profiles_split_generation_and_rendering_roles():
     assert worker_config.normalize_worker_profile('content-only') == 'content_only'
     assert worker_config.normalize_worker_profile('render') == 'render_only'
+    assert worker_config.normalize_worker_profile('script_only') == 'content_only'
     assert worker_config.normalize_worker_profile('bad-value') == 'full'
+    assert worker_config.PROFILE_CHILD_SCRIPTS['full'] == (
+        'render_worker',
+        'remote_drive_worker',
+        'hermes_worker',
+        'local_api',
+    )
     assert worker_config.PROFILE_CHILD_SCRIPTS['content_only'] == ('hermes_worker', 'local_api')
     assert worker_config.PROFILE_CHILD_SCRIPTS['render_only'] == ('render_worker', 'remote_drive_worker', 'local_api')
+
+
+def test_entrypoint_supports_split_worker_roles():
+    source = (WORKER_DIR / 'air_worker_entry.py').read_text(encoding='utf-8')
+
+    assert '"render_worker"' in source
+    assert '"remote_drive_worker"' in source
+    assert 'import render_worker as mod' in source
+    assert 'import remote_drive_worker_process as mod' in source
+    assert '--profile' in source
 
 
 def test_api_rendering_jobs_endpoint_returns_combined_queue_structure():

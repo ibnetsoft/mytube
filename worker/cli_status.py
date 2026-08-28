@@ -77,8 +77,8 @@ def print_status():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--watch", action="store_true")
-    parser.add_argument("--start", choices=["render", "hermes"])
-    parser.add_argument("--stop", choices=["render", "hermes"])
+    parser.add_argument("--start", choices=["render", "remote-drive", "hermes"])
+    parser.add_argument("--stop", choices=["render", "remote-drive", "hermes"])
     parser.add_argument("--logs", default=None)
     parser.add_argument("--shutdown", action="store_true")
     parser.add_argument("--submit-fixture", action="store_true")
