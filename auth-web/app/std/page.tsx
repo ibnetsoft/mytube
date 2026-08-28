@@ -467,11 +467,14 @@ export default function StdPortalPage() {
         if (!id || !asset) return null
         const assetId = String(asset?.id || '').trim()
         const driveFileId = String(asset?.drive_file_id || '').trim()
+        const impersonateSuffix = isImpersonating && impersonateEmail
+            ? `&impersonate=${encodeURIComponent(impersonateEmail)}`
+            : ''
         if (assetId) {
-            return `/api/std/projects/${encodeURIComponent(id)}/assets/file?assetId=${encodeURIComponent(assetId)}`
+            return `/api/std/projects/${encodeURIComponent(id)}/assets/file?assetId=${encodeURIComponent(assetId)}${impersonateSuffix}`
         }
         if (driveFileId) {
-            return `/api/std/projects/${encodeURIComponent(id)}/assets/file?driveFileId=${encodeURIComponent(driveFileId)}`
+            return `/api/std/projects/${encodeURIComponent(id)}/assets/file?driveFileId=${encodeURIComponent(driveFileId)}${impersonateSuffix}`
         }
         return null
     }
@@ -1141,6 +1144,15 @@ export default function StdPortalPage() {
             if (titleSaveTimerRef.current) clearTimeout(titleSaveTimerRef.current)
         }
     }, [])
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return
+        if (token) {
+            document.cookie = `std_session_token=${encodeURIComponent(token)}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        } else {
+            document.cookie = 'std_session_token=; Path=/; Max-Age=0; SameSite=Lax'
+        }
+    }, [token])
 
     // 스크립트 컨텍스트에서 AI 생성 메타 지시문(First-minute micro beat 1/12... 등)을 제거하고 순수 대본만 정제하는 함수
     const cleanScriptContextText = (text: string | null | undefined): string => {

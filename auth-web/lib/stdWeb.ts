@@ -28,6 +28,19 @@ function jsonError(error: string, status: number) {
     return NextResponse.json({ success: false, error }, { status })
 }
 
+function getCookieValue(req: Request, name: string): string {
+    const cookieHeader = req.headers.get('cookie') || ''
+    if (!cookieHeader) return ''
+    const parts = cookieHeader.split(';')
+    for (const part of parts) {
+        const [rawName, ...rawValue] = part.trim().split('=')
+        if (rawName === name) {
+            return decodeURIComponent(rawValue.join('=') || '')
+        }
+    }
+    return ''
+}
+
 export async function requireStdUser(req: Request): Promise<StdAuthResult> {
     const url = new URL(req.url, 'http://localhost')
     const impersonateQuery = url.searchParams.get('impersonate') || url.searchParams.get('email')
@@ -35,9 +48,11 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
     const targetImpersonateEmail = (impersonateHeader || impersonateQuery || '').trim().toLowerCase()
 
     const authHeader = req.headers.get('authorization') || ''
-    const token = authHeader.toLowerCase().startsWith('bearer ')
+    const bearerToken = authHeader.toLowerCase().startsWith('bearer ')
         ? authHeader.slice(7).trim()
         : ''
+    const cookieToken = getCookieValue(req, 'std_session_token')
+    const token = bearerToken || cookieToken
 
     // If impersonating a specific user
     if (targetImpersonateEmail) {
