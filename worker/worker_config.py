@@ -201,6 +201,13 @@ def save_worker_settings(new_settings: dict) -> dict:
     """Save worker settings (profile, worker_id, central url, token, etc.) to .env and os.environ."""
     global WORKER_PROFILE, ALLOWED_CHILD_SCRIPTS, WORKER_ID, WORKER_TOKEN
 
+    def _normalize_env_like_value(raw_value: str, env_key: str) -> str:
+        value = str(raw_value or "").strip()
+        prefix = f"{env_key}="
+        if value.upper().startswith(prefix.upper()):
+            return value[len(prefix):].strip()
+        return value
+
     key_map = {
         "supabase_url": "NEXT_PUBLIC_SUPABASE_URL",
         "supabase_service_role_key": "SUPABASE_SERVICE_ROLE_KEY",
@@ -220,6 +227,8 @@ def save_worker_settings(new_settings: dict) -> dict:
     for param_key, env_key in key_map.items():
         if param_key in new_settings:
             val = str(new_settings[param_key] or "").strip()
+            if param_key in ("notion_api_key", "notion_learning_database_id"):
+                val = _normalize_env_like_value(val, env_key)
             if param_key in ("worker_token", "notion_api_key") and _looks_like_masked_secret(val):
                 continue  # skip masked token
             updates[env_key] = val

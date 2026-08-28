@@ -37,6 +37,10 @@ def _number(prop: dict[str, Any] | None) -> float | None:
     if not isinstance(prop, dict):
         return None
     value = prop.get("number")
+    if value is None:
+        text_value = _plain_text(prop)
+        if text_value:
+            value = text_value
     try:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
@@ -50,11 +54,19 @@ def _date_start(prop: dict[str, Any] | None) -> str:
     return str(date.get("start") or "").strip()
 
 
+def _first_prop_by_type(props: dict[str, Any], prop_type: str) -> dict[str, Any] | None:
+    for value in props.values():
+        if isinstance(value, dict) and str(value.get("type") or "").strip() == prop_type:
+            return value
+    return None
+
+
 def _row_from_page(page: dict[str, Any]) -> dict[str, Any]:
     props = page.get("properties") if isinstance(page, dict) else {}
     props = props if isinstance(props, dict) else {}
+    title_prop = props.get("Name") or props.get("이름") or _first_prop_by_type(props, "title")
     return {
-        "generated_title": _plain_text(props.get("Name")),
+        "generated_title": _plain_text(title_prop),
         "production_topic": _plain_text(props.get("Learning Text")),
         "category_id": _plain_text(props.get("Category ID")),
         "category_name": _plain_text(props.get("Category")),

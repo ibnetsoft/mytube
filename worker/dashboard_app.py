@@ -5,6 +5,7 @@ Runs inside the Manager process on a separate uvicorn instance bound to
 127.0.0.1:3002 (daemon thread).  Reuses the same DPAPI auth token as the
 Local API (local_api_token.py) so the user only needs one token.
 """
+import datetime
 import json
 import os
 import re
@@ -17,6 +18,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from xml.etree import ElementTree
 
+import httpx
 import job_store
 from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
@@ -1011,6 +1013,437 @@ def _collect_topic_generated_results(limit: int = 500) -> dict[str, dict]:
         )
 
     return results
+
+
+def _notion_token() -> str:
+    return str(os.environ.get("NOTION_API_KEY") or os.environ.get("NOTION_TOKEN") or "").strip()
+
+
+def _notion_learning_database_id() -> str:
+    return str(os.environ.get("NOTION_LEARNING_DATABASE_ID") or "").strip()
+
+
+def _notion_rich_text(value) -> dict:
+    content = str(value or "").strip()[:1900]
+    return {"rich_text": [{"type": "text", "text": {"content": content}}]}
+
+
+def _notion_title_text(value) -> dict:
+    content = str(value or "AIR history row").strip()[:1900]
+    return {"title": [{"type": "text", "text": {"content": content}}]}
+
+
+def _notion_select(value, fallback: str = "unknown") -> dict:
+    name = str(value or fallback).strip()[:100] or fallback
+    return {"select": {"name": name}}
+
+
+def _notion_number(value) -> dict:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = None
+    return {"number": number}
+
+
+def _notion_json_block(label: str, value) -> dict:
+    return {
+        "object": "block",
+        "type": "code",
+        "code": {
+            "language": "json",
+            "rich_text": [{
+                "type": "text",
+                "text": {"content": json.dumps({label: value}, ensure_ascii=False, indent=2)[:1900]},
+            }],
+        },
+    }
+
+
+def _notion_rich_text_items(value) -> list[dict]:
+    content = str(value or "").strip()[:1900]
+    return [{"type": "text", "text": {"content": content}}]
+
+
+def _notion_category_id(category_name: str) -> str:
+    category_text = str(category_name or "").strip()
+    if not category_text:
+        return ""
+    for item in CATEGORIES:
+        if isinstance(item, dict):
+            item_name = str(item.get("name") or "").strip()
+            item_id = str(item.get("id") or "")
+        else:
+            item_name = str(item or "").strip()
+            item_id = ""
+        if item_name and item_name == category_text:
+            return item_id
+    return ""
+
+
+def _extract_numeric_from_dict(source: dict | None, keys: tuple[str, ...]) -> float | None:
+    if not isinstance(source, dict):
+        return None
+    for key in keys:
+        value = source.get(key)
+        try:
+            if value is not None and str(value).strip() != "":
+                return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _history_title_score(data: dict) -> float | None:
+    title_generation = data.get("title_generation")
+    score = _extract_numeric_from_dict(title_generation, ("selected_score", "final_score", "score", "title_score"))
+    if score is not None:
+        return score
+    candidates = title_generation.get("title_candidates") if isinstance(title_generation, dict) else []
+    generated_title = str(_result_title(data) or "").strip()
+    for candidate in candidates if isinstance(candidates, list) else []:
+        if not isinstance(candidate, dict):
+            continue
+        if generated_title and str(candidate.get("title") or "").strip() != generated_title:
+            continue
+        score = _extract_numeric_from_dict(candidate, ("final_score", "score"))
+        if score is not None:
+            return score
+    return None
+
+
+def _history_script_score(data: dict) -> float | None:
+    report = data.get("script_quality_report")
+    score = _extract_numeric_from_dict(
+        report,
+        ("overall_score", "final_score", "total_score", "score", "aggregate_score"),
+    )
+    if score is not None:
+        return score
+    evaluation = data.get("evaluation")
+    return _extract_numeric_from_dict(
+        evaluation,
+        ("script_score", "overall_score", "final_score", "score"),
+    )
+
+
+def _history_outcome_quality(data: dict) -> str:
+    quality_gate = data.get("quality_gate") if isinstance(data.get("quality_gate"), dict) else {}
+    quality_status = str(quality_gate.get("status") or "").strip().lower()
+    if quality_status == "pass":
+        return "good"
+    if quality_status == "review":
+        return "neutral"
+    if quality_status == "fail":
+        return "poor"
+    status = str(data.get("status") or "").strip().upper()
+    if status == "COMPLETED":
+        return "good"
+    if status in {"FAILED", "CANCELED"}:
+        return "poor"
+    return "unknown"
+
+
+def _history_source_job_id(data: dict) -> str:
+    if data.get("job_id"):
+        return str(data.get("job_id") or "")
+    for source in data.get("_sources") if isinstance(data.get("_sources"), list) else []:
+        if not isinstance(source, dict):
+            continue
+        source_id = str(source.get("source_id") or "").strip()
+        if source_id:
+            return source_id
+    return ""
+
+
+def _history_learning_text(data: dict) -> str:
+    title = str(_result_title(data) or "").strip()
+    topic = str(data.get("topic") or data.get("upload_title") or "").strip()
+    category = str(_result_category(data) or "").strip()
+    script = str(data.get("script") or "").strip()
+    topic_queue_id = str(data.get("topic_queue_id") or "").strip()
+    source_job_id = _history_source_job_id(data)
+    scene_count = 0
+    structure = data.get("structure") if isinstance(data.get("structure"), dict) else {}
+    scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    if scenes:
+        scene_count = len(scenes)
+    lines = [
+        f"Category: {category or '-'}",
+        f"Topic: {topic or '-'}",
+        f"Generated title: {title or '-'}",
+        f"Topic Queue ID: {topic_queue_id or '-'}",
+        f"Source Job ID: {source_job_id or '-'}",
+        f"Scene count: {scene_count or '-'}",
+        f"Script chars: {len(script)}",
+        f"Backfill source: local worker history",
+    ]
+    if script:
+        lines.append("")
+        lines.append("Script excerpt:")
+        lines.append(script[:1200])
+    return "\n".join(lines).strip()[:1900]
+
+
+def _history_feedback_row(result_id: str, data: dict) -> dict | None:
+    topic_queue_id = str(data.get("topic_queue_id") or "").strip()
+    title = str(_result_title(data) or "").strip()
+    topic = str(data.get("topic") or data.get("upload_title") or "").strip()
+    category_name = str(_result_category(data) or "").strip()
+    if not topic_queue_id or not any((title, topic, category_name)):
+        return None
+    created_at = data.get("completed_at") or data.get("updated_at") or data.get("created_at")
+    structure = data.get("structure") if isinstance(data.get("structure"), dict) else {}
+    scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    metrics = {
+        "scene_count": len(scenes),
+        "script_chars": len(str(data.get("script") or "")),
+        "has_publish_metadata": bool(data.get("publish_metadata")),
+        "has_video_prompts": any(isinstance(scene, dict) and _scene_has_video_prompt(scene) for scene in scenes),
+        "media_prompt_status": _structure_media_prompt_status(structure, scenes),
+        "material_statuses": _topic_generated_result_summary(result_id, data).get("material_statuses"),
+    }
+    return {
+        "topic_queue_id": topic_queue_id,
+        "source_job_id": _history_source_job_id(data),
+        "feedback_source": "history_backfill",
+        "category_id": _notion_category_id(category_name),
+        "category_name": category_name,
+        "outcome_quality": _history_outcome_quality(data),
+        "generated_title": title,
+        "production_topic": topic,
+        "title_score": _history_title_score(data),
+        "script_score": _history_script_score(data),
+        "reviewer_email": "worker-history-backfill",
+        "reviewer_note": "Backfilled from local worker history",
+        "metrics": metrics,
+        "title_generation": data.get("title_generation") if isinstance(data.get("title_generation"), dict) else {},
+        "benchmark_summary": {
+            "benchmark_analysis": data.get("benchmark_analysis"),
+            "research_bundle": data.get("research_bundle") or structure.get("research_bundle"),
+        },
+        "evaluation": {
+            "type": "history_backfill",
+            "result_id": result_id,
+            "status": data.get("status"),
+            "quality_gate": _topic_generated_result_summary(result_id, data).get("quality_gate"),
+            "source_paths": [
+                source.get("path")
+                for source in data.get("_sources")
+                if isinstance(source, dict) and source.get("path")
+            ] if isinstance(data.get("_sources"), list) else [],
+        },
+        "created_at": created_at,
+        "updated_at": created_at,
+        "learning_text": _history_learning_text(data),
+    }
+
+
+def _history_sort_value(value) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value or "").strip()
+    if not text:
+        return 0.0
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return datetime.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _notion_find_property(
+    properties: dict[str, dict] | None,
+    candidate_names: tuple[str, ...],
+    allowed_types: tuple[str, ...] | None = None,
+    allow_type_fallback: bool = False,
+) -> tuple[str | None, dict | None]:
+    props = properties if isinstance(properties, dict) else {}
+    for candidate in candidate_names:
+        prop = props.get(candidate)
+        if not isinstance(prop, dict):
+            continue
+        prop_type = str(prop.get("type") or "").strip()
+        if allowed_types and prop_type not in allowed_types:
+            continue
+        return candidate, prop
+    if allow_type_fallback and allowed_types:
+        for name, prop in props.items():
+            if isinstance(prop, dict) and str(prop.get("type") or "").strip() in allowed_types:
+                return str(name), prop
+    return None, None
+
+
+def _notion_date_string(value) -> str:
+    if isinstance(value, (int, float)):
+        return datetime.datetime.fromtimestamp(float(value), tz=datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    text = str(value or "").strip()
+    if not text:
+        return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        return datetime.datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat().replace("+00:00", "Z")
+    except ValueError:
+        return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _notion_property_value(prop: dict | None, value):
+    if not isinstance(prop, dict):
+        return None
+    prop_type = str(prop.get("type") or "").strip()
+    if prop_type == "title":
+        return {"title": _notion_rich_text_items(value)}
+    if prop_type == "rich_text":
+        return {"rich_text": _notion_rich_text_items(value)}
+    if prop_type == "select":
+        return _notion_select(value)
+    if prop_type == "number":
+        return _notion_number(value)
+    if prop_type == "date":
+        return {"date": {"start": _notion_date_string(value)}}
+    return None
+
+
+async def _notion_fetch_database_properties(
+    client: httpx.AsyncClient,
+    token: str,
+    database_id: str,
+) -> dict[str, dict]:
+    response = await client.get(
+        f"https://api.notion.com/v1/databases/{database_id}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Notion-Version": "2022-06-28",
+        },
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Notion database schema fetch failed: {response.status_code} {response.text[:240]}")
+    data = response.json()
+    props = data.get("properties")
+    return props if isinstance(props, dict) else {}
+
+
+async def _notion_page_exists_for_topic_queue_id(
+    client: httpx.AsyncClient,
+    token: str,
+    database_id: str,
+    properties: dict[str, dict],
+    row: dict,
+) -> bool:
+    query_filter = None
+    topic_name, topic_prop = _notion_find_property(properties, ("Topic Queue ID",), ("rich_text", "title"))
+    if topic_name and topic_prop:
+        query_filter = {
+            "property": topic_name,
+            str(topic_prop.get("type")): {"equals": str(row.get("topic_queue_id") or "")},
+        }
+    else:
+        title_name, title_prop = _notion_find_property(properties, ("Name", "이름"), ("title",), allow_type_fallback=True)
+        created_name, created_prop = _notion_find_property(properties, ("Created At",), ("date",))
+        title_value = row.get("generated_title") or row.get("production_topic") or row.get("topic_queue_id")
+        if title_name and title_prop and created_name and created_prop:
+            query_filter = {
+                "and": [
+                    {"property": title_name, "title": {"equals": str(title_value or "")}},
+                    {"property": created_name, "date": {"equals": _notion_date_string(row.get("created_at"))}},
+                ]
+            }
+        elif title_name and title_prop:
+            query_filter = {
+                "property": title_name,
+                "title": {"equals": str(title_value or "")},
+            }
+    if not query_filter:
+        return False
+    response = await client.post(
+        f"https://api.notion.com/v1/databases/{database_id}/query",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+        },
+        json={
+            "page_size": 1,
+            "filter": query_filter,
+        },
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Notion existing-row query failed: {response.status_code} {response.text[:240]}")
+    data = response.json()
+    return bool(data.get("results"))
+
+
+async def _sync_history_row_to_notion(
+    client: httpx.AsyncClient,
+    token: str,
+    database_id: str,
+    properties: dict[str, dict],
+    row: dict,
+) -> None:
+    notion_properties = {}
+    title_name, title_prop = _notion_find_property(properties, ("Name", "이름"), ("title",), allow_type_fallback=True)
+    category_name, category_prop = _notion_find_property(properties, ("Category",), ("rich_text", "title"))
+    category_id_name, category_id_prop = _notion_find_property(properties, ("Category ID",), ("rich_text", "title"))
+    quality_name, quality_prop = _notion_find_property(properties, ("Quality",), ("select",))
+    source_name, source_prop = _notion_find_property(properties, ("Source",), ("select",))
+    topic_queue_name, topic_queue_prop = _notion_find_property(properties, ("Topic Queue ID",), ("rich_text", "title"))
+    source_job_name, source_job_prop = _notion_find_property(properties, ("Source Job ID",), ("rich_text", "title"))
+    title_score_name, title_score_prop = _notion_find_property(properties, ("Title Score",), ("number", "rich_text", "title"))
+    script_score_name, script_score_prop = _notion_find_property(properties, ("Script Score",), ("number", "rich_text", "title"))
+    created_at_name, created_at_prop = _notion_find_property(properties, ("Created At",), ("date",))
+    learning_text_name, learning_text_prop = _notion_find_property(properties, ("Learning Text",), ("rich_text", "title"))
+
+    mapped_values = [
+        (title_name, title_prop, row.get("generated_title") or row.get("production_topic") or row.get("topic_queue_id")),
+        (category_name, category_prop, row.get("category_name") or ""),
+        (category_id_name, category_id_prop, row.get("category_id") or ""),
+        (quality_name, quality_prop, row.get("outcome_quality")),
+        (source_name, source_prop, row.get("feedback_source")),
+        (topic_queue_name, topic_queue_prop, row.get("topic_queue_id") or ""),
+        (source_job_name, source_job_prop, row.get("source_job_id") or ""),
+        (title_score_name, title_score_prop, row.get("title_score")),
+        (script_score_name, script_score_prop, row.get("script_score")),
+        (created_at_name, created_at_prop, row.get("created_at") or row.get("updated_at")),
+        (learning_text_name, learning_text_prop, row.get("learning_text") or ""),
+    ]
+    for prop_name, prop_meta, value in mapped_values:
+        payload_value = _notion_property_value(prop_meta, value)
+        if prop_name and payload_value is not None:
+            notion_properties[prop_name] = payload_value
+
+    payload = {
+        "parent": {"database_id": database_id},
+        "properties": notion_properties,
+        "children": [
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{
+                        "type": "text",
+                        "text": {"content": str(row.get("learning_text") or "")[:1900]},
+                    }],
+                },
+            },
+            _notion_json_block("metrics", row.get("metrics") or {}),
+            _notion_json_block("title_generation", row.get("title_generation") or {}),
+            _notion_json_block("benchmark_summary", row.get("benchmark_summary") or {}),
+            _notion_json_block("evaluation", row.get("evaluation") or {}),
+        ],
+    }
+    response = await client.post(
+        "https://api.notion.com/v1/pages",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+        },
+        json=payload,
+    )
+    if response.status_code not in (200, 201):
+        raise RuntimeError(f"Notion create failed: {response.status_code} {response.text[:240]}")
 
 
 STYLE_PRESET_TYPES = {"image", "script"}
@@ -2013,6 +2446,81 @@ async def api_save_worker_profile_settings(
     import worker_config
     result = worker_config.save_worker_settings(body)
     return result
+
+
+@app.post("/api/notion/backfill-history")
+async def api_notion_backfill_history(
+    body: dict | None = Body(default=None),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    body = body or {}
+    token = _notion_token()
+    database_id = _notion_learning_database_id()
+    if not token or not database_id:
+        return {
+            "success": False,
+            "error": "Notion API Key 또는 Notion Learning Database ID가 설정되지 않았습니다.",
+        }
+
+    limit = max(1, min(500, int(body.get("limit") or 50)))
+    skip_existing = bool(body.get("skip_existing", True))
+    dry_run = bool(body.get("dry_run", False))
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        properties = await _notion_fetch_database_properties(client, token, database_id)
+        merged_results = _collect_topic_generated_results(limit=max(limit * 3, limit))
+        ordered = sorted(
+            merged_results.items(),
+            key=lambda item: _history_sort_value(
+                item[1].get("completed_at") or item[1].get("updated_at") or item[1].get("created_at")
+            ),
+            reverse=True,
+        )
+
+        candidate_rows: list[dict] = []
+        for result_id, data in ordered:
+            row = _history_feedback_row(result_id, data)
+            if row:
+                candidate_rows.append(row)
+            if len(candidate_rows) >= limit:
+                break
+
+        inserted: list[dict] = []
+        skipped_existing: list[str] = []
+        failed: list[dict] = []
+
+        for row in candidate_rows:
+            topic_queue_id = str(row.get("topic_queue_id") or "").strip()
+            try:
+                if skip_existing and await _notion_page_exists_for_topic_queue_id(client, token, database_id, properties, row):
+                    skipped_existing.append(topic_queue_id)
+                    continue
+                if not dry_run:
+                    await _sync_history_row_to_notion(client, token, database_id, properties, row)
+                inserted.append({
+                    "topic_queue_id": topic_queue_id,
+                    "generated_title": row.get("generated_title"),
+                    "category_name": row.get("category_name"),
+                })
+            except Exception as exc:
+                failed.append({
+                    "topic_queue_id": topic_queue_id,
+                    "generated_title": row.get("generated_title"),
+                    "error": str(exc),
+                })
+
+    return {
+        "success": True,
+        "dry_run": dry_run,
+        "scanned_candidates": len(candidate_rows),
+        "inserted_count": len(inserted),
+        "skipped_existing_count": len(skipped_existing),
+        "failed_count": len(failed),
+        "inserted": inserted[:20],
+        "skipped_existing": skipped_existing[:20],
+        "failed": failed[:20],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -3723,6 +4231,19 @@ tr:hover { background: #161b22; }
               <div style="font-size:11px;color:#8b949e;margin-top:4px;">Notion DB 페이지 URL에서 데이터베이스 ID를 복사해 넣습니다.</div>
             </div>
           </div>
+          <div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">백필 최대 건수</label>
+              <input id="notion-backfill-limit" type="number" min="1" max="500" value="50" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;outline:none;" />
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">최근 작업부터 최대 500건까지 미리보기/백필합니다.</div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#c9d1d9;cursor:pointer;padding:10px 0;">
+                <input id="notion-backfill-skip-existing" type="checkbox" checked />
+                이미 있는 항목 건너뛰기
+              </label>
+            </div>
+          </div>
           <div style="margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <button class="btn btn-primary" onclick="saveWorkerProfileSettings(false)" style="background:#238636;border-color:#2ea043;font-weight:bold;padding:9px 18px;display:flex;align-items:center;gap:6px;cursor:pointer;">
               <span>💾</span> Notion 설정 저장
@@ -3730,8 +4251,19 @@ tr:hover { background: #161b22; }
             <button class="btn" onclick="saveWorkerProfileSettings(true)" style="padding:9px 14px;cursor:pointer;">
               저장 후 서버 재시작
             </button>
+            <button class="btn" id="notion-backfill-preview-btn" onclick="previewNotionBackfill()" style="padding:9px 14px;cursor:pointer;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.35);color:#facc15;">
+              백필 미리보기
+            </button>
+            <button class="btn" id="notion-backfill-btn" onclick="backfillNotionHistory(false)" style="padding:9px 14px;cursor:pointer;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.45);color:#79c0ff;">
+              과거 작업 Notion 백필
+            </button>
             <span id="notion-settings-status" style="font-size:13px;color:#8b949e"></span>
           </div>
+          <div style="font-size:11px;color:#8b949e;margin-top:8px;">
+            이미 같은 Topic Queue ID가 노션에 있으면 자동으로 건너뜁니다.
+          </div>
+          <div id="notion-backfill-summary" style="display:none;margin-top:14px;padding:12px 14px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(13,17,23,0.55);font-size:12px;color:#c9d1d9;"></div>
+          <div id="notion-backfill-results" style="display:none;margin-top:12px;"></div>
         </div>
 
         <div class="card">
@@ -6218,6 +6750,127 @@ async function saveWorkerProfileSettings(restartAfterSave = true) {
     statusEl.textContent = '오류: ' + e.message;
     statusEl.style.color = '#f85149';
   }
+}
+
+function notionBackfillOptions() {
+  const limitValue = Number.parseInt(document.getElementById('notion-backfill-limit')?.value || '50', 10);
+  const limit = Math.max(1, Math.min(500, Number.isFinite(limitValue) ? limitValue : 50));
+  const skipExisting = document.getElementById('notion-backfill-skip-existing')?.checked !== false;
+  return { limit, skipExisting };
+}
+
+function renderNotionBackfillResults(res, mode = 'preview') {
+  const summaryEl = document.getElementById('notion-backfill-summary');
+  const resultsEl = document.getElementById('notion-backfill-results');
+  if (!summaryEl || !resultsEl) return;
+
+  const inserted = Array.isArray(res?.inserted) ? res.inserted : [];
+  const skipped = Array.isArray(res?.skipped_existing) ? res.skipped_existing : [];
+  const failed = Array.isArray(res?.failed) ? res.failed : [];
+  const scanned = Number(res?.scanned_candidates || 0);
+  const insertedCount = Number(res?.inserted_count || 0);
+  const skippedCount = Number(res?.skipped_existing_count || 0);
+  const failedCount = Number(res?.failed_count || 0);
+  const modeLabel = mode === 'preview' ? '미리보기' : '실행 결과';
+
+  summaryEl.style.display = 'block';
+  summaryEl.innerHTML = `
+    <div style="font-weight:700;color:#f0f6fc;margin-bottom:6px;">Notion 백필 ${modeLabel}</div>
+    <div>후보 ${scanned}건, 추가 ${insertedCount}건, 기존 중복 ${skippedCount}건, 실패 ${failedCount}건</div>
+  `;
+
+  const insertedHtml = inserted.length
+    ? inserted.map(item => `<div style="padding:8px 10px;border-radius:6px;background:rgba(46,160,67,0.12);border:1px solid rgba(46,160,67,0.3);">${escapeHtml(item.generated_title || item.topic_queue_id || '-')}<div style="font-size:11px;color:#8b949e;margin-top:2px;">${escapeHtml(item.category_name || '-')} / ${escapeHtml(item.topic_queue_id || '-')}</div></div>`).join('')
+    : '<div class="info">추가 대상이 없습니다.</div>';
+  const skippedHtml = skipped.length
+    ? skipped.map(item => `<div style="padding:8px 10px;border-radius:6px;background:rgba(139,148,158,0.12);border:1px solid rgba(139,148,158,0.25);font-family:monospace;">${escapeHtml(typeof item === 'string' ? item : JSON.stringify(item))}</div>`).join('')
+    : '<div class="info">중복으로 건너뛴 항목이 없습니다.</div>';
+  const failedHtml = failed.length
+    ? failed.map(item => `<div style="padding:8px 10px;border-radius:6px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);">${escapeHtml(item.generated_title || item.topic_queue_id || '-')}<div style="font-size:11px;color:#ffb4a9;margin-top:4px;word-break:break-word;">${escapeHtml(item.error || '오류')}</div></div>`).join('')
+    : '<div class="info">실패한 항목이 없습니다.</div>';
+
+  resultsEl.style.display = 'grid';
+  resultsEl.style.gridTemplateColumns = 'repeat(auto-fit, minmax(240px, 1fr))';
+  resultsEl.style.gap = '12px';
+  resultsEl.innerHTML = `
+    <div style="padding:12px;border:1px solid rgba(46,160,67,0.18);border-radius:8px;background:rgba(46,160,67,0.04);">
+      <div style="font-weight:700;color:#7ee787;margin-bottom:8px;">추가 예정/완료</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">${insertedHtml}</div>
+    </div>
+    <div style="padding:12px;border:1px solid rgba(139,148,158,0.18);border-radius:8px;background:rgba(139,148,158,0.04);">
+      <div style="font-weight:700;color:#c9d1d9;margin-bottom:8px;">중복 건너뜀</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">${skippedHtml}</div>
+    </div>
+    <div style="padding:12px;border:1px solid rgba(248,81,73,0.18);border-radius:8px;background:rgba(248,81,73,0.04);">
+      <div style="font-weight:700;color:#ffb4a9;margin-bottom:8px;">실패</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;">${failedHtml}</div>
+    </div>
+  `;
+}
+
+async function runNotionBackfill(dryRun = false) {
+  const statusEl = document.getElementById('notion-settings-status');
+  const buttonEl = document.getElementById('notion-backfill-btn');
+  const previewBtnEl = document.getElementById('notion-backfill-preview-btn');
+  const { limit, skipExisting } = notionBackfillOptions();
+
+  if (!dryRun && !confirm(`최근 과거 작업 최대 ${limit}건을 Notion DB로 백필합니다.\n이미 있는 항목 건너뛰기: ${skipExisting ? '사용' : '미사용'}\n계속할까요?`)) {
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = dryRun ? '미리보기 조회 중...' : '백필 실행 중...';
+    statusEl.style.color = '#8b949e';
+  }
+  if (buttonEl) buttonEl.disabled = true;
+  if (previewBtnEl) previewBtnEl.disabled = true;
+
+  try {
+    const res = await api('POST', '/api/notion/backfill-history', {
+      limit,
+      skip_existing: skipExisting,
+      dry_run: dryRun,
+    });
+    if (res && res.success) {
+      const message = dryRun
+        ? `미리보기 완료: 추가 예정 ${res.inserted_count || 0}건, 기존 중복 ${res.skipped_existing_count || 0}건, 실패 ${res.failed_count || 0}건`
+        : `백필 완료: 추가 ${res.inserted_count || 0}건, 기존 중복 건너뜀 ${res.skipped_existing_count || 0}건, 실패 ${res.failed_count || 0}건`;
+      showToast(message, res.failed_count ? 'info' : 'success');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.style.color = res.failed_count ? '#f0883e' : '#3fb950';
+      }
+      renderNotionBackfillResults(res, dryRun ? 'preview' : 'execute');
+      if (res.failed_count) {
+        console.warn('Notion backfill failures:', res.failed || []);
+      }
+    } else {
+      const errorMessage = res?.error || '알 수 없는 오류';
+      showToast(`${dryRun ? '미리보기' : '백필'} 실패: ${errorMessage}`, 'error');
+      if (statusEl) {
+        statusEl.textContent = `${dryRun ? '미리보기' : '백필'} 실패: ${errorMessage}`;
+        statusEl.style.color = '#f85149';
+      }
+    }
+  } catch (e) {
+    const errorMessage = e?.message || String(e);
+    showToast(`${dryRun ? '미리보기' : '백필'} 오류: ${errorMessage}`, 'error');
+    if (statusEl) {
+      statusEl.textContent = `${dryRun ? '미리보기' : '백필'} 오류: ${errorMessage}`;
+      statusEl.style.color = '#f85149';
+    }
+  } finally {
+    if (buttonEl) buttonEl.disabled = false;
+    if (previewBtnEl) previewBtnEl.disabled = false;
+  }
+}
+
+async function previewNotionBackfill() {
+  await runNotionBackfill(true);
+}
+
+async function backfillNotionHistory() {
+  await runNotionBackfill(false);
 }
 
 async function loadGitInfo() {
