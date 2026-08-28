@@ -3688,16 +3688,6 @@ tr:hover { background: #161b22; }
               <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">🔑 워커 인증 토큰 (선택)</label>
               <input id="worker-set-token" type="password" placeholder="중앙 서버 발급 토큰" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
             </div>
-            <div class="form-group">
-              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion API Key (선택)</label>
-              <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
-              <div style="font-size:11px;color:#8b949e;margin-top:4px;">대본워커가 Notion 학습 DB에 저장하고 다시 읽을 때 사용합니다.</div>
-            </div>
-            <div class="form-group">
-              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion Learning Database ID (선택)</label>
-              <input id="worker-set-notion-db-id" type="text" placeholder="Notion database id" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
-              <div style="font-size:11px;color:#8b949e;margin-top:4px;">여러 PC에서 같은 DB ID를 쓰면 학습 텍스트가 공유됩니다.</div>
-            </div>
           </div>
 
           <div style="margin-top:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -3708,6 +3698,39 @@ tr:hover { background: #161b22; }
               설정만 저장
             </button>
             <span id="worker-settings-status" style="font-size:13px;color:#8b949e"></span>
+          </div>
+        </div>
+
+        <div class="card" id="notion-learning-settings-card" style="margin-bottom:20px;border:1px solid rgba(46,160,67,0.45);background:rgba(46,160,67,0.04);">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span>🧠</span> Notion 학습 DB 연동
+            </div>
+            <span style="font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(46,160,67,0.18);color:#7ee787;font-weight:bold;">대본워커 공용 학습데이터</span>
+          </div>
+          <p style="color:#8b949e;margin-bottom:14px;font-size:13px;line-height:1.5;">
+            여러 PC의 대본워커가 같은 Notion 데이터베이스를 바라보게 하면, PC를 옮겨도 카테고리별 학습 텍스트를 이어서 사용할 수 있습니다.
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion API Key</label>
+              <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" autocomplete="off" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">Notion 통합의 Internal Integration Secret 값을 입력합니다.</div>
+            </div>
+            <div class="form-group">
+              <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion Learning Database ID</label>
+              <input id="worker-set-notion-db-id" type="text" placeholder="예: 22자리 이상 데이터베이스 ID" autocomplete="off" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+              <div style="font-size:11px;color:#8b949e;margin-top:4px;">Notion DB 페이지 URL에서 데이터베이스 ID를 복사해 넣습니다.</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="saveWorkerProfileSettings(false)" style="background:#238636;border-color:#2ea043;font-weight:bold;padding:9px 18px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <span>💾</span> Notion 설정 저장
+            </button>
+            <button class="btn" onclick="saveWorkerProfileSettings(true)" style="padding:9px 14px;cursor:pointer;">
+              저장 후 서버 재시작
+            </button>
+            <span id="notion-settings-status" style="font-size:13px;color:#8b949e"></span>
           </div>
         </div>
 
