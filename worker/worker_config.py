@@ -10,6 +10,7 @@ config.py living in here would permanently shadow the real one and break
 every real-pipeline import. Renaming this module is the fix.
 """
 import os
+import json
 import sys
 from pathlib import Path
 
@@ -74,6 +75,26 @@ for _d in (STATE_DIR, LOG_DIR, JOB_LOG_DIR, IPC_DIR, COMMAND_DIR, RESULT_DIR,
     _d.mkdir(parents=True, exist_ok=True)
 
 JOB_DB_PATH = STATE_DIR / "jobs.db"
+WORKER_SETTINGS_FILE = CONFIG_DIR / "worker_settings.json"
+
+
+def _load_worker_settings_file() -> None:
+    if not WORKER_SETTINGS_FILE.is_file():
+        return
+    try:
+        data = json.loads(WORKER_SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    values = data.get("env", data) if isinstance(data, dict) else {}
+    if not isinstance(values, dict):
+        return
+    for key, value in values.items():
+        if not isinstance(key, str) or value is None:
+            continue
+        os.environ[key] = str(value)
+
+
+_load_worker_settings_file()
 
 # docs/AIR_WORKER_PROCESS_MODEL.md §4 - one log file per process, no shared file.
 LOG_FILES = {
@@ -173,7 +194,7 @@ def _looks_like_masked_secret(value: str) -> bool:
     normalized = str(value or "").strip()
     if not normalized:
         return False
-    return "•" in normalized or normalized.startswith("••••") or normalized.startswith("****")
+    return any(ord(ch) == 8226 for ch in normalized) or normalized.startswith("****")
 
 
 def save_worker_settings(new_settings: dict) -> dict:
@@ -213,47 +234,22 @@ def save_worker_settings(new_settings: dict) -> dict:
     if "AIRWORKER_TOKEN" in updates:
         WORKER_TOKEN = updates["AIRWORKER_TOKEN"]
 
-    # Write to target .env files
-    target_env_files = []
-    if getattr(sys, "frozen", False):
-        target_env_files.append(Path(sys.executable).resolve().parent / ".env")
-    target_env_files.append(Path.cwd() / ".env")
-    target_env_files.append(PROJECT_ROOT / ".env")
-    target_env_files.append(BASE_DIR / ".env")
-
     written_paths = []
-    seen = set()
-    for env_path in target_env_files:
-        try:
-            rp = env_path.resolve()
-            if rp in seen:
-                continue
-            seen.add(rp)
-
-            lines = []
-            if rp.exists():
-                lines = rp.read_text(encoding="utf-8").splitlines()
-
-            existing_keys = set()
-            new_lines = []
-            for line in lines:
-                if "=" in line and not line.strip().startswith("#"):
-                    k = line.split("=", 1)[0].strip()
-                    if k in updates:
-                        new_lines.append(f"{k}={updates[k]}")
-                        existing_keys.add(k)
-                        continue
-                new_lines.append(line)
-
-            for k, v in updates.items():
-                if k not in existing_keys:
-                    new_lines.append(f"{k}={v}")
-
-            rp.parent.mkdir(parents=True, exist_ok=True)
-            rp.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-            written_paths.append(str(rp))
-        except Exception:
-            pass
+    try:
+        existing = {}
+        if WORKER_SETTINGS_FILE.is_file():
+            loaded = json.loads(WORKER_SETTINGS_FILE.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing = loaded.get("env", loaded) if isinstance(loaded.get("env", loaded), dict) else {}
+        persisted = {**existing, **updates}
+        WORKER_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        WORKER_SETTINGS_FILE.write_text(
+            json.dumps({"env": persisted}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        written_paths.append(str(WORKER_SETTINGS_FILE))
+    except Exception:
+        pass
 
     return {
         "success": True,
