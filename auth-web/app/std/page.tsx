@@ -476,6 +476,24 @@ export default function StdPortalPage() {
         }
     }
 
+    const projectAssetCacheKey = (projectId: string | null | undefined, asset: any) => {
+        const id = String(projectId || '').trim()
+        const assetId = String(asset?.id || asset?.drive_file_id || `${asset?.scene_number || ''}:${asset?.asset_type || ''}`).trim()
+        return id && assetId ? `${id}:${assetId}` : ''
+    }
+
+    const revokeProjectMediaObjectUrls = (projectId?: string | null) => {
+        const targetId = String(projectId || '').trim()
+        Object.entries(projectMediaObjectUrlsRef.current).forEach(([key, value]) => {
+            if (!value || !value.startsWith('blob:')) return
+            if (targetId && !key.startsWith(`${targetId}:`)) return
+            try {
+                URL.revokeObjectURL(value)
+            } catch {}
+            delete projectMediaObjectUrlsRef.current[key]
+        })
+    }
+
     // 2.1 주제 큐 & 모달 팝업 상태 (유저앱 topic.html 완벽 대응)
     const [selectedTopicForModal, setSelectedTopicForModal] = useState<any>(null)
     const [topicModalOpen, setTopicModalOpen] = useState(false)
@@ -509,6 +527,12 @@ export default function StdPortalPage() {
         } catch (error) {}
     }, [currentNav])
 
+    useEffect(() => {
+        return () => {
+            revokeProjectMediaObjectUrls()
+        }
+    }, [])
+
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
@@ -526,6 +550,7 @@ export default function StdPortalPage() {
     const [audioResultUrl, setAudioResultUrl] = useState('')
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
+    const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
@@ -1143,16 +1168,80 @@ export default function StdPortalPage() {
     ) => {
         const projectId = projectPayload?.project?.id
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
+        if (!projectId || !headers?.Authorization) return
+
+        const mediaAssets = assets.filter((asset: any) =>
+            ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+            && ['image', 'video', 'thumbnail'].includes(String(asset?.asset_type || '').toLowerCase())
+            && (asset?.id || asset?.drive_file_id)
+        )
+
+        const restoredEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
+            const cacheKey = projectAssetCacheKey(projectId, asset)
+            if (!cacheKey) return null
+            if (projectMediaObjectUrlsRef.current[cacheKey]) {
+                return { asset, objectUrl: projectMediaObjectUrlsRef.current[cacheKey] }
+            }
+            try {
+                const assetId = String(asset?.id || '').trim()
+                const driveFileId = String(asset?.drive_file_id || '').trim()
+                const query = assetId
+                    ? `assetId=${encodeURIComponent(assetId)}`
+                    : `driveFileId=${encodeURIComponent(driveFileId)}`
+                const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
+                if (!res.ok) return null
+                const blob = await res.blob()
+                const objectUrl = URL.createObjectURL(blob)
+                projectMediaObjectUrlsRef.current[cacheKey] = objectUrl
+                return { asset, objectUrl }
+            } catch {
+                return null
+            }
+        }))
+
+        const restoredMap = new Map<string, string>()
+        let restoredThumbnailUrl = ''
+        for (const entry of restoredEntries) {
+            if (!entry?.asset || !entry.objectUrl) continue
+            const sceneNumber = Number(entry.asset.scene_number)
+            const assetType = String(entry.asset.asset_type || '').toLowerCase()
+            if (assetType === 'thumbnail') {
+                restoredThumbnailUrl = entry.objectUrl
+                continue
+            }
+            if (!Number.isFinite(sceneNumber) || !['image', 'video'].includes(assetType)) continue
+            restoredMap.set(`${sceneNumber}:${assetType}`, entry.objectUrl)
+        }
 
         const thumbnailAsset = assets.find((asset: any) =>
-            asset?.asset_type === 'thumbnail' && ['uploaded', 'assigned'].includes(asset?.status)
+            String(asset?.asset_type || '').toLowerCase() === 'thumbnail' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        const thumbnailUrl = assetDisplayUrl(thumbnailAsset)
-            || sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
-        if (thumbnailUrl) {
-            setThumbBgUrl(thumbnailUrl)
+        const fallbackThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
+        if (restoredThumbnailUrl || fallbackThumbnailUrl || assetDisplayUrl(thumbnailAsset)) {
+            setThumbBgUrl(restoredThumbnailUrl || assetDisplayUrl(thumbnailAsset) || fallbackThumbnailUrl)
             setThumbBgUploadFile(null)
         }
+
+        setSelectedProject(prev => {
+            if (!prev || String(prev.project?.id || '') !== String(projectId)) return prev
+            const nextScenes = (prev.scenes || []).map((scene: any) => {
+                const sceneNumber = Number(scene?.scene_number)
+                const restoredImageUrl = restoredMap.get(`${sceneNumber}:image`)
+                const restoredVideoUrl = restoredMap.get(`${sceneNumber}:video`)
+                return {
+                    ...scene,
+                    image_url: restoredImageUrl || scene.image_url || null,
+                    video_url: restoredVideoUrl || scene.video_url || null,
+                    asset_status: restoredImageUrl || restoredVideoUrl || scene.image_url || scene.video_url
+                        ? 'ready'
+                        : (scene.asset_status || 'missing'),
+                }
+            })
+            return {
+                ...prev,
+                scenes: nextScenes,
+            }
+        })
 
         // Do not eagerly download persisted TTS on page load. Some older Drive
         // files can be unavailable; restoring them here produced noisy 500s and
@@ -1382,6 +1471,7 @@ export default function StdPortalPage() {
                             return exists ? prev : [cleanedProject.project, ...prev]
                         })
                         setCustomScriptText(cleanScriptContextText(cleanedProject.project.project_payload?.script || ''))
+                        restorePersistedProjectMedia(cleanedProject, headers).catch(() => {})
                     }
                 } catch {
                     // Fallback to loadedProjects
@@ -2130,12 +2220,13 @@ export default function StdPortalPage() {
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string) => {
         setProjectLoading(true)
         setMessage('')
+        const targetToken = overrideToken || token
+        const activeImpEmail = overrideImpEmail || (isImpersonating ? impersonateEmail : '')
+        const impQuery = activeImpEmail ? `?impersonate=${encodeURIComponent(activeImpEmail)}` : ''
+        const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
+        if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
         try {
-            const targetToken = overrideToken || token
-            const activeImpEmail = overrideImpEmail || (isImpersonating ? impersonateEmail : '')
-            const impQuery = activeImpEmail ? `?impersonate=${encodeURIComponent(activeImpEmail)}` : ''
-            const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
-            if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
+            revokeProjectMediaObjectUrls(selectedProject?.project?.id)
 
             const res = await fetch(`/api/std/projects/${projectId}${impQuery}`, {
                 headers: fetchHeaders,
@@ -2191,6 +2282,7 @@ export default function StdPortalPage() {
                 setSelectedProject(remembered)
                 setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
                 rememberProjectState(remembered)
+                restorePersistedProjectMedia(remembered, fetchHeaders).catch(() => {})
                 return
             }
             const localProj = projects.find(p => p.id === projectId)
@@ -2285,11 +2377,15 @@ export default function StdPortalPage() {
             if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
                 throw new Error(completePayload.error || 'Asset upload complete failed')
             }
+            const persistedAsset = completePayload.asset
+            const assetCacheKey = projectAssetCacheKey(selectedProject.project.id, persistedAsset)
+            if (assetCacheKey && objectUrl) {
+                projectMediaObjectUrlsRef.current[assetCacheKey] = objectUrl
+            }
 
             setSelectedProject(prev => {
                 if (!prev) return prev
-                const persistedAsset = completePayload.asset
-                const persistedUrl = assetDisplayUrl(persistedAsset) || objectUrl
+                const persistedUrl = objectUrl || assetDisplayUrl(persistedAsset)
                 const updatedScenes = prev.scenes.map(s => {
                     if (s.scene_number !== sceneNum) return s
                     return {
@@ -2387,7 +2483,11 @@ export default function StdPortalPage() {
             const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
             if (!completeRes.ok || completePayload.success === false) throw new Error(completePayload.error || '썸네일 업로드 완료 처리 실패')
 
-            const persistedThumbnailUrl = assetDisplayUrl(completePayload.asset) || objectUrl
+            const thumbnailCacheKey = projectAssetCacheKey(selectedProject.project.id, completePayload.asset)
+            if (thumbnailCacheKey && objectUrl) {
+                projectMediaObjectUrlsRef.current[thumbnailCacheKey] = objectUrl
+            }
+            const persistedThumbnailUrl = objectUrl || assetDisplayUrl(completePayload.asset)
             setSelectedProject(prev => {
                 if (!prev) return prev
                 const updated = {
