@@ -169,6 +169,13 @@ DASHBOARD_HOST = "127.0.0.1"
 DASHBOARD_PORT = 3002
 
 
+def _looks_like_masked_secret(value: str) -> bool:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return False
+    return "•" in normalized or normalized.startswith("••••") or normalized.startswith("****")
+
+
 def save_worker_settings(new_settings: dict) -> dict:
     """Save worker settings (profile, worker_id, central url, token, etc.) to .env and os.environ."""
     global WORKER_PROFILE, ALLOWED_CHILD_SCRIPTS, WORKER_ID, WORKER_TOKEN
@@ -192,7 +199,7 @@ def save_worker_settings(new_settings: dict) -> dict:
     for param_key, env_key in key_map.items():
         if param_key in new_settings:
             val = str(new_settings[param_key] or "").strip()
-            if param_key in ("worker_token", "notion_api_key") and (val == "••••••••" or val.startswith("••••")):
+            if param_key in ("worker_token", "notion_api_key") and _looks_like_masked_secret(val):
                 continue  # skip masked token
             updates[env_key] = val
             os.environ[env_key] = val

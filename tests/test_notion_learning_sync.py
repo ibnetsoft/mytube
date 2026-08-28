@@ -39,9 +39,11 @@ def test_worker_settings_can_save_notion_env_values():
 
     assert '"notion_api_key": "NOTION_API_KEY"' in config
     assert '"notion_learning_database_id": "NOTION_LEARNING_DATABASE_ID"' in config
+    assert "_looks_like_masked_secret" in config
     assert "notion-learning-settings-card" in dashboard
     assert "Notion 학습 DB 연동" in dashboard
     assert "Notion 설정 저장" in dashboard
     assert "worker-set-notion-api-key" in dashboard
     assert "worker-set-notion-db-id" in dashboard
     assert "notion_api_key_set" in dashboard
+    assert "notionApiKeyEl.value = ''" in dashboard

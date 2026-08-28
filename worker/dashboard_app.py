@@ -6159,11 +6159,11 @@ async function loadWorkerProfileSettings() {
     if (idEl) idEl.value = data.worker_id || '';
     if (urlEl) urlEl.value = data.central_server_url || '';
     if (tokenEl) {
-      tokenEl.value = data.worker_token || '';
+      tokenEl.value = '';
       tokenEl.placeholder = data.worker_token_set ? '•••••••• (설정됨)' : '중앙 서버 발급 토큰';
     }
     if (notionApiKeyEl) {
-      notionApiKeyEl.value = data.notion_api_key || '';
+      notionApiKeyEl.value = '';
       notionApiKeyEl.placeholder = data.notion_api_key_set ? '•••••••• (설정됨)' : 'secret_xxx';
     }
     if (notionDbIdEl) notionDbIdEl.value = data.notion_learning_database_id || '';
