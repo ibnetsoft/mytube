@@ -1097,7 +1097,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const connectLocalMediaDirectory = async () => {
+    const connectLocalMediaDirectory = async (): Promise<boolean> => {
         setLocalMediaDirectoryBusy(true)
         setMessage('로컬 작업 폴더를 연결하는 중...')
         try {
@@ -1107,14 +1107,26 @@ export default function StdPortalPage() {
                 await restorePersistedProjectMedia(selectedProject, authedJsonHeaders)
             }
             setMessage(`로컬 작업 폴더 '${state.folderName}' 연결 완료`)
+            return true
         } catch (error: any) {
             if (error?.name === 'AbortError') {
                 setMessage('로컬 작업 폴더 선택이 취소되었습니다.')
             } else {
                 setMessage(error?.message || '로컬 작업 폴더 연결 실패')
             }
+            return false
         } finally {
             setLocalMediaDirectoryBusy(false)
+        }
+    }
+
+    const prepareLocalDirectoryForUpload = async (event: React.MouseEvent<HTMLInputElement>) => {
+        if (localMediaDirectory.status === 'connected' || localMediaDirectory.status === 'unsupported') return
+        event.preventDefault()
+        if (localMediaDirectoryBusy) return
+        const connected = await connectLocalMediaDirectory()
+        if (connected) {
+            setMessage('로컬 폴더가 연결되었습니다. 업로드 버튼을 다시 눌러 파일을 선택해주세요.')
         }
     }
 
@@ -2499,7 +2511,15 @@ export default function StdPortalPage() {
                     assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType))]
                 }
             })
-            const localPayload = await saveAssetToLocalDirectory(actualAssetType, file, sceneNum)
+            let localRelativePath = ''
+            let localSaveError = ''
+            try {
+                const localPayload = await saveAssetToLocalDirectory(actualAssetType, file, sceneNum)
+                localRelativePath = localPayload.relativePath
+            } catch (error: any) {
+                localSaveError = error?.message || '로컬 폴더 저장 실패'
+                console.warn('[STD] local asset save failed; continuing with Drive upload:', error)
+            }
 
             const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                 method: 'POST',
@@ -2534,7 +2554,7 @@ export default function StdPortalPage() {
                     mime_type: file.type,
                     file_size: file.size,
                     scene_number: sceneNum,
-                    local_relative_path: localPayload.relativePath,
+                    local_relative_path: localRelativePath || null,
                 }),
             })
             const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
@@ -2583,7 +2603,9 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
-            setMessage(`에셋 (${file.name}) 로컬 폴더 및 Drive 저장 완료!`)
+            setMessage(localRelativePath
+                ? `에셋 (${file.name}) 로컬 폴더 및 Drive 저장 완료!`
+                : `에셋 (${file.name}) Drive 저장 완료. 로컬 저장 실패: ${localSaveError}`)
         } catch (error: any) {
             setMessage(error.message || '업로드 실패')
         } finally {
@@ -2628,7 +2650,15 @@ export default function StdPortalPage() {
         setUploadingKey('thumbnail-upload')
         setMessage('썸네일 이미지를 업로드하는 중...')
         try {
-            const localPayload = await saveAssetToLocalDirectory('thumbnail', file)
+            let localRelativePath = ''
+            let localSaveError = ''
+            try {
+                const localPayload = await saveAssetToLocalDirectory('thumbnail', file)
+                localRelativePath = localPayload.relativePath
+            } catch (error: any) {
+                localSaveError = error?.message || '로컬 폴더 저장 실패'
+                console.warn('[STD] local thumbnail save failed; continuing with Drive upload:', error)
+            }
 
             const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                 method: 'POST',
@@ -2661,7 +2691,7 @@ export default function StdPortalPage() {
                     file_name: file.name,
                     mime_type: file.type,
                     file_size: file.size,
-                    local_relative_path: localPayload.relativePath,
+                    local_relative_path: localRelativePath || null,
                 }),
             })
             const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
@@ -2687,7 +2717,9 @@ export default function StdPortalPage() {
             })
             setThumbBgUrl(persistedThumbnailUrl)
             setThumbBgUploadFile(null)
-            setMessage('Thumbnail saved to the local folder and backed up to Drive.')
+            setMessage(localRelativePath
+                ? 'Thumbnail saved to the local folder and backed up to Drive.'
+                : `Thumbnail saved to Drive. Local save failed: ${localSaveError}`)
             return persistedThumbnailUrl
             setMessage('썸네일 이미지 (' + file.name + ') 업로드가 완료되었습니다.')
         } finally {
@@ -5289,8 +5321,8 @@ export default function StdPortalPage() {
                                                 type="file"
                                                 multiple
                                                 accept="image/*,video/*"
-                                                disabled={localMediaDirectory.status !== 'connected'}
                                                 className="hidden"
+                                                onClick={prepareLocalDirectoryForUpload}
                                                 onChange={e => handleBulkImageUpload(e.target.files)}
                                             />
                                         </label>
@@ -5451,8 +5483,8 @@ export default function StdPortalPage() {
                                                                 <input
                                                                     type="file"
                                                                     accept="video/*"
-                                                                    disabled={localMediaDirectory.status !== 'connected'}
                                                                     className="hidden"
+                                                                    onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
@@ -5515,8 +5547,8 @@ export default function StdPortalPage() {
                                                                 <input
                                                                     type="file"
                                                                     accept="image/*,video/*"
-                                                                    disabled={localMediaDirectory.status !== 'connected'}
                                                                     className="hidden"
+                                                                    onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
@@ -5602,8 +5634,8 @@ export default function StdPortalPage() {
                                                                 <input
                                                                     type="file"
                                                                     accept={inRequiredZone ? 'video/*' : 'image/*,video/*'}
-                                                                    disabled={localMediaDirectory.status !== 'connected'}
                                                                     className="hidden"
+                                                                    onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, inRequiredZone ? 'video' : 'image', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
