@@ -107,6 +107,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     const driveFileId = String(body?.drive_file_id || '').trim()
+    const localRelativePath = String(body?.local_relative_path || '').trim().slice(0, 2000)
     const assetType = String(body?.asset_type || '').toLowerCase()
     const sceneNumber = body?.scene_number == null ? null : Number(body.scene_number)
     const targetFolderId = String(body?.target_folder_id || '').trim()
@@ -205,6 +206,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 metadata: {
                     web_view_link: metadata.webViewLink || driveFileLink(metadata.id),
                     thumbnail_link: metadata.thumbnailLink || null,
+                    local_relative_path: localRelativePath || null,
+                    local_storage_mode: localRelativePath ? 'browser_directory' : null,
                     uploaded_by: auth.requester.email,
                 },
             })
