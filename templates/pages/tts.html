@@ -218,7 +218,12 @@
 
         // [NEW] Restore saved settings
         const pid = getCurrentProject();
-        if (pid) await restoreTTSSettings(pid);
+        if (pid) {
+            await restoreTTSSettings(pid);
+            await restoreProjectTts(pid);
+        } else {
+            clearPersistedTtsUi();
+        }
 
         loadScript();
 
@@ -298,6 +303,73 @@
         }
 
         return "";
+    }
+
+    function normalizePersistedTtsUrl(ttsData) {
+        if (!ttsData) return "";
+        if (ttsData.url) return ttsData.url;
+
+        const rawPath = (ttsData.audio_path || '').replace(/\\/g, '/');
+        if (!rawPath) return '';
+
+        const outputIndex = rawPath.indexOf('/output/');
+        if (outputIndex !== -1) return rawPath.substring(outputIndex);
+
+        return '';
+    }
+
+    function clearPersistedTtsUi() {
+        const player = document.getElementById('audioPlayer');
+        if (player) {
+            player.pause();
+            player.removeAttribute('src');
+            player.load();
+        }
+
+        const dnLink = document.getElementById('downloadLink');
+        if (dnLink) dnLink.href = '#';
+
+        const resultSec = document.getElementById('resultSection');
+        if (resultSec) resultSec.classList.add('hidden');
+
+        Utils.storage.remove('ttsAudio');
+    }
+
+    function applyPersistedTts(ttsData) {
+        const ttsUrl = normalizePersistedTtsUrl(ttsData);
+        if (!ttsUrl) {
+            clearPersistedTtsUi();
+            return false;
+        }
+
+        const mergedTts = { ...(ttsData || {}), url: ttsUrl };
+        Utils.storage.set('ttsAudio', mergedTts);
+
+        const player = document.getElementById('audioPlayer');
+        if (player) player.src = ttsUrl;
+
+        const dnLink = document.getElementById('downloadLink');
+        if (dnLink) dnLink.href = ttsUrl;
+
+        const resultSec = document.getElementById('resultSection');
+        if (resultSec) resultSec.classList.remove('hidden');
+
+        return true;
+    }
+
+    async function restoreProjectTts(projectId) {
+        if (!projectId) {
+            clearPersistedTtsUi();
+            return;
+        }
+
+        try {
+            const projectFull = await API.project.getFull(projectId);
+            applyPersistedTts(projectFull && projectFull.tts ? projectFull.tts : null);
+        } catch (e) {
+            console.error("TTS restore failed:", e);
+            clearPersistedTtsUi();
+        }
     }
 
     function updateProviderSettingsVisibility() {
@@ -398,23 +470,7 @@
         }
 
         // 2. Audio Result Restoration
-        if (data.tts) {
-            if (!data.tts.url && data.tts.audio_path) {
-                const path = data.tts.audio_path.replace(/\\/g, '/');
-                const outputIndex = path.indexOf('/output/');
-                if (outputIndex !== -1) data.tts.url = path.substring(outputIndex);
-            }
-            if (data.tts.url) {
-                Utils.storage.set('ttsAudio', data.tts);
-                const player = document.getElementById('audioPlayer');
-                if (player) player.src = data.tts.url;
-                const dnLink = document.getElementById('downloadLink');
-                if (dnLink) dnLink.href = data.tts.url;
-
-                const resultSec = document.getElementById('resultSection');
-                if (resultSec) resultSec.classList.remove('hidden');
-            }
-        }
+        applyPersistedTts(data.tts || null);
 
         // 3. TTS Settings Restoration (Voice, Provider, Speed)
         if (data.settings) {
@@ -456,6 +512,10 @@
                 setMultiVoiceMode(false, false);
             }
         }
+    });
+
+    window.addEventListener('projectStateCleared', () => {
+        clearPersistedTtsUi();
     });
 
     async function checkAPIStatus() {
