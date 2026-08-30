@@ -14,6 +14,7 @@ export const maxDuration = 300
 
 const DEFAULT_ELEVENLABS_VOICE_ID = '4JJwo477JUAx3HV0T7n7'
 const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
+const FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']
 const MAX_CHARS_PER_REQUEST = 4500
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -77,8 +78,61 @@ async function getGlobalSetting(key: string) {
     return String(data?.value || '').trim()
 }
 
+function isUsableSecretValue(value: string) {
+    const normalized = String(value || '').trim()
+    if (!normalized) return false
+    if (/^[•*]+$/.test(normalized)) return false
+    if (['undefined', 'null', '(미설정)', '(unset)'].includes(normalized.toLowerCase())) return false
+    return true
+}
+
+function normalizeKeyPool(...values: string[]) {
+    const keys: string[] = []
+    for (const raw of values) {
+        for (const part of String(raw || '').split(/[\s,;\r\n]+/)) {
+            const key = part.trim()
+            if (isUsableSecretValue(key) && !keys.includes(key)) keys.push(key)
+            if (keys.length >= 4) return keys
+        }
+    }
+    return keys
+}
+
+function shouldRotateElevenLabsKey(status: number, detail: string) {
+    const message = String(detail || '').toLowerCase()
+    if (status === 402) return true
+    return (
+        message.includes('insufficient balance')
+        || message.includes('insufficient credits')
+        || message.includes('credit')
+        || message.includes('quota')
+        || message.includes('billing')
+        || message.includes('payment required')
+        || message.includes('invalid api key')
+        || message.includes('unauthorized')
+        || message.includes('access denied')
+    )
+}
+
+function shouldRetryElevenLabsWithAlternateModel(status: number, detail: string) {
+    if (status !== 400 && status !== 422) return false
+    const message = String(detail || '').toLowerCase()
+    return (
+        message.includes('model')
+        || message.includes('does not support')
+        || message.includes('unsupported')
+        || message.includes('not available')
+        || message.includes('invalid_request_error')
+    )
+}
+
+function buildElevenLabsModelCandidates(modelId: string) {
+    const candidates = [String(modelId || '').trim(), ...FALLBACK_ELEVENLABS_MODEL_IDS]
+    return candidates.filter((value, index) => value && candidates.indexOf(value) === index)
+}
+
 async function generateSingleElevenLabsChunk(input: {
-    apiKey: string
+    apiKeys: string[]
     voiceId: string
     modelId: string
     chunk: string
@@ -93,34 +147,60 @@ async function generateSingleElevenLabsChunk(input: {
     if (Number.isFinite(input.style)) voiceSettings.style = Number(input.style)
     if (Number.isFinite(input.speed)) voiceSettings.speed = Math.min(1.2, Math.max(0.7, Number(input.speed)))
 
-    const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(input.voiceId)}?output_format=mp3_44100_128`,
-        {
-            method: 'POST',
-            headers: {
-                'xi-api-key': input.apiKey,
-                'Content-Type': 'application/json',
-                Accept: 'audio/mpeg',
-            },
-            body: JSON.stringify({
-                text: input.chunk,
-                model_id: input.modelId || DEFAULT_ELEVENLABS_MODEL_ID,
-                voice_settings: Object.keys(voiceSettings).length ? voiceSettings : undefined,
-            }),
-        }
-    )
+    let lastError = 'ElevenLabs API key is not configured'
+    const modelCandidates = buildElevenLabsModelCandidates(input.modelId)
+    for (const apiKey of input.apiKeys) {
+        for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
+            const currentModelId = modelCandidates[modelIndex] || DEFAULT_ELEVENLABS_MODEL_ID
+            const res = await fetch(
+                `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(input.voiceId)}?output_format=mp3_44100_128`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'xi-api-key': apiKey,
+                        'Content-Type': 'application/json',
+                        Accept: 'audio/mpeg',
+                    },
+                    body: JSON.stringify({
+                        text: input.chunk,
+                        model_id: currentModelId,
+                        voice_settings: Object.keys(voiceSettings).length ? voiceSettings : undefined,
+                    }),
+                }
+            )
 
-    if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(`ElevenLabs TTS API error (${res.status}): ${errText}`)
+            if (res.ok) {
+                const arrayBuffer = await res.arrayBuffer()
+                return Buffer.from(arrayBuffer)
+            }
+
+            const errText = await res.text()
+            lastError = `ElevenLabs TTS API error (${res.status}): ${errText}`
+
+            if (errText.toLowerCase().includes('voice_not_found') && input.voiceId !== DEFAULT_ELEVENLABS_VOICE_ID) {
+                return generateSingleElevenLabsChunk({
+                    ...input,
+                    voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+                })
+            }
+
+            const hasAlternateModel = modelIndex < modelCandidates.length - 1
+            if (hasAlternateModel && shouldRetryElevenLabsWithAlternateModel(res.status, errText)) {
+                continue
+            }
+
+            if (!shouldRotateElevenLabsKey(res.status, errText)) {
+                throw new Error(lastError)
+            }
+            break
+        }
     }
 
-    const arrayBuffer = await res.arrayBuffer()
-    return Buffer.from(arrayBuffer)
+    throw new Error(lastError)
 }
 
 async function generateElevenLabsMp3(input: {
-    apiKey: string
+    apiKeys: string[]
     voiceId: string
     modelId: string
     text: string
@@ -142,7 +222,7 @@ async function generateElevenLabsMp3(input: {
             const chunks = splitText(seg.text)
             for (const chunk of chunks) {
                 const buf = await generateSingleElevenLabsChunk({
-                    apiKey: input.apiKey,
+                    apiKeys: input.apiKeys,
                     voiceId: targetVoiceId,
                     modelId: input.modelId,
                     chunk,
@@ -164,7 +244,7 @@ async function generateElevenLabsMp3(input: {
     const buffers: Buffer[] = []
     for (const chunk of chunks) {
         const buf = await generateSingleElevenLabsChunk({
-            apiKey: input.apiKey,
+            apiKeys: input.apiKeys,
             voiceId: input.voiceId,
             modelId: input.modelId,
             chunk,
@@ -384,21 +464,31 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         } else {
             stage = 'load_elevenlabs_key'
             let apiKey = ''
+            let backupKeys = ''
             try {
                 apiKey = await getGlobalSetting('sys_api_elevenlabs')
             } catch {
                 apiKey = ''
             }
+            try {
+                backupKeys = await getGlobalSetting('sys_api_elevenlabs_keys')
+            } catch {
+                backupKeys = ''
+            }
             if (!apiKey) {
                 apiKey = process.env.ELEVENLABS_API_KEY || ''
             }
-            if (!apiKey) {
+            if (!backupKeys) {
+                backupKeys = process.env.ELEVENLABS_API_KEYS || ''
+            }
+            const apiKeys = normalizeKeyPool(apiKey, backupKeys)
+            if (!apiKeys.length) {
                 return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
             }
 
             stage = 'generate_elevenlabs'
             audioBuffer = await generateElevenLabsMp3({
-                apiKey,
+                apiKeys,
                 voiceId,
                 modelId,
                 text,

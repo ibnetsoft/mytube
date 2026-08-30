@@ -13,6 +13,7 @@ const LazyPanelFallback = () => (
     </div>
 )
 
+const AuthForm = dynamic(() => import('./AuthForm'), { loading: LazyPanelFallback })
 const LearningStatsPanel = dynamic(() => import('./LearningStatsPanel'), { loading: LazyPanelFallback })
 const TenantManagement = dynamic(() => import('./TenantManagement'), { loading: LazyPanelFallback })
 const ReferralAdminPanel = dynamic(() => import('./ReferralAdminPanel'), { loading: LazyPanelFallback })
@@ -445,8 +446,11 @@ export default function DashboardContent() {
     const [isSyncingElevenLabs, setIsSyncingElevenLabs] = useState(false)
 
     // Auth & Access
-    const isSuperAdmin = user?.email === SUPER_ADMIN_EMAIL;
-    const isSubAdmin = user?.app_metadata?.role === 'sub_admin';
+    const normalizedUserEmail = String(user?.email || '').trim().toLowerCase()
+    const isSuperAdmin = normalizedUserEmail === SUPER_ADMIN_EMAIL.toLowerCase()
+        || user?.app_metadata?.is_superadmin === true
+        || user?.user_metadata?.is_superadmin === true;
+    const isSubAdmin = user?.app_metadata?.role === 'sub_admin' || user?.user_metadata?.role === 'sub_admin';
     const isAdmin = isSuperAdmin || isSubAdmin;
     const canManageSystemSettings = isSuperAdmin;
     const canManageStyles = isSuperAdmin;
@@ -2865,8 +2869,10 @@ export default function DashboardContent() {
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
-            if (!session) router.push('/');
-            else {
+            if (!session) {
+                setUser(null);
+                setAuthToken('');
+            } else {
                 setUser(session.user);
                 setAuthToken(session.access_token || '');
             }
@@ -2883,7 +2889,8 @@ export default function DashboardContent() {
         // "Super admin access required" 403, even for the actual super admin.
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!session) {
-                router.push('/');
+                setUser(null);
+                setAuthToken('');
                 return;
             }
             setUser(session.user);
@@ -2950,11 +2957,26 @@ export default function DashboardContent() {
     }, [isAdmin, loading, globalPeriod, fetchGlobalStats]);
 
     if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">{ui.authenticating}</div>;
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#111827] to-black px-4 py-10">
+                <div className="mx-auto flex min-h-[80vh] max-w-6xl items-center justify-center">
+                    <div className="w-full max-w-md">
+                        <div className="mb-6 text-center">
+                            <div className="text-[11px] font-black uppercase tracking-[0.35em] text-blue-400">AIR STUDIO ADMIN</div>
+                            <h1 className="mt-3 text-3xl font-black tracking-tight text-white">관리자 대시보드 로그인</h1>
+                            <p className="mt-2 text-sm font-bold text-gray-500">`/dashboard`에서 바로 관리자 인증을 진행합니다.</p>
+                        </div>
+                        <AuthForm />
+                    </div>
+                </div>
+            </div>
+        );
+    }
     if (!isAdmin) {
         // [AIR-0226] auth-web is admin-only. Regular members can still complete
         // Supabase auth (sign-in succeeds), but never see any dashboard content —
-        // sign them back out immediately and bounce to the login screen.
-        supabase.auth.signOut().then(() => router.replace('/'));
+        // show an in-place recovery path instead of bouncing to / which redirects to /std.
         return (
             <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
                 <div className="max-w-md w-full rounded-[2.5rem] border border-white/10 bg-[#0f172a]/70 p-8 shadow-2xl text-center">
@@ -2966,6 +2988,16 @@ export default function DashboardContent() {
                             ? 'หน้านี้สำหรับผู้ดูแลระบบเท่านั้น'
                             : '이 페이지는 관리자 전용입니다.'}
                     </p>
+                    <button
+                        type="button"
+                        onClick={() => supabase.auth.signOut().then(() => {
+                            setUser(null)
+                            setAuthToken('')
+                        })}
+                        className="mt-6 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-[11px] font-black uppercase tracking-widest text-gray-300 transition-all hover:bg-white/10 hover:text-white"
+                    >
+                        다른 계정으로 로그인
+                    </button>
                 </div>
             </div>
         );
