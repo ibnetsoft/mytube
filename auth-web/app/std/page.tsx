@@ -386,6 +386,7 @@ export default function StdPortalPage() {
             .then(data => {
                 if (data?.voices && data.voices.length > 0) {
                     setAllVoices(data.voices)
+                    setSelectedVoice(prev => data.voices.some((voice: any) => voice.id === prev) ? prev : data.voices[0].id)
                 }
             })
             .catch(err => console.error('Failed to load voices:', err))
@@ -1690,6 +1691,7 @@ export default function StdPortalPage() {
                 const voiceData = await safeParseJson(voicesRes.value, '')
                 if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
                     setAllVoices(voiceData.voices)
+                    setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
                 }
             }
 

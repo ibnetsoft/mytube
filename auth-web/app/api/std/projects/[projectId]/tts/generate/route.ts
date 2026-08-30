@@ -166,17 +166,9 @@ async function generateSingleElevenLabsChunk(input: {
             const errText = await res.text()
             lastError = `ElevenLabs TTS API error (${res.status}): ${errText}`
 
-            if (isElevenLabsVoiceAccessError(res.status, errText) && input.voiceId !== DEFAULT_ELEVENLABS_VOICE_ID) {
-                try {
-                    return await generateSingleElevenLabsChunk({
-                        ...input,
-                        apiKeys: [apiKey],
-                        voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
-                    })
-                } catch (fallbackError: any) {
-                    lastError = fallbackError?.message || lastError
-                    break
-                }
+            if (isElevenLabsVoiceAccessError(res.status, errText)) {
+                lastError = `선택한 성우(${input.voiceId})를 현재 ElevenLabs 키로 사용할 수 없습니다. 등록된 다음 백업 키를 확인합니다.`
+                break
             }
 
             const hasAlternateModel = modelIndex < modelCandidates.length - 1

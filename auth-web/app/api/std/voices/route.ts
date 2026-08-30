@@ -275,10 +275,14 @@ export async function GET(req: Request) {
     ]
 
     const baseList = apiVoices.length > 0 ? apiVoices : ELEVENLABS_PRESET_VOICES
+    const accessibleVoiceIds = new Set(apiVoices.map(voice => String(voice.id || '').trim()))
+    const availableCustomVoices = apiVoices.length > 0
+        ? customVoices.filter(voice => accessibleVoiceIds.has(String(voice.id || '').trim()))
+        : []
 
-    // Merge custom voices, free alternatives, and base voices in priority order.
+    // Account-specific custom voices must disappear when the configured primary key changes.
     const combinedMap = new Map<string, any>()
-    for (const cv of customVoices) {
+    for (const cv of availableCustomVoices) {
         combinedMap.set(cv.id, cv)
     }
     for (const fv of FREE_ALTERNATIVE_VOICES) {
