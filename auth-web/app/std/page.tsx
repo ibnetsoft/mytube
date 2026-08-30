@@ -861,9 +861,9 @@ export default function StdPortalPage() {
         }
     ])
 
-    const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true) => {
+    const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true, overrideScript?: string) => {
         if (!selectedProject) return false
-        const scriptToUse = cleanScriptContextText(customScriptText || selectedProject.project?.project_payload?.script || '')
+        const scriptToUse = cleanScriptContextText(overrideScript || customScriptText || selectedProject.project?.project_payload?.script || '')
         if (!scriptToUse.trim()) {
             if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
             return false
@@ -939,6 +939,7 @@ export default function StdPortalPage() {
         }
         
         setSelectedProject(updatedProject)
+        setCustomScriptText(scriptToUse)
         setLocalSubtitles(updatedSubs)
         rememberProjectState(updatedProject)
         if (selectedProject.project?.id) {
@@ -988,6 +989,20 @@ export default function StdPortalPage() {
             alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱으로 씬과 자막이 완벽 동기화되었습니다!')
         }
         return true
+    }
+
+    const restoreOriginalWorkerScript = async () => {
+        if (!selectedProject) return
+        const originalScript = findOriginalWorkerScript(selectedProject)
+        if (!originalScript) {
+            alert('복구할 워커 원본 대본이 없습니다.')
+            return
+        }
+        setMessage('워커 원본 대본으로 되돌리는 중...')
+        const restored = await handleSyncScriptToScenesAndSubtitles(false, originalScript)
+        if (!restored) return
+        setMessage('워커 원본 대본으로 복구했습니다.')
+        alert('워커 원본 대본을 복구하고 씬/자막까지 다시 동기화했습니다.')
     }
 
     const ensureScriptSyncedBeforeAction = async () => {
@@ -1285,6 +1300,23 @@ export default function StdPortalPage() {
         return null
     }
 
+    const findOriginalWorkerScript = (projectPayload?: SelectedProjectPayload | null): string => {
+        const payload = projectPayload?.project?.project_payload || {}
+        const embeddedScript = cleanScriptContextText(payload.original_worker_script || payload.pregenerated_script || '')
+        if (embeddedScript) return embeddedScript
+
+        const currentProject = projectPayload?.project || {}
+        const topicQueueId = Number(currentProject?.topic_queue_id || payload?.topic_id || 0)
+        const matchedTopic = topics.find((topic: any) => {
+            const sameTopicId = topicQueueId > 0 && Number(topic?.id || 0) === topicQueueId
+            const sameTitle = String(topic?.generated_title || topic?.topic || '').trim() !== ''
+                && String(topic?.generated_title || topic?.topic || '').trim() === String(currentProject?.title || '').trim()
+            return sameTopicId || sameTitle
+        })
+
+        return cleanScriptContextText(matchedTopic?.pregenerated_script || '')
+    }
+
     const restorePersistedProjectMedia = async (
         projectPayload: SelectedProjectPayload,
         headers: Record<string, string>
@@ -1307,7 +1339,7 @@ export default function StdPortalPage() {
 
         const mediaAssets = assets.filter((asset: any) =>
             ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-            && ['image', 'video', 'thumbnail'].includes(String(asset?.asset_type || '').toLowerCase())
+            && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
             && (asset?.id || asset?.drive_file_id)
         )
 
@@ -1356,10 +1388,15 @@ export default function StdPortalPage() {
 
         const restoredMap = new Map<string, string>()
         let restoredThumbnailUrl = ''
+        let restoredAudioUrl = ''
         for (const entry of restoredEntries) {
             if (!entry?.asset || !entry.objectUrl) continue
-            const sceneNumber = Number(entry.asset.scene_number)
             const assetType = String(entry.asset.asset_type || '').toLowerCase()
+            if (assetType === 'audio') {
+                restoredAudioUrl = entry.objectUrl
+                continue
+            }
+            const sceneNumber = Number(entry.asset.scene_number)
             if (assetType === 'thumbnail') {
                 restoredThumbnailUrl = entry.objectUrl
                 continue
@@ -1376,6 +1413,11 @@ export default function StdPortalPage() {
             setThumbBgUrl(restoredThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset) || fallbackThumbnailUrl)
             setThumbBgUploadFile(null)
         }
+
+        const audioAsset = assets.find((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'audio' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        setAudioResultUrl(restoredAudioUrl || audioPlaybackEndpoint(projectId, audioAsset) || '')
 
         setSelectedProject(prev => {
             if (!prev || String(prev.project?.id || '') !== String(projectId)) return prev
@@ -1416,10 +1458,6 @@ export default function StdPortalPage() {
             },
         })
 
-        // Do not eagerly download persisted TTS on page load. Some older Drive
-        // files can be unavailable; restoring them here produced noisy 500s and
-        // made the TTS tab look broken before the user generated new audio.
-        setAudioResultUrl('')
     }
 
     // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
@@ -1540,6 +1578,7 @@ export default function StdPortalPage() {
                 ...projectData,
                 project_payload: {
                     script: projectScript,
+                    original_worker_script: projectScript,
                     structure: { scenes, image_grid_prompts: gridPrompts },
                     image_grid_prompts: gridPrompts,
                 }
@@ -2134,6 +2173,14 @@ export default function StdPortalPage() {
         setAudioResultUrl(fakeUrl)
         setUploadingKey('audio-upload')
         try {
+            let localRelativePath = ''
+            try {
+                const localPayload = await saveAssetToLocalDirectory('audio', file)
+                localRelativePath = localPayload.relativePath
+            } catch (error) {
+                console.warn('[STD] local audio save failed; continuing with Drive upload:', error)
+            }
+
             const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                 method: 'POST',
                 headers: authedJsonHeaders,
@@ -2165,6 +2212,7 @@ export default function StdPortalPage() {
                     file_name: file.name,
                     mime_type: file.type,
                     file_size: file.size,
+                    local_relative_path: localRelativePath || null,
                 }),
             })
             const completePayload = await safeParseJson(completeRes, 'Audio upload complete failed')
@@ -2439,6 +2487,18 @@ export default function StdPortalPage() {
 
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
+                    project: {
+                        ...payload.project,
+                        project_payload: {
+                            ...(payload.project?.project_payload || {}),
+                            original_worker_script: findOriginalWorkerScript({
+                                ...payload,
+                                project: payload.project,
+                                scenes: normalizedScenes,
+                                assets: Array.isArray(payload.assets) ? payload.assets : [],
+                            }),
+                        },
+                    },
                     scenes: mergeAssetsIntoScenes(normalizedScenes, payload.assets || [], payload.project?.id),
                     assets: Array.isArray(payload.assets) ? payload.assets : [],
                 }
@@ -2614,7 +2674,7 @@ export default function StdPortalPage() {
     }
 
     const saveAssetToLocalDirectory = async (
-        assetType: 'image' | 'video' | 'thumbnail',
+        assetType: 'image' | 'video' | 'thumbnail' | 'audio',
         file: File,
         sceneNumber?: number
     ) => {
@@ -2628,6 +2688,20 @@ export default function StdPortalPage() {
         })
         setLocalMediaDirectory({ status: 'connected', folderName: result.folderName })
         return result
+    }
+
+    const persistGeneratedAudioLocally = async (audioBlob: Blob, persistedAudioAsset: any) => {
+        if (!selectedProject?.project?.id) return
+        const fileName = String(persistedAudioAsset?.file_name || `tts_${selectedProject.project.id}.mp3`).trim() || `tts_${selectedProject.project.id}.mp3`
+        const audioFile = new File([audioBlob], fileName, {
+            type: audioBlob.type || 'audio/mpeg',
+            lastModified: Date.now(),
+        })
+        try {
+            await saveAssetToLocalDirectory('audio', audioFile)
+        } catch (error) {
+            console.warn('[STD] local generated audio save failed:', error)
+        }
     }
 
     const handleThumbnailBgFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2942,7 +3016,9 @@ export default function StdPortalPage() {
                     persistedAudioAsset = persistPayload.asset || null
                     const persistedAudioRes = await fetch(persistPayload.audio_url, { headers: authedJsonHeaders })
                     if (persistedAudioRes.ok) {
-                        audioUrl = URL.createObjectURL(await persistedAudioRes.blob())
+                        const audioBlob = await persistedAudioRes.blob()
+                        audioUrl = URL.createObjectURL(audioBlob)
+                        await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                     }
                 }
             } else {
@@ -2992,7 +3068,9 @@ export default function StdPortalPage() {
                         console.warn('[STD TTS] generated audio playback load failed:', errorText || audioRes.status)
                         audioUrl = payload.web_view_link || ''
                     } else {
-                        audioUrl = URL.createObjectURL(await audioRes.blob())
+                        const audioBlob = await audioRes.blob()
+                        audioUrl = URL.createObjectURL(audioBlob)
+                        await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                     }
                 }
 
@@ -5254,6 +5332,13 @@ export default function StdPortalPage() {
                                             <p className="text-[10px] text-gray-400 mt-0.5">이곳에서 직접 대본을 수정하면 수정된 대본으로 음성이 생성됩니다.</p>
                                         </div>
                                         <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={restoreOriginalWorkerScript}
+                                                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition shadow flex items-center gap-1.5"
+                                            >
+                                                <span>↺</span> 워커 원본 대본 복구
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleSyncScriptToScenesAndSubtitles(true)}

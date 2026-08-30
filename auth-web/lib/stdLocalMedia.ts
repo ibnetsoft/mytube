@@ -187,7 +187,7 @@ export async function saveStdLocalMediaFile(input: {
     projectId: string
     projectTitle: string
     sceneNumber: number | null
-    assetType: 'image' | 'video' | 'thumbnail'
+    assetType: 'image' | 'video' | 'thumbnail' | 'audio'
     file: File
 }): Promise<{ relativePath: string; folderName: string }> {
     const root = await writableRootHandle(true)
@@ -248,7 +248,7 @@ export async function restoreStdLocalProjectMedia(
 
     for (const asset of Array.isArray(assets) ? assets : []) {
         const assetType = String(asset?.asset_type || '').toLowerCase()
-        if (!['image', 'video', 'thumbnail'].includes(assetType)) continue
+        if (!['image', 'video', 'thumbnail', 'audio'].includes(assetType)) continue
         const sceneValue = asset?.scene_number == null ? null : Number(asset.scene_number)
         const sceneNumber = Number.isFinite(sceneValue) ? sceneValue : null
         const key = localAssetKey(projectId, sceneNumber, assetType)
