@@ -21,6 +21,14 @@ def test_std_local_media_supports_audio_assets():
     assert "['image', 'video', 'thumbnail', 'audio'].includes(assetType)" in STD_LOCAL_MEDIA
 
 
+def test_std_local_media_reuses_existing_folder_for_permission_reconnect():
+    assert "export async function reconnectStdLocalDirectory()" in STD_LOCAL_MEDIA
+    assert "const handle = await getRootHandle()" in STD_LOCAL_MEDIA
+    assert "return await selectStdLocalDirectory()" in STD_LOCAL_MEDIA
+    assert "? await reconnectStdLocalDirectory()" in STD_PAGE
+    assert "? '권한 재연결'" in STD_PAGE
+
+
 def test_std_tts_routes_filter_masked_keys_and_retry_elevenlabs_fallbacks():
     assert "function isUsableSecretValue" in STD_TTS_KEY_ROUTE
     assert "function isUsableSecretValue" in STD_TTS_GENERATE_ROUTE

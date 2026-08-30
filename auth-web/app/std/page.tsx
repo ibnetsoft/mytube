@@ -63,6 +63,7 @@ import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
 import {
     getStdLocalDirectoryState,
+    reconnectStdLocalDirectory,
     restoreStdLocalProjectMedia,
     saveStdLocalMediaFile,
     selectStdLocalDirectory,
@@ -1116,16 +1117,26 @@ export default function StdPortalPage() {
         setLocalMediaDirectoryBusy(true)
         setMessage('로컬 작업 폴더를 연결하는 중...')
         try {
-            const state = await selectStdLocalDirectory()
+            const state = localMediaDirectory.status === 'permission_needed'
+                ? await reconnectStdLocalDirectory()
+                : await selectStdLocalDirectory()
             setLocalMediaDirectory(state)
             if (selectedProject) {
                 await restorePersistedProjectMedia(selectedProject, authedJsonHeaders)
             }
-            setMessage(`로컬 작업 폴더 '${state.folderName}' 연결 완료`)
+            setMessage(
+                localMediaDirectory.status === 'permission_needed'
+                    ? `로컬 작업 폴더 '${state.folderName}' 권한 재연결 완료`
+                    : `로컬 작업 폴더 '${state.folderName}' 연결 완료`
+            )
             return true
         } catch (error: any) {
             if (error?.name === 'AbortError') {
-                setMessage('로컬 작업 폴더 선택이 취소되었습니다.')
+                setMessage(
+                    localMediaDirectory.status === 'permission_needed'
+                        ? '로컬 작업 폴더 권한 재연결이 취소되었습니다.'
+                        : '로컬 작업 폴더 선택이 취소되었습니다.'
+                )
             } else {
                 setMessage(error?.message || '로컬 작업 폴더 연결 실패')
             }
@@ -5461,6 +5472,8 @@ export default function StdPortalPage() {
                                             ? '연결 중...'
                                             : localMediaDirectory.status === 'connected'
                                                 ? '폴더 변경'
+                                                : localMediaDirectory.status === 'permission_needed'
+                                                    ? '권한 재연결'
                                                 : '로컬 폴더 선택'}
                                     </button>
                                 </div>

@@ -116,6 +116,24 @@ export async function selectStdLocalDirectory(): Promise<StdLocalDirectoryState>
     return { status: 'connected', folderName: String(handle.name || '') }
 }
 
+export async function reconnectStdLocalDirectory(): Promise<StdLocalDirectoryState> {
+    if (!supportsLocalDirectoryAccess()) {
+        throw new Error('이 브라우저는 로컬 폴더 저장을 지원하지 않습니다. 최신 Chrome 또는 Edge를 사용해주세요.')
+    }
+    const handle = await getRootHandle()
+    if (!handle) {
+        return await selectStdLocalDirectory()
+    }
+    const permission = await queryPermission(handle, true)
+    if (permission !== 'granted') {
+        throw new Error('로컬 저장 폴더 권한이 필요합니다. 브라우저에서 권한 요청을 허용해주세요.')
+    }
+    return {
+        status: 'connected',
+        folderName: String(handle.name || ''),
+    }
+}
+
 async function writableRootHandle(promptForAccess: boolean): Promise<any> {
     let handle = await getRootHandle()
     if (!handle && promptForAccess) {
