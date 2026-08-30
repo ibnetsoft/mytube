@@ -1367,6 +1367,15 @@ export default function StdPortalPage() {
         const payload = projectPayload?.project?.project_payload || {}
 
         const currentProject = projectPayload?.project || {}
+        const sourcePayload = currentProject?.source_payload || {}
+        const sourceScript = cleanScriptContextText(
+            sourcePayload?.pregenerated_script
+            || sourcePayload?.script
+            || sourcePayload?.full_script
+            || ''
+        )
+        if (sourceScript) return sourceScript
+
         const topicQueueId = Number(currentProject?.topic_queue_id || payload?.topic_id || 0)
         const matchedTopic = topics.find((topic: any) => {
             const sameTopicId = topicQueueId > 0 && Number(topic?.id || 0) === topicQueueId

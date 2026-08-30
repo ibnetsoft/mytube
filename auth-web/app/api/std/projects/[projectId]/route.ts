@@ -4,6 +4,35 @@ import { requireStdUser } from '@/lib/stdWeb'
 
 export const dynamic = 'force-dynamic'
 
+function firstScript(...values: any[]): string {
+    return values.map(value => String(value || '').trim()).find(Boolean) || ''
+}
+
+async function resolveOriginalWorkerScript(project: any): Promise<string> {
+    const sourceScript = firstScript(
+        project?.source_payload?.pregenerated_script,
+        project?.source_payload?.script,
+        project?.source_payload?.full_script,
+    )
+    if (sourceScript) return sourceScript
+
+    const topicQueueId = Number(project?.topic_queue_id)
+    if (Number.isFinite(topicQueueId) && topicQueueId > 0) {
+        const { data: topic } = await supabaseAdmin
+            .from('topics_queue')
+            .select('pregenerated_script')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+        const topicScript = firstScript(topic?.pregenerated_script)
+        if (topicScript) return topicScript
+    }
+
+    return firstScript(
+        project?.project_payload?.original_worker_script,
+        project?.project_payload?.pregenerated_script,
+    )
+}
+
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
@@ -23,6 +52,17 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
+
+    const originalWorkerScript = await resolveOriginalWorkerScript(project)
+    if (originalWorkerScript) {
+        project = {
+            ...project,
+            project_payload: {
+                ...(project.project_payload || {}),
+                original_worker_script: originalWorkerScript,
+            },
+        }
+    }
 
     const [{ data: scenes, error: scenesError }, { data: assets, error: assetsError }] = await Promise.all([
         supabaseAdmin
@@ -96,6 +136,10 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const projectPayloadPatch = Object.fromEntries(
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
+    const canonicalOriginalWorkerScript = await resolveOriginalWorkerScript(project)
+    if (canonicalOriginalWorkerScript) {
+        projectPayloadPatch.original_worker_script = canonicalOriginalWorkerScript
+    }
     const titlePatch = typeof body?.title === 'string' ? body.title.trim() : ''
 
     if (Object.keys(progressPatch).length === 0 && Object.keys(projectPayloadPatch).length === 0 && !titlePatch && incomingScenes.length === 0) {

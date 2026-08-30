@@ -70,6 +70,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
             source_payload: topic,
             project_payload: {
                 script: firstText(topic.pregenerated_script),
+                original_worker_script: firstText(topic.pregenerated_script),
                 structure: topic.pregenerated_structure || {},
                 image_grid_prompts: imageGridPrompts,
                 main_character: topic.progress_payload?.main_character || topic.pregenerated_structure?.main_character || null,
