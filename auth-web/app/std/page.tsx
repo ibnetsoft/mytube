@@ -1334,8 +1334,30 @@ export default function StdPortalPage() {
 
     const findOriginalWorkerScript = (projectPayload?: SelectedProjectPayload | null): string => {
         const payload = projectPayload?.project?.project_payload || {}
-        const embeddedScript = cleanScriptContextText(payload.original_worker_script || payload.pregenerated_script || '')
+        const embeddedScript = cleanScriptContextText(
+            payload.original_worker_script
+            || payload.pregenerated_script
+            || payload.script
+            || payload.longform_script
+            || ''
+        )
         if (embeddedScript) return embeddedScript
+
+        const sceneScript = cleanScriptContextText(
+            (projectPayload?.scenes || [])
+                .map((scene: any) => scene?.scene_text || scene?.script_excerpt || scene?.text || '')
+                .filter(Boolean)
+                .join('\n\n')
+        )
+        if (sceneScript) return sceneScript
+
+        const structuredSceneScript = cleanScriptContextText(
+            (Array.isArray(payload?.structure?.scenes) ? payload.structure.scenes : [])
+                .map((scene: any) => scene?.scene_text || scene?.script_excerpt || scene?.text || '')
+                .filter(Boolean)
+                .join('\n\n')
+        )
+        if (structuredSceneScript) return structuredSceneScript
 
         const currentProject = projectPayload?.project || {}
         const topicQueueId = Number(currentProject?.topic_queue_id || payload?.topic_id || 0)
