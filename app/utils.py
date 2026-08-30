@@ -43,20 +43,85 @@ def validate_upload(file: UploadFile, allowed_exts: set, max_bytes: int):
     return ext, safe_name
 
 
+def _sanitize_output_folder_name(value: str) -> str:
+    safe_value = re.sub(r'[\\/*?:"<>|]', "", str(value or "")).strip()
+    safe_value = re.sub(r"\s+", "_", safe_value)
+    safe_value = safe_value.strip("._")
+    return safe_value
+
+
+def _extract_output_folder_name(path_or_url: str) -> str:
+    value = str(path_or_url or "").strip()
+    if not value:
+        return ""
+
+    normalized = value.replace("\\", "/")
+    if normalized.startswith("/output/"):
+        relative = normalized[len("/output/"):]
+    else:
+        output_root = os.path.abspath(config.OUTPUT_DIR).replace("\\", "/").rstrip("/")
+        output_root_lower = output_root.lower()
+        normalized_lower = normalized.lower()
+        prefix = output_root_lower + "/"
+        if not normalized_lower.startswith(prefix):
+            return ""
+        relative = normalized[len(output_root) + 1:]
+
+    folder_name = relative.split("/", 1)[0].strip()
+    return _sanitize_output_folder_name(folder_name)
+
+
+def _discover_existing_project_output_folder_name(project_id: int, settings: dict | None = None) -> str:
+    settings = settings or {}
+    candidates = [
+        settings.get("output_folder_name"),
+        settings.get("thumbnail_path"),
+        settings.get("thumbnail_url"),
+        settings.get("video_path"),
+        settings.get("external_video_path"),
+    ]
+
+    try:
+        tts_row = db.get_tts(project_id) or {}
+        candidates.append(tts_row.get("audio_path"))
+    except Exception:
+        pass
+
+    try:
+        for prompt in db.get_image_prompts(project_id) or []:
+            candidates.append(prompt.get("image_url"))
+            candidates.append(prompt.get("video_url"))
+    except Exception:
+        pass
+
+    for candidate in candidates:
+        folder_name = _extract_output_folder_name(candidate)
+        if folder_name:
+            return folder_name
+    return ""
+
+
 def get_project_output_dir(project_id: int):
     """
-    프로젝트 ID를 기반으로 '프로젝트명_날짜' 형식의 폴더를 생성하고 경로를 반환합니다.
+    프로젝트 ID를 기반으로 안정적인 출력 폴더를 생성하고 경로를 반환합니다.
     Returns: (abs_path, web_path)
     """
     project = db.get_project(project_id)
     if not project:
         return config.OUTPUT_DIR, "/output"
 
-    safe_name = re.sub(r'[\\/*?:"<>|]', "", project['name']).strip()
-    safe_name = re.sub(r'\s+', '_', safe_name)
+    settings = db.get_project_settings(project_id) or {}
+    stored_folder_name = _sanitize_output_folder_name(settings.get("output_folder_name"))
+    discovered_folder_name = _discover_existing_project_output_folder_name(project_id, settings)
+    safe_name = _sanitize_output_folder_name(project.get("name") or f"project_{project_id}")
+    stable_folder_name = f"project_{project_id}_{safe_name}" if safe_name else f"project_{project_id}"
+    folder_name = stored_folder_name or discovered_folder_name or stable_folder_name
 
-    today = datetime.datetime.now().strftime("%Y%m%d")
-    folder_name = f"{safe_name}_{today}"
+    if folder_name != stored_folder_name:
+        try:
+            db.update_project_setting(project_id, "output_folder_name", folder_name)
+        except Exception:
+            pass
 
     abs_path = os.path.join(config.OUTPUT_DIR, folder_name)
     os.makedirs(abs_path, exist_ok=True)

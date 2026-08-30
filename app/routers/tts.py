@@ -17,6 +17,7 @@ from app.utils import get_project_output_dir
 from services.web_admin_client import web_admin_client
 
 router = APIRouter(prefix="/api", tags=["TTS"])
+DEFAULT_ELEVENLABS_VOICE_ID = "4JJwo477JUAx3HV0T7n7"
 
 
 # ===========================================
@@ -30,7 +31,8 @@ async def tts_generate(req: TTSRequest):
     from services.tts_service import tts_service
 
     start_time = time.time()
-    tts_model_id = "multi-voice" if req.multi_voice else (req.voice_id or "default")
+    base_voice_id = (str(req.voice_id or "").strip() or DEFAULT_ELEVENLABS_VOICE_ID)
+    tts_model_id = "multi-voice" if req.multi_voice else base_voice_id
 
     def _log_tts(status: str, error_msg: str = ""):
         try:
@@ -168,14 +170,14 @@ async def tts_generate(req: TTSRequest):
                         print(f"🎙️ [Main] TTS 세그먼트 생성 중... ({idx+1}/{len(segments)})")
                     
                     # 화자별 목소리 결정
-                    target_voice = req.voice_map.get(speaker, req.voice_id)
+                    target_voice = req.voice_map.get(speaker, base_voice_id)
                     if isinstance(target_voice, dict) and "id" in target_voice:
                         target_voice = target_voice["id"]
                     
                     provider = req.provider
                     # [ROBUSTNESS] '기본 설정 따름' 등의 비어있는 값 처리
                     if not target_voice:
-                        target_voice = req.voice_id
+                        target_voice = base_voice_id
                     
                     print(f"🎙️ [DEBUG MULTIVOICE] Segment {idx} (Speaker: '{speaker}') mapped to target_voice: '{target_voice}' (from voice_map: {req.voice_map}, fallback: '{req.voice_id}')")
                     
@@ -313,7 +315,7 @@ async def tts_generate(req: TTSRequest):
             # 1. ElevenLabs
             if req.provider == "elevenlabs":
                 result = await tts_service.generate_elevenlabs(
-                    req.text, req.voice_id, result_filename, voice_settings=el_voice_settings
+                    req.text, base_voice_id, result_filename, voice_settings=el_voice_settings
                 )
                 if isinstance(result, dict):
                     output_path = result.get("audio_path")
@@ -383,8 +385,8 @@ async def tts_generate(req: TTSRequest):
                      print(f"Failed to calculate audio duration: {e}")
 
                  # [FIX] Logic for voice_id/name: Single voice should use actual ID
-                 final_voice_id = "multi-voice" if req.multi_voice else (req.voice_id or "default")
-                 final_voice_name = "Multi Voice" if req.multi_voice else (req.voice_id or "default")
+                 final_voice_id = "multi-voice" if req.multi_voice else base_voice_id
+                 final_voice_name = "Multi Voice" if req.multi_voice else base_voice_id
 
                  db.save_tts(
                      req.project_id,
@@ -443,25 +445,18 @@ async def tts_voices():
         pass
 
     # ElevenLabs
-    if config.ELEVENLABS_API_KEY:
-        try:
-            async with httpx.AsyncClient(trust_env=False) as client:
-                response = await client.get(
-                    "https://api.elevenlabs.io/v1/voices",
-                    headers={"xi-api-key": config.ELEVENLABS_API_KEY}
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    for v in data.get("voices", []):
-                        voices.append({
-                            "voice_id": v["voice_id"],
-                            "name": v["name"],
-                            "provider": "elevenlabs",
-                            "preview_url": v.get("preview_url"),
-                            "labels": v.get("labels", {})
-                        })
-        except Exception:
-            pass
+    try:
+        elevenlabs_voices = await tts_service.get_elevenlabs_voices()
+        for v in elevenlabs_voices or []:
+            voices.append({
+                "voice_id": v["voice_id"],
+                "name": v["name"],
+                "provider": "elevenlabs",
+                "preview_url": v.get("preview_url"),
+                "labels": v.get("labels", {})
+            })
+    except Exception:
+        pass
 
     # [NEW] 수동 등록한 커스텀 보이스 병합
     try:

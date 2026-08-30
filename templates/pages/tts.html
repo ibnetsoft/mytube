@@ -163,10 +163,16 @@
                     <span class="font-normal text-gray-400">|</span>
                     <span class="font-normal text-gray-500 dark:text-gray-400"><span id="charCount">0</span>{{ t('chars_unit') }}</span>
                 </h3>
-                <button onclick="loadScript()"
-                    class="text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors dark:text-gray-400">
-                    🔄 {{ t('btn_load_script') }}
-                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="restoreWorkerScript()"
+                        class="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1 transition-colors">
+                        ↺ 워커 원본 대본 복구
+                    </button>
+                    <button onclick="loadScript()"
+                        class="text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors dark:text-gray-400">
+                        🔄 {{ t('btn_load_script') }}
+                    </button>
+                </div>
             </div>
 
             <textarea id="ttsText"
@@ -305,11 +311,34 @@
         return "";
     }
 
+    function extractPregeneratedScript(data) {
+        if (!data) return "";
+
+        const candidates = [
+            data.pregenerated_script_text,
+            data.pregenerated_script,
+            data.settings && data.settings.pregenerated_script_text,
+            data.settings && data.settings.pregenerated_script,
+            data.project && data.project.pregenerated_script,
+        ];
+
+        for (const candidate of candidates) {
+            if (!candidate) continue;
+            if (typeof candidate === 'string') return candidate;
+            if (candidate.full_script) return candidate.full_script;
+            if (candidate.script) return candidate.script;
+            if (candidate.content) return candidate.content;
+            if (candidate.text) return candidate.text;
+        }
+
+        return "";
+    }
+
     function normalizePersistedTtsUrl(ttsData) {
         if (!ttsData) return "";
         if (ttsData.url) return ttsData.url;
 
-        const rawPath = (ttsData.audio_path || '').replace(/\\/g, '/');
+        const rawPath = (ttsData.audio_path || ttsData.full_path || '').replace(/\\/g, '/');
         if (!rawPath) return '';
 
         const outputIndex = rawPath.indexOf('/output/');
@@ -355,6 +384,42 @@
         if (resultSec) resultSec.classList.remove('hidden');
 
         return true;
+    }
+
+    async function restoreWorkerScript() {
+        const projectId = getCurrentProject();
+        if (!projectId) {
+            Utils.showToast('먼저 프로젝트를 선택하세요.', 'warning');
+            return;
+        }
+
+        try {
+            const projectFull = await API.project.getFull(projectId);
+            const restoredScript = extractPregeneratedScript(projectFull);
+            if (!restoredScript) {
+                Utils.showToast('복구할 워커 원본 대본이 없습니다.', 'warning');
+                return;
+            }
+
+            applyScriptToTextarea(restoredScript);
+            Utils.storage.set('fullScript', { script: restoredScript, full_script: restoredScript });
+
+            const estimatedDuration = Math.max(1, Math.round(restoredScript.length / 5));
+            await API.project.saveScript(
+                projectId,
+                restoredScript,
+                restoredScript.length,
+                estimatedDuration,
+                currentLanguage || null
+            );
+
+            showPreparedScriptReady();
+            await checkScriptStatus();
+            Utils.showToast('워커 원본 대본으로 복구했습니다.', 'success');
+        } catch (e) {
+            console.error('Failed to restore worker script:', e);
+            Utils.showToast('워커 원본 대본 복구에 실패했습니다.', 'error');
+        }
     }
 
     async function restoreProjectTts(projectId) {
@@ -1017,13 +1082,17 @@
             });
 
             if (result.status === 'ok') {
+                const persistedTts = {
+                    url: result.url,
+                    audio_path: result.full_path || null,
+                    full_path: result.full_path || null,
+                    project_id: projectId ? String(projectId) : null,
+                    timestamp: Date.now()
+                };
+                applyPersistedTts(persistedTts);
                 const player = document.getElementById('audioPlayer');
-                player.src = result.url;
                 player.play().catch(e => { });
-                document.getElementById('downloadLink').href = result.url;
-                document.getElementById('resultSection').classList.remove('hidden');
                 Utils.showToast("{{ t('status_done') }}", 'success');
-                Utils.storage.set('ttsAudio', { url: result.url, timestamp: Date.now() });
 
                 // [NEW] Update Stepper
                 if (window.updateStepStatus) window.updateStepStatus('tts', true);
@@ -1065,17 +1134,17 @@
             if (result.status === 'ok') {
                 Utils.showToast(`{{ t('toast_ext_audio_registered') }}`, 'success');
 
-                // Set audio player
+                const persistedTts = {
+                    url: result.url,
+                    audio_path: result.path || null,
+                    full_path: result.path || null,
+                    project_id: String(projectId),
+                    timestamp: Date.now()
+                };
+                applyPersistedTts(persistedTts);
+
                 const player = document.getElementById('audioPlayer');
-                player.src = result.url;
                 player.play().catch(e => { }); // Autoplay if possible
-
-                document.getElementById('downloadLink').href = result.url;
-                document.getElementById('resultSection').classList.remove('hidden');
-
-                // Save to storage
-                // Save to storage
-                Utils.storage.set('ttsAudio', { url: result.url, timestamp: Date.now() });
 
                 // [NEW] Update Stepper
                 if (window.updateStepStatus) window.updateStepStatus('tts', true);
