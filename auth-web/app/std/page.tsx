@@ -918,6 +918,19 @@ export default function StdPortalPage() {
         })
         
         const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 20)
+        const persistedScenes = updatedScenes.map((scene: any, index: number) => ({
+            scene_number: Number(scene?.scene_number || scene?.scene_order || index + 1),
+            scene_title: String(scene?.scene_title || `Scene ${index + 1}`),
+            scene_text: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
+            image_prompt: String(scene?.image_prompt || ''),
+            video_prompt: String(scene?.video_prompt || ''),
+            metadata: {
+                ...(scene?.metadata || {}),
+                script_excerpt: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
+                visual_type: scene?.visual_type || null,
+                synced_from_full_script_at: syncedAt,
+            },
+        }))
         const updatedStructure = {
             ...(selectedProject.project?.project_payload?.structure || {}),
             scenes: updatedScenes,
@@ -955,8 +968,10 @@ export default function StdPortalPage() {
                         },
                         project_payload: {
                             script: scriptToUse,
-                            structure: updatedStructure,
-                            scenes: updatedScenes,
+                            structure: {
+                                ...(selectedProject.project.project_payload?.structure || {}),
+                            },
+                            scenes: persistedScenes,
                             subtitles: updatedSubs,
                             subtitles_saved: true,
                             render_settings: {
@@ -1098,10 +1113,16 @@ export default function StdPortalPage() {
         }
     }, [playbackTime, localSubtitles])
 
-    const authedJsonHeaders = useMemo(() => ({
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-    }), [token])
+    const authedJsonHeaders = useMemo<Record<string, string>>(() => {
+        const headers: Record<string, string> = {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        }
+        if (isImpersonating && impersonateEmail) {
+            headers['x-impersonate-email'] = impersonateEmail
+        }
+        return headers
+    }, [token, isImpersonating, impersonateEmail])
 
     const safeParseJson = async (res: Response, fallbackErrMsg: string) => {
         try {

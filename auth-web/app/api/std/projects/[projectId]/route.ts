@@ -84,35 +84,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         return NextResponse.json({ success: false, error: 'No supported fields to update' }, { status: 400 })
     }
 
-    const updatePayload: Record<string, any> = {
-        updated_at: new Date().toISOString(),
-    }
-    if (Object.keys(progressPatch).length > 0) {
-        updatePayload.progress_payload = {
-            ...(project.progress_payload || {}),
-            ...progressPatch,
-        }
-    }
-    if (Object.keys(projectPayloadPatch).length > 0) {
-        updatePayload.project_payload = {
-            ...(project.project_payload || {}),
-            ...projectPayloadPatch,
-        }
-    }
-    if (titlePatch) updatePayload.title = titlePatch
-
-    const { data: updated, error: updateError } = await supabaseAdmin
-        .from('std_projects')
-        .update(updatePayload)
-        .eq('id', project.id)
-        .select('*')
-        .single()
-
-    if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
-
-    let updatedScenes: any[] | null = null
-    if (incomingScenes.length > 0) {
-        const normalizedScenes = incomingScenes
+    const normalizedScenes = incomingScenes.length > 0
+        ? incomingScenes
             .map((scene: any, index: number) => {
                 const sceneNumber = Number(scene?.scene_number || index + 1)
                 if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
@@ -130,7 +103,48 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 }
             })
             .filter(Boolean) as any[]
+        : []
 
+    const updatePayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+    }
+    if (Object.keys(progressPatch).length > 0) {
+        updatePayload.progress_payload = {
+            ...(project.progress_payload || {}),
+            ...progressPatch,
+        }
+    }
+    if (Object.keys(projectPayloadPatch).length > 0 || normalizedScenes.length > 0) {
+        const currentStructure = project.project_payload?.structure || {}
+        const nextStructure = projectPayloadPatch.structure
+            ? {
+                ...currentStructure,
+                ...projectPayloadPatch.structure,
+            }
+            : currentStructure
+        if (normalizedScenes.length > 0) {
+            nextStructure.scenes = normalizedScenes
+        }
+        updatePayload.project_payload = {
+            ...(project.project_payload || {}),
+            ...projectPayloadPatch,
+            ...(normalizedScenes.length > 0 ? { scenes: normalizedScenes } : {}),
+            ...(Object.keys(nextStructure).length > 0 ? { structure: nextStructure } : {}),
+        }
+    }
+    if (titlePatch) updatePayload.title = titlePatch
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+        .from('std_projects')
+        .update(updatePayload)
+        .eq('id', project.id)
+        .select('*')
+        .single()
+
+    if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
+
+    let updatedScenes: any[] | null = null
+    if (normalizedScenes.length > 0) {
         const { data: existingScenes, error: existingScenesError } = await supabaseAdmin
             .from('std_project_scenes')
             .select('id,scene_number')
