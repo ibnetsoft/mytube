@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
 import { requireStdUser } from '@/lib/stdWeb'
 
 export const dynamic = 'force-dynamic'
@@ -234,11 +235,11 @@ export async function GET(req: Request) {
 
     let apiVoices: any[] = []
     try {
-        const apiKey = process.env.ELEVENLABS_API_KEY
+        const [apiKey] = await getConfiguredElevenLabsKeys()
         if (apiKey) {
             const res = await fetch('https://api.elevenlabs.io/v1/voices?show_legacy=true', {
                 headers: { 'xi-api-key': apiKey },
-                next: { revalidate: 3600 }
+                cache: 'no-store',
             })
             if (res.ok) {
                 const data = await res.json()

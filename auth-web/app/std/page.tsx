@@ -3257,7 +3257,9 @@ export default function StdPortalPage() {
             setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!`)
         } catch (error: any) {
             setAudioResultUrl('')
-            setMessage(error?.message || 'TTS generation failed')
+            const errorMessage = error?.message || 'TTS generation failed'
+            setMessage(`❌ ${errorMessage}`)
+            alert(`음성 생성 실패: ${errorMessage}`)
         } finally {
             setGeneratingTts(false)
         }

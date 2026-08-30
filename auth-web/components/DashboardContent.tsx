@@ -5233,6 +5233,7 @@ export default function DashboardContent() {
                                             { key: 'claude',  label: 'Claude API Key',         hint: '대본 생성 전용 (Anthropic Claude)' },
                                             { key: 'youtube', label: 'YouTube Data API Key',  hint: '채널/영상 검색 및 통계 조회' },
                                             { key: 'youtube_keys', label: 'YouTube Backup API Keys', hint: '최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용' },
+                                            { key: 'elevenlabs', label: 'ElevenLabs API Key', hint: '웹 STD 음성 생성에서 가장 먼저 사용하는 기본 Key' },
                                             { key: 'elevenlabs_keys', label: 'ElevenLabs Backup API Keys', hint: '기본 Key 외 백업 Key를 최대 3개까지 쉼표 또는 줄바꿈으로 입력하면 잔액 소진/쿼터 오류 시 다음 Key로 자동 전환' },
                                         ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
                                             <div key={key} className="space-y-1.5">

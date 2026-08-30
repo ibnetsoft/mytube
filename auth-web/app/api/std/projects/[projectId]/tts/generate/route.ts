@@ -8,11 +8,12 @@ import {
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { parseScriptToVoiceSegments, ScriptVoiceSegment } from '@/lib/stdMultiVoice'
+import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const DEFAULT_ELEVENLABS_VOICE_ID = '4JJwo477JUAx3HV0T7n7'
+const DEFAULT_ELEVENLABS_VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5'
 const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
 const FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']
 const MAX_CHARS_PER_REQUEST = 4500
@@ -68,36 +69,6 @@ function splitText(text: string, maxChars = MAX_CHARS_PER_REQUEST) {
     return chunks
 }
 
-async function getGlobalSetting(key: string) {
-    const { data, error } = await supabaseAdmin
-        .from('global_settings')
-        .select('value')
-        .eq('key', key)
-        .maybeSingle()
-    if (error) throw error
-    return String(data?.value || '').trim()
-}
-
-function isUsableSecretValue(value: string) {
-    const normalized = String(value || '').trim()
-    if (!normalized) return false
-    if (/^[•*]+$/.test(normalized)) return false
-    if (['undefined', 'null', '(미설정)', '(unset)'].includes(normalized.toLowerCase())) return false
-    return true
-}
-
-function normalizeKeyPool(...values: string[]) {
-    const keys: string[] = []
-    for (const raw of values) {
-        for (const part of String(raw || '').split(/[\s,;\r\n]+/)) {
-            const key = part.trim()
-            if (isUsableSecretValue(key) && !keys.includes(key)) keys.push(key)
-            if (keys.length >= 4) return keys
-        }
-    }
-    return keys
-}
-
 function shouldRotateElevenLabsKey(status: number, detail: string) {
     const message = String(detail || '').toLowerCase()
     if (status === 402) return true
@@ -111,6 +82,18 @@ function shouldRotateElevenLabsKey(status: number, detail: string) {
         || message.includes('invalid api key')
         || message.includes('unauthorized')
         || message.includes('access denied')
+    )
+}
+
+function isElevenLabsVoiceAccessError(status: number, detail: string) {
+    if (![400, 401, 403, 404, 422].includes(status)) return false
+    const message = String(detail || '').toLowerCase()
+    return (
+        message.includes('voice_not_found')
+        || message.includes('voice is not available')
+        || message.includes('voice_access_denied')
+        || message.includes('access to this voice')
+        || message.includes('free users')
     )
 }
 
@@ -177,11 +160,17 @@ async function generateSingleElevenLabsChunk(input: {
             const errText = await res.text()
             lastError = `ElevenLabs TTS API error (${res.status}): ${errText}`
 
-            if (errText.toLowerCase().includes('voice_not_found') && input.voiceId !== DEFAULT_ELEVENLABS_VOICE_ID) {
-                return generateSingleElevenLabsChunk({
-                    ...input,
-                    voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
-                })
+            if (isElevenLabsVoiceAccessError(res.status, errText) && input.voiceId !== DEFAULT_ELEVENLABS_VOICE_ID) {
+                try {
+                    return await generateSingleElevenLabsChunk({
+                        ...input,
+                        apiKeys: [apiKey],
+                        voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+                    })
+                } catch (fallbackError: any) {
+                    lastError = fallbackError?.message || lastError
+                    break
+                }
             }
 
             const hasAlternateModel = modelIndex < modelCandidates.length - 1
@@ -463,25 +452,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             audioBuffer = await generateGoogleFreeMp3(text, projectLang)
         } else {
             stage = 'load_elevenlabs_key'
-            let apiKey = ''
-            let backupKeys = ''
-            try {
-                apiKey = await getGlobalSetting('sys_api_elevenlabs')
-            } catch {
-                apiKey = ''
-            }
-            try {
-                backupKeys = await getGlobalSetting('sys_api_elevenlabs_keys')
-            } catch {
-                backupKeys = ''
-            }
-            if (!apiKey) {
-                apiKey = process.env.ELEVENLABS_API_KEY || ''
-            }
-            if (!backupKeys) {
-                backupKeys = process.env.ELEVENLABS_API_KEYS || ''
-            }
-            const apiKeys = normalizeKeyPool(apiKey, backupKeys)
+            const apiKeys = await getConfiguredElevenLabsKeys()
             if (!apiKeys.length) {
                 return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
             }
