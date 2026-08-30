@@ -5255,11 +5255,15 @@ export default function DashboardContent() {
                                                     />
                                                 ) : (
                                                     <input
-                                                        type="password"
+                                                        type={key === 'elevenlabs' ? 'text' : 'password'}
                                                         value={sysKeys[key] as string}
                                                         onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
-                                                        onFocus={e => (e.target as HTMLInputElement).type = 'text'}
-                                                        onBlur={e => (e.target as HTMLInputElement).type = 'password'}
+                                                        onFocus={e => {
+                                                            if (key !== 'elevenlabs') (e.target as HTMLInputElement).type = 'text'
+                                                        }}
+                                                        onBlur={e => {
+                                                            if (key !== 'elevenlabs') (e.target as HTMLInputElement).type = 'password'
+                                                        }}
                                                         placeholder={sysKeys[key] ? '••••••••••••' : '(미설정)'}
                                                         className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300 placeholder:text-gray-700"
                                                     />
