@@ -78,6 +78,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 audio_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
                 tts_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
                 tts_provider: null,
+                tts_speed: topic.progress_payload?.tts_speed || 1,
             },
             progress_payload: {
                 scene_count: summary.scene_count,
@@ -87,6 +88,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 has_tts_audio: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
                 tts_completed: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
                 tts_provider: null,
+                tts_speed: topic.progress_payload?.tts_speed || 1,
             },
         })
         .select('*')

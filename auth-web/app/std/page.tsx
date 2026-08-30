@@ -609,7 +609,12 @@ export default function StdPortalPage() {
     const [generatingTts, setGeneratingTts] = useState(false)
     const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
     const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
-    const ttsSpeed = '1.0'
+    const ttsSpeed = String(Math.max(0.7, Math.min(1.2, Number(
+        selectedProject?.project?.project_payload?.tts_speed
+        || selectedProject?.project?.progress_payload?.tts_speed
+        || selectedProject?.project?.source_payload?.progress_payload?.tts_speed
+        || 1
+    ) || 1)))
     const [elStability, setElStability] = useState('0.35')
     const [elStyle, setElStyle] = useState('0.45')
     const [multiVoice, setMultiVoice] = useState(false)

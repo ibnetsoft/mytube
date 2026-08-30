@@ -174,6 +174,7 @@ class HermesAutopilotManager:
             "benchmark_channel_discovery_max_search_calls": 1,
             "benchmark_channel_discovery_last_at": {},
             "target_duration_seconds_by_category": DEFAULT_TARGET_DURATION_SECONDS_BY_CATEGORY.copy(),
+            "tts_speed": 1.0,
             "force_generate": False,
             "start_new_pipeline": False,
             "quality_max_attempts": 1,
@@ -507,6 +508,9 @@ class HermesAutopilotManager:
                 self.settings[k] = self._normalize_category_duration_settings(v)
             elif k == "category_image_style_overrides":
                 self.settings[k] = self._normalize_category_image_style_overrides(v)
+            elif k == "tts_speed":
+                from services.narration_policy import normalize_tts_speed
+                self.settings[k] = normalize_tts_speed(v)
             else:
                 self.settings[k] = v
 
@@ -525,6 +529,8 @@ class HermesAutopilotManager:
         self.settings["target_duration_seconds_by_category"] = self._normalize_category_duration_settings(
             self.settings.get("target_duration_seconds_by_category", {})
         )
+        from services.narration_policy import normalize_tts_speed
+        self.settings["tts_speed"] = normalize_tts_speed(self.settings.get("tts_speed"))
         try:
             self.settings["target_limit"] = max(1, min(100, int(self.settings.get("target_limit", 1))))
         except (TypeError, ValueError):
@@ -782,6 +788,7 @@ class HermesAutopilotManager:
                     "image_style_selection": plan_data.get("image_style_selection") or plan_payload.get("image_style_selection"),
                     "language": plan_data.get("language") or plan_payload.get("language") or "ko",
                     "narration_mode": plan_payload.get("narration_mode") or "dramatic_single",
+                    "tts_speed": plan_data.get("tts_speed") or plan_payload.get("tts_speed") or self.settings.get("tts_speed", 1.0),
                     "upload_title": title,
                     "title_generation": plan_data.get("title_generation") or plan_payload.get("title_generation"),
                     "learning_profile": plan_data.get("learning_profile") or plan_payload.get("learning_profile"),
@@ -816,6 +823,7 @@ class HermesAutopilotManager:
                     "category_name": category,
                     "topic": title,
                     "target_duration_seconds": research_payload.get("target_duration_seconds") or self._target_duration_seconds_for_category(str(category or "")),
+                    "tts_speed": research_payload.get("tts_speed") or self.settings.get("tts_speed", 1.0),
                     "script_style": research_payload.get("script_style") or "story",
                     "image_style": research_payload.get("image_style") or "realistic",
                     "language": research_payload.get("language") or "ko",
@@ -3142,6 +3150,7 @@ Return ONLY a JSON array of strings.
                 "category_id": category_id,
                 "topic": generated_title,
                 "target_duration_seconds": target_duration_seconds,
+                "tts_speed": self.settings.get("tts_speed", 1.0),
                 "script_style": category_script_style,
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
@@ -3206,6 +3215,7 @@ Return ONLY a JSON array of strings.
                 "image_style_selection": image_style_plan,
                 "language": category_language,
                 "narration_mode": "dramatic_single",
+                "tts_speed": self.settings.get("tts_speed", 1.0),
                 "upload_title": generated_title,
                 "title_generation": title_plan,
                 "learning_profile": learning_profile,
@@ -3295,6 +3305,7 @@ Return ONLY a JSON array of strings.
             "script": final_script,
             "language": category_language,
             "char_count": char_count,
+            "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
             "completed_at": time.time()
         }
 
@@ -3335,6 +3346,7 @@ Return ONLY a JSON array of strings.
                             "pregenerated_script_status": "ready",
                             "prepared_topic_ready": True,
                             "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                            "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
                         },
                         "publish_metadata_status": "ready",
                         "generated_by_worker_id": WORKER_ID,
@@ -3399,6 +3411,7 @@ Return ONLY a JSON array of strings.
                                 "pregenerated_script_status": "ready",
                                 "prepared_topic_ready": True,
                                 "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                                "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
                             },
                             "publish_metadata_status": "ready",
                             "generated_by_worker_id": WORKER_ID,
@@ -3425,6 +3438,7 @@ Return ONLY a JSON array of strings.
                                 "pregenerated_script_status": "ready",
                                 "prepared_topic_ready": True,
                                 "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
+                                "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
                             },
                             "status": "pending",
                         }

@@ -7,6 +7,9 @@ from typing import Any
 
 
 DEFAULT_NARRATION_PACE = "senior"
+DEFAULT_TTS_SPEED = 1.0
+MIN_TTS_SPEED = 0.7
+MAX_TTS_SPEED = 1.2
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,14 @@ def normalize_narration_pace(value: Any) -> str:
 
 def get_narration_policy(value: Any = None) -> NarrationPacePolicy:
     return NARRATION_PACE_POLICIES[normalize_narration_pace(value)]
+
+
+def normalize_tts_speed(value: Any = None) -> float:
+    try:
+        speed = float(value if value is not None else DEFAULT_TTS_SPEED)
+    except (TypeError, ValueError):
+        speed = DEFAULT_TTS_SPEED
+    return round(max(MIN_TTS_SPEED, min(MAX_TTS_SPEED, speed)), 2)
 
 
 def get_project_narration_policy(settings: dict | None = None) -> NarrationPacePolicy:

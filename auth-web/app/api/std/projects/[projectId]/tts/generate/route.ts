@@ -392,10 +392,12 @@ async function loadStdProject(projectId: string, employeeEmail: string) {
                     script: topicRow.pregenerated_script || '',
                     structure: struct,
                     status: 'claimed',
+                    tts_speed: topicRow.progress_payload?.tts_speed || 1,
                 },
                 progress_payload: {
                     status: 'claimed',
                     scenes_count: scenes.length || 53,
+                    tts_speed: topicRow.progress_payload?.tts_speed || 1,
                 },
                 claimed_at: now,
                 updated_at: now,
@@ -461,6 +463,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             || DEFAULT_ELEVENLABS_VOICE_ID
         ).trim()
         const modelId = String(body?.model_id || project.project_payload?.tts_model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
+        const projectTtsSpeed = Math.max(0.7, Math.min(1.2, Number(
+            project.project_payload?.tts_speed
+            || project.progress_payload?.tts_speed
+            || project.source_payload?.progress_payload?.tts_speed
+            || 1
+        ) || 1))
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
 
@@ -489,7 +497,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 voiceId,
                 modelId,
                 text,
-                speed: Number(body?.speed || 1),
+                speed: projectTtsSpeed,
                 stability: body?.stability == null ? undefined : Number(body.stability),
                 similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
                 style: body?.style == null ? undefined : Number(body.style),
@@ -558,6 +566,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         provider,
                         voice_id: voiceId,
                         model_id: modelId,
+                        tts_speed: projectTtsSpeed,
                         multi_voice: multiVoice,
                         voice_map: voiceMap,
                         text_length: text.length,
@@ -597,6 +606,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     tts_drive_file_id: driveFile.id,
                     tts_file_name: driveFile.name || fileName,
                     voice_id: voiceId,
+                    tts_speed: projectTtsSpeed,
                     multi_voice: multiVoice,
                     voice_map: voiceMap,
                 },
@@ -605,6 +615,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     audio_url: driveFile.webViewLink || driveFileLink(driveFile.id),
                     tts_url: driveFile.webViewLink || driveFileLink(driveFile.id),
                     voice_id: voiceId,
+                    tts_speed: projectTtsSpeed,
                     multi_voice: multiVoice,
                     voice_map: voiceMap,
                 },

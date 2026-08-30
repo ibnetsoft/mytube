@@ -7135,49 +7135,53 @@ def _script_gen_length_instruction(
     is_shorts: bool,
     narration_pace: str = "senior",
     language: str = "ko",
+    tts_speed: float = 1.0,
 ) -> tuple[float, str]:
-    from services.narration_policy import get_narration_policy
+    from services.narration_policy import get_narration_policy, normalize_tts_speed
 
     policy = get_narration_policy(narration_pace)
-    total_target_chars = duration_seconds * policy.chars_per_second
+    normalized_speed = normalize_tts_speed(tts_speed)
+    effective_chars_per_second = policy.chars_per_second * normalized_speed
+    effective_chars_per_minute = round(effective_chars_per_second * 60)
+    total_target_chars = duration_seconds * effective_chars_per_second
     if language == "ja":
         if is_shorts:
             length_instruction = (
                 f"この台本は{duration_seconds}秒のShorts向けです。全体をかなり短く保ち、"
                 f"無駄なく核心だけを書いてください。読み上げ速度ポリシーは'{policy.label}'で、"
-                f"1秒あたり約{policy.chars_per_second:.1f}字、1分あたり約{policy.chars_per_minute}字です。"
+                f"TTS速度は{normalized_speed:.2f}倍で、1秒あたり約{effective_chars_per_second:.1f}字、1分あたり約{effective_chars_per_minute}字です。"
             )
         else:
             length_instruction = (
                 f"この動画は約{duration_seconds // 60}分{duration_seconds % 60}秒です。"
-                f"読み上げ速度ポリシーは'{policy.label}'で、1秒あたり約{policy.chars_per_second:.1f}字、"
-                f"1分あたり約{policy.chars_per_minute}字の落ち着いた朗読になるように書いてください。"
+                f"読み上げ速度ポリシーは'{policy.label}'、TTS速度は{normalized_speed:.2f}倍で、1秒あたり約{effective_chars_per_second:.1f}字、"
+                f"1分あたり約{effective_chars_per_minute}字の落ち着いた朗読になるように書いてください。"
             )
     elif language == "en":
         if is_shorts:
             length_instruction = (
                 f"This script is for a {duration_seconds}-second Shorts video. Keep it very short and focused. "
-                f"The narration pace policy is '{policy.label}', about {policy.chars_per_second:.1f} characters per second "
-                f"and {policy.chars_per_minute} characters per minute."
+                f"The narration pace policy is '{policy.label}' at {normalized_speed:.2f}x TTS speed, about {effective_chars_per_second:.1f} characters per second "
+                f"and {effective_chars_per_minute} characters per minute."
             )
         else:
             length_instruction = (
                 f"This video runs about {duration_seconds // 60} minutes {duration_seconds % 60} seconds. "
-                f"The narration pace policy is '{policy.label}', about {policy.chars_per_second:.1f} characters per second "
-                f"and {policy.chars_per_minute} characters per minute, so write for a measured spoken pace."
+                f"The narration pace policy is '{policy.label}' at {normalized_speed:.2f}x TTS speed, about {effective_chars_per_second:.1f} characters per second "
+                f"and {effective_chars_per_minute} characters per minute, so write for a measured spoken pace."
             )
     else:
         if is_shorts:
             length_instruction = (
                 f"[매우 중요] 이 대본은 {duration_seconds}초 숏폼(Shorts) 영상용입니다. "
                 f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 전달하세요. "
-                f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, 분당 약 {policy.chars_per_minute}자 기준입니다."
+                f"읽기 속도 정책은 '{policy.label}', TTS 배속은 {normalized_speed:.2f}x이며 초당 약 {effective_chars_per_second:.1f}자, 분당 약 {effective_chars_per_minute}자 기준입니다."
             )
         else:
             length_instruction = (
                 f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다. "
-                f"읽기 속도 정책은 '{policy.label}'이며 초당 약 {policy.chars_per_second:.1f}자, "
-                f"분당 약 {policy.chars_per_minute}자 기준으로 천천히 들리게 작성하세요."
+                f"읽기 속도 정책은 '{policy.label}', TTS 배속은 {normalized_speed:.2f}x이며 초당 약 {effective_chars_per_second:.1f}자, "
+                f"분당 약 {effective_chars_per_minute}자 기준으로 천천히 들리게 작성하세요."
             )
     return total_target_chars, length_instruction
 
@@ -8739,7 +8743,7 @@ def _build_old_story_grave_vigil_rescue_script(topic: str, upload_title: str, st
     return script
 
 
-def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, dict, str, str, str, str, int, str, dict]:
+def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, dict, str, str, str, str, float, int, str, dict]:
     topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
     if not topic_queue_id:
         raise ValueError("payload.topic_queue_id is required for script_generate")
@@ -8762,6 +8766,17 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     from services.narration_policy import normalize_narration_pace
 
     narration_pace = normalize_narration_pace(payload.get("narration_pace"))
+    from services.narration_policy import normalize_tts_speed
+    raw_tts_speed = payload.get("tts_speed")
+    if raw_tts_speed is None:
+        try:
+            autopilot_state = json.loads(
+                (STATE_DIR / "hermes_autopilot_state.json").read_text(encoding="utf-8")
+            )
+            raw_tts_speed = (autopilot_state.get("settings") or {}).get("tts_speed")
+        except (OSError, ValueError, TypeError):
+            raw_tts_speed = None
+    tts_speed = normalize_tts_speed(raw_tts_speed)
 
     duration_seconds = payload.get("target_duration_seconds", 60)
     try:
@@ -8772,7 +8787,7 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
 
-    return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, narration_pace, duration_seconds, upload_title, title_generation
+    return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, narration_pace, tts_speed, duration_seconds, upload_title, title_generation
 
 
 def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, str, dict, dict, str, dict]:
@@ -8799,13 +8814,13 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     write_state("preparing", job, 0, job_id)
     job_log.info("-> PREPARING (validating payload)")
 
-    topic_queue_id, topic, scenes, structure, script_style, language, narration_mode, narration_pace, duration_seconds, upload_title, title_generation = _validate_script_generate_payload(job["payload"])
+    topic_queue_id, topic, scenes, structure, script_style, language, narration_mode, narration_pace, tts_speed, duration_seconds, upload_title, title_generation = _validate_script_generate_payload(job["payload"])
     is_multi = narration_mode == "multi"
     is_shorts = duration_seconds <= 60
 
     job_store.transition(job_id, job_store.RENDERING, reason="generating duration-aware narration chunks")
     write_state("running", job, 10, job_id)
-    job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode}, pace={narration_pace})")
+    job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode}, pace={narration_pace}, tts_speed={tts_speed:.2f}x)")
 
     ensure_project_root_on_path()
     from config import Config, config
@@ -8920,6 +8935,7 @@ Hard retry rules:
         is_shorts,
         narration_pace,
         language,
+        tts_speed,
     )
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts, narration_pace)
     script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
@@ -9355,6 +9371,7 @@ Hard retry rules:
         "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
         "narration_mode": narration_mode,
         "narration_pace": narration_pace,
+        "tts_speed": tts_speed,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
         "error": None,

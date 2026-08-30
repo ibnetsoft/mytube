@@ -4068,6 +4068,10 @@ tr:hover { background: #161b22; }
                 <option value="fast">약간 빠름</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>TTS 배속</label>
+              <input type="number" id="sg-tts-speed" min="0.7" max="1.2" step="0.05" value="1.0">
+            </div>
           </div>
           <div class="form-group">
             <label>대본 스타일</label>
@@ -4787,6 +4791,11 @@ tr:hover { background: #161b22; }
                 <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">카테고리별 최소 대기 대본 유지량 (버퍼)</label>
                 <input type="number" id="auto-setting-buffer" value="5" min="1" style="width:100%;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
                 <p style="font-size:10px;color:#6e7681;margin-top:4px;line-height:1.4;">* 큐에 사전 대본이 이 수치 이상 존재 시 해당 카테고리는 건너뜁니다.</p>
+              </div>
+              <div style="margin-bottom:12px;">
+                <label style="display:block;font-size:12px;color:#8b949e;margin-bottom:6px;">대본/TTS 배속</label>
+                <input type="number" id="auto-setting-tts-speed" value="1.0" min="0.7" max="1.2" step="0.05" style="width:100%;padding:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;outline:none;" />
+                <p style="font-size:10px;color:#6e7681;margin-top:4px;line-height:1.4;">* 0.9x 선택 시 목표 대본량과 씬별 글자 예산을 10% 줄이고, 유저 TTS 생성에도 같은 배속을 자동 적용합니다.</p>
               </div>
               <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;margin-top:12px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#c9d1d9;margin-bottom:10px;cursor:pointer;">
@@ -6725,6 +6734,7 @@ async function submitScriptGenerate() {
     language: 'ko',
     narration_mode: document.getElementById('sg-narration-mode').value,
     narration_pace: document.getElementById('sg-narration-pace').value || 'senior',
+    tts_speed: Math.max(0.7, Math.min(1.2, parseFloat(document.getElementById('sg-tts-speed').value) || 1.0)),
   };
   const res = await api('POST', '/api/jobs/submit', { job_type: 'script_generate', payload });
   if (res && res.job_id) {
@@ -7996,6 +8006,7 @@ function getSettingsFromUI() {
   const mode = document.getElementById('auto-setting-mode').value;
   const limit = parseInt(document.getElementById('auto-setting-limit').value) || 10;
   const buffer = parseInt(document.getElementById('auto-setting-buffer').value) || 5;
+  const ttsSpeed = Math.max(0.7, Math.min(1.2, parseFloat(document.getElementById('auto-setting-tts-speed')?.value) || 1.0));
   const discoveryEnabled = Boolean(document.getElementById('auto-setting-channel-discovery-enabled')?.checked);
   const discoveryMin = parseInt(document.getElementById('auto-setting-channel-min')?.value) || 8;
   const discoveryInterval = parseInt(document.getElementById('auto-setting-channel-interval')?.value) || 24;
@@ -8007,6 +8018,7 @@ function getSettingsFromUI() {
     mode,
     target_limit: limit,
     min_buffer_per_category: buffer,
+    tts_speed: ttsSpeed,
     active_categories,
     category_image_style_overrides: (autopilotStatusSnapshot && autopilotStatusSnapshot.settings && autopilotStatusSnapshot.settings.category_image_style_overrides) ? autopilotStatusSnapshot.settings.category_image_style_overrides : {},
     target_duration_seconds_by_category: getCategoryDurationSettingsFromUI(),
@@ -8195,6 +8207,7 @@ async function loadAutopilotStatus() {
       document.getElementById('auto-setting-mode').value = data.settings.mode || 'infinite';
       document.getElementById('auto-setting-limit').value = data.settings.target_limit || 10;
       document.getElementById('auto-setting-buffer').value = data.settings.min_buffer_per_category || 5;
+      document.getElementById('auto-setting-tts-speed').value = data.settings.tts_speed || 1.0;
       document.getElementById('auto-setting-channel-discovery-enabled').checked = data.settings.benchmark_channel_auto_discovery_enabled !== false;
       document.getElementById('auto-setting-channel-min').value = data.settings.benchmark_channel_discovery_min_channels || 8;
       document.getElementById('auto-setting-channel-interval').value = data.settings.benchmark_channel_discovery_interval_hours || 24;

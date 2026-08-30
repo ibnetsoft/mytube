@@ -133,6 +133,7 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     title_generation: job.result_payload?.title_generation || jobPayload.title_generation,
                     narration_mode: jobPayload.narration_mode || 'dramatic_single',
                     narration_pace: jobPayload.narration_pace || 'senior',
+                    tts_speed: jobPayload.tts_speed,
                     target_scene_count: jobPayload.target_scene_count,
                     repair_mode: jobPayload.repair_mode,
                     repair_instruction: jobPayload.repair_instruction,
@@ -189,6 +190,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
             ...(resultPayload.structure ? { pregenerated_structure_status: 'ready' } : {}),
             prepared_topic_ready: true,
             prepared_topic_ready_at: new Date().toISOString(),
+            tts_speed: resultPayload.tts_speed || job.payload?.tts_speed || existingProgress.tts_speed || 1,
         }
         let { error } = await supabaseAdmin
             .from('topics_queue')

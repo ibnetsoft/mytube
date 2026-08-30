@@ -146,6 +146,7 @@ export async function POST(req: Request) {
             language: topic.language || 'ko',
             benchmark_analysis: Object.keys(benchmarkAnalysis).length ? benchmarkAnalysis : null,
             narration_pace: 'senior',
+            tts_speed: progressPayload.tts_speed || 1,
             require_scene_planner_success: true,
             repair_instruction: [
                 'Repair this incomplete prepared topic for senior-paced narration.',
