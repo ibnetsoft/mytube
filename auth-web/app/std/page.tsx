@@ -609,7 +609,7 @@ export default function StdPortalPage() {
     const [generatingTts, setGeneratingTts] = useState(false)
     const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
     const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
-    const [ttsSpeed, setTtsSpeed] = useState('1.0')
+    const ttsSpeed = '1.0'
     const [elStability, setElStability] = useState('0.35')
     const [elStyle, setElStyle] = useState('0.45')
     const [multiVoice, setMultiVoice] = useState(false)
@@ -5208,19 +5208,6 @@ export default function StdPortalPage() {
                                                 <option key={v.id} value={v.id}>{v.name}</option>
                                             ))}
                                         </select>
-                                    </div>
-
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-gray-300">속도 <span className="text-purple-400 font-mono">{ttsSpeed}x</span></span>
-                                        <input
-                                            type="range"
-                                            min="0.7"
-                                            max="1.3"
-                                            step="0.05"
-                                            value={ttsSpeed}
-                                            onChange={e => setTtsSpeed(e.target.value)}
-                                            className="w-16 h-1 bg-gray-600 rounded appearance-none cursor-pointer accent-purple-500"
-                                        />
                                     </div>
 
                                     <div className="flex items-center gap-1.5">
