@@ -17,6 +17,7 @@ const DEFAULT_ELEVENLABS_VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5'
 const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
 const FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']
 const MAX_CHARS_PER_REQUEST = 4500
+const MAX_INLINE_AUDIO_BYTES = 2_500_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function cleanTtsText(value: string) {
@@ -154,7 +155,12 @@ async function generateSingleElevenLabsChunk(input: {
 
             if (res.ok) {
                 const arrayBuffer = await res.arrayBuffer()
-                return Buffer.from(arrayBuffer)
+                const audioBuffer = Buffer.from(arrayBuffer)
+                const contentType = String(res.headers.get('content-type') || '').toLowerCase()
+                if (audioBuffer.length < 256 || (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream'))) {
+                    throw new Error(`ElevenLabs returned an invalid audio response (${audioBuffer.length} bytes, ${contentType || 'unknown type'})`)
+                }
+                return audioBuffer
             }
 
             const errText = await res.text()
@@ -585,13 +591,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const audioUrl = asset?.id
             ? `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
             : `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(driveFile.id)}`
+        const inlineAudioUrl = audioBuffer.length <= MAX_INLINE_AUDIO_BYTES
+            ? `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`
+            : ''
 
         return NextResponse.json({
             success: true,
             asset,
             drive_file: driveFile,
-            audio_url: audioUrl,
+            audio_url: inlineAudioUrl || audioUrl,
             download_url: audioUrl,
+            persisted_audio_url: audioUrl,
             web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })

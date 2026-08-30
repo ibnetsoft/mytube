@@ -3142,7 +3142,13 @@ export default function StdPortalPage() {
                 }
 
                 if (String(generatedAudioUrl).startsWith('data:audio/')) {
-                    audioUrl = generatedAudioUrl
+                    const inlineAudioRes = await fetch(generatedAudioUrl)
+                    const audioBlob = await inlineAudioRes.blob()
+                    if (audioBlob.size < 256) {
+                        throw new Error('ElevenLabs returned an empty audio file.')
+                    }
+                    audioUrl = URL.createObjectURL(audioBlob)
+                    await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                 } else {
                     const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
                     if (!audioRes.ok) {

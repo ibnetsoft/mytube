@@ -212,16 +212,21 @@ export async function getStdDriveFileMetadata(fileId: string): Promise<DriveFile
 }
 
 export async function downloadStdDriveFile(fileId: string): Promise<Buffer> {
-    const token = await getStdDriveAccessToken()
     const encoded = encodeURIComponent(fileId)
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encoded}?alt=media&supportsAllDrives=true`, {
-        headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) {
+    let lastError = 'drive_download_failed'
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const token = await getStdDriveAccessToken()
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encoded}?alt=media&supportsAllDrives=true`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+        })
+        if (res.ok) return Buffer.from(await res.arrayBuffer())
+
         const detail = await res.text()
-        throw new Error(`drive_download_failed: HTTP ${res.status} ${detail.slice(0, 200)}`)
+        lastError = `drive_download_failed: HTTP ${res.status} ${detail.slice(0, 200)}`
+        if (res.status !== 401) break
     }
-    return Buffer.from(await res.arrayBuffer())
+    throw new Error(lastError)
 }
 
 export async function uploadStdDriveBuffer(
