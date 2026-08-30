@@ -112,6 +112,69 @@ def test_korean_language_rescue_script_passes_latin_gate():
     assert not hermes_worker._script_has_excessive_latin(script)
 
 
+def test_emotion_cue_normalizer_repairs_dialogue_and_long_narration():
+    paragraphs = [
+        "주인공은 오래된 편지를 펼치며 숨겨진 진실을 마주했습니다. 그는 한동안 아무 말도 하지 못했습니다.",
+        '마침내 그는 고개를 들고 "제발 이제는 진실을 말해주세요!"라고 부탁했습니다.',
+        "상대는 지난 선택을 후회했고, 두 사람은 서로의 눈을 피하지 않은 채 마지막 결정을 내렸습니다.",
+    ] * 18
+    source = "\n\n".join(paragraphs) + "\n\n(음악) (철수) 화면이 어두워집니다."
+
+    normalized = hermes_worker._ensure_script_emotion_cues(source, "ko")
+
+    assert "(음악)" not in normalized
+    assert "(철수)" not in normalized
+    assert hermes_worker._script_emotion_cue_count(normalized, "ko") >= hermes_worker._required_script_emotion_cue_count(normalized)
+    assert not hermes_worker._script_emotion_cue_errors(normalized, "ko")
+    quote_index = normalized.index('"제발 이제는 진실을 말해주세요!"')
+    assert hermes_worker._has_trailing_script_emotion_cue(normalized[max(0, quote_index - 80):quote_index], "ko")
+
+
+def test_emotion_cue_normalizer_preserves_existing_dialogue_cue_without_duplication():
+    source = '(울먹이며) "제발 가지 마세요!" 그녀는 마지막 인사를 건넸습니다.'
+
+    normalized = hermes_worker._ensure_script_emotion_cues(source, "ko")
+
+    assert normalized.count("(울먹이며)") == 1
+    assert '(울먹이며) "제발 가지 마세요!"' in normalized
+    assert not hermes_worker._script_emotion_cue_errors(normalized, "ko")
+
+
+@pytest.mark.parametrize(
+    ("language", "source", "expected_cue"),
+    [
+        ("en", 'He finally said, "Tell me the truth!" The room went silent.', "(firmly)"),
+        ("ja", '彼はようやく顔を上げて「真実を話してください！」と告げました。', "(きっぱりと)"),
+    ],
+)
+def test_emotion_cue_normalizer_uses_output_language(language, source, expected_cue):
+    normalized = hermes_worker._ensure_script_emotion_cues(source, language)
+
+    assert expected_cue in normalized
+    assert not hermes_worker._script_emotion_cue_errors(normalized, language)
+
+
+def test_script_generate_stage_rejects_missing_emotion_cues_and_accepts_normalized_script():
+    payload = build_valid_sample_payload("옛날이야기")
+    payload["script"] = payload["script"].replace("(차분하게) ", "")
+
+    with pytest.raises(RuntimeError, match="script emotion cues missing"):
+        hermes_worker._validate_script_generate_stage(payload, category="옛날이야기")
+
+    payload["script"] = hermes_worker._ensure_script_emotion_cues(payload["script"], "ko")
+    report = hermes_worker._validate_script_generate_stage(payload, category="옛날이야기")
+
+    assert report["status"] == "pass"
+
+
+def test_web_script_cleaner_uses_shared_emotion_cue_normalization():
+    template = (ROOT / "templates" / "pages" / "script_gen.html").read_text(encoding="utf-8")
+
+    assert "normalizeScriptEmotionCues(text)" in template
+    assert "SCRIPT_EMOTION_CUE_KEYWORDS" in template
+    assert "const emotionTags =" not in template
+
+
 def test_publish_metadata_stage_requires_script_quality_for_quality_gated_job():
     payload = build_valid_sample_payload("옛날이야기")
     payload.pop("script_quality_report", None)

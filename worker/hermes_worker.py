@@ -5446,6 +5446,7 @@ def _validate_script_generate_stage(
         else:
             payload["script"] = deduped
             script = deduped
+    errors.extend(_script_emotion_cue_errors(script, language))
 
     for fallback_number, scene in enumerate(scenes, start=1):
         if not isinstance(scene, dict):
@@ -6896,6 +6897,201 @@ def _clean_section_text(text: str, is_multi: bool) -> str:
     return text.strip()
 
 
+_SCRIPT_EMOTION_CUE_KEYWORDS = {
+    "ko": (
+        "차분", "조용", "나직", "잔잔", "덤덤", "낮게", "낮은 목소리", "속삭", "숨죽",
+        "슬프", "슬픔", "울먹", "눈물", "떨리는", "애절", "절망", "한숨", "탄식",
+        "진지", "단호", "엄숙", "묵직", "결연", "조심", "냉정", "경고",
+        "기쁘", "밝게", "따뜻", "웃으며", "설레", "희망",
+        "분노", "화가", "격앙", "거칠", "억울", "다급", "긴박", "놀라", "경악", "외치",
+    ),
+    "en": (
+        "calm", "quiet", "soft", "low voice", "whisper", "sad", "tearful", "trembling",
+        "serious", "firm", "solemn", "thoughtful", "warm", "bright", "hopeful", "angry",
+        "anger", "urgent", "shouting", "shocked", "frightened", "sigh",
+    ),
+    "ja": (
+        "静か", "低く", "落ち着", "ささや", "震え", "涙", "悲し", "切な", "真剣",
+        "きっぱり", "厳か", "重く", "優しく", "温か", "明るく", "喜び", "怒り",
+        "苛立", "緊迫", "驚き", "叫び", "ため息",
+    ),
+}
+_SCRIPT_EMOTION_CUE_PATTERN = re.compile(r"(?:\(([^()\n]{1,40})\)|（([^（）\n]{1,40})）)")
+_SCRIPT_QUOTED_DIALOGUE_PATTERN = re.compile(
+    r'(?:"[^"\n]{2,220}"|“[^”\n]{2,220}”|「[^」\n]{2,220}」|『[^』\n]{2,220}』)'
+)
+
+
+def _script_emotion_cue_instruction(language: str) -> str:
+    if language == "ja":
+        return (
+            "感情・話し方の指示は声優が読める丸括弧だけで表し、効果音・音楽・画面説明・人物名は括弧に入れないでください。"
+            "直接台詞の直前には必ず `(低く)`, `(震えながら)`, `(優しく)` のような指示を置き、"
+            "長いナレーションにも約1200字ごとに自然な感情転換を1つ入れてください。"
+        )
+    if language == "en":
+        return (
+            "Use parentheses only for voice emotion or acting tone, never for SFX, music, visuals, or speaker names. "
+            "Every direct quote must be immediately preceded by a cue such as `(quietly)`, `(tearfully)`, or `(firmly)`. "
+            "In long narration, add a natural vocal-emotion transition about once per 1,200 characters."
+        )
+    return (
+        "소괄호에는 성우가 표현할 목소리 감정/말투만 적고, 효과음·음악·화면 설명·화자 이름은 넣지 마세요. "
+        "모든 직접 대사 바로 앞에는 `(낮은 목소리로)`, `(울먹이며)`, `(단호하게)` 같은 감정 괄호를 반드시 붙이세요. "
+        "긴 나레이션에도 약 1,200자마다 한 번씩 자연스러운 감정 전환 괄호를 넣으세요."
+    )
+
+
+def _is_script_emotion_cue(content: str, language: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(content or "")).strip().casefold()
+    if not normalized:
+        return False
+    keywords = _SCRIPT_EMOTION_CUE_KEYWORDS.get(language, ())
+    return any(keyword.casefold() in normalized for keyword in keywords)
+
+
+def _script_emotion_cue_count(script: str, language: str) -> int:
+    count = 0
+    for match in _SCRIPT_EMOTION_CUE_PATTERN.finditer(str(script or "")):
+        if _is_script_emotion_cue(match.group(1) or match.group(2) or "", language):
+            count += 1
+    return count
+
+
+def _required_script_emotion_cue_count(script: str) -> int:
+    compact_length = len(re.sub(r"\s+", "", str(script or "")))
+    return max(1, min(8, (compact_length + 1199) // 1200))
+
+
+def _infer_script_emotion_cue(text: str, language: str) -> str:
+    value = str(text or "").casefold()
+    if language == "ja":
+        if any(token in value for token in ("泣", "涙", "悲", "別れ", "後悔")):
+            return "(涙をこらえて)"
+        if any(token in value for token in ("怒", "許さ", "裏切", "憤")):
+            return "(怒りを抑えて)"
+        if any(token in value for token in ("怖", "震", "不安", "驚")):
+            return "(震える声で)"
+        if any(token in value for token in ("決め", "誓", "拒", "真実")):
+            return "(きっぱりと)"
+        if any(token in value for token in ("笑", "感謝", "希望", "温か")):
+            return "(優しく)"
+        return "(静かに)"
+    if language == "en":
+        if any(token in value for token in ("cry", "tear", "sad", "grief", "regret")):
+            return "(tearfully)"
+        if any(token in value for token in ("angry", "furious", "betray", "never forgive")):
+            return "(controlling their anger)"
+        if any(token in value for token in ("fear", "trembl", "afraid", "shock")):
+            return "(in a trembling voice)"
+        if any(token in value for token in ("decide", "swear", "refuse", "truth")):
+            return "(firmly)"
+        if any(token in value for token in ("smile", "thank", "hope", "warm")):
+            return "(warmly)"
+        return "(calmly)"
+    if any(token in value for token in ("울", "눈물", "슬프", "이별", "후회", "애원")):
+        return "(울먹이며)"
+    if any(token in value for token in ("분노", "화가", "배신", "용서 못", "억울")):
+        return "(분노를 억누르며)"
+    if any(token in value for token in ("두려", "떨", "무서", "불안", "충격", "놀라")):
+        return "(떨리는 목소리로)"
+    if any(token in value for token in ("결심", "맹세", "거절", "진실", "결정")):
+        return "(단호하게)"
+    if any(token in value for token in ("웃", "감사", "희망", "따뜻", "기쁘")):
+        return "(따뜻하게)"
+    return "(차분하게)"
+
+
+def _has_trailing_script_emotion_cue(prefix: str, language: str) -> bool:
+    matches = list(_SCRIPT_EMOTION_CUE_PATTERN.finditer(prefix))
+    if not matches:
+        return False
+    match = matches[-1]
+    if prefix[match.end():].strip():
+        return False
+    return _is_script_emotion_cue(match.group(1) or match.group(2) or "", language)
+
+
+def _ensure_script_emotion_cues(script: str, language: str = "ko") -> str:
+    value = str(script or "").strip()
+    if not value:
+        return ""
+
+    def normalize_existing_cue(match) -> str:
+        content = (match.group(1) or match.group(2) or "").strip()
+        return f"({content})" if _is_script_emotion_cue(content, language) else ""
+
+    value = _SCRIPT_EMOTION_CUE_PATTERN.sub(normalize_existing_cue, value)
+
+    def add_dialogue_cue(match) -> str:
+        prefix = value[max(0, match.start() - 80):match.start()]
+        if _has_trailing_script_emotion_cue(prefix, language):
+            return match.group(0)
+        return f"{_infer_script_emotion_cue(match.group(0), language)} {match.group(0)}"
+
+    value = _SCRIPT_QUOTED_DIALOGUE_PATTERN.sub(add_dialogue_cue, value)
+    required = _required_script_emotion_cue_count(value)
+    current = _script_emotion_cue_count(value, language)
+    if current >= required:
+        return value
+
+    parts = re.split(r"(\n\s*\n)", value)
+    candidates = [
+        idx for idx in range(0, len(parts), 2)
+        if len(parts[idx].strip()) >= 20
+        and not _has_trailing_script_emotion_cue(parts[idx][:80].rstrip(), language)
+        and not _SCRIPT_EMOTION_CUE_PATTERN.match(parts[idx].lstrip())
+    ]
+    needed = required - current
+    preferred: list[int] = []
+    if candidates:
+        for offset in range(min(needed, len(candidates))):
+            position = round(offset * (len(candidates) - 1) / max(1, min(needed, len(candidates)) - 1))
+            candidate = candidates[position]
+            if candidate not in preferred:
+                preferred.append(candidate)
+        for candidate in candidates:
+            if len(preferred) >= needed:
+                break
+            if candidate not in preferred:
+                preferred.append(candidate)
+    for idx in preferred:
+        paragraph = parts[idx].lstrip()
+        parts[idx] = f"{_infer_script_emotion_cue(paragraph[:220], language)} {paragraph}"
+    value = "".join(parts)
+    current = _script_emotion_cue_count(value, language)
+
+    if current < required:
+        positions = [match.end() for match in re.finditer(r"[.!?。！？]\s+", value)]
+        needed = min(required - current, len(positions))
+        selected = []
+        for offset in range(needed):
+            position = round((offset + 1) * (len(positions) - 1) / (needed + 1))
+            selected.append(positions[position])
+        for position in sorted(set(selected), reverse=True):
+            following = value[position:position + 220].lstrip()
+            value = value[:position] + f"{_infer_script_emotion_cue(following, language)} " + value[position:]
+    return value.strip()
+
+
+def _script_emotion_cue_errors(script: str, language: str) -> list[str]:
+    value = str(script or "")
+    errors: list[str] = []
+    actual = _script_emotion_cue_count(value, language)
+    required = _required_script_emotion_cue_count(value)
+    if actual < required:
+        errors.append(f"script emotion cues missing: required={required}, actual={actual}")
+
+    uncued_dialogue = 0
+    for match in _SCRIPT_QUOTED_DIALOGUE_PATTERN.finditer(value):
+        prefix = value[max(0, match.start() - 80):match.start()]
+        if not _has_trailing_script_emotion_cue(prefix, language):
+            uncued_dialogue += 1
+    if uncued_dialogue:
+        errors.append(f"quoted dialogue missing immediate emotion cue: count={uncued_dialogue}")
+    return errors
+
+
 def _trim_section_to_limit(text: str, max_chars: int, *, strict: bool = False) -> str:
     value = (text or "").strip()
     hard_limit = max(20, int(max_chars)) if strict else max(180, int(max_chars * 1.4))
@@ -7239,6 +7435,7 @@ def _build_section_prompt(
         language=language,
         is_dramatic_single=is_dramatic_single,
     )
+    emotion_cue_instruction = _script_emotion_cue_instruction(language)
     language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
     extra_context = ""
     if emotion:
@@ -7331,6 +7528,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 [WRITING RULES]
 0. {length_instruction}
 {mode_instruction}
+2a. {emotion_cue_instruction}
 3. {language_instruction}
 4. Output body text only. Do not output a scene title, scene number, headings, markdown, timecodes, camera directions, or sound-effect labels.
 5. Target {min_chars} to {max_chars} characters. Do not pad by repeating information.
@@ -7400,6 +7598,7 @@ def _build_script_chunk_prompt(
         language=language,
         is_dramatic_single=is_dramatic_single,
     )
+    emotion_cue_instruction = _script_emotion_cue_instruction(language)
     language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
     budget_by_order = {str(item.get("scene_order")): item for item in chunk_budgets}
     scene_payload = []
@@ -7456,6 +7655,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 1. Respect target_duration_seconds and character budgets per scene. Do not make all scenes the same length.
 2. A 5-second scene is a short micro beat: one or two vivid sentences only. Longer scenes may carry more action, emotion, or explanation.
 {mode_instruction}
+3a. {emotion_cue_instruction}
 4. {language_instruction}
 5. {_script_output_rule(language)} No scene titles, headings, markdown, timecodes, camera directions, subtitle notes, or sound-effect labels.
 6. Use story_beat and purpose as the only scene instructions. Ignore any planning, visual, TTS, camera, or UI wording from prior stages.
@@ -7990,6 +8190,7 @@ Evaluate:
 7. emotional payoff
 8. absence of filler/meta commentary
 9. natural spoken narration
+10. valid parenthesized voice-emotion cues: every direct quote has one immediately before it, and long narration has a natural cue about every 1,200 characters
 
 LANGUAGE: {language}
 TOPIC: {topic}
@@ -8119,6 +8320,7 @@ Rules:
 - Do not add markdown headings.
 - Do not mention QA, strategy, content, algorithm, storytelling, or analysis.
 - Keep natural spoken narration.
+- {_script_emotion_cue_instruction(language)}
 - Preserve the upload title promise and final payoff.
 - Keep length within roughly +/-20% of the original.
 
@@ -8136,7 +8338,7 @@ ORIGINAL SCRIPT:
         prompt, model, temperature=0.55, max_tokens=12000,
         task_type="hermes_script_rewrite",
     )
-    return _clean_section_text(revised.strip(), False)
+    return _ensure_script_emotion_cues(_clean_section_text(revised.strip(), False), language)
 
 
 def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
@@ -8212,6 +8414,7 @@ Hard rules:
 - Proper nouns may remain only when unavoidable, but keep Latin letters extremely rare.
 - Keep the length roughly similar to the original. Do not summarize into a short outline.
 - Do not mention this QA failure or the rewrite process.
+- {_script_emotion_cue_instruction("ko")}
 
 LANGUAGE FAILURE STATS:
 {json.dumps(stats, ensure_ascii=False)}
@@ -8241,14 +8444,22 @@ SCRIPT TO REWRITE:
         )
         rewritten = _clean_section_text(str(rewritten or "").strip(), False)
         if rewritten and not _script_has_excessive_latin(rewritten):
-            return rewritten
+            return _ensure_script_emotion_cues(rewritten, "ko")
         job_log.warning(
             "Korean language rewrite still had excessive Latin text; using deterministic rescue script "
             f"(stats={_script_language_stats(rewritten)})"
         )
     except Exception as exc:
         job_log.warning(f"Korean language rewrite failed; using deterministic rescue script: {exc}")
-    return _build_korean_language_rescue_script(topic, upload_title, structure, min_total_chars=max(2600, int(len(script) * 0.55)))
+    return _ensure_script_emotion_cues(
+        _build_korean_language_rescue_script(
+            topic,
+            upload_title,
+            structure,
+            min_total_chars=max(2600, int(len(script) * 0.55)),
+        ),
+        "ko",
+    )
 
 
 def _build_japanese_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
@@ -8306,6 +8517,7 @@ Hard rules:
 - Proper nouns may remain only when unavoidable.
 - Keep the length roughly similar to the original. Do not collapse it into a short outline.
 - Do not mention this QA failure or the rewrite process.
+- {_script_emotion_cue_instruction("ja")}
 
 TOPIC:
 {topic}
@@ -8332,7 +8544,7 @@ SCRIPT TO REWRITE:
         )
         rewritten = _clean_section_text(str(rewritten or "").strip(), False)
         if rewritten and _japanese_char_count(rewritten) >= max(800, len(rewritten) // 6) and not re.search(r"[\uac00-\ud7a3]", rewritten):
-            return rewritten
+            return _ensure_script_emotion_cues(rewritten, "ja")
         rewritten_hangul = len(re.findall(r"[\uac00-\ud7a3]", rewritten or ""))
         job_log.warning(
             "Japanese language rewrite still failed language validation; using deterministic rescue script "
@@ -8340,7 +8552,15 @@ SCRIPT TO REWRITE:
         )
     except Exception as exc:
         job_log.warning(f"Japanese language rewrite failed; using deterministic rescue script: {exc}")
-    return _build_japanese_language_rescue_script(topic, upload_title, structure, min_total_chars=max(2600, int(len(script) * 0.55)))
+    return _ensure_script_emotion_cues(
+        _build_japanese_language_rescue_script(
+            topic,
+            upload_title,
+            structure,
+            min_total_chars=max(2600, int(len(script) * 0.55)),
+        ),
+        "ja",
+    )
 
 
 def _build_finance_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
@@ -8722,7 +8942,10 @@ Hard retry rules:
             job_log.info("Using old-story grave-vigil script path before section generation")
             job_store.update_progress(job_id, 78, "script QA")
             write_state("running", job, 78, job_id)
-            rescue_script = _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure)
+            rescue_script = _ensure_script_emotion_cues(
+                _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure),
+                language,
+            )
             rescue_quality = await _evaluate_script_quality(
                 ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
             )
@@ -8840,7 +9063,10 @@ Hard retry rules:
             if chunk_idx < len(script_chunks) - 1:
                 await asyncio.sleep(0.5)
 
-        draft_script = "\n\n".join(p for p in final_parts if p).strip()
+        draft_script = _ensure_script_emotion_cues(
+            "\n\n".join(p for p in final_parts if p).strip(),
+            language,
+        )
         job_store.update_progress(job_id, 78, "script QA")
         write_state("running", job, 78, job_id)
         initial_quality = await _evaluate_script_quality(
@@ -8911,6 +9137,7 @@ Hard retry rules:
                 rescue_script = _build_japanese_language_rescue_script(topic, upload_title, structure)
 
             if rescue_script:
+                rescue_script = _ensure_script_emotion_cues(rescue_script, language)
                 rescue_quality = await _evaluate_script_quality(
                     ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
                 )
@@ -9002,6 +9229,7 @@ Hard retry rules:
             job_log.warning(
                 f"Script deduplicated ({len(remaining)} residual minor repetitions allowed for continuity)."
             )
+    final_script = _ensure_script_emotion_cues(final_script, language)
     if not isinstance(main_character, dict) or not main_character:
         main_character = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
         main_character["source"] = "worker_required_fallback"

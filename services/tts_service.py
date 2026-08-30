@@ -279,7 +279,7 @@ class TTSService:
             # --- Happy / Exciting (기쁨, 흥분, 밝음) ---
             "기쁘": "happy", "기쁜": "happy", "신나": "excited", "활기": "excited", "즐겁": "happy", 
             "밝게": "happy", "밝은": "happy", "웃음": "happy", "웃으": "happy", "환희": "happy",
-            "유쾌": "happy", "당차": "excited", "희망": "happy", "반갑": "happy", "설레": "excited",
+            "유쾌": "happy", "당차": "excited", "희망": "happy", "반갑": "happy", "설레": "excited", "따뜻": "happy",
             
             # --- Angry / Frustrated (분노, 짜증, 분개, 억울함) ---
             "화나": "angry", "분노": "angry", "적대": "angry", "짜증": "angry", "신경": "angry", 
@@ -292,7 +292,16 @@ class TTSService:
             "악을": "shouts", "긴박": "shouts", "놀라": "shouts", "경악": "shouts", "충격": "shouts",
             
             # --- Pauses ---
-            "쉬고": "pause", "pause": "pause", "정적": "long pause"
+            "쉬고": "pause", "pause": "pause", "정적": "long pause",
+
+            # --- English/Japanese canonical worker cues ---
+            "calm": "quietly", "quiet": "quietly", "low voice": "quietly", "softly": "quietly",
+            "whisper": "whispers", "sad": "sad", "tearful": "sad", "trembling": "sad",
+            "serious": "thoughtful", "firm": "thoughtful", "solemn": "thoughtful", "warm": "happy",
+            "angry": "angry", "anger": "angry", "urgent": "shouts", "shouting": "shouts", "shocked": "shouts",
+            "静か": "quietly", "低く": "quietly", "落ち着": "quietly", "ささや": "whispers",
+            "震え": "sad", "涙": "sad", "悲し": "sad", "真剣": "thoughtful", "きっぱり": "thoughtful",
+            "優しく": "happy", "温か": "happy", "怒り": "angry", "緊迫": "shouts", "驚き": "shouts"
         }
 
         PHONETIC_MAP = {
@@ -309,18 +318,19 @@ class TTSService:
         
         def replace_ko_emotions(match):
             content = match.group(1).strip()
+            normalized_content = content.casefold()
             
             # 1. Phonetic mapping
             phonetic_str = ""
             for ko_key, phonetic in PHONETIC_MAP.items():
-                if ko_key in content:
+                if ko_key.casefold() in normalized_content:
                     phonetic_str = phonetic
                     break
                     
             # 2. Emotional tag
             emotion_tag = ""
             for ko_key, en_tag in EMOTION_MAP.items():
-                if ko_key in content:
+                if ko_key.casefold() in normalized_content:
                     emotion_tag = f"[{en_tag}]"
                     break
             

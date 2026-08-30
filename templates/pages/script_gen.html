@@ -801,30 +801,122 @@
         window.open('https://translate.google.com', '_blank');
     }
 
+    const SCRIPT_EMOTION_CUE_KEYWORDS = [
+        '차분', '조용', '나직', '잔잔', '덤덤', '낮게', '낮은 목소리', '속삭', '숨죽',
+        '슬프', '슬픔', '울먹', '눈물', '떨리는', '애절', '절망', '한숨', '탄식',
+        '진지', '단호', '엄숙', '묵직', '결연', '조심', '냉정', '경고',
+        '기쁘', '밝게', '따뜻', '웃으며', '설레', '희망',
+        '분노', '화가', '격앙', '거칠', '억울', '다급', '긴박', '놀라', '경악', '외치',
+        'calm', 'quiet', 'soft', 'low voice', 'whisper', 'sad', 'tearful', 'trembling',
+        'serious', 'firm', 'solemn', 'thoughtful', 'warm', 'bright', 'hopeful', 'angry',
+        'anger', 'urgent', 'shouting', 'shocked', 'frightened', 'sigh',
+        '静か', '低く', '落ち着', 'ささや', '震え', '涙', '悲し', '切な', '真剣',
+        'きっぱり', '厳か', '重く', '優しく', '温か', '明るく', '喜び', '怒り',
+        '苛立', '緊迫', '驚き', '叫び', 'ため息'
+    ];
+
+    function isScriptEmotionCue(content) {
+        const normalized = String(content || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        return Boolean(normalized) && SCRIPT_EMOTION_CUE_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
+    }
+
+    function detectScriptCueLanguage(text) {
+        const value = String(text || '');
+        const koreanCount = (value.match(/[\uAC00-\uD7AF]/g) || []).length;
+        const japaneseCount = (value.match(/[\u3040-\u30FF]/g) || []).length;
+        if (japaneseCount > koreanCount) return 'ja';
+        if (koreanCount > 0) return 'ko';
+        return 'en';
+    }
+
+    function inferScriptEmotionCue(text, language = 'ko') {
+        const value = String(text || '').toLowerCase();
+        if (language === 'ja') {
+            if (/(泣|涙|悲|別れ|後悔)/.test(value)) return '(涙をこらえて)';
+            if (/(怒|許さ|裏切|憤)/.test(value)) return '(怒りを抑えて)';
+            if (/(怖|震|不安|驚)/.test(value)) return '(震える声で)';
+            if (/(決め|誓|拒|真実)/.test(value)) return '(きっぱりと)';
+            if (/(笑|感謝|希望|温か)/.test(value)) return '(優しく)';
+            return '(静かに)';
+        }
+        if (language === 'en') {
+            if (/(cry|tear|sad|grief|regret)/i.test(value)) return '(tearfully)';
+            if (/(angry|furious|betray|never forgive)/i.test(value)) return '(controlling their anger)';
+            if (/(fear|trembl|afraid|shock)/i.test(value)) return '(in a trembling voice)';
+            if (/(decide|swear|refuse|truth)/i.test(value)) return '(firmly)';
+            if (/(smile|thank|hope|warm)/i.test(value)) return '(warmly)';
+            return '(calmly)';
+        }
+        if (/(울|눈물|슬프|이별|후회|애원|泣|涙|悲|別れ|cry|tear|sad|grief|regret)/i.test(value)) return '(울먹이며)';
+        if (/(분노|화가|배신|용서 못|억울|怒|裏切|angry|furious|betray)/i.test(value)) return '(분노를 억누르며)';
+        if (/(두려|떨|무서|불안|충격|놀라|怖|震|不安|驚|fear|trembl|afraid|shock)/i.test(value)) return '(떨리는 목소리로)';
+        if (/(결심|맹세|거절|진실|결정|決め|誓|拒|真実|decide|swear|refuse|truth)/i.test(value)) return '(단호하게)';
+        if (/(웃|감사|희망|따뜻|기쁘|笑|感謝|希望|温か|smile|thank|hope|warm)/i.test(value)) return '(따뜻하게)';
+        return '(차분하게)';
+    }
+
+    function hasTrailingScriptEmotionCue(prefix) {
+        const match = String(prefix || '').match(/\(([^()\n]{1,40})\)\s*$/);
+        return Boolean(match && isScriptEmotionCue(match[1]));
+    }
+
+    function normalizeScriptEmotionCues(text, ensureMinimum = true) {
+        let value = String(text || '')
+            .replace(/\[([^\]]*)\]/g, (match, content) => isScriptEmotionCue(content) ? `(${content.trim()})` : '')
+            .replace(/（([^）]*)）/g, (match, content) => isScriptEmotionCue(content) ? `(${content.trim()})` : '')
+            .replace(/\(([^)]*)\)/g, (match, content) => isScriptEmotionCue(content) ? `(${content.trim()})` : '');
+        const cueLanguage = detectScriptCueLanguage(value);
+
+        value = value.replace(/"[^"\n]{2,220}"|“[^”\n]{2,220}”|「[^」\n]{2,220}」|『[^』\n]{2,220}』/g, (quote, offset, source) => {
+            const prefix = source.slice(Math.max(0, offset - 80), offset);
+            return hasTrailingScriptEmotionCue(prefix) ? quote : `${inferScriptEmotionCue(quote, cueLanguage)} ${quote}`;
+        });
+
+        if (!ensureMinimum || !value.trim()) return value.trim();
+        const required = Math.max(1, Math.min(8, Math.ceil(value.replace(/\s+/g, '').length / 1200)));
+        const cueCount = () => Array.from(value.matchAll(/\(([^()\n]{1,40})\)/g))
+            .filter(match => isScriptEmotionCue(match[1])).length;
+        if (cueCount() >= required) return value.trim();
+
+        const parts = value.split(/(\n\s*\n)/);
+        const candidates = [];
+        for (let index = 0; index < parts.length; index += 2) {
+            const paragraph = parts[index].trim();
+            if (paragraph.length >= 20 && !/^\(([^()\n]{1,40})\)/.test(paragraph)) candidates.push(index);
+        }
+        const needed = required - cueCount();
+        for (let offset = 0; offset < Math.min(needed, candidates.length); offset += 1) {
+            const position = Math.round(offset * (candidates.length - 1) / Math.max(1, Math.min(needed, candidates.length) - 1));
+            const index = candidates[position];
+            const paragraph = parts[index].trimStart();
+            parts[index] = `${inferScriptEmotionCue(paragraph.slice(0, 220), cueLanguage)} ${paragraph}`;
+        }
+        value = parts.join('').trim();
+        let remaining = required - cueCount();
+        if (remaining > 0) {
+            const boundaries = Array.from(value.matchAll(/[.!?。！？]\s+/g)).map(match => match.index + match[0].length);
+            const selected = [];
+            for (let offset = 0; offset < Math.min(remaining, boundaries.length); offset += 1) {
+                const position = Math.round((offset + 1) * (boundaries.length - 1) / (remaining + 1));
+                selected.push(boundaries[position]);
+            }
+            Array.from(new Set(selected)).sort((a, b) => b - a).forEach(position => {
+                const following = value.slice(position, position + 220).trimStart();
+                value = `${value.slice(0, position)}${inferScriptEmotionCue(following, cueLanguage)} ${value.slice(position)}`;
+            });
+        }
+        return value.trim();
+    }
+
     function cleanCurrentScript() {
         let text = document.getElementById('scriptContent').value;
         if (!text) return;
 
         if (!confirm(`${i18n.confirm_clean_script}`)) return;
 
-        // 감정 태그 보호 리스트
-        const emotionTags = ["annoyed", "excited", "sad", "angry", "shouting", "whispering", "long pause", "pause", "appalled"];
-        
-        // 괄호 내용 중 감정 태그만 살리고 나머지는 제거하는 로직
-        const cleaned = text
-            .replace(/\[([^\]]*)\]/g, (match, content) => {
-                const lowerContent = content.toLowerCase().trim();
-                if (emotionTags.some(tag => lowerContent.includes(tag))) return match;
-                return "";
-            })
-            .replace(/\(([^)]*)\)/g, (match, content) => {
-                const lowerContent = content.toLowerCase().trim();
-                if (emotionTags.some(tag => lowerContent.includes(tag))) return match;
-                return "";
-            })
+        const cleaned = normalizeScriptEmotionCues(text)
             .replace(/\*/g, '')
-            // 특수문자 제거 시 대괄호[]는 살려야 함
-            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.\[\]]/g, '')
+            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\u3040-\u30FF\u3400-\u9FFFa-zA-Z0-9\s,.\?\!\"\'\.:\(\)「」『』“”]/g, '')
             .replace(/^[가-힣\w\s]+[\s]*:[\s]*/gm, '')
             .replace(/\n\s*\n/g, '\n\n')
             .trim();
@@ -1396,10 +1488,9 @@ ${modeInstruction}
                         let sectionText = result.text.trim();
 
                         // [CRITICAL] 금지 항목 정제 (타임스탬프, 이모티콘, 화자 표시, 별표) 단, 감정 표시용 소괄호()는 보존
-                        sectionText = sectionText
-                            .replace(/\[[^\]]*\]/g, '')  // 대괄호 제거 [0-5초]
+                        sectionText = normalizeScriptEmotionCues(sectionText, false)
                             .replace(/\*/g, '')          // 별표 제거 **
-                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"\'\.:\(\)]/g, ''); // 특수문자 제거 (괄호 () 및 콜론 보존)
+                            .replace(/[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\u3040-\u30FF\u3400-\u9FFFa-zA-Z0-9\s,.\?\!\"\'\.:\(\)「」『』“”]/g, '');
 
                         if (!isMulti) {
                             // 단독 나레이션일 때만 화자 이름 제거
@@ -1435,7 +1526,10 @@ ${modeInstruction}
                 }
             }
 
-            currentScript = finalScript.trim();
+            currentScript = normalizeScriptEmotionCues(finalScript.trim());
+            finalScript = currentScript;
+            document.getElementById('scriptContent').value = currentScript;
+            updateStats();
 
             // Save to DB
             if (currentScript) {
@@ -1474,8 +1568,8 @@ ${modeInstruction}
         }
 
         const projectId = getCurrentProject();
-        currentScript = text;
-        document.getElementById('scriptContent').value = text;
+        currentScript = normalizeScriptEmotionCues(text);
+        document.getElementById('scriptContent').value = currentScript;
         document.getElementById('resultSection').classList.remove('hidden');
         updateStats();
 
@@ -1485,7 +1579,7 @@ ${modeInstruction}
                 await API.project.saveSettings(projectId, {
                     voice_multi_enabled: narrationMode === 'multi' ? 1 : 0
                 });
-                await API.project.saveScript(projectId, text, text.length, Math.ceil(text.length / 415));
+                await API.project.saveScript(projectId, currentScript, currentScript.length, Math.ceil(currentScript.length / 415));
                 Utils.showToast(i18n.toast_script_saved, 'success');
                 refreshExplorer();
             } catch (e) {
