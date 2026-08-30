@@ -1399,9 +1399,13 @@ export default function DashboardContent() {
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ ...sysKeys }) 
             });
-            if (res.ok) setSysKeysSaved(true);
-        } catch (e) {
-            // Silently ignore errors to prevent console spam
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || `HTTP ${res.status}`);
+            }
+            setSysKeysSaved(true);
+        } catch (e: any) {
+            alert((isKor ? '설정 저장 실패: ' : 'Failed to save settings: ') + (e?.message || String(e)));
         }
         finally { setSysKeysSaving(false); }
     };

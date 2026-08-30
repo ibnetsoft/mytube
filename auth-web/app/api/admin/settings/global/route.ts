@@ -8,7 +8,7 @@ const GLOBAL_SETTINGS_CACHE_KEY = 'admin:settings:global'
 const GLOBAL_SETTINGS_CACHE_TTL_SECONDS = 300
 
 const KEYS = [
-    'gemini', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'topview', 'topview_uid',
+    'gemini', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'elevenlabs_keys', 'topview', 'topview_uid',
     'suno', 'suno_base_url', 'music_provider',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',
@@ -32,6 +32,25 @@ const EXACT_KEYS = [
     // 씬 전환 효과 - 유저 설정에서 어드민 전용 제어로 이전
     'scene_transition_mode'
 ]
+
+const SECRET_KEYS = new Set([
+    'gemini',
+    'youtube',
+    'youtube_keys',
+    'claude',
+    'elevenlabs',
+    'elevenlabs_keys',
+    'topview',
+    'suno',
+])
+
+function isMaskedOrEmptySecretValue(value: unknown): boolean {
+    const normalized = String(value ?? '').trim()
+    if (!normalized) return true
+    if (/^[•*]+$/.test(normalized)) return true
+    if (['(미설정)', '(unset)', 'undefined', 'null'].includes(normalized.toLowerCase())) return true
+    return false
+}
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -81,11 +100,14 @@ export async function POST(req: Request) {
         const sb = getAdmin()
         for (const k of KEYS) {
             if (body[k] === undefined) continue
-            await sb.from('global_settings').upsert({ key: `sys_api_${k}`, value: body[k] }, { onConflict: 'key' })
+            if (SECRET_KEYS.has(k) && isMaskedOrEmptySecretValue(body[k])) continue
+            const { error } = await sb.from('global_settings').upsert({ key: `sys_api_${k}`, value: body[k] }, { onConflict: 'key' })
+            if (error) throw new Error(`global_settings save failed for sys_api_${k}: ${error.message}`)
         }
         for (const k of EXACT_KEYS) {
             if (body[k] === undefined) continue
-            await sb.from('global_settings').upsert({ key: k, value: body[k] }, { onConflict: 'key' })
+            const { error } = await sb.from('global_settings').upsert({ key: k, value: body[k] }, { onConflict: 'key' })
+            if (error) throw new Error(`global_settings save failed for ${k}: ${error.message}`)
         }
         await deleteServerCache(GLOBAL_SETTINGS_CACHE_KEY)
         return NextResponse.json({ success: true })
