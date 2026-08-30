@@ -554,6 +554,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 drive_folder_id: folders.projectFolderId,
                 progress_payload: {
                     ...progressPayload,
+                    std_drive: {
+                        ...(progressPayload.std_drive || {}),
+                        folder_ids: {
+                            project: folders.projectFolderId,
+                            images: folders.imagesFolderId,
+                            videos: folders.videosFolderId,
+                            originals: folders.originalsFolderId,
+                        },
+                    },
                     has_tts_audio: true,
                     tts_generated_at: now,
                     tts_asset_id: asset?.id || null,

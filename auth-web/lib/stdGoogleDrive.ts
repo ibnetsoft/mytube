@@ -103,21 +103,40 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
     if (!rootFolderId) throw new Error('drive_root_folder_not_configured')
     const projectPayload = project?.progress_payload || {}
     const existing = projectPayload?.std_drive?.folder_ids || {}
-    if (existing.project && existing.images && existing.videos && existing.originals) {
-        return {
-            projectFolderId: existing.project,
-            imagesFolderId: existing.images,
-            videosFolderId: existing.videos,
-            originalsFolderId: existing.originals,
+    const existingProjectFolderId = String(existing.project || project?.drive_folder_id || '').trim()
+
+    if (existingProjectFolderId && existing.images && existing.videos && existing.originals) {
+        try {
+            const [projectMeta, imagesMeta, videosMeta, originalsMeta] = await Promise.all([
+                getStdDriveFileMetadata(existingProjectFolderId),
+                getStdDriveFileMetadata(existing.images),
+                getStdDriveFileMetadata(existing.videos),
+                getStdDriveFileMetadata(existing.originals),
+            ])
+            const projectIsInCurrentRoot = projectMeta.mimeType === DRIVE_FOLDER_MIME
+                && projectMeta.parents?.includes(rootFolderId)
+            const childFoldersAreCurrent = [imagesMeta, videosMeta, originalsMeta].every(meta =>
+                meta.mimeType === DRIVE_FOLDER_MIME && meta.parents?.includes(existingProjectFolderId)
+            )
+            if (projectIsInCurrentRoot && childFoldersAreCurrent) {
+                return {
+                    projectFolderId: existingProjectFolderId,
+                    imagesFolderId: existing.images,
+                    videosFolderId: existing.videos,
+                    originalsFolderId: existing.originals,
+                }
+            }
+        } catch {
+            // Missing or inaccessible legacy folders are recreated below under the active root.
         }
     }
 
     const title = sanitizeDriveName(project?.title || project?.id, 'std-project')
     const projectFolderName = sanitizeDriveName(`STD_${String(project?.id || '').slice(0, 8)}_${title}`)
-    const projectFolderId = project?.drive_folder_id || existing.project || await ensureDriveFolder(rootFolderId, projectFolderName)
-    const imagesFolderId = existing.images || await ensureDriveFolder(projectFolderId, '01_images')
-    const videosFolderId = existing.videos || await ensureDriveFolder(projectFolderId, '02_videos')
-    const originalsFolderId = existing.originals || await ensureDriveFolder(projectFolderId, '03_originals')
+    const projectFolderId = await ensureDriveFolder(rootFolderId, projectFolderName)
+    const imagesFolderId = await ensureDriveFolder(projectFolderId, '01_images')
+    const videosFolderId = await ensureDriveFolder(projectFolderId, '02_videos')
+    const originalsFolderId = await ensureDriveFolder(projectFolderId, '03_originals')
 
     return { projectFolderId, imagesFolderId, videosFolderId, originalsFolderId }
 }

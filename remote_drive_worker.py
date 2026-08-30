@@ -203,7 +203,12 @@ class RemoteDriveWorker:
             raise RuntimeError(f"Drive 프로젝트 폴더 준비 실패 (카테고리/프로젝트: {folder_category} / {project_name})")
         return folder
 
+    def _refresh_drive_settings(self):
+        config.load_remote_keys_from_supabase()
+        self.output_folder_id = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID") or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
+
     def process_job(self, job):
+        self._refresh_drive_settings()
         job_id = job["id"]
         asset_file_id = job.get("asset_file_id")
         if not asset_file_id:

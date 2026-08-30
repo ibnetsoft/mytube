@@ -2963,11 +2963,9 @@ export default function StdPortalPage() {
             }
             setMessage('✅ 원격 렌더 큐에 성공적으로 등록되었습니다!')
         } catch (error: any) {
-            setSelectedProject(prev => prev ? {
-                ...prev,
-                project: { ...prev.project, status: 'review_requested' }
-            } : null)
-            setMessage('✅ 원격 렌더 큐에 성공적으로 등록되었습니다! (렌더 대기 중)')
+            const errorMessage = error?.message || '제출 실패'
+            setMessage(`❌ ${errorMessage}`)
+            alert(`프로젝트 제출 실패: ${errorMessage}`)
         } finally {
             setLoading(false)
         }

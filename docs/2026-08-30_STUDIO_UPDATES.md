@@ -160,3 +160,10 @@
 - 장기 Refresh Token을 워커 PC로 전달하지 않습니다.
 - 워커는 `/api/desktop-drive-token`에서 단기 Access Token과 Root Folder ID를 받아 Drive에 접근합니다.
 - 새 Root Folder ID는 기존 원격 렌더 폴더 설정보다 우선해 워커 런타임에 반영됩니다.
+
+### 9-4. 제출 및 워커 폴더 검증
+- 기존 프로젝트에 과거 Drive 폴더 ID가 남아 있어도 현재 Root Folder의 자식인지 API로 검증한 후 재사용합니다.
+- 현재 Root 밖의 기존 폴더는 새 업로드에 재사용하지 않고 현재 Root 아래에 프로젝트·에셋 폴더를 다시 준비합니다.
+- 원격 워커는 각 작업 시작 전에 관리자 Root Folder 설정을 다시 불러옵니다.
+- 제출 API 오류를 성공으로 표시하던 UI fallback을 제거하고 실제 실패 원인을 사용자에게 표시합니다.
+- 기존 완료 큐의 파일은 자동 이동하지 않으며, 워커는 저장된 Drive File ID로 계속 조회할 수 있습니다.
