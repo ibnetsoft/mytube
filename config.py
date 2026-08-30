@@ -463,6 +463,25 @@ class Config:
         }
 
     @classmethod
+    def elevenlabs_api_keys(cls):
+        """Return the primary ElevenLabs key followed by up to three backups."""
+        import re
+
+        keys = []
+        values = (
+            os.getenv("ELEVENLABS_API_KEY", ""),
+            getattr(cls, "ELEVENLABS_API_KEY", ""),
+            os.getenv("ELEVENLABS_API_KEYS", ""),
+            getattr(cls, "ELEVENLABS_API_KEYS", ""),
+        )
+        for value in values:
+            for key in re.split(r"[,;\r\n]+", str(value or "")):
+                key = key.strip()
+                if key and key not in keys:
+                    keys.append(key)
+        return keys[:4]
+
+    @classmethod
     def youtube_api_keys(cls):
         """Return unique YouTube keys in primary-then-fallback order."""
         import re
