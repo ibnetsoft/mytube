@@ -12,29 +12,10 @@
 // services/google_drive_service.py (Python) which remains the primary Drive
 // integration for rendering/uploading.
 
-export async function getDriveAccessToken(): Promise<string> {
-    const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID
-    const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET
-    const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN
-    if (!clientId || !clientSecret || !refreshToken) {
-        throw new Error('drive_credentials_not_configured')
-    }
+import { getGoogleDriveAccessToken } from '@/lib/googleDriveConfig'
 
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            client_id: clientId,
-            client_secret: clientSecret,
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token',
-        }),
-    })
-    const tokenBody = await tokenRes.json()
-    if (!tokenRes.ok || !tokenBody.access_token) {
-        throw new Error(`drive_token_refresh_failed: ${tokenBody?.error || tokenRes.status}`)
-    }
-    return tokenBody.access_token as string
+export async function getDriveAccessToken(): Promise<string> {
+    return (await getGoogleDriveAccessToken()).accessToken
 }
 
 export async function getDriveFileJson(fileId: string): Promise<any> {

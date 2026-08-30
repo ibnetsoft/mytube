@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
+import { getGoogleDriveAccessToken } from '@/lib/googleDriveConfig'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,36 +70,14 @@ export async function POST(req: Request) {
         return unauthorized('invalid_or_expired_session')
     }
 
-    const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID
-    const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET
-    const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN
-    if (!clientId || !clientSecret || !refreshToken) {
-        console.error('[DesktopDriveToken] Missing GOOGLE_DRIVE_* env configuration')
-        return NextResponse.json({ status: 'error', detail: 'drive_credentials_not_configured' }, { status: 500 })
-    }
-
     try {
-        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                client_id: clientId,
-                client_secret: clientSecret,
-                refresh_token: refreshToken,
-                grant_type: 'refresh_token',
-            }),
-        })
-        const tokenBody = await tokenRes.json()
-        if (!tokenRes.ok || !tokenBody.access_token) {
-            console.error('[DesktopDriveToken] Google token refresh failed:', tokenRes.status, tokenBody?.error)
-            return NextResponse.json({ status: 'error', detail: 'drive_token_refresh_failed' }, { status: 502 })
-        }
+        const token = await getGoogleDriveAccessToken()
 
         return NextResponse.json({
             status: 'ok',
-            access_token: tokenBody.access_token,
-            expires_in: tokenBody.expires_in,
-            root_folder_id: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || null,
+            access_token: token.accessToken,
+            expires_in: token.expiresIn,
+            root_folder_id: token.config.rootFolderId || null,
         })
     } catch (error: any) {
         console.error('[DesktopDriveToken] Error:', error?.message)

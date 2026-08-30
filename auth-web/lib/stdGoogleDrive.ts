@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabaseAdmin'
+import { getGoogleDriveAccessToken, getGoogleDriveConfig } from './googleDriveConfig'
 
 const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder'
 
@@ -26,36 +26,10 @@ type DriveFileMetadata = {
     thumbnailLink?: string
 }
 
-function driveRootFolderId(): string {
-    return process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || process.env.REMOTE_RENDER_DRIVE_FOLDER_ID || ''
+export async function resolveDriveRootFolderId(): Promise<string> {
+    return (await getGoogleDriveConfig()).rootFolderId
 }
 
-async function resolveDriveRootFolderId(): Promise<string> {
-    const envRootFolderId = driveRootFolderId()
-    if (envRootFolderId) return envRootFolderId
-
-    // Check primary key first, then legacy fallback key
-    const { data } = await supabaseAdmin
-        .from('global_settings')
-        .select('key, value')
-        .in('key', ['sys_api_remote_render_drive_folder_id', 'remote_render_drive_folder_id'])
-        .neq('value', '')
-        .order('key', { ascending: false }) // sys_api_ sorts last, so primary key wins
-    if (Array.isArray(data) && data.length > 0) {
-        // Prefer sys_api_remote_render_drive_folder_id over legacy key
-        const primary = data.find((d: any) => d.key === 'sys_api_remote_render_drive_folder_id')
-        const fallback = data.find((d: any) => d.key === 'remote_render_drive_folder_id')
-        return String((primary || fallback)?.value || '').trim()
-    }
-    return ''
-}
-
-
-export function requireStdDriveRootFolderId(): string {
-    const rootFolderId = driveRootFolderId()
-    if (!rootFolderId) throw new Error('drive_root_folder_not_configured')
-    return rootFolderId
-}
 
 export function sanitizeDriveName(value: string, fallback = 'untitled'): string {
     const cleaned = String(value || '')
@@ -66,28 +40,7 @@ export function sanitizeDriveName(value: string, fallback = 'untitled'): string 
 }
 
 async function getStdDriveAccessToken(): Promise<string> {
-    const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID
-    const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET
-    const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN
-    if (!clientId || !clientSecret || !refreshToken) {
-        throw new Error('drive_credentials_not_configured')
-    }
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            client_id: clientId,
-            client_secret: clientSecret,
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token',
-        }),
-    })
-    const tokenBody = await tokenRes.json()
-    if (!tokenRes.ok || !tokenBody.access_token) {
-        throw new Error(`drive_token_refresh_failed: ${tokenBody?.error || tokenRes.status}`)
-    }
-    return tokenBody.access_token as string
+    return (await getGoogleDriveAccessToken()).accessToken
 }
 
 async function driveJson<T>(url: string, init: RequestInit = {}): Promise<T> {

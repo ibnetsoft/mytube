@@ -140,3 +140,23 @@
 
 ### 8-5. 관련 반영 커밋
 - `dc9e0d5` Use admin ElevenLabs keys across STD
+
+---
+
+## 9. Google Drive 공통 OAuth 관리자 설정
+
+### 9-1. 관리자 입력 항목
+- `APIKEY & 시스템 설정 > Google Drive` 탭에서 OAuth Client ID, Client Secret, Refresh Token, Root Folder ID를 관리합니다.
+- 요청된 운영 방식에 따라 네 값은 관리자 화면에서 마스킹하지 않고 평문으로 표시합니다.
+- 해당 탭과 설정 API는 시스템 설정 권한이 있는 관리자만 접근할 수 있습니다.
+
+### 9-2. 적용 범위와 우선순위
+- 관리자 DB의 `sys_api_google_drive_*` 값이 완전하게 설정돼 있으면 Vercel 환경변수보다 우선합니다.
+- 관리자 OAuth 값이 하나도 없을 때만 기존 `GOOGLE_DRIVE_*` 환경변수를 fallback으로 사용합니다.
+- OAuth 세 값 중 일부만 저장된 경우 서로 다른 계정 정보가 섞이지 않도록 Drive 작업을 중단합니다.
+- 웹 STD 에셋 업로드·제출·TTS 보관, 관리자 Drive 파일 수정, 데스크톱 앱과 원격 렌더 워커의 중앙 토큰 브리지가 같은 설정을 사용합니다.
+
+### 9-3. 워커 보안 구조
+- 장기 Refresh Token을 워커 PC로 전달하지 않습니다.
+- 워커는 `/api/desktop-drive-token`에서 단기 Access Token과 Root Folder ID를 받아 Drive에 접근합니다.
+- 새 Root Folder ID는 기존 원격 렌더 폴더 설정보다 우선해 워커 런타임에 반영됩니다.

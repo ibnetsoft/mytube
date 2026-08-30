@@ -10,6 +10,7 @@ const GLOBAL_SETTINGS_CACHE_TTL_SECONDS = 300
 const KEYS = [
     'gemini', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'elevenlabs_keys', 'topview', 'topview_uid',
     'suno', 'suno_base_url', 'music_provider',
+    'google_drive_client_id', 'google_drive_client_secret', 'google_drive_refresh_token', 'google_drive_root_folder_id',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',
     'longform_duration_lock_enabled',

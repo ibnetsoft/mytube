@@ -45,6 +45,13 @@ class DriveAdapterError(Exception):
     pass
 
 
+def _configured_drive_folder_id() -> str:
+    if DRIVE_FOLDER_ID:
+        return DRIVE_FOLDER_ID
+    from services import drive_bridge_client
+    return str(drive_bridge_client.get_root_folder_id() or "").strip()
+
+
 def _safe_basename(name: str) -> str:
     """Strips any directory components and rejects traversal sequences -
     a filename coming back from Drive metadata is attacker-influenced (if
@@ -86,8 +93,9 @@ def download_input_package(file_id: str, dest_dir: Path) -> Path:
     handing it back for extraction (render_pipeline_adapter.prepare_temp_dir
     already validates the zip's own contents - this only validates the
     fetch itself)."""
-    if not DRIVE_TOKEN_PATH or not DRIVE_FOLDER_ID:
-        raise DriveAdapterError("AIRWORKER_DRIVE_TOKEN_PATH / AIRWORKER_DRIVE_FOLDER_ID not configured")
+    drive_folder_id = _configured_drive_folder_id()
+    if not drive_folder_id:
+        raise DriveAdapterError("Google Drive root folder is not configured")
 
     from services.google_drive_service import google_drive_service
 
@@ -97,7 +105,7 @@ def download_input_package(file_id: str, dest_dir: Path) -> Path:
     meta = _with_retry(_fetch_metadata, "Drive metadata fetch")
     if not meta:
         raise DriveAdapterError(f"Drive file not found or inaccessible: {file_id}")
-    if DRIVE_FOLDER_ID not in (meta.get("parents") or []):
+    if drive_folder_id not in (meta.get("parents") or []):
         raise DriveAdapterError(f"Drive file {file_id} is not inside the configured working folder - refusing (path/scope confinement)")
 
     size = int(meta.get("size") or 0)
@@ -128,8 +136,9 @@ def upload_output(local_output_path: Path, remote_filename: str) -> str:
     folder - render_video's output.mp4.
     Returns the Drive file id (stable reference, cheaper than a webViewLink
     for the central server to store)."""
-    if not DRIVE_TOKEN_PATH or not DRIVE_FOLDER_ID:
-        raise DriveAdapterError("AIRWORKER_DRIVE_TOKEN_PATH / AIRWORKER_DRIVE_FOLDER_ID not configured")
+    drive_folder_id = _configured_drive_folder_id()
+    if not drive_folder_id:
+        raise DriveAdapterError("Google Drive root folder is not configured")
 
     safe_name = _safe_basename(remote_filename)
     _check_extension(safe_name, ALLOWED_UPLOAD_EXTENSIONS)
@@ -142,7 +151,7 @@ def upload_output(local_output_path: Path, remote_filename: str) -> str:
 
     def _push():
         return google_drive_service.upsert_file(
-            str(local_output_path), token_path=DRIVE_TOKEN_PATH, folder_id=DRIVE_FOLDER_ID,
+            str(local_output_path), token_path=DRIVE_TOKEN_PATH, folder_id=drive_folder_id,
             filename=safe_name, mimetype=mimetype,
         )
 

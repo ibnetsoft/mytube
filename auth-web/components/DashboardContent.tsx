@@ -385,6 +385,7 @@ export default function DashboardContent() {
     // 시스템 전역 API 키 설정
     const [sysKeys, setSysKeys] = useState({
         gemini: '', youtube: '', youtube_keys: '', claude: '', elevenlabs: '', elevenlabs_keys: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
+        google_drive_client_id: '', google_drive_client_secret: '', google_drive_refresh_token: '', google_drive_root_folder_id: '',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
         longform_min_duration_minutes: '15',
@@ -416,7 +417,7 @@ export default function DashboardContent() {
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
     const [newPricingModelId, setNewPricingModelId] = useState('')
     const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi' | 'th'>('ko')
-    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'voices' | 'music' | 'video' | 'legal' | 'policy' | 'pricing'>('ai')
+    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'drive' | 'voices' | 'music' | 'video' | 'legal' | 'policy' | 'pricing'>('ai')
 
     // Style Presets state
     const [stylePresets, setStylePresets] = useState<any[]>([])
@@ -1339,6 +1340,10 @@ export default function DashboardContent() {
                 claude: data.claude || '',
                 elevenlabs: data.elevenlabs || '',
                 elevenlabs_keys: data.elevenlabs_keys || '',
+                google_drive_client_id: data.google_drive_client_id || '',
+                google_drive_client_secret: data.google_drive_client_secret || '',
+                google_drive_refresh_token: data.google_drive_refresh_token || '',
+                google_drive_root_folder_id: data.google_drive_root_folder_id || '',
                 suno: data.suno || '',
                 suno_base_url: data.suno_base_url || '',
                 music_provider: data.music_provider || 'elevenlabs',
@@ -5198,6 +5203,7 @@ export default function DashboardContent() {
                             <div className="flex gap-1 p-1 bg-black/40 border border-white/5 rounded-2xl flex-shrink-0">
                                 {([
                                     { key: 'ai',     icon: '🤖', label: 'AI 핵심' },
+                                    { key: 'drive',  icon: '📁', label: 'Google Drive' },
                                     { key: 'voices', icon: '🎙️', label: '성우/TTS' },
                                     { key: 'music',  icon: '🎵', label: '음악' },
                                     { key: 'video',  icon: '🎬', label: '영상/결제' },
@@ -5356,6 +5362,47 @@ export default function DashboardContent() {
                                                 <div>고품질 영상 생성</div>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Google Drive OAuth ── */}
+                            {apiSettingsTab === 'drive' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
+                                        <h4 className="text-sm font-black text-cyan-200">Google Drive 공통 OAuth 설정</h4>
+                                        <p className="mt-2 text-xs leading-relaxed text-cyan-100/70">
+                                            이 값은 유저 에셋 업로드·제출, TTS 보관, 원격 렌더 워커, 관리자 렌더 결과 수정에 공통 적용됩니다.
+                                            세 OAuth 값은 반드시 같은 Google Cloud OAuth 클라이언트에서 발급된 조합이어야 합니다.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                                        {([
+                                            { key: 'google_drive_client_id', label: 'Google Drive OAuth Client ID', hint: 'Google Cloud OAuth 2.0 클라이언트 ID' },
+                                            { key: 'google_drive_client_secret', label: 'Google Drive OAuth Client Secret', hint: '위 Client ID와 같은 OAuth 클라이언트의 Secret' },
+                                            { key: 'google_drive_refresh_token', label: 'Google Drive OAuth Refresh Token', hint: 'Drive 접근 권한으로 발급된 장기 갱신 토큰' },
+                                            { key: 'google_drive_root_folder_id', label: 'Google Drive Root Folder ID', hint: '유저 제출·워커·관리자가 함께 사용할 최상위 폴더 ID' },
+                                        ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
+                                            <div key={key} className="space-y-1.5">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-300">{label}</label>
+                                                <p className="text-[10px] text-gray-600">{hint}</p>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys[key] as string}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                    autoComplete="off"
+                                                    spellCheck={false}
+                                                    placeholder="(미설정)"
+                                                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 font-mono text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[10px] leading-relaxed text-amber-200">
+                                        요청대로 값은 마스킹하지 않고 그대로 표시됩니다. 이 탭은 시스템 설정 권한이 있는 관리자만 접근할 수 있습니다.
+                                        OAuth 세 값 중 일부만 저장하면 잘못된 계정 조합을 막기 위해 Drive 작업이 중단됩니다.
                                     </div>
                                 </div>
                             )}

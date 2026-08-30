@@ -79,6 +79,7 @@ class WebAdminClient:
         "sys_api_topview": "TOPVIEW_API_KEY",
         "sys_api_topview_uid": "TOPVIEW_UID",
         "sys_api_remote_render_drive_folder_id": "REMOTE_RENDER_DRIVE_FOLDER_ID",
+        "sys_api_google_drive_root_folder_id": "REMOTE_RENDER_DRIVE_FOLDER_ID",
         "sys_api_remote_render_google_token_path": "REMOTE_RENDER_GOOGLE_TOKEN_PATH",
         "sys_api_longform_min_duration_minutes": "LONGFORM_MIN_DURATION_MINUTES",
         "sys_api_longform_base_payout": "LONGFORM_BASE_PAYOUT",
@@ -738,6 +739,12 @@ class WebAdminClient:
             value = item.get("value")
             if config_key and value:
                 keys[config_key] = value
+        drive_root = next((
+            item.get("value") for item in rows or []
+            if item.get("key") == "sys_api_google_drive_root_folder_id" and item.get("value")
+        ), None)
+        if drive_root:
+            keys["REMOTE_RENDER_DRIVE_FOLDER_ID"] = drive_root
         return keys
 
     def fetch_global_api_keys(self) -> Dict[str, str]:
