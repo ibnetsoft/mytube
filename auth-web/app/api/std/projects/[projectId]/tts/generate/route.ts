@@ -98,6 +98,23 @@ function isElevenLabsVoiceAccessError(status: number, detail: string) {
     )
 }
 
+function parseElevenLabsQuotaError(detail: string) {
+    const raw = String(detail || '')
+    let message = raw
+    try {
+        const parsed = JSON.parse(raw)
+        message = String(parsed?.detail?.message || parsed?.message || raw)
+    } catch {}
+
+    const match = message.match(/you have\s+([\d,]+)\s+credits?\s+remaining,\s+while\s+([\d,]+)\s+credits?\s+are required/i)
+    if (!match) return null
+
+    const remaining = Number(match[1].replace(/,/g, ''))
+    const required = Number(match[2].replace(/,/g, ''))
+    if (!Number.isFinite(remaining) || !Number.isFinite(required)) return null
+    return { remaining, required }
+}
+
 function shouldRetryElevenLabsWithAlternateModel(status: number, detail: string) {
     if (status !== 400 && status !== 422) return false
     const message = String(detail || '').toLowerCase()
@@ -132,6 +149,7 @@ async function generateSingleElevenLabsChunk(input: {
     if (Number.isFinite(input.speed)) voiceSettings.speed = Math.min(1.2, Math.max(0.7, Number(input.speed)))
 
     let lastError = 'ElevenLabs API key is not configured'
+    const quotaErrors: Array<{ remaining: number; required: number }> = []
     const modelCandidates = buildElevenLabsModelCandidates(input.modelId)
     for (const apiKey of input.apiKeys) {
         for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
@@ -165,6 +183,8 @@ async function generateSingleElevenLabsChunk(input: {
 
             const errText = await res.text()
             lastError = `ElevenLabs TTS API error (${res.status}): ${errText}`
+            const quotaError = parseElevenLabsQuotaError(errText)
+            if (quotaError) quotaErrors.push(quotaError)
 
             if (isElevenLabsVoiceAccessError(res.status, errText)) {
                 lastError = `선택한 성우(${input.voiceId})를 현재 ElevenLabs 키로 사용할 수 없습니다. 등록된 다음 백업 키를 확인합니다.`
@@ -181,6 +201,14 @@ async function generateSingleElevenLabsChunk(input: {
             }
             break
         }
+    }
+
+    if (quotaErrors.length) {
+        const totalRemaining = quotaErrors.reduce((sum, item) => sum + item.remaining, 0)
+        const required = Math.max(...quotaErrors.map((item) => item.required))
+        throw new Error(
+            `ElevenLabs 크레딧이 부족합니다. 등록된 키 ${input.apiKeys.length}개 중 확인된 총 잔여 크레딧은 ${totalRemaining.toLocaleString('ko-KR')}이고, 현재 음성 청크 생성에는 ${required.toLocaleString('ko-KR')}크레딧이 필요합니다. 관리자 페이지에서 키를 충전하거나 잔여 크레딧이 충분한 백업 키를 추가해 주세요.`
+        )
     }
 
     throw new Error(lastError)
