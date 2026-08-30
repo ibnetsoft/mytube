@@ -6,6 +6,7 @@ TTS (Text-to-Speech) 서비스
 """
 import asyncio
 import httpx
+import json
 import os
 from typing import Optional
 from dotenv import load_dotenv
@@ -101,6 +102,108 @@ class TTSService:
                 print("OpenAI 라이브러리가 설치되지 않았습니다.")
             except Exception as e:
                 print(f"OpenAI Client 초기화 실패: {e}")
+
+    @staticmethod
+    def _should_rotate_elevenlabs_key(status_code: int, detail: str) -> bool:
+        message = str(detail or "").lower()
+        if status_code == 402:
+            return True
+        return any(token in message for token in (
+            "insufficient balance",
+            "insufficient credits",
+            "credit",
+            "quota",
+            "billing",
+            "payment required",
+            "invalid api key",
+            "unauthorized",
+            "access denied",
+        ))
+
+    @staticmethod
+    def _should_fallback_to_standard_elevenlabs(status_code: int, detail: str) -> bool:
+        message = str(detail or "").lower()
+        if status_code not in (400, 401, 403, 404, 422):
+            return False
+        return any(token in message for token in (
+            "with-timestamps",
+            "with timestamps",
+            "model",
+            "unsupported",
+            "not supported",
+            "not available",
+            "unavailable",
+            "access",
+            "permission",
+            "forbidden",
+            "unauthorized",
+            "invalid_api_key",
+            "invalid api key",
+        ))
+
+    async def _generate_elevenlabs_standard_mp3(
+        self,
+        client: httpx.AsyncClient,
+        api_keys: list[str],
+        *,
+        voice_id: str,
+        text: str,
+        voice_settings: dict,
+    ) -> bytes:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128"
+        payload = {
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": voice_settings or None,
+        }
+        last_error = None
+
+        for key_index, api_key in enumerate(api_keys, start=1):
+            headers = {
+                "xi-api-key": api_key,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            }
+            response = await client.post(url, headers=headers, json=payload)
+            if response.status_code == 200:
+                return response.content
+
+            detail = response.text
+            if "voice_not_found" in detail and voice_id != ELEVENLABS_DEFAULT_VOICE_ID:
+                print(f"⚠️ ElevenLabs voice '{voice_id}' not found on standard endpoint. Falling back to default.")
+                return await self._generate_elevenlabs_standard_mp3(
+                    client,
+                    api_keys,
+                    voice_id=ELEVENLABS_DEFAULT_VOICE_ID,
+                    text=text,
+                    voice_settings=voice_settings,
+                )
+
+            last_error = Exception(f"ElevenLabs API 오류: {detail}")
+            should_rotate = (
+                self._should_rotate_elevenlabs_key(response.status_code, detail)
+                and key_index < len(api_keys)
+            )
+            if should_rotate:
+                print(f"[WARN] [ElevenLabs TTS] Standard endpoint key #{key_index} unavailable ({response.status_code}). Trying next ElevenLabs key...")
+                continue
+            raise last_error
+
+        if last_error:
+            raise last_error
+        raise ValueError("ElevenLabs standard MP3 generation failed")
+
+    @staticmethod
+    def _duration_from_audio_file(audio_path: str) -> float:
+        if not audio_path or not os.path.exists(audio_path):
+            return 0.0
+        try:
+            if AudioFileClip:
+                with AudioFileClip(audio_path) as clip:
+                    return float(clip.duration or 0.0)
+        except Exception:
+            return 0.0
+        return 0.0
 
 
     async def generate_sound_effect(self, text: str, duration_seconds: Optional[float] = None) -> Optional[bytes]:
@@ -267,7 +370,6 @@ class TTSService:
             
             # 타이밍 정보 저장
             alignment_path = output_path.replace(".mp3", "_alignment.json")
-            import json
             with open(alignment_path, "w", encoding="utf-8") as f:
                 json.dump(all_alignments, f, ensure_ascii=False, indent=2)
             
@@ -279,18 +381,13 @@ class TTSService:
 
         # [FIX] 런타임에 .env 변경사항 반영
         load_dotenv(override=True)
-        api_key = os.getenv("ELEVENLABS_API_KEY")
-        
-        if not api_key:
+        api_keys = config.elevenlabs_api_keys()
+
+        if not api_keys:
             raise ValueError("ElevenLabs API 키가 설정되지 않았습니다")
 
         # [NEW] with_timestamps 엔드포인트 사용
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
-
-        headers = {
-            "xi-api-key": api_key,
-            "Content-Type": "application/json"
-        }
 
         # 대화체(따옴표) 감지: 대사가 포함된 경우 연기력/표현력을 극대화하기 위해 stability를 낮추고 style을 높임
         has_dialogue = bool(re.search(r'["\'“‘「『][^"\'”’」』]{2,}["\'”’」』]', text))
@@ -359,39 +456,94 @@ class TTSService:
             response = None
             max_retries = 3
             retry_delay = 2.0
+            last_error = None
+            standard_fallback_detail = ""
 
-            for attempt in range(max_retries):
-                try:
-                    response = await client.post(url, headers=headers, json=payload)
-                    
-                    if response.status_code == 200:
-                        break
-                    
-                    is_rate_limit = response.status_code == 429 or "concurrent" in response.text or "rate_limit" in response.text
-                    if is_rate_limit and attempt < max_retries - 1:
-                        sleep_time = retry_delay * (attempt + 1)
-                        print(f"[WARN] [ElevenLabs TTS] Concurrency/Rate limit hit (Status {response.status_code}). Retrying in {sleep_time:.1f}s (Attempt {attempt+1}/{max_retries})...")
-                        await asyncio.sleep(sleep_time)
-                        continue
-                    
-                    if "voice_not_found" in response.text and voice_id != "4JJwo477JUAx3HV0T7n7":
-                        print(f"⚠️ ElevenLabs voice '{voice_id}' not found. Falling back to default.")
-                        return await self.generate_elevenlabs(text, "4JJwo477JUAx3HV0T7n7", filename, return_alignment, voice_settings)
-                    else:
-                        raise Exception(f"ElevenLabs API 오류: {response.text}")
-                except Exception as e:
-                    if "voice_not_found" in str(e):
+            for key_index, api_key in enumerate(api_keys, start=1):
+                headers = {
+                    "xi-api-key": api_key,
+                    "Content-Type": "application/json"
+                }
+                for attempt in range(max_retries):
+                    try:
+                        response = await client.post(url, headers=headers, json=payload)
+
+                        if response.status_code == 200:
+                            break
+
+                        detail = response.text
+                        is_rate_limit = response.status_code == 429 or "concurrent" in detail or "rate_limit" in detail
+                        if is_rate_limit and attempt < max_retries - 1:
+                            sleep_time = retry_delay * (attempt + 1)
+                            print(f"[WARN] [ElevenLabs TTS] Concurrency/Rate limit hit (Status {response.status_code}). Retrying in {sleep_time:.1f}s (Attempt {attempt+1}/{max_retries})...")
+                            await asyncio.sleep(sleep_time)
+                            continue
+
+                        if "voice_not_found" in detail and voice_id != "4JJwo477JUAx3HV0T7n7":
+                            print(f"⚠️ ElevenLabs voice '{voice_id}' not found. Falling back to default.")
+                            return await self.generate_elevenlabs(text, "4JJwo477JUAx3HV0T7n7", filename, return_alignment, voice_settings)
+
+                        last_error = Exception(f"ElevenLabs API 오류: {detail}")
+                        if self._should_fallback_to_standard_elevenlabs(response.status_code, detail):
+                            standard_fallback_detail = detail
+                            break
+                        should_rotate = (
+                            self._should_rotate_elevenlabs_key(response.status_code, detail)
+                            and key_index < len(api_keys)
+                        )
+                        if should_rotate:
+                            print(f"[WARN] [ElevenLabs TTS] Key #{key_index} unavailable ({response.status_code}). Trying next ElevenLabs key...")
+                            break
+                        raise last_error
+                    except Exception as e:
+                        if "voice_not_found" in str(e):
+                            raise e
+                        if attempt < max_retries - 1:
+                            sleep_time = retry_delay * (attempt + 1)
+                            print(f"[WARN] [ElevenLabs TTS] Request exception: {e}. Retrying in {sleep_time:.1f}s...")
+                            await asyncio.sleep(sleep_time)
+                            continue
+                        last_error = e
                         raise e
-                    if attempt < max_retries - 1:
-                        sleep_time = retry_delay * (attempt + 1)
-                        print(f"[WARN] [ElevenLabs TTS] Request exception: {e}. Retrying in {sleep_time:.1f}s...")
-                        await asyncio.sleep(sleep_time)
-                        continue
-                    else:
-                        raise e
+                if response is not None and response.status_code == 200:
+                    break
+                if standard_fallback_detail:
+                    break
+                if key_index >= len(api_keys) and last_error:
+                    raise last_error
+
+            if standard_fallback_detail:
+                print("[WARN] [ElevenLabs TTS] with-timestamps endpoint unavailable. Falling back to standard MP3 endpoint.")
+                audio_bytes = await self._generate_elevenlabs_standard_mp3(
+                    client,
+                    api_keys,
+                    voice_id=voice_id,
+                    text=text_to_send,
+                    voice_settings=final_settings,
+                )
+                with open(output_path, "wb") as f:
+                    f.write(audio_bytes)
+
+                audio_duration = self._duration_from_audio_file(output_path)
+                whisper_alignment = self._align_with_whisper(output_path, text)
+                if whisper_alignment:
+                    alignment_data = whisper_alignment
+                    audio_duration = alignment_data[-1]["end"] if alignment_data else audio_duration
+                else:
+                    print("[ALIGN] Whisper alignment skipped or failed after standard endpoint fallback.")
+
+                alignment_path = output_path.replace(".mp3", "_alignment.json")
+                with open(alignment_path, "w", encoding="utf-8") as f:
+                    json.dump(alignment_data, f, ensure_ascii=False, indent=2)
+
+                print(f"[SUCCESS] ElevenLabs TTS fallback 생성 완료: {output_path} ({len(alignment_data)} words, {audio_duration:.1f}s)")
+                return {
+                    "audio_path": output_path,
+                    "alignment": alignment_data,
+                    "duration": audio_duration,
+                }
 
             if response.status_code == 200:
-                import json
                 import base64
                 import subprocess
                 
@@ -574,41 +726,36 @@ class TTSService:
     async def get_elevenlabs_voices(self) -> list:
         """ElevenLabs 사용 가능한 음성 목록 조회"""
         load_dotenv(override=True)
-        api_key = os.getenv("ELEVENLABS_API_KEY")
-        if not api_key:
+        api_keys = config.elevenlabs_api_keys()
+        if not api_keys:
             return []
 
         url = "https://api.elevenlabs.io/v1/voices"
-        headers = {"xi-api-key": api_key}
-        
         async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
-            try:
-                response = await client.get(url, headers=headers)
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get("voices", [])
-                else:
-                    print(f"⚠️ ElevenLabs Voices Error: {response.status_code}")
+            for api_key in api_keys:
+                try:
+                    response = await client.get(url, headers={"xi-api-key": api_key})
+                    if response.status_code == 200:
+                        data = response.json()
+                        return data.get("voices", [])
+                    if not self._should_rotate_elevenlabs_key(response.status_code, response.text):
+                        print(f"⚠️ ElevenLabs Voices Error: {response.status_code}")
+                        return []
+                except Exception as e:
+                    print(f"⚠️ Failed to fetch ElevenLabs voices: {e}")
                     return []
-            except Exception as e:
-                print(f"⚠️ Failed to fetch ElevenLabs voices: {e}")
-                return []
+        return []
 
     async def generate_sound_effect(self, text: str, duration_seconds: float = None) -> Optional[bytes]:
         """ElevenLabs Sound Effects 생성"""
         load_dotenv(override=True)
-        api_key = os.getenv("ELEVENLABS_API_KEY")
-        
-        if not api_key:
+        api_keys = config.elevenlabs_api_keys()
+
+        if not api_keys:
             print("❌ ElevenLabs API Key Missing for SFX")
             return None
 
         url = "https://api.elevenlabs.io/v1/sound-generation"
-        headers = {
-            "xi-api-key": api_key,
-            "Content-Type": "application/json"
-        }
-
         # [NOTE] ElevenLabs SFX API limits prompt length and has uncertain duration control
         # Currently, duration_seconds is 'prompt influence' or similar in some versions, 
         # but the standard endpoint is text -> audio.
@@ -621,13 +768,22 @@ class TTSService:
         
         async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
             try:
-                # Use verify=False if certificate issues arise, but standard shouldn't need it
-                response = await client.post(url, headers=headers, json=payload)
-                if response.status_code == 200:
-                    return response.content
-                else:
-                    print(f"❌ ElevenLabs SFX Error: {response.status_code} - {response.text}")
-                    return None
+                for api_key in api_keys:
+                    response = await client.post(
+                        url,
+                        headers={
+                            "xi-api-key": api_key,
+                            "Content-Type": "application/json"
+                        },
+                        json=payload,
+                    )
+                    if response.status_code == 200:
+                        return response.content
+                    if not self._should_rotate_elevenlabs_key(response.status_code, response.text):
+                        print(f"❌ ElevenLabs SFX Error: {response.status_code} - {response.text}")
+                        return None
+                print("❌ ElevenLabs SFX Error: available keys were exhausted or rejected")
+                return None
             except Exception as e:
                 print(f"❌ ElevenLabs SFX Exception: {e}")
                 return None
