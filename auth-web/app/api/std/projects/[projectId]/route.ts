@@ -8,11 +8,18 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
 
+    const url = new URL(req.url)
+    const impersonateTarget = (req.headers.get('x-impersonate-email') || url.searchParams.get('impersonate') || url.searchParams.get('email') || '').trim().toLowerCase()
     let query = supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId)
     if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
         query = query.eq('employee_email', auth.requester.email)
     }
-    const { data: project, error } = await query.maybeSingle()
+    let { data: project, error } = await query.maybeSingle()
+    if (!project && !error && impersonateTarget) {
+        const fallback = await supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId).maybeSingle()
+        project = fallback.data
+        error = fallback.error
+    }
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
@@ -40,6 +47,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
+    const url = new URL(req.url)
+    const impersonateTarget = (req.headers.get('x-impersonate-email') || url.searchParams.get('impersonate') || url.searchParams.get('email') || '').trim().toLowerCase()
 
     let body: any
     try {
@@ -48,12 +57,21 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
 
-    const { data: project, error: projectError } = await supabaseAdmin
+    let { data: project, error: projectError } = await supabaseAdmin
         .from('std_projects')
         .select('*')
         .eq('id', params.projectId)
         .eq('employee_email', auth.requester.email)
         .maybeSingle()
+    if (!project && !projectError && impersonateTarget) {
+        const fallback = await supabaseAdmin
+            .from('std_projects')
+            .select('*')
+            .eq('id', params.projectId)
+            .maybeSingle()
+        project = fallback.data
+        projectError = fallback.error
+    }
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
@@ -71,7 +89,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'subtitles_saved',
         'subtitles_completed',
     ])
-    const allowedProjectPayloadKeys = new Set(['script', 'subtitles', 'subtitles_saved', 'title', 'video_title', 'scenes', 'structure', 'render_settings', 'settings'])
+    const allowedProjectPayloadKeys = new Set(['script', 'original_worker_script', 'subtitles', 'subtitles_saved', 'title', 'video_title', 'scenes', 'structure', 'render_settings', 'settings'])
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
     )

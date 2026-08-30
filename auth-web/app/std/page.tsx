@@ -865,6 +865,7 @@ export default function StdPortalPage() {
     const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true, overrideScript?: string) => {
         if (!selectedProject) return false
         const scriptToUse = cleanScriptContextText(overrideScript || customScriptText || selectedProject.project?.project_payload?.script || '')
+        const originalWorkerScript = findOriginalWorkerScript(selectedProject)
         if (!scriptToUse.trim()) {
             if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
             return false
@@ -943,6 +944,7 @@ export default function StdPortalPage() {
                 ...selectedProject.project,
                 project_payload: {
                     ...selectedProject.project?.project_payload,
+                    original_worker_script: originalWorkerScript,
                     script: scriptToUse,
                     structure: updatedStructure,
                     scenes: updatedScenes,
@@ -967,6 +969,7 @@ export default function StdPortalPage() {
                             subtitles_completed: true,
                         },
                         project_payload: {
+                            original_worker_script: originalWorkerScript,
                             script: scriptToUse,
                             structure: {
                                 ...(selectedProject.project.project_payload?.structure || {}),
