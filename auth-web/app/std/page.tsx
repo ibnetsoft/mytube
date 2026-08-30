@@ -1332,12 +1332,10 @@ export default function StdPortalPage() {
         return null
     }
 
-    const findOriginalWorkerScript = (projectPayload?: SelectedProjectPayload | null): string => {
+    const findStoredProjectScript = (projectPayload?: SelectedProjectPayload | null): string => {
         const payload = projectPayload?.project?.project_payload || {}
         const embeddedScript = cleanScriptContextText(
-            payload.original_worker_script
-            || payload.pregenerated_script
-            || payload.script
+            payload.script
             || payload.longform_script
             || ''
         )
@@ -1359,6 +1357,12 @@ export default function StdPortalPage() {
         )
         if (structuredSceneScript) return structuredSceneScript
 
+        return ''
+    }
+
+    const findOriginalWorkerScript = (projectPayload?: SelectedProjectPayload | null): string => {
+        const payload = projectPayload?.project?.project_payload || {}
+
         const currentProject = projectPayload?.project || {}
         const topicQueueId = Number(currentProject?.topic_queue_id || payload?.topic_id || 0)
         const matchedTopic = topics.find((topic: any) => {
@@ -1367,8 +1371,15 @@ export default function StdPortalPage() {
                 && String(topic?.generated_title || topic?.topic || '').trim() === String(currentProject?.title || '').trim()
             return sameTopicId || sameTitle
         })
+        const topicScript = cleanScriptContextText(matchedTopic?.pregenerated_script || matchedTopic?.script || '')
+        const embeddedScript = cleanScriptContextText(payload.original_worker_script || payload.pregenerated_script || '')
+        const currentSavedScript = findStoredProjectScript(projectPayload)
 
-        return cleanScriptContextText(matchedTopic?.pregenerated_script || '')
+        if (topicScript && embeddedScript && embeddedScript === currentSavedScript && topicScript !== currentSavedScript) {
+            return topicScript
+        }
+        if (embeddedScript) return embeddedScript
+        return topicScript
     }
 
     const restorePersistedProjectMedia = async (
@@ -2546,6 +2557,11 @@ export default function StdPortalPage() {
                         project_payload: {
                             ...(payload.project?.project_payload || {}),
                             original_worker_script: findOriginalWorkerScript({
+                                ...payload,
+                                project: payload.project,
+                                scenes: normalizedScenes,
+                                assets: Array.isArray(payload.assets) ? payload.assets : [],
+                            }) || findStoredProjectScript({
                                 ...payload,
                                 project: payload.project,
                                 scenes: normalizedScenes,
