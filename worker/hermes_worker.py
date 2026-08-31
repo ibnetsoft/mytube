@@ -7672,6 +7672,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 13. Give the protagonist active choices. At least every 3-4 scenes, the main character must decide, hide, reveal, confront, refuse, or sacrifice something.
 14. If dramatic_function, character_choice, emotional_shift, or reveal_or_question are present, dramatize them in the scene text without printing those labels.
 15. Do not open with a lesson, summary, or village rumor if opening_incident is available. Start with a visible event, object, body movement, or discovery.
+16. Do not repeatedly open paragraphs or scenes with stock transitions such as "그런데 말이야", "글쎄", or "하지만 말이야". Use each transition family at most twice in the full script; normally begin with a concrete subject, action, or sensory detail.
 
 Return ONLY JSON in this exact shape:
 {{
@@ -8175,6 +8176,100 @@ def _fallback_script_quality_report(script: str, upload_title: str) -> dict:
     }
 
 
+_PARAGRAPH_OPENER_PATTERNS = (
+    ("그런데", re.compile(r"그런데(?:\s+말(?:이야|입니다|이지)|요)?")),
+    ("글쎄", re.compile(r"글쎄(?:요)?")),
+    ("하지만", re.compile(r"하지만(?:\s+말이야)?")),
+    ("그러고 보니", re.compile(r"그러고\s+보니")),
+    ("그러던 어느 날", re.compile(r"그러던\s+어느\s+날")),
+    ("그때였어요", re.compile(r"그때였(?:어요|습니다)")),
+    ("자, 그런데", re.compile(r"자\s*[,，]\s*그런데")),
+)
+_PARAGRAPH_LEADING_CUES_RE = re.compile(r"^\s*(?:\([^()\n]{1,40}\)\s*)*")
+
+
+def _match_repetitive_paragraph_opener(paragraph: str):
+    cue_match = _PARAGRAPH_LEADING_CUES_RE.match(paragraph or "")
+    opener_start = cue_match.end() if cue_match else 0
+    candidate = (paragraph or "")[opener_start:]
+    for family, pattern in _PARAGRAPH_OPENER_PATTERNS:
+        match = pattern.match(candidate)
+        if match and re.match(r"(?:$|[\s,，.!?…:;~-])", candidate[match.end():]):
+            return family, opener_start, opener_start + match.end()
+    return None
+
+
+def _detect_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> list[dict]:
+    counts = Counter()
+    examples: dict[str, str] = {}
+    for paragraph in re.split(r"\n\s*\n+", script or ""):
+        match = _match_repetitive_paragraph_opener(paragraph)
+        if not match:
+            continue
+        family, _, _ = match
+        counts[family] += 1
+        examples.setdefault(family, paragraph.strip()[:120])
+    findings = [
+        {
+            "opener": opener,
+            "count": count,
+            "max_allowed": max_allowed,
+            "excess": count - max_allowed,
+            "example": examples.get(opener, ""),
+        }
+        for opener, count in counts.items()
+        if count > max_allowed
+    ]
+    return sorted(findings, key=lambda item: (-int(item["count"]), str(item["opener"])))
+
+
+def _reduce_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> str:
+    """Remove only excess stock openers while preserving cues and paragraph content."""
+    if not script:
+        return script
+    seen = Counter()
+    parts = re.split(r"(\n\s*\n+)", script)
+    for idx in range(0, len(parts), 2):
+        paragraph = parts[idx]
+        match = _match_repetitive_paragraph_opener(paragraph)
+        if not match:
+            continue
+        family, opener_start, opener_end = match
+        seen[family] += 1
+        if seen[family] <= max_allowed:
+            continue
+        remainder = re.sub(r"^[\s,，.!?…:;~-]+", "", paragraph[opener_end:])
+        if remainder.strip():
+            parts[idx] = paragraph[:opener_start] + remainder
+    cleaned = "".join(parts)
+    return cleaned if len(cleaned.strip()) >= max(100, int(len(script.strip()) * 0.85)) else script
+
+
+def _apply_paragraph_opener_quality(report: dict, script: str) -> dict:
+    normalized = dict(report or {})
+    findings = _detect_repeated_paragraph_openers(script)
+    normalized["paragraph_opener_repetitions"] = findings
+    if not findings:
+        return normalized
+    summary = ", ".join(f"{item['opener']} {item['count']}회" for item in findings)
+    issue = f"문단 시작 상투어 반복 초과: {summary} (각 계열 최대 2회)"
+    critical_issues = list(normalized.get("critical_issues") or [])
+    revision_notes = list(normalized.get("revision_notes") or [])
+    if issue not in critical_issues:
+        critical_issues.append(issue)
+    revision_instruction = (
+        "반복된 문단 시작 접속어를 삭제하거나 구체적인 인물, 행동, 감각 묘사로 바꾸세요. "
+        "같은 접속어 계열은 전체 대본에서 최대 2회만 사용하세요."
+    )
+    if revision_instruction not in revision_notes:
+        revision_notes.append(revision_instruction)
+    normalized["critical_issues"] = critical_issues
+    normalized["revision_notes"] = revision_notes
+    normalized["verdict"] = "revise"
+    normalized["score"] = min(int(normalized.get("score") or 0), 68)
+    return normalized
+
+
 async def _evaluate_script_quality(
     ai_router, model: str, topic: str, upload_title: str, narrative_blueprint: dict,
     structure: dict, script: str, language: str,
@@ -8195,6 +8290,7 @@ Evaluate:
 8. absence of filler/meta commentary
 9. natural spoken narration
 10. valid parenthesized voice-emotion cues: every direct quote has one immediately before it, and long narration has a natural cue about every 1,200 characters
+11. paragraph-opening variety: stock transitions such as "그런데 말이야", "글쎄", and "하지만 말이야" must not repeatedly open paragraphs or scenes
 
 LANGUAGE: {language}
 TOPIC: {topic}
@@ -8231,11 +8327,11 @@ Rules:
         report["score"] = max(0, min(100, round(float(report.get("score") or 0))))
         if report.get("score", 0) < 78 and report.get("verdict") == "pass":
             report["verdict"] = "revise"
-        return report
+        return _apply_paragraph_opener_quality(report, script)
     except Exception as e:
         report = _fallback_script_quality_report(script, upload_title)
         report["qa_error"] = str(e)
-        return report
+        return _apply_paragraph_opener_quality(report, script)
 
 
 def _script_needs_revision(report: dict) -> bool:
@@ -8327,6 +8423,7 @@ Rules:
 - {_script_emotion_cue_instruction(language)}
 - Preserve the upload title promise and final payoff.
 - Keep length within roughly +/-20% of the original.
+- Never repeatedly open paragraphs or scenes with stock transitions such as "그런데 말이야", "글쎄", or "하지만 말이야". Use each transition family at most twice in the full script; prefer a concrete subject, action, or sensory detail.
 
 LANGUAGE: {language}
 TOPIC: {topic}
@@ -9122,6 +9219,21 @@ Hard retry rules:
             except Exception as e:
                 job_log.warning(f"Script rewrite failed (keeping draft): {e}")
 
+        opener_findings = _detect_repeated_paragraph_openers(final_script)
+        if opener_findings:
+            job_log.warning(
+                f"Script QA found repeated paragraph openers: {opener_findings}. "
+                "Applying deterministic opener cleanup before rescue selection."
+            )
+            cleaned_script = _reduce_repeated_paragraph_openers(final_script)
+            if cleaned_script != final_script:
+                final_script = _ensure_script_emotion_cues(cleaned_script, language)
+                final_quality = await _evaluate_script_quality(
+                    ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+                )
+                revision_count = max(revision_count, 1)
+                scene_script_sections = []
+
         if _script_needs_revision(final_quality):
             rescue_script = None
             if _is_macro_economy_plan_context(script_style_context, topic, upload_title, image_style):
@@ -9210,6 +9322,20 @@ Hard retry rules:
             )
             revision_count = max(revision_count, 1)
             scene_script_sections = []
+
+        final_opener_findings = _detect_repeated_paragraph_openers(final_script)
+        if final_opener_findings:
+            job_log.warning(
+                f"Final language/rewrite pass reintroduced repeated paragraph openers: {final_opener_findings}."
+            )
+            cleaned_script = _reduce_repeated_paragraph_openers(final_script)
+            if cleaned_script != final_script:
+                final_script = _ensure_script_emotion_cues(cleaned_script, language)
+                final_quality = await _evaluate_script_quality(
+                    ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+                )
+                revision_count = max(revision_count, 1)
+                scene_script_sections = []
 
         return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character, scene_script_sections
 
