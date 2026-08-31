@@ -352,6 +352,19 @@ def update_progress(job_id: str, progress: int, message: str = ""):
     conn.commit()
 
 
+def update_job_payload(job_id: str, payload: dict):
+    """Persist a corrected payload without changing the job state machine."""
+    conn = _conn()
+    cursor = conn.execute(
+        "UPDATE jobs SET payload = ? WHERE job_id = ?",
+        (json.dumps(payload, ensure_ascii=False), job_id),
+    )
+    if cursor.rowcount != 1:
+        conn.rollback()
+        raise KeyError(f"Unknown job_id: {job_id}")
+    conn.commit()
+
+
 def claim_next_job(job_types: list[str], worker_pid: int) -> Optional[dict]:
     """Atomically claim the highest-priority QUEUED job of an allowed type,
     oldest-first within the same priority (docs/AIR_WORKER_RESOURCE_POLICY.md

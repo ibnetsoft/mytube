@@ -6938,7 +6938,10 @@ def _script_emotion_cue_instruction(language: str) -> str:
     return (
         "소괄호에는 성우가 표현할 목소리 감정/말투만 적고, 효과음·음악·화면 설명·화자 이름은 넣지 마세요. "
         "모든 직접 대사 바로 앞에는 `(낮은 목소리로)`, `(울먹이며)`, `(단호하게)` 같은 감정 괄호를 반드시 붙이세요. "
-        "긴 나레이션에도 약 1,200자마다 한 번씩 자연스러운 감정 전환 괄호를 넣으세요."
+        "긴 나레이션에도 약 1,200자마다 한 번씩 자연스러운 감정 전환 괄호를 넣으세요. "
+        "금액을 한글로 읽을 때는 고유어 수사(스무·서른·마흔·쉰·예순·일흔·여든·아흔)를 쓰지 말고, "
+        "반드시 한자어 수사(이십·삼십·사십·오십·육십·칠십·팔십·구십)를 사용하세요. "
+        "예: `예순몇만 원`이 아니라 `육십몇만 원`."
     )
 
 
@@ -7012,10 +7015,57 @@ def _has_trailing_script_emotion_cue(prefix: str, language: str) -> bool:
     return _is_script_emotion_cue(match.group(1) or match.group(2) or "", language)
 
 
+_KOREAN_MONEY_NATIVE_TENS = {
+    "열": "십",
+    "스물": "이십",
+    "스무": "이십",
+    "서른": "삼십",
+    "마흔": "사십",
+    "쉰": "오십",
+    "예순": "육십",
+    "일흔": "칠십",
+    "여든": "팔십",
+    "아흔": "구십",
+}
+_KOREAN_MONEY_NATIVE_ONES = {
+    "한": "일",
+    "두": "이",
+    "세": "삼",
+    "네": "사",
+    "다섯": "오",
+    "여섯": "육",
+    "일곱": "칠",
+    "여덟": "팔",
+    "아홉": "구",
+}
+_KOREAN_MONEY_NATIVE_TENS_PATTERN = re.compile(
+    r"(?P<tens>스물|스무|서른|마흔|예순|일흔|여든|아흔|열|쉰)"
+    r"\s*(?:(?P<approx>몇)|(?P<ones>다섯|여섯|일곱|여덟|아홉|한|두|세|네))?"
+    r"\s*(?P<scale>천|만|억|조)?\s*(?P<currency>원|달러|엔|유로)"
+)
+
+
+def _normalize_korean_money_expressions(script: str) -> str:
+    """Use Sino-Korean numerals for money while leaving ages and counters alone."""
+    value = str(script or "")
+
+    def replace_money(match) -> str:
+        tens = _KOREAN_MONEY_NATIVE_TENS[match.group("tens")]
+        approx = match.group("approx") or ""
+        ones = _KOREAN_MONEY_NATIVE_ONES.get(match.group("ones") or "", "")
+        scale = match.group("scale") or ""
+        currency = match.group("currency")
+        return f"{tens}{approx or ones}{scale} {currency}"
+
+    return _KOREAN_MONEY_NATIVE_TENS_PATTERN.sub(replace_money, value)
+
+
 def _ensure_script_emotion_cues(script: str, language: str = "ko") -> str:
     value = str(script or "").strip()
     if not value:
         return ""
+    if language == "ko":
+        value = _normalize_korean_money_expressions(value)
 
     def normalize_existing_cue(match) -> str:
         content = (match.group(1) or match.group(2) or "").strip()

@@ -154,6 +154,17 @@ def test_emotion_cue_normalizer_uses_output_language(language, source, expected_
     assert not hermes_worker._script_emotion_cue_errors(normalized, language)
 
 
+def test_korean_money_uses_sino_korean_tens_without_changing_age_counters():
+    source = "올해 예순다섯 살인 영애는 한 달에 예순몇만원, 남편은 예순다섯만원을 받았습니다."
+
+    normalized = hermes_worker._ensure_script_emotion_cues(source, "ko")
+
+    assert "예순다섯 살" in normalized
+    assert "육십몇만 원" in normalized
+    assert "육십오만 원" in normalized
+    assert "예순몇" not in normalized
+
+
 def test_script_generate_stage_rejects_missing_emotion_cues_and_accepts_normalized_script():
     payload = build_valid_sample_payload("옛날이야기")
     payload["script"] = payload["script"].replace("(차분하게) ", "")

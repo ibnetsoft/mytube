@@ -626,6 +626,151 @@ def _read_generated_result(path: Path) -> dict | None:
         return None
 
 
+MAX_EDITED_SCRIPT_CHARS = 500_000
+
+
+def _write_generated_result(path: Path, data: dict) -> None:
+    """Atomically replace one result JSON so readers never see a partial save."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            json.dump(data, temporary_file, ensure_ascii=False, indent=2)
+            temporary_file.write("\n")
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+            temporary_path = Path(temporary_file.name)
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path and temporary_path.exists():
+            temporary_path.unlink(missing_ok=True)
+
+
+def _result_with_edited_script(data: dict, script: str, edited_at: float) -> dict:
+    updated = dict(data)
+    updated["script"] = script
+    updated["char_count"] = len(script)
+    updated["manually_edited_at"] = edited_at
+    updated["manually_edited_source"] = "worker_dashboard"
+    for key in ("full_script", "pregenerated_script", "pregenerated_script_text"):
+        if key in updated:
+            updated[key] = script
+    progress_payload = updated.get("progress_payload")
+    if isinstance(progress_payload, dict) and "script" in progress_payload:
+        updated["progress_payload"] = {**progress_payload, "script": script}
+    return updated
+
+
+def _save_generated_result_script(result_id: str, script: str) -> dict:
+    safe_id = _safe_result_id(result_id)
+    if not safe_id or safe_id != result_id:
+        raise ValueError("Invalid result id")
+    normalized_script = str(script or "").strip()
+    if not normalized_script:
+        raise ValueError("대본 내용이 비어 있습니다.")
+    if len(normalized_script) > MAX_EDITED_SCRIPT_CHARS:
+        raise ValueError(f"대본은 최대 {MAX_EDITED_SCRIPT_CHARS:,}자까지 저장할 수 있습니다.")
+
+    if safe_id.startswith("topic_"):
+        current = _collect_topic_generated_results(limit=5000).get(safe_id)
+        if not isinstance(current, dict):
+            raise FileNotFoundError("Generated result not found")
+    else:
+        selected_path = AUTOPILOT_RESULTS_DIR / f"{safe_id}.json"
+        current = _read_generated_result(selected_path) if selected_path.exists() else None
+        if not isinstance(current, dict):
+            raise FileNotFoundError("Generated result not found")
+
+    topic_id = current.get("topic_queue_id")
+    topic_key = _topic_key(topic_id)
+    edited_at = time.time()
+    result_paths: set[Path] = set()
+
+    if not safe_id.startswith("topic_"):
+        result_paths.add(AUTOPILOT_RESULTS_DIR / f"{safe_id}.json")
+
+    if topic_key:
+        for directory in (AUTOPILOT_RESULTS_DIR, HERMES_RESULTS_DIR):
+            if not directory.exists():
+                continue
+            for path in directory.glob("*.json"):
+                payload = _read_generated_result(path)
+                if not isinstance(payload, dict) or _topic_key(payload.get("topic_queue_id")) != topic_key:
+                    continue
+                if directory == AUTOPILOT_RESULTS_DIR or any(
+                    isinstance(payload.get(key), str) and payload.get(key).strip()
+                    for key in ("script", "full_script", "pregenerated_script", "pregenerated_script_text")
+                ):
+                    result_paths.add(path)
+
+    updated_files = []
+    for path in sorted(result_paths, key=lambda item: str(item)):
+        payload = _read_generated_result(path)
+        if not isinstance(payload, dict):
+            continue
+        _write_generated_result(path, _result_with_edited_script(payload, normalized_script, edited_at))
+        updated_files.append(str(path))
+
+    updated_jobs = []
+    if topic_key:
+        for job in job_store.list_jobs(limit=5000):
+            payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+            if _topic_key(payload.get("topic_queue_id")) != topic_key:
+                continue
+            if not any(key in payload for key in ("script", "full_script", "pregenerated_script", "pregenerated_script_text")):
+                continue
+            job_store.update_job_payload(
+                str(job.get("job_id") or ""),
+                _result_with_edited_script(payload, normalized_script, edited_at),
+            )
+            updated_jobs.append(str(job.get("job_id") or ""))
+
+    if not updated_files and not updated_jobs:
+        raise FileNotFoundError("저장할 대본 결과 원본을 찾지 못했습니다.")
+
+    return {
+        "result_id": safe_id,
+        "topic_queue_id": topic_id,
+        "script": normalized_script,
+        "char_count": len(normalized_script),
+        "edited_at": edited_at,
+        "updated_files": updated_files,
+        "updated_jobs": updated_jobs,
+    }
+
+
+def _sync_edited_script_to_supabase(topic_queue_id, script: str) -> dict:
+    topic_key = _topic_key(topic_queue_id)
+    if not topic_key or topic_key.startswith(("local-auto-", "resume-")):
+        return {"status": "skipped", "reason": "local topic id"}
+    try:
+        from remote_drive_worker import RemoteDriveWorker
+
+        worker = RemoteDriveWorker()
+        rows = worker._request(
+            "PATCH",
+            f"{worker.supabase_url}/rest/v1/topics_queue",
+            params={"id": f"eq.{topic_key}"},
+            json={
+                "pregenerated_script": script,
+                "pregenerated_script_status": "ready",
+            },
+        )
+        if rows == []:
+            return {"status": "warning", "reason": "central topic row not found"}
+        return {"status": "synced"}
+    except Exception as exc:
+        logger.warning("Edited script was saved locally but Supabase sync failed: %s", exc)
+        return {"status": "warning", "reason": str(exc)}
+
+
 def _autopilot_generation_diagnostics() -> dict:
     state: dict = autopilot_manager.get_status()
     if AUTOPILOT_STATE_FILE.exists():
@@ -3541,6 +3686,36 @@ async def api_generated_result_detail(
     return data
 
 
+@app.patch("/api/generated-results/{result_id}/script")
+async def api_update_generated_result_script(
+    result_id: str,
+    body: dict = Body(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    script = body.get("script")
+    if not isinstance(script, str):
+        raise HTTPException(400, "대본 문자열이 필요합니다.")
+    try:
+        saved = await run_in_threadpool(_save_generated_result_script, result_id, script)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    central_sync = await run_in_threadpool(
+        _sync_edited_script_to_supabase,
+        saved.get("topic_queue_id"),
+        saved["script"],
+    )
+    return {
+        "success": True,
+        **saved,
+        "central_sync": central_sync,
+    }
+
+
 @app.get("/login")
 async def login_page():
     return Response(content=LOGIN_HTML, media_type="text/html; charset=utf-8")
@@ -3813,6 +3988,11 @@ tr:hover { background: #161b22; }
 .generated-section h4 { margin: 0 0 10px; font-size: 14px; color: #e6edf3; }
 .generated-meta { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; font-size: 13px; }
 .generated-meta .label { color: #8b949e; }
+.generated-script-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.generated-script-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.generated-script-editor { width: 100%; min-height: 420px; resize: vertical; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px; color: #e6edf3; font-family: inherit; font-size: 13px; line-height: 1.75; outline: none; }
+.generated-script-editor:focus { border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,0.12); }
+.generated-script-editor.is-dirty { border-color: #d29922; }
 .scene-card { border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-top: 10px; background: #0d1117; }
 .scene-card .scene-title { font-weight: 700; color: #58a6ff; margin-bottom: 8px; }
 /* ── Video Production Pipeline Cards ── */
@@ -5817,6 +5997,8 @@ function loadRenderTab() {
 /* ── History tab ── */
 /* Generated results tab */
 let generatedResultsLoaded = false;
+let activeGeneratedResultId = '';
+let originalGeneratedScript = '';
 
 function getGeneratedTitle(data) {
   const structure = data?.structure || {};
@@ -6001,7 +6183,7 @@ function renderGeneratedEmptyState(diagnostics) {
   return `<div class="icon">&#x1F4ED;</div>저장 완료된 자동 생성 결과가 없습니다${detail}`;
 }
 
-async function loadGeneratedResults() {
+async function loadGeneratedResults(selectedResultId = '') {
   const completedBody = document.getElementById('generated-results-completed-body');
   const partialBody = document.getElementById('generated-results-partial-body');
   const empty = document.getElementById('generated-results-empty');
@@ -6038,12 +6220,18 @@ async function loadGeneratedResults() {
   completedBody.innerHTML = renderGeneratedRows(completedRows, '100% 완료된 결과가 없습니다.');
   partialBody.innerHTML = renderGeneratedRows(partialRows, '부분완료 결과가 없습니다.');
   generatedResultsLoaded = true;
-  const firstRow = completedRows[0] || partialRows[0];
-  if (firstRow) showGeneratedResult(firstRow.id);
+  const selectedRow = rows.find(row => row.id === selectedResultId);
+  const targetRow = selectedRow || completedRows[0] || partialRows[0];
+  if (targetRow) showGeneratedResult(targetRow.id);
 }
 async function showGeneratedResult(resultId) {
   const container = document.getElementById('generated-result-detail');
   if (!container) return;
+  const existingEditor = document.getElementById('generated-script-editor');
+  if (existingEditor && existingEditor.value !== originalGeneratedScript) {
+    const discardChanges = window.confirm('저장하지 않은 대본 수정사항이 있습니다. 변경사항을 버리고 다른 결과를 불러올까요?');
+    if (!discardChanges) return;
+  }
   container.innerHTML = '<div class="info">상세 결과를 불러오는 중...</div>';
   const data = await api('GET', `/api/generated-results/${encodeURIComponent(resultId)}`);
   if (!data) return;
@@ -6051,6 +6239,8 @@ async function showGeneratedResult(resultId) {
   const scenes = getGeneratedScenes(data);
   const imageGridPrompts = getGeneratedImageGridPrompts(data);
   const script = data.script || '';
+  activeGeneratedResultId = resultId;
+  originalGeneratedScript = script;
   const titleGeneration = getGeneratedTitleGeneration(data);
   const publishMetadata = getGeneratedPublishMetadata(data);
   const sources = Array.isArray(data._sources) ? data._sources : [];
@@ -6195,7 +6385,16 @@ async function showGeneratedResult(resultId) {
     </div>
     <div class="generated-section">
       <h4>대본</h4>
-      <div class="result-viewer" style="max-height:420px">${escapeHtml(script || '대본 데이터가 없습니다.')}</div>
+      <div class="generated-script-toolbar">
+        <span class="info">내용을 직접 고친 뒤 저장하면 새로고침 후에도 유지되고 중앙 주제 대본에도 반영됩니다.</span>
+        <div class="generated-script-actions">
+          <span class="info" id="generated-script-char-count">${script.length.toLocaleString()}자</span>
+          <button class="btn btn-sm" id="generated-script-cancel-btn" onclick="cancelGeneratedScriptEdit()" disabled>변경 취소</button>
+          <button class="btn btn-primary btn-sm" id="generated-script-save-btn" onclick="saveGeneratedScript()" disabled>대본 저장</button>
+        </div>
+      </div>
+      <textarea id="generated-script-editor" class="generated-script-editor" oninput="handleGeneratedScriptInput()" placeholder="수정할 대본을 입력하세요.">${escapeHtml(script)}</textarea>
+      <div class="info" id="generated-script-save-status" style="margin-top:8px">저장된 원본과 동일합니다.</div>
     </div>
     <div class="generated-section">
       <h4>2x2 이미지 생성 프롬프트</h4>
@@ -6208,6 +6407,91 @@ async function showGeneratedResult(resultId) {
     </div>
     ${errorsHtml}
     ${sourceHtml}`;
+}
+
+function handleGeneratedScriptInput() {
+  const editor = document.getElementById('generated-script-editor');
+  const count = document.getElementById('generated-script-char-count');
+  const saveButton = document.getElementById('generated-script-save-btn');
+  const cancelButton = document.getElementById('generated-script-cancel-btn');
+  const status = document.getElementById('generated-script-save-status');
+  if (!editor) return;
+  const dirty = editor.value !== originalGeneratedScript;
+  const hasContent = Boolean(editor.value.trim());
+  editor.classList.toggle('is-dirty', dirty);
+  if (count) count.textContent = `${editor.value.length.toLocaleString()}자`;
+  if (saveButton) saveButton.disabled = !dirty || !hasContent;
+  if (cancelButton) cancelButton.disabled = !dirty;
+  if (status) {
+    status.textContent = dirty
+      ? (hasContent ? '저장하지 않은 수정사항이 있습니다.' : '빈 대본은 저장할 수 없습니다.')
+      : '저장된 원본과 동일합니다.';
+    status.style.color = dirty ? '#d29922' : '#8b949e';
+  }
+}
+
+function cancelGeneratedScriptEdit() {
+  const editor = document.getElementById('generated-script-editor');
+  if (!editor) return;
+  editor.value = originalGeneratedScript;
+  handleGeneratedScriptInput();
+}
+
+async function saveGeneratedScript() {
+  const editor = document.getElementById('generated-script-editor');
+  const saveButton = document.getElementById('generated-script-save-btn');
+  const status = document.getElementById('generated-script-save-status');
+  const resultId = activeGeneratedResultId;
+  const script = String(editor?.value || '').trim();
+  if (!resultId || !editor) return;
+  if (!script) {
+    showToast('빈 대본은 저장할 수 없습니다.', 'warning');
+    return;
+  }
+
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = '저장 중...';
+  }
+  if (status) {
+    status.textContent = '로컬 결과와 중앙 주제 대본을 저장하는 중입니다...';
+    status.style.color = '#58a6ff';
+  }
+
+  try {
+    const response = await api(
+      'PATCH',
+      `/api/generated-results/${encodeURIComponent(resultId)}/script`,
+      { script },
+    );
+    if (!response?.success) {
+      throw new Error(response?.detail || response?.error || '대본 저장에 실패했습니다.');
+    }
+    originalGeneratedScript = response.script || script;
+    editor.value = originalGeneratedScript;
+    handleGeneratedScriptInput();
+    const centralStatus = response.central_sync?.status;
+    if (centralStatus === 'warning') {
+      showToast(`로컬 저장 완료. 중앙 동기화는 실패했습니다: ${response.central_sync?.reason || '연결 오류'}`, 'warning');
+    } else if (centralStatus === 'skipped') {
+      showToast('대본 수정본을 로컬 결과에 저장했습니다.', 'success');
+    } else {
+      showToast('대본 수정본을 저장하고 중앙 주제 대본에도 반영했습니다.', 'success');
+    }
+    await loadGeneratedResults(resultId);
+  } catch (error) {
+    if (status) {
+      status.textContent = `저장 실패: ${error.message || error}`;
+      status.style.color = '#f85149';
+    }
+    showToast(`대본 저장 실패: ${error.message || error}`, 'error');
+  } finally {
+    const currentSaveButton = document.getElementById('generated-script-save-btn');
+    if (currentSaveButton) {
+      currentSaveButton.textContent = '대본 저장';
+      handleGeneratedScriptInput();
+    }
+  }
 }
 
 function loadHistory() {
