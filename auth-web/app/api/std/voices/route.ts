@@ -238,6 +238,8 @@ const loadCustomVoices = async (): Promise<any[]> => {
     }
 }
 
+const isGenericElevenLabsVoiceName = (value: string) => /^ElevenLabs Voice \d+$/i.test(String(value || '').trim())
+
 async function inspectKeyRemaining(apiKey: string) {
     try {
         const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
@@ -278,7 +280,7 @@ async function loadElevenLabsVoicesForKey(apiKey: string) {
             description: labels.description || v.description || '',
             preview_url: v.preview_url || '',
         }
-    }).filter((voice: any) => voice.id && voice.name)
+    }).filter((voice: any) => voice.id && voice.name && !isGenericElevenLabsVoiceName(voice.name))
 }
 
 export async function GET(req: Request) {
@@ -360,6 +362,7 @@ export async function GET(req: Request) {
     }
 
     const mergedVoices = Array.from(combinedMap.values())
+        .filter(voice => !isGenericElevenLabsVoiceName(voice?.name))
 
     return NextResponse.json({
         success: true,
@@ -368,5 +371,9 @@ export async function GET(req: Request) {
         required_chars: requiredChars,
         key_status: keyStatus,
         voices: mergedVoices.length > 0 ? mergedVoices : FREE_ALTERNATIVE_VOICES,
+    }, {
+        headers: {
+            'Cache-Control': 'no-store, max-age=0',
+        },
     })
 }

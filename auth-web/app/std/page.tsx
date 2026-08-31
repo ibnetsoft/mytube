@@ -422,7 +422,7 @@ export default function StdPortalPage() {
                 }
             })
             .catch(() => {})
-        fetch('/api/std/voices')
+        fetch('/api/std/voices', { cache: 'no-store' })
             .then(res => res.json())
             .then(data => {
                 if (data?.voices && data.voices.length > 0) {
@@ -3575,7 +3575,7 @@ export default function StdPortalPage() {
 
     const selectedVoiceObj = useMemo(() => {
         return allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
-    }, [selectedVoice])
+    }, [allVoices, selectedVoice])
 
     const scriptCharCount = useMemo(() => {
         return (customScriptText || selectedProject?.project?.project_payload?.script || '').length
@@ -3587,6 +3587,7 @@ export default function StdPortalPage() {
         const timeout = window.setTimeout(() => {
             fetch(`/api/std/voices?requiredChars=${encodeURIComponent(String(scriptCharCount))}`, {
                 headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store',
                 signal: controller.signal,
             })
                 .then(res => res.json())
