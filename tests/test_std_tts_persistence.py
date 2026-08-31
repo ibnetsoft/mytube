@@ -18,6 +18,15 @@ def test_std_tts_page_restores_audio_and_exposes_worker_script_restore():
     assert "original_worker_script: projectScript," in STD_PAGE
 
 
+def test_std_tts_page_displays_actual_audio_metadata_duration_after_generation():
+    assert "const [audioDurationSeconds, setAudioDurationSeconds] = useState(0)" in STD_PAGE
+    assert 'preload="metadata"' in STD_PAGE
+    assert "onLoadedMetadata={event =>" in STD_PAGE
+    assert "setAudioDurationSeconds(Number.isFinite(duration) && duration > 0 ? duration : 0)" in STD_PAGE
+    assert "? `실제 ${formattedActualAudioDuration}`" in STD_PAGE
+    assert "selectedVoice.startsWith('google_') ? 330 : 420" in STD_PAGE
+
+
 def test_std_local_media_supports_audio_assets():
     assert "assetType: 'image' | 'video' | 'thumbnail' | 'audio'" in STD_LOCAL_MEDIA
     assert "['image', 'video', 'thumbnail', 'audio'].includes(assetType)" in STD_LOCAL_MEDIA

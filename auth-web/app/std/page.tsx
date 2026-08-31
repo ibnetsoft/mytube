@@ -624,6 +624,7 @@ export default function StdPortalPage() {
     const [customScriptText, setCustomScriptText] = useState('')
     const [scriptSyncDirty, setScriptSyncDirty] = useState(false)
     const [audioResultUrl, setAudioResultUrl] = useState('')
+    const [audioDurationSeconds, setAudioDurationSeconds] = useState(0)
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
     const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
@@ -632,6 +633,10 @@ export default function StdPortalPage() {
         folderName: '',
     })
     const [localMediaDirectoryBusy, setLocalMediaDirectoryBusy] = useState(false)
+
+    useEffect(() => {
+        setAudioDurationSeconds(0)
+    }, [audioResultUrl])
 
     useEffect(() => {
         getStdLocalDirectoryState()
@@ -3377,19 +3382,31 @@ export default function StdPortalPage() {
     const estimatedAudioMinutes = useMemo(() => {
         const speedNum = Number(ttsSpeed) || 1.0
         const chars = scriptCharCount || 7200
-        return Math.round((chars / (330 * speedNum)) * 10) / 10
-    }, [scriptCharCount, ttsSpeed])
+        const charsPerMinute = selectedVoice.startsWith('google_') ? 330 : 420
+        return Math.round((chars / (charsPerMinute * speedNum)) * 10) / 10
+    }, [scriptCharCount, selectedVoice, ttsSpeed])
 
     const formattedEstimatedTime = useMemo(() => {
         const speedNum = Number(ttsSpeed) || 1.0
-        const totalMinutes = Math.round(scriptCharCount / (330 * speedNum))
+        const charsPerMinute = selectedVoice.startsWith('google_') ? 330 : 420
+        const totalMinutes = Math.round(scriptCharCount / (charsPerMinute * speedNum))
         if (totalMinutes < 60) {
             return `약 ${totalMinutes}분`
         }
         const hours = Math.floor(totalMinutes / 60)
         const mins = totalMinutes % 60
         return `약 ${hours}시간 ${mins}분`
-    }, [scriptCharCount, ttsSpeed])
+    }, [scriptCharCount, selectedVoice, ttsSpeed])
+
+    const formattedActualAudioDuration = useMemo(() => {
+        if (!Number.isFinite(audioDurationSeconds) || audioDurationSeconds <= 0) return ''
+        const roundedSeconds = Math.round(audioDurationSeconds)
+        const hours = Math.floor(roundedSeconds / 3600)
+        const minutes = Math.floor((roundedSeconds % 3600) / 60)
+        const seconds = roundedSeconds % 60
+        if (hours > 0) return `${hours}시간 ${minutes}분 ${seconds}초`
+        return `${minutes}분 ${seconds}초`
+    }, [audioDurationSeconds])
 
     const getSceneScriptStartText = (scene: any, sceneIndex: number) => {
         // 1. 해당 씬 번호에 매핑된 첫 번째 자막 텍스트
@@ -5398,9 +5415,22 @@ export default function StdPortalPage() {
                                                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                                                     <span>🎉</span> 생성 완료된 음성 오디오
                                                 </span>
-                                                <span className="text-[10px] font-bold text-emerald-400 font-mono">약 {estimatedAudioMinutes}분 분량</span>
+                                                <span className="text-[10px] font-bold text-emerald-400 font-mono">
+                                                    {formattedActualAudioDuration
+                                                        ? `실제 ${formattedActualAudioDuration}`
+                                                        : `예상 약 ${estimatedAudioMinutes}분`}
+                                                </span>
                                             </div>
-                                            <audio src={audioResultUrl} controls className="w-full h-8" />
+                                            <audio
+                                                src={audioResultUrl}
+                                                controls
+                                                preload="metadata"
+                                                onLoadedMetadata={event => {
+                                                    const duration = event.currentTarget.duration
+                                                    setAudioDurationSeconds(Number.isFinite(duration) && duration > 0 ? duration : 0)
+                                                }}
+                                                className="w-full h-8"
+                                            />
                                         </div>
                                     )}
                                 </div>
