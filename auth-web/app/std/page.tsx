@@ -69,14 +69,20 @@ import {
     selectStdLocalDirectory,
     type StdLocalDirectoryState,
 } from '@/lib/stdLocalMedia'
+import { calculateLongformPayoutByTiers, DEFAULT_LONGFORM_PAYOUT_TIERS_JSON } from '@/lib/stdPayoutPolicy'
 
 type Topic = {
     id: number
     topic: string
     category_name: string
     language: string
+    duration_minutes?: number | null
+    recommended_duration_minutes?: number | null
     assigned_duration_minutes: number | null
     estimated_payout: number | null
+    estimated_payout_usdt?: number | null
+    adjusted_payout?: number | null
+    adjusted_payout_usdt?: number | null
     scene_count: number
     pregenerated_structure?: any
     pregenerated_script?: string
@@ -100,6 +106,43 @@ type SelectedProjectPayload = {
     project: StdProject & { project_payload?: any; review_notes?: string | null; reviewed_at?: string | null }
     scenes: any[]
     assets: any[]
+}
+
+type MusicSubmission = {
+    id: string
+    file_name: string
+    tool_name: string
+    status: string
+    reward_usdt?: number | null
+    review_note?: string | null
+    submitted_at?: string
+}
+
+type MusicMission = {
+    id: string
+    title: string
+    target_market: string
+    genre: string
+    mood: string
+    prompt: string
+    negative_rules?: string[]
+    duration_target_seconds: number
+    reward_usdt?: number | null
+    max_submissions: number
+    accepted_submissions_count: number
+    status: string
+    created_at?: string
+    my_submissions?: MusicSubmission[]
+}
+
+type MusicSubmissionDraft = {
+    file?: File | null
+    tool_name?: string
+    prompt_used?: string
+    lyrics?: string
+    license_confirmed?: boolean
+    originality_confirmed?: boolean
+    commercial_use_confirmed?: boolean
 }
 
 const ELEVENLABS_VOICES = [
@@ -454,6 +497,30 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
+    const getTopicPayoutUsdt = (topic: any): number => {
+        const duration = Number(topic?.assigned_duration_minutes ?? topic?.recommended_duration_minutes ?? topic?.duration_minutes ?? 0)
+        if (Number.isFinite(duration) && duration > 0) {
+            return calculateLongformPayoutByTiers(duration, DEFAULT_LONGFORM_PAYOUT_TIERS_JSON)
+        }
+        const raw = Number(
+            topic?.adjusted_payout_usdt
+            ?? topic?.adjusted_payout
+            ?? topic?.estimated_payout_usdt
+            ?? topic?.estimated_payout
+            ?? 0
+        )
+        if (!Number.isFinite(raw) || raw <= 0) return 4
+        const usdt = raw >= 1000 ? raw / 1000 : raw
+        return Math.round(usdt * 10) / 10
+    }
+    const formatTopicPayout = (topic: any): string => {
+        const amount = getTopicPayoutUsdt(topic)
+        return `$${amount.toFixed(amount % 1 === 0 ? 0 : 1)} USDT`
+    }
+    const formatTopicPayoutDetail = (topic: any): string => {
+        const amount = getTopicPayoutUsdt(topic)
+        return `$${amount.toFixed(2)} USDT`
+    }
 
     // 2. 작업 데이터 상태
     const [topics, setTopics] = useState<Topic[]>([])
@@ -575,8 +642,8 @@ export default function StdPortalPage() {
     const [topicLengthFilter, setTopicLengthFilter] = useState('')
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
-    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'projects' | 'template' | 'render' | 'settings'
-    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'tts', 'subtitle_gen', 'thumbnail', 'projects', 'template', 'render', 'settings']
+    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
+    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'tts', 'subtitle_gen', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
     const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
         return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
     }
@@ -607,6 +674,9 @@ export default function StdPortalPage() {
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
+    const [musicMissions, setMusicMissions] = useState<MusicMission[]>([])
+    const [musicMissionLoading, setMusicMissionLoading] = useState(false)
+    const [musicSubmissionDrafts, setMusicSubmissionDrafts] = useState<Record<string, MusicSubmissionDraft>>({})
     const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
     const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
     const ttsSpeed = String(Math.max(0.7, Math.min(1.2, Number(
@@ -1188,6 +1258,121 @@ export default function StdPortalPage() {
         const connected = await connectLocalMediaDirectory()
         if (connected) {
             setMessage('로컬 폴더가 연결되었습니다. 업로드 버튼을 다시 눌러 파일을 선택해주세요.')
+        }
+    }
+
+    const loadMusicMissions = async () => {
+        if (!token) return
+        setMusicMissionLoading(true)
+        try {
+            const res = await fetch('/api/std/music-missions?limit=50', { headers: authedJsonHeaders })
+            const data = await safeParseJson(res, 'Music missions load failed')
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Music missions load failed')
+            setMusicMissions(Array.isArray(data.tasks) ? data.tasks : [])
+        } catch (error: any) {
+            setMessage(error?.message || 'Music missions load failed')
+        } finally {
+            setMusicMissionLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (currentNav === 'music_missions' && token) {
+            loadMusicMissions()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentNav, token])
+
+    const updateMusicDraft = (missionId: string, patch: Partial<MusicSubmissionDraft>) => {
+        setMusicSubmissionDrafts(prev => ({
+            ...prev,
+            [missionId]: {
+                ...(prev[missionId] || {}),
+                ...patch,
+            },
+        }))
+    }
+
+    const submitMusicMission = async (mission: MusicMission) => {
+        const draft = musicSubmissionDrafts[mission.id] || {}
+        const file = draft.file
+        if (!file) {
+            setMessage('업로드할 음악 파일을 선택하세요.')
+            return
+        }
+        if (!draft.tool_name?.trim()) {
+            setMessage('생성 도구명을 입력하세요.')
+            return
+        }
+        if (!draft.prompt_used?.trim()) {
+            setMessage('실제 사용한 프롬프트를 입력하세요.')
+            return
+        }
+        if (!draft.license_confirmed || !draft.originality_confirmed || !draft.commercial_use_confirmed) {
+            setMessage('라이선스/원본성/상업 사용 확인을 모두 체크하세요.')
+            return
+        }
+
+        setUploadingKey(`music-${mission.id}`)
+        try {
+            const initRes = await fetch('/api/std/music-missions/upload-init', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    task_id: mission.id,
+                    mime_type: file.type || 'audio/mpeg',
+                    file_name: file.name,
+                    file_size: file.size,
+                }),
+            })
+            const initPayload = await safeParseJson(initRes, 'Music upload init failed')
+            if (!initRes.ok || !initPayload.upload_url) throw new Error(initPayload.error || 'Music upload init failed')
+
+            const uploadRes = await fetch(initPayload.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file,
+            })
+            const uploadPayload = await safeParseJson(uploadRes, 'Drive music upload failed')
+            if (!uploadRes.ok || !uploadPayload.id) throw new Error(uploadPayload.error || 'Drive music upload failed')
+
+            const submitRes = await fetch('/api/std/music-missions/submit', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    task_id: mission.id,
+                    drive_file_id: uploadPayload.id,
+                    target_folder_id: initPayload.target_folder_id,
+                    file_name: file.name,
+                    mime_type: file.type || 'audio/mpeg',
+                    file_size: file.size,
+                    tool_name: draft.tool_name,
+                    prompt_used: draft.prompt_used,
+                    lyrics: draft.lyrics || '',
+                    license_confirmed: draft.license_confirmed,
+                    originality_confirmed: draft.originality_confirmed,
+                    commercial_use_confirmed: draft.commercial_use_confirmed,
+                }),
+            })
+            const submitPayload = await safeParseJson(submitRes, 'Music submission failed')
+            if (!submitRes.ok || submitPayload.success === false) throw new Error(submitPayload.error || 'Music submission failed')
+
+            setMusicSubmissionDrafts(prev => ({
+                ...prev,
+                [mission.id]: {
+                    tool_name: draft.tool_name,
+                    prompt_used: mission.prompt,
+                    license_confirmed: false,
+                    originality_confirmed: false,
+                    commercial_use_confirmed: false,
+                },
+            }))
+            setMessage('음악 제출이 접수되었습니다. 검수 결과를 기다려 주세요.')
+            await loadMusicMissions()
+        } catch (error: any) {
+            setMessage(error?.message || 'Music submission failed')
+        } finally {
+            setUploadingKey('')
         }
     }
 
@@ -4403,6 +4588,7 @@ export default function StdPortalPage() {
                                     { id: 'tts', label: t('nav_tts') },
                                     { id: 'subtitle_gen', label: t('nav_subtitles') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
+                                    { id: 'music_missions', label: '음악 미션' },
                                     { id: 'projects', label: t('nav_projects') },
                                     { id: 'template', label: t('nav_template') },
                                     { id: 'settings', label: t('nav_settings') },
@@ -4514,6 +4700,7 @@ export default function StdPortalPage() {
                             { id: 'tts', label: t('nav_tts') },
                             { id: 'subtitle_gen', label: t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
+                            { id: 'music_missions', label: '음악 미션' },
                             { id: 'projects', label: t('nav_projects') },
                             { id: 'template', label: t('nav_template') },
                             { id: 'settings', label: t('nav_settings') },
@@ -6082,7 +6269,7 @@ export default function StdPortalPage() {
                                                         {topic.category_name || '옛날이야기'}
                                                     </span>
                                                     <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
-                                                        $4 USDT
+                                                        {formatTopicPayout(topic)}
                                                     </span>
                                                 </div>
 
@@ -6143,7 +6330,7 @@ export default function StdPortalPage() {
                                                     {selectedTopicForModal.category_name || '옛날이야기'}
                                                 </span>
                                                 <span className="text-xs font-bold px-2.5 py-1 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30 font-mono">
-                                                    정산 수당: $4.00 USDT (₩45,000)
+                                                    정산 수당: {formatTopicPayoutDetail(selectedTopicForModal)}
                                                 </span>
                                                 <span className="text-xs font-bold px-2.5 py-1 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
                                                     {selectedTopicForModal.assigned_duration_minutes || 15}분 롱폼
@@ -6724,6 +6911,203 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {currentNav === 'music_missions' && (
+                        <div className="space-y-4 max-w-7xl mx-auto w-full pb-10">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                                        <Music className="h-4 w-4 text-blue-400" />
+                                        <span>음악 생성 미션</span>
+                                    </h2>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        워커가 만든 프롬프트로 외부 음악 생성 도구에서 곡을 만들고 결과 오디오를 제출합니다.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={loadMusicMissions}
+                                    disabled={musicMissionLoading}
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded bg-[#202632] border border-white/10 text-xs font-bold text-gray-200 hover:bg-white/10 disabled:opacity-60"
+                                >
+                                    <RefreshCw className={`h-3.5 w-3.5 ${musicMissionLoading ? 'animate-spin' : ''}`} />
+                                    <span>새로고침</span>
+                                </button>
+                            </div>
+
+                            {musicMissionLoading && musicMissions.length === 0 && (
+                                <div className="border border-white/10 bg-[#1c2027] rounded-lg p-8 text-center text-sm text-gray-400">
+                                    음악 미션을 불러오는 중입니다.
+                                </div>
+                            )}
+
+                            {!musicMissionLoading && musicMissions.length === 0 && (
+                                <div className="border border-white/10 bg-[#1c2027] rounded-lg p-8 text-center space-y-2">
+                                    <Music className="h-8 w-8 text-gray-500 mx-auto" />
+                                    <p className="text-sm font-bold text-gray-300">현재 열려 있는 음악 미션이 없습니다.</p>
+                                    <p className="text-xs text-gray-500">관리자 또는 Hermes 워커가 음악 프롬프트 미션을 생성하면 여기에 표시됩니다.</p>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                {musicMissions.map((mission) => {
+                                    const draft = musicSubmissionDrafts[mission.id] || {}
+                                    const mySubmissions = Array.isArray(mission.my_submissions) ? mission.my_submissions : []
+                                    const isSubmitting = uploadingKey === `music-${mission.id}`
+                                    const negativeRules = Array.isArray(mission.negative_rules) ? mission.negative_rules : []
+                                    return (
+                                        <div key={mission.id} className="bg-[#1c2027] border border-white/10 rounded-lg overflow-hidden shadow">
+                                            <div className="p-4 border-b border-white/10 space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                            <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/20 text-[10px] font-bold uppercase">
+                                                                {mission.target_market || 'TH'}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold">
+                                                                {mission.genre}
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-500">
+                                                                목표 {Math.round((mission.duration_target_seconds || 180) / 60)}분
+                                                            </span>
+                                                        </div>
+                                                        <h3 className="text-sm font-bold text-white truncate">{mission.title}</h3>
+                                                        <p className="text-xs text-gray-400 mt-1 line-clamp-2">{mission.mood}</p>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <div className="text-[10px] text-gray-500">보상</div>
+                                                        <div className="text-sm font-black text-emerald-300">{Number(mission.reward_usdt || 0).toFixed(2)} USDT</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-[#14181f] border border-white/10 rounded p-3">
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase">Prompt</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                navigator.clipboard?.writeText(mission.prompt)
+                                                                updateMusicDraft(mission.id, { prompt_used: mission.prompt })
+                                                            }}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-gray-200 border border-white/10"
+                                                        >
+                                                            <Copy className="h-3 w-3" />
+                                                            <span>복사</span>
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">{mission.prompt}</p>
+                                                </div>
+
+                                                {negativeRules.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {negativeRules.slice(0, 6).map((rule, index) => (
+                                                            <span key={`${mission.id}-rule-${index}`} className="px-2 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/20 text-[10px]">
+                                                                {rule}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="p-4 space-y-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <label className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-gray-400">생성 도구</span>
+                                                        <input
+                                                            value={draft.tool_name || ''}
+                                                            onChange={e => updateMusicDraft(mission.id, { tool_name: e.target.value })}
+                                                            placeholder="Suno, Udio, 기타"
+                                                            className="w-full bg-[#14181f] border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </label>
+                                                    <label className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-gray-400">오디오 파일</span>
+                                                        <input
+                                                            type="file"
+                                                            accept="audio/*"
+                                                            onChange={e => updateMusicDraft(mission.id, { file: e.target.files?.[0] || null })}
+                                                            className="block w-full text-xs text-gray-300 file:mr-3 file:rounded file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-blue-500"
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                <label className="space-y-1 block">
+                                                    <span className="text-[10px] font-bold text-gray-400">실제 사용 프롬프트</span>
+                                                    <textarea
+                                                        value={draft.prompt_used || ''}
+                                                        onChange={e => updateMusicDraft(mission.id, { prompt_used: e.target.value })}
+                                                        placeholder="실제로 음악 생성 도구에 넣은 프롬프트를 붙여넣으세요."
+                                                        rows={3}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
+                                                    />
+                                                </label>
+
+                                                <label className="space-y-1 block">
+                                                    <span className="text-[10px] font-bold text-gray-400">가사 또는 메모</span>
+                                                    <textarea
+                                                        value={draft.lyrics || ''}
+                                                        onChange={e => updateMusicDraft(mission.id, { lyrics: e.target.value })}
+                                                        placeholder="보컬곡이면 가사, 인스트면 생성 설정이나 참고 메모를 적으세요."
+                                                        rows={2}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
+                                                    />
+                                                </label>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-gray-300">
+                                                    <label className="flex items-start gap-2 bg-[#14181f] border border-white/10 rounded p-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(draft.license_confirmed)}
+                                                            onChange={e => updateMusicDraft(mission.id, { license_confirmed: e.target.checked })}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <span>생성툴 라이선스상 상업 사용 가능</span>
+                                                    </label>
+                                                    <label className="flex items-start gap-2 bg-[#14181f] border border-white/10 rounded p-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(draft.originality_confirmed)}
+                                                            onChange={e => updateMusicDraft(mission.id, { originality_confirmed: e.target.checked })}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <span>기존 곡/가수/멜로디 모방 없음</span>
+                                                    </label>
+                                                    <label className="flex items-start gap-2 bg-[#14181f] border border-white/10 rounded p-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(draft.commercial_use_confirmed)}
+                                                            onChange={e => updateMusicDraft(mission.id, { commercial_use_confirmed: e.target.checked })}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <span>에어 플랫폼 사용권 부여 동의</span>
+                                                    </label>
+                                                </div>
+
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                                                    <div className="text-[11px] text-gray-400">
+                                                        {mySubmissions.length > 0 ? (
+                                                            <span>내 제출 {mySubmissions.length}개: {mySubmissions[0].status}</span>
+                                                        ) : (
+                                                            <span>아직 제출하지 않은 미션입니다.</span>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => submitMusicMission(mission)}
+                                                        disabled={isSubmitting}
+                                                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-xs font-bold text-white"
+                                                    >
+                                                        {isSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                                                        <span>{isSubmitting ? '제출 중' : '음악 제출'}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
                     )}

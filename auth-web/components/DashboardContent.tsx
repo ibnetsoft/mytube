@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
+import { DEFAULT_LONGFORM_PAYOUT_TIERS_JSON } from '@/lib/stdPayoutPolicy'
 
 const LazyPanelFallback = () => (
     <div className="rounded-[2.5rem] border border-white/10 bg-[#0f172a]/40 p-10 text-center text-xs font-black uppercase tracking-[0.2em] text-gray-500">
@@ -389,8 +390,9 @@ export default function DashboardContent() {
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
         longform_min_duration_minutes: '15',
-        longform_base_payout: '10000',
-        longform_extra_minute_payout: '500',
+        longform_base_payout: '4',
+        longform_extra_minute_payout: '0',
+        longform_payout_tiers: DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
         longform_duration_lock_enabled: 'true',
         binance_api_key: '', binance_api_secret: '',
         qa_enable_pipeline: 'true', qa_enable_technical_check: 'true', qa_enable_semantic_check: 'false',
@@ -1354,8 +1356,9 @@ export default function DashboardContent() {
                 topview: data.topview || '',
                 topview_uid: data.topview_uid || '',
                 longform_min_duration_minutes: data.longform_min_duration_minutes || '15',
-                longform_base_payout: data.longform_base_payout || '10000',
-                longform_extra_minute_payout: data.longform_extra_minute_payout || '500',
+                longform_base_payout: data.longform_base_payout || '4',
+                longform_extra_minute_payout: data.longform_extra_minute_payout || '0',
+                longform_payout_tiers: data.longform_payout_tiers || DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
                 longform_duration_lock_enabled: data.longform_duration_lock_enabled || 'true',
                 binance_api_key: data.binance_api_key || '',
                 binance_api_secret: data.binance_api_secret || '',
@@ -5977,6 +5980,19 @@ export default function DashboardContent() {
                                                     className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
                                                 />
                                             </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">구간별 수당표 JSON (USDT)</label>
+                                            <textarea
+                                                value={sysKeys.longform_payout_tiers}
+                                                onChange={e => setSysKeys(prev => ({ ...prev, longform_payout_tiers: e.target.value }))}
+                                                rows={7}
+                                                spellCheck={false}
+                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 font-mono leading-relaxed"
+                                            />
+                                            <p className="mt-2 text-[10px] text-gray-500">
+                                                예: 15분 이하는 $4, 150분 이상은 최대 $9로 계산됩니다. 형식: max_minutes / payout_usdt
+                                            </p>
                                         </div>
                                         <label className="flex items-center gap-3 text-xs font-bold text-gray-300">
                                             <input

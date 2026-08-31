@@ -30,7 +30,6 @@ export async function resolveDriveRootFolderId(): Promise<string> {
     return (await getGoogleDriveConfig()).rootFolderId
 }
 
-
 export function sanitizeDriveName(value: string, fallback = 'untitled'): string {
     const cleaned = String(value || '')
         .replace(/[\\/:*?"<>|#%{}~&]/g, ' ')

@@ -13,6 +13,7 @@ const KEYS = [
     'google_drive_client_id', 'google_drive_client_secret', 'google_drive_refresh_token', 'google_drive_root_folder_id',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',
+    'longform_payout_tiers',
     'longform_duration_lock_enabled',
     'topic_generation_model', 'title_generation_model', 'script_planning_model',
     'script_generation_model', 'image_prompt_model', 'translation_model',

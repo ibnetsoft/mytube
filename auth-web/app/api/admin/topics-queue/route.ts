@@ -4,6 +4,11 @@ import { GoogleGenAI } from '@google/genai'
 import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../_auth'
 import { generateJsonWithModelSetting } from '../../../../lib/aiRouter'
 import { preparedTopicStatus } from '../../../../lib/preparedTopic'
+import {
+    DEFAULT_LONGFORM_MAX_DURATION_MINUTES,
+    DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
+    calculateLongformPayoutByTiers,
+} from '../../../../lib/stdPayoutPolicy'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -348,11 +353,11 @@ function pickValidStyle(value: any, allowed: string[], fallback: string): string
 
 function clampDuration(value: any, minMinutes: number) {
     const parsed = toInt(value, minMinutes)
-    return Math.max(minMinutes, Math.min(60, parsed))
+    return Math.max(minMinutes, Math.min(DEFAULT_LONGFORM_MAX_DURATION_MINUTES, parsed))
 }
 
-function payoutForMinutes(minutes: number, minMinutes: number, basePay: number, extraPerMinute: number) {
-    return basePay + Math.max(0, minutes - minMinutes) * extraPerMinute
+function payoutForMinutes(minutes: number, tiersValue: any) {
+    return calculateLongformPayoutByTiers(minutes, tiersValue)
 }
 
 function toStringArray(value: any): string[] {
@@ -385,7 +390,7 @@ function adjustToBucket(duration: number, bucket: string, minMinutes: number): n
     if (!bucket) return duration
     if (bucket === '15m') return Math.max(minMinutes, Math.min(15, duration))
     if (bucket === '30m') return Math.max(minMinutes, Math.min(30, duration))
-    if (bucket === '60m_plus') return Math.max(Math.max(minMinutes, 30), Math.min(60, duration))
+    if (bucket === '60m_plus') return Math.max(Math.max(minMinutes, 30), Math.min(DEFAULT_LONGFORM_MAX_DURATION_MINUTES, duration))
     return duration
 }
 
@@ -670,12 +675,14 @@ export async function POST(req: Request) {
                 'sys_api_longform_min_duration_minutes',
                 'sys_api_longform_base_payout',
                 'sys_api_longform_extra_minute_payout',
+                'sys_api_longform_payout_tiers',
                 'sys_api_longform_duration_lock_enabled'
             ])
         const policy = Object.fromEntries((policyRows || []).map((row: any) => [row.key, row.value]))
         const minDurationMinutes = Math.max(15, toInt(policy.sys_api_longform_min_duration_minutes, 15))
-        const basePayout = Math.max(0, toInt(policy.sys_api_longform_base_payout, 10000))
-        const extraMinutePayout = Math.max(0, toInt(policy.sys_api_longform_extra_minute_payout, 500))
+        const basePayout = Math.max(0, toInt(policy.sys_api_longform_base_payout, 4))
+        const extraMinutePayout = Math.max(0, toInt(policy.sys_api_longform_extra_minute_payout, 0))
+        const payoutTiers = policy.sys_api_longform_payout_tiers || DEFAULT_LONGFORM_PAYOUT_TIERS_JSON
         const durationLockEnabled = String(policy.sys_api_longform_duration_lock_enabled ?? 'true') !== 'false'
         const isLongformCategory = (category.video_type || 'longform') === 'longform'
         const targetLang = normalizeContentLanguage(category.language)
@@ -779,6 +786,8 @@ export async function POST(req: Request) {
         - Use 15 minutes for compact, simple stories.
         - Use 20-25 minutes for normal narrative/explainer topics.
         - Use 30-40 minutes only for complex history, multi-case, deep-investigation, or documentary topics.
+        - Use 60-150 minutes only for truly deep documentary or very large multi-part story topics.
+        - Never exceed ${DEFAULT_LONGFORM_MAX_DURATION_MINUTES} minutes.
         - Do not choose a duration just to increase pay; choose based on natural content depth.
         ` : ''}
 
@@ -889,7 +898,7 @@ export async function POST(req: Request) {
                 ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)
                 : geminiDuration
             const estimatedPayout = assignedDuration
-                ? payoutForMinutes(assignedDuration, minDurationMinutes, basePayout, extraMinutePayout)
+                ? payoutForMinutes(assignedDuration, payoutTiers)
                 : null
 
             return {
@@ -916,7 +925,8 @@ export async function POST(req: Request) {
                     payout_policy: {
                         min_duration_minutes: minDurationMinutes,
                         base_payout: basePayout,
-                        extra_minute_payout: extraMinutePayout
+                        extra_minute_payout: extraMinutePayout,
+                        payout_tiers: payoutTiers
                     },
                     duration_reason: typeof item === 'string' ? '' : (item?.duration_reason || ''),
                     difficulty_level: typeof item === 'string' ? 'normal' : (item?.difficulty_level || 'normal')

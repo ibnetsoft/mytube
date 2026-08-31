@@ -121,6 +121,7 @@ const SYS_KEY_MAP: Record<string, string> = {
     sys_api_longform_min_duration_minutes: 'LONGFORM_MIN_DURATION_MINUTES',
     sys_api_longform_base_payout: 'LONGFORM_BASE_PAYOUT',
     sys_api_longform_extra_minute_payout: 'LONGFORM_EXTRA_MINUTE_PAYOUT',
+    sys_api_longform_payout_tiers: 'LONGFORM_PAYOUT_TIERS',
     sys_api_longform_duration_lock_enabled: 'LONGFORM_DURATION_LOCK_ENABLED',
     sys_api_topic_generation_model: 'TOPIC_GENERATION_MODEL',
     sys_api_topic_queue_batch_size: 'TOPIC_QUEUE_BATCH_SIZE',

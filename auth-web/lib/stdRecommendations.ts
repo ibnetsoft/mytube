@@ -1,10 +1,15 @@
 import { supabaseAdmin } from './supabaseAdmin'
 import { isPreparedStdTopic, normalizeTopicSummary } from './stdWeb'
+import {
+    DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
+    calculateLongformPayoutByTiers,
+} from './stdPayoutPolicy'
 
 const LONGFORM_POLICY_KEYS = [
     'sys_api_longform_min_duration_minutes',
     'sys_api_longform_base_payout',
     'sys_api_longform_extra_minute_payout',
+    'sys_api_longform_payout_tiers',
     'sys_api_longform_duration_lock_enabled',
 ]
 
@@ -31,10 +36,7 @@ function durationPreferenceBucket(minutes: number | null): string {
 }
 
 function calculateLongformPayout(minutes: number, policy: Record<string, any>): number {
-    const minMinutes = Math.max(15, toInt(policy.sys_api_longform_min_duration_minutes, 15))
-    const basePay = Math.max(0, toFloat(policy.sys_api_longform_base_payout, 4.0))
-    const extraPay = Math.max(0, toFloat(policy.sys_api_longform_extra_minute_payout, 0.0))
-    return Math.round((basePay + Math.max(0, minutes - minMinutes) * extraPay) * 10) / 10
+    return calculateLongformPayoutByTiers(minutes, policy.sys_api_longform_payout_tiers)
 }
 
 function normalizePayoutUsdt(value: any): number {
@@ -49,6 +51,7 @@ async function loadPolicy(): Promise<Record<string, any>> {
         sys_api_longform_min_duration_minutes: '15',
         sys_api_longform_base_payout: '4',
         sys_api_longform_extra_minute_payout: '0',
+        sys_api_longform_payout_tiers: DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
         sys_api_longform_duration_lock_enabled: 'true',
     }
     const { data } = await supabaseAdmin

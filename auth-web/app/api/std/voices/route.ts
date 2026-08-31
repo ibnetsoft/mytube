@@ -203,6 +203,16 @@ const getAdmin = () => createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+async function getGlobalSetting(key: string): Promise<string> {
+    const { data, error } = await getAdmin()
+        .from('global_settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle()
+    if (error) throw error
+    return String(data?.value || '').trim()
+}
+
 const loadCustomVoices = async (): Promise<any[]> => {
     try {
         const sb = getAdmin()
