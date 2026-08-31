@@ -3174,10 +3174,16 @@ export default function StdPortalPage() {
 
                 setAudioResultUrl(audioUrl)
                 rememberPersistedAudioAsset(persistedAudioAsset)
+                const usedKeySlots = Array.isArray(payload.elevenlabs_key_slots)
+                    ? payload.elevenlabs_key_slots.filter((slot: unknown) => Number.isInteger(Number(slot)))
+                    : []
+                const keyUsageLabel = usedKeySlots.length
+                    ? ` (ElevenLabs 키 ${usedKeySlots.join(', ')}번 사용)`
+                    : ''
                 setMessage(
                     multiVoice
-                        ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).`
-                        : `${voiceObj.name} TTS audio generated.`
+                        ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}`
+                        : `${voiceObj.name} TTS audio generated.${keyUsageLabel}`
                 )
                 return
                 /*

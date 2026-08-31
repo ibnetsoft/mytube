@@ -141,7 +141,7 @@ async function generateSingleElevenLabsChunk(input: {
     stability?: number
     similarityBoost?: number
     style?: number
-}): Promise<Buffer> {
+}): Promise<{ audioBuffer: Buffer; keySlot: number; modelId: string }> {
     const voiceSettings: Record<string, number> = {}
     if (Number.isFinite(input.stability)) voiceSettings.stability = Number(input.stability)
     if (Number.isFinite(input.similarityBoost)) voiceSettings.similarity_boost = Number(input.similarityBoost)
@@ -151,7 +151,8 @@ async function generateSingleElevenLabsChunk(input: {
     let lastError = 'ElevenLabs API key is not configured'
     const quotaErrors: Array<{ remaining: number; required: number }> = []
     const modelCandidates = buildElevenLabsModelCandidates(input.modelId)
-    for (const apiKey of input.apiKeys) {
+    for (let keyIndex = 0; keyIndex < input.apiKeys.length; keyIndex += 1) {
+        const apiKey = input.apiKeys[keyIndex]
         for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
             const currentModelId = modelCandidates[modelIndex] || DEFAULT_ELEVENLABS_MODEL_ID
             const res = await fetch(
@@ -178,7 +179,7 @@ async function generateSingleElevenLabsChunk(input: {
                 if (audioBuffer.length < 256 || (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream'))) {
                     throw new Error(`ElevenLabs returned an invalid audio response (${audioBuffer.length} bytes, ${contentType || 'unknown type'})`)
                 }
-                return audioBuffer
+                return { audioBuffer, keySlot: keyIndex + 1, modelId: currentModelId }
             }
 
             const errText = await res.text()
@@ -226,6 +227,15 @@ async function generateElevenLabsMp3(input: {
     multiVoice?: boolean
     voiceMap?: Record<string, string>
 }) {
+    const usedKeySlots = new Set<number>()
+    const usedModelIds = new Set<string>()
+
+    const rememberChunk = (result: { audioBuffer: Buffer; keySlot: number; modelId: string }) => {
+        usedKeySlots.add(result.keySlot)
+        usedModelIds.add(result.modelId)
+        return result.audioBuffer
+    }
+
     // 1. 멀티 보이스 모드인 경우
     if (input.multiVoice && input.voiceMap && Object.keys(input.voiceMap).length > 0) {
         const { segments } = parseScriptToVoiceSegments(input.text)
@@ -236,7 +246,7 @@ async function generateElevenLabsMp3(input: {
             const targetVoiceId = input.voiceMap[seg.speaker] || input.voiceId || DEFAULT_ELEVENLABS_VOICE_ID
             const chunks = splitText(seg.text)
             for (const chunk of chunks) {
-                const buf = await generateSingleElevenLabsChunk({
+                const result = await generateSingleElevenLabsChunk({
                     apiKeys: input.apiKeys,
                     voiceId: targetVoiceId,
                     modelId: input.modelId,
@@ -246,10 +256,14 @@ async function generateElevenLabsMp3(input: {
                     similarityBoost: input.similarityBoost,
                     style: input.style,
                 })
-                buffers.push(buf)
+                buffers.push(rememberChunk(result))
             }
         }
-        return Buffer.concat(buffers)
+        return {
+            audioBuffer: Buffer.concat(buffers),
+            keySlots: Array.from(usedKeySlots).sort((a, b) => a - b),
+            modelIds: Array.from(usedModelIds),
+        }
     }
 
     // 2. 단일 보이스 모드
@@ -258,7 +272,7 @@ async function generateElevenLabsMp3(input: {
 
     const buffers: Buffer[] = []
     for (const chunk of chunks) {
-        const buf = await generateSingleElevenLabsChunk({
+        const result = await generateSingleElevenLabsChunk({
             apiKeys: input.apiKeys,
             voiceId: input.voiceId,
             modelId: input.modelId,
@@ -268,10 +282,14 @@ async function generateElevenLabsMp3(input: {
             similarityBoost: input.similarityBoost,
             style: input.style,
         })
-        buffers.push(buf)
+        buffers.push(rememberChunk(result))
     }
 
-    return Buffer.concat(buffers)
+    return {
+        audioBuffer: Buffer.concat(buffers),
+        keySlots: Array.from(usedKeySlots).sort((a, b) => a - b),
+        modelIds: Array.from(usedModelIds),
+    }
 }
 
 async function generateSingleGoogleTranslateChunk(chunk: string, lang: string = 'ko'): Promise<Buffer> {
@@ -473,6 +491,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const voiceMap = body?.voice_map || {}
 
         let audioBuffer: Buffer
+        let elevenLabsTrace: { keySlots: number[]; modelIds: string[] } | null = null
         if (provider === 'google_free' || voiceId.startsWith('google_')) {
             stage = 'generate_google_free'
             const projectLang = String(
@@ -492,7 +511,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             }
 
             stage = 'generate_elevenlabs'
-            audioBuffer = await generateElevenLabsMp3({
+            const generationResult = await generateElevenLabsMp3({
                 apiKeys,
                 voiceId,
                 modelId,
@@ -503,6 +522,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 style: body?.style == null ? undefined : Number(body.style),
                 multiVoice,
                 voiceMap,
+            })
+            audioBuffer = generationResult.audioBuffer
+            elevenLabsTrace = {
+                keySlots: generationResult.keySlots,
+                modelIds: generationResult.modelIds,
+            }
+            console.info('[STD TTS] ElevenLabs generation trace', {
+                projectId: project.id,
+                keySlots: elevenLabsTrace.keySlots,
+                modelIds: elevenLabsTrace.modelIds,
+                textLength: text.length,
             })
         }
 
@@ -533,6 +563,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 download_url: audioDataUrl,
                 web_view_link: null,
                 transient: true,
+                elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
                 message: 'TTS 음성이 생성되었습니다! (즉시 재생 모드)',
             })
         }
@@ -571,6 +603,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         voice_map: voiceMap,
                         text_length: text.length,
                         chunk_count: splitText(text).length,
+                        elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                        elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
                         generated_by: auth.requester.email,
                         web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
                     },
@@ -609,6 +643,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     tts_speed: projectTtsSpeed,
                     multi_voice: multiVoice,
                     voice_map: voiceMap,
+                    elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                    elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
                 },
                 project_payload: {
                     ...(project.project_payload || {}),
@@ -643,6 +679,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             download_url: audioUrl,
             persisted_audio_url: audioUrl,
             web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+            elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+            elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })
     } catch (error: any) {

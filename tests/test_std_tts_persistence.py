@@ -48,6 +48,10 @@ def test_std_tts_routes_filter_masked_keys_and_retry_elevenlabs_fallbacks():
     assert "DEFAULT_ELEVENLABS_VOICE_ID" in STD_TTS_GENERATE_ROUTE
     assert "voiceId: DEFAULT_ELEVENLABS_VOICE_ID" not in STD_TTS_GENERATE_ROUTE
     assert "등록된 다음 백업 키를 확인합니다" in STD_TTS_GENERATE_ROUTE
+    assert "keySlot: keyIndex + 1" in STD_TTS_GENERATE_ROUTE
+    assert "elevenlabs_key_slots: elevenLabsTrace?.keySlots || []" in STD_TTS_GENERATE_ROUTE
+    assert "[STD TTS] ElevenLabs generation trace" in STD_TTS_GENERATE_ROUTE
+    assert "ElevenLabs 키 ${usedKeySlots.join(', ')}번 사용" in STD_PAGE
 
 
 def test_std_tts_uses_inline_audio_when_drive_playback_auth_fails():
