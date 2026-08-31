@@ -45,13 +45,24 @@ def test_std_tts_routes_filter_masked_keys_and_retry_elevenlabs_fallbacks():
     assert "getConfiguredElevenLabsKeys" in STD_TTS_GENERATE_ROUTE
     assert "FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']" in STD_TTS_GENERATE_ROUTE
     assert "shouldRetryElevenLabsWithAlternateModel" in STD_TTS_GENERATE_ROUTE
+    assert "selectUsableElevenLabsKeys(apiKeys, largestChunkChars)" in STD_TTS_GENERATE_ROUTE
+    assert "inspectElevenLabsKey" in STD_TTS_GENERATE_ROUTE
+    assert "잔여 ${item.remaining.toLocaleString('ko-KR')}자 < 청크 필요" in STD_TTS_GENERATE_ROUTE
     assert "DEFAULT_ELEVENLABS_VOICE_ID" in STD_TTS_GENERATE_ROUTE
     assert "voiceId: DEFAULT_ELEVENLABS_VOICE_ID" not in STD_TTS_GENERATE_ROUTE
     assert "등록된 다음 백업 키를 확인합니다" in STD_TTS_GENERATE_ROUTE
-    assert "keySlot: keyIndex + 1" in STD_TTS_GENERATE_ROUTE
+    assert "const keySlot = typeof keyCandidate === 'string' ? keyIndex + 1 : keyCandidate.keySlot" in STD_TTS_GENERATE_ROUTE
     assert "elevenlabs_key_slots: elevenLabsTrace?.keySlots || []" in STD_TTS_GENERATE_ROUTE
     assert "[STD TTS] ElevenLabs generation trace" in STD_TTS_GENERATE_ROUTE
     assert "ElevenLabs 키 ${usedKeySlots.join(', ')}번 사용" in STD_PAGE
+
+
+def test_std_tts_failures_are_logged_with_chunk_and_key_context():
+    assert "recordStdTtsFailure" in STD_TTS_GENERATE_ROUTE
+    assert "task_type: 'std_tts_generate'" in STD_TTS_GENERATE_ROUTE
+    assert "prompt_summary: `project=${input.project?.id || '-'} text=${input.textLength || 0} chunks=${input.chunkCount || 0} stage=${input.stage}`" in STD_TTS_GENERATE_ROUTE
+    assert "[STD TTS] generation failed" in STD_TTS_GENERATE_ROUTE
+    assert "elevenlabs_key_preflight: ttsDebug.keyInspections" in STD_TTS_GENERATE_ROUTE
 
 
 def test_std_tts_uses_inline_audio_when_drive_playback_auth_fails():

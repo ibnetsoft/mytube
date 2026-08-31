@@ -20,6 +20,15 @@ const MAX_CHARS_PER_REQUEST = 4500
 const MAX_INLINE_AUDIO_BYTES = 2_500_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+type ElevenLabsKeyCandidate = {
+    apiKey: string
+    keySlot: number
+    remaining: number | null
+    tier?: string | null
+    skipped?: boolean
+    reason?: string
+}
+
 function cleanTtsText(value: string) {
     return String(value || '')
         .replace(/\r\n/g, '\n')
@@ -132,8 +141,100 @@ function buildElevenLabsModelCandidates(modelId: string) {
     return candidates.filter((value, index) => value && candidates.indexOf(value) === index)
 }
 
+async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<ElevenLabsKeyCandidate> {
+    try {
+        const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+            headers: {
+                'xi-api-key': apiKey,
+                Accept: 'application/json',
+            },
+            cache: 'no-store',
+        })
+        if (!res.ok) {
+            const detail = await res.text().catch(() => '')
+            return {
+                apiKey,
+                keySlot,
+                remaining: null,
+                skipped: [401, 402, 403].includes(res.status),
+                reason: `subscription_check_failed_${res.status}: ${detail.slice(0, 180)}`,
+            }
+        }
+        const data = await res.json().catch(() => ({}))
+        const limit = Number(data?.character_limit || 0)
+        const used = Number(data?.character_count || 0)
+        const remaining = Number.isFinite(limit) && Number.isFinite(used) && limit > 0
+            ? Math.max(0, limit - used)
+            : null
+        return {
+            apiKey,
+            keySlot,
+            remaining,
+            tier: data?.tier || null,
+        }
+    } catch (error: any) {
+        return {
+            apiKey,
+            keySlot,
+            remaining: null,
+            skipped: false,
+            reason: `subscription_check_error: ${error?.message || String(error)}`,
+        }
+    }
+}
+
+async function selectUsableElevenLabsKeys(apiKeys: string[], requiredChunkChars: number) {
+    const inspections = await Promise.all(apiKeys.map((apiKey, index) => inspectElevenLabsKey(apiKey, index + 1)))
+    const minRequired = Math.max(1, Math.min(MAX_CHARS_PER_REQUEST, requiredChunkChars || MAX_CHARS_PER_REQUEST))
+    const candidates = inspections
+        .map((item) => {
+            if (item.skipped) return item
+            if (item.remaining != null && item.remaining < minRequired) {
+                return {
+                    ...item,
+                    skipped: true,
+                    reason: `잔여 ${item.remaining.toLocaleString('ko-KR')}자 < 청크 필요 ${minRequired.toLocaleString('ko-KR')}자`,
+                }
+            }
+            return item
+        })
+    return {
+        usableKeys: candidates.filter(item => !item.skipped).map(item => item.apiKey),
+        usableSlots: candidates.filter(item => !item.skipped).map(item => item.keySlot),
+        inspections: candidates.map(({ apiKey, ...safe }) => safe),
+    }
+}
+
+async function recordStdTtsFailure(input: {
+    requester: any
+    project: any
+    stage: string
+    error: any
+    textLength?: number
+    chunkCount?: number
+    keyInspections?: any[]
+}) {
+    const userId = String(input.requester?.user?.id || input.requester?.profile?.id || '')
+    if (!UUID_RE.test(userId)) return
+    try {
+        await supabaseAdmin.from('ai_logs').insert({
+            user_id: userId,
+            task_type: 'std_tts_generate',
+            model_id: DEFAULT_ELEVENLABS_MODEL_ID,
+            provider: 'elevenlabs',
+            status: 'failed',
+            prompt_summary: `project=${input.project?.id || '-'} text=${input.textLength || 0} chunks=${input.chunkCount || 0} stage=${input.stage}`,
+            error_msg: String(input.error?.message || input.error || 'TTS generation failed').slice(0, 500),
+            elapsed_time: 0,
+            input_tokens: input.textLength || 0,
+            output_tokens: 0,
+            worker_email: input.requester?.email || null,
+        })
+    } catch {}
+}
+
 async function generateSingleElevenLabsChunk(input: {
-    apiKeys: string[]
+    apiKeys: Array<string | ElevenLabsKeyCandidate>
     voiceId: string
     modelId: string
     chunk: string
@@ -152,7 +253,9 @@ async function generateSingleElevenLabsChunk(input: {
     const quotaErrors: Array<{ remaining: number; required: number }> = []
     const modelCandidates = buildElevenLabsModelCandidates(input.modelId)
     for (let keyIndex = 0; keyIndex < input.apiKeys.length; keyIndex += 1) {
-        const apiKey = input.apiKeys[keyIndex]
+        const keyCandidate = input.apiKeys[keyIndex]
+        const apiKey = typeof keyCandidate === 'string' ? keyCandidate : keyCandidate.apiKey
+        const keySlot = typeof keyCandidate === 'string' ? keyIndex + 1 : keyCandidate.keySlot
         for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
             const currentModelId = modelCandidates[modelIndex] || DEFAULT_ELEVENLABS_MODEL_ID
             const res = await fetch(
@@ -179,7 +282,7 @@ async function generateSingleElevenLabsChunk(input: {
                 if (audioBuffer.length < 256 || (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream'))) {
                     throw new Error(`ElevenLabs returned an invalid audio response (${audioBuffer.length} bytes, ${contentType || 'unknown type'})`)
                 }
-                return { audioBuffer, keySlot: keyIndex + 1, modelId: currentModelId }
+                return { audioBuffer, keySlot, modelId: currentModelId }
             }
 
             const errText = await res.text()
@@ -216,7 +319,7 @@ async function generateSingleElevenLabsChunk(input: {
 }
 
 async function generateElevenLabsMp3(input: {
-    apiKeys: string[]
+    apiKeys: Array<string | ElevenLabsKeyCandidate>
     voiceId: string
     modelId: string
     text: string
@@ -468,6 +571,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     let stage = 'prepare'
+    const ttsDebug: {
+        textLength: number
+        chunkCount: number
+        keyInspections: any[]
+    } = {
+        textLength: 0,
+        chunkCount: 0,
+        keyInspections: [],
+    }
     try {
         stage = 'build_text'
         const text = buildTtsText(project, scenes, body?.text)
@@ -490,8 +602,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
 
+        const textChunks = splitText(text)
+        const chunkCount = textChunks.length
+        const largestChunkChars = textChunks.reduce((max, chunk) => Math.max(max, chunk.length), 0)
+        ttsDebug.textLength = text.length
+        ttsDebug.chunkCount = chunkCount
         let audioBuffer: Buffer
         let elevenLabsTrace: { keySlots: number[]; modelIds: string[] } | null = null
+        let elevenLabsKeyInspections: any[] = []
         if (provider === 'google_free' || voiceId.startsWith('google_')) {
             stage = 'generate_google_free'
             const projectLang = String(
@@ -509,10 +627,26 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             if (!apiKeys.length) {
                 return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
             }
+            const keySelection = await selectUsableElevenLabsKeys(apiKeys, largestChunkChars)
+            elevenLabsKeyInspections = keySelection.inspections
+            ttsDebug.keyInspections = elevenLabsKeyInspections
+            if (!keySelection.usableKeys.length) {
+                const totalRemaining = elevenLabsKeyInspections.reduce(
+                    (sum, item) => sum + (Number.isFinite(item.remaining) ? Number(item.remaining) : 0),
+                    0
+                )
+                throw new Error(
+                    `ElevenLabs 사용 가능한 키가 없습니다. 현재 대본은 ${text.length.toLocaleString('ko-KR')}자, ${chunkCount}개 청크이며 가장 긴 청크는 ${largestChunkChars.toLocaleString('ko-KR')}자입니다. 확인된 총 잔여 크레딧은 ${totalRemaining.toLocaleString('ko-KR')}자입니다.`
+                )
+            }
 
             stage = 'generate_elevenlabs'
             const generationResult = await generateElevenLabsMp3({
-                apiKeys,
+                apiKeys: keySelection.usableKeys.map((apiKey, index) => ({
+                    apiKey,
+                    keySlot: keySelection.usableSlots[index],
+                    remaining: null,
+                })),
                 voiceId,
                 modelId,
                 text,
@@ -533,6 +667,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 keySlots: elevenLabsTrace.keySlots,
                 modelIds: elevenLabsTrace.modelIds,
                 textLength: text.length,
+                chunkCount,
+                keyPreflight: elevenLabsKeyInspections,
             })
         }
 
@@ -602,7 +738,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         multi_voice: multiVoice,
                         voice_map: voiceMap,
                         text_length: text.length,
-                        chunk_count: splitText(text).length,
+                        chunk_count: chunkCount,
+                        elevenlabs_key_preflight: elevenLabsKeyInspections,
                         elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                         elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
                         generated_by: auth.requester.email,
@@ -684,8 +821,32 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })
     } catch (error: any) {
+        console.error('[STD TTS] generation failed', {
+            projectId: project.id,
+            stage,
+            textLength: ttsDebug.textLength,
+            chunkCount: ttsDebug.chunkCount,
+            keyPreflight: ttsDebug.keyInspections,
+            error: error?.message || String(error),
+        })
+        await recordStdTtsFailure({
+            requester: auth.requester,
+            project,
+            stage,
+            error,
+            textLength: ttsDebug.textLength,
+            chunkCount: ttsDebug.chunkCount,
+            keyInspections: ttsDebug.keyInspections,
+        })
         return NextResponse.json(
-            { success: false, error: error?.message || 'TTS generation failed', stage },
+            {
+                success: false,
+                error: error?.message || 'TTS generation failed',
+                stage,
+                text_length: ttsDebug.textLength,
+                chunk_count: ttsDebug.chunkCount,
+                elevenlabs_key_preflight: ttsDebug.keyInspections,
+            },
             { status: 500 }
         )
     }
