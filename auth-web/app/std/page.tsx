@@ -2599,9 +2599,18 @@ export default function StdPortalPage() {
         setSelectedImageTemplatePreset(presetId)
         if (!presetId) return
         const preset = templatePresets.find(p => p.id === presetId)
-        if (preset) {
-            setMessage("'" + preset.name + "' 이미지 템플릿이 선택되었습니다.")
-        }
+        if (!preset?.settings) return
+        setTemplateBgUrl(preset.settings.bgUrl || '')
+        setTemplateBgColor(preset.settings.bgColor || '#000000')
+        setTextLayers((preset.settings.textLayers || []).map((layer: any, index: number) => ({
+            ...layer,
+            id: layer.id || `subtitle-template-layer-${Date.now()}-${index}`,
+        })))
+        setShapeLayers((preset.settings.shapeLayers || []).map((shape: any, index: number) => ({
+            ...shape,
+            id: shape.id || `subtitle-template-shape-${Date.now()}-${index}`,
+        })))
+        setMessage("'" + preset.name + "' 이미지 템플릿이 미리보기에 적용되었습니다.")
     }
 
     const subtitleRenderSettings = () => ({
@@ -5219,19 +5228,63 @@ export default function StdPortalPage() {
                                 <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-3 overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
-                                        <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-                                            {currentSub.image_url ? (
+                                        <div
+                                            className="relative aspect-video bg-black flex items-center justify-center overflow-hidden"
+                                            style={selectedImageTemplatePreset ? { backgroundColor: templateBgColor || '#000000' } : undefined}
+                                        >
+                                            {selectedImageTemplatePreset && templateBgUrl ? (
+                                                <img
+                                                    src={templateBgUrl}
+                                                    alt="Template Preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : !selectedImageTemplatePreset && currentSub.image_url ? (
                                                 <img
                                                     src={currentSub.image_url}
                                                     alt="Preview"
                                                     className="w-full h-full object-cover"
                                                 />
-                                            ) : (
+                                            ) : !selectedImageTemplatePreset ? (
                                                 <div className="w-full h-full bg-[#0b0e14] flex flex-col items-center justify-center text-gray-600 gap-1 select-none">
                                                     <span className="text-2xl opacity-40">🖼️</span>
                                                     <span className="text-[10px] font-mono text-gray-500">이미지 없음 (업로드 대기)</span>
                                                 </div>
-                                            )}
+                                            ) : null}
+                                            {selectedImageTemplatePreset && shapeLayers.map(shape => (
+                                                <div
+                                                    key={shape.id}
+                                                    className="absolute inset-x-0 pointer-events-none"
+                                                    style={{
+                                                        top: `${shape.y}%`,
+                                                        height: `${shape.height}%`,
+                                                        transform: 'translateY(-50%)',
+                                                        backgroundColor: hexToRgba(shape.color, shape.opacity),
+                                                    }}
+                                                />
+                                            ))}
+                                            {selectedImageTemplatePreset && textLayers.map(layer => (
+                                                <div
+                                                    key={layer.id}
+                                                    className="absolute inset-x-4 text-center select-none pointer-events-none transition-all"
+                                                    style={{
+                                                        top: `${layer.y}%`,
+                                                        transform: 'translateY(-50%)',
+                                                        fontFamily: layer.fontFamily,
+                                                        color: layer.color,
+                                                        fontSize: `${Math.min(34, Math.max(12, layer.fontSize * 0.72))}px`,
+                                                        fontWeight: 'bold',
+                                                        textShadow: `
+                                                            -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            ${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            -${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            ${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
+                                                            0 4px 10px rgba(0,0,0,0.8)
+                                                        `,
+                                                    }}
+                                                >
+                                                    {layer.text}
+                                                </div>
+                                            ))}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             <div
                                                 className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
