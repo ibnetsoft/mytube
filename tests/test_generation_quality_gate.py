@@ -165,7 +165,7 @@ def test_generation_quality_gate_rejects_bad_script_and_metadata():
     assert any("tags/hashtags missing" in error for error in errors)
 
 
-def test_generation_quality_gate_keeps_revise_script_quality_informational():
+def test_generation_quality_gate_blocks_revise_script_quality():
     payload = _valid_payload()
     payload["script_quality_report"] = {
         "verdict": "revise",
@@ -175,7 +175,18 @@ def test_generation_quality_gate_keeps_revise_script_quality_informational():
 
     errors = validate_generation_package(payload, category="옛날이야기")
 
-    assert not any("script_quality_report not passing" in error for error in errors)
+    assert any("script_quality_report not passing" in error for error in errors)
+
+
+def test_generation_quality_gate_blocks_story_script_with_pension_contamination():
+    payload = _valid_payload()
+    payload["category"] = "日本昔話"
+    payload["language"] = "ja"
+    payload["script"] = "年金と生活費の計算を続けました。" * 300
+
+    errors = validate_generation_package(payload, category="日本昔話", require_korean_script=False)
+
+    assert any("finance/economy contamination" in error for error in errors)
 
 
 def test_old_story_contamination_ignores_benchmark_analysis_body():

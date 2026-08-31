@@ -74,11 +74,11 @@ class Config:
     GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
     # AI Model Settings
-    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3.6-flash")  # 대본 생성 모델
+    SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "claude-haiku-4-5-20251001")  # 대본 생성 모델
     # Keep local/offline defaults on a broadly available text model. The
     # web-admin settings override these values in production.
     TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3.6-flash")
-    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", os.getenv("SCRIPT_GENERATION_MODEL", "gemini-3.6-flash"))
+    TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", "gemini-3.6-flash")
     SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3.6-flash")
     IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3.6-flash")
     TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-3.6-flash")
@@ -275,6 +275,14 @@ class Config:
     @classmethod
     def normalize_generation_models(cls):
         """Normalize text-generation model ids before a worker starts a job."""
+        script_model = str(getattr(cls, "SCRIPT_GENERATION_MODEL", "") or "").strip()
+        if script_model.lower().startswith("sk-ant-"):
+            if not str(getattr(cls, "CLAUDE_API_KEY", "") or "").strip():
+                cls.CLAUDE_API_KEY = script_model
+                os.environ["CLAUDE_API_KEY"] = script_model
+            cls.SCRIPT_GENERATION_MODEL = "claude-haiku-4-5-20251001"
+            os.environ["SCRIPT_GENERATION_MODEL"] = cls.SCRIPT_GENERATION_MODEL
+
         replacements = {
             "gemini-2.5-pro": "gemini-3.6-flash",
             "gemini-2.5-flash": "gemini-3.6-flash",

@@ -12,6 +12,7 @@ from typing import Any
 
 DEFAULT_MIN_SCRIPT_HANGUL = 1000
 DEFAULT_MAX_LATIN_RATIO = 0.05
+MIN_SCRIPT_QUALITY_SCORE = 78
 DEFAULT_MIN_IMAGE_PROMPT_CHARS = 220
 DEFAULT_MIN_VIDEO_PROMPT_CHARS = 260
 MAX_VIDEO_PROMPT_SCENES = 12
@@ -64,12 +65,30 @@ _ECONOMY_TERMS = (
     "나스닥",
     "비트코인",
 )
+_STORY_OFF_CATEGORY_TERMS = _ECONOMY_TERMS + (
+    "국민연금",
+    "퇴직연금",
+    "연금 계산서",
+    "연금 수령액",
+    "노후자금",
+    "가계부",
+    "생활비",
+    "고정비",
+    "자동이체",
+    "pension",
+    "retirement fund",
+    "bank statement",
+    "年金",
+    "老後資金",
+    "家計簿",
+    "生活費",
+)
 _CATEGORY_CONTAMINATION_MAP = {
-    "옛날이야기": _ECONOMY_TERMS,
+    "옛날이야기": _STORY_OFF_CATEGORY_TERMS,
+    "English Folktales": _STORY_OFF_CATEGORY_TERMS,
+    "日本昔話": _STORY_OFF_CATEGORY_TERMS,
     "무협": ("스마트폰", "아파트", "달러", "주식", "비행기", "경찰", "CCTV", "엘리베이터", "지하철"),
     "탈북사연": ("비급", "장문인", "사부", "단전", "내공", "무림", "호랑이 사냥꾼", "조선시대"),
-    "경제": ("비급", "장문인", "사부", "도련님", "호랑이 사냥꾼", "조선시대", "며느리", "시어머니"),
-    "노후금융": ("비급", "장문인", "사부", "호랑이 사냥꾼", "조선시대"),
 }
 _METADATA_INTERNAL_TERMS = (
     "AI",
@@ -230,6 +249,34 @@ def _contamination_context(payload: Mapping[str, Any]) -> str:
     )
 
 
+def _category_content(payload: Mapping[str, Any]) -> str:
+    structure = payload.get("structure") if isinstance(payload.get("structure"), Mapping) else {}
+    scenes = structure.get("scenes") if isinstance(structure, Mapping) else []
+    compact_scenes = []
+    for scene in scenes if isinstance(scenes, list) else []:
+        if not isinstance(scene, Mapping):
+            continue
+        compact_scenes.append({
+            key: scene.get(key)
+            for key in (
+                "scene_summary",
+                "scene_situation",
+                "scene_purpose",
+                "retention_hook",
+                "title_promise_link",
+                "end_bridge",
+            )
+        })
+    return json.dumps(
+        {
+            "title": payload.get("generated_title") or payload.get("upload_title"),
+            "script": payload.get("script"),
+            "scenes": compact_scenes,
+        },
+        ensure_ascii=False,
+    )
+
+
 def validate_generation_package(
     payload: Mapping[str, Any],
     *,
@@ -255,14 +302,19 @@ def validate_generation_package(
     if not isinstance(script_quality, Mapping):
         errors.append("missing script_quality_report")
     else:
-        # The report is saved for review/learning, but its LLM judgement is
-        # subjective. The package gate below should block only objectively
-        # broken payloads such as missing script, missing metadata, or invalid
-        # media prompts; script generation already attempts revision/rescue.
         try:
-            int(float(script_quality.get("score") or 0))
+            script_quality_score = int(float(script_quality.get("score") or 0))
         except (TypeError, ValueError):
             errors.append("script_quality_report score invalid")
+        else:
+            verdict = _text(script_quality.get("verdict")).lower()
+            critical_issues = script_quality.get("critical_issues")
+            if verdict != "pass" or script_quality_score < MIN_SCRIPT_QUALITY_SCORE or critical_issues:
+                errors.append(
+                    "script_quality_report not passing: "
+                    f"verdict={verdict or 'missing'}, score={script_quality_score}, "
+                    f"critical_issues={len(critical_issues) if isinstance(critical_issues, list) else int(bool(critical_issues))}"
+                )
 
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")
@@ -289,10 +341,10 @@ def validate_generation_package(
 
     contamination_terms = _CATEGORY_CONTAMINATION_MAP.get(category)
     if contamination_terms:
-        context_blob = _contamination_context(payload)
-        if re.search("|".join(re.escape(term) for term in contamination_terms), context_blob, re.I):
-            if category == "옛날이야기":
-                errors.append("off-category economy contamination detected for old-story category")
+        content_blob = f"{_contamination_context(payload)}\n{_category_content(payload)}"
+        if re.search("|".join(re.escape(term) for term in contamination_terms), content_blob, re.I):
+            if category in {"옛날이야기", "English Folktales", "日本昔話"}:
+                errors.append(f"off-category finance/economy contamination detected for story category '{category}'")
             else:
                 errors.append(f"off-category contamination detected for category '{category}'")
 

@@ -204,23 +204,6 @@ def test_old_story_benchmark_keywords_do_not_call_ai_or_use_economy_terms(monkey
     assert not any(term in " ".join(keywords) for term in ["금값", "코스피", "환율", "주가", "부동산", "경제"])
 
 
-def test_economy_keyword_hint_is_category_scoped(monkeypatch):
-    manager = object.__new__(HermesAutopilotManager)
-    prompts = []
-
-    async def fake_generate_text(prompt, **kwargs):
-        prompts.append(prompt)
-        return "[]"
-
-    monkeypatch.setattr("hermes_autopilot.ai_router.generate_text", fake_generate_text)
-
-    asyncio.run(manager._discover_benchmark_keywords("한국사연"))
-    asyncio.run(manager._discover_benchmark_keywords("경제"))
-
-    assert "gold, oil, stocks" not in prompts[0]
-    assert "gold, oil, stocks" in prompts[1]
-
-
 def test_learning_profile_instruction_includes_script_and_performance_memory():
     instruction = hermes_worker._learning_profile_instruction({
         "learning_profile": {

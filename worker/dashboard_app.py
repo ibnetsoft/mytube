@@ -1024,6 +1024,7 @@ def _merge_topic_generated_result(target: dict, data: dict, *, source: str, sour
         "research_bundle",
         "narrative_blueprint",
         "script_quality_report",
+        "generation_models",
         "publish_metadata",
     ):
         value = data.get(key)
@@ -2537,8 +2538,8 @@ async def yt_trending_keywords(
     from services.ai_router import generate_text
     fallback_keywords = [
         {"keyword": "AI 영상", "translation": "AI 영상", "volume": 96, "category": "Technology"},
-        {"keyword": "경제 전망", "translation": "경제 전망", "volume": 88, "category": "Finance"},
-        {"keyword": "부동산 이슈", "translation": "부동산 이슈", "volume": 82, "category": "Finance"},
+        {"keyword": "한국 사연", "translation": "한국 사연", "volume": 88, "category": "Story"},
+        {"keyword": "옛날 이야기", "translation": "옛날 이야기", "volume": 82, "category": "Story"},
         {"keyword": "건강 루틴", "translation": "건강 루틴", "volume": 76, "category": "Health"},
         {"keyword": "여행 브이로그", "translation": "여행 브이로그", "volume": 70, "category": "Travel"},
         {"keyword": "요리 레시피", "translation": "요리 레시피", "volume": 64, "category": "Cooking"},
@@ -2602,6 +2603,13 @@ async def yt_trending_keywords(
 # ---------------------------------------------------------------------------
 
 _MASKED = "••••••••"
+_MODEL_SETTING_KEYS = {
+    "TOPIC_GENERATION_MODEL",
+    "TITLE_GENERATION_MODEL",
+    "SCRIPT_GENERATION_MODEL",
+    "SCRIPT_PLANNING_MODEL",
+    "IMAGE_PROMPT_MODEL",
+}
 
 
 def _mask_value(v: str) -> str:
@@ -2642,7 +2650,8 @@ async def api_get_settings(
     result = []
     for attr, label in keys:
         val = getattr(Config, attr, "")
-        result.append({"key": attr, "label": label, "value": _mask_value(val), "set": bool(val)})
+        display_value = str(val or "") if attr in _MODEL_SETTING_KEYS else _mask_value(val)
+        result.append({"key": attr, "label": label, "value": display_value, "set": bool(val)})
     return {"settings": result}
 
 
@@ -2671,6 +2680,11 @@ async def api_set_setting(
     }
     if key not in allowed:
         return {"error": f"허용되지 않은 설정 키: {key}"}
+    if key in _MODEL_SETTING_KEYS and value.lower().startswith(("sk-ant-", "sk-", "aiza")):
+        return {
+            "success": False,
+            "error": "API 키는 모델 입력칸에 저장할 수 없습니다. Claude API Key 항목에 입력해주세요.",
+        }
     try:
         from config import Config
         Config.update_api_key(key, value)
@@ -3474,14 +3488,14 @@ async def api_voicebox_topics(
                 script_text = script_text.get("script") or str(script_text)
             
             if not script_text:
-                script_text = f"국민연금을 30년 동안 성실히 납부해온 부부가 있습니다.\n\n할머니: \"그 집은 말이야, 대대로 내려오는 비밀이 있어.\"\n\n여인) \"정말 그게 사실인가요? 믿기지가 않아요.\"\n\n나레이터: 두 사람의 이야기는 그렇게 시작되었습니다."
+                script_text = "장례식이 끝난 뒤, 남편은 아내가 삼십 년 동안 숨겨온 낡은 편지를 발견했습니다.\n\n할머니: \"그 편지는 마지막까지 열지 말아 주세요.\"\n\n여인) \"이 안에 무슨 약속이 적혀 있는 건가요?\"\n\n나레이터: 봉투가 열리자 오래된 가족의 진실이 모습을 드러냈습니다."
 
             combined_topics.append({
                 "id": f"queue-{r.get('id')}",
                 "type": "supabase",
                 "topic_id": r.get("id"),
                 "title": r.get("generated_title") or r.get("topic") or f"주제 #{r.get('id')}",
-                "category": r.get("category_name") or "경제/사연",
+                "category": r.get("category_name") or "한국사연",
                 "script": str(script_text),
                 "has_audio": bool(r.get("pregenerated_audio_url")),
                 "created_at": r.get("created_at"),
@@ -3495,9 +3509,9 @@ async def api_voicebox_topics(
             "id": "sample-1",
             "type": "sample",
             "topic_id": 101,
-            "title": "국민연금 30년 냈는데 월 80만 원? 30년 차 부부가 공개한 실제 수령액",
-            "category": "경제/재테크",
-            "script": "서른 해 동안 한 번도 거르지 않고 국민연금을 납입해온 평범한 부부가 있습니다.\n\n오늘 통장을 마주한 부부는 말을 잇지 못했습니다.\n\n할머니: \"30년을 일해서 넣었는데, 겨우 이 정도라니...\"\n\n여인) \"앞으로 은퇴 생활비는 어떻게 감당해야 할지 막막해요.\"\n\n나레이터: 국민연금 30년 납입의 충격적인 진실과 노후 대비의 핵심 포인트를 지금 공개합니다.",
+            "title": "장례식 날 발견된 낡은 편지, 삼십 년 비밀이 열렸다",
+            "category": "한국사연",
+            "script": "장례식이 끝난 뒤, 남편은 아내가 삼십 년 동안 숨겨온 낡은 편지를 발견했습니다.\n\n봉투에는 한 번도 듣지 못한 이름이 적혀 있었습니다.\n\n할머니: \"그 사람과 나눈 마지막 약속이었어.\"\n\n여인) \"왜 이제야 이 편지가 나온 걸까요?\"\n\n나레이터: 삼십 년 세월 속에 감춰진 가족의 약속이 마침내 밝혀집니다.",
             "has_audio": False,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
@@ -4283,12 +4297,10 @@ tr:hover { background: #161b22; }
                 <label>카테고리</label>
                 <select id="nlm-category">
                   <option value="옛날이야기" selected>옛날이야기 [KO]</option>
-                  <option value="경제">경제 [KO]</option>
                   <option value="탈북사연">탈북사연 [KO]</option>
                   <option value="한국사연">한국사연 [KO]</option>
                   <option value="해외감동">해외감동 [KO]</option>
                   <option value="무협">무협 [KO]</option>
-                  <option value="노후금융">노후금융 [KO]</option>
                   <option value="황혼19금">황혼19금 [KO]</option>
                   <option value="English Folktales">English Folktales [EN]</option>
                   <option value="日本昔話">日本昔話 [JA]</option>
@@ -6067,9 +6079,27 @@ function hasGeneratedMediaPrompts(structure, scenes) {
     && scenes.every((scene, index) => !sceneRequiresVideoPrompt(scene, index) || sceneVideoPrompt(scene));
 }
 
+function generatedScriptQuality(data) {
+  const report = data?.script_quality_report;
+  if (!report || typeof report !== 'object' || !Object.keys(report).length) {
+    return { present: false, passing: false, score: null, verdict: 'missing', criticalIssues: [] };
+  }
+  const score = Number(report.score);
+  const verdict = String(report.verdict || '').trim().toLowerCase();
+  const criticalIssues = Array.isArray(report.critical_issues) ? report.critical_issues : [];
+  return {
+    present: true,
+    passing: Number.isFinite(score) && score >= 78 && verdict === 'pass' && criticalIssues.length === 0,
+    score: Number.isFinite(score) ? score : null,
+    verdict: verdict || 'missing',
+    criticalIssues,
+  };
+}
+
 function generatedQualityGate(data) {
   const gate = data?.quality_gate || {};
-  if (gate.status) return gate;
+  const scriptQuality = generatedScriptQuality(data);
+  if (gate.status && (!scriptQuality.present || scriptQuality.passing)) return gate;
   const structure = data?.structure || {};
   const scenes = getGeneratedScenes(data);
   const mediaStatus = String(structure?.media_prompt_status || data?.media_prompt_status || '').trim();
@@ -6082,6 +6112,7 @@ function generatedQualityGate(data) {
   if (mediaStatus === 'fallback_ready' || data?.material_statuses?.plan_prompts === 'review') review.push('media_prompts_fallback');
   else if (!(mediaStatus === 'ready' && hasGeneratedMediaPrompts(structure, scenes))) missing.push('media_prompts');
   if (!(String(data?.script || '').trim() || data?.has_script || data?.material_statuses?.script === 'ready')) missing.push('script');
+  if (scriptQuality.present && !scriptQuality.passing) missing.push('script_quality');
   if (!(Object.keys(getGeneratedPublishMetadata(data)).length || data?.material_statuses?.publish_metadata === 'ready')) missing.push('publish_metadata');
   const status = missing.length ? 'fail' : (review.length ? 'review' : 'pass');
   return { status, missing, review, media_prompt_status: mediaStatus, can_auto_render: status === 'pass' };
@@ -6091,12 +6122,15 @@ function generatedMaterialStatuses(data) {
   const structure = data?.structure || {};
   const scenes = getGeneratedScenes(data);
   const statuses = data?.material_statuses || {};
+  const scriptQuality = generatedScriptQuality(data);
   return {
     benchmark: statuses.benchmark || (data?.benchmark_analysis ? 'ready' : 'missing'),
     title: statuses.title || (getGeneratedTitle(data) !== '-' ? 'ready' : 'missing'),
     web_research: statuses.web_research || ((data?.research_bundle || structure?.research_bundle) ? 'ready' : 'missing'),
     plan_prompts: statuses.plan_prompts || (String(structure?.media_prompt_status || '').trim() === 'fallback_ready' ? 'review' : (scenes.length && hasGeneratedMediaPrompts(structure, scenes) ? 'ready' : 'missing')),
-    script: statuses.script || (String(data?.script || '').trim() ? 'ready' : 'missing'),
+    script: scriptQuality.present && !scriptQuality.passing
+      ? 'failed'
+      : (statuses.script || (String(data?.script || '').trim() ? 'ready' : 'missing')),
     publish_metadata: statuses.publish_metadata || (Object.keys(getGeneratedPublishMetadata(data)).length ? 'ready' : 'missing'),
   };
 }
@@ -6245,6 +6279,12 @@ async function showGeneratedResult(resultId) {
   const publishMetadata = getGeneratedPublishMetadata(data);
   const sources = Array.isArray(data._sources) ? data._sources : [];
   const errors = Array.isArray(data.errors) ? data.errors : [];
+  const generationModels = data.generation_models && typeof data.generation_models === 'object'
+    ? data.generation_models
+    : (titleGeneration.generation_models || {});
+  const generationModelText = Object.entries(generationModels)
+    .map(([stage, model]) => `${stage}: ${model}`)
+    .join(' / ');
   const metaHtml = `
     <div class="generated-meta">
       <div class="label">파일 ID</div><div>${escapeHtml(data._file?.id || resultId)}</div>
@@ -6253,6 +6293,7 @@ async function showGeneratedResult(resultId) {
       <div class="label">상태</div><div>${escapeHtml(data.status || '-')}</div>
       <div class="label">생성일</div><div>${fmtTime(data.completed_at || data._file?.updated_at)}</div>
       <div class="label">제목</div><div><strong>${escapeHtml(getGeneratedTitle(data))}</strong></div>
+      <div class="label">사용 모델</div><div>${generationModelText ? escapeHtml(generationModelText) : '<span class="info">이전 결과라 모델 기록이 없습니다.</span>'}</div>
     </div>`;
   const planBits = [
     ['카테고리', data.category || structure.topic || '-'],
@@ -6264,7 +6305,7 @@ async function showGeneratedResult(resultId) {
   let titleJson = '';
   if (Object.keys(titleGeneration).length) {
     const selectedTitle = titleGeneration.generated_title || titleGeneration.title || '-';
-    const selectedScore = titleGeneration.selected_score || '-';
+    const selectedScore = titleGeneration.selected_score ?? '-';
     const candidates = Array.isArray(titleGeneration.title_candidates) ? titleGeneration.title_candidates : [];
 
     let candidatesListHtml = '';
@@ -6275,6 +6316,7 @@ async function showGeneratedResult(resultId) {
           <div style="display:flex;flex-direction:column;gap:8px;">
             ${candidates.map((c, idx) => {
               const isSelected = (c.title === selectedTitle);
+              const candidateScore = c.final_score ?? c.score;
               return `
                 <div style="padding:10px 12px;border-radius:6px;background:${isSelected ? 'rgba(46,160,67,0.12)' : '#0d1117'};border:1px solid ${isSelected ? '#2ea043' : '#30363d'};">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
@@ -6282,7 +6324,7 @@ async function showGeneratedResult(resultId) {
                       ${isSelected ? '👑 [최종 선정] ' : `${idx + 1}. `}${escapeHtml(c.title || '-')}
                     </span>
                     <span class="badge ${isSelected ? 'badge-completed' : ''}" style="font-size:11px;font-weight:bold;">
-                      ${c.score ? `${c.score}점` : (c.final_score ? `${c.final_score}점` : '')}
+                      ${candidateScore !== undefined && candidateScore !== null ? `${candidateScore}점` : ''}
                     </span>
                   </div>
                   ${c.angle ? `<div style="font-size:11px;color:#8b949e;margin-bottom:2px;"><strong>기획 앵글:</strong> ${escapeHtml(c.angle)}</div>` : ''}
@@ -6300,8 +6342,10 @@ async function showGeneratedResult(resultId) {
         <div class="generated-meta" style="grid-template-columns:110px 1fr;">
           <div class="label">최종 선정 제목</div>
           <div><strong style="color:#7ee787;font-size:13px;">${escapeHtml(selectedTitle)}</strong></div>
-          <div class="label">종합 평가 점수</div>
+          <div class="label">제목 평가 점수</div>
           <div><span class="badge badge-completed" style="font-size:12px;">${escapeHtml(String(selectedScore))}점</span></div>
+          <div class="label">점수 범위</div>
+          <div class="info">제목 후보의 클릭·적합도 점수이며 대본 품질점수가 아닙니다.</div>
           <div class="label">카테고리</div>
           <div>${escapeHtml(titleGeneration.category || data.category || '-')}</div>
         </div>
@@ -6316,6 +6360,7 @@ async function showGeneratedResult(resultId) {
   const publishTags = Array.isArray(publishMetadata.tags) ? publishMetadata.tags : [];
   const publishHashtags = Array.isArray(publishMetadata.hashtags) ? publishMetadata.hashtags : [];
   const qualityGate = generatedQualityGate(data);
+  const scriptQuality = generatedScriptQuality(data);
   const qualityClass = qualityGate.status === 'pass' ? 'badge-completed' : (qualityGate.status === 'review' ? 'badge-review' : 'badge-failed');
   const qualityText = qualityGate.status === 'pass'
     ? '자동 렌더 가능'
@@ -6323,6 +6368,9 @@ async function showGeneratedResult(resultId) {
   const qualityHtml = `<div class="generated-meta">
     <div class="label">품질 게이트</div><div><span class="badge ${qualityClass}">${escapeHtml(qualityGate.status)}</span> <span class="info">${escapeHtml(qualityText)}</span></div>
     <div class="label">자동 렌더</div><div>${qualityGate.can_auto_render ? '<span class="badge badge-completed">allowed</span>' : '<span class="badge badge-review">blocked</span>'}</div>
+    <div class="label">대본 품질</div><div>${scriptQuality.present
+      ? `<span class="badge ${scriptQuality.passing ? 'badge-completed' : 'badge-failed'}">${escapeHtml(String(scriptQuality.score ?? '-'))}점 / ${escapeHtml(scriptQuality.verdict)}</span>${scriptQuality.criticalIssues.length ? ` <span class="info">치명 이슈 ${scriptQuality.criticalIssues.length}개</span>` : ''}`
+      : '<span class="badge badge-idle">평가 기록 없음</span>'}</div>
   </div>`;
   const metadataHtml = Object.keys(publishMetadata).length
     ? `<div class="generated-meta">
@@ -7610,6 +7658,23 @@ async function loadSettings() {
   const container = document.getElementById('settings-list');
   settingsOriginal = {};
 
+  const modelOptions = [
+    ['gemini-3.6-flash', 'Gemini 3.6 Flash'],
+    ['gemini-3-flash-preview', 'Gemini 3 Flash Preview'],
+    ['claude-haiku-4-5-20251001', 'Claude Haiku 4.5'],
+    ['claude-3-5-haiku-20241022', 'Claude Haiku 3.5'],
+    ['claude-sonnet-4-6', 'Claude Sonnet 4.6'],
+    ['deepseek-chat', 'DeepSeek Chat'],
+    ['glm-5.2', 'GLM 5.2'],
+  ];
+  const modelSettingKeys = new Set([
+    'TOPIC_GENERATION_MODEL',
+    'TITLE_GENERATION_MODEL',
+    'SCRIPT_GENERATION_MODEL',
+    'SCRIPT_PLANNING_MODEL',
+    'IMAGE_PROMPT_MODEL',
+  ]);
+
   let html = '';
   for (const item of list) {
     const label = settingLabels[item.key] || item.key;
@@ -7623,7 +7688,12 @@ async function loadSettings() {
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;resize:vertical;"
           ></textarea>
           <div style="margin-top:4px;color:#8b949e;font-size:12px;">최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용됩니다.</div>`
-      : `<input type="text" id="setting-${escapeHtml(item.key)}" class="setting-input"
+      : modelSettingKeys.has(item.key)
+      ? `<select id="setting-${escapeHtml(item.key)}" class="setting-input"
+            style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;">
+            ${modelOptions.map(([value, label]) => `<option value="${escapeHtml(value)}" ${item.value === value ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}
+          </select>`
+      : `<input type="${item.key.includes('KEY') ? 'password' : 'text'}" id="setting-${escapeHtml(item.key)}" class="setting-input"
             placeholder="${escapeHtml(placeholder)}"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;"
             onkeydown="if(event.key==='Enter'){event.preventDefault();saveSetting('${escapeHtml(item.key)}')}"
@@ -7742,7 +7812,7 @@ const BUBBLE_COLORS = {
   'Entertainment': '#58a6ff', 'Gaming': '#3fb950', 'Music': '#a371f7',
   'Technology': '#d29922', 'Education': '#f85149', 'Sports': '#79c0ff',
   'News': '#ffa657', 'Lifestyle': '#ff7b72', 'Cooking': '#d2a8ff',
-  'Travel': '#7ee787', 'Finance': '#f0883e', 'Health': '#56d364',
+  'Travel': '#7ee787', 'Story': '#f0883e', 'Health': '#56d364',
   'Science': '#bc8cff', 'Comedy': '#79c0ff', 'Film': '#db61a2',
 };
 const BUBBLE_FALLBACK = '#8b949e';
@@ -8052,12 +8122,10 @@ let renderingJobsPollInFlight = false;
 const DEFAULT_CATEGORIES_DATA = [
   { id: 4, name: "탈북사연", language: "ko" },
   { id: 6, name: "해외감동", language: "ko" },
-  { id: 8, name: "노후금융", language: "ko" },
   { id: 9, name: "황혼19금", language: "ko" },
   { id: 2, name: "옛날이야기", language: "ko" },
   { id: 5, name: "한국사연", language: "ko" },
   { id: 7, name: "무협", language: "ko" },
-  { id: 3, name: "경제", language: "ko" },
   { id: 12, name: "English Folktales", language: "en" },
   { id: 13, name: "日本昔話", language: "ja" },
 ];

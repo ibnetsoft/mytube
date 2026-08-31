@@ -22,6 +22,9 @@ const getAdmin = () => createClient(
     { auth: { persistSession: false } }
 )
 
+const RETIRED_CATEGORY_NAMES = new Set(['노후금융', '경제'])
+const RETIRED_CATEGORY_IDS = new Set([3, 8])
+
 export async function GET(req: Request) {
     const authHeader = req.headers.get('authorization')
     if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -40,7 +43,12 @@ export async function GET(req: Request) {
 
     const results: Array<{ category_id: string; category_name: string | null; outcome: string; detail?: string }> = []
 
-    for (const category of categories || []) {
+    const eligibleCategories = (categories || []).filter(category => (
+        !RETIRED_CATEGORY_NAMES.has(String(category.name || '').trim())
+        && !RETIRED_CATEGORY_IDS.has(Number(category.id))
+    ))
+
+    for (const category of eligibleCategories) {
         try {
             const result = await enqueueBenchmarkAnalyzeJob(supabase, category, { force: false })
             results.push({

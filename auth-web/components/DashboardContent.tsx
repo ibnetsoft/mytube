@@ -405,7 +405,7 @@ export default function DashboardContent() {
         topic_generation_model: 'gemini-2.5-flash',
         title_generation_model: 'gemini-2.5-flash',
         script_planning_model: 'gemini-2.5-flash',
-        script_generation_model: 'gemini-2.5-flash',
+        script_generation_model: 'claude-haiku-4-5-20251001',
         image_prompt_model: 'gemini-2.5-flash',
         translation_model: 'gemini-2.5-flash',
         image_generation_model: 'gemini-3.1-flash-image-preview',
@@ -1385,7 +1385,7 @@ export default function DashboardContent() {
                 topic_generation_model: data.topic_generation_model || 'gemini-2.5-flash',
                 title_generation_model: data.title_generation_model || data.script_generation_model || 'gemini-2.5-flash',
                 script_planning_model: data.script_planning_model || data.script_generation_model || 'gemini-2.5-flash',
-                script_generation_model: data.script_generation_model || 'gemini-2.5-flash',
+                script_generation_model: data.script_generation_model || 'claude-haiku-4-5-20251001',
                 image_prompt_model: data.image_prompt_model || 'gemini-2.5-flash',
                 translation_model: data.translation_model || 'gemini-2.5-flash',
                 image_generation_model: data.image_generation_model || 'gemini-3.1-flash-image-preview',
@@ -3499,7 +3499,7 @@ export default function DashboardContent() {
                                     <label className="text-xs font-black text-gray-400 mb-1.5 block uppercase tracking-wider">주요 리서치 키워드</label>
                                     <input 
                                         type="text" 
-                                        placeholder="예: 주식, 부동산, 금융, 재테크"
+                                        placeholder="예: 가족 갈등, 오래된 편지, 숨겨진 약속"
                                         value={newCatKeywords}
                                         onChange={e => setNewCatKeywords(e.target.value)}
                                         className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500/50"

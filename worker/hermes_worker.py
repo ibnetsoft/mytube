@@ -865,7 +865,7 @@ Rules:
 - Do not include markdown tables, production notes, JSON explanation, timestamps, scene numbers, or labels such as "Title:".
 - Tags should be topical {tag_language} search phrases, not sentences, no #.
 - Hashtags must start with # and be short.
-- Avoid unrelated category contamination. For example, old-story metadata must not include economy/investment tags.
+- Avoid unrelated category contamination. Metadata must stay inside the selected category and title promise.
 - Return at least 8 tags and at least 5 hashtags.
 - Keep every field in {language_name}. Do not switch to Korean when the requested language is English or Japanese.
 
@@ -1084,46 +1084,6 @@ def _load_benchmark_channel_pool(payload: dict, keyword: str) -> tuple[list[str]
 
 
 RSS_RELEVANCE_TERMS_BY_CATEGORY = {
-    "경제": [
-        "경제",
-        "물가",
-        "금리",
-        "환율",
-        "부동산",
-        "주식",
-        "증시",
-        "코스피",
-        "소비",
-        "월급",
-        "생활비",
-        "장바구니",
-        "대출",
-        "가계부채",
-        "경기",
-        "투자",
-        "재테크",
-        "시장",
-    ],
-    "노후금융": [
-        "노후금융",
-        "국민연금",
-        "퇴직연금",
-        "기초연금",
-        "주택연금",
-        "연금",
-        "노후",
-        "은퇴",
-        "고령",
-        "노인",
-        "생활비",
-        "건강보험료",
-        "건보료",
-        "재테크",
-        "노후자금",
-        "예금",
-        "배당",
-        "보험료",
-    ],
     "옛날이야기": [
         "옛날이야기",
         "옛날 이야기",
@@ -2909,12 +2869,6 @@ def _category_visual_grammar(topic: str, upload_title: str, structure: dict | No
             "courtyards, bamboo forests, mountain paths, training halls, precise weapon placement, controlled wind, "
             "no chaotic limb duplication, no modern street objects."
         )
-    if any(term in blob for term in ("경제", "금리", "주식", "부동산", "money", "market", "finance")):
-        return (
-            "Documentary economy visual grammar: realistic Korean household and urban details, receipts, bank counters, "
-            "market screens without readable text, apartment exteriors, restrained infographic-like composition, "
-            "no fake logos, no readable numbers or letters."
-        )
     return (
         "Human documentary-story visual grammar: realistic lived-in spaces, expressive faces and hands, restrained camera, "
         "clear foreground/midground/background, culturally coherent props, no text overlays, no logos."
@@ -3720,16 +3674,13 @@ def _build_fallback_scene_plan(
 
     title = (upload_title or topic or "video topic").strip()
     context = " ".join(str(part or "") for part in (category, script_style, style_directive, topic, title)).strip()
-    context_lower = context.lower()
     is_old_story_style = _is_old_story_plan_context(context, topic, title, "")
+    is_folktale_style = _is_folktale_plan_context(context, topic, title, "", category=category)
     is_survival_style = _is_survival_story_plan_context(context, topic, title, "")
     is_martial_style = _is_martial_plan_context(context, topic, title, "")
     is_twilight_style = _is_twilight_plan_context(context, topic, title, "")
     is_korean_drama_style = _is_korean_drama_plan_context(context, topic, title, "")
     is_overseas_style = _is_overseas_touching_plan_context(context, topic, title, "")
-    is_finance_style = _is_finance_plan_context(context, topic, title, "")
-    is_economy_style = _is_macro_economy_plan_context(context, topic, title, "") or "경제" in context
-    is_story_style = any(marker in context_lower for marker in ("story", "folk", "tale", "drama", "survival"))
     benchmark_title = ""
     if isinstance(benchmark_analysis, dict):
         benchmark_title = str(benchmark_analysis.get("title") or "").strip()
@@ -3750,6 +3701,23 @@ def _build_fallback_scene_plan(
             "hook": f"Start with the impossible incident inside '{title}' and make the viewer want the hidden truth.",
             "payoff": "Resolve the mystery with a clear emotional reveal and a folk-tale moral aftertaste.",
             "mood": "atmospheric Korean folk tale mystery",
+        }
+    elif is_folktale_style:
+        profile = {
+            "opening": ("reveal the omen, visitor, promise, or impossible incident behind", "Create immediate folklore mystery and human stakes"),
+            "development": ("follow the character's choice as the village rule, curse, or secret tightens", "Escalate through concrete choices and consequences"),
+            "explanation": ("uncover one hidden promise, betrayal, sacrifice, or supernatural clue behind", "Make the folklore turn emotionally legible"),
+            "steady": ("resolve the title promise and its human cost", "Deliver an earned traditional-story payoff"),
+            "situation": "Show a pre-modern folktale scene with a village, household, road, forest, shrine, meaningful object, family conflict, omen, or supernatural consequence.",
+            "emotion": "restrained folklore suspense",
+            "retention": "Leave one concrete mystery about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat through a new choice, clue, consequence, or revelation from {variation}.",
+            "visual": "Atmospheric traditional folktale visuals with period-appropriate homes, village paths, lantern light, weather, meaningful objects, and character-focused staging around {variation}.",
+            "tts": "Calm natural storytelling narration with suspense, emotional clarity, and no modern finance or policy exposition around {variation}.",
+            "promise": f"Reveal the folklore incident, choice, and consequence promised by '{title}'.",
+            "hook": f"Start with the impossible or fateful incident inside '{title}'.",
+            "payoff": "Resolve the central mystery through an earned character choice and emotional consequence.",
+            "mood": "traditional folktale mystery",
         }
     elif is_survival_style:
         profile = {
@@ -3836,40 +3804,6 @@ def _build_fallback_scene_plan(
             "payoff": "Resolve the story through gratitude, connection, and a believable emotional reveal.",
             "mood": "warm overseas human-interest story",
         }
-    elif is_finance_style:
-        profile = {
-            "opening": ("show the retirement, pension, debt, or household finance pressure behind", "Create immediate household-level financial stakes"),
-            "development": ("connect the person's daily pressure to policy, pension rules, or asset decisions", "Escalate from lived pressure into practical financial context"),
-            "explanation": ("explain one cause, consequence, or decision point behind", "Make the retirement-finance logic clear"),
-            "steady": ("resolve the implication and prepare the next practical insight", "Carry the analysis toward a grounded payoff"),
-            "situation": "Show a retirement-finance scene: pension notice, bank visit, hospital bill, family budget, housing choice, insurance document, or household decision.",
-            "emotion": "practical concern",
-            "retention": "Leave one retirement-finance question about {variation} unresolved into the next beat.",
-            "bridge": "Move into the next beat by raising the next financial consequence from {variation}.",
-            "visual": "Documentary retirement-finance visuals with pension papers, bank counters, household budgets, medical bills, family conversations, and restrained motion around {variation}.",
-            "tts": "Calm Korean finance narration with practical clarity and human concern around {variation}.",
-            "promise": f"Explain why '{title}' matters to retirement, pension, and household financial decisions.",
-            "hook": f"Start with the personal finance contradiction inside '{title}'.",
-            "payoff": "Give a grounded explanation of the retirement-finance signal and what viewers should check next.",
-            "mood": "practical retirement finance explainer",
-        }
-    elif is_economy_style:
-        profile = {
-            "opening": ("expose the personal money tension behind", "Create immediate curiosity and a concrete household-level stake"),
-            "development": ("connect the viewer's daily spending pressure to the market signal", "Escalate from a familiar problem into the economic mechanism"),
-            "explanation": ("explain one cause, consequence, or decision point behind", "Make the economic logic clear without losing narrative momentum"),
-            "steady": ("resolve the implication and prepare the next practical insight", "Carry the analysis toward a grounded payoff"),
-            "situation": "Show a specific economic pressure through people, prices, charts, bank screens, market headlines, or household decisions.",
-            "emotion": "focused concern",
-            "retention": "Leave one clear economic question about {variation} unresolved into the next beat.",
-            "bridge": "Move into the next beat by raising the next cause or consequence from {variation}.",
-            "visual": "Documentary economy explainer visuals with realistic Korean urban details, market screens, receipts, household objects, bank or street context, and restrained motion around {variation}.",
-            "tts": "Calm but urgent Korean narration around {variation}, clear pacing, no exaggerated shouting.",
-            "promise": f"Explain why '{title}' matters to the viewer's money decisions.",
-            "hook": f"Start with the contradiction inside '{title}' and make it personal.",
-            "payoff": "Give a grounded explanation of the economic signal and what viewers should watch next.",
-            "mood": "urgent economic explainer",
-        }
     else:
         profile = {
             "opening": ("show the concrete human incident behind", "Create immediate curiosity and emotional stakes"),
@@ -3893,52 +3827,28 @@ def _build_fallback_scene_plan(
         duration = end - start
         scene_id = f"scene{index:03d}"
         variation = _scene_variation_label(index)
-        if is_story_style or not (is_finance_style or is_economy_style):
-            if phase == "opening":
-                summary = f"Opening beat {index} ({variation}): {profile['opening'][0]} '{title}'."
-                purpose = f"{profile['opening'][1]} through {variation}."
-            elif phase == "development":
-                summary = f"Development beat {index} ({variation}): {profile['development'][0]}."
-                purpose = f"{profile['development'][1]} tied to {variation}."
-            elif phase == "explanation":
-                summary = f"Revelation beat {index} ({variation}): {profile['explanation'][0]} '{title}'."
-                purpose = f"{profile['explanation'][1]} using {variation}."
-            else:
-                summary = f"Payoff beat {index} ({variation}): {profile['steady'][0]}."
-                purpose = f"{profile['steady'][1]} around {variation}."
-            scene_situation = (
-                f"Timed {phase} visual beat for '{title}'. {profile['situation']} "
-                f"Make this beat distinct with {variation}. "
-                f"Reference technique from benchmark '{benchmark_title}' without copying its content."
-            )
-            emotion = profile["emotion"]
-            retention = profile["retention"].format(variation=variation)
-            bridge = profile["bridge"].format(variation=variation)
-            visual_direction = profile["visual"].format(variation=variation)
-            tts_direction = profile["tts"].format(variation=variation)
+        if phase == "opening":
+            summary = f"Opening beat {index} ({variation}): {profile['opening'][0]} '{title}'."
+            purpose = f"{profile['opening'][1]} through {variation}."
+        elif phase == "development":
+            summary = f"Development beat {index} ({variation}): {profile['development'][0]}."
+            purpose = f"{profile['development'][1]} tied to {variation}."
+        elif phase == "explanation":
+            summary = f"Revelation beat {index} ({variation}): {profile['explanation'][0]} '{title}'."
+            purpose = f"{profile['explanation'][1]} using {variation}."
         else:
-            if phase == "opening":
-                summary = f"Opening beat {index} ({variation}): {profile['opening'][0]} '{title}'."
-                purpose = f"{profile['opening'][1]} through {variation}."
-            elif phase == "development":
-                summary = f"Development beat {index} ({variation}): {profile['development'][0]}."
-                purpose = f"{profile['development'][1]} using {variation}."
-            elif phase == "explanation":
-                summary = f"Explanation beat {index} ({variation}): {profile['explanation'][0]} '{title}'."
-                purpose = f"{profile['explanation'][1]} around {variation}."
-            else:
-                summary = f"Steady beat {index} ({variation}): {profile['steady'][0]}."
-                purpose = f"{profile['steady'][1]} tied to {variation}."
-            scene_situation = (
-                f"Timed {phase} visual beat for '{title}'. {profile['situation']} "
-                f"Make this beat distinct with {variation}. "
-                f"Reference technique from benchmark '{benchmark_title}' without copying its content."
-            )
-            emotion = profile["emotion"]
-            retention = profile["retention"].format(variation=variation)
-            bridge = profile["bridge"].format(variation=variation)
-            visual_direction = profile["visual"].format(variation=variation)
-            tts_direction = profile["tts"].format(variation=variation)
+            summary = f"Payoff beat {index} ({variation}): {profile['steady'][0]}."
+            purpose = f"{profile['steady'][1]} around {variation}."
+        scene_situation = (
+            f"Timed {phase} visual beat for '{title}'. {profile['situation']} "
+            f"Make this beat distinct with {variation}. "
+            f"Reference technique from benchmark '{benchmark_title}' without copying its content."
+        )
+        emotion = profile["emotion"]
+        retention = profile["retention"].format(variation=variation)
+        bridge = profile["bridge"].format(variation=variation)
+        visual_direction = profile["visual"].format(variation=variation)
+        tts_direction = profile["tts"].format(variation=variation)
 
         scenes.append({
             "scene_id": scene_id,
@@ -4172,26 +4082,6 @@ def _scene_plan_repetition_errors(structure: dict) -> list[str]:
     return errors
 
 
-def _is_finance_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
-    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
-    return any(
-        term in blob
-        for term in (
-            "finance",
-            "economy",
-            "news",
-            "money",
-            "market",
-            "\ub178\ud6c4\uae08\uc735",
-            "\uacbd\uc81c",
-            "\uc5f0\uae08",
-            "\uae08\ub9ac",
-            "\uc8fc\uc2dd",
-            "\ubd80\ub3d9\uc0b0",
-        )
-    )
-
-
 def _is_old_story_plan_context(
     script_style: str,
     topic: str,
@@ -4219,6 +4109,30 @@ def _is_old_story_plan_context(
             "유언",
             "며느리",
             "시어머니",
+        )
+    )
+
+
+def _is_folktale_plan_context(
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str = "",
+    category: str = "",
+) -> bool:
+    normalized_category = str(category or "").strip()
+    if normalized_category in {"옛날이야기", "English Folktales", "日本昔話"}:
+        return True
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return _is_old_story_plan_context(script_style, topic, upload_title, image_style, category=category) or any(
+        term in blob
+        for term in (
+            "english folktales",
+            "folktale",
+            "folk tale",
+            "日本昔話",
+            "昔話",
+            "民話",
         )
     )
 
@@ -4307,18 +4221,6 @@ def _is_overseas_touching_plan_context(script_style: str, topic: str, upload_tit
             "공항", "국제", "은인", "입양", "파독", "참전용사", "해외실화"
         )
     )
-
-
-def _is_macro_economy_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
-    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
-    return any(
-        term in blob
-        for term in (
-            "macro_economy", "economy_explainer", "market_trend", "경제", "금값", "환율", "코스피",
-            "나스닥", "유가", "인플레이션", "공급망", "수출", "반도체", "관세", "국제유가", "달러"
-        )
-    ) and not any(term in blob for term in ("노후", "은퇴", "연금"))
-
 
 
 def _old_story_title_is_grave_vigil(topic: str, upload_title: str) -> bool:
@@ -5222,8 +5124,11 @@ def _scene_plan_category_contamination_errors(
     topic: str,
     upload_title: str,
     image_style: str,
+    category: str = "",
 ) -> list[str]:
-    if not _is_old_story_plan_context(script_style, topic, upload_title, image_style):
+    if not _is_folktale_plan_context(
+        script_style, topic, upload_title, image_style, category=category
+    ):
         return []
     allowed_blob = _text_with_mojibake_repairs(topic, upload_title)
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -5248,6 +5153,10 @@ def _scene_plan_category_contamination_errors(
             "pension",
             "budget",
             "bankbook",
+            "年金",
+            "老後資金",
+            "家計簿",
+            "生活費",
         ),
         "survival/defector": (
             "탈북",
@@ -5391,6 +5300,7 @@ def _validate_script_plan_stage(
             topic=topic,
             upload_title=upload_title,
             image_style=image_style,
+            category=category,
         )
     )
     if old_story_context:
@@ -5417,7 +5327,12 @@ def _validate_script_generate_stage(
     except (TypeError, ValueError):
         score = 0
     verdict = str(script_quality.get("verdict") or "").strip().lower()
-    # QA score is informational for monitoring and does not block stage completion if script exists
+    critical_issues = script_quality.get("critical_issues") or []
+    if verdict != "pass" or score < 78 or critical_issues:
+        errors.append(
+            "script quality report not passing: "
+            f"verdict={verdict or 'missing'}, score={score}, critical_issues={len(critical_issues)}"
+        )
 
 
     if require_korean_script:
@@ -5472,6 +5387,7 @@ def _validate_script_generate_stage(
             topic=str(payload.get("topic") or ""),
             upload_title=str(payload.get("upload_title") or payload.get("generated_title") or ""),
             image_style=str(payload.get("image_style") or ""),
+            category=category,
         )
     )
     return _raise_on_quality_stage_failure("script_generate", errors)
@@ -5597,88 +5513,6 @@ def _repair_martial_scene_plan_repetition(structure: dict, topic: str, upload_ti
     return repaired
 
 
-def _repair_finance_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
-    scenes = structure.get("scenes") if isinstance(structure, dict) else []
-    if not isinstance(scenes, list) or not scenes:
-        return structure
-    title = (upload_title or topic or "노후금융 이야기").strip()
-    beat_templates = [
-        ("통장에 찍힌 첫 숫자를 보여주며 제목의 질문을 바로 던진다", "제목의 금액/선택 문제가 실제 생활과 연결된다는 긴장을 만든다", "이 숫자는 왜 부부의 표정을 굳게 만들었을까?"),
-        ("주인공 부부의 나이, 직업 이력, 현재 생활 조건을 짧게 제시한다", "시청자가 숫자 뒤의 사람을 먼저 붙잡게 한다", "이 부부는 어떤 시간을 지나 여기까지 왔을까?"),
-        ("부부가 처음 연금 계산서를 받아 든 순간을 재현한다", "정책 설명 전에 개인의 충격을 보여준다", "계산서에서 가장 먼저 눈에 들어온 항목은 무엇이었을까?"),
-        ("월 수령액과 예상 생활비를 한 화면에서 대조한다", "수입과 지출의 간격을 숫자로 선명하게 만든다", "남는 돈은 실제로 얼마나 될까?"),
-        ("관리비, 식비, 병원비 중 가장 먼저 빠지는 고정비를 분리한다", "생활비 압박이 추상적 불안이 아니라 고정 지출임을 보여준다", "가장 줄이기 어려운 지출은 무엇일까?"),
-        ("부부가 식탁에서 한 달 예산을 다시 쓰는 장면을 배치한다", "돈 문제가 관계의 대화로 번지는 순간을 만든다", "두 사람은 어디서부터 줄이기로 했을까?"),
-        ("연금 선택 전 부부가 믿었던 기대치를 짚는다", "선택 당시의 믿음과 현재 결과 사이의 간극을 만든다", "그때는 왜 이 선택이 맞다고 생각했을까?"),
-        ("선택을 권유받았던 상담 장면 또는 서류 장면을 보여준다", "결정이 하루아침의 충동이 아니었음을 설명한다", "상담에서 빠진 질문은 무엇이었을까?"),
-        ("첫 번째 계산 기준을 소개하되 한 가지 숫자만 설명한다", "숫자 설명을 한 장면에 하나로 제한한다", "이 기준 하나가 전체 금액을 어떻게 바꿀까?"),
-        ("같은 조건에서 다른 선택지를 택했을 때의 차이를 비교한다", "선택의 기회비용을 보여준다", "다른 선택이었다면 월 금액은 달라졌을까?"),
-        ("부부가 가장 후회하는 한 문장을 직접 말하게 한다", "정책 정보를 감정적 후회와 연결한다", "그 후회는 돈 때문일까, 몰랐던 정보 때문일까?"),
-        ("자녀에게 말하지 못한 이유를 짧게 드러낸다", "경제 문제가 가족 관계의 침묵으로 이어짐을 보여준다", "왜 자녀에게 먼저 말하지 못했을까?"),
-        ("집, 예금, 연금 중 실제로 쓸 수 있는 돈을 구분한다", "자산과 현금흐름의 차이를 설명한다", "집이 있어도 왜 돈이 부족할까?"),
-        ("병원비가 발생한 달의 예산표를 보여준다", "평범한 달과 위기 달의 차이를 만든다", "예상치 못한 지출은 얼마만에 균형을 무너뜨릴까?"),
-        ("부부가 가장 먼저 포기한 생활 항목을 보여준다", "절약의 구체적 대가를 제시한다", "그들이 포기한 것은 사치였을까, 일상이었을까?"),
-        ("이웃 또는 또래와 비교되는 한 장면을 넣는다", "개별 사례가 세대 공통의 문제임을 확장한다", "다른 노후 가구도 같은 선택을 하고 있을까?"),
-        ("전문가가 첫 번째 핵심 규칙을 한 문장으로 설명한다", "제도 설명을 짧고 명확하게 넣는다", "이 규칙을 모르면 어떤 착각을 하게 될까?"),
-        ("전문가 설명 뒤 부부의 실제 계산으로 다시 돌아온다", "이론과 생활 장부를 연결한다", "규칙을 적용하자 숫자는 어떻게 바뀌었을까?"),
-        ("부부가 과거에 놓친 선택지 하나를 확인한다", "중반부의 새로운 정보와 반전을 만든다", "그때 알았다면 선택이 달라졌을까?"),
-        ("놓친 선택지가 왜 당시에는 보이지 않았는지 설명한다", "후회를 단순 비난이 아니라 정보 격차로 만든다", "누가 이 정보를 미리 알려줬어야 했을까?"),
-        ("현재 시점에서 바꿀 수 있는 것과 없는 것을 나눈다", "시청자에게 현실적 판단 기준을 준다", "지금이라도 바꿀 수 있는 항목은 무엇일까?"),
-        ("부부가 실제로 시도한 절약 방법 하나를 보여준다", "행동으로 장면을 전진시킨다", "그 방법은 얼마나 효과가 있었을까?"),
-        ("절약이 실패한 날의 구체적 이유를 보여준다", "생활비 문제의 한계를 만든다", "아껴도 안 되는 달은 왜 생길까?"),
-        ("건강 상태와 노동 가능성을 연결한다", "노후 현금흐름의 두 번째 변수인 건강을 넣는다", "일을 더 하면 해결될까?"),
-        ("일을 더 하려 했지만 막힌 현실을 보여준다", "단순 해결책이 작동하지 않는 이유를 제시한다", "왜 더 일하는 것도 쉽지 않을까?"),
-        ("부부가 서로에게 숨긴 걱정을 하나씩 꺼낸다", "감정적 전환점을 만든다", "돈보다 더 무서운 걱정은 무엇일까?"),
-        ("중간 정리로 지금까지의 숫자 세 개만 다시 배열한다", "중반부 정보를 압축하고 반복을 방지한다", "세 숫자를 합치면 어떤 결론이 나올까?"),
-        ("제도상 오해하기 쉬운 표현 하나를 바로잡는다", "시청자의 실수를 예방하는 정보를 제공한다", "많은 사람이 어디서 착각할까?"),
-        ("사례의 조건이 달라지면 결과가 달라지는 지점을 설명한다", "모든 사람에게 같은 답이 아님을 명확히 한다", "내 조건이면 결과가 달라질까?"),
-        ("부부의 조건표를 간단히 정리해 개인화 기준을 만든다", "시청자가 자기 상황과 비교할 수 있게 한다", "나에게 대입하려면 어떤 정보가 필요할까?"),
-        ("두 번째 선택지의 장점만 짧게 제시한다", "대안의 가능성을 열어둔다", "이 선택지는 왜 매력적으로 보일까?"),
-        ("같은 선택지의 위험을 바로 이어서 보여준다", "균형 잡힌 판단을 만든다", "그 장점 뒤에 숨은 비용은 무엇일까?"),
-        ("부부가 실제로 선택하지 않은 이유를 말한다", "정보를 개인의 가치 판단으로 연결한다", "그들은 왜 안전한 길을 택했을까?"),
-        ("자녀와의 통화 장면으로 생활의 압박을 가족에게 확장한다", "돈 문제가 말의 무게로 드러나게 한다", "자녀는 이 사실을 알고 있었을까?"),
-        ("자녀에게 기대지 않으려는 부부의 원칙을 보여준다", "존엄과 불안이 충돌하는 감정을 만든다", "도움을 받지 않겠다는 말은 정말 괜찮다는 뜻일까?"),
-        ("다음 달 예산에서 가장 불확실한 항목을 표시한다", "후반부 긴장을 유지한다", "다음 달에 변수가 생기면 어떻게 될까?"),
-        ("정부/제도 정보는 필요한 범위에서 한 가지로 제한해 설명한다", "정책 설명을 생활 질문에 묶는다", "이 제도는 이 부부에게 실제 도움이 될까?"),
-        ("도움이 되는 경우와 안 되는 경우를 나누어 말한다", "시청자가 과장 없이 판단하게 한다", "어떤 조건에서는 도움이 되지 않을까?"),
-        ("부부가 상담센터에 다시 문의하는 장면을 넣는다", "후반부 행동 변화를 만든다", "이번에는 어떤 질문을 놓치지 않았을까?"),
-        ("상담 후 새로 알게 된 한 가지를 공개한다", "후반부의 정보 보상을 제공한다", "그 한 가지가 결정을 바꿀까?"),
-        ("그러나 새 정보만으로 해결되지 않는 현실을 보여준다", "쉬운 해답을 피하고 현실감을 유지한다", "그래도 남는 문제는 무엇일까?"),
-        ("부부가 마지막으로 조정한 지출 항목을 보여준다", "작은 선택이 결말로 이어지게 한다", "이 조정은 생활을 얼마나 버티게 할까?"),
-        ("시청자가 체크해야 할 세 가지 질문을 이야기 안에서 제시한다", "정보 가치를 명확히 전달한다", "내 연금 선택 전 반드시 물어야 할 질문은 무엇일까?"),
-        ("부부의 사례가 모든 사람의 답은 아니라는 단서를 붙인다", "과도한 일반화를 막는다", "그럼에도 이 사례가 중요한 이유는 무엇일까?"),
-        ("처음 통장 장면으로 돌아와 숫자를 다시 바라본다", "오프닝과 후반부를 연결한다", "같은 숫자가 이제 다르게 보일까?"),
-        ("부부가 오늘 저녁 실제로 선택한 작은 행동을 보여준다", "결말을 추상 조언이 아니라 행동으로 만든다", "그 행동은 체념일까, 적응일까?"),
-        ("남편 또는 아내의 마지막 속마음을 짧게 들려준다", "감정적 핵심을 개인의 목소리로 수렴한다", "그 말 속에 남은 두려움은 무엇일까?"),
-        ("핵심 숫자와 선택 기준을 한 번만 정리한다", "정보를 과잉 반복 없이 마무리한다", "이 선택에서 가장 중요한 기준은 무엇일까?"),
-        ("비슷한 상황의 시청자에게 확인할 순서를 제시한다", "실용적 후킹을 마지막까지 유지한다", "가장 먼저 확인해야 할 서류는 무엇일까?"),
-        ("부부가 내일의 장부를 덮는 장면을 보여준다", "불안이 완전히 사라지지 않았음을 남긴다", "내일도 같은 숫자로 살 수 있을까?"),
-        ("제목의 질문에 대한 현실적 답을 한 문장으로 제시한다", "제목 약속을 직접 해소한다", "답은 단순한 손해와 이득 중 어느 쪽일까?"),
-        ("마지막 장면에서 부부의 선택이 남긴 교훈을 생활 언어로 정리한다", "감정과 정보를 함께 닫는다", "노후 선택에서 정말 늦기 전에 봐야 할 것은 무엇일까?"),
-        ("엔딩은 과장된 희망이 아니라 다음 선택을 준비하는 여운으로 끝낸다", "시청자가 자기 상황을 점검하도록 여운을 남긴다", "당신의 연금표에는 어떤 숫자가 찍혀 있을까?"),
-    ]
-    repaired = dict(structure)
-    repaired_scenes = []
-    for idx, original in enumerate(scenes):
-        scene = dict(original or {})
-        summary, purpose, hook = beat_templates[idx % len(beat_templates)]
-        scene["scene_order"] = idx + 1
-        scene["scene_number"] = idx + 1
-        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
-        scene["scene_purpose"] = purpose
-        scene["retention_hook"] = hook
-        scene["title_promise_link"] = f"'{title}'의 약속을 {idx + 1}번째 고유 정보로 전진시킨다"
-        scene["end_bridge"] = hook
-        repaired_scenes.append(scene)
-    repaired["scenes"] = repaired_scenes
-    repaired["scene_count"] = len(repaired_scenes)
-    repaired["planner_notes"] = {
-        **(repaired.get("planner_notes") or {}),
-        "repaired_repeated_scene_beats": True,
-        "repair_reason": "scene plan repetition QA",
-    }
-    return repaired
-
 
 def _repair_old_story_grave_vigil_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
@@ -5773,106 +5607,6 @@ def _repair_old_story_grave_vigil_scene_plan_repetition(structure: dict, topic: 
 
 
 
-def _refresh_finance_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
-    scenes = structure.get("scenes") if isinstance(structure, dict) else []
-    if not isinstance(scenes, list) or not scenes:
-        return structure
-    title = (upload_title or topic or "노후금융 이야기").strip()
-    shot_motifs = [
-        "식탁 위에 펼쳐진 통장과 돋보기 안경",
-        "관리비 고지서와 붉은 펜으로 적은 메모",
-        "아파트 관리사무소 앞 밤 10시 불빛",
-        "은행 창구 번호표와 긴 대기 의자",
-        "약국 영수증과 달력에 표시된 병원 날짜",
-        "연금 수령 안내문과 계산기 화면",
-        "마트 영수증을 대조하는 노부부의 손",
-        "새벽 경비원 초소와 불 켜진 작은 창",
-        "베란다 건조대와 비어 있는 지갑",
-        "손주 용돈 봉투 앞에서 망설이는 손",
-        "오래된 가계부와 낡은 볼펜",
-        "식당 일자리 구인 공고문 앞 발걸음",
-    ]
-    camera_beats = [
-        "손과 서류를 클로즈업해 구체적인 금액과 메모를 잡는다",
-        "정면 시선에서 인물의 깊은 한숨과 눈빛을 담는다",
-        "테이블 위 고지서와 계산기를 대비 구도로 보여준다",
-        "창밖의 어스름한 풍경과 실내 불빛을 대조한다",
-    ]
-    refreshed = dict(structure)
-    refreshed_scenes = []
-    for idx, original in enumerate(scenes, start=1):
-        scene = dict(original or {})
-        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 금융 단서").strip()
-        purpose = str(scene.get("scene_purpose") or "지출 구조와 현금흐름의 원인을 전진시킨다").strip()
-        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 장면에서 은퇴자금의 비밀이 드러난다").strip()
-        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
-        camera = camera_beats[(idx - 1) % len(camera_beats)]
-        phase = "첫 1분 핵심 문제 제기" if idx <= 12 else ("중반 지출 구조 분석" if idx <= 32 else "후반 솔루션 및 결말")
-        unique_bridge = f"{hook} 다음 원인은 '{summary}'에서 이어진다."
-        scene["scene_situation"] = f"{summary} {purpose}"
-        scene["visual_direction"] = (
-            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
-            f"{camera}. 화면 속 소품과 인물이 '{summary}'의 현실을 생생하게 전달한다."
-        )
-        scene["tts_direction"] = f"진지하고 신뢰감 있는 목소리로 '{summary}'의 핵심을 또박또박 전달한다."
-        scene["end_bridge"] = unique_bridge
-        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
-            scene.pop(field, None)
-        refreshed_scenes.append(scene)
-    refreshed["scenes"] = refreshed_scenes
-    refreshed["scene_count"] = len(refreshed_scenes)
-    return refreshed
-
-
-def _refresh_economy_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
-    scenes = structure.get("scenes") if isinstance(structure, dict) else []
-    if not isinstance(scenes, list) or not scenes:
-        return structure
-    title = (upload_title or topic or "경제 시장 분석").strip()
-    shot_motifs = [
-        "컨테이너 항만의 거대한 크레인과 붉은 컨테이너",
-        "증권거래소 전광판의 급변하는 숫자 그래프",
-        "중앙은행 기자회견장의 마이크와 프레스룸",
-        "반도체 웨이퍼 검사실의 푸른 클린룸 조명",
-        "텅 빈 도심 상가 임대 플래카드",
-        "대형 화물선의 야간 출항 풍경",
-        "외환 딜링룸 모니터 앞 분주한 손놀림",
-        "주유소 가격 전광판과 길게 늘어선 차량",
-        "물류창고에 가득 찬 수출 대기 박스",
-        "소비자물가 장바구니와 마트 진열대",
-        "건설 현장 타워크레인과 멈춰 선 골조",
-        "글로벌 금융가 빌딩 숲과 안개",
-    ]
-    camera_beats = [
-        "와이드 앵글로 거시적인 산업 현장 스케일을 담는다",
-        "데이터 화면과 인물의 결단 순간을 빠르게 연결한다",
-        "로우 앵글로 시장 지표의 급박함을 강조한다",
-        "정적인 관찰 카메라로 구조적 위기의 실상을 잡는다",
-    ]
-    refreshed = dict(structure)
-    refreshed_scenes = []
-    for idx, original in enumerate(scenes, start=1):
-        scene = dict(original or {})
-        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 경제 지표").strip()
-        purpose = str(scene.get("scene_purpose") or "시장 지표의 인과관계를 설명한다").strip()
-        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 지표에서 시장의 충격이 이어진다").strip()
-        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
-        camera = camera_beats[(idx - 1) % len(camera_beats)]
-        phase = "오프닝 충격 브리핑" if idx <= 12 else ("중반 구조적 파급 분석" if idx <= 32 else "후반 시장 전망과 대응")
-        unique_bridge = f"{hook} 다음 지표는 '{summary}'에서 검증된다."
-        scene["scene_situation"] = f"{summary} {purpose}"
-        scene["visual_direction"] = (
-            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
-            f"{camera}. 그래픽과 현장 화면이 '{summary}'의 객관적 맥락을 전달한다."
-        )
-        scene["tts_direction"] = f"차분하고 명확한 경제 해설 톤으로 '{summary}'를 전달한다."
-        scene["end_bridge"] = unique_bridge
-        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
-            scene.pop(field, None)
-        refreshed_scenes.append(scene)
-    refreshed["scenes"] = refreshed_scenes
-    refreshed["scene_count"] = len(refreshed_scenes)
-    return refreshed
 
 
 def _refresh_martial_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
@@ -6132,10 +5866,6 @@ def _refresh_overseas_scene_visual_fields(structure: dict, topic: str, upload_ti
 
 def _refresh_scene_visual_fields_for_category(category: str, structure: dict, topic: str, upload_title: str) -> dict:
     cat = str(category or "").strip()
-    if cat == "노후금융":
-        return _refresh_finance_scene_visual_fields(structure, topic, upload_title)
-    if cat == "경제":
-        return _refresh_economy_scene_visual_fields(structure, topic, upload_title)
     if cat == "무협":
         return _refresh_martial_scene_visual_fields(structure, topic, upload_title)
     if cat == "탈북사연":
@@ -6148,49 +5878,6 @@ def _refresh_scene_visual_fields_for_category(category: str, structure: dict, to
         return _refresh_overseas_scene_visual_fields(structure, topic, upload_title)
     return _refresh_old_story_scene_visual_fields(structure, topic, upload_title)
 
-
-def _repair_macro_economy_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
-    scenes = structure.get("scenes") if isinstance(structure, dict) else []
-    if not isinstance(scenes, list) or not scenes:
-        return structure
-    title = (upload_title or topic or "경제 시장 분석").strip()
-    beat_templates = [
-        ("주요 경제 지표의 급변을 그래프와 숫자로 직관적으로 연다", "시청자가 시장의 충격을 즉시 느끼게 한다", "이 지표 하나가 실물 경제에 어떤 연쇄 반응을 일으킬까?"),
-        ("글로벌 시장과 주요국 통화의 첫 번째 연동 흐름을 짚는다", "문제의 진원지를 명확히 한다", "왜 이번 변동은 평소와 다르게 움직일까?"),
-        ("환율, 금리, 유가 중 가장 먼저 영향을 받는 지표를 분리한다", "복잡한 경제 현상을 단계별로 나눈다", "가장 먼저 타격을 입는 지표는 무엇일까?"),
-        ("국내 주력 수출 산업에 미치는 직접적 영향을 보여준다", "추상적 수치를 기업 실적과 연결한다", "수출 기업의 마진율은 어떻게 변할까?"),
-        ("수입 원자재 가격 상승과 공급망 병목 현상을 제시한다", "원가 상승 압박을 구체화한다", "공급망 충격은 언제까지 지속될까?"),
-        ("소비자물가와 가계 체감 경기의 악화 경로를 추적한다", "거시 지표를 일반 서민 경제로 연결한다", "장바구니 물가는 얼마나 오를까?"),
-        ("중앙은행의 통화 정책 딜레마와 금리 결정을 분석한다", "정책 당국의 고심을 보여준다", "금리를 올릴 수도 내릴 수도 없는 이유는 무엇일까?"),
-        ("과거 유사한 경제 위기 사례와의 비교 데이터를 제시한다", "역사적 패턴을 통한 학습을 유도한다", "10년 전 위기와 이번 사태의 결정적 차이는?"),
-        ("기업들의 자금 조달 경색과 회사채 시장 동향을 짚는다", "금융 시장의 숨은 뇌관을 포착한다", "한계 기업의 부실 위험은 어디까지 번질까?"),
-        ("부동산 및 자산 시장의 조정 국면을 데이터로 짚는다", "자산 가치 하락의 파급력을 분석한다", "부동산 시장의 경착륙을 막을 수 있을까?"),
-        ("주요 글로벌 금융 기관의 전망 리포트를 교차 검증한다", "다양한 시각의 신뢰도를 높인다", "월가와 해외 IB들은 어떤 결론을 내렸을까?"),
-        ("정부의 긴급 안정화 대책과 실효성을 검토한다", "정책의 파급 효과를 냉정하게 평가한다", "정부 대책은 시장을 안정시킬 수 있을까?"),
-        ("투자자와 개인이 반드시 점검해야 할 핵심 지표 3가지를 정리한다", "시청자에게 실질적 인사이트를 제공한다", "지금 당장 내 자산에서 점검해야 할 것은?"),
-        ("향후 6개월간 주목해야 할 핵심 시나리오와 결론을 제시한다", "미래 전망과 리스크 관리 방안으로 닫는다", "다가올 시장 변곡점은 언제 찾아올까?"),
-    ]
-    repaired = dict(structure)
-    repaired_scenes = []
-    for idx, original in enumerate(scenes):
-        scene = dict(original or {})
-        summary, purpose, hook = beat_templates[idx % len(beat_templates)]
-        scene["scene_order"] = idx + 1
-        scene["scene_number"] = idx + 1
-        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
-        scene["scene_purpose"] = purpose
-        scene["retention_hook"] = hook
-        scene["title_promise_link"] = f"'{title}'의 거시경제 분석을 {idx + 1}번째 인과관계로 전진시킨다"
-        scene["end_bridge"] = hook
-        repaired_scenes.append(scene)
-    repaired["scenes"] = repaired_scenes
-    repaired["scene_count"] = len(repaired_scenes)
-    repaired["planner_notes"] = {
-        **(repaired.get("planner_notes") or {}),
-        "repaired_repeated_scene_beats": True,
-        "repair_reason": "macro economy scene plan repetition QA",
-    }
-    return repaired
 
 
 def _repair_twilight_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
@@ -6654,20 +6341,12 @@ Old-story script guard:
             "Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.",
             "Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.",
         ]
-        if _is_finance_plan_context(script_style, topic, upload_title, image_style):
-            hard_retry_rules.extend(
-                [
-                    "Do not repeat the same money amount or pension fact across multiple scenes. Mention a number once, then move to a new consequence or decision.",
-                    "Do not turn the middle into a policy lecture or PSA. Keep the couple's action and decision driving the information.",
-                ]
-            )
-        else:
-            hard_retry_rules.extend(
-                [
-                    "Do not introduce modern finance, pension, bankbook, budget, policy, or investment beats unless the title explicitly requires them.",
-                    "Keep the plan inside the selected category's narrative world, title promise, characters, conflict, and payoff.",
-                ]
-            )
+        hard_retry_rules.extend(
+            [
+                "Do not introduce modern finance, pension, bankbook, budget, policy, or investment beats.",
+                "Keep the plan inside the selected category's narrative world, title promise, characters, conflict, and payoff.",
+            ]
+        )
         retry_instruction = f"""
 
 Previous generation attempt failed QA. Fix these exact issues:
@@ -6682,7 +6361,7 @@ Hard retry rules:
 Scene planning guard:
 - Every scene must introduce a new action, fact, decision, consequence, objection, or emotional turn.
 - Do not create multiple consecutive scenes with the same summary, purpose, hook, or explanation.
-- For finance/pension topics, explain each number or policy point once, then move to a consequence or human decision.
+- Do not introduce finance, pension, policy, investment, or market-analysis material.
 - If the plan has 53 scenes, each scene must be a distinct beat; repeated development beats are invalid.
 - Never use numbered template labels such as "1번째 중반 전환", "2번째 중반 전환", or any scene summary where only the ordinal changes.
 """.strip()
@@ -6726,7 +6405,13 @@ Scene planning guard:
     research_bundle = (benchmark_analysis or {}).get("web_research")
     if isinstance(research_bundle, dict):
         structure["research_bundle"] = research_bundle
-    finance_plan_context = _is_finance_plan_context(script_style_context, topic, upload_title, image_style)
+    folktale_plan_context = _is_folktale_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        image_style,
+        category=detected_cat,
+    )
     old_story_plan_context = _is_old_story_plan_context(script_style_context, topic, upload_title, image_style)
     if old_story_plan_context and not _old_story_title_is_grave_vigil(topic, upload_title):
         structure = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
@@ -6734,13 +6419,7 @@ Scene planning guard:
         structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
     plan_errors = _scene_plan_repetition_errors(structure)
     if plan_errors:
-        if finance_plan_context and not _is_macro_economy_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested finance repair: {plan_errors[:8]}")
-            structure = _repair_finance_scene_plan_repetition(structure, topic, upload_title)
-        elif _is_macro_economy_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested macro economy repair: {plan_errors[:8]}")
-            structure = _repair_macro_economy_scene_plan_repetition(structure, topic, upload_title)
-        elif _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
+        if _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
             job_log.warning(f"Scene plan repetition QA requested martial rebuild: {plan_errors[:8]}")
             structure = _repair_martial_scene_plan_repetition(structure, topic, upload_title)
         elif old_story_plan_context:
@@ -6760,8 +6439,17 @@ Scene planning guard:
             job_log.warning(f"Scene plan repetition QA requested overseas touching rebuild: {plan_errors[:8]}")
             structure = _repair_overseas_touching_scene_plan_repetition(structure, topic, upload_title)
         else:
-            job_log.warning(f"Scene plan repetition QA requested fallback repair: {plan_errors[:8]}")
-            structure = _repair_finance_scene_plan_repetition(structure, topic, upload_title)
+            job_log.warning(f"Scene plan repetition QA requested category-safe fallback rebuild: {plan_errors[:8]}")
+            structure = _build_fallback_scene_plan(
+                topic=topic,
+                upload_title=upload_title,
+                target_duration=target_duration,
+                script_style=script_style,
+                style_directive=style_directive,
+                benchmark_analysis=benchmark_analysis,
+                title_generation=title_generation,
+                category=detected_cat,
+            )
 
         # Repair builders preserve the planner's original visual fields unless
         # refreshed here. Those fields can contain internal template labels such
@@ -6792,6 +6480,7 @@ Scene planning guard:
         topic=topic,
         upload_title=upload_title,
         image_style=image_style,
+        category=detected_cat,
     )
     if category_errors:
         raise RuntimeError(f"scene plan category QA failed: {category_errors[:8]}")
@@ -6818,6 +6507,14 @@ Scene planning guard:
         "topic_queue_id": topic_queue_id,
         "upload_title": upload_title,
         "title_generation": title_generation,
+        "generation_models": {
+            **(
+                title_generation.get("generation_models")
+                if isinstance(title_generation.get("generation_models"), dict)
+                else {}
+            ),
+            "script_planning": config.SCRIPT_PLANNING_MODEL,
+        },
         "image_style": image_style,
         "image_style_selection": image_style_selection or {},
         "structure": structure,
@@ -7975,7 +7672,7 @@ Rules:
 - Do not invent a celebrity, brand, copyrighted character, or public figure likeness.
 - Make the character specific enough to keep consistent, but ordinary enough for generic AI generation.
 - The character must serve the title promise and story blueprint.
-- If the story is narration-only or financial/economy analysis, create a representative protagonist or affected viewer only when the scene plan has a human subject; otherwise return an understated host/subject character."""
+- If the story is narration-only, create a representative protagonist only when the scene plan has a human subject; otherwise return an understated host/subject character."""
     try:
         raw = await ai_router.generate_text(
             prompt,
@@ -8389,18 +8086,7 @@ def _script_needs_revision(report: dict) -> bool:
         return True
     verdict = str(report.get("verdict") or "").strip().lower()
     score = int(report.get("score") or 0)
-    if report.get("critical_issues"):
-        # If critical issues exist but score is reasonable (>=70) and no hard failure
-        if score >= 70 and len(report.get("critical_issues") or []) <= 2:
-            return False
-        return True
-    if verdict == "pass" and score >= 70:
-        return False
-    if score >= 70:
-        return False
-    if verdict == "revise" and score < 70:
-        return True
-    return False
+    return verdict != "pass" or score < 78 or bool(report.get("critical_issues"))
 
 
 
@@ -8714,52 +8400,7 @@ SCRIPT TO REWRITE:
     )
 
 
-def _build_finance_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
-    title = (upload_title or topic or "노후금융 이야기").strip()
-    scenes = structure.get("scenes") if isinstance(structure, dict) else []
-    scene_count = len(scenes or [])
-    protagonist = "남편 김성호 씨와 아내 박미자 씨"
-    paragraphs = [
-        f"{title}. 이 이야기는 {protagonist}가 은퇴 뒤 처음으로 장부를 다시 펼친 날에서 시작됩니다. 두 사람은 오래 모은 돈이 있었고, 국민연금도 받을 예정이었습니다. 그런데 통장 잔액은 예상보다 훨씬 빨리 줄어 있었습니다.",
-        "처음 문제는 수익률이 아니었습니다. 매달 빠져나가는 고정 지출이었습니다. 관리비, 식비, 건강보험료, 약값, 경조사비가 한 번에 빠지고 나면 남는 돈은 생각보다 작았습니다. 부부가 놓친 것은 총자산이 아니라 매달 현금흐름이었습니다.",
-        "두 사람은 은퇴 전에는 예금 잔액만 봤습니다. 하지만 은퇴 후에는 잔액보다 빠져나가는 속도가 더 중요했습니다. 매달 100만 원 안팎의 고정비가 먼저 사라지고, 병원비가 겹친 달에는 예비비까지 같이 줄었습니다.",
-        "결정적인 전환점은 오래된 자동이체 목록에서 나왔습니다. 부부는 이미 해지했다고 생각한 보험료와 관리비성 지출을 계속 내고 있었습니다. 큰 소비 하나가 아니라 작은 고정비 여러 개가 10년 동안 통장을 갉아먹은 겁니다.",
-        "남편은 그제야 계산 방식을 바꿉니다. '얼마를 모았나'가 아니라 '매달 얼마가 반드시 나가나'를 적기 시작합니다. 그 표에서 가장 무서운 줄은 생활비가 아니라 병원비 예비 항목이었습니다. 한 번 아프면 한 달 계획이 바로 무너졌습니다.",
-        "아내는 자녀에게 말하지 못했던 이유를 꺼냅니다. 도움을 받고 싶지 않아서가 아니라, 어디서부터 설명해야 할지 몰랐기 때문입니다. 집도 없고, 전세도 없고, 예금만 조금 남은 노후는 겉으로 보기보다 훨씬 취약했습니다.",
-        "전문가가 짚은 핵심은 단순했습니다. 노후자금은 평균 수익률보다 인출 순서가 중요합니다. 생활비 통장, 비상금, 장기 예금, 연금 수령액을 구분하지 않으면 필요한 돈을 쓸 때마다 장기 자금까지 깨게 됩니다.",
-        "부부의 돈이 10년 만에 바닥난 이유도 여기에 있었습니다. 매달 고정비를 예금에서 먼저 빼고, 병원비가 생기면 또 예금을 깨고, 물가가 오르면 생활비를 줄이지 못했습니다. 수입은 고정되어 있는데 지출만 조금씩 올라간 구조였습니다.",
-        "마지막으로 두 사람은 장부를 세 칸으로 다시 나눕니다. 반드시 나가는 돈, 줄일 수 있는 돈, 절대 건드리면 안 되는 비상금. 이 구분을 하고 나서야 문제의 원인이 보였습니다. 돈이 한꺼번에 사라진 게 아니라, 매달 같은 순서로 새고 있었습니다.",
-        "그래서 이 이야기의 답은 한 문장입니다. 노후를 위험하게 만든 것은 큰 실패가 아니라, 고정비와 인출 순서를 계산하지 않은 10년이었습니다. 통장 잔액보다 먼저 봐야 할 것은 매달 빠져나가는 돈의 순서였습니다.",
-    ]
-    if scene_count > 10:
-        for idx, scene in enumerate((scenes or [])[10:], start=11):
-            summary = str((scene or {}).get("scene_summary") or "").strip()
-            if not summary:
-                continue
-            paragraphs.append(
-                f"{idx}번째 장면에서 부부는 같은 걱정을 반복하지 않고 하나의 항목만 확인합니다. {summary} 여기서 중요한 것은 새 지출을 하나 더 발견하거나, 줄일 수 없는 이유를 하나씩 분리하는 것입니다."
-            )
-    script = "\n\n".join(paragraphs).strip()
-    while len(script) < min_total_chars:
-        script += "\n\n부부는 다음 달부터 모든 자동이체 날짜를 한 장에 적기로 했습니다. 수입이 들어오는 날보다 지출이 빠지는 날이 먼저 오면, 노후자금은 숫자상으로는 남아 있어도 생활에서는 이미 부족해집니다."
-    return script
 
-
-
-def _build_economy_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
-    title = (upload_title or topic or "경제 시장 분석").strip()
-    paragraphs = [
-        f"{title}. 오늘 우리가 반드시 확인해야 할 경제 지표는 단순한 숫자가 아닙니다. 글로벌 금융 시장과 환율, 금리가 동시에 한 방향을 가리키고 있습니다. 이 변화는 대기업의 수출 실적뿐만 아니라 우리 가계의 장바구니 물가와 대출 금리에 즉각적인 영향을 미칩니다.",
-        "시장의 충격은 항상 외환과 원자재에서 먼저 시작됩니다. 달러 환율이 요동치고 원유와 원자재 수입 단가가 상승하면, 제조업 중심의 국내 산업 구조는 마진율 하락을 피할 수 없습니다. 수입 물가가 오르면 시차를 두고 소비자물가로 전가되기 때문입니다.",
-        "많은 전문가들이 주목하는 핵심은 중앙은행의 딜레마입니다. 물가를 잡기 위해 금리를 올리면 부채가 많은 자영업자와 가계가 타격을 입고, 경기를 부양하기 위해 금리를 내리면 환율 방어가 어려워집니다. 이 좁은 외줄 타기가 현재 한국 경제가 직면한 현실입니다.",
-        "기업들의 현금흐름도 빠르게 재편되고 있습니다. 자금 조달 비용이 증가하면서 무리하게 차입 경영을 이어오던 한계 기업들의 부실 위험이 표면화되고 있습니다. 반면 현금 보유력이 높고 공급망을 다변화한 기업들은 위기를 기회로 바꾸고 있습니다.",
-        "개인 투자자와 가계가 지금 당장 취해야 할 전략은 명확합니다. 무리한 레버리지를 줄이고, 현금성 자산의 비중을 확보하며, 시장의 변곡점을 나타내는 핵심 지표들을 주기적으로 점검해야 합니다. 위기 뒤에는 언제나 새로운 시장 사이클이 열리기 때문입니다.",
-        "결론적으로 이번 경제 변동의 핵심 메시지는 하나입니다. 시장의 불확실성을 두려워하기보다 데이터에 기반한 리스크 관리를 시작해야 할 때입니다. 매일 발표되는 거시 지표 뒤에 숨은 흐름을 읽는 것이 내 자산을 지키는 가장 확실한 방패입니다.",
-    ]
-    script = "\n\n".join(paragraphs).strip()
-    while len(script) < min_total_chars:
-        script += "\n\n결국 시장의 변동성 앞에서 가장 중요한 것은 장기적인 안목과 원칙입니다. 단기적인 등락에 일희일비하지 않고, 구조적인 성장 동력을 갖춘 분야를 선별하는 냉철한 분석이 필요한 시점입니다."
-    return script
 
 
 def _build_martial_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
@@ -8986,6 +8627,16 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
     model = _prefer_gemini_text_model(config, model)
     draft_model = _select_script_draft_model(config, model)
+    generation_models = {
+        **(
+            (job.get("payload") or {}).get("generation_models")
+            if isinstance((job.get("payload") or {}).get("generation_models"), dict)
+            else {}
+        ),
+        "script_draft": draft_model,
+        "script_generation": model,
+        "script_quality_qa": model,
+    }
     if draft_model != model:
         job_log.info(
             f"Using {draft_model} for script draft/blueprint and reserving {model} for script QA/rewrite"
@@ -9040,9 +8691,9 @@ Previous generation attempt failed QA. Fix these exact issues:
 {previous_error[:2400]}
 
 Hard retry rules:
-- Do not repeat the same money amount or pension fact across multiple scenes. Mention a number once, then move to a new consequence or decision.
 - Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.
-- Do not turn the middle into a policy lecture or PSA. Keep the couple's action and decision driving the information.
+- Do not introduce finance, pension, bankbook, budget, policy, investment, or market-analysis material.
+- Keep every event anchored to the selected category, title promise, characters, conflict, and payoff.
 - Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.
 """.strip()
         style_directive = f"{style_directive}\n\n{retry_instruction}".strip()
@@ -9052,12 +8703,6 @@ Hard retry rules:
         upload_title,
         image_style,
         category=category_name,
-    )
-    finance_plan_context = _is_finance_plan_context(
-        script_style_context,
-        topic,
-        upload_title,
-        image_style,
     )
     grave_vigil_context = any(
         term in _text_with_mojibake_repairs(topic, upload_title)
@@ -9286,13 +8931,7 @@ Hard retry rules:
 
         if _script_needs_revision(final_quality):
             rescue_script = None
-            if _is_macro_economy_plan_context(script_style_context, topic, upload_title, image_style):
-                job_log.info("Script QA still requested revision; trying economy rescue script")
-                rescue_script = _build_economy_rescue_script(topic, upload_title, structure)
-            elif finance_plan_context or script_style == "news":
-                job_log.info("Script QA still requested revision; trying finance rescue script")
-                rescue_script = _build_finance_rescue_script(topic, upload_title, structure)
-            elif _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
+            if _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
                 job_log.info("Script QA still requested revision; trying martial rescue script")
                 rescue_script = _build_martial_rescue_script(topic, upload_title, structure)
             elif _is_survival_story_plan_context(script_style_context, topic, upload_title, image_style):
@@ -9402,8 +9041,9 @@ Hard retry rules:
         raise ValueError("Generated script was empty after all sections were processed")
     if _script_needs_revision(final_quality):
         issues = final_quality.get("critical_issues") or final_quality.get("revision_notes") or []
-        job_log.warning(
-            f"Script revision note (proceeding with best generated script): score={final_quality.get('score')}, issues={issues}"
+        raise RuntimeError(
+            "script quality gate failed after rewrite/rescue: "
+            f"verdict={final_quality.get('verdict')}, score={final_quality.get('score')}, issues={issues[:8]}"
         )
 
     repeated_sentences = _detect_repeated_script_sentences(final_script)
@@ -9477,6 +9117,7 @@ Hard retry rules:
         topic=topic,
         upload_title=upload_title,
         image_style=image_style,
+        category=str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip(),
     )
     if category_errors:
         raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
@@ -9530,6 +9171,7 @@ Hard retry rules:
         "structure": structure,
         "upload_title": upload_title,
         "title_generation": title_generation,
+        "generation_models": generation_models,
         "image_style": image_style,
         "image_style_selection": image_style_selection,
         "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
@@ -9577,6 +9219,14 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
 
     Config.refresh_remote_keys_if_stale()
     model = config.TITLE_GENERATION_MODEL or config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    generation_models = {
+        **(
+            (job.get("payload") or {}).get("generation_models")
+            if isinstance((job.get("payload") or {}).get("generation_models"), dict)
+            else {}
+        ),
+        "publish_metadata": model,
+    }
 
     publish_metadata = asyncio.run(
         _generate_publish_metadata(
@@ -9604,6 +9254,7 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "structure": structure,
         "narrative_blueprint": narrative_blueprint,
         "script_quality_report": script_quality_report,
+        "generation_models": generation_models,
         "publish_metadata": publish_metadata,
         "sfx_cues": sfx_cues,
         "sfx_cues_json": sfx_cues_json,
@@ -9654,6 +9305,7 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
         "sfx_cues_json": sfx_cues_json,
         "language": language,
         "script_quality_report": script_quality_report,
+        "generation_models": generation_models,
         "stage_quality_report": metadata_stage_report,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,

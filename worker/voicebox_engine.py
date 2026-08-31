@@ -41,7 +41,7 @@ VOICEBOX_PRESETS = [
         "name": "차분한 나레이터 (남성)",
         "provider": "voicebox",
         "gender": "male",
-        "description": "역사, 경제, 다큐멘터리에 어울리는 안정적이고 차분한 중저음",
+        "description": "역사와 다큐멘터리에 어울리는 안정적이고 차분한 중저음",
         "speed": 1.0,
         "pitch": 0.0,
     },

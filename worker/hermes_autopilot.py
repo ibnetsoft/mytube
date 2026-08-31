@@ -62,15 +62,16 @@ TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS = {
 DEFAULT_OFFICIAL_CATEGORIES = [
     {"id": 4, "name": "탈북사연", "language": "ko", "keywords": "탈북, 북한 실상, 정착 실화", "default_script_style": "story", "default_image_style": "realistic"},
     {"id": 6, "name": "해외감동", "language": "ko", "keywords": "해외 미담, 감동 실화, 기적", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 8, "name": "노후금융", "language": "ko", "keywords": "연금, 노후 준비, 자산 관리", "default_script_style": "news", "default_image_style": "realistic"},
     {"id": 9, "name": "황혼19금", "language": "ko", "keywords": "황혼 로맨스, 시니어 부부, 남녀 심리", "default_script_style": "story", "default_image_style": "realistic"},
     {"id": 2, "name": "옛날이야기", "language": "ko", "keywords": "조선 야사, 구전동화, 한국 전설", "default_script_style": "story", "default_image_style": "realistic"},
     {"id": 5, "name": "한국사연", "language": "ko", "keywords": "국내 사연, 시청자 제보, 부부 갈등", "default_script_style": "story", "default_image_style": "realistic"},
     {"id": 7, "name": "무협", "language": "ko", "keywords": "무협 소설, 강호, 낭인, 동양풍", "default_script_style": "mystery_thriller", "default_image_style": "cinematic"},
-    {"id": 3, "name": "경제", "language": "ko", "keywords": "재테크, 주식, 부동산, 거시경제", "default_script_style": "news", "default_image_style": "cinematic"},
     {"id": 12, "name": "English Folktales", "language": "en", "keywords": "ancient folklore, folktales, classic bedtime stories, fairy tales, mythology storytelling, historical narration", "default_script_style": "story", "default_image_style": "realistic"},
     {"id": 13, "name": "日本昔話", "language": "ja", "keywords": "江戸時代 昔話,民話,日本の民話,歴史物語 朗読,怖い話,神話伝説", "default_script_style": "story", "default_image_style": "realistic"},
 ]
+
+RETIRED_CATEGORY_NAMES = frozenset({"노후금융", "경제"})
+RETIRED_CATEGORY_IDS = frozenset({3, 8, "3", "8"})
 
 CATEGORIES = [item["name"] for item in DEFAULT_OFFICIAL_CATEGORIES]
 
@@ -379,17 +380,25 @@ class HermesAutopilotManager:
         remote_categories = getattr(self, "remote_categories", {}) or {}
         for cat in CATEGORIES:
             cat_name = str(cat or "").strip()
-            if cat_name and cat_name not in merged:
+            if cat_name and cat_name not in RETIRED_CATEGORY_NAMES and cat_name not in merged:
                 merged.append(cat_name)
-        for cat in list(remote_categories.keys()):
+        for cat, remote in remote_categories.items():
             cat_name = str(cat or "").strip()
-            if cat_name and cat_name not in merged:
+            remote_id = remote.get("id") if isinstance(remote, dict) else None
+            if (
+                cat_name
+                and cat_name not in RETIRED_CATEGORY_NAMES
+                and remote_id not in RETIRED_CATEGORY_IDS
+                and cat_name not in merged
+            ):
                 merged.append(cat_name)
         return merged
 
     def get_all_categories_metadata(self) -> list[dict]:
         meta_by_name = {c["name"]: dict(c) for c in DEFAULT_OFFICIAL_CATEGORIES}
-        for name, remote in self.remote_categories.items():
+        for name, remote in (getattr(self, "remote_categories", {}) or {}).items():
+            if name in RETIRED_CATEGORY_NAMES or remote.get("id") in RETIRED_CATEGORY_IDS:
+                continue
             if name in meta_by_name:
                 meta_by_name[name].update(remote)
             else:
@@ -397,7 +406,7 @@ class HermesAutopilotManager:
         return list(meta_by_name.values())
 
     def _get_category_language(self, category: str) -> str:
-        meta = self.remote_categories.get(category)
+        meta = (getattr(self, "remote_categories", {}) or {}).get(category)
         if meta and meta.get("language"):
             return str(meta["language"]).strip().lower()
         for item in DEFAULT_OFFICIAL_CATEGORIES:
@@ -415,7 +424,7 @@ class HermesAutopilotManager:
                 new_remote = {}
                 for row in rows:
                     name = str(row.get("name") or "").strip()
-                    if name:
+                    if name and name not in RETIRED_CATEGORY_NAMES and row.get("id") not in RETIRED_CATEGORY_IDS:
                         new_remote[name] = row
                 self.remote_categories = new_remote
         except Exception as e:
@@ -445,7 +454,7 @@ class HermesAutopilotManager:
                     new_remote = {}
                     for row in rows:
                         name = str(row.get("name") or "").strip()
-                        if name:
+                        if name and name not in RETIRED_CATEGORY_NAMES and row.get("id") not in RETIRED_CATEGORY_IDS:
                             new_remote[name] = row
                     prev_count = len(self.remote_categories)
                     self.remote_categories = new_remote
@@ -478,10 +487,14 @@ class HermesAutopilotManager:
         return normalized
 
     def _normalize_category_image_style_overrides(self, value) -> dict:
-        current = dict(self.settings.get("category_image_style_overrides") or {})
+        all_cats = set(self.get_all_categories())
+        current = {
+            category: style
+            for category, style in dict(self.settings.get("category_image_style_overrides") or {}).items()
+            if category in all_cats
+        }
         if not isinstance(value, dict) or not value:
             return current
-        all_cats = set(self.get_all_categories())
         for cat, style in value.items():
             if cat not in all_cats:
                 continue
@@ -1316,7 +1329,7 @@ class HermesAutopilotManager:
         raise RuntimeError("Supabase completed topic insert failed after legacy-column fallback")
 
     def get_status(self) -> dict:
-        if not self.remote_categories:
+        if not (getattr(self, "remote_categories", {}) or {}):
             self._sync_remote_categories_sync()
         self._apply_settings()
         self._apply_external_running_state()
@@ -1358,27 +1371,15 @@ class HermesAutopilotManager:
     def _stop_after_target_limit_failure(self, error: Exception) -> bool:
         if self.settings.get("mode") != "target_limit":
             return False
-        error_text = str(error).lower()
-        fatal = any(marker in error_text for marker in (
-            "api key not valid",
-            "youtube api error",
-            "invalid api key",
-            "please pass a valid api key",
-        ))
-        if fatal:
-            self.last_run_status = "failed"
-            self.last_error = str(error)
-            self.current_step = "failed"
-            self.is_running = False
-            self.add_log(
-                f"⚠️ 필수 API 키 오류로 인해 오토파일럿이 정지되었습니다: {error}"
-            )
-            self._save_state()
-            return True
+        self.last_run_status = "failed"
+        self.last_error = str(error)
+        self.current_step = "failed"
+        self.is_running = False
         self.add_log(
-            f"⚠️ 품질/생성 이슈 감지 ({error}). 정지하지 않고 다음 시도를 자동으로 진행합니다."
+            f"품질/생성 실패로 목표 개수 모드를 정지했습니다. another title will not be tried: {error}"
         )
-        return False
+        self._save_state()
+        return True
 
     async def start(self, custom_settings: dict = None):
         async with self._lock:
@@ -1516,12 +1517,10 @@ class HermesAutopilotManager:
         terms = {
             "탈북사연": ["탈북사연", "탈북 사연"],
             "해외감동": ["해외감동", "해외 감동"],
-            "노후금융": ["노후금융", "노후 금융"],
             "황혼19금": ["황혼19금", "황혼 19금", "19금", "19 금"],
             "옛날이야기": ["옛날이야기", "옛날 이야기", "전래이야기", "전래 이야기", "전래동화", "전래 동화"],
             "한국사연": ["한국사연", "한국 사연"],
             "무협": ["무협"],
-            "경제": ["경제"],
         }
         return terms.get(category, [category] if category else [])
 
@@ -1622,11 +1621,9 @@ class HermesAutopilotManager:
             "무협": "버림받은 삼류무사가 사부의 낡은 검보를 펼친 날",
             "탈북사연": "두만강 앞에서 마지막 선택을 해야 했던 한 가족의 밤",
             "해외감동": "낯선 나라의 작은 친절이 한 노인의 하루를 바꾼 순간",
-            "노후금융": "월세 걱정하던 60대가 시골집 한 채로 생활비를 줄인 방법",
             "황혼19금": "평생 숨겨온 편지 한 장이 황혼의 마음을 흔든 날",
             "옛날이야기": "마을에서 쫓겨난 며느리가 십 년 뒤 들고 온 보따리",
             "한국사연": "가족을 위해 참아온 가장이 명절 아침에 남긴 한마디",
-            "경제": "월급은 그대로인데 장바구니가 먼저 무너진 이유",
             "English Folktales": "The Widow Who Traded Her Wedding Ring for a Lantern That Knew Her Name",
             "日本昔話": "吹雪の峠で三度名を呼ばれた旅人の話",
         }
@@ -1767,12 +1764,10 @@ class HermesAutopilotManager:
         styles = {
             "탈북사연": "Use a human survival-story frame: one person, a concrete danger or choice, emotional stakes, and a restrained documentary tone.",
             "해외감동": "Use an emotional true-story frame: unexpected kindness, a visible conflict, and a warm reversal without melodrama.",
-            "노후금융": "Use a retirement-money frame: concrete amounts, everyday anxiety, a decision, and a credible result. Avoid investment-hype wording.",
             "황혼19금": "Use a mature-life relationship frame: loneliness, secret, regret, reunion, or late-life choice. Keep it suggestive but not explicit.",
             "옛날이야기": "Write an in-world folk tale premise only: begin with a character, place, object, or incident, then reveal the conflict. Never use the category label '옛날이야기' in a title. Never mention retelling, modern adaptation, MZ, Netflix, content success, or how to make a folk tale.",
             "한국사연": "Use a Korean real-life story frame: family conflict, sacrifice, betrayal, workplace or neighborhood detail, and emotional payoff.",
             "무협": "Use a martial-arts fiction frame: weak/abandoned protagonist, sect conflict, hidden skill, revenge or awakening. Keep it genre-native.",
-            "경제": "Use an economy-explainer frame: specific money/market signal, personal consequence, and a question viewers need answered.",
             "English Folktales": "Write an in-world English folktale premise: a place, omen, curse, bargain, secret, or fateful choice. The title must sound like the story itself, not advice about folklore or storytelling.",
             "日本昔話": "昔話や伝承の世界の出来事そのものを題材にしてください。人物、村、掟、祟り、選択、結末が見える題名にし、昔話の作り方や解説にはしないでください。",
         }
@@ -1863,7 +1858,7 @@ class HermesAutopilotManager:
                 if model.lower().startswith("gemini"):
                     from services.gemini_service import gemini_service
 
-                    return await _with_thread_timeout(
+                    result = await _with_thread_timeout(
                         lambda: gemini_service.generate_text(
                             prompt,
                             model=model,
@@ -1872,15 +1867,20 @@ class HermesAutopilotManager:
                             task_type=task_type,
                         )
                     )
-                return await _with_thread_timeout(
-                    lambda: ai_router.generate_text(
-                        prompt,
-                        model=model,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        task_type=task_type,
+                else:
+                    result = await _with_thread_timeout(
+                        lambda: ai_router.generate_text(
+                            prompt,
+                            model=model,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            task_type=task_type,
+                        )
                     )
-                )
+                model_trace = getattr(self, "_generation_model_trace", {})
+                model_trace[task_type] = model
+                self._generation_model_trace = model_trace
+                return result
             except asyncio.TimeoutError as e:
                 last_error = e
                 logger.warning(
@@ -1912,7 +1912,7 @@ Hard rejection:
 - Reject any candidate about storytelling, formulas, secrets, rules, principles, content strategy, analysis, or how to create/write the genre.
 - For story categories, the best title must be the actual story premise itself, not a lecture about why the genre works.
 - For martial-arts fiction, reject titles about 무협 스토리텔링, 불문율, 공식, 비법, 법칙, 성공, or 마스터의 길.
-- Reject any title that literally contains the internal category label. Examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "노후금융", "무협", "경제".
+- Reject any title that literally contains the internal category label. Examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "무협".
 
 CATEGORY: {category}
 CATEGORY STYLE: {self._category_title_style(category)}
@@ -1964,11 +1964,16 @@ Return ONLY JSON:
 
         best_title = self._clean_title_text(evaluation.get("best_title"))
         candidates.sort(key=lambda item: (item.get("final_score", 0), item.get("score", 0)), reverse=True)
-        selected = next((item for item in candidates if item["title"] == best_title), candidates[0])
+        selected = candidates[0]
+        if best_title and best_title != selected["title"]:
+            evaluation["model_recommended_title"] = best_title
+            evaluation["selection_override_reason"] = "higher deterministic final_score"
+        evaluation["best_title"] = selected["title"]
         plan["generated_title"] = selected["title"]
         plan["selected_score"] = selected.get("final_score", selected.get("score", 0))
         plan["title_candidates"] = candidates[:10]
         plan["ai_evaluation"] = evaluation
+        plan["generation_models"] = dict(getattr(self, "_generation_model_trace", {}))
         return plan
 
     async def _validate_title_against_script(self, category: str, title_plan: dict, script_text: str) -> dict:
@@ -1993,7 +1998,7 @@ Rules:
 - {lang_ctx["qa_length_rule"]}
 - Never revise into a title about storytelling, formulas, secrets, rules, principles, content strategy, analysis, or how to create/write the genre.
 - For martial-arts fiction, the title must sound like the title of a martial-arts story incident, not a documentary about 무협 writing or 무협 storytelling.
-- Never revise into a title that literally contains the internal category label, such as 옛날이야기, 황혼19금, 탈북사연, 해외감동, 한국사연, 노후금융, 무협, or 경제.
+- Never revise into a title that literally contains the internal category label, such as 옛날이야기, 황혼19금, 탈북사연, 해외감동, 한국사연, or 무협.
 
 Return ONLY JSON:
 {{
@@ -2244,6 +2249,7 @@ Return ONLY JSON:
         candidates: list[dict],
         learning_profile: dict | None = None,
     ) -> dict:
+        self._generation_model_trace = {}
         compact_candidates = []
         for candidate in candidates[:3]:
             compact_candidates.append({
@@ -2281,7 +2287,7 @@ Rules:
 - {lang_ctx["candidate_rule"]}
 - {lang_ctx["title_naturalness_rule"]}
 - The category is an internal label only. Never put the literal category label in the upload title.
-- Bad examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "노후금융", "무협", "경제".
+- Bad examples: "옛날이야기", "옛날 이야기", "황혼19금", "황혼 19금", "탈북사연", "해외감동", "한국사연", "무협".
 - Good titles describe the incident itself: a person, place, conflict, secret, decision, consequence, amount, or reveal.
 - Do not copy benchmark titles, names, exact incidents, or phrasing.
 - Avoid these words and phrases in titles: 성공 공식, 스토리텔링, 벤치마킹, 패턴, 황금 패턴, 비밀, 비결, 반전 사연, 반전 스토리, 알고리즘, 콘텐츠, 조회수, 분석, 전략, 공식, 연출, 노하우, 해부, 대공개, 법칙, 불문율.
@@ -2488,8 +2494,6 @@ Return ONLY JSON:
     async def _discover_benchmark_keywords(self, category: str) -> list[str]:
         """Turn an internal category into concrete YouTube search phrases."""
         seed_map = {
-            "경제": ["금값", "국제유가", "엔비디아 주가", "일본 금리", "미국 물가", "환율 전망", "부동산 시장"],
-            "노후금융": ["국민연금", "퇴직연금", "노후 준비", "은퇴 자금", "건강보험료", "고령층 재테크"],
             "해외감동": ["해외 감동 실화", "외국인 한국 경험", "세계 감동 뉴스", "국제 미담"],
             "탈북사연": ["북한 탈북 실화", "탈북민 증언", "북한 생활 실상", "북한 가족 이야기"],
             "옛날이야기": [
@@ -2525,13 +2529,6 @@ Return ONLY JSON:
         seeds = seed_map.get(category, [category])
         if category in ("옛날이야기", "English Folktales", "日本昔話") and len(seeds) >= 8:
             return seeds[:10]
-        category_hint = ""
-        if category == "경제":
-            category_hint = (
-                "\nFor the economy category only, use concrete subjects such as gold, oil, stocks, "
-                "interest rates, inflation, exchange rates, housing, companies, and policy rather "
-                "than the word 경제 alone."
-            )
         lang = self._get_category_language(category)
         if lang == "ja":
             prompt = f"""
@@ -2554,7 +2551,6 @@ The internal genre label is: {category}
 Generate 8 concrete Korean YouTube search phrases that people would actually search for now.
 Do not return the genre label itself or generic phrases such as the genre followed by 이야기.
 Prefer named issues, events, people, places, numbers, conflicts, or questions.
-{category_hint}
 Return ONLY a JSON array of strings.
 """
         discovered: list[str] = []
@@ -3158,6 +3154,7 @@ Return ONLY a JSON array of strings.
                 "benchmark_analysis": {**(best_candidate.get("analysis") or best_candidate), "web_research": research_bundle},
                 "upload_title": generated_title,
                 "title_generation": title_plan,
+                "generation_models": plan_data.get("generation_models") or title_plan.get("generation_models") or {},
                 "research_bundle": research_bundle,
                 "learning_profile": learning_profile,
                 "defer_ready_until_quality_gate": True,
@@ -3245,6 +3242,7 @@ Return ONLY a JSON array of strings.
         self.add_log(f"✍️ 최종 대본 집필 완료 (총 글자수: {char_count}자)")
 
         title_plan = await self._validate_title_against_script(category, title_plan, final_script)
+        title_plan["generation_models"] = dict(getattr(self, "_generation_model_trace", {}))
         generated_title = title_plan["generated_title"]
         benchmark_payload["title_generation"] = title_plan
         self.current_topic = generated_title
@@ -3265,6 +3263,7 @@ Return ONLY a JSON array of strings.
                 "title_generation": title_plan,
                 "narrative_blueprint": narrative_blueprint or {},
                 "script_quality_report": script_quality_report or {},
+                "generation_models": script_data.get("generation_models") or plan_data.get("generation_models") or {},
                 "sfx_cues": sfx_cues,
                 "sfx_cues_json": sfx_cues_json,
                 "language": category_language,
@@ -3295,6 +3294,12 @@ Return ONLY a JSON array of strings.
             "title_candidates": title_plan["title_candidates"],
             "narrative_blueprint": narrative_blueprint,
             "script_quality_report": script_quality_report,
+            "generation_models": {
+                **(title_plan.get("generation_models") or {}),
+                **(plan_data.get("generation_models") or {}),
+                **(script_data.get("generation_models") or {}),
+                **(metadata_data.get("generation_models") or {}),
+            },
             "sfx_cues": sfx_cues,
             "sfx_cues_json": sfx_cues_json,
             "image_style": assigned_image_style,

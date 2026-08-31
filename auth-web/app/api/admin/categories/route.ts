@@ -5,6 +5,8 @@ import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-
 
 const CATEGORIES_CACHE_KEY = 'admin:categories'
 const CATEGORIES_CACHE_TTL_SECONDS = 300
+const RETIRED_CATEGORY_NAMES = new Set(['노후금융', '경제'])
+const RETIRED_CATEGORY_IDS = new Set([3, 8])
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,10 +56,15 @@ export async function GET(req: Request) {
         if (error) throw error
 
         const response = {
-            categories: (data || []).map((category: any) => ({
-                ...category,
-                language: normalizeContentLanguage(category.language),
-            }))
+            categories: (data || [])
+                .filter((category: any) => (
+                    !RETIRED_CATEGORY_NAMES.has(String(category.name || '').trim())
+                    && !RETIRED_CATEGORY_IDS.has(Number(category.id))
+                ))
+                .map((category: any) => ({
+                    ...category,
+                    language: normalizeContentLanguage(category.language),
+                }))
         }
         await setServerCache(CATEGORIES_CACHE_KEY, response, CATEGORIES_CACHE_TTL_SECONDS)
 
@@ -96,6 +103,9 @@ export async function POST(req: Request) {
 
         if (!name) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+        }
+        if (RETIRED_CATEGORY_NAMES.has(String(name).trim())) {
+            return NextResponse.json({ error: 'This category has been permanently retired' }, { status: 400 })
         }
 
         const fallbackEmail = requester.user?.email || SUPER_ADMIN_EMAIL || 'ejsh0519@naver.com'
@@ -235,6 +245,12 @@ export async function PUT(req: Request) {
 
         if (!id) {
             return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
+        }
+        if (RETIRED_CATEGORY_IDS.has(Number(id))) {
+            return NextResponse.json({ error: 'This category has been permanently retired' }, { status: 410 })
+        }
+        if (name !== undefined && RETIRED_CATEGORY_NAMES.has(String(name).trim())) {
+            return NextResponse.json({ error: 'This category has been permanently retired' }, { status: 400 })
         }
 
         const supabase = getAdmin()

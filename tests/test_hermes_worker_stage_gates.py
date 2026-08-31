@@ -83,6 +83,42 @@ def test_script_plan_stage_rejects_repeated_scene_situations_and_visuals():
         )
 
 
+def test_japanese_folktale_plan_rejects_pension_scene_contamination():
+    structure = {
+        "scenes": [
+            {
+                "scene_summary": f"年金計算書を確認する場面 {idx}",
+                "scene_situation": f"老夫婦が生活費と年金を計算する {idx}",
+                "scene_purpose": f"年金制度を説明する {idx}",
+                "retention_hook": f"受給額はいくらになるのか {idx}",
+            }
+            for idx in range(1, 4)
+        ]
+    }
+
+    with pytest.raises(RuntimeError, match="finance/pension contamination"):
+        hermes_worker._validate_script_plan_stage(
+            structure,
+            script_style="Japanese traditional folklore",
+            topic="吹雪の夜に死んだ息子が帰ってきた",
+            upload_title="吹雪の夜、三十年前に死んだ息子が戸を叩いた",
+            image_style="Japanese folktale",
+            category="日本昔話",
+        )
+
+
+def test_script_generate_stage_blocks_revise_quality_report():
+    payload = build_valid_sample_payload("옛날이야기")
+    payload["script_quality_report"] = {
+        "verdict": "revise",
+        "score": 42,
+        "critical_issues": ["제목과 대본이 완전히 단절됨"],
+    }
+
+    with pytest.raises(RuntimeError, match="script quality report not passing"):
+        hermes_worker._validate_script_generate_stage(payload, category="옛날이야기")
+
+
 def test_script_generate_stage_rejects_missing_2x2_grid_prompts():
     payload = build_valid_sample_payload("옛날이야기")
     payload["structure"]["image_grid_prompts"] = []

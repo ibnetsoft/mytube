@@ -46,6 +46,21 @@ const SECRET_KEYS = new Set([
     'suno',
 ])
 
+const MODEL_KEYS = new Set([
+    'topic_generation_model',
+    'title_generation_model',
+    'script_planning_model',
+    'script_generation_model',
+    'image_prompt_model',
+    'translation_model',
+    'image_generation_model',
+    'video_generation_model',
+])
+
+function looksLikeApiCredential(value: unknown): boolean {
+    return /^(sk-ant-|sk-|AIza)/i.test(String(value ?? '').trim())
+}
+
 function isMaskedOrEmptySecretValue(value: unknown): boolean {
     const normalized = String(value ?? '').trim()
     if (!normalized) return true
@@ -103,6 +118,12 @@ export async function POST(req: Request) {
         for (const k of KEYS) {
             if (body[k] === undefined) continue
             if (SECRET_KEYS.has(k) && isMaskedOrEmptySecretValue(body[k])) continue
+            if (MODEL_KEYS.has(k) && looksLikeApiCredential(body[k])) {
+                return NextResponse.json(
+                    { error: 'API keys cannot be saved as model IDs. Use the matching API key field.' },
+                    { status: 400 },
+                )
+            }
             const { error } = await sb.from('global_settings').upsert({ key: `sys_api_${k}`, value: body[k] }, { onConflict: 'key' })
             if (error) throw new Error(`global_settings save failed for sys_api_${k}: ${error.message}`)
         }

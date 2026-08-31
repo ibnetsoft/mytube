@@ -30,11 +30,11 @@ TARGET_CATEGORIES = (
     "옛날이야기",
     "탈북사연",
     "해외감동",
-    "노후금융",
     "황혼19금",
     "한국사연",
     "무협",
-    "경제",
+    "English Folktales",
+    "日本昔話",
 )
 
 
@@ -202,7 +202,7 @@ def run_offline_harness() -> dict[str, Any]:
             "old-story package blocks economy benchmark contamination",
             contaminated,
             "옛날이야기",
-            "off-category economy contamination",
+            "off-category finance/economy contamination",
         )
     )
 
@@ -251,10 +251,11 @@ def run_offline_harness() -> dict[str, Any]:
     revise_script = build_valid_sample_payload("옛날이야기")
     revise_script["script_quality_report"] = {"verdict": "revise", "score": 42, "critical_issues": ["looping"]}
     checks.append(
-        _expect_gate_pass(
-            "revise script QA report is informational",
+        _expect_gate_error(
+            "revise script QA report is blocked",
             revise_script,
             "옛날이야기",
+            "script_quality_report not passing",
         )
     )
 

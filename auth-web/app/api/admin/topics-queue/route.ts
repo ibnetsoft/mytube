@@ -648,6 +648,12 @@ export async function POST(req: Request) {
         if (catError || !category) {
             return NextResponse.json({ error: 'Category not found' }, { status: 404 })
         }
+        if (
+            new Set(['노후금융', '경제']).has(String(category.name || '').trim())
+            || new Set([3, 8]).has(Number(category.id))
+        ) {
+            return NextResponse.json({ error: 'Category has been permanently retired' }, { status: 410 })
+        }
 
         // 2. Gemini API Key 로드 (환경변수 또는 대표님 API Key)
         // Vercel 환경에 세팅된 GEMINI_API_KEY 사용 후, 없을 시 DB global_settings에서 백업본 로드
@@ -752,14 +758,10 @@ export async function POST(req: Request) {
         - NEVER generate meta-topics, channel marketing strategies, target audience analysis, or video production tips.
         - If the category is about storytelling, history, or old stories, generate actual compelling story titles or narrative topics.
 
-        - For finance, economy, investment, stock, real-estate, news, current-affairs, and trend-sensitive categories, use the present-time context of ${currentYearKst}.
-        - If a year is mentioned in a current-affairs or market topic, prefer ${currentYearKst}. Do not generate stale present-tense titles anchored to 2024 or 2025 unless the topic is explicitly retrospective or historical.
-        - If the input keywords contain older years, treat them only as weak reference context and rewrite the final title so it matches ${currentYearKst}.
-
         ABSOLUTE DIVERSITY & ANTI-REPETITION MANDATE (CRITICAL):
-        - Each of the 10 topics MUST cover a completely distinct subject, person, situation, question, financial case, or angle.
-        - NEVER produce near-duplicate topics in the same batch (e.g. do NOT generate two topics about '국민연금 30년 80만원' or '10년 기다린 어머니' with only slight wording changes).
-        - Each topic must have a UNIQUE hook, UNIQUE numbers/amounts, and UNIQUE core life situation.
+        - Each of the 10 topics MUST cover a completely distinct subject, person, situation, question, conflict, or angle.
+        - NEVER produce near-duplicate topics in the same batch (e.g. do NOT generate two topics about '10년 기다린 어머니' with only slight wording changes).
+        - Each topic must have a UNIQUE hook, UNIQUE incident, and UNIQUE core life situation.
         - The 10 topics must span at least 5 clearly different sub-themes across the category.
         ${existingTopics.length ? `
         EXISTING TOPICS ALREADY IN THIS CATEGORY'S QUEUE (${existingTopicCount ?? existingTopics.length} total in this category; ${existingTopics.length} most recent shown below) — DO NOT repeat any of these, and do NOT generate a near-duplicate or a minor rewording of any of them:
@@ -790,7 +792,7 @@ export async function POST(req: Request) {
         STYLE SELECTION (REQUIRED for every topic):
         - For each topic, also choose the BEST matching script_style for that specific topic.
         - script_style MUST be exactly one of: ${SCRIPT_STYLE_KEYS.join(', ')}.
-        - Choose a style that fits the topic's mood, era, and genre (e.g. horror/thriller topics -> mystery_thriller/horror_suspense; Joseon-era history -> joseon_sageuk; children's content -> nursery_rhyme; modern news/economy -> news).
+        - Choose a style that fits the topic's mood, era, and genre (e.g. horror/thriller topics -> mystery_thriller/horror_suspense; Joseon-era history -> joseon_sageuk; children's content -> nursery_rhyme).
         - If unsure, use "${DEFAULT_SCRIPT_STYLE}".
         - Use ONLY the exact keys from the list above. Never invent new style keys.
         - Do NOT choose an image_style — that is set per-category by an admin, not per-topic by AI.

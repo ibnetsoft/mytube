@@ -6,12 +6,10 @@ export const dynamic = 'force-dynamic'
 
 export const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', language: 'ko' },
-    { id: 3, name: '경제', language: 'ko' },
     { id: 4, name: '탈북사연', language: 'ko' },
     { id: 5, name: '한국사연', language: 'ko' },
     { id: 6, name: '해외감동', language: 'ko' },
     { id: 7, name: '무협', language: 'ko' },
-    { id: 8, name: '노후금융', language: 'ko' },
     { id: 9, name: '황혼19금', language: 'ko' },
     { id: 12, name: 'English Folktales', language: 'en' },
     { id: 13, name: '日本昔話', language: 'ja' },
@@ -38,7 +36,9 @@ export async function POST(req: Request) {
         }
 
         if (Array.isArray(body.preferred_category_names)) {
-            preferredCategoryNames = body.preferred_category_names
+            preferredCategoryNames = body.preferred_category_names.filter((name: unknown) =>
+                STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
+            )
         } else if (preferredCategoryIds.length > 0) {
             preferredCategoryNames = STD_OFFICIAL_CATEGORIES
                 .filter(c => preferredCategoryIds.includes(c.id) || preferredCategoryIds.includes(String(c.id)))
@@ -51,6 +51,9 @@ export async function POST(req: Request) {
                 .filter(c => preferredCategoryNames.includes(c.name))
                 .map(c => c.id)
         }
+        preferredCategoryIds = preferredCategoryIds.filter(id =>
+            STD_OFFICIAL_CATEGORIES.some(category => category.id === id || String(category.id) === String(id))
+        )
 
         // Update profiles table
         const { error: profileError } = await supabaseAdmin

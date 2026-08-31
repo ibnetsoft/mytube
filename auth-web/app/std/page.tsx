@@ -2,12 +2,10 @@
 
 const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', key: 'cat_folktales', language: 'ko' },
-    { id: 3, name: '경제', key: 'cat_economy', language: 'ko' },
     { id: 4, name: '탈북사연', key: 'cat_defector', language: 'ko' },
     { id: 5, name: '한국사연', key: 'cat_korean_stories', language: 'ko' },
     { id: 6, name: '해외감동', key: 'cat_overseas_touching', language: 'ko' },
     { id: 7, name: '무협', key: 'cat_wuxia', language: 'ko' },
-    { id: 8, name: '노후금융', key: 'cat_retirement_finance', language: 'ko' },
     { id: 9, name: '황혼19금', key: 'cat_twilight19', language: 'ko' },
     { id: 12, name: 'English Folktales', key: 'cat_english_folktales', language: 'en' },
     { id: 13, name: '日本昔話', key: 'cat_japanese_folktales', language: 'ja' },
@@ -787,7 +785,7 @@ export default function StdPortalPage() {
     }>>([
         {
             id: 'layer-1',
-            text: '30년 연금 납입의 충격 진실',
+            text: '장례식 날 발견된 낡은 편지',
             fontSize: 34,
             color: '#ffeb3b',
             strokeColor: '#000000',
@@ -901,7 +899,7 @@ export default function StdPortalPage() {
     }
 
     // 8. 썸네일(Thumbnail) 제작 스튜디오 전용 상태 (유저앱 thumbnail.html 100% 동일 구현)
-    const [thumbTitle, setThumbTitle] = useState('국민연금 30년 냈는데 월 80만 원? 30년 차 부부가 공개한 실제 수령액')
+    const [thumbTitle, setThumbTitle] = useState('아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다')
     const [thumbLayout, setThumbLayout] = useState('face')
     const [thumbStyle, setThumbStyle] = useState('realistic')
     const [thumbStep, setThumbStep] = useState<number>(1)
@@ -921,7 +919,7 @@ export default function StdPortalPage() {
     }>>([
         {
             id: 'tlayer-1',
-            text: '30년 연금 납입의 충격 진실',
+            text: '장례식 날 발견된 낡은 편지',
             fontSize: 34,
             color: '#ffeb3b',
             strokeColor: '#000000',
@@ -1897,7 +1895,9 @@ export default function StdPortalPage() {
                 if (meData.user.contact) setSettingPhone(meData.user.contact)
                 if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
                 if (Array.isArray(meData.user.preferred_category_names) && meData.user.preferred_category_names.length > 0) {
-                    setSelectedCategories(meData.user.preferred_category_names)
+                    setSelectedCategories(meData.user.preferred_category_names.filter((name: unknown) =>
+                        STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
+                    ))
                 } else if (Array.isArray(meData.user.preferred_category_ids) && meData.user.preferred_category_ids.length > 0) {
                     const mapped = STD_OFFICIAL_CATEGORIES
                         .filter(c => meData.user.preferred_category_ids.includes(c.id) || meData.user.preferred_category_ids.includes(String(c.id)))
@@ -2023,7 +2023,9 @@ export default function StdPortalPage() {
                         if (meData.user.contact) setSettingPhone(meData.user.contact)
                         if (meData.user.referral_code) setReferralCode(meData.user.referral_code)
                         if (Array.isArray(meData.user.preferred_category_names) && meData.user.preferred_category_names.length > 0) {
-                            setSelectedCategories(meData.user.preferred_category_names)
+                            setSelectedCategories(meData.user.preferred_category_names.filter((name: unknown) =>
+                                STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
+                            ))
                         } else if (Array.isArray(meData.user.preferred_category_ids) && meData.user.preferred_category_ids.length > 0) {
                             const mapped = STD_OFFICIAL_CATEGORIES
                                 .filter(c => meData.user.preferred_category_ids.includes(c.id) || meData.user.preferred_category_ids.includes(String(c.id)))
@@ -4779,7 +4781,7 @@ export default function StdPortalPage() {
                             end_time: '5.0',
                             start_num: 0.0,
                             end_num: 5.0,
-                            text: '서른 해, 정확히 30년 동안 한 번도 거르지 않고 국민연금을 납입해온 부부가 있습니다.',
+                            text: '장례식이 끝난 뒤, 남편은 아내가 삼십 년 동안 숨겨온 낡은 편지를 발견했습니다.',
                             image_url: selectedProject?.scenes?.[0]?.image_url || '',
                             video_url: selectedProject?.scenes?.[0]?.video_url || null,
                             is_hook_zone: true,
@@ -6244,15 +6246,15 @@ export default function StdPortalPage() {
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {[
-                                            { text: '국민연금 30년 납입 수령액', volume: 98, cat: '경제' },
+                                            { text: '장례식 날 발견된 낡은 편지', volume: 98, cat: '한국사연' },
                                             { text: '아내의 숨겨진 30년 첫사랑 편지', volume: 95, cat: '사연' },
                                             { text: '조선왕조 비밀 야사', volume: 88, cat: '역사' },
-                                            { text: '은퇴 후 1인 월 생활비', volume: 85, cat: '재테크' },
-                                            { text: '건강보험 피부양자 탈락 충격', volume: 82, cat: '이슈' },
+                                            { text: '유품 상자에서 나온 가족사진', volume: 85, cat: '한국사연' },
+                                            { text: '사라진 며느리가 남긴 붉은 댕기', volume: 82, cat: '옛날이야기' },
                                             { text: '100세 시대 치매 예방 음식', volume: 79, cat: '건강' },
                                             { text: '황혼 이혼 재산분할 진실', volume: 76, cat: '사연' },
                                             { text: 'AI 자동화 수익 모델 2026', volume: 74, cat: '테크' },
-                                            { text: '부동산 공시지가 폭등 대응', volume: 70, cat: '경제' },
+                                            { text: '마을 우물에서 들린 아이의 울음', volume: 70, cat: '옛날이야기' },
                                             { text: '시니어 일자리 추천 Top 5', volume: 68, cat: '라이프' },
                                         ].map((kw, idx) => (
                                             <button
@@ -6523,7 +6525,7 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '30년 연금의 충격 진실!?' } : l))
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '삼십 년 숨긴 편지의 진실!?' } : l))
                                                     alert('더 자극적인(Clicky) 후킹 문구로 변경되었습니다.')
                                                 }}
                                                 className="py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-[11px] font-bold transition"
@@ -6533,7 +6535,7 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '국민연금 30년 실제 수령액' } : l))
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '장례식 날 열린 마지막 편지' } : l))
                                                     alert('더 깔끔하고 신뢰감 있는(Clean) 문구로 변경되었습니다.')
                                                 }}
                                                 className="py-1.5 border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-[11px] font-bold transition"
@@ -6621,14 +6623,14 @@ export default function StdPortalPage() {
                                         {
                                             id: 'idea-1',
                                             badge: '충격 폭로형',
-                                            headline: '30년 연금 납입의 충격 진실',
+                                            headline: '삼십 년 숨긴 편지의 진실',
                                             subhead: '통장에 찍힌 실제 수령액 공개',
                                             prompt: 'An elderly husband looking in shock at a bank statement with a magnifying glass, dramatic lighting, high contrast',
                                         },
                                         {
                                             id: 'idea-2',
                                             badge: '현실 대비형',
-                                            headline: '국민연금 vs 현실 생계비',
+                                            headline: '장례식 뒤 드러난 마지막 약속',
                                             subhead: '우리가 몰랐던 은퇴 후 한 달 생활비',
                                             prompt: 'Split screen, on the left an old pension book, on the right a simple empty dinner table, emotive photorealistic style',
                                         },
@@ -6706,7 +6708,7 @@ export default function StdPortalPage() {
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 flex-1">
                                         {[
-                                            "30년 연금의 충격 진실",
+                                            "삼십 년 숨긴 편지의 진실",
                                             "통장에 찍힌 실제 수령액",
                                             "은퇴 후 현실 생계비",
                                             "평범한 부부의 눈물",
@@ -7247,13 +7249,17 @@ export default function StdPortalPage() {
                                         {projects.map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id || idx === 0
                                             const projectCatName = (() => {
-                                                if (p.category_name) return p.category_name
-                                                if (p.project_payload?.category_name) return p.project_payload.category_name
-                                                if (p.project_payload?.category) return p.project_payload.category
-                                                if (p.category) return p.category
+                                                const explicitCategories = [
+                                                    p.category_name,
+                                                    p.project_payload?.category_name,
+                                                    p.project_payload?.category,
+                                                    p.category,
+                                                ]
+                                                const explicitCategory = explicitCategories.find((name: unknown) =>
+                                                    STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
+                                                )
+                                                if (explicitCategory) return String(explicitCategory)
                                                 const title = p.title || ''
-                                                if (title.includes('연금') || title.includes('은퇴')) return '노후금융'
-                                                if (title.includes('물가') || title.includes('돈') || title.includes('주식') || title.includes('부동산') || title.includes('경제')) return '경제'
                                                 if (title.includes('무공') || title.includes('강호') || title.includes('낭인')) return '무협'
                                                 if (title.includes('야사') || title.includes('조선') || title.includes('옛날')) return '옛날이야기'
                                                 if (title.includes('19금') || title.includes('황혼') || title.includes('부부')) return '황혼19금'

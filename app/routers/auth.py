@@ -262,15 +262,16 @@ async def get_auth_emails():
 
 
 _DEFAULT_CATEGORIES = [
-    {"id": "default_1", "name": "경제", "video_type": "longform"},
     {"id": "default_2", "name": "탈북사연", "video_type": "longform"},
     {"id": "default_3", "name": "한국사연", "video_type": "longform"},
     {"id": "default_4", "name": "해외감동", "video_type": "longform"},
     {"id": "default_5", "name": "무협", "video_type": "longform"},
-    {"id": "default_6", "name": "노후금융", "video_type": "longform"},
     {"id": "default_7", "name": "황혼19금", "video_type": "longform"},
     {"id": "default_8", "name": "옛날이야기", "video_type": "longform"},
 ]
+
+_RETIRED_CATEGORY_NAMES = {"노후금융", "경제"}
+_RETIRED_CATEGORY_IDS = {"3", "8"}
 
 _DURATION_OPTIONS = [
     {"value": "15m", "label": "15 min"},
@@ -287,6 +288,8 @@ async def get_signup_options():
         for item in categories:
             category_id = item.get("id")
             category_name = str(item.get("name") or "").strip()
+            if category_name in _RETIRED_CATEGORY_NAMES or str(category_id) in _RETIRED_CATEGORY_IDS:
+                continue
             video_type = str(item.get("video_type") or "longform").strip() or "longform"
             if category_id is None or not category_name:
                 continue
@@ -334,7 +337,15 @@ async def post_auth_register(req: RegisterRequest):
             return {"success": False, "error": "선호 영상 길이를 선택해야 합니다."}
 
         categories = web_admin_client.fetch_categories(select="id,name")
-        category_map = {str(item.get("id")): item for item in categories if item.get("id") is not None}
+        category_map = {
+            str(item.get("id")): item
+            for item in categories
+            if (
+                item.get("id") is not None
+                and str(item.get("id")) not in _RETIRED_CATEGORY_IDS
+                and str(item.get("name") or "").strip() not in _RETIRED_CATEGORY_NAMES
+            )
+        }
         preferred_category_ids: list[int | str] = []
         preferred_category_names: list[str] = []
         for category_id in requested_category_ids:

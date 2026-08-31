@@ -15,13 +15,40 @@ from worker import hermes_autopilot
 from worker import hermes_worker
 
 
-TARGET_CATEGORIES = ["경제", "노후금융", "옛날이야기", "황혼19금", "탈북사연"]
+TARGET_CATEGORIES = ["옛날이야기", "황혼19금", "탈북사연"]
 
 
 def test_worker_start_categories_are_normalized_for_dashboard_start_path():
     manager = hermes_autopilot.HermesAutopilotManager()
 
     assert manager._normalize_active_categories(TARGET_CATEGORIES) == TARGET_CATEGORIES
+
+
+def test_retired_categories_are_removed_from_remote_cache_and_saved_settings():
+    manager = object.__new__(hermes_autopilot.HermesAutopilotManager)
+    manager.remote_categories = {
+        "노후금융": {"id": 8, "name": "노후금융"},
+        "경제": {"id": 3, "name": "경제"},
+        "숨은퇴출항목": {"id": 8, "name": "숨은퇴출항목"},
+        "한국사연": {"id": 5, "name": "한국사연"},
+    }
+    manager.settings = {
+        "category_image_style_overrides": {
+            "노후금융": "realistic",
+            "경제": "cinematic",
+            "한국사연": "watercolor",
+        }
+    }
+
+    categories = manager.get_all_categories()
+    overrides = manager._normalize_category_image_style_overrides(
+        manager.settings["category_image_style_overrides"]
+    )
+
+    assert "노후금융" not in categories
+    assert "경제" not in categories
+    assert "숨은퇴출항목" not in categories
+    assert overrides == {"한국사연": "watercolor"}
 
 
 def test_target_limit_reached_uses_numeric_limit_and_count():
@@ -488,10 +515,9 @@ def test_target_categories_have_rss_relevance_terms():
         assert category in terms
 
 
-def test_economy_and_twilight_have_local_rss_channel_pools():
+def test_twilight_has_local_rss_channel_pool():
     manager = hermes_autopilot.HermesAutopilotManager()
 
-    assert len(manager._load_local_benchmark_channels("경제")) >= 8
     assert len(manager._load_local_benchmark_channels("황혼19금")) >= 8
 
 
@@ -633,7 +659,7 @@ def test_old_story_context_repairs_mojibake_title_for_retry_jobs():
     )
 
 
-def test_all_8_categories_have_repetition_repair_handlers_and_pass_qa():
+def test_supported_story_categories_have_repetition_repair_handlers_and_pass_qa():
     repeated_structure = {
         "scenes": [
             {
@@ -645,47 +671,39 @@ def test_all_8_categories_have_repetition_repair_handlers_and_pass_qa():
         ]
     }
     
-    # 1. 노후금융
-    finance_rep = hermes_worker._repair_finance_scene_plan_repetition(repeated_structure, "노후연금", "노후연금 이야기")
-    assert not hermes_worker._scene_plan_repetition_errors(finance_rep)
-    
-    # 2. 경제
-    econ_rep = hermes_worker._repair_macro_economy_scene_plan_repetition(repeated_structure, "환율 금리", "환율 금리 폭등")
-    assert not hermes_worker._scene_plan_repetition_errors(econ_rep)
-    
-    # 3. 무협
+    # 1. 무협
     martial_rep = hermes_worker._repair_martial_scene_plan_repetition(repeated_structure, "강호 비급", "강호 전설의 비급")
     assert not hermes_worker._scene_plan_repetition_errors(martial_rep)
     
-    # 4. 탈북사연
+    # 2. 탈북사연
     survival_rep = hermes_worker._repair_survival_story_scene_plan_repetition(repeated_structure, "두만강 국경", "두만강 탈출 실화")
     assert not hermes_worker._scene_plan_repetition_errors(survival_rep)
     
-    # 5. 황혼19금
+    # 3. 황혼19금
     twilight_rep = hermes_worker._repair_twilight_scene_plan_repetition(repeated_structure, "황혼 재회", "30년 만의 황혼 재회")
     assert not hermes_worker._scene_plan_repetition_errors(twilight_rep)
     
-    # 6. 한국사연
+    # 4. 한국사연
     korean_rep = hermes_worker._repair_korean_drama_scene_plan_repetition(repeated_structure, "시댁 갈등", "시댁의 무리한 요구를 응징한 사연")
     assert not hermes_worker._scene_plan_repetition_errors(korean_rep)
     
-    # 7. 해외감동
+    # 5. 해외감동
     overseas_rep = hermes_worker._repair_overseas_touching_scene_plan_repetition(repeated_structure, "외국인 은인", "타국에서 만난 참전용사 은인")
     assert not hermes_worker._scene_plan_repetition_errors(overseas_rep)
     
-    # 8. 옛날이야기
+    # 6. 옛날이야기
     old_rep = hermes_worker._repair_old_story_scene_plan_repetition(repeated_structure, "조선시대 야담", "조선시대 야담 실화")
     assert not hermes_worker._scene_plan_repetition_errors(old_rep)
 
 
-def test_all_8_categories_have_visual_motifs_refreshed():
+def test_supported_story_categories_have_visual_motifs_refreshed():
     base_structure = {
         "scenes": [
             {"scene_summary": f"장면 {i}", "scene_purpose": "목적", "retention_hook": "훅"}
             for i in range(1, 13)
         ]
     }
-    all_categories = ["노후금융", "경제", "무협", "탈북사연", "황혼19금", "한국사연", "해외감동", "옛날이야기"]
+    all_categories = ["무협", "탈북사연", "황혼19금", "한국사연", "해외감동", "옛날이야기"]
     for cat in all_categories:
         refreshed = hermes_worker._refresh_scene_visual_fields_for_category(cat, base_structure, f"{cat} 주제", f"{cat} 제목")
         scenes = refreshed.get("scenes") or []
@@ -696,10 +714,8 @@ def test_all_8_categories_have_visual_motifs_refreshed():
             assert scene.get("end_bridge")
 
 
-def test_all_8_categories_have_rescue_scripts():
+def test_supported_story_categories_have_rescue_scripts():
     structure = {"scenes": [{"scene_summary": "장면 1"}]}
-    assert len(hermes_worker._build_finance_rescue_script("노후금융", "노후금융 제목", structure)) >= 1000
-    assert len(hermes_worker._build_economy_rescue_script("경제", "경제 지표 분석", structure)) >= 1000
     assert len(hermes_worker._build_martial_rescue_script("무협", "무협 복수극", structure)) >= 1000
     assert len(hermes_worker._build_survival_rescue_script("탈북사연", "두만강 탈출", structure)) >= 1000
     assert len(hermes_worker._build_twilight_rescue_script("황혼19금", "황혼의 사랑", structure)) >= 1000
