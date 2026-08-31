@@ -1990,7 +1990,11 @@ export default function DashboardContent() {
             if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
             setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
             setVoiceBulkInput('')
-            alert(`${data.registeredCount || voices.length}개의 음성이 등록되었습니다.`)
+            const rejectedCount = Number(data.rejectedCount || 0)
+            const rejectedSuffix = rejectedCount > 0
+                ? `\n${rejectedCount}개는 현재 저장된 ElevenLabs API 키로 조회되지 않아 제외했습니다.`
+                : ''
+            alert(`${data.registeredCount || voices.length}개의 음성이 등록되었습니다.${rejectedSuffix}`)
         } catch (e: any) {
             alert('음성 저장 실패: ' + (e?.message || String(e)))
         } finally {

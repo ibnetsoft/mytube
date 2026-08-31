@@ -338,9 +338,6 @@ export async function GET(req: Request) {
 
     // Account-specific custom voices must disappear when the configured primary key changes.
     const combinedMap = new Map<string, any>()
-    for (const cv of availableCustomVoices) {
-        combinedMap.set(cv.id, cv)
-    }
     for (const fv of FREE_ALTERNATIVE_VOICES) {
         if (!combinedMap.has(fv.id)) {
             combinedMap.set(fv.id, fv)
@@ -350,6 +347,16 @@ export async function GET(req: Request) {
         if (!combinedMap.has(bv.id)) {
             combinedMap.set(bv.id, bv)
         }
+    }
+    for (const cv of availableCustomVoices) {
+        const liveVoice = combinedMap.get(cv.id)
+        combinedMap.set(cv.id, {
+            ...cv,
+            ...liveVoice,
+            name: liveVoice?.name || cv.name,
+            description: liveVoice?.description || cv.description,
+            preview_url: liveVoice?.preview_url || cv.preview_url,
+        })
     }
 
     const mergedVoices = Array.from(combinedMap.values())

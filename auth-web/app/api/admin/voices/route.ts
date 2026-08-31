@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { isAuthResponse, requireSuperAdmin } from '../_auth'
 import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
+import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
 
 export const dynamic = 'force-dynamic'
 const VOICES_CACHE_KEY = 'admin:voices'
@@ -73,6 +74,68 @@ const saveVoices = async (voices: CustomVoice[]) => {
     if (error) throw error
 }
 
+const isGenericVoiceName = (value: string) => /^ElevenLabs Voice \d+$/i.test(String(value || '').trim())
+
+async function loadElevenLabsVoiceMetadata() {
+    const metadata = new Map<string, Partial<CustomVoice>>()
+    const keys = await getConfiguredElevenLabsKeys()
+    for (const apiKey of keys) {
+        try {
+            const res = await fetch('https://api.elevenlabs.io/v1/voices?show_legacy=true', {
+                headers: { 'xi-api-key': apiKey },
+                cache: 'no-store',
+            })
+            if (!res.ok) continue
+            const data = await res.json().catch(() => ({}))
+            for (const voice of data.voices || []) {
+                const voiceId = String(voice?.voice_id || '').trim()
+                if (!voiceId || metadata.has(voiceId)) continue
+                const labels = voice.labels || {}
+                const name = String(voice.name || '').trim()
+                const lowerName = name.toLowerCase()
+                const gender = labels.gender === 'male'
+                    ? 'male'
+                    : (labels.gender === 'female'
+                        ? 'female'
+                        : (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some(token => lowerName.includes(token)) ? 'female' : 'male'))
+                metadata.set(voiceId, {
+                    id: voiceId,
+                    voice_id: voiceId,
+                    name,
+                    gender,
+                    category: String(voice.category || 'custom').trim(),
+                    language: String(labels.language || 'ko').trim(),
+                    description: String(labels.description || voice.description || '').trim(),
+                    preview_url: String(voice.preview_url || '').trim(),
+                    provider: 'elevenlabs',
+                })
+            }
+        } catch (error) {
+            console.warn('Failed to load ElevenLabs voice metadata:', error)
+        }
+    }
+    return metadata
+}
+
+async function enrichVoicesWithElevenLabsMetadata(voices: CustomVoice[], existingMetadata?: Map<string, Partial<CustomVoice>>) {
+    const metadata = existingMetadata || await loadElevenLabsVoiceMetadata()
+    if (!metadata.size) return voices
+    return voices.map((voice) => {
+        const enriched = metadata.get(voice.voice_id)
+        if (!enriched) return voice
+        return {
+            ...voice,
+            ...enriched,
+            name: !voice.name || isGenericVoiceName(voice.name)
+                ? String(enriched.name || voice.name || voice.voice_id)
+                : voice.name,
+            description: voice.description || String(enriched.description || ''),
+            preview_url: voice.preview_url || String(enriched.preview_url || ''),
+            created_at: voice.created_at,
+        }
+    })
+}
+
 export async function GET(req: Request) {
     try {
         const requester = await requireSuperAdmin(req)
@@ -87,7 +150,7 @@ export async function GET(req: Request) {
             })
         }
 
-        const response = { voices: await loadVoices() }
+        const response = { voices: await enrichVoicesWithElevenLabsMetadata(await loadVoices()) }
         await setServerCache(VOICES_CACHE_KEY, response, VOICES_CACHE_TTL_SECONDS)
         return NextResponse.json(response, {
             headers: {
@@ -106,11 +169,20 @@ export async function POST(req: Request) {
         if (isAuthResponse(requester)) return requester
 
         const body = await req.json()
-        const requestedVoices = normalizeVoices(
+        const metadata = await loadElevenLabsVoiceMetadata()
+        const normalizedVoices = normalizeVoices(
             Array.isArray(body.voices) ? body.voices : [body]
         )
+        const unresolvedVoices = normalizedVoices.filter(voice => !metadata.has(voice.voice_id))
+        const requestedVoices = await enrichVoicesWithElevenLabsMetadata(
+            normalizedVoices.filter(voice => metadata.has(voice.voice_id)),
+            metadata
+        )
         if (!requestedVoices.length) {
-            return NextResponse.json({ error: '등록할 음성 이름과 ElevenLabs Voice ID가 필요합니다.' }, { status: 400 })
+            const suffix = unresolvedVoices.length
+                ? ` 현재 저장된 ElevenLabs API 키로 조회 가능한 Voice ID가 없습니다. (${unresolvedVoices.length}개 제외)`
+                : ''
+            return NextResponse.json({ error: `등록할 음성 이름과 ElevenLabs Voice ID가 필요합니다.${suffix}` }, { status: 400 })
         }
 
         const voices = await loadVoices()
@@ -124,7 +196,13 @@ export async function POST(req: Request) {
         }
         await saveVoices(voices)
         await deleteServerCache(VOICES_CACHE_KEY)
-        return NextResponse.json({ success: true, registeredCount: requestedVoices.length, voices })
+        return NextResponse.json({
+            success: true,
+            registeredCount: requestedVoices.length,
+            rejectedCount: unresolvedVoices.length,
+            rejectedVoiceIds: unresolvedVoices.map(voice => voice.voice_id),
+            voices,
+        })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
