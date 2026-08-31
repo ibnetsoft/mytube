@@ -1953,21 +1953,30 @@ export default function DashboardContent() {
 
     const handleSaveVoice = async (e: React.FormEvent) => {
         e.preventDefault()
-        const lines = voiceBulkInput.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
-        const voices = lines.map(line => {
-            const parts = line.split(/\s*(?:\||\t|,)\s*/, 2)
+        const voiceIdPattern = /^[A-Za-z0-9_-]{12,}$/
+        const entries = voiceBulkInput
+            .split(/\r?\n/)
+            .flatMap(line => line.split(','))
+            .map(entry => entry.trim())
+            .filter(Boolean)
+        const voices = entries.map((entry, index) => {
+            const parts = entry.split(/\s*(?:\||\t)\s*/, 2)
+            const hasNameAndId = parts.length >= 2
+            const rawName = hasNameAndId ? String(parts[0] || '').trim() : ''
+            const rawVoiceId = hasNameAndId ? String(parts[1] || '').trim() : entry
+            const voiceId = rawVoiceId.replace(/^["']|["']$/g, '').trim()
             return {
-                name: String(parts[0] || '').trim(),
-                voice_id: String(parts[1] || '').trim(),
+                name: rawName || `ElevenLabs Voice ${index + 1}`,
+                voice_id: voiceId,
                 provider: 'elevenlabs'
             }
         })
         const invalidLines = voices
-            .map((voice, index) => (!voice.name || !voice.voice_id ? index + 1 : null))
+            .map((voice, index) => (!voice.name || !voice.voice_id || !voiceIdPattern.test(voice.voice_id) ? index + 1 : null))
             .filter(Boolean)
         if (!voices.length || invalidLines.length) {
             const suffix = invalidLines.length ? ` (확인할 줄: ${invalidLines.join(', ')})` : ''
-            alert(`한 줄에 "음성 이름 | Voice ID" 형식으로 입력해주세요.${suffix}`)
+            alert(`콤마로 구분한 Voice ID 목록 또는 "음성 이름 | Voice ID" 형식으로 입력해주세요.${suffix}`)
             return
         }
         try {
@@ -5569,13 +5578,13 @@ export default function DashboardContent() {
                                         ) : (
                                             <form onSubmit={handleSaveVoice} className="space-y-3">
                                                 <p className="text-[11px] text-gray-400">
-                                                    한 줄에 <code>성우이름 | ElevenLabs Voice ID</code> 형식으로 여러 개를 입력하세요.
+                                                    콤마로 Voice ID를 여러 개 붙여넣거나, <code>성우이름 | ElevenLabs Voice ID</code> 형식으로 입력하세요.
                                                 </p>
                                                 <textarea
                                                     rows={5}
                                                     value={voiceBulkInput}
                                                     onChange={e => setVoiceBulkInput(e.target.value)}
-                                                    placeholder="Yooni | n2fbxG88jqAoaVPUy3IG&#10;Mina | cgSgspJ2msm6clMCkdW9&#10;Roger | CwhRBWXzGAHq8TQ4Fs17"
+                                                    placeholder="n2fbxG88jqAoaVPUy3IG, cgSgspJ2msm6clMCkdW9, CwhRBWXzGAHq8TQ4Fs17&#10;Yooni | n2fbxG88jqAoaVPUy3IG"
                                                     className="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-xs text-white font-mono placeholder-gray-600 focus:outline-none focus:border-purple-500 leading-relaxed"
                                                 />
                                                 <div className="flex justify-end">
