@@ -169,13 +169,19 @@ export async function POST(req: Request) {
         if (isAuthResponse(requester)) return requester
 
         const body = await req.json()
+        const isBulkRequest = Array.isArray(body.voices)
         const metadata = await loadElevenLabsVoiceMetadata()
         const normalizedVoices = normalizeVoices(
-            Array.isArray(body.voices) ? body.voices : [body]
+            isBulkRequest ? body.voices : [body]
         )
-        const unresolvedVoices = normalizedVoices.filter(voice => !metadata.has(voice.voice_id))
+        const unresolvedVoices = isBulkRequest
+            ? normalizedVoices.filter(voice => !metadata.has(voice.voice_id))
+            : []
+        const voicesToSave = isBulkRequest
+            ? normalizedVoices.filter(voice => metadata.has(voice.voice_id))
+            : normalizedVoices
         const requestedVoices = await enrichVoicesWithElevenLabsMetadata(
-            normalizedVoices.filter(voice => metadata.has(voice.voice_id)),
+            voicesToSave,
             metadata
         )
         if (!requestedVoices.length) {

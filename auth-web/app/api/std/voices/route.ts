@@ -331,9 +331,9 @@ export async function GET(req: Request) {
     const baseList = apiVoices.length > 0
         ? apiVoices
         : (hasRequiredTextFilter && hasConfiguredKeyResult ? [] : ELEVENLABS_PRESET_VOICES)
-    const accessibleVoiceIds = new Set(apiVoices.map(voice => String(voice.id || '').trim()))
-    const availableCustomVoices = apiVoices.length > 0
-        ? customVoices.filter(voice => accessibleVoiceIds.has(String(voice.id || '').trim()))
+    const hasUsableElevenLabsKey = apiVoices.length > 0 || (!hasRequiredTextFilter && !hasConfiguredKeyResult)
+    const availableCustomVoices = hasUsableElevenLabsKey
+        ? customVoices
         : []
 
     // Account-specific custom voices must disappear when the configured primary key changes.
