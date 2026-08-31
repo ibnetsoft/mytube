@@ -3416,8 +3416,8 @@ export default function DashboardContent() {
             </nav>
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
-                <div className="flex items-center justify-between">
-                    <div className="flex flex-wrap gap-1 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
+                <div className="flex w-full items-center justify-between">
+                    <div className="flex w-full flex-wrap justify-between gap-1.5 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
                             { id: 'topics', label: ui.topics, superOnly: false },
                             { id: 'topics-queue', label: ui.topicsQueue, superOnly: false },
@@ -3442,7 +3442,7 @@ export default function DashboardContent() {
                                     disabled={locked}
                                     title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
                                     onClick={() => !locked && setActiveTab(tab.id as any)}
-                                    className={`px-3.5 py-2 rounded-xl text-[10px] font-black transition-all uppercase tracking-tight whitespace-nowrap ${
+                                    className={`flex-1 px-3.5 py-2 rounded-xl text-[13px] font-black transition-all uppercase tracking-tight whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'bg-blue-600 text-white shadow-xl'
                                             : locked
