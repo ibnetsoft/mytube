@@ -238,35 +238,77 @@ const loadCustomVoices = async (): Promise<any[]> => {
     }
 }
 
+async function inspectKeyRemaining(apiKey: string) {
+    try {
+        const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+            headers: {
+                'xi-api-key': apiKey,
+                Accept: 'application/json',
+            },
+            cache: 'no-store',
+        })
+        if (!res.ok) return null
+        const data = await res.json().catch(() => ({}))
+        const limit = Number(data?.character_limit || 0)
+        const used = Number(data?.character_count || 0)
+        return Number.isFinite(limit) && Number.isFinite(used) && limit > 0
+            ? Math.max(0, limit - used)
+            : null
+    } catch {
+        return null
+    }
+}
+
+async function loadElevenLabsVoicesForKey(apiKey: string) {
+    const res = await fetch('https://api.elevenlabs.io/v1/voices?show_legacy=true', {
+        headers: { 'xi-api-key': apiKey },
+        cache: 'no-store',
+    })
+    if (!res.ok) return []
+    const data = await res.json().catch(() => ({}))
+    return (data.voices || []).map((v: any) => {
+        const labels = v.labels || {}
+        const g = labels.gender || (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some(w => (v.name || '').toLowerCase().includes(w)) ? 'female' : 'male')
+        return {
+            id: v.voice_id,
+            name: v.name,
+            gender: g,
+            category: v.category || 'premade',
+            language: 'ko',
+            description: labels.description || v.description || '',
+            preview_url: v.preview_url || '',
+        }
+    }).filter((voice: any) => voice.id && voice.name)
+}
+
 export async function GET(req: Request) {
     // Voices list is safe for both authenticated users and initial guest preview
 
     const customVoices = await loadCustomVoices()
+    const requestUrl = new URL(req.url)
+    const requiredChars = Math.max(0, Number.parseInt(requestUrl.searchParams.get('requiredChars') || '0', 10) || 0)
+    const requiredBufferChars = requiredChars > 0 ? Math.ceil(requiredChars * 1.03) : 0
 
     let apiVoices: any[] = []
+    const usableVoiceIds = new Set<string>()
+    const keyStatus: Array<{ keySlot: number; remaining: number | null; usable: boolean; voice_count: number }> = []
     try {
-        const [apiKey] = await getConfiguredElevenLabsKeys()
-        if (apiKey) {
-            const res = await fetch('https://api.elevenlabs.io/v1/voices?show_legacy=true', {
-                headers: { 'xi-api-key': apiKey },
-                cache: 'no-store',
-            })
-            if (res.ok) {
-                const data = await res.json()
-                apiVoices = (data.voices || []).map((v: any) => {
-                    const labels = v.labels || {}
-                    const g = labels.gender || (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some(w => (v.name || '').toLowerCase().includes(w)) ? 'female' : 'male')
-                    return {
-                        id: v.voice_id,
-                        name: v.name,
-                        gender: g,
-                        category: v.category || 'premade',
-                        language: 'ko',
-                        description: labels.description || v.description || '',
-                        preview_url: v.preview_url || '',
-                    }
-                })
+        const apiKeys = await getConfiguredElevenLabsKeys()
+        for (const [index, apiKey] of apiKeys.entries()) {
+            const remaining = await inspectKeyRemaining(apiKey)
+            const usable = requiredBufferChars <= 0 || remaining == null || remaining >= requiredBufferChars
+            if (!usable) {
+                keyStatus.push({ keySlot: index + 1, remaining, usable: false, voice_count: 0 })
+                continue
             }
+            const voices = await loadElevenLabsVoicesForKey(apiKey)
+            for (const voice of voices) {
+                const id = String(voice.id || '').trim()
+                if (!id || usableVoiceIds.has(id)) continue
+                usableVoiceIds.add(id)
+                apiVoices.push(voice)
+            }
+            keyStatus.push({ keySlot: index + 1, remaining, usable: true, voice_count: voices.length })
         }
     } catch (e) {
         console.error('Failed to fetch dynamic ElevenLabs voices:', e)
@@ -284,7 +326,11 @@ export async function GET(req: Request) {
         },
     ]
 
-    const baseList = apiVoices.length > 0 ? apiVoices : ELEVENLABS_PRESET_VOICES
+    const hasRequiredTextFilter = requiredBufferChars > 0
+    const hasConfiguredKeyResult = keyStatus.length > 0
+    const baseList = apiVoices.length > 0
+        ? apiVoices
+        : (hasRequiredTextFilter && hasConfiguredKeyResult ? [] : ELEVENLABS_PRESET_VOICES)
     const accessibleVoiceIds = new Set(apiVoices.map(voice => String(voice.id || '').trim()))
     const availableCustomVoices = apiVoices.length > 0
         ? customVoices.filter(voice => accessibleVoiceIds.has(String(voice.id || '').trim()))
@@ -312,6 +358,8 @@ export async function GET(req: Request) {
         success: true,
         provider: 'elevenlabs',
         model_id: 'eleven_multilingual_v2',
-        voices: mergedVoices.length > 0 ? mergedVoices : ELEVENLABS_PRESET_VOICES,
+        required_chars: requiredChars,
+        key_status: keyStatus,
+        voices: mergedVoices.length > 0 ? mergedVoices : FREE_ALTERNATIVE_VOICES,
     })
 }

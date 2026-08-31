@@ -3579,6 +3579,37 @@ export default function StdPortalPage() {
         return (customScriptText || selectedProject?.project?.project_payload?.script || '').length
     }, [customScriptText, selectedProject])
 
+    useEffect(() => {
+        if (currentNav !== 'tts' || !token || scriptCharCount <= 0) return
+        const controller = new AbortController()
+        const timeout = window.setTimeout(() => {
+            fetch(`/api/std/voices?requiredChars=${encodeURIComponent(String(scriptCharCount))}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                signal: controller.signal,
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (!Array.isArray(data?.voices) || data.voices.length === 0) return
+                    setAllVoices(data.voices)
+                    setSelectedVoice(prev => data.voices.some((voice: any) => voice.id === prev) ? prev : data.voices[0].id)
+                    setCharacterVoices(prev => {
+                        const allowed = new Set(data.voices.map((voice: any) => String(voice.id || '')))
+                        const next = Object.fromEntries(
+                            Object.entries(prev).filter(([, voiceId]) => allowed.has(String(voiceId)))
+                        )
+                        return next
+                    })
+                })
+                .catch(error => {
+                    if (error?.name !== 'AbortError') console.error('Failed to refresh TTS voices for script length:', error)
+                })
+        }, 400)
+        return () => {
+            window.clearTimeout(timeout)
+            controller.abort()
+        }
+    }, [currentNav, scriptCharCount, token])
+
     const estimatedAudioMinutes = useMemo(() => {
         const speedNum = Number(ttsSpeed) || 1.0
         const chars = scriptCharCount || 7200
