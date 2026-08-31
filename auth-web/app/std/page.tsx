@@ -69,7 +69,7 @@ import {
     selectStdLocalDirectory,
     type StdLocalDirectoryState,
 } from '@/lib/stdLocalMedia'
-import { calculateLongformPayoutByTiers, DEFAULT_LONGFORM_PAYOUT_TIERS_JSON } from '@/lib/stdPayoutPolicy'
+import { calculateLongformPayoutByScenes, capLongformPayout } from '@/lib/stdPayoutPolicy'
 
 type Topic = {
     id: number
@@ -498,9 +498,9 @@ export default function StdPortalPage() {
 
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
     const getTopicPayoutUsdt = (topic: any): number => {
-        const duration = Number(topic?.assigned_duration_minutes ?? topic?.recommended_duration_minutes ?? topic?.duration_minutes ?? 0)
-        if (Number.isFinite(duration) && duration > 0) {
-            return calculateLongformPayoutByTiers(duration, DEFAULT_LONGFORM_PAYOUT_TIERS_JSON)
+        const sceneCount = Number(topic?.scene_count ?? topic?.total_scenes ?? 0)
+        if (Number.isFinite(sceneCount) && sceneCount > 0) {
+            return calculateLongformPayoutByScenes(sceneCount)
         }
         const raw = Number(
             topic?.adjusted_payout_usdt
@@ -511,7 +511,7 @@ export default function StdPortalPage() {
         )
         if (!Number.isFinite(raw) || raw <= 0) return 4
         const usdt = raw >= 1000 ? raw / 1000 : raw
-        return Math.round(usdt * 10) / 10
+        return capLongformPayout(usdt)
     }
     const formatTopicPayout = (topic: any): string => {
         const amount = getTopicPayoutUsdt(topic)

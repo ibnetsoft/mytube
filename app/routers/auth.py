@@ -157,10 +157,41 @@ def _normalize_content_language(value, default: str = "ko") -> str:
 
 
 def _calculate_longform_payout(minutes: int, policy: dict) -> float:
-    min_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
-    base_pay = max(0.0, _to_float(policy.get("sys_api_longform_base_payout"), 4.0))
-    extra_pay = max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0))
-    return round(base_pay + max(0, minutes - min_minutes) * extra_pay, 1)
+    return _calculate_longform_payout_by_scenes(53)
+
+
+def _calculate_longform_payout_by_scenes(scene_count: int) -> float:
+    scenes = max(1, _to_int(scene_count, 53))
+    if scenes <= 40:
+        return 3.0
+    if scenes <= 70:
+        return 4.0
+    if scenes <= 100:
+        return 5.0
+    if scenes <= 150:
+        return 7.0
+    return 10.0
+
+
+def _topic_scene_count(topic: dict) -> int:
+    for key in ("scene_count", "total_scenes", "target_scene_count", "scenes_count"):
+        count = _to_int(topic.get(key), 0)
+        if count > 0:
+            return count
+    structure = topic.get("pregenerated_structure") or topic.get("structure") or {}
+    if isinstance(structure, str):
+        try:
+            structure = json.loads(structure)
+        except Exception:
+            structure = {}
+    if isinstance(structure, dict):
+        scenes = structure.get("scenes")
+        if isinstance(scenes, list) and scenes:
+            return len(scenes)
+        count = _to_int(structure.get("scene_count") or structure.get("total_scenes"), 0)
+        if count > 0:
+            return count
+    return 53
 
 
 def _fetch_longform_policy(supabase_url: str, headers: dict) -> dict:
@@ -805,7 +836,8 @@ async def get_daily_topic():
                 min_duration_minutes,
             ),
         )
-        estimated_payout = _calculate_longform_payout(assigned_duration_minutes, policy)
+        scene_count = _topic_scene_count(item)
+        estimated_payout = _calculate_longform_payout_by_scenes(scene_count)
         duration_locked = str(item.get("duration_locked", policy.get("sys_api_longform_duration_lock_enabled", "true"))).lower() not in ("false", "0", "none")
 
         if category_id:
@@ -882,9 +914,16 @@ async def get_daily_topic():
             db.update_project_setting(project_id, "duration_reason", item.get("duration_reason") or "")
             db.update_project_setting(project_id, "difficulty_level", item.get("difficulty_level") or "")
             db.update_project_setting(project_id, "payout_policy_json", json.dumps({
-                "min_duration_minutes": min_duration_minutes,
-                "base_payout": _to_float(policy.get("sys_api_longform_base_payout"), 4.0),
-                "extra_minute_payout": _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0),
+                "basis": "scene_count",
+                "scene_count": scene_count,
+                "max_payout_usdt": 10,
+                "tiers": [
+                    {"max_scenes": 40, "payout_usdt": 3},
+                    {"max_scenes": 70, "payout_usdt": 4},
+                    {"max_scenes": 100, "payout_usdt": 5},
+                    {"max_scenes": 150, "payout_usdt": 7},
+                    {"max_scenes": 220, "payout_usdt": 10},
+                ],
             }, ensure_ascii=False))
         try:
             sync_topic_progress(project_id, topic_id)

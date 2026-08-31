@@ -6,8 +6,7 @@ import { generateJsonWithModelSetting } from '../../../../lib/aiRouter'
 import { preparedTopicStatus } from '../../../../lib/preparedTopic'
 import {
     DEFAULT_LONGFORM_MAX_DURATION_MINUTES,
-    DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
-    calculateLongformPayoutByTiers,
+    calculateLongformPayoutByScenes,
 } from '../../../../lib/stdPayoutPolicy'
 
 const getAdmin = () => createClient(
@@ -356,8 +355,8 @@ function clampDuration(value: any, minMinutes: number) {
     return Math.max(minMinutes, Math.min(DEFAULT_LONGFORM_MAX_DURATION_MINUTES, parsed))
 }
 
-function payoutForMinutes(minutes: number, tiersValue: any) {
-    return calculateLongformPayoutByTiers(minutes, tiersValue)
+function payoutForScenes(sceneCount: number) {
+    return calculateLongformPayoutByScenes(sceneCount)
 }
 
 function toStringArray(value: any): string[] {
@@ -680,9 +679,6 @@ export async function POST(req: Request) {
             ])
         const policy = Object.fromEntries((policyRows || []).map((row: any) => [row.key, row.value]))
         const minDurationMinutes = Math.max(15, toInt(policy.sys_api_longform_min_duration_minutes, 15))
-        const basePayout = Math.max(0, toInt(policy.sys_api_longform_base_payout, 4))
-        const extraMinutePayout = Math.max(0, toInt(policy.sys_api_longform_extra_minute_payout, 0))
-        const payoutTiers = policy.sys_api_longform_payout_tiers || DEFAULT_LONGFORM_PAYOUT_TIERS_JSON
         const durationLockEnabled = String(policy.sys_api_longform_duration_lock_enabled ?? 'true') !== 'false'
         const isLongformCategory = (category.video_type || 'longform') === 'longform'
         const targetLang = normalizeContentLanguage(category.language)
@@ -897,9 +893,7 @@ export async function POST(req: Request) {
             const assignedDuration = (isLongformCategory && geminiDuration != null)
                 ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)
                 : geminiDuration
-            const estimatedPayout = assignedDuration
-                ? payoutForMinutes(assignedDuration, payoutTiers)
-                : null
+            const estimatedPayout = isLongformCategory ? payoutForScenes(53) : null
 
             return {
                 category_id: category.id,
@@ -923,10 +917,16 @@ export async function POST(req: Request) {
                     duration_locked: durationLockEnabled,
                     estimated_payout: estimatedPayout,
                     payout_policy: {
-                        min_duration_minutes: minDurationMinutes,
-                        base_payout: basePayout,
-                        extra_minute_payout: extraMinutePayout,
-                        payout_tiers: payoutTiers
+                        basis: 'scene_count',
+                        scene_count: 53,
+                        max_payout_usdt: 10,
+                        tiers: [
+                            { max_scenes: 40, payout_usdt: 3 },
+                            { max_scenes: 70, payout_usdt: 4 },
+                            { max_scenes: 100, payout_usdt: 5 },
+                            { max_scenes: 150, payout_usdt: 7 },
+                            { max_scenes: 220, payout_usdt: 10 },
+                        ],
                     },
                     duration_reason: typeof item === 'string' ? '' : (item?.duration_reason || ''),
                     difficulty_level: typeof item === 'string' ? 'normal' : (item?.difficulty_level || 'normal')

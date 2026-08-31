@@ -2,7 +2,8 @@ import { supabaseAdmin } from './supabaseAdmin'
 import { isPreparedStdTopic, normalizeTopicSummary } from './stdWeb'
 import {
     DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
-    calculateLongformPayoutByTiers,
+    calculateLongformPayoutByScenes,
+    capLongformPayout,
 } from './stdPayoutPolicy'
 
 const LONGFORM_POLICY_KEYS = [
@@ -33,10 +34,6 @@ function durationPreferenceBucket(minutes: number | null): string {
     if (minutes <= 15) return '15m'
     if (minutes <= 30) return '30m'
     return '60m_plus'
-}
-
-function calculateLongformPayout(minutes: number, policy: Record<string, any>): number {
-    return calculateLongformPayoutByTiers(minutes, policy.sys_api_longform_payout_tiers)
 }
 
 function normalizePayoutUsdt(value: any): number {
@@ -84,9 +81,11 @@ function normalizeTopicForStd(topic: any, policy: Record<string, any>, payoutMul
     if (videoType === 'longform') durationMinutes = Math.max(minMinutes, durationMinutes || minMinutes)
 
     const estimatedPayout = videoType === 'longform'
-        ? calculateLongformPayout(durationMinutes || minMinutes, policy)
+        ? calculateLongformPayoutByScenes(summary.scene_count || 53)
         : normalizePayoutUsdt(topic?.estimated_payout)
-    const adjustedPayout = Math.round(estimatedPayout * payoutMultiplier * 10) / 10
+    const adjustedPayout = videoType === 'longform'
+        ? capLongformPayout(estimatedPayout * payoutMultiplier)
+        : Math.round(estimatedPayout * payoutMultiplier * 10) / 10
 
     return {
         ...summary,

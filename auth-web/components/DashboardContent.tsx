@@ -5947,52 +5947,33 @@ export default function DashboardContent() {
                                     <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
                                         <div>
                                             <h4 className="text-xs font-black text-emerald-300 uppercase tracking-widest">Longform Work Policy</h4>
-                                            <p className="text-[10px] text-gray-500 mt-1">롱폼 직원 작업시간 잠금과 예상 수당 계산 기준입니다.</p>
+                                            <p className="text-[10px] text-gray-500 mt-1">롱폼 작업 수당은 씬 개수 기준으로 계산되며 최대 $10 USDT까지만 지급됩니다.</p>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">최소 영상 길이(분)</label>
-                                                <input
-                                                    type="number"
-                                                    min="15"
-                                                    value={sysKeys.longform_min_duration_minutes}
-                                                    onChange={e => setSysKeys(prev => ({ ...prev, longform_min_duration_minutes: e.target.value }))}
-                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">기본 수당 (USDT)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={sysKeys.longform_base_payout}
-                                                    onChange={e => setSysKeys(prev => ({ ...prev, longform_base_payout: e.target.value }))}
-                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">추가 1분당 수당 (USDT)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={sysKeys.longform_extra_minute_payout}
-                                                    onChange={e => setSysKeys(prev => ({ ...prev, longform_extra_minute_payout: e.target.value }))}
-                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">구간별 수당표 JSON (USDT)</label>
-                                            <textarea
-                                                value={sysKeys.longform_payout_tiers}
-                                                onChange={e => setSysKeys(prev => ({ ...prev, longform_payout_tiers: e.target.value }))}
-                                                rows={7}
-                                                spellCheck={false}
-                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 font-mono leading-relaxed"
-                                            />
-                                            <p className="mt-2 text-[10px] text-gray-500">
-                                                예: 15분 이하는 $4, 150분 이상은 최대 $9로 계산됩니다. 형식: max_minutes / payout_usdt
-                                            </p>
+                                        <div className="overflow-hidden rounded-xl border border-white/10">
+                                            <table className="w-full text-xs">
+                                                <thead className="bg-white/5 text-gray-400">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left font-black uppercase tracking-widest">씬 개수</th>
+                                                        <th className="px-4 py-3 text-left font-black uppercase tracking-widest">작업량</th>
+                                                        <th className="px-4 py-3 text-right font-black uppercase tracking-widest">지급 기준</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/10 text-gray-300">
+                                                    {[
+                                                        ['1-40 scenes', '짧은 작업', '$3 USDT'],
+                                                        ['41-70 scenes', '기본 15분급', '$4 USDT'],
+                                                        ['71-100 scenes', '중간 작업', '$5 USDT'],
+                                                        ['101-150 scenes', '긴 작업', '$7 USDT'],
+                                                        ['151 scenes 이상', '고작업량', '$10 USDT'],
+                                                    ].map(([scenes, workload, payout]) => (
+                                                        <tr key={scenes}>
+                                                            <td className="px-4 py-3 font-mono text-cyan-300">{scenes}</td>
+                                                            <td className="px-4 py-3">{workload}</td>
+                                                            <td className="px-4 py-3 text-right font-black text-emerald-300">{payout}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
                                         </div>
                                         <label className="flex items-center gap-3 text-xs font-bold text-gray-300">
                                             <input

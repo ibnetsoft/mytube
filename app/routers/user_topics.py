@@ -586,10 +586,45 @@ def _normalize_payout_usdt(value) -> float:
 
 
 def _calculate_longform_payout(minutes: int, policy: dict) -> float:
-    min_minutes = max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15))
-    base_pay = max(0.0, _to_float(policy.get("sys_api_longform_base_payout"), 4.0))
-    extra_pay = max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0))
-    return round(base_pay + max(0, minutes - min_minutes) * extra_pay, 1)
+    return _calculate_longform_payout_by_scenes(53)
+
+
+def _calculate_longform_payout_by_scenes(scene_count: int) -> float:
+    scenes = max(1, _to_int(scene_count, 53))
+    if scenes <= 40:
+        return 3.0
+    if scenes <= 70:
+        return 4.0
+    if scenes <= 100:
+        return 5.0
+    if scenes <= 150:
+        return 7.0
+    return 10.0
+
+
+def _cap_longform_payout(value) -> float:
+    return min(10.0, round(max(0.0, _to_float(value, 0.0)) * 10) / 10)
+
+
+def _topic_scene_count(topic: dict) -> int:
+    for key in ("scene_count", "total_scenes", "target_scene_count", "scenes_count"):
+        count = _to_int(topic.get(key), 0)
+        if count > 0:
+            return count
+    structure = topic.get("pregenerated_structure") or topic.get("structure") or {}
+    if isinstance(structure, str):
+        try:
+            structure = json.loads(structure)
+        except Exception:
+            structure = {}
+    if isinstance(structure, dict):
+        scenes = structure.get("scenes")
+        if isinstance(scenes, list) and scenes:
+            return len(scenes)
+        count = _to_int(structure.get("scene_count") or structure.get("total_scenes"), 0)
+        if count > 0:
+            return count
+    return 53
 
 
 def _calculate_payout_multiplier(topic: dict, settings: dict) -> float:
@@ -926,12 +961,16 @@ def _normalize_topic_payload(topic: dict, policy: dict) -> dict:
     raw_estimated_payout = topic.get("estimated_payout")
     if video_type == "longform":
         # Longform payout should always reflect the latest admin policy.
-        estimated_payout = _calculate_longform_payout(duration_minutes or min_minutes, policy)
+        estimated_payout = _calculate_longform_payout_by_scenes(_topic_scene_count(topic))
     else:
         estimated_payout = _normalize_payout_usdt(raw_estimated_payout)
 
     payout_multiplier = float(topic.get("payout_multiplier", 1.0) or 1.0)
-    adjusted_payout = round(estimated_payout * payout_multiplier, 1)
+    adjusted_payout = (
+        _cap_longform_payout(estimated_payout * payout_multiplier)
+        if video_type == "longform"
+        else round(estimated_payout * payout_multiplier, 1)
+    )
 
     canonical_topic_id = topic.get("topic_queue_id") or topic.get("id")
 
@@ -1276,7 +1315,8 @@ async def claim_topic(req: ClaimTopicRequest):
             assigned_minutes = normalized.get("recommended_duration_minutes") or max(
                 15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)
             )
-            estimated_payout = _calculate_longform_payout(assigned_minutes, policy)
+            scene_count = _topic_scene_count(topic_data)
+            estimated_payout = _calculate_longform_payout_by_scenes(scene_count)
             db.update_project_setting(project_id, "duration_seconds", assigned_minutes * 60)
             db.update_project_setting(project_id, "assigned_duration_minutes", assigned_minutes)
             db.update_project_setting(project_id, "assigned_duration_seconds", assigned_minutes * 60)
@@ -1285,9 +1325,16 @@ async def claim_topic(req: ClaimTopicRequest):
             db.update_project_setting(project_id, "duration_reason", topic_data.get("duration_reason") or "")
             db.update_project_setting(project_id, "difficulty_level", topic_data.get("difficulty_level") or "")
             db.update_project_setting(project_id, "payout_policy_json", json.dumps({
-                "min_duration_minutes": max(15, _to_int(policy.get("sys_api_longform_min_duration_minutes"), 15)),
-                "base_payout": max(0.0, _to_float(policy.get("sys_api_longform_base_payout"), 4.0)),
-                "extra_minute_payout": max(0.0, _to_float(policy.get("sys_api_longform_extra_minute_payout"), 0.0)),
+                "basis": "scene_count",
+                "scene_count": scene_count,
+                "max_payout_usdt": 10,
+                "tiers": [
+                    {"max_scenes": 40, "payout_usdt": 3},
+                    {"max_scenes": 70, "payout_usdt": 4},
+                    {"max_scenes": 100, "payout_usdt": 5},
+                    {"max_scenes": 150, "payout_usdt": 7},
+                    {"max_scenes": 220, "payout_usdt": 10},
+                ],
             }, ensure_ascii=False))
 
         # [AIR-0227E-P4] user_topic_recommendations.is_claimed is already set

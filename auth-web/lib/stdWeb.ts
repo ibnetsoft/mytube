@@ -7,6 +7,7 @@ import {
     partitionScriptTo53Scenes,
     stripGeneratedPlanningText,
 } from './stdSubtitles'
+import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
 
 const getAuthClient = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -328,7 +329,9 @@ export function normalizeTopicSummary(topic: any) {
     const category = topic?.categories || {}
     const structure = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = buildStdScenes(topic)
+    const sceneCount = scenes.length || 53
     const structureImageStyle = firstText(structure?.image_style)
+    const estimatedPayout = calculateLongformPayoutByScenes(sceneCount)
     return {
         id: topic.id,
         topic: firstText(topic.generated_title, topic.topic),
@@ -336,10 +339,11 @@ export function normalizeTopicSummary(topic: any) {
         category_id: topic.category_id,
         language: topic.language || category.language || 'ko',
         assigned_duration_minutes: topic.assigned_duration_minutes || topic.recommended_duration_minutes || null,
-        estimated_payout: topic.estimated_payout || null,
+        estimated_payout: estimatedPayout,
+        estimated_payout_usdt: estimatedPayout,
         script_style: topic.assigned_script_style || category.default_script_style || 'default',
         image_style: topic.assigned_image_style || structureImageStyle || category.default_image_style || 'realistic',
-        scene_count: scenes.length || 53,
+        scene_count: sceneCount,
         pregenerated_script: topic.pregenerated_script || topic.script || '',
         pregenerated_structure: structure,
         publish_metadata: topic.publish_metadata || null,

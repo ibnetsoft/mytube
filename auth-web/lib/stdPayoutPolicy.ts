@@ -3,7 +3,13 @@ export type LongformPayoutTier = {
     payout_usdt: number
 }
 
+export type LongformScenePayoutTier = {
+    max_scenes: number
+    payout_usdt: number
+}
+
 export const DEFAULT_LONGFORM_MAX_DURATION_MINUTES = 150
+export const DEFAULT_LONGFORM_MAX_PAYOUT_USDT = 10
 
 export const DEFAULT_LONGFORM_PAYOUT_TIERS: LongformPayoutTier[] = [
     { max_minutes: 15, payout_usdt: 4 },
@@ -12,6 +18,14 @@ export const DEFAULT_LONGFORM_PAYOUT_TIERS: LongformPayoutTier[] = [
     { max_minutes: 90, payout_usdt: 7 },
     { max_minutes: 120, payout_usdt: 8 },
     { max_minutes: 150, payout_usdt: 9 },
+]
+
+export const DEFAULT_LONGFORM_SCENE_PAYOUT_TIERS: LongformScenePayoutTier[] = [
+    { max_scenes: 40, payout_usdt: 3 },
+    { max_scenes: 70, payout_usdt: 4 },
+    { max_scenes: 100, payout_usdt: 5 },
+    { max_scenes: 150, payout_usdt: 7 },
+    { max_scenes: 220, payout_usdt: 10 },
 ]
 
 export const DEFAULT_LONGFORM_PAYOUT_TIERS_JSON = JSON.stringify(DEFAULT_LONGFORM_PAYOUT_TIERS, null, 2)
@@ -54,4 +68,16 @@ export function calculateLongformPayoutByTiers(minutes: number, tiersValue: any)
     const duration = Math.max(1, Math.round(Number(minutes) || 0))
     const matched = tiers.find((tier) => duration <= tier.max_minutes) || tiers[tiers.length - 1]
     return Math.round(matched.payout_usdt * 10) / 10
+}
+
+export function calculateLongformPayoutByScenes(sceneCount: number): number {
+    const scenes = Math.max(1, Math.round(Number(sceneCount) || 0))
+    const matched = DEFAULT_LONGFORM_SCENE_PAYOUT_TIERS.find((tier) => scenes <= tier.max_scenes)
+        || DEFAULT_LONGFORM_SCENE_PAYOUT_TIERS[DEFAULT_LONGFORM_SCENE_PAYOUT_TIERS.length - 1]
+    return Math.min(DEFAULT_LONGFORM_MAX_PAYOUT_USDT, Math.round(matched.payout_usdt * 10) / 10)
+}
+
+export function capLongformPayout(value: number): number {
+    const amount = Math.max(0, Number(value) || 0)
+    return Math.min(DEFAULT_LONGFORM_MAX_PAYOUT_USDT, Math.round(amount * 10) / 10)
 }
