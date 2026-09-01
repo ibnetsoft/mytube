@@ -2824,8 +2824,8 @@ export default function StdPortalPage() {
         }
     }
 
-    const uploadAsset = async (scene: any, assetType: 'image' | 'video' | 'thumbnail', file: File | null) => {
-        if (!file || !selectedProject) return
+    const uploadAsset = async (scene: any, assetType: 'image' | 'video' | 'thumbnail', file: File | null): Promise<boolean> => {
+        if (!file || !selectedProject) return false
         const sceneNum = scene?.scene_number || 1
         const actualAssetType = file.type?.startsWith('video/') ? 'video' : assetType
         const key = `${sceneNum}-${actualAssetType}`
@@ -2956,8 +2956,40 @@ export default function StdPortalPage() {
             setMessage(localRelativePath
                 ? `에셋 (${file.name}) 로컬 폴더 및 Drive 저장 완료!`
                 : `에셋 (${file.name}) Drive 저장 완료. 로컬 저장 실패: ${localSaveError}`)
+            return true
         } catch (error: any) {
+            if (objectUrl) {
+                setSelectedProject(prev => {
+                    if (!prev) return prev
+                    const updatedScenes = prev.scenes.map(s => {
+                        if (s.scene_number !== sceneNum) return s
+                        const imageUrl = actualAssetType === 'image' && s.image_url === objectUrl ? null : s.image_url
+                        const videoUrl = actualAssetType === 'video' && s.video_url === objectUrl ? null : s.video_url
+                        return {
+                            ...s,
+                            image_url: imageUrl,
+                            video_url: videoUrl,
+                            asset_status: imageUrl || videoUrl ? 'ready' : 'missing',
+                        }
+                    })
+                    const updatedProject = {
+                        ...prev,
+                        scenes: updatedScenes,
+                        assets: prev.assets.filter(a => !(
+                            String(a?.id || '').startsWith('local-asset-')
+                            && Number(a?.scene_number) === Number(sceneNum)
+                            && String(a?.asset_type || '').toLowerCase() === actualAssetType
+                        )),
+                    }
+                    rememberProjectState(updatedProject)
+                    return updatedProject
+                })
+                try {
+                    URL.revokeObjectURL(objectUrl)
+                } catch {}
+            }
             setMessage(error.message || '업로드 실패')
+            return false
         } finally {
             setUploadingKey('')
         }
@@ -3128,13 +3160,19 @@ export default function StdPortalPage() {
     const handleBulkImageUpload = async (files: FileList | null) => {
         if (!files || !files.length || !selectedProject) return
         setMessage(`${files.length}개 파일 일괄 등록 중...`)
+        let successCount = 0
         for (const [index, file] of Array.from(files).entries()) {
             const sceneIndex = index < selectedProject.scenes.length ? index : selectedProject.scenes.length - 1
             const targetScene = selectedProject.scenes[sceneIndex]
             const isVideo = file.type.startsWith('video') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')
-            await uploadAsset(targetScene, isVideo ? 'video' : 'image', file)
+            if (await uploadAsset(targetScene, isVideo ? 'video' : 'image', file)) {
+                successCount += 1
+            }
         }
-        setMessage(`${files.length}개 에셋 일괄 등록 완료!`)
+        setMessage(successCount === files.length
+            ? `${files.length}개 에셋 일괄 등록 완료!`
+            : `${successCount}/${files.length}개만 영구 저장되었습니다. 실패한 파일은 다시 업로드해주세요.`
+        )
     }
 
     const submitProject = async () => {
