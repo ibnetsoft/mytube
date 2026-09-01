@@ -642,6 +642,15 @@ class HermesAutopilotManager:
                 or DEFAULT_CATEGORY_TARGET_DURATION_SECONDS
             )
 
+    def _narration_pace_for_category(self, category: str) -> str:
+        paces = self.settings.get("narration_pace_by_category") or {}
+        pace = paces.get(category) or self.settings.get("narration_pace")
+        try:
+            from services.narration_policy import normalize_narration_pace
+            return normalize_narration_pace(pace)
+        except Exception:
+            return "senior" 
+
     def _job_pipeline_identity(self, job: dict) -> tuple[str, str, str]:
         payload = job.get("payload") or {}
         queue_id = str(payload.get("topic_queue_id") or payload.get("topic_id") or "").strip()
@@ -3151,6 +3160,7 @@ Return ONLY a JSON array of strings.
                 "image_style": assigned_image_style,
                 "image_style_selection": image_style_plan,
                 "language": category_language,
+                "narration_pace": self._narration_pace_for_category(category),
                 "benchmark_analysis": {**(best_candidate.get("analysis") or best_candidate), "web_research": research_bundle},
                 "upload_title": generated_title,
                 "title_generation": title_plan,
@@ -3212,6 +3222,7 @@ Return ONLY a JSON array of strings.
                 "image_style_selection": image_style_plan,
                 "language": category_language,
                 "narration_mode": "dramatic_single",
+                "narration_pace": self._narration_pace_for_category(category),
                 "tts_speed": self.settings.get("tts_speed", 1.0),
                 "upload_title": generated_title,
                 "title_generation": title_plan,
@@ -3237,7 +3248,15 @@ Return ONLY a JSON array of strings.
         narrative_blueprint = script_data.get("narrative_blueprint")
         script_quality_report = script_data.get("script_quality_report")
         sfx_cues = script_data.get("sfx_cues") or []
-        sfx_cues_json = script_data.get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
+        if isinstance(sfx_cues, str):
+            try:
+                sfx_cues = json.loads(sfx_cues)
+            except Exception:
+                sfx_cues = []
+        sfx_cues_json = script_data.get("sfx_cues_json")
+        if not isinstance(sfx_cues_json, str) or not sfx_cues_json.strip():
+            sfx_cues_json = json.dumps(sfx_cues, ensure_ascii=False)
+        language_stats = script_data.get("language_stats") or {}
         char_count = len(final_script)
         self.add_log(f"✍️ 최종 대본 집필 완료 (총 글자수: {char_count}자)")
 
@@ -3310,6 +3329,7 @@ Return ONLY a JSON array of strings.
             "script": final_script,
             "language": category_language,
             "char_count": char_count,
+            "language_stats": language_stats,
             "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
             "completed_at": time.time()
         }

@@ -89,3 +89,5 @@ worker/debug_*.txt
 rebuild_*_log.txt
 
 .vercel
+
+.codex/

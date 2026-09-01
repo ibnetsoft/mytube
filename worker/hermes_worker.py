@@ -6578,7 +6578,7 @@ _CLEANUP_BRACKET_PATTERN = re.compile(r"\[[^\]]*\]")
 # re.compile sees them - a raw string would hand re the literal backslash-u
 # sequence instead, which Python's re engine does not reliably expand.
 _CLEANUP_ALLOWED_PATTERN = re.compile(
-    "[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\\s,.\\?\\!\"'\\.:\\(\\)]"
+    "[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"'\.:\(\)\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]"
 )
 _SPEAKER_STRIP_PATTERN = re.compile(r"^[가-힣\w\s]+[ \t]*:[ \t]*", re.MULTILINE)
 _SPEAKER_LINE_REGEX = re.compile(r"^\s*(?:([^\s:\[\]()]+)(?:\(.*\))?[:：]|([^\s:\[\]()]+)[)）\]])")
@@ -7029,6 +7029,13 @@ def _chunk_scenes_for_script_generation(
 
 
 def _select_script_draft_model(config, final_model: str) -> str:
+    draft_setting = str(
+        getattr(config, "SCRIPT_DRAFT_MODEL", None)
+        or os.getenv("SCRIPT_DRAFT_MODEL")
+        or ""
+    ).strip()
+    if draft_setting:
+        return _prefer_gemini_text_model(config, draft_setting)
     selected = (final_model or "").strip()
     return selected
 
@@ -7915,7 +7922,7 @@ def _fallback_script_quality_report(script: str, upload_title: str) -> dict:
         issues.append("meta_commentary_present")
     return {
         "score": max(0, min(100, score)),
-        "verdict": "pass" if score >= 72 and not issues else "revise",
+        "verdict": "pass" if score >= 78 and not issues else "revise",
         "critical_issues": issues,
         "strengths": [],
         "revision_notes": issues,
@@ -8085,6 +8092,8 @@ def _script_needs_revision(report: dict) -> bool:
     if not isinstance(report, dict):
         return True
     verdict = str(report.get("verdict") or "").strip().lower()
+    if verdict == "manual_override":
+        return False
     score = int(report.get("score") or 0)
     return verdict != "pass" or score < 78 or bool(report.get("critical_issues"))
 
@@ -8115,6 +8124,15 @@ def _deduplicate_script_text(script: str, repeated_sentences: list[dict] | None 
     lines = script.split("\n")
     cleaned_lines = []
     seen_sentences = set()
+    
+    # If specific repeated sentences are identified, target them
+    target_repeated = set()
+    if repeated_sentences:
+        for item in repeated_sentences:
+            s_text = str(item.get("sentence") or "").strip()
+            norm_s = re.sub(r'["\'\s]', '', s_text)
+            if len(norm_s) >= 15:
+                target_repeated.add(norm_s)
 
     for line in lines:
         stripped = line.strip()
@@ -8122,14 +8140,22 @@ def _deduplicate_script_text(script: str, repeated_sentences: list[dict] | None 
             cleaned_lines.append(line)
             continue
 
-        parts = re.split(r"(?<=[.!?。！？다요죠까])\s+", stripped)
+        # Split on sentence-ending punctuation or clear verb endings
+        parts = re.split(r"(?<=[.!?。！？])\s+|(?<=[다요죠까][.!?]?)\s{2,}", stripped)
         kept_parts = []
         for part in parts:
             p_strip = part.strip()
-            norm = re.sub(r'["\'\s]', '', p_strip)
-            if len(norm) >= 15 and norm in seen_sentences:
+            if not p_strip:
                 continue
+            norm = re.sub(r'["\'\s]', '', p_strip)
             if len(norm) >= 15:
+                if target_repeated:
+                    # If targeting specific repeated sentences, deduplicate only those
+                    if norm in target_repeated and norm in seen_sentences:
+                        continue
+                else:
+                    if norm in seen_sentences:
+                        continue
                 seen_sentences.add(norm)
             kept_parts.append(p_strip)
 
@@ -8219,11 +8245,16 @@ def _build_korean_language_rescue_script(topic: str, upload_title: str, structur
         "이야기는 처음의 작은 의심이 결국 모든 관계와 선택을 바꾸었다는 사실을 보여주며 마무리됩니다."
     )
     script = "\n\n".join(paragraphs).strip()
-    while len(script) < min_total_chars:
-        script += (
-            "\n\n주인공은 같은 걱정을 반복하지 않고, 방금 확인한 단서를 바탕으로 다음 행동을 선택합니다. "
-            "그 선택은 상황을 더 선명하게 만들고, 숨겨져 있던 마음과 책임을 하나씩 드러냅니다."
-        )
+    korean_expansions = [
+        "주인공은 같은 걱정을 반복하지 않고, 방금 확인한 단서를 바탕으로 다음 행동을 선택합니다. 그 선택은 상황을 더 선명하게 만들고, 숨겨져 있던 마음과 책임을 하나씩 드러냅니다.",
+        "시간이 지날수록 모호했던 주변의 반응들도 점차 일정한 방향을 가리키기 시작합니다. 처음에는 각자 다른 사정이 있어 보였지만, 본질적인 의도는 하나로 모여 있었습니다.",
+        "상황이 명확해질수록 피할 수 없는 결단의 순간이 다가옵니다. 주인공은 자신의 판단에 확신을 갖고, 남겨진 마지막 의문까지 직접 마주하기로 결정합니다.",
+        "이제 남은 것은 선택에 따르는 책임을 온전히 받아들이는 일뿐이었습니다. 진실을 마주한 주인공의 태도는 이전과 달라져 있었고, 그 단호함이 결말의 무게를 더합니다.",
+    ]
+    idx = 0
+    while len(script) < min_total_chars and idx < 20:
+        script += f"\n\n{korean_expansions[idx % len(korean_expansions)]}"
+        idx += 1
     return script
 
 
@@ -8323,11 +8354,15 @@ def _build_japanese_language_rescue_script(topic: str, upload_title: str, struct
         "物語は、最初の小さな違和感が人の関係と選択の順番をすべて変えてしまったのだと示して静かに閉じます。"
     )
     script = "\n\n".join(paragraphs).strip()
-    while len(script) < min_total_chars:
-        script += (
-            "\n\n主人公は同じ不安を言い直すのではなく、直前に得た手がかりを頼りに次の行動を選びます。"
-            "その選択によって状況はさらに輪郭を帯び、隠れていた感情と責任の所在が一つずつ表へ出てきます。"
-        )
+    ja_expansions = [
+        "主人公は同じ不安を言い直すのではなく、直前に得た手がかりを頼りに次の行動を選びます。その選択によって状況はさらに輪郭を帯び、隠れていた感情と責任の所在が一つずつ表へ出てきます。",
+        "時間が経つにつれて、周囲の沈黙にもそれぞれの理由があったことが明らかになります。誰もが何かを守ろうとして口を閉ざしていましたが、真実はもはや隠しきれないものとなっていました。",
+        "状況が鮮明になるにつれ、避けては通れない最後の決断が近づいてきます。主人公は自らの覚悟を固め、残された問いと向き合うことを選びます。",
+    ]
+    idx = 0
+    while len(script) < min_total_chars and idx < 20:
+        script += f"\n\n{ja_expansions[idx % len(ja_expansions)]}"
+        idx += 1
     return script
 
 
@@ -8685,16 +8720,38 @@ Old-story script guard:
         style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
     previous_error = str(job.get("error_message") or "").strip()
     if previous_error:
+        hard_retry_rules = [
+            "Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.",
+            "Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.",
+        ]
+        if _is_finance_plan_context(script_style_context, topic, upload_title, image_style):
+            hard_retry_rules.extend(
+                [
+                    "Do not repeat the same money amount or pension fact across multiple scenes. Mention a number once, then move to a new consequence or decision.",
+                    "Do not turn the middle into a policy lecture or PSA. Keep the couple's action and decision driving the information.",
+                ]
+            )
+        elif _is_old_story_plan_context(script_style_context, topic, upload_title, image_style, category=category_name):
+            hard_retry_rules.extend(
+                [
+                    "Stay strictly within the Joseon/pre-modern folktale setting. Never introduce modern objects, legal actions, or contemporary terms.",
+                    "Keep the main characters and the moral/emotional promise anchored firmly to the upload title.",
+                ]
+            )
+        else:
+            hard_retry_rules.extend(
+                [
+                    "Do not introduce out-of-genre modern finance or unrelated subplots unless required by the title.",
+                    "Keep the narrative world consistent with the chosen category, title promise, character desire, and dramatic resolution.",
+                ]
+            )
         retry_instruction = f"""
 
 Previous generation attempt failed QA. Fix these exact issues:
 {previous_error[:2400]}
 
 Hard retry rules:
-- Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.
-- Do not introduce finance, pension, bankbook, budget, policy, investment, or market-analysis material.
-- Keep every event anchored to the selected category, title promise, characters, conflict, and payoff.
-- Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.
+{chr(10).join(f"- {rule}" for rule in hard_retry_rules)}
 """.strip()
         style_directive = f"{style_directive}\n\n{retry_instruction}".strip()
     old_story_context = _is_old_story_plan_context(
@@ -9189,6 +9246,7 @@ Hard retry rules:
         "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
         "narration_mode": narration_mode,
         "narration_pace": narration_pace,
+        "language_stats": _script_language_stats(final_script),
         "tts_speed": tts_speed,
         "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
         "completed_at": completed_at,
