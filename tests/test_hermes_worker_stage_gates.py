@@ -133,6 +133,33 @@ def test_script_language_stats_detects_excessive_latin():
     assert hermes_worker._script_has_excessive_latin(script)
 
 
+def test_script_revision_keeps_revise_verdict_even_without_critical_issues():
+    assert hermes_worker._script_needs_revision(
+        {"verdict": "revise", "score": 95, "critical_issues": []}
+    )
+    assert not hermes_worker._script_needs_revision(
+        {"verdict": "manual_override", "score": 0, "critical_issues": ["approved"]}
+    )
+
+
+def test_deduplicate_script_text_handles_korean_words_ending_in_da():
+    repeated_sentence = ("그는 바다 근처에서 단서를 찾으며 다음 선택을 고민했다 " * 24).strip() + "."
+    source = f"{repeated_sentence} {repeated_sentence}"
+
+    result = hermes_worker._deduplicate_script_text(
+        source,
+        [{"sentence": repeated_sentence, "count": 2}],
+    )
+
+    assert result == repeated_sentence
+
+
+def test_cleanup_section_text_preserves_japanese_cjk_characters_and_punctuation():
+    source = "彼は「海」へ行った。カタカナ、漢字。"
+
+    assert hermes_worker._clean_section_text(source, is_multi=False) == source
+
+
 def test_korean_language_rescue_script_passes_latin_gate():
     payload = build_valid_sample_payload("탈북사연")
     title = payload["generated_title"]
@@ -146,6 +173,17 @@ def test_korean_language_rescue_script_passes_latin_gate():
 
     assert stats["hangul"] >= 1000
     assert not hermes_worker._script_has_excessive_latin(script)
+
+
+@pytest.mark.parametrize(
+    ("builder", "topic", "title"),
+    [
+        (hermes_worker._build_korean_language_rescue_script, "주제", "제목"),
+        (hermes_worker._build_japanese_language_rescue_script, "テーマ", "タイトル"),
+    ],
+)
+def test_language_rescue_scripts_honor_requested_minimum_length(builder, topic, title):
+    assert len(builder(topic, title, {}, min_total_chars=10_000)) >= 10_000
 
 
 def test_emotion_cue_normalizer_repairs_dialogue_and_long_narration():

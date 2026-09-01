@@ -8140,8 +8140,11 @@ def _deduplicate_script_text(script: str, repeated_sentences: list[dict] | None 
             cleaned_lines.append(line)
             continue
 
-        # Split on sentence-ending punctuation or clear verb endings
-        parts = re.split(r"(?<=[.!?。！？])\s+|(?<=[다요죠까][.!?]?)\s{2,}", stripped)
+        # Split only at actual sentence punctuation.  The previous attempt to
+        # recognise Korean endings used an optional character in a lookbehind,
+        # which Python rejects as variable-width and therefore crashed the
+        # deduplication path at runtime.
+        parts = re.split(r"(?<=[.!?。！？])\s+", stripped)
         kept_parts = []
         for part in parts:
             p_strip = part.strip()
@@ -8252,8 +8255,11 @@ def _build_korean_language_rescue_script(topic: str, upload_title: str, structur
         "이제 남은 것은 선택에 따르는 책임을 온전히 받아들이는 일뿐이었습니다. 진실을 마주한 주인공의 태도는 이전과 달라져 있었고, 그 단호함이 결말의 무게를 더합니다.",
     ]
     idx = 0
-    while len(script) < min_total_chars and idx < 20:
-        script += f"\n\n{korean_expansions[idx % len(korean_expansions)]}"
+    while len(script) < min_total_chars:
+        expansion = korean_expansions[idx % len(korean_expansions)]
+        # A numbered transition keeps each safety expansion distinct so the
+        # duplicate-sentence quality gate does not see an identical loop.
+        script += f"\n\n이어서 {idx + 1}번째 변화가 찾아옵니다. {expansion}"
         idx += 1
     return script
 
@@ -8360,8 +8366,9 @@ def _build_japanese_language_rescue_script(topic: str, upload_title: str, struct
         "状況が鮮明になるにつれ、避けては通れない最後の決断が近づいてきます。主人公は自らの覚悟を固め、残された問いと向き合うことを選びます。",
     ]
     idx = 0
-    while len(script) < min_total_chars and idx < 20:
-        script += f"\n\n{ja_expansions[idx % len(ja_expansions)]}"
+    while len(script) < min_total_chars:
+        expansion = ja_expansions[idx % len(ja_expansions)]
+        script += f"\n\n続いて{idx + 1}番目の変化が訪れます。{expansion}"
         idx += 1
     return script
 

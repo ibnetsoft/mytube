@@ -772,6 +772,7 @@ class HermesAutopilotManager:
                     "title_generation": script_data.get("title_generation") or script_payload.get("title_generation"),
                     "narrative_blueprint": script_data.get("narrative_blueprint") or {},
                     "script_quality_report": script_data.get("script_quality_report") or {},
+                    "language_stats": script_data.get("language_stats") or {},
                     "language": script_data.get("language") or script_payload.get("language") or "ko",
                     "defer_ready_until_quality_gate": True,
                     "resume_from_job_id": script_job.get("job_id"),
@@ -810,6 +811,7 @@ class HermesAutopilotManager:
                     "image_style_selection": plan_data.get("image_style_selection") or plan_payload.get("image_style_selection"),
                     "language": plan_data.get("language") or plan_payload.get("language") or "ko",
                     "narration_mode": plan_payload.get("narration_mode") or "dramatic_single",
+                    "narration_pace": plan_data.get("narration_pace") or plan_payload.get("narration_pace") or self._narration_pace_for_category(str(category or "")),
                     "tts_speed": plan_data.get("tts_speed") or plan_payload.get("tts_speed") or self.settings.get("tts_speed", 1.0),
                     "upload_title": title,
                     "title_generation": plan_data.get("title_generation") or plan_payload.get("title_generation"),
@@ -849,6 +851,7 @@ class HermesAutopilotManager:
                     "script_style": research_payload.get("script_style") or "story",
                     "image_style": research_payload.get("image_style") or "realistic",
                     "language": research_payload.get("language") or "ko",
+                    "narration_pace": research_payload.get("narration_pace") or self._narration_pace_for_category(str(category or "")),
                     "benchmark_analysis": {"web_research": research_bundle},
                     "upload_title": title,
                     "title_generation": research_payload.get("title_generation") or {"generated_title": title},
@@ -3253,8 +3256,11 @@ Return ONLY a JSON array of strings.
                 sfx_cues = json.loads(sfx_cues)
             except Exception:
                 sfx_cues = []
+        if not isinstance(sfx_cues, list):
+            self.add_log("SFX 큐 형식이 목록이 아니어서 빈 목록으로 초기화합니다.")
+            sfx_cues = []
         sfx_cues_json = script_data.get("sfx_cues_json")
-        if not isinstance(sfx_cues_json, str) or not sfx_cues_json.strip():
+        if not isinstance(sfx_cues_json, str) or not sfx_cues_json.strip() or not isinstance(script_data.get("sfx_cues"), list):
             sfx_cues_json = json.dumps(sfx_cues, ensure_ascii=False)
         language_stats = script_data.get("language_stats") or {}
         char_count = len(final_script)
@@ -3285,6 +3291,7 @@ Return ONLY a JSON array of strings.
                 "generation_models": script_data.get("generation_models") or plan_data.get("generation_models") or {},
                 "sfx_cues": sfx_cues,
                 "sfx_cues_json": sfx_cues_json,
+                "language_stats": language_stats,
                 "language": category_language,
                 "defer_ready_until_quality_gate": True,
                 "quality_feedback": getattr(self, "_quality_feedback", []),
@@ -3372,6 +3379,7 @@ Return ONLY a JSON array of strings.
                             "prepared_topic_ready": True,
                             "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
                             "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
+                            "language_stats": language_stats,
                         },
                         "publish_metadata_status": "ready",
                         "generated_by_worker_id": WORKER_ID,
@@ -3437,6 +3445,7 @@ Return ONLY a JSON array of strings.
                                 "prepared_topic_ready": True,
                                 "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
                                 "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
+                                "language_stats": language_stats,
                             },
                             "publish_metadata_status": "ready",
                             "generated_by_worker_id": WORKER_ID,
@@ -3464,6 +3473,7 @@ Return ONLY a JSON array of strings.
                                 "prepared_topic_ready": True,
                                 "prepared_topic_ready_at": datetime.utcnow().isoformat() + "Z",
                                 "tts_speed": script_data.get("tts_speed") or self.settings.get("tts_speed", 1.0),
+                                "language_stats": language_stats,
                             },
                             "status": "pending",
                         }

@@ -24,9 +24,9 @@
 
 ## 2. 주요 결함 수정 내역
 
-### 2-1. 🔴 대본 리라이트 판정 로직 결함 수정 (`hermes_worker.py`)
-- **기존 문제**: `_script_needs_revision()`에서 AI QA 결과가 `verdict == "revise"`이더라도 `critical_issues` 배열이 비어있으면 `False`를 반환하여 리라이트가 누락되던 버그가 존재했습니다.
-- **수정 내용**: `verdict == "revise"`, `score < 78`, `critical_issues` 존재 시 항상 리라이트를 실행하도록 명시적 분기(`manual_override`는 안전 통과)로 개편했습니다.
+### 2-1. 대본 리라이트 판정 규칙 확인 (`hermes_worker.py`)
+- `_script_needs_revision()`은 기존부터 `verdict != "pass"`, `score < 78`, `critical_issues` 중 하나라도 충족하면 리라이트를 요청했습니다.
+- 이번 변경에서는 사람이 명시적으로 승인한 `verdict == "manual_override"`만 리라이트 대상에서 제외했습니다. 일반 `revise` 판정은 계속 리라이트됩니다.
 
 ### 2-2. 🔴 QA 통과 점수 기준 일관화 (`hermes_worker.py`)
 - **기존 문제**: Fallback QA 보고서(`_fallback_script_quality_report`)의 통과 기준은 `score >= 72`였으나, 실제 AI QA 및 게이트 기준은 `score >= 78`을 요구하여 불일치가 발생했습니다.
@@ -38,11 +38,11 @@
 
 ### 2-4. 🟠 문장 중복 제거(`_deduplicate_script_text`) 오분리 방지 (`hermes_worker.py`)
 - **기존 문제**: 문장 분리 정규식 `(?<=[다요죠까])\s+`가 `바다 `, `타다 ` 등 일반 단어 끝의 글자까지 문장 끝으로 인식하여 정상 문장을 훼손했습니다.
-- **수정 내용**: 문장 부호(`[.!?。！？]`) 기반 정밀 분리로 변경하고, 중복으로 감지된 특정 문장 세트(`repeated_sentences`)를 우선 필터링하도록 개선했습니다.
+- **수정 내용**: 문장 부호(`[.!?。！？]`) 기반 정밀 분리로 변경하고, 중복으로 감지된 특정 문장 세트(`repeated_sentences`)를 우선 필터링하도록 개선했습니다. Python 정규식의 고정 길이 lookbehind 제약을 준수하도록 구현했습니다.
 
 ### 2-5. 🟠 구제 대본(Rescue Script) 문장 반복 패딩 개선 (`hermes_worker.py`)
 - **기존 문제**: 최소 글자수 미달 시 1개 동일 문장을 무한 반복 덧붙여 문장 중복 감지에 걸릴 위험이 있었습니다.
-- **수정 내용**: 한국어/일본어 구제 대본 확장 시 다양한 문맥 확장 단락들을 순환 적용하도록 변경했습니다.
+- **수정 내용**: 한국어/일본어 구제 대본 확장 시 다양한 문맥 확장 단락과 순번을 적용합니다. 임의의 반복 횟수 상한 없이 요청된 최소 글자수를 충족합니다.
 
 ### 2-6. 🟠 Autopilot 나레이션 페이스(`narration_pace`) 연동 (`hermes_autopilot.py`)
 - **기존 문제**: Autopilot 파이프라인에서 `narration_pace`가 누락되어 카테고리별 설정과 무관하게 항상 기본 속도로만 대본 분량이 산정되었습니다.
@@ -59,16 +59,13 @@
 
 ## 3. 기능 확장 및 맞춤형 보완
 
-### 3-1. 수동 대본 교체 시 선택적 QA 검증 지원 (`hermes_worker.py`)
-- `payload.validate_manual_script=True` 옵션을 제공하여, 사용자가 직접 입력한 대본에 대해서도 AI 품질 평가를 수행하고 리포트를 남길 수 있도록 지원합니다 (기본값은 100점 자동 승인 유지).
-
-### 3-2. 카테고리별 재시도(Retry) 가드 세분화 (`hermes_worker.py`)
+### 3-1. 카테고리별 재시도(Retry) 가드 세분화 (`hermes_worker.py`)
 - QA 실패 후 재시도 프롬프트 작성 시, 이전에는 금융 룰이 일괄 적용되던 문제를 해결하고 카테고리별 전용 가드로 분기했습니다:
   - **금융/연금**: 금액/연금 수치 중복 언급 금지 및 강의식 어조 배제
   - **옛날이야기**: 조선/전근대 설화 세계관 엄수 및 현대 어휘·법률 분쟁 유입 금지
   - **기타 장르**: 장르 외 서브플롯 배제 및 카테고리 세계관/주제 약속 유지
 
-### 3-3. 대본 언어 통계(`language_stats`) 메타데이터 로깅 (`hermes_worker.py`, `hermes_autopilot.py`)
+### 3-2. 대본 언어 통계(`language_stats`) 메타데이터 로깅 (`hermes_worker.py`, `hermes_autopilot.py`)
 - 대본 생성 완료 시 한글, 영문(라틴), 숫자, 특수문자 비율을 분석한 `language_stats`를 생성 결과 및 Supabase 요약 페이로드에 포함하여 품질 모니터링이 가능하도록 개선했습니다.
 
 ---

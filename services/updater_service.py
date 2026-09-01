@@ -243,7 +243,7 @@ class UpdaterService:
             if (value := os.environ.get(name))
         }
         restart_environment_lines = "\n".join(
-            f"$env:{name} = '{value.replace("'", "''")}'"
+            f"$env:{name} = '{value.replace(chr(39), chr(39) * 2)}'"
             for name, value in restart_environment.items()
         )
         try:
