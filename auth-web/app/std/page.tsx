@@ -914,6 +914,7 @@ export default function StdPortalPage() {
     const [thumbBgUrl, setThumbBgUrl] = useState('')
     const [thumbBgUploadFile, setThumbBgUploadFile] = useState<File | null>(null)
     const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const thumbnailDesignAppliedProjectRef = useRef('')
     const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
         id: string
         text: string
@@ -947,6 +948,49 @@ export default function StdPortalPage() {
             x: 50,
             y: 65,
         }
+    ])
+
+    const normalizeThumbTextLayers = (layers: any[]) => {
+        return (Array.isArray(layers) ? layers : [])
+            .map((layer: any, index: number) => ({
+                id: String(layer?.id || `tlayer-${index + 1}`),
+                text: String(layer?.text || ''),
+                fontSize: Number(layer?.fontSize || 28),
+                color: String(layer?.color || '#ffffff'),
+                strokeColor: String(layer?.strokeColor || '#000000'),
+                strokeWidth: Number(layer?.strokeWidth || 3),
+                fontFamily: String(layer?.fontFamily || 'GmarketSansBold'),
+                x: Number(layer?.x ?? 50),
+                y: Number(layer?.y ?? 50),
+            }))
+            .filter(layer => layer.text.trim())
+    }
+
+    useEffect(() => {
+        const projectId = String(selectedProject?.project?.id || '')
+        if (!projectId || thumbnailDesignAppliedProjectRef.current === projectId) return
+        thumbnailDesignAppliedProjectRef.current = projectId
+        const projectPayload = selectedProject?.project?.project_payload || {}
+        const progressPayload = selectedProject?.project?.progress_payload || {}
+        const design = projectPayload.thumbnail_design || progressPayload.thumbnail_design || null
+        if (!design) return
+
+        if (typeof design.title === 'string' && design.title.trim()) setThumbTitle(design.title)
+        if (typeof design.layout === 'string' && design.layout.trim()) setThumbLayout(design.layout)
+        if (typeof design.style === 'string' && design.style.trim()) setThumbStyle(design.style)
+        const designStep = Number(design.step)
+        if (Number.isFinite(designStep) && designStep > 0) setThumbStep(Math.floor(designStep))
+        const nextLayers = normalizeThumbTextLayers(design.text_layers || design.textLayers || [])
+        if (nextLayers.length > 0) setThumbTextLayers(nextLayers)
+        const designBgUrl = sanitizeAssetUrl(design.bg_url || design.thumbnail_url || projectPayload.thumbnail_url || progressPayload.thumbnail_url)
+        if (designBgUrl) {
+            setThumbBgUrl(designBgUrl)
+            setThumbBgUploadFile(null)
+        }
+    }, [
+        selectedProject?.project?.id,
+        selectedProject?.project?.progress_payload,
+        selectedProject?.project?.project_payload,
     ])
 
     const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true, overrideScript?: string) => {
@@ -3085,10 +3129,25 @@ export default function StdPortalPage() {
     const markThumbnailConfirmed = async (thumbnailUrlOverride?: string) => {
         if (!selectedProject?.project?.id) return
         const confirmedAt = new Date().toISOString()
+        const savedThumbnailUrl = thumbnailUrlOverride || thumbBgUrl || ''
+        const thumbnailDesign = {
+            title: thumbTitle,
+            layout: thumbLayout,
+            style: thumbStyle,
+            step: thumbStep,
+            bg_url: savedThumbnailUrl,
+            thumbnail_url: savedThumbnailUrl,
+            text_layers: normalizeThumbTextLayers(thumbTextLayers),
+            saved_at: confirmedAt,
+        }
         const progressPatch = {
             thumbnail_completed: true,
-            thumbnail_url: thumbnailUrlOverride || thumbBgUrl || '',
+            thumbnail_url: savedThumbnailUrl,
             thumbnail_confirmed_at: confirmedAt,
+        }
+        const projectPayloadPatch = {
+            thumbnail_url: savedThumbnailUrl,
+            thumbnail_design: thumbnailDesign,
         }
 
         setSelectedProject(prev => {
@@ -3101,6 +3160,10 @@ export default function StdPortalPage() {
                         ...(prev.project.progress_payload || {}),
                         ...progressPatch,
                     },
+                    project_payload: {
+                        ...(prev.project.project_payload || {}),
+                        ...projectPayloadPatch,
+                    },
                 },
             }
             rememberProjectState(updated)
@@ -3110,7 +3173,10 @@ export default function StdPortalPage() {
         const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
             method: 'PATCH',
             headers: authedJsonHeaders,
-            body: JSON.stringify({ progress_payload: progressPatch }),
+            body: JSON.stringify({
+                progress_payload: progressPatch,
+                project_payload: projectPayloadPatch,
+            }),
         })
         const payload = await safeParseJson(res, '썸네일 완료 상태 저장 실패')
         if (!res.ok || payload.success === false) throw new Error(payload.error || '썸네일 완료 상태 저장 실패')

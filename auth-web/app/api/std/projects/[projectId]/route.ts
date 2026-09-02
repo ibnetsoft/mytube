@@ -129,7 +129,20 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'subtitles_saved',
         'subtitles_completed',
     ])
-    const allowedProjectPayloadKeys = new Set(['script', 'original_worker_script', 'subtitles', 'subtitles_saved', 'title', 'video_title', 'scenes', 'structure', 'render_settings', 'settings'])
+    const allowedProjectPayloadKeys = new Set([
+        'script',
+        'original_worker_script',
+        'subtitles',
+        'subtitles_saved',
+        'title',
+        'video_title',
+        'scenes',
+        'structure',
+        'render_settings',
+        'settings',
+        'thumbnail_design',
+        'thumbnail_url',
+    ])
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
     )
