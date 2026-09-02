@@ -1214,6 +1214,16 @@ export default function StdPortalPage() {
         return headers
     }, [token, isImpersonating, impersonateEmail])
 
+    const authedUploadHeaders = useMemo<Record<string, string>>(() => {
+        const headers: Record<string, string> = {
+            Authorization: `Bearer ${token}`,
+        }
+        if (isImpersonating && impersonateEmail) {
+            headers['x-impersonate-email'] = impersonateEmail
+        }
+        return headers
+    }, [token, isImpersonating, impersonateEmail])
+
     const safeParseJson = async (res: Response, fallbackErrMsg: string) => {
         try {
             const text = await res.text()
@@ -2465,43 +2475,22 @@ export default function StdPortalPage() {
                 console.warn('[STD] local audio save failed; continuing with Drive upload:', error)
             }
 
-            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    asset_type: 'audio',
-                    mime_type: file.type || 'audio/mpeg',
-                    file_name: file.name,
-                    file_size: file.size,
-                }),
-            })
-            const initPayload = await safeParseJson(initRes, 'Audio upload init failed')
-            if (!initRes.ok || !initPayload.upload_url) throw new Error(initPayload.error || 'Audio upload init failed')
+            const form = new FormData()
+            form.set('file', file)
+            form.set('asset_type', 'audio')
+            form.set('mime_type', file.type || 'audio/mpeg')
+            form.set('file_name', file.name)
+            form.set('file_size', String(file.size))
+            if (localRelativePath) form.set('local_relative_path', localRelativePath)
 
-            const uploadRes = await fetch(initPayload.upload_url, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type || 'application/octet-stream' },
-                body: file,
-            })
-            const uploadPayload = await safeParseJson(uploadRes, 'Drive audio upload failed')
-            if (!uploadRes.ok || !uploadPayload.id) throw new Error(uploadPayload.error || 'Drive audio upload failed')
-
-            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
                 method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    drive_file_id: uploadPayload.id,
-                    asset_type: 'audio',
-                    target_folder_id: initPayload.target_folder_id,
-                    file_name: file.name,
-                    mime_type: file.type,
-                    file_size: file.size,
-                    local_relative_path: localRelativePath || null,
-                }),
+                headers: authedUploadHeaders,
+                body: form,
             })
-            const completePayload = await safeParseJson(completeRes, 'Audio upload complete failed')
-            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
-                throw new Error(completePayload.error || 'Audio upload complete failed')
+            const uploadPayload = await safeParseJson(uploadRes, 'Audio upload failed')
+            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
+                throw new Error(uploadPayload.error || 'Audio upload failed')
             }
 
             setSelectedProject(prev => {
@@ -2509,7 +2498,7 @@ export default function StdPortalPage() {
                 const updated = {
                     ...prev,
                     assets: [
-                        completePayload.asset,
+                        uploadPayload.asset,
                         ...prev.assets.filter(a => a.asset_type !== 'audio'),
                     ],
                     project: {
@@ -2517,8 +2506,8 @@ export default function StdPortalPage() {
                         progress_payload: {
                             ...(prev.project.progress_payload || {}),
                             has_tts_audio: true,
-                            tts_asset_id: completePayload.asset.id,
-                            tts_drive_file_id: completePayload.asset.drive_file_id,
+                            tts_asset_id: uploadPayload.asset.id,
+                            tts_drive_file_id: uploadPayload.asset.drive_file_id,
                         },
                     },
                 }
@@ -2882,47 +2871,25 @@ export default function StdPortalPage() {
                 console.warn('[STD] local asset save failed; continuing with Drive upload:', error)
             }
 
-            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    asset_type: actualAssetType,
-                    mime_type: file.type || 'application/octet-stream',
-                    file_name: file.name,
-                    file_size: file.size,
-                    scene_number: sceneNum,
-                }),
-            })
-            const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
-            if (!initRes.ok || !initPayload.upload_url) throw new Error(initPayload.error || 'Asset upload init failed')
+            const form = new FormData()
+            form.set('file', file)
+            form.set('asset_type', actualAssetType)
+            form.set('mime_type', file.type || 'application/octet-stream')
+            form.set('file_name', file.name)
+            form.set('file_size', String(file.size))
+            form.set('scene_number', String(sceneNum))
+            if (localRelativePath) form.set('local_relative_path', localRelativePath)
 
-            const uploadRes = await fetch(initPayload.upload_url, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type || 'application/octet-stream' },
-                body: file,
-            })
-            const uploadPayload = await safeParseJson(uploadRes, 'Drive asset upload failed')
-            if (!uploadRes.ok || !uploadPayload.id) throw new Error(uploadPayload.error || 'Drive asset upload failed')
-
-            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
                 method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    drive_file_id: uploadPayload.id,
-                    asset_type: actualAssetType,
-                    target_folder_id: initPayload.target_folder_id,
-                    file_name: file.name,
-                    mime_type: file.type,
-                    file_size: file.size,
-                    scene_number: sceneNum,
-                    local_relative_path: localRelativePath || null,
-                }),
+                headers: authedUploadHeaders,
+                body: form,
             })
-            const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
-            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
-                throw new Error(completePayload.error || 'Asset upload complete failed')
+            const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
+            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
+                throw new Error(uploadPayload.error || 'Asset upload failed')
             }
-            const persistedAsset = completePayload.asset
+            const persistedAsset = uploadPayload.asset
             const assetCacheKey = projectAssetCacheKey(selectedProject.project.id, persistedAsset)
             if (assetCacheKey && objectUrl) {
                 projectMediaObjectUrlsRef.current[assetCacheKey] = objectUrl
@@ -3067,49 +3034,28 @@ export default function StdPortalPage() {
                 console.warn('[STD] local thumbnail save failed; continuing with Drive upload:', error)
             }
 
-            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
+            const form = new FormData()
+            form.set('file', file)
+            form.set('asset_type', 'thumbnail')
+            form.set('mime_type', file.type || 'image/png')
+            form.set('file_name', file.name)
+            form.set('file_size', String(file.size))
+            if (localRelativePath) form.set('local_relative_path', localRelativePath)
+
+            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
                 method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    asset_type: 'thumbnail',
-                    mime_type: file.type || 'image/png',
-                    file_name: file.name,
-                    file_size: file.size,
-                }),
+                headers: authedUploadHeaders,
+                body: form,
             })
-            const initPayload = await safeParseJson(initRes, '썸네일 업로드 준비 실패')
-            if (!initRes.ok || !initPayload.upload_url) throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
+            const uploadPayload = await safeParseJson(uploadRes, '썸네일 업로드 실패')
+            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) throw new Error(uploadPayload.error || '썸네일 업로드 실패')
 
-            const uploadRes = await fetch(initPayload.upload_url, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type || 'application/octet-stream' },
-                body: file,
-            })
-            const uploadPayload = await safeParseJson(uploadRes, '썸네일 Drive 업로드 실패')
-            if (!uploadRes.ok || !uploadPayload.id) throw new Error(uploadPayload.error || '썸네일 Drive 업로드 실패')
-
-            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    drive_file_id: uploadPayload.id,
-                    asset_type: 'thumbnail',
-                    target_folder_id: initPayload.target_folder_id,
-                    file_name: file.name,
-                    mime_type: file.type,
-                    file_size: file.size,
-                    local_relative_path: localRelativePath || null,
-                }),
-            })
-            const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
-            if (!completeRes.ok || completePayload.success === false) throw new Error(completePayload.error || '썸네일 업로드 완료 처리 실패')
-
-            const persistedThumbnailUrl = assetDisplayUrl(selectedProject.project.id, completePayload.asset)
+            const persistedThumbnailUrl = assetDisplayUrl(selectedProject.project.id, uploadPayload.asset) || ''
             setSelectedProject(prev => {
                 if (!prev) return prev
                 const updated = {
                     ...prev,
-                    assets: [completePayload.asset, ...prev.assets.filter(a => a.asset_type !== 'thumbnail')],
+                    assets: [uploadPayload.asset, ...prev.assets.filter(a => a.asset_type !== 'thumbnail')],
                     project: {
                         ...prev.project,
                         progress_payload: {
