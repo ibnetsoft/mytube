@@ -535,7 +535,20 @@ export default function StdPortalPage() {
         if (!id || typeof window === 'undefined') return
         try {
             localStorage.setItem('std_active_project_id', id)
+            const url = new URL(window.location.href)
+            url.searchParams.set('projectId', id)
+            window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`)
         } catch {}
+    }
+
+    const readUrlProjectId = () => {
+        if (typeof window === 'undefined') return ''
+        try {
+            const params = new URLSearchParams(window.location.search)
+            return String(params.get('projectId') || params.get('project') || '').trim()
+        } catch {
+            return ''
+        }
     }
 
     const projectAssetCacheKey = (projectId: string | null | undefined, asset: any) => {
@@ -1989,11 +2002,13 @@ export default function StdPortalPage() {
             setProjects(loadedProjects)
 
             // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도 (임퍼소네이트 모드가 아닐 때만)
+            const urlProjectId = readUrlProjectId()
             const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
             const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
+            const preferredProjectId = urlProjectId || savedActiveProjectId
 
-            if (savedActiveProjectId && loadedProjects.some(p => p.id === savedActiveProjectId)) {
-                await openProject(savedActiveProjectId, accessToken).catch(() => {})
+            if (preferredProjectId && loadedProjects.some(p => p.id === preferredProjectId)) {
+                await openProject(preferredProjectId, accessToken).catch(() => {})
             } else if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken).catch(() => {})
             } else if (savedProjectStateRaw) {
@@ -2102,7 +2117,10 @@ export default function StdPortalPage() {
                     setProjects(loadedProjects)
                     setTopics(loadedTopics)
 
-                    if (loadedProjects.length > 0) {
+                    const urlProjectId = readUrlProjectId()
+                    if (urlProjectId && loadedProjects.some((p: any) => p.id === urlProjectId)) {
+                        await openProject(urlProjectId, impToken, cleanEmail)
+                    } else if (loadedProjects.length > 0) {
                         await openProject(loadedProjects[0].id, impToken, cleanEmail)
                     } else if (loadedTopics.length > 0) {
                         const built = buildProjectFromSupabaseTopic(loadedTopics[0])
@@ -7320,7 +7338,7 @@ export default function StdPortalPage() {
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
                                         {/* 풍부한 프로젝트 목록 렌더링 */}
                                         {projects.map((p: any, idx: number) => {
-                                            const isSelectedProj = selectedProject?.project?.id === p.id || idx === 0
+                                            const isSelectedProj = selectedProject?.project?.id === p.id
                                             const projectCatName = (() => {
                                                 const explicitCategories = [
                                                     p.category_name,
