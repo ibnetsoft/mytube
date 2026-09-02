@@ -5631,7 +5631,7 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-3 overflow-y-auto">
+                                <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-3 overflow-y-auto lg:sticky lg:top-3 lg:self-start lg:max-h-[calc(100vh-8rem)]">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
