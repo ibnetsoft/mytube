@@ -689,20 +689,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 `AIR STD web TTS audio for project ${project.id}`
             )
         } catch (driveError: any) {
-            console.warn('[STD TTS] Google Drive upload failed or not configured, falling back to direct transient playback:', driveError?.message)
-            const audioDataUrl = `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`
+            console.error('[STD TTS] Google Drive upload failed; refusing transient-only success:', driveError?.message)
             return NextResponse.json({
-                success: true,
-                asset: null,
-                drive_file: null,
-                audio_url: audioDataUrl,
-                download_url: audioDataUrl,
-                web_view_link: null,
-                transient: true,
+                success: false,
+                error: 'TTS audio was generated, but Google Drive storage failed. Please retry.',
+                code: 'tts_drive_upload_failed',
+                stage,
+                detail: driveError?.message || null,
                 elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                 elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                message: 'TTS 음성이 생성되었습니다! (즉시 재생 모드)',
-            })
+            }, { status: 502 })
         }
 
         let asset: any = null
