@@ -530,6 +530,14 @@ export default function StdPortalPage() {
         return id ? `std_project_state_${id}` : ''
     }
 
+    const rememberActiveProjectId = (projectId: string | null | undefined) => {
+        const id = String(projectId || '').trim()
+        if (!id || typeof window === 'undefined') return
+        try {
+            localStorage.setItem('std_active_project_id', id)
+        } catch {}
+    }
+
     const projectAssetCacheKey = (projectId: string | null | undefined, asset: any) => {
         const id = String(projectId || '').trim()
         const assetId = String(asset?.id || asset?.drive_file_id || `${asset?.scene_number || ''}:${asset?.asset_type || ''}`).trim()
@@ -2724,17 +2732,20 @@ export default function StdPortalPage() {
     }
 
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string) => {
+        const requestedProjectId = String(projectId || '').trim()
+        if (!requestedProjectId) return
         setProjectLoading(true)
         setMessage('')
         const targetToken = overrideToken || token
         const activeImpEmail = overrideImpEmail || (isImpersonating ? impersonateEmail : '')
+        if (!activeImpEmail) rememberActiveProjectId(requestedProjectId)
         const impQuery = activeImpEmail ? `?impersonate=${encodeURIComponent(activeImpEmail)}` : ''
         const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
         if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
         try {
             revokeProjectMediaObjectUrls(selectedProject?.project?.id)
 
-            const res = await fetch(`/api/std/projects/${projectId}${impQuery}`, {
+            const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
@@ -2800,7 +2811,7 @@ export default function StdPortalPage() {
             }
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
-            const remembered = readRememberedProjectState(projectId)
+            const remembered = readRememberedProjectState(requestedProjectId)
             if (remembered?.project?.id) {
                 setSelectedProject(remembered)
                 setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
@@ -2808,11 +2819,11 @@ export default function StdPortalPage() {
                 restorePersistedProjectMedia(remembered, fetchHeaders).catch(() => {})
                 return
             }
-            const localProj = projects.find(p => p.id === projectId)
+            const localProj = projects.find(p => p.id === requestedProjectId)
             if (localProj) {
                 const targetTopic = topics.find(t => t.topic === localProj.title) || { topic: localProj.title }
                 const built = buildProjectFromSupabaseTopic(targetTopic)
-                built.project.id = projectId
+                built.project.id = requestedProjectId
                 setSelectedProject(built)
                 setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
                 rememberProjectState(built)
