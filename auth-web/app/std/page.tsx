@@ -1184,10 +1184,64 @@ export default function StdPortalPage() {
         return Math.max(60.0, last.end_num || Number(last.end_time) || 60.0)
     }, [localSubtitles])
 
+    const sceneVisualSignature = useMemo(() => {
+        return (selectedProject?.scenes || [])
+            .map((scene: any, index: number) => [
+                Number(scene?.scene_number || scene?.scene_order || index + 1),
+                sanitizeAssetUrl(scene?.image_url || scene?.image) || '',
+                sanitizeAssetUrl(scene?.video_url || scene?.video) || '',
+            ].join(':'))
+            .join('|')
+    }, [selectedProject?.scenes])
+
+    const subtitleSceneVisual = (subtitle: any, subtitleIndex: number, scenes = selectedProject?.scenes || []) => {
+        const requestedSceneNumber = Number(subtitle?.scene_number || subtitle?.scene || subtitle?.sceneNumber)
+        const fallbackSceneNumber = subtitleIndex + 1
+        const sceneNumber = Number.isFinite(requestedSceneNumber) && requestedSceneNumber > 0
+            ? requestedSceneNumber
+            : fallbackSceneNumber
+        const matchedScene = scenes.find((scene: any, index: number) => {
+            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
+            return candidate === sceneNumber
+        }) || scenes[sceneNumber - 1] || scenes[0] || {}
+        return {
+            scene_number: sceneNumber,
+            image_url: sanitizeAssetUrl(matchedScene?.image_url || matchedScene?.image) || '',
+            video_url: sanitizeAssetUrl(matchedScene?.video_url || matchedScene?.video) || null,
+        }
+    }
+
+    const matchSubtitlesToSceneVisuals = (subtitles: any[], scenes = selectedProject?.scenes || []) => {
+        return (subtitles || []).map((subtitle: any, index: number) => {
+            const visual = subtitleSceneVisual(subtitle, index, scenes)
+            return {
+                ...subtitle,
+                scene_number: Number(subtitle?.scene_number || visual.scene_number),
+                image_url: visual.image_url || sanitizeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
+                video_url: visual.video_url || sanitizeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
+            }
+        })
+    }
+
+    useEffect(() => {
+        if (!selectedProject?.project?.id || !selectedProject?.scenes?.length) return
+        setLocalSubtitles(prev => {
+            if (!prev.length) return prev
+            const synced = matchSubtitlesToSceneVisuals(prev, selectedProject.scenes)
+            const changed = synced.some((item: any, index: number) => (
+                item.image_url !== prev[index]?.image_url
+                || item.video_url !== prev[index]?.video_url
+                || item.scene_number !== prev[index]?.scene_number
+            ))
+            return changed ? synced : prev
+        })
+    }, [selectedProject?.project?.id, sceneVisualSignature, localSubtitles.length])
+
     const subtitleSceneGroups = useMemo(() => {
         const groups: any[] = []
         const byScene = new Map<number, any>()
         ;(localSubtitles || []).forEach((sub: any, index: number) => {
+            const visual = subtitleSceneVisual(sub, index)
             const sceneNumber = Number(sub?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
             let group = byScene.get(normalizedSceneNumber)
@@ -1200,8 +1254,8 @@ export default function StdPortalPage() {
                     end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
                     start_time: sub?.start_time || '0.0',
                     end_time: sub?.end_time || '0.0',
-                    image_url: sub?.image_url || '',
-                    video_url: sub?.video_url || null,
+                    image_url: visual.image_url || sub?.image_url || '',
+                    video_url: visual.video_url || sub?.video_url || null,
                     is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
                     subtitles: [],
                 }
@@ -1211,12 +1265,12 @@ export default function StdPortalPage() {
             group.lastIndex = index
             group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
             group.end_time = sub?.end_time || group.end_time
-            if (!group.image_url && sub?.image_url) group.image_url = sub.image_url
-            if (!group.video_url && sub?.video_url) group.video_url = sub.video_url
+            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
+            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
             group.subtitles.push({ ...sub, subtitleIndex: index })
         })
         return groups
-    }, [localSubtitles])
+    }, [localSubtitles, sceneVisualSignature])
 
     const formatTime = (sec: number): string => {
         if (isNaN(sec) || !isFinite(sec)) return "00:00"
@@ -1285,9 +1339,18 @@ export default function StdPortalPage() {
         try {
             const text = await res.text()
             if (!text) return {}
-            return JSON.parse(text)
-        } catch {
-            return {}
+            try {
+                return JSON.parse(text)
+            } catch {
+                return {
+                    error: fallbackErrMsg || `Request failed with HTTP ${res.status}`,
+                    raw: text.slice(0, 1000),
+                }
+            }
+        } catch (error: any) {
+            return {
+                error: error?.message || fallbackErrMsg || `Request failed with HTTP ${res.status}`,
+            }
         }
     }
 
@@ -2183,7 +2246,7 @@ export default function StdPortalPage() {
                 scenes,
                 Number(subMaxChars) || 20
             )
-        setLocalSubtitles(subs)
+        setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
         setSelectedSubIndex(0)
 
         const renderSettings = {
@@ -2706,8 +2769,79 @@ export default function StdPortalPage() {
         return `rgba(${red},${green},${blue},${alpha})`
     }
 
+    const handleSyncSubtitleSceneVisuals = async () => {
+        if (!selectedProject) return
+        const scenes = selectedProject.scenes || []
+        if (!scenes.length) {
+            alert('동기화할 씬 데이터가 없습니다.')
+            return
+        }
+
+        const baseSubtitles = localSubtitles.length > 0
+            ? localSubtitles
+            : generateSynchronizedSubtitles(
+                selectedProject.project?.project_payload?.script || customScriptText || '',
+                scenes,
+                Number(subMaxChars) || 20
+            )
+        const syncedSubtitles = matchSubtitlesToSceneVisuals(baseSubtitles, scenes)
+        setLocalSubtitles(syncedSubtitles)
+        setSelectedSubIndex(0)
+        setPlaybackTime(0)
+        setIsSubtitleSaved(false)
+
+        const updatedProject = {
+            ...selectedProject,
+            project: {
+                ...selectedProject.project,
+                project_payload: {
+                    ...(selectedProject.project?.project_payload || {}),
+                    subtitles: syncedSubtitles,
+                },
+            },
+        }
+        setSelectedProject(updatedProject)
+        rememberProjectState(updatedProject)
+
+        if (selectedProject.project?.id) {
+            try {
+                const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
+                    method: 'PATCH',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        project_payload: {
+                            subtitles: syncedSubtitles,
+                        },
+                    }),
+                })
+                const payload = await safeParseJson(res, 'Subtitle image sync failed')
+                if (!res.ok || payload.success === false) {
+                    throw new Error(payload.error || 'Subtitle image sync failed')
+                }
+                if (payload.project) {
+                    const persistedProject = {
+                        ...updatedProject,
+                        project: payload.project,
+                        scenes: Array.isArray(payload.scenes) ? mergeAssetsIntoScenes(payload.scenes, updatedProject.assets || []) : updatedProject.scenes,
+                    }
+                    setSelectedProject(persistedProject)
+                    rememberProjectState(persistedProject)
+                }
+                setIsSubtitleSaved(true)
+            } catch (error: any) {
+                setMessage(error?.message || 'Subtitle image sync failed')
+                alert(error?.message || 'Subtitle image sync failed')
+                return
+            }
+        }
+
+        alert('각 자막 블록이 현재 씬의 이미지/영상과 자동 매칭되어 저장되었습니다.')
+    }
+
     const handleSaveSubtitles = async () => {
         setIsSubtitleSaved(true)
+        const subtitlesForStorage = matchSubtitlesToSceneVisuals(localSubtitles, selectedProject?.scenes || [])
+        setLocalSubtitles(subtitlesForStorage)
         let updatedFullForStorage: any = null
         setSelectedProject((prev: any) => {
             if (!prev) return prev
@@ -2722,7 +2856,7 @@ export default function StdPortalPage() {
                 project_payload: {
                     ...(prev.project.project_payload || {}),
                     script: cleanScriptContextText(customScriptText || prev.project.project_payload?.script || ''),
-                    subtitles: localSubtitles,
+                    subtitles: subtitlesForStorage,
                     scenes: prev.scenes || [],
                     render_settings: {
                         ...(prev.project.project_payload?.render_settings || {}),
@@ -2751,7 +2885,7 @@ export default function StdPortalPage() {
                         },
                         project_payload: {
                             script: cleanScriptContextText(customScriptText || selectedProject.project.project_payload?.script || ''),
-                            subtitles: localSubtitles,
+                            subtitles: subtitlesForStorage,
                             scenes: selectedProject.scenes || [],
                             render_settings: {
                                 ...(selectedProject.project.project_payload?.render_settings || {}),
@@ -3068,6 +3202,128 @@ export default function StdPortalPage() {
         }
     }
 
+    const splitTtsTextForBrowser = (value: string, maxChars = 4500) => {
+        const cleaned = String(value || '')
+            .replace(/\r\n/g, '\n')
+            .replace(/[ \t]+/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim()
+        if (!cleaned) return []
+
+        const paragraphs = cleaned.split(/\n+/).map(part => part.trim()).filter(Boolean)
+        const chunks: string[] = []
+        let current = ''
+
+        for (const paragraph of paragraphs) {
+            if ((current + '\n' + paragraph).trim().length <= maxChars) {
+                current = (current ? `${current}\n` : '') + paragraph
+                continue
+            }
+            if (current) chunks.push(current)
+            if (paragraph.length <= maxChars) {
+                current = paragraph
+                continue
+            }
+            const sentences = paragraph.split(/(?<=[.!?。！？…])\s+/).filter(Boolean)
+            current = ''
+            for (const sentence of sentences) {
+                if ((current + ' ' + sentence).trim().length <= maxChars) {
+                    current = (current ? `${current} ` : '') + sentence
+                } else {
+                    if (current) chunks.push(current)
+                    if (sentence.length <= maxChars) {
+                        current = sentence
+                    } else {
+                        for (let i = 0; i < sentence.length; i += maxChars) {
+                            chunks.push(sentence.slice(i, i + maxChars))
+                        }
+                        current = ''
+                    }
+                }
+            }
+        }
+        if (current) chunks.push(current)
+        return chunks
+    }
+
+    const shouldUseBrowserElevenLabsFallback = (errorMessage: string) => {
+        const lower = String(errorMessage || '').toLowerCase()
+        return !(
+            lower.includes('credit')
+            || lower.includes('quota')
+            || lower.includes('크레딧')
+            || lower.includes('api key')
+            || lower.includes('키가 없습니다')
+            || lower.includes('voice_not_found')
+            || lower.includes('성우')
+            || lower.includes('access')
+        )
+    }
+
+    const generateElevenLabsAudioInBrowser = async (
+        text: string,
+        narratorVoiceId: string,
+        voiceMap: Record<string, string>,
+        useMultiVoice: boolean
+    ) => {
+        const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
+        const keyData = await safeParseJson(keyRes, 'ElevenLabs API 키 확인 실패')
+        if (!keyRes.ok || !keyData.elevenlabs_key) {
+            throw new Error(keyData.error || 'ElevenLabs API 키를 가져올 수 없습니다.')
+        }
+
+        const speed = Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1))
+        const stability = Number(elStability) || 0.35
+        const style = Number(elStyle) || 0.45
+        const rawSegments = useMultiVoice && Object.keys(voiceMap).length > 0
+            ? parseScriptToVoiceSegments(text).segments
+            : [{ speaker: '나레이터', text, is_dialogue: false }]
+        const segments = rawSegments.length ? rawSegments : [{ speaker: '나레이터', text, is_dialogue: false }]
+        const totalChunks = segments.reduce((sum, seg) => sum + splitTtsTextForBrowser(seg.text).length, 0)
+        if (!totalChunks) throw new Error('대본이 비어있습니다.')
+
+        const buffers: ArrayBuffer[] = []
+        let doneChunks = 0
+        for (const seg of segments) {
+            const targetVoiceId = voiceMap[seg.speaker] || narratorVoiceId
+            const chunks = splitTtsTextForBrowser(seg.text)
+            for (const chunk of chunks) {
+                doneChunks += 1
+                setMessage(`서버 저장 실패로 브라우저 직접 TTS 생성 중... (${doneChunks}/${totalChunks})`)
+                const elRes = await fetch(
+                    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(targetVoiceId)}?output_format=mp3_44100_128`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'xi-api-key': keyData.elevenlabs_key,
+                            'Content-Type': 'application/json',
+                            Accept: 'audio/mpeg',
+                        },
+                        body: JSON.stringify({
+                            text: chunk,
+                            model_id: 'eleven_multilingual_v2',
+                            voice_settings: { stability, similarity_boost: 0.75, style, speed },
+                        }),
+                    }
+                )
+                if (!elRes.ok) {
+                    const errText = await elRes.text().catch(() => '')
+                    throw new Error(`ElevenLabs 직접 생성 오류 (${elRes.status}): ${errText.slice(0, 300)}`)
+                }
+                buffers.push(await elRes.arrayBuffer())
+            }
+        }
+
+        const totalLength = buffers.reduce((sum, b) => sum + b.byteLength, 0)
+        const combined = new Uint8Array(totalLength)
+        let offset = 0
+        for (const buf of buffers) {
+            combined.set(new Uint8Array(buf), offset)
+            offset += buf.byteLength
+        }
+        return new Blob([combined], { type: 'audio/mpeg' })
+    }
+
     const handleThumbnailBgFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         if (!file) return
@@ -3291,6 +3547,7 @@ export default function StdPortalPage() {
         try {
             let audioUrl = ''
             let persistedAudioAsset: any = null
+            let ttsWarning = ''
             const rememberPersistedAudioAsset = (asset: any) => {
                 if (!asset) return
                 setSelectedProject(prev => {
@@ -3363,8 +3620,9 @@ export default function StdPortalPage() {
                         }),
                     })
                     if (!res.ok) {
-                        const err = await res.text().catch(() => '')
-                        throw new Error(`Google 무료 TTS 생성 오류: ${err.slice(0, 100)}`)
+                        const errPayload = await safeParseJson(res, 'Google 무료 TTS 생성 오류')
+                        const detail = errPayload?.error || errPayload?.raw || `${res.status} ${res.statusText}`
+                        throw new Error(`Google 무료 TTS 생성 오류: ${String(detail).slice(0, 300)}`)
                     }
                     buffers.push(await res.arrayBuffer())
                 }
@@ -3378,6 +3636,7 @@ export default function StdPortalPage() {
                 }
                 const blob = new Blob([combined], { type: 'audio/mpeg' })
                 audioUrl = URL.createObjectURL(blob)
+                await persistGeneratedAudioLocally(blob, null)
                 const persistRes = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -3398,6 +3657,9 @@ export default function StdPortalPage() {
                         audioUrl = URL.createObjectURL(audioBlob)
                         await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                     }
+                } else if (!persistRes.ok) {
+                    console.warn('[STD TTS] Google free audio was generated, but server persistence failed:', persistPayload)
+                    ttsWarning = ` 서버 저장 실패: ${String(persistPayload?.error || persistPayload?.raw || persistRes.status).slice(0, 160)}`
                 }
             } else {
                 const finalVoiceMap: Record<string, string> = {}
@@ -3413,23 +3675,39 @@ export default function StdPortalPage() {
                         : 'TTS generating...'
                 )
 
+                const requestBody = {
+                    provider: 'elevenlabs',
+                    voice_id: selectedVoice,
+                    model_id: 'eleven_multilingual_v2',
+                    speed: Number(ttsSpeed),
+                    stability: Number(elStability),
+                    style: Number(elStyle),
+                    text: ttsText,
+                    multi_voice: multiVoice,
+                    voice_map: finalVoiceMap,
+                }
                 const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                     method: 'POST',
                     headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        provider: 'elevenlabs',
-                        voice_id: selectedVoice,
-                        model_id: 'eleven_multilingual_v2',
-                        speed: Number(ttsSpeed),
-                        stability: Number(elStability),
-                        style: Number(elStyle),
-                        text: ttsText,
-                        multi_voice: multiVoice,
-                        voice_map: finalVoiceMap,
-                    }),
+                    body: JSON.stringify(requestBody),
                 })
                 const payload = await safeParseJson(res, 'TTS generation failed')
-                if (!res.ok) throw new Error(payload.error || 'TTS generation failed')
+                if (!res.ok || payload?.success === false) {
+                    const detail = payload?.error || payload?.detail || payload?.raw || `${res.status} ${res.statusText}`
+                    const stage = payload?.stage ? ` (${payload.stage})` : ''
+                    const serverErrorMessage = `TTS generation failed${stage}: ${String(detail).slice(0, 600)}`
+                    if (!shouldUseBrowserElevenLabsFallback(serverErrorMessage)) {
+                        throw new Error(serverErrorMessage)
+                    }
+
+                    console.warn('[STD TTS] server generation failed; trying browser ElevenLabs fallback:', payload)
+                    const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice)
+                    audioUrl = URL.createObjectURL(fallbackBlob)
+                    await persistGeneratedAudioLocally(fallbackBlob, null)
+                    setAudioResultUrl(audioUrl)
+                    setMessage(`ElevenLabs TTS 생성 완료. 서버 저장은 실패했습니다: ${String(detail).slice(0, 160)}`)
+                    return
+                }
                 persistedAudioAsset = payload.asset || null
 
                 const generatedAudioUrl = payload.audio_url || payload.download_url
@@ -3466,10 +3744,11 @@ export default function StdPortalPage() {
                 const keyUsageLabel = usedKeySlots.length
                     ? ` (ElevenLabs 키 ${usedKeySlots.join(', ')}번 사용)`
                     : ''
+                const serverWarning = payload.warning ? ` ${String(payload.warning).slice(0, 160)}` : ''
                 setMessage(
                     multiVoice
-                        ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}`
-                        : `${voiceObj.name} TTS audio generated.${keyUsageLabel}`
+                        ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}${serverWarning}`
+                        : `${voiceObj.name} TTS audio generated.${keyUsageLabel}${serverWarning}`
                 )
                 return
                 /*
@@ -3562,7 +3841,7 @@ export default function StdPortalPage() {
 
             setAudioResultUrl(audioUrl)
             rememberPersistedAudioAsset(persistedAudioAsset)
-            setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!`)
+            setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!${ttsWarning}`)
         } catch (error: any) {
             setAudioResultUrl('')
             const errorMessage = error?.message || 'TTS generation failed'
@@ -3768,6 +4047,9 @@ export default function StdPortalPage() {
         end_time: '4.6',
         image_url: '',
     }
+    const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
+    const currentSubImageUrl = sanitizeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
+    const currentSubVideoUrl = sanitizeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
 
     
     // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, TTS, 자막, 썸네일)
@@ -5137,7 +5419,7 @@ export default function StdPortalPage() {
                                                     scenes,
                                                     Number(subMaxChars) || 20
                                                 )
-                                                setLocalSubtitles(subs)
+                                                setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
                                                 setSelectedSubIndex(0)
                                                 alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
                                             }}
@@ -5147,19 +5429,7 @@ export default function StdPortalPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const scenes = selectedProject?.scenes || []
-                                                setLocalSubtitles(prev => prev.map(s => {
-                                                    const sNum = s.scene_number || 1
-                                                    const targetScene = scenes[sNum - 1] || scenes[0] || {}
-                                                    return {
-                                                        ...s,
-                                                        image_url: targetScene.image_url || s.image_url,
-                                                        video_url: targetScene.video_url,
-                                                    }
-                                                }))
-                                                alert('각 씬의 이미지 및 영상 런닝타임과 자막 싱크가 100% 동기화되었습니다.')
-                                            }}
+                                            onClick={handleSyncSubtitleSceneVisuals}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
                                             AI 이미지 동기화
@@ -5244,7 +5514,13 @@ export default function StdPortalPage() {
                                                             isActive ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
                                                         }`}
                                                     >
-                                                        <img src={group.image_url} alt={`Scene ${group.scene_number}`} className="w-full h-full object-cover" />
+                                                        {group.video_url ? (
+                                                            <video src={group.video_url} className="w-full h-full object-cover" muted />
+                                                        ) : group.image_url ? (
+                                                            <img src={group.image_url} alt={`Scene ${group.scene_number}`} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-[#0b0e14]" />
+                                                        )}
                                                         {isHook && (
                                                             <span className="absolute top-0.5 left-0.5 bg-orange-600 text-white text-[7px] font-bold px-1 rounded">
                                                                 5s 훅
@@ -5286,7 +5562,13 @@ export default function StdPortalPage() {
                                                     >
                                                         {/* 이미지 & 타임 */}
                                                         <div className="w-20 aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0">
-                                                            <img src={group.image_url} alt="" className="w-full h-full object-cover" />
+                                                            {group.video_url ? (
+                                                                <video src={group.video_url} className="w-full h-full object-cover" muted />
+                                                            ) : group.image_url ? (
+                                                                <img src={group.image_url} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full bg-[#0b0e14]" />
+                                                            )}
                                                             <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
                                                                 {group.subtitles.length} lines
                                                             </span>
@@ -5362,9 +5644,16 @@ export default function StdPortalPage() {
                                                     alt="Template Preview"
                                                     className="w-full h-full object-cover"
                                                 />
-                                            ) : !selectedImageTemplatePreset && currentSub.image_url ? (
+                                            ) : !selectedImageTemplatePreset && currentSubVideoUrl ? (
+                                                <video
+                                                    src={currentSubVideoUrl}
+                                                    className="w-full h-full object-cover"
+                                                    controls
+                                                    muted
+                                                />
+                                            ) : !selectedImageTemplatePreset && currentSubImageUrl ? (
                                                 <img
-                                                    src={currentSub.image_url}
+                                                    src={currentSubImageUrl}
                                                     alt="Preview"
                                                     className="w-full h-full object-cover"
                                                 />

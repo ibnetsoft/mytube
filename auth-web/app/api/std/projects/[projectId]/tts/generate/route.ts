@@ -594,10 +594,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         ).trim()
         const modelId = String(body?.model_id || project.project_payload?.tts_model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
         const projectTtsSpeed = Math.max(0.7, Math.min(1.2, Number(
-            project.project_payload?.tts_speed
-            || project.progress_payload?.tts_speed
-            || project.source_payload?.progress_payload?.tts_speed
-            || 1
+            body?.speed
+            ?? project.project_payload?.tts_speed
+            ?? project.progress_payload?.tts_speed
+            ?? project.source_payload?.progress_payload?.tts_speed
+            ?? 1
         ) || 1))
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
@@ -690,6 +691,24 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             )
         } catch (driveError: any) {
             console.error('[STD TTS] Google Drive upload failed; refusing transient-only success:', driveError?.message)
+            if (audioBuffer.length <= MAX_INLINE_AUDIO_BYTES) {
+                return NextResponse.json({
+                    success: true,
+                    warning: 'TTS audio was generated, but Google Drive storage failed.',
+                    code: 'tts_drive_upload_failed_inline_audio_returned',
+                    stage,
+                    detail: driveError?.message || null,
+                    asset: null,
+                    drive_file: null,
+                    audio_url: `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`,
+                    download_url: '',
+                    persisted_audio_url: '',
+                    web_view_link: '',
+                    elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                    elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
+                    message: 'TTS 음성은 생성되었지만 Google Drive 저장은 실패했습니다.',
+                })
+            }
             return NextResponse.json({
                 success: false,
                 error: 'TTS audio was generated, but Google Drive storage failed. Please retry.',
