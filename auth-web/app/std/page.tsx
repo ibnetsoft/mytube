@@ -2720,9 +2720,9 @@ export default function StdPortalPage() {
         alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다! (상단 헤더 자막 단계 완료)')
     }
 
-    const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string) => {
+    const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string): Promise<SelectedProjectPayload | null> => {
         const requestedProjectId = String(projectId || '').trim()
-        if (!requestedProjectId) return
+        if (!requestedProjectId) return null
         setProjectLoading(true)
         setMessage('')
         const targetToken = overrideToken || token
@@ -2796,7 +2796,7 @@ export default function StdPortalPage() {
                 setSelectedProject(fullProjectPayload)
                 rememberProjectState(fullProjectPayload)
                 restorePersistedProjectMedia(fullProjectPayload, fetchHeaders).catch(() => {})
-                return
+                return fullProjectPayload
             }
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
@@ -2806,7 +2806,7 @@ export default function StdPortalPage() {
                 setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
                 rememberProjectState(remembered)
                 restorePersistedProjectMedia(remembered, fetchHeaders).catch(() => {})
-                return
+                return remembered
             }
             const localProj = projects.find(p => p.id === requestedProjectId)
             if (localProj) {
@@ -2816,12 +2816,14 @@ export default function StdPortalPage() {
                 setSelectedProject(built)
                 setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
                 rememberProjectState(built)
+                return built
             } else {
                 setMessage(error.message || '작업 상세 조회 실패')
             }
         } finally {
             setProjectLoading(false)
         }
+        return null
     }
 
     const uploadAsset = async (scene: any, assetType: 'image' | 'video' | 'thumbnail', file: File | null): Promise<boolean> => {
@@ -3132,10 +3134,19 @@ export default function StdPortalPage() {
         )
     }
 
-    const submitProject = async () => {
-        if (!selectedProject) return
-        if (!(await ensureScriptSyncedBeforeAction())) return
-        const pStatus = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+    const submitProject = async (projectOverride?: SelectedProjectPayload) => {
+        const targetProject = projectOverride || selectedProject
+        if (!targetProject) return
+        if (!projectOverride && !(await ensureScriptSyncedBeforeAction())) return
+        const targetPayload = targetProject.project?.project_payload || {}
+        const pStatus = getProjectStepStatus(
+            targetProject,
+            targetProject?.scenes || [],
+            projectOverride ? targetPayload.audio_url || targetPayload.tts_url || '' : audioResultUrl,
+            projectOverride ? targetPayload.script || '' : customScriptText,
+            projectOverride ? targetPayload.subtitles || [] : localSubtitles,
+            projectOverride ? targetPayload.thumbnail_url || targetProject.project?.progress_payload?.thumbnail_url || '' : thumbBgUrl
+        )
         if (!pStatus.allDone) {
             const missingList = []
             if (!pStatus.isPlanningDone) missingList.push('기획')
@@ -3151,7 +3162,7 @@ export default function StdPortalPage() {
         setLoading(true)
         setMessage('')
         try {
-            const res = await fetch(`/api/std/projects/${selectedProject.project.id}/submit`, {
+            const res = await fetch(`/api/std/projects/${targetProject.project.id}/submit`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
             })
@@ -7352,9 +7363,9 @@ export default function StdPortalPage() {
                                                                         </button>
                                                                     ) : pStatus.allDone ? (
                                                                         <button
-                                                                            onClick={() => {
-                                                                                openProject(p.id)
-                                                                                submitProject()
+                                                                            onClick={async () => {
+                                                                                const openedProject = await openProject(p.id)
+                                                                                if (openedProject) await submitProject(openedProject)
                                                                             }}
                                                                             className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
                                                                             title="모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수"

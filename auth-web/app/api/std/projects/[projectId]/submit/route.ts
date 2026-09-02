@@ -31,18 +31,26 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .eq('project_id', project.id),
         supabaseAdmin
             .from('std_project_assets')
-            .select('id,scene_number,asset_type,status')
+            .select('id,scene_number,asset_type,status,drive_file_id')
             .eq('project_id', project.id)
-            .in('asset_type', ['image', 'video'])
+            .in('asset_type', ['image', 'video', 'audio', 'thumbnail'])
             .in('status', ['uploaded', 'assigned']),
     ])
 
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
 
-    const activeSceneNumbers = new Set((assets || []).map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
+    if (!scenes?.length) {
+        return NextResponse.json({
+            success: false,
+            error: 'Project has no scenes to render',
+        }, { status: 409 })
+    }
+
+    const visualAssets = (assets || []).filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
+    const activeSceneNumbers = new Set(visualAssets.map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
     const activeVideoSceneNumbers = new Set(
-        (assets || [])
+        visualAssets
             .filter((asset: any) => asset.asset_type === 'video')
             .map((asset: any) => Number(asset.scene_number))
             .filter(Number.isFinite)
@@ -61,6 +69,28 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             required_video_scene_numbers: (scenes || [])
                 .map((scene: any) => Number(scene.scene_number))
                 .filter((sceneNumber: number) => isStdRequiredVideoScene(sceneNumber)),
+        }, { status: 409 })
+    }
+
+    const hasAudioAsset = (assets || []).some((asset: any) =>
+        String(asset.asset_type || '').toLowerCase() === 'audio'
+        && String(asset.drive_file_id || '').trim()
+    )
+    if (!hasAudioAsset) {
+        return NextResponse.json({
+            success: false,
+            error: 'TTS audio is required before submitting for render',
+        }, { status: 409 })
+    }
+
+    const hasThumbnailAsset = (assets || []).some((asset: any) =>
+        String(asset.asset_type || '').toLowerCase() === 'thumbnail'
+        && String(asset.drive_file_id || '').trim()
+    )
+    if (!hasThumbnailAsset) {
+        return NextResponse.json({
+            success: false,
+            error: 'Thumbnail is required before submitting for render',
         }, { status: 409 })
     }
 
