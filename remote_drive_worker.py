@@ -207,6 +207,54 @@ class RemoteDriveWorker:
         config.load_remote_keys_from_supabase()
         self.output_folder_id = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID") or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
 
+    def _safe_manifest_path(self, relative_path):
+        normalized = str(relative_path or "").replace("\\", "/").strip("/")
+        parts = [part for part in normalized.split("/") if part]
+        if not parts or any(part in {".", ".."} for part in parts):
+            raise RuntimeError(f"잘못된 렌더 파일 경로입니다: {relative_path}")
+        return os.path.join(*parts)
+
+    def _prepare_drive_folder_manifest_job(self, job_id, job, temp_dir, config_file_id):
+        config_path = os.path.join(temp_dir, "config.json")
+        self.update_job(job_id, progress=5, message="Google Drive에서 렌더 설정 파일 다운로드 중...")
+        downloaded_config = google_drive_service.download_file(
+            config_file_id,
+            config_path,
+            token_path=self.google_token_path or None,
+        )
+        if not downloaded_config:
+            raise RuntimeError("Google Drive에서 렌더 설정 파일을 다운로드하지 못했습니다.")
+
+        with open(config_path, "r", encoding="utf-8") as f_conf:
+            packaged_config = json.load(f_conf)
+
+        manifest = packaged_config.get("asset_manifest") or {}
+        files = manifest.get("files") or []
+        if not files:
+            raise RuntimeError("렌더 설정 파일에 다운로드할 에셋 목록이 없습니다.")
+
+        total = len(files)
+        for index, item in enumerate(files, start=1):
+            drive_file_id = item.get("drive_file_id")
+            relative_path = item.get("path")
+            if not drive_file_id or not relative_path:
+                raise RuntimeError("렌더 에셋 목록에 Drive 파일 ID 또는 경로가 없습니다.")
+            local_rel_path = self._safe_manifest_path(relative_path)
+            local_path = os.path.join(temp_dir, local_rel_path)
+            progress = 6 + int((index / max(total, 1)) * 12)
+            self.update_job(
+                job_id,
+                progress=progress,
+                message=f"Google Drive 에셋 다운로드 중... ({index}/{total})",
+            )
+            downloaded = google_drive_service.download_file(
+                drive_file_id,
+                local_path,
+                token_path=self.google_token_path or None,
+            )
+            if not downloaded:
+                raise RuntimeError(f"Google Drive 에셋 다운로드 실패: {relative_path}")
+
     def process_job(self, job):
         self._refresh_drive_settings()
         job_id = job["id"]
@@ -217,14 +265,19 @@ class RemoteDriveWorker:
         temp_dir = tempfile.mkdtemp(prefix=f"remote_drive_render_{job_id}_")
         zip_path = os.path.join(temp_dir, "asset_package.zip")
         try:
-            self.update_job(job_id, progress=5, message="Google Drive에서 에셋 패키지 다운로드 중...")
-            downloaded = google_drive_service.download_file(asset_file_id, zip_path, token_path=self.google_token_path or None)
-            if not downloaded:
-                raise RuntimeError("Google Drive에서 에셋 패키지 다운로드에 실패했습니다.")
+            metadata = job.get("metadata") or {}
+            if metadata.get("package_transport") == "google_drive_folder":
+                config_file_id = metadata.get("config_file_id") or asset_file_id
+                self._prepare_drive_folder_manifest_job(job_id, job, temp_dir, config_file_id)
+            else:
+                self.update_job(job_id, progress=5, message="Google Drive에서 에셋 패키지 다운로드 중...")
+                downloaded = google_drive_service.download_file(asset_file_id, zip_path, token_path=self.google_token_path or None)
+                if not downloaded:
+                    raise RuntimeError("Google Drive에서 에셋 패키지 다운로드에 실패했습니다.")
 
-            self.update_job(job_id, progress=12, message="에셋 패키지 압축 해제 중...")
-            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(temp_dir)
+                self.update_job(job_id, progress=12, message="에셋 패키지 압축 해제 중...")
+                with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                    zip_ref.extractall(temp_dir)
 
             self.update_job(job_id, progress=20, message="원격 워커에서 영상 렌더링 중...")
             remote_render_executor_func(job_id, temp_dir, use_gpu=self.use_gpu)

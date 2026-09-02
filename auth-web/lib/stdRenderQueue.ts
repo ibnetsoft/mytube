@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import {
+    createStdDriveJsonFile,
     downloadStdDriveFile,
     driveFileLink,
     driveFolderLink,
@@ -295,6 +296,153 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     return createStoredZip(entries)
 }
 
+function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
+    const activeAssets = (assets || []).filter(activeAsset)
+    const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
+    const audioAsset = activeAssets.find(isAudioAsset)
+
+    if (!audioAsset?.drive_file_id) {
+        throw new Error('렌더용 오디오 파일이 없습니다. TTS 파일이 Google Drive에 저장되어야 제출할 수 있습니다.')
+    }
+
+    const manifestFiles: any[] = []
+    const audioExt = mediaExtension(audioAsset.file_name, audioAsset.mime_type, '.mp3')
+    const audioFilename = `audio_${pseudoProjectId}${audioExt}`
+    manifestFiles.push({
+        asset_type: 'audio',
+        drive_file_id: audioAsset.drive_file_id,
+        path: `audio/${audioFilename}`,
+        file_name: audioAsset.file_name,
+        mime_type: audioAsset.mime_type,
+        size: audioAsset.file_size || null,
+    })
+
+    const images: Array<string | null> = []
+    for (const scene of scenes) {
+        const sceneNumber = Number(scene.scene_number)
+        const videoAsset = sceneAssets.find((item: any) =>
+            Number(item.scene_number) === sceneNumber
+            && String(item.asset_type || '').toLowerCase() === 'video'
+        )
+        const imageAsset = sceneAssets.find((item: any) =>
+            Number(item.scene_number) === sceneNumber
+            && String(item.asset_type || '').toLowerCase() === 'image'
+        )
+        const asset = videoAsset || imageAsset
+        if (!asset?.drive_file_id) {
+            images.push(null)
+            continue
+        }
+        const ext = mediaExtension(asset.file_name, asset.mime_type, '.png')
+        const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`
+        images.push(filename)
+        manifestFiles.push({
+            asset_type: String(asset.asset_type || '').toLowerCase(),
+            scene_number: sceneNumber,
+            drive_file_id: asset.drive_file_id,
+            path: `images/${filename}`,
+            file_name: asset.file_name,
+            mime_type: asset.mime_type,
+            size: asset.file_size || null,
+        })
+    }
+
+    const subtitles = scenes.map((scene: any, index: number) => {
+        const start = Number(scene?.metadata?.start ?? index * 5)
+        const end = Number(scene?.metadata?.end ?? start + 5)
+        return {
+            start,
+            end,
+            text: String(scene?.scene_text || '').trim(),
+        }
+    }).filter((subtitle: any) => subtitle.text)
+
+    const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
+    let thumbnailFilename: string | null = null
+    if (thumbnailAsset?.drive_file_id) {
+        const ext = mediaExtension(thumbnailAsset.file_name, thumbnailAsset.mime_type, '.png')
+        thumbnailFilename = `thumbnail${ext}`
+        manifestFiles.push({
+            asset_type: 'thumbnail',
+            drive_file_id: thumbnailAsset.drive_file_id,
+            path: thumbnailFilename,
+            file_name: thumbnailAsset.file_name,
+            mime_type: thumbnailAsset.mime_type,
+            size: thumbnailAsset.file_size || null,
+        })
+    }
+
+    const renderSettings = {
+        ...(project.project_payload?.settings || {}),
+        ...(project.project_payload?.render_settings || {}),
+        app_mode: 'longform',
+        subtitle_bg_enabled: project.project_payload?.render_settings?.subtitle_bg_enabled
+            ?? project.project_payload?.settings?.subtitle_bg_enabled
+            ?? 1,
+        bg_enabled: project.project_payload?.render_settings?.bg_enabled
+            ?? project.project_payload?.settings?.bg_enabled
+            ?? project.project_payload?.render_settings?.subtitle_bg_enabled
+            ?? project.project_payload?.settings?.subtitle_bg_enabled
+            ?? 1,
+        subtitle_bg_color: project.project_payload?.render_settings?.subtitle_bg_color
+            ?? project.project_payload?.settings?.subtitle_bg_color
+            ?? project.project_payload?.render_settings?.bg_color
+            ?? project.project_payload?.settings?.bg_color
+            ?? '#000000',
+        bg_color: project.project_payload?.render_settings?.bg_color
+            ?? project.project_payload?.settings?.bg_color
+            ?? project.project_payload?.render_settings?.subtitle_bg_color
+            ?? project.project_payload?.settings?.subtitle_bg_color
+            ?? '#000000',
+        subtitle_bg_opacity: project.project_payload?.render_settings?.subtitle_bg_opacity
+            ?? project.project_payload?.settings?.subtitle_bg_opacity
+            ?? project.project_payload?.render_settings?.bg_opacity
+            ?? project.project_payload?.settings?.bg_opacity
+            ?? 0.5,
+        bg_opacity: project.project_payload?.render_settings?.bg_opacity
+            ?? project.project_payload?.settings?.bg_opacity
+            ?? project.project_payload?.render_settings?.subtitle_bg_opacity
+            ?? project.project_payload?.settings?.subtitle_bg_opacity
+            ?? 0.5,
+        title: project.title,
+        language: project.language || 'ko',
+    }
+
+    return {
+        project_id: pseudoProjectId,
+        project_name: project.title || `Project ${pseudoProjectId}`,
+        email: project.employee_email || 'unknown',
+        use_subtitles: true,
+        resolution: '1080p',
+        aspect_ratio: '16:9',
+        audio_filename: audioFilename,
+        audio_duration: project.progress_payload?.audio_duration || null,
+        images,
+        subtitles,
+        render_settings: renderSettings,
+        image_timing_starts: null,
+        image_effects: images.map(() => 'auto_classify'),
+        focal_point_ys: images.map(() => 0.5),
+        bg_video_url: null,
+        intro_filename: null,
+        template_overlay_filename: null,
+        content_aspect_ratio: null,
+        app_mode: 'longform',
+        thumbnail_filename: thumbnailFilename,
+        asset_manifest: {
+            version: 1,
+            transport: 'google_drive_folder',
+            files: manifestFiles,
+        },
+        project_upload_metadata: {
+            title: project.project_payload?.publish_metadata?.title || project.title,
+            description: project.project_payload?.publish_metadata?.description || '',
+            hashtags: project.project_payload?.publish_metadata?.hashtags || '',
+            status: 'ready_for_upload',
+        },
+    }
+}
+
 export async function enqueueStdProjectRender(projectId: string) {
     const { project, scenes, assets } = await loadBundle(projectId)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')
@@ -313,14 +461,11 @@ export async function enqueueStdProjectRender(projectId: string) {
 
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const folders = await ensureStdProjectDriveFolders(project)
-    const packageBuffer = await buildLegacyRenderPackage(project, scenes, assets, pseudoProjectId)
-    const packageName = sanitizeDriveName(`remote_render_pkg_${pseudoProjectId}.zip`, 'remote_render_pkg.zip')
-    const driveFile = await uploadStdDriveBuffer(
+    const renderConfig = buildDriveFolderRenderConfig(project, scenes, assets, pseudoProjectId)
+    const configFile = await createStdDriveJsonFile(
         folders.projectFolderId,
-        packageName,
-        packageBuffer,
-        'application/zip',
-        `AIR remote render asset package for project ${pseudoProjectId}`
+        'config.json',
+        renderConfig
     )
 
     const metadata = {
@@ -329,13 +474,16 @@ export async function enqueueStdProjectRender(projectId: string) {
         upload_owner: 'web_admin',
         publish_owner: 'web_admin',
         visibility_control: 'web_admin_pending',
-        package_transport: 'google_drive_api',
+        package_transport: 'google_drive_folder',
         job_stage: 'pending',
-        asset_file_id: driveFile.id,
-        asset_file_name: driveFile.name,
-        asset_file_size: driveFile.size,
-        asset_md5: (driveFile as any).md5Checksum,
-        asset_web_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+        asset_file_id: configFile.id,
+        asset_file_name: configFile.name,
+        asset_file_size: configFile.size,
+        asset_web_link: configFile.webViewLink || driveFileLink(configFile.id),
+        config_file_id: configFile.id,
+        config_file_name: configFile.name,
+        config_web_link: configFile.webViewLink || driveFileLink(configFile.id),
+        manifest_file_count: renderConfig.asset_manifest.files.length,
         source: 'picadiri_local_app',
         std_web_project_id: project.id,
         topic_queue_id: project.topic_queue_id,
@@ -354,10 +502,10 @@ export async function enqueueStdProjectRender(projectId: string) {
         email: project.employee_email || 'unknown',
         status: 'pending',
         progress: 0,
-        message: 'Google Drive asset package upload complete. Waiting for remote render.',
+        message: 'Google Drive project folder manifest ready. Waiting for remote render.',
         render_mode: 'drive_api',
-        asset_file_id: driveFile.id,
-        asset_file_name: driveFile.name,
+        asset_file_id: configFile.id,
+        asset_file_name: configFile.name,
         metadata,
         updated_at: now,
     }
@@ -386,9 +534,9 @@ export async function enqueueStdProjectRender(projectId: string) {
                     remote_task_id: taskId,
                     remote_render_queue_id: taskId,
                     remote_render_mode: 'drive_api',
-                    remote_asset_file_id: driveFile.id,
-                    remote_asset_file_name: driveFile.name,
-                    remote_asset_web_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+                    remote_asset_file_id: configFile.id,
+                    remote_asset_file_name: configFile.name,
+                    remote_asset_web_link: configFile.webViewLink || driveFileLink(configFile.id),
                     remote_render_queue_payload: payload,
                     admin_publish_status: 'render_pending',
                     submitted_to_render_queue_at: now,
