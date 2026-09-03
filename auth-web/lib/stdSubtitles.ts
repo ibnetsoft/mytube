@@ -212,6 +212,12 @@ const closingQuotePairs: Record<string, string> = {
     '」': '「',
     '』': '『',
 }
+const openingQuotePairs: Record<string, string> = {
+    '‘': '’',
+    '“': '”',
+    '「': '」',
+    '『': '』',
+}
 
 function hasUnclosedQuote(text: string, quote: string): boolean {
     if (quote === "'" || quote === '"') {
@@ -259,10 +265,13 @@ export function repairSubtitleItemQuoteBoundaries<T extends { text?: string }>(i
         while (text.length > 0) {
             const quote = text[0]
             const prevText = String(repaired[i - 1]?.text || '').trim()
+            const prevScene = Number(repaired[i - 1]?.scene_number || 0)
+            const currentScene = Number(repaired[i]?.scene_number || 0)
+            const sameScene = !prevScene || !currentScene || prevScene === currentScene
             const shouldMoveQuote = Boolean(closingQuotePairs[quote]) || (
                 (quote === "'" || quote === '"') && hasUnclosedQuote(prevText, quote)
             )
-            if (!shouldMoveQuote) break
+            if (!shouldMoveQuote || !sameScene) break
 
             repaired[i - 1] = {
                 ...repaired[i - 1],
@@ -277,7 +286,55 @@ export function repairSubtitleItemQuoteBoundaries<T extends { text?: string }>(i
         }
     }
 
-    return repaired.filter(item => String(item?.text || '').trim().length > 0)
+    const repairedByScene = repairUnclosedQuoteGroups(repaired)
+    return repairedByScene.filter(item => String(item?.text || '').trim().length > 0)
+}
+
+function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: number }>(items: T[]): T[] {
+    const repaired = [...items]
+    let groupStart = 0
+
+    const flushGroup = (start: number, end: number) => {
+        if (start > end) return
+        const combined = repaired
+            .slice(start, end + 1)
+            .map(item => String(item?.text || '').trim())
+            .filter(Boolean)
+            .join(' ')
+        if (!combined) return
+
+        const closingSuffixes: string[] = []
+        const straightSingleCount = Array.from(combined).filter(ch => ch === "'").length
+        const straightDoubleCount = Array.from(combined).filter(ch => ch === '"').length
+        if (straightSingleCount % 2 === 1) closingSuffixes.push("'")
+        if (straightDoubleCount % 2 === 1) closingSuffixes.push('"')
+
+        Object.entries(openingQuotePairs).forEach(([open, close]) => {
+            const openCount = Array.from(combined).filter(ch => ch === open).length
+            const closeCount = Array.from(combined).filter(ch => ch === close).length
+            for (let i = closeCount; i < openCount; i += 1) {
+                closingSuffixes.push(close)
+            }
+        })
+
+        if (closingSuffixes.length === 0) return
+        const lastText = String(repaired[end]?.text || '').trim()
+        repaired[end] = {
+            ...repaired[end],
+            text: `${lastText}${closingSuffixes.join('')}`.trim(),
+        }
+    }
+
+    for (let i = 1; i <= repaired.length; i += 1) {
+        const prevScene = Number(repaired[i - 1]?.scene_number || 0)
+        const nextScene = Number(repaired[i]?.scene_number || 0)
+        if (i === repaired.length || prevScene !== nextScene) {
+            flushGroup(groupStart, i - 1)
+            groupStart = i
+        }
+    }
+
+    return repaired
 }
 
 export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCount: number = BASE_STORY_SCENE_COUNT): string[] {
