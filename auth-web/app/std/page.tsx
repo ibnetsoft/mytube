@@ -1742,6 +1742,25 @@ export default function StdPortalPage() {
         }
     }
 
+    const setSubtitleBlockVoice = async (subtitleIndex: number, voiceId: string) => {
+        const nextVoiceId = String(voiceId || selectedVoice)
+        const targetIndex = Number(subtitleIndex)
+        if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= localSubtitles.length) return
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
+        const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
+            if (index !== targetIndex) return item
+            return {
+                ...item,
+                voice_id: nextVoiceId,
+                voice_name: voiceNameById.get(nextVoiceId) || nextVoiceId,
+            }
+        })
+        if (currentNav === 'subtitle_vrew') {
+            markVrewSegmentStale(updatedSubtitles[targetIndex], targetIndex)
+        }
+        await persistVrewVoiceSubtitles(updatedSubtitles)
+    }
+
     const subtitleVoiceSegments = () => {
         return (localSubtitles || [])
             .map((item: any) => ({
@@ -6175,37 +6194,102 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            <div className="text-xs text-white leading-relaxed font-sans">
-                                                                {renderDialogueHighlightedText(groupText)}
-                                                            </div>
-                                                            {group.subtitles.length > 1 && (
-                                                                <div className="mt-2 flex flex-wrap gap-1">
-                                                                    {group.subtitles.map((item: any, lineIndex: number) => (
-                                                                        <button
-                                                                            key={item.id || `${sNum}-${lineIndex}`}
-                                                                            type="button"
-                                                                            onClick={(event) => {
-                                                                                event.stopPropagation()
-                                                                                setSelectedSubIndex(item.subtitleIndex)
-                                                                                setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
-                                                                            }}
-                                                                            className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
-                                                                                selectedSubIndex === item.subtitleIndex
-                                                                                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
-                                                                                    : 'bg-black/20 border-white/10 text-gray-400 hover:text-white'
-                                                                            }`}
-                                                                        >
-                                                                            {lineIndex + 1}
-                                                                        </button>
-                                                                    ))}
+                                                            {isVrewSubtitleMode ? (
+                                                                <div className="space-y-1.5">
+                                                                    {group.subtitles.map((item: any, lineIndex: number) => {
+                                                                        const blockVoiceId = String(item.voice_id || selectedVoice)
+                                                                        const blockVoiceName = voiceNameById.get(blockVoiceId) || item.voice_name || '성우'
+                                                                        const isDialogueBlock = hasDialogueQuoteText(item.text)
+                                                                        return (
+                                                                            <div
+                                                                                key={item.id || `${sNum}-${lineIndex}`}
+                                                                                className={`grid grid-cols-[1.5rem_minmax(0,1fr)_9rem] items-center gap-2 rounded-md border px-2 py-1.5 ${
+                                                                                    selectedSubIndex === item.subtitleIndex
+                                                                                        ? 'border-cyan-400/60 bg-cyan-500/10'
+                                                                                        : isDialogueBlock
+                                                                                        ? 'border-emerald-400/25 bg-emerald-500/5'
+                                                                                        : 'border-white/5 bg-black/10'
+                                                                                }`}
+                                                                            >
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(event) => {
+                                                                                        event.stopPropagation()
+                                                                                        setSelectedSubIndex(item.subtitleIndex)
+                                                                                        setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
+                                                                                    }}
+                                                                                    className={`h-5 rounded border text-[9px] font-bold transition-all ${
+                                                                                        selectedSubIndex === item.subtitleIndex
+                                                                                            ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                                                                                            : 'bg-black/20 border-white/10 text-gray-400 hover:text-white'
+                                                                                    }`}
+                                                                                >
+                                                                                    {lineIndex + 1}
+                                                                                </button>
+                                                                                <div className="min-w-0 text-xs text-white leading-relaxed font-sans">
+                                                                                    {renderDialogueHighlightedText(item.text)}
+                                                                                </div>
+                                                                                <select
+                                                                                    value={blockVoiceId}
+                                                                                    title={`${isDialogueBlock ? '대사' : '내레이션'} 성우: ${blockVoiceName}`}
+                                                                                    onClick={(event) => event.stopPropagation()}
+                                                                                    onChange={(event) => {
+                                                                                        event.stopPropagation()
+                                                                                        void setSubtitleBlockVoice(item.subtitleIndex, event.target.value)
+                                                                                    }}
+                                                                                    className={`w-full bg-[#10141b] rounded-md px-2 py-1 text-[10px] text-gray-100 focus:outline-none ${
+                                                                                        isDialogueBlock
+                                                                                            ? 'border border-emerald-400/30 focus:border-emerald-400'
+                                                                                            : 'border border-white/10 focus:border-cyan-500'
+                                                                                    }`}
+                                                                                >
+                                                                                    {allVoices.map((voice: any) => (
+                                                                                        <option key={voice.id} value={voice.id}>
+                                                                                            {voice.name}
+                                                                                        </option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </div>
+                                                                        )
+                                                                    })}
                                                                 </div>
+                                                            ) : (
+                                                                <>
+                                                                    <div className="text-xs text-white leading-relaxed font-sans">
+                                                                        {renderDialogueHighlightedText(groupText)}
+                                                                    </div>
+                                                                    {group.subtitles.length > 1 && (
+                                                                        <div className="mt-2 flex flex-wrap gap-1">
+                                                                            {group.subtitles.map((item: any, lineIndex: number) => (
+                                                                                <button
+                                                                                    key={item.id || `${sNum}-${lineIndex}`}
+                                                                                    type="button"
+                                                                                    onClick={(event) => {
+                                                                                        event.stopPropagation()
+                                                                                        setSelectedSubIndex(item.subtitleIndex)
+                                                                                        setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
+                                                                                    }}
+                                                                                    className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
+                                                                                        selectedSubIndex === item.subtitleIndex
+                                                                                            ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                                                                                            : 'bg-black/20 border-white/10 text-gray-400 hover:text-white'
+                                                                                    }`}
+                                                                                >
+                                                                                    {lineIndex + 1}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
                                                         <div
                                                             className="w-36 shrink-0 self-center"
                                                             onClick={(event) => event.stopPropagation()}
                                                         >
-                                                            <label className="block text-[9px] text-gray-500 mb-1">성우</label>
+                                                            <label className="block text-[9px] text-gray-500 mb-1">
+                                                                {isVrewSubtitleMode ? '씬 전체 성우' : '성우'}
+                                                            </label>
                                                             <select
                                                                 value={groupVoiceId}
                                                                 title={`현재 성우: ${groupVoiceName}`}
