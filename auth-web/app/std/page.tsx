@@ -1762,6 +1762,71 @@ export default function StdPortalPage() {
         return String(text || '').match(/\S+/g) || []
     }
 
+    const renderDialogueHighlightedText = (text: string, activeTokenIndex = -1) => {
+        const value = String(text || '')
+        const parts: Array<{ text: string; quoted: boolean; tokenIndex: number | null }> = []
+        let quoted = false
+        let expectedClose = ''
+        let tokenIndex = -1
+        let current = ''
+        let currentQuoted = false
+        let currentTokenIndex: number | null = null
+        const openToClose: Record<string, string> = {
+            '"': '"',
+            "'": "'",
+            '“': '”',
+            '‘': '’',
+            '「': '」',
+            '『': '』',
+        }
+        const closingQuotes = new Set(Object.values(openToClose))
+
+        const pushCurrent = () => {
+            if (!current) return
+            parts.push({ text: current, quoted: currentQuoted, tokenIndex: currentTokenIndex })
+            current = ''
+        }
+
+        for (let i = 0; i < value.length; i += 1) {
+            const char = value[i]
+            const isTokenStart = /\S/.test(char) && (i === 0 || /\s/.test(value[i - 1] || ''))
+            if (isTokenStart) tokenIndex += 1
+
+            const isOpeningQuote = !quoted && Boolean(openToClose[char])
+            const isClosingQuote = quoted && (char === expectedClose || closingQuotes.has(char))
+            const charQuoted = quoted || isOpeningQuote || isClosingQuote
+            const nextTokenIndex = isTokenStart ? tokenIndex : (/\S/.test(char) ? tokenIndex : null)
+
+            if (current && (currentQuoted !== charQuoted || currentTokenIndex !== nextTokenIndex)) {
+                pushCurrent()
+            }
+            currentQuoted = charQuoted
+            currentTokenIndex = nextTokenIndex
+            current += char
+
+            if (isOpeningQuote) {
+                quoted = true
+                expectedClose = openToClose[char]
+            } else if (isClosingQuote) {
+                quoted = false
+                expectedClose = ''
+            }
+        }
+        pushCurrent()
+
+        return parts.map((part, index) => (
+            <span
+                key={`${index}-${part.text}`}
+                className={[
+                    part.quoted ? 'text-emerald-300' : '',
+                    part.tokenIndex === activeTokenIndex ? 'text-cyan-300' : '',
+                ].filter(Boolean).join(' ') || undefined}
+            >
+                {part.text}
+            </span>
+        ))
+    }
+
     const markVrewSegmentStale = (subtitle: any, index: number) => {
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'stale' }))
@@ -5961,7 +6026,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                             </div>
                                                             <div className="text-xs text-white leading-relaxed font-sans">
-                                                                {groupText}
+                                                                {renderDialogueHighlightedText(groupText)}
                                                             </div>
                                                             {group.subtitles.length > 1 && (
                                                                 <div className="mt-2 flex flex-wrap gap-1">
@@ -6110,18 +6175,10 @@ export default function StdPortalPage() {
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
-                                                    {shouldShowTokenSync ? (
-                                                        <span>
-                                                            {previewTokens.map((token, tokenIndex) => (
-                                                                <span
-                                                                    key={`${token}-${tokenIndex}`}
-                                                                    className={tokenIndex === vrewActiveTokenIndex ? 'text-cyan-300' : undefined}
-                                                                >
-                                                                    {tokenIndex > 0 ? ' ' : ''}{token}
-                                                                </span>
-                                                            ))}
-                                                        </span>
-                                                    ) : currentSub.text}
+                                                    {renderDialogueHighlightedText(
+                                                        currentSub.text,
+                                                        shouldShowTokenSync ? vrewActiveTokenIndex : -1
+                                                    )}
                                                 </div>
                                             </div>
                                                 )
