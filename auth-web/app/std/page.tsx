@@ -5633,7 +5633,7 @@ export default function StdPortalPage() {
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
                                 <div className="lg:relative">
-                                    <div className="flex flex-col gap-3 lg:fixed lg:right-6 lg:top-[92px] lg:w-[420px] xl:w-[430px] lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+                                    <div className="flex flex-col gap-3 lg:fixed lg:right-[max(1.5rem,calc((100vw-94rem)/2+1.5rem))] lg:top-[92px] lg:w-[420px] xl:w-[430px] lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
