@@ -5339,7 +5339,7 @@ export default function StdPortalPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
+        <div className="h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
