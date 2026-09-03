@@ -7223,7 +7223,7 @@ export default function StdPortalPage() {
                                                             <label className="text-gray-500 block mb-1">크기 ({layer.fontSize}px)</label>
                                                             <input
                                                                 type="range"
-                                                                min="16"
+                                                                min="6"
                                                                 max="60"
                                                                 value={layer.fontSize}
                                                                 onChange={e => {
@@ -7237,7 +7237,7 @@ export default function StdPortalPage() {
                                                             <label className="text-gray-500 block mb-1">위치 Y ({layer.y}%)</label>
                                                             <input
                                                                 type="range"
-                                                                min="10"
+                                                                min="0"
                                                                 max="90"
                                                                 value={layer.y}
                                                                 onChange={e => {
@@ -7857,7 +7857,7 @@ export default function StdPortalPage() {
                                                             <label className="text-gray-500 block mb-1">글자 크기 ({layer.fontSize}px)</label>
                                                             <input
                                                                 type="range"
-                                                                min="16"
+                                                                min="6"
                                                                 max="60"
                                                                 value={layer.fontSize}
                                                                 onChange={e => {
@@ -7885,7 +7885,7 @@ export default function StdPortalPage() {
                                                             <label className="text-gray-500 block mb-1">세로 위치 Y ({layer.y}%)</label>
                                                             <input
                                                                 type="range"
-                                                                min="10"
+                                                                min="0"
                                                                 max="90"
                                                                 value={layer.y}
                                                                 onChange={e => {
