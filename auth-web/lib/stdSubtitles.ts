@@ -249,6 +249,37 @@ export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
     return repaired
 }
 
+export function repairSubtitleItemQuoteBoundaries<T extends { text?: string }>(items: T[]): T[] {
+    const repaired = (items || []).map(item => ({ ...item }))
+
+    for (let i = 1; i < repaired.length; i += 1) {
+        let text = String(repaired[i]?.text || '').trim()
+        if (!text) continue
+
+        while (text.length > 0) {
+            const quote = text[0]
+            const prevText = String(repaired[i - 1]?.text || '').trim()
+            const shouldMoveQuote = Boolean(closingQuotePairs[quote]) || (
+                (quote === "'" || quote === '"') && hasUnclosedQuote(prevText, quote)
+            )
+            if (!shouldMoveQuote) break
+
+            repaired[i - 1] = {
+                ...repaired[i - 1],
+                text: `${prevText}${quote}`.trim(),
+            }
+            text = text.slice(1).trimStart()
+        }
+
+        repaired[i] = {
+            ...repaired[i],
+            text,
+        }
+    }
+
+    return repaired.filter(item => String(item?.text || '').trim().length > 0)
+}
+
 export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCount: number = BASE_STORY_SCENE_COUNT): string[] {
     const fullText = normalizedScriptText(rawScriptText)
     if (!fullText) {
@@ -396,5 +427,5 @@ export function generateSynchronizedSubtitles(
         })
     }
 
-    return subtitles
+    return repairSubtitleItemQuoteBoundaries(subtitles)
 }

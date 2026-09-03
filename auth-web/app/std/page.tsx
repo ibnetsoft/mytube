@@ -54,6 +54,7 @@ import {
     estimateRequiredSceneCount,
     partitionScriptByExistingSceneBoundaries,
     partitionScriptTo53Scenes,
+    repairSubtitleItemQuoteBoundaries,
     stripGeneratedPlanningText,
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
@@ -1596,7 +1597,7 @@ export default function StdPortalPage() {
     }
 
     const matchSubtitlesToSceneVisuals = (subtitles: any[], scenes = selectedProject?.scenes || []) => {
-        return (subtitles || []).map((subtitle: any, index: number) => {
+        return repairSubtitleItemQuoteBoundaries(subtitles || []).map((subtitle: any, index: number) => {
             const visual = subtitleSceneVisual(subtitle, index, scenes)
             return {
                 ...subtitle,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
     generateSynchronizedSubtitles,
     partitionScriptByExistingSceneBoundaries,
+    repairSubtitleItemQuoteBoundaries,
     splitTextToSingleLineChunks,
 } from '../lib/stdSubtitles'
 
@@ -79,6 +80,12 @@ const quotedSubtitleChunks = splitTextToSingleLineChunks(
 )
 assert.equal(quotedSubtitleChunks[0], "'저 아들, 어머니를 버렸나 봐.'")
 assert.equal(quotedSubtitleChunks[1], "'죽었을 수도 있지 않을까?'")
-assert.ok(!/^['"’”」』]/.test(quotedSubtitleChunks[1].replace("'죽었을", '죽었을')))
+
+const persistedBrokenQuotes = repairSubtitleItemQuoteBoundaries([
+    { text: "'저 아들, 어머니를 버렸나 봐." },
+    { text: "'죽었을 수도 있지 않을까?" },
+])
+assert.equal(persistedBrokenQuotes[0].text, "'저 아들, 어머니를 버렸나 봐.'")
+assert.equal(persistedBrokenQuotes[1].text, "죽었을 수도 있지 않을까?")
 
 console.log('STD script sync regression tests passed')
