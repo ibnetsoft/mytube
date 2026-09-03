@@ -6256,7 +6256,7 @@ export default function StdPortalPage() {
                                                         }`}
                                                     >
                                                         {/* 이미지 & 타임 */}
-                                                        <div className="w-20 h-[45px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
+                                                        <div className="w-40 h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
                                                             {group.video_url ? (
                                                                 <video src={group.video_url} className="w-full h-full object-cover" muted />
                                                             ) : group.image_url ? (
