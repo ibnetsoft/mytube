@@ -755,7 +755,8 @@ export default function StdPortalPage() {
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'error'>>({})
+    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
+    const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
@@ -1673,6 +1674,7 @@ export default function StdPortalPage() {
 
     const setSubtitleGroupVoice = async (group: any, voiceId: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
         const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
             if (index < group.firstIndex || index > group.lastIndex) return item
             return {
@@ -1681,6 +1683,11 @@ export default function StdPortalPage() {
                 voice_name: voiceNameById.get(nextVoiceId) || nextVoiceId,
             }
         })
+        if (currentNav === 'subtitle_vrew') {
+            updatedSubtitles.slice(group.firstIndex, group.lastIndex + 1).forEach((item: any, offset: number) => {
+                markVrewSegmentStale(item, group.firstIndex + offset)
+            })
+        }
         setLocalSubtitles(updatedSubtitles)
         setIsSubtitleSaved(true)
         setSelectedProject((prev: any) => {
@@ -1751,6 +1758,15 @@ export default function StdPortalPage() {
         ].join('|')
     }
 
+    const vrewTextTokens = (text: string) => {
+        return String(text || '').match(/\S+/g) || []
+    }
+
+    const markVrewSegmentStale = (subtitle: any, index: number) => {
+        const cacheKey = vrewSegmentCacheKey(subtitle, index)
+        setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'stale' }))
+    }
+
     const stopVrewPlayback = () => {
         vrewPlaybackCancelRef.current += 1
         if (vrewProgressTimerRef.current) {
@@ -1762,6 +1778,7 @@ export default function StdPortalPage() {
             vrewAudioRef.current = null
         }
         setIsPlayingPreview(false)
+        setVrewActiveTokenIndex(-1)
     }
 
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
@@ -1867,6 +1884,7 @@ export default function StdPortalPage() {
                 const audio = new Audio(audioUrl)
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
+                const tokenCount = Math.max(1, vrewTextTokens(subtitle?.text || '').length)
                 const cleanup = () => {
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
@@ -1877,6 +1895,7 @@ export default function StdPortalPage() {
                 }
                 audio.onended = () => {
                     cleanup()
+                    setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
@@ -1885,6 +1904,10 @@ export default function StdPortalPage() {
                 }
                 vrewProgressTimerRef.current = setInterval(() => {
                     setPlaybackTime(Math.round((baseStart + audio.currentTime) * 10) / 10)
+                    const duration = Number.isFinite(audio.duration) && audio.duration > 0
+                        ? audio.duration
+                        : Math.max(0.1, Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1) - baseStart)
+                    setVrewActiveTokenIndex(Math.min(tokenCount - 1, Math.floor((audio.currentTime / duration) * tokenCount)))
                 }, 100)
                 audio.play().catch(error => {
                     cleanup()
@@ -5867,6 +5890,13 @@ export default function StdPortalPage() {
                                                 const groupVoiceName = voiceNameById.get(groupVoiceId) || group.subtitles.find((item: any) => item.voice_name)?.voice_name || '성우'
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey]
+                                                const segmentStatusLabel = segmentStatus === 'ready'
+                                                    ? '음성 준비됨'
+                                                    : segmentStatus === 'generating'
+                                                    ? '생성 중'
+                                                    : segmentStatus === 'stale'
+                                                    ? '재생성 필요'
+                                                    : '오류'
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
@@ -5922,9 +5952,11 @@ export default function StdPortalPage() {
                                                                             ? 'bg-emerald-500/15 text-emerald-300'
                                                                             : segmentStatus === 'generating'
                                                                             ? 'bg-cyan-500/15 text-cyan-300'
+                                                                            : segmentStatus === 'stale'
+                                                                            ? 'bg-amber-500/15 text-amber-300'
                                                                             : 'bg-red-500/15 text-red-300'
                                                                     }`}>
-                                                                        {segmentStatus === 'ready' ? '음성 준비됨' : segmentStatus === 'generating' ? '생성 중' : '오류'}
+                                                                        {segmentStatusLabel}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -6049,6 +6081,10 @@ export default function StdPortalPage() {
                                                 </div>
                                             ))}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
+                                            {(() => {
+                                                const previewTokens = vrewTextTokens(currentSub.text)
+                                                const shouldShowTokenSync = isVrewSubtitleMode && isPlayingPreview && previewTokens.length > 0
+                                                return (
                                             <div
                                                 className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
                                                 style={{
@@ -6074,9 +6110,22 @@ export default function StdPortalPage() {
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
-                                                    {currentSub.text}
+                                                    {shouldShowTokenSync ? (
+                                                        <span>
+                                                            {previewTokens.map((token, tokenIndex) => (
+                                                                <span
+                                                                    key={`${token}-${tokenIndex}`}
+                                                                    className={tokenIndex === vrewActiveTokenIndex ? 'text-cyan-300' : undefined}
+                                                                >
+                                                                    {tokenIndex > 0 ? ' ' : ''}{token}
+                                                                </span>
+                                                            ))}
+                                                        </span>
+                                                    ) : currentSub.text}
                                                 </div>
                                             </div>
+                                                )
+                                            })()}
                                         </div>
 
                                         {/* 커스텀 플레이어 바 */}
@@ -6196,7 +6245,10 @@ export default function StdPortalPage() {
                                                         value={currentSub.text}
                                                         onChange={e => {
                                                             const newText = e.target.value
-                                                            setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? { ...s, text: newText } : s))
+                                                            const updatedSub = { ...currentSub, text: newText }
+                                                            if (isVrewSubtitleMode && isPlayingPreview) stopVrewPlayback()
+                                                            if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
+                                                            setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
                                                         }}
                                                         className="w-full p-3 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-relaxed resize-none focus:outline-none focus:border-blue-500 min-h-[90px]"
                                                     />
