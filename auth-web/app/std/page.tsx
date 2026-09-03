@@ -1942,6 +1942,7 @@ export default function StdPortalPage() {
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
+        if (!selectedProject) throw new Error('프로젝트가 선택되지 않았습니다.')
         if (!text) throw new Error('자막 텍스트가 비어있습니다.')
         if (!voiceId) throw new Error('성우가 선택되지 않았습니다.')
 
@@ -1953,54 +1954,30 @@ export default function StdPortalPage() {
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
         try {
-            let blob: Blob
-            if (voiceId.startsWith('google_')) {
-                const res = await fetch('/api/std/tts-proxy', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chunks: [text], lang: 'ko' }),
-                })
-                if (!res.ok) {
-                    const errPayload = await safeParseJson(res, 'Google 무료 TTS 생성 오류')
-                    throw new Error(errPayload?.error || `Google TTS 오류 (${res.status})`)
-                }
-                blob = await res.blob()
-            } else {
-                const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
-                const keyData = await safeParseJson(keyRes, 'ElevenLabs API 키 확인 실패')
-                if (!keyRes.ok || !keyData.elevenlabs_key) {
-                    throw new Error(keyData.error || 'ElevenLabs API 키를 가져올 수 없습니다.')
-                }
-                const res = await fetch(
-                    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'xi-api-key': keyData.elevenlabs_key,
-                            'Content-Type': 'application/json',
-                            Accept: 'audio/mpeg',
-                        },
-                        body: JSON.stringify({
-                            text,
-                            model_id: 'eleven_multilingual_v2',
-                            voice_settings: {
-                                stability: Number(elStability) || 0.35,
-                                similarity_boost: 0.75,
-                                style: Number(elStyle) || 0.45,
-                                speed: Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1)),
-                            },
-                        }),
-                    }
-                )
-                if (!res.ok) {
-                    const errText = await res.text().catch(() => '')
-                    throw new Error(`ElevenLabs 오류 (${res.status}): ${errText.slice(0, 200)}`)
-                }
-                blob = await res.blob()
+            const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    mode: 'vrew_segment_preview',
+                    provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                    voice_id: voiceId,
+                    model_id: 'eleven_multilingual_v2',
+                    speed: Number(ttsSpeed),
+                    stability: Number(elStability),
+                    style: Number(elStyle),
+                    text,
+                    segment_index: index,
+                    cache_key: cacheKey,
+                    multi_voice: false,
+                    voice_map: {},
+                }),
+            })
+            const payload = await safeParseJson(res, 'Vrew 구간 TTS 생성 실패')
+            if (!res.ok || payload?.success === false || !payload?.audio_url) {
+                throw new Error(payload?.error || payload?.detail || `Vrew 구간 TTS 오류 (${res.status})`)
             }
 
-            if (blob.size < 128) throw new Error('생성된 음성 파일이 비어있습니다.')
-            const audioUrl = URL.createObjectURL(blob)
+            const audioUrl = String(payload.audio_url)
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
             return audioUrl

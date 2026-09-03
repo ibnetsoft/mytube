@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import {
@@ -139,6 +140,10 @@ function shouldRetryElevenLabsWithAlternateModel(status: number, detail: string)
 function buildElevenLabsModelCandidates(modelId: string) {
     const candidates = [String(modelId || '').trim(), ...FALLBACK_ELEVENLABS_MODEL_IDS]
     return candidates.filter((value, index) => value && candidates.indexOf(value) === index)
+}
+
+function safeFileKey(value: string) {
+    return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || 'segment'
 }
 
 async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<ElevenLabsKeyCandidate> {
@@ -629,6 +634,56 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         ) || 1))
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
+        const segmentPreview = body?.mode === 'vrew_segment_preview' || body?.segment_preview === true
+        const segmentIndex = Number(body?.segment_index)
+        const segmentCacheKey = segmentPreview
+            ? safeFileKey(String(body?.cache_key || createHash('sha1')
+                .update(JSON.stringify({
+                    text,
+                    provider,
+                    voiceId,
+                    modelId,
+                    speed: projectTtsSpeed,
+                    stability: body?.stability ?? null,
+                    style: body?.style ?? null,
+                }))
+                .digest('hex')))
+            : ''
+        if (segmentPreview && segmentCacheKey) {
+            stage = 'lookup_segment_cache'
+            const { data: cachedAsset, error: cachedAssetError } = await supabaseAdmin
+                .from('std_project_assets')
+                .select('*')
+                .eq('project_id', project.id)
+                .eq('asset_type', 'other')
+                .in('status', ['uploaded', 'assigned'])
+                .eq('metadata->>kind', 'vrew_segment_tts')
+                .eq('metadata->>cache_key', segmentCacheKey)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+            if (cachedAssetError) throw cachedAssetError
+            if (cachedAsset?.drive_file_id) {
+                const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(cachedAsset.drive_file_id)}`
+                return NextResponse.json({
+                    success: true,
+                    cached: true,
+                    asset: cachedAsset,
+                    drive_file: {
+                        id: cachedAsset.drive_file_id,
+                        name: cachedAsset.file_name,
+                        mimeType: cachedAsset.mime_type,
+                        size: cachedAsset.file_size,
+                        webViewLink: cachedAsset.metadata?.web_view_link || driveFileLink(cachedAsset.drive_file_id),
+                    },
+                    audio_url: audioUrl,
+                    download_url: audioUrl,
+                    persisted_audio_url: audioUrl,
+                    web_view_link: cachedAsset.metadata?.web_view_link || driveFileLink(cachedAsset.drive_file_id),
+                    message: 'Vrew 구간 TTS 캐시를 불러왔습니다.',
+                })
+            }
+        }
         const voiceSegments = Array.isArray(body?.voice_segments)
             ? body.voice_segments
                 .map((segment: any) => ({
@@ -711,7 +766,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
         const now = new Date().toISOString()
         const safeProjectKey = String(project.topic_queue_id || project.id).replace(/[^a-zA-Z0-9_-]/g, '')
-        const fileName = `std_tts_${safeProjectKey}_${Date.now()}.mp3`
+        const segmentHash = segmentPreview
+            ? createHash('sha1').update(segmentCacheKey || text).digest('hex').slice(0, 12)
+            : ''
+        const fileName = segmentPreview
+            ? `vrew_segment_${safeProjectKey}_${Number.isFinite(segmentIndex) ? String(segmentIndex + 1).padStart(4, '0') : '0000'}_${segmentHash}.mp3`
+            : `std_tts_${safeProjectKey}_${Date.now()}.mp3`
         stage = 'ensure_drive_folders'
         let folders: any = null
         let driveFile: any = null
@@ -754,6 +814,112 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                 elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
             }, { status: 502 })
+        }
+
+        if (segmentPreview) {
+            let asset: any = null
+            try {
+                stage = 'replace_existing_segment_cache'
+                await supabaseAdmin
+                    .from('std_project_assets')
+                    .update({ status: 'replaced', updated_at: now })
+                    .eq('project_id', project.id)
+                    .eq('asset_type', 'other')
+                    .eq('metadata->>kind', 'vrew_segment_tts')
+                    .eq('metadata->>cache_key', segmentCacheKey)
+                    .in('status', ['uploaded', 'assigned'])
+
+                stage = 'insert_segment_cache_asset'
+                const { data: insertedAsset, error: assetError } = await supabaseAdmin
+                    .from('std_project_assets')
+                    .insert({
+                        project_id: project.id,
+                        scene_id: null,
+                        scene_number: Number.isFinite(segmentIndex) ? segmentIndex + 1 : null,
+                        asset_type: 'other',
+                        drive_file_id: driveFile.id,
+                        drive_folder_id: folders.originalsFolderId,
+                        file_name: driveFile.name || fileName,
+                        mime_type: 'audio/mpeg',
+                        file_size: driveFile.size ? Number(driveFile.size) : audioBuffer.length,
+                        status: 'uploaded',
+                        uploaded_by: auth.requester.user.id,
+                        metadata: {
+                            kind: 'vrew_segment_tts',
+                            cache_key: segmentCacheKey,
+                            segment_index: Number.isFinite(segmentIndex) ? segmentIndex : null,
+                            provider,
+                            voice_id: voiceId,
+                            model_id: modelId,
+                            tts_speed: projectTtsSpeed,
+                            stability: body?.stability == null ? null : Number(body.stability),
+                            style: body?.style == null ? null : Number(body.style),
+                            text,
+                            text_length: text.length,
+                            generated_by: auth.requester.email,
+                            web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+                            elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                            elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
+                        },
+                    })
+                    .select('*')
+                    .single()
+                if (assetError) throw assetError
+                asset = insertedAsset
+            } catch (assetError: any) {
+                console.warn('[STD TTS] Vrew segment asset row could not be saved; continuing with Drive file playback', assetError?.message)
+            }
+
+            const progressPayload = project.progress_payload || {}
+            const previousCache = progressPayload.vrew_segment_audio_cache || {}
+            stage = 'update_segment_cache_state'
+            await supabaseAdmin
+                .from('std_projects')
+                .update({
+                    drive_folder_id: folders.projectFolderId,
+                    progress_payload: {
+                        ...progressPayload,
+                        std_drive: {
+                            ...(progressPayload.std_drive || {}),
+                            folder_ids: {
+                                project: folders.projectFolderId,
+                                images: folders.imagesFolderId,
+                                videos: folders.videosFolderId,
+                                originals: folders.originalsFolderId,
+                            },
+                        },
+                        vrew_segment_audio_cache: {
+                            ...previousCache,
+                            [segmentCacheKey]: {
+                                asset_id: asset?.id || null,
+                                drive_file_id: driveFile.id,
+                                file_name: driveFile.name || fileName,
+                                voice_id: voiceId,
+                                text_hash: createHash('sha1').update(text).digest('hex'),
+                                generated_at: now,
+                            },
+                        },
+                    },
+                    updated_at: now,
+                })
+                .eq('id', project.id)
+
+            const audioUrl = asset?.id
+                ? `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
+                : `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(driveFile.id)}`
+            return NextResponse.json({
+                success: true,
+                segment_preview: true,
+                asset,
+                drive_file: driveFile,
+                audio_url: audioUrl,
+                download_url: audioUrl,
+                persisted_audio_url: audioUrl,
+                web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+                elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
+                message: 'Vrew 구간 TTS 음성이 Google Drive에 저장되었습니다.',
+            })
         }
 
         let asset: any = null
