@@ -5672,7 +5672,6 @@ export default function StdPortalPage() {
                                                     style={{
                                                         top: `${shape.y}%`,
                                                         height: `${shape.height}%`,
-                                                        transform: 'translateY(-50%)',
                                                         backgroundColor: hexToRgba(shape.color, shape.opacity),
                                                     }}
                                                 />
@@ -5680,13 +5679,14 @@ export default function StdPortalPage() {
                                             {selectedImageTemplatePreset && textLayers.map(layer => (
                                                 <div
                                                     key={layer.id}
-                                                    className="absolute inset-x-4 text-center select-none pointer-events-none transition-all"
+                                                    className="absolute select-none pointer-events-none transition-all whitespace-nowrap"
                                                     style={{
+                                                        left: `${layer.x}%`,
                                                         top: `${layer.y}%`,
-                                                        transform: 'translateY(-50%)',
+                                                        transform: 'translate(-50%, -50%)',
                                                         fontFamily: layer.fontFamily,
                                                         color: layer.color,
-                                                        fontSize: `${Math.min(34, Math.max(12, layer.fontSize * 0.72))}px`,
+                                                        fontSize: `${layer.fontSize}px`,
                                                         fontWeight: 'bold',
                                                         textShadow: `
                                                             -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
