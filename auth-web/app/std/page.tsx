@@ -5701,7 +5701,9 @@ export default function StdPortalPage() {
                 </aside>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
-                <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6">
+                <main className={`flex-1 flex flex-col bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 ${
+                    currentNav === 'subtitle_gen' || currentNav === 'subtitle_vrew' ? 'overflow-hidden' : 'overflow-y-auto'
+                }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {(currentNav === 'subtitle_gen' || currentNav === 'subtitle_vrew') && selectedProject && (() => {
                         const isVrewSubtitleMode = currentNav === 'subtitle_vrew'
@@ -5720,7 +5722,7 @@ export default function StdPortalPage() {
                         const narrationSubtitleCount = localSubtitles.filter(sub => !hasDialogueQuoteText(sub?.text)).length
                         const dialogueSubtitleCount = localSubtitles.filter(sub => hasDialogueQuoteText(sub?.text)).length
                         return (
-                        <div className="space-y-3 w-full flex flex-col h-full lg:min-h-0 lg:overflow-hidden">
+                        <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
                                 {isVrewSubtitleMode && (
@@ -6105,9 +6107,9 @@ export default function StdPortalPage() {
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
-                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_430px] gap-3 flex-1 min-h-0 lg:overflow-hidden">
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 flex-1 min-h-0 overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
-                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow lg:min-h-0">
+                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-0">
                                     <div className="flex items-center justify-between p-3 border-b border-white/5 bg-[#14181f]">
                                         <div className="flex items-center gap-2">
                                             <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
@@ -6356,8 +6358,8 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="lg:relative lg:min-w-0">
-                                    <div className="flex flex-col gap-3 lg:sticky lg:top-0 lg:z-20 lg:w-full lg:max-h-full lg:overflow-y-auto">
+                                <div className="min-w-0 min-h-0 overflow-hidden">
+                                    <div className="flex flex-col gap-3 w-full max-h-full overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
