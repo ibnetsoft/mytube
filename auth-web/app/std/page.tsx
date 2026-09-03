@@ -764,6 +764,7 @@ export default function StdPortalPage() {
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
     const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
+    const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
@@ -1937,6 +1938,80 @@ export default function StdPortalPage() {
                 {part.text}
             </span>
         ))
+    }
+
+    const renderPreviewSubtitleText = (text: string, activeTokenIndex = -1) => {
+        const tokens = String(text || '').match(/\S+\s*/g) || []
+        if (activeTokenIndex < 0 || !tokens.length) return text
+        return tokens.map((token, index) => (
+            <span
+                key={`${index}-${token}`}
+                className={index === activeTokenIndex ? 'rounded bg-white/20 px-0.5' : undefined}
+            >
+                {token}
+            </span>
+        ))
+    }
+
+    const renderVoicePicker = (
+        pickerKey: string,
+        voiceId: string,
+        onSelect: (voiceId: string) => void,
+        title: string,
+        tone: 'default' | 'dialogue' = 'default'
+    ) => {
+        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
+        const isOpen = openVoicePickerKey === pickerKey
+        return (
+            <div className="relative inline-flex">
+                <button
+                    type="button"
+                    title={`${title}: ${currentVoiceName}`}
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        setOpenVoicePickerKey(isOpen ? '' : pickerKey)
+                    }}
+                    className={`w-8 h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
+                        tone === 'dialogue'
+                            ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
+                            : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
+                    }`}
+                >
+                    <Mic size={14} />
+                </button>
+                {isOpen && (
+                    <div
+                        className="absolute right-0 top-full mt-1 z-50 w-64 max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5 truncate">
+                            {currentVoiceName}
+                        </div>
+                        {allVoices.map((voice: any) => {
+                            const optionId = String(voice.id)
+                            const active = optionId === voiceId
+                            return (
+                                <button
+                                    key={optionId}
+                                    type="button"
+                                    onClick={() => {
+                                        onSelect(optionId)
+                                        setOpenVoicePickerKey('')
+                                    }}
+                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] transition ${
+                                        active
+                                            ? 'bg-blue-600/25 text-blue-100 font-bold'
+                                            : 'text-gray-200 hover:bg-white/10'
+                                    }`}
+                                >
+                                    {voice.name}
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        )
     }
 
     const markVrewSegmentStale = (subtitle: any, index: number) => {
@@ -5650,21 +5725,16 @@ export default function StdPortalPage() {
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
                                 {isVrewSubtitleMode && (
                                     <div className="flex flex-wrap items-end gap-2 pb-2 border-b border-white/10">
-                                        <div className="min-w-[180px] flex-1 max-w-[320px]">
+                                        <div className="flex items-end gap-2">
                                             <label className="block text-[10px] font-bold text-cyan-100/70 mb-1">
                                                 내레이션 성우 · {narrationSubtitleCount}개
                                             </label>
-                                            <select
-                                                value={vrewNarrationVoice || selectedVoice}
-                                                onChange={(event) => setVrewNarrationVoice(event.target.value)}
-                                                className="w-full bg-[#10141b] border border-cyan-300/20 rounded-md px-2 py-1.5 text-[11px] text-gray-100 focus:outline-none focus:border-cyan-400"
-                                            >
-                                                {allVoices.map((voice: any) => (
-                                                    <option key={voice.id} value={voice.id}>
-                                                        {voice.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            {renderVoicePicker(
+                                                'bulk-narration',
+                                                vrewNarrationVoice || selectedVoice,
+                                                setVrewNarrationVoice,
+                                                '내레이션 일괄 성우'
+                                            )}
                                         </div>
                                         <button
                                             type="button"
@@ -5673,21 +5743,17 @@ export default function StdPortalPage() {
                                         >
                                             내레이션 일괄 적용
                                         </button>
-                                        <div className="min-w-[180px] flex-1 max-w-[320px]">
+                                        <div className="flex items-end gap-2">
                                             <label className="block text-[10px] font-bold text-emerald-200/70 mb-1">
                                                 대사 성우 · {dialogueSubtitleCount}개
                                             </label>
-                                            <select
-                                                value={vrewDialogueVoice || selectedVoice}
-                                                onChange={(event) => setVrewDialogueVoice(event.target.value)}
-                                                className="w-full bg-[#10141b] border border-emerald-300/20 rounded-md px-2 py-1.5 text-[11px] text-gray-100 focus:outline-none focus:border-emerald-400"
-                                            >
-                                                {allVoices.map((voice: any) => (
-                                                    <option key={voice.id} value={voice.id}>
-                                                        {voice.name}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            {renderVoicePicker(
+                                                'bulk-dialogue',
+                                                vrewDialogueVoice || selectedVoice,
+                                                setVrewDialogueVoice,
+                                                '대사 일괄 성우',
+                                                'dialogue'
+                                            )}
                                         </div>
                                         <button
                                             type="button"
@@ -6107,7 +6173,6 @@ export default function StdPortalPage() {
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
-                                                const groupVoiceName = voiceNameById.get(groupVoiceId) || group.subtitles.find((item: any) => item.voice_name)?.voice_name || '성우'
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey]
                                                 const segmentStatusLabel = segmentStatus === 'ready'
@@ -6121,6 +6186,7 @@ export default function StdPortalPage() {
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
                                                         onClick={() => {
+                                                            setOpenVoicePickerKey('')
                                                             setSelectedSubIndex(group.firstIndex)
                                                             setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
@@ -6184,12 +6250,11 @@ export default function StdPortalPage() {
                                                                 <div className="space-y-1.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
-                                                                        const blockVoiceName = voiceNameById.get(blockVoiceId) || item.voice_name || '성우'
                                                                         const isDialogueBlock = hasDialogueQuoteText(item.text)
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
-                                                                                className={`grid grid-cols-[1.5rem_minmax(0,1fr)_9rem] items-center gap-2 rounded-md border px-2 py-1.5 ${
+                                                                                className={`grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-2 rounded-md border px-2 py-1.5 ${
                                                                                     selectedSubIndex === item.subtitleIndex
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
@@ -6215,26 +6280,13 @@ export default function StdPortalPage() {
                                                                                 <div className="min-w-0 text-xs text-white leading-relaxed font-sans">
                                                                                     {renderDialogueHighlightedText(item.text)}
                                                                                 </div>
-                                                                                <select
-                                                                                    value={blockVoiceId}
-                                                                                    title={`${isDialogueBlock ? '대사' : '내레이션'} 성우: ${blockVoiceName}`}
-                                                                                    onClick={(event) => event.stopPropagation()}
-                                                                                    onChange={(event) => {
-                                                                                        event.stopPropagation()
-                                                                                        void setSubtitleBlockVoice(item.subtitleIndex, event.target.value)
-                                                                                    }}
-                                                                                    className={`w-full bg-[#10141b] rounded-md px-2 py-1 text-[10px] text-gray-100 focus:outline-none ${
-                                                                                        isDialogueBlock
-                                                                                            ? 'border border-emerald-400/30 focus:border-emerald-400'
-                                                                                            : 'border border-white/10 focus:border-cyan-500'
-                                                                                    }`}
-                                                                                >
-                                                                                    {allVoices.map((voice: any) => (
-                                                                                        <option key={voice.id} value={voice.id}>
-                                                                                            {voice.name}
-                                                                                        </option>
-                                                                                    ))}
-                                                                                </select>
+                                                                                {renderVoicePicker(
+                                                                                    `block-${item.subtitleIndex}`,
+                                                                                    blockVoiceId,
+                                                                                    (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
+                                                                                    `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
+                                                                                    isDialogueBlock ? 'dialogue' : 'default'
+                                                                                )}
                                                                             </div>
                                                                         )
                                                                     })}
@@ -6270,24 +6322,18 @@ export default function StdPortalPage() {
                                                             )}
                                                         </div>
                                                         <div
-                                                            className="w-36 shrink-0 self-center"
+                                                            className="w-12 shrink-0 self-center flex flex-col items-center"
                                                             onClick={(event) => event.stopPropagation()}
                                                         >
-                                                            <label className="block text-[9px] text-gray-500 mb-1">
+                                                            <label className="block text-[9px] text-gray-500 mb-1 whitespace-nowrap">
                                                                 {isVrewSubtitleMode ? '씬 전체 성우' : '성우'}
                                                             </label>
-                                                            <select
-                                                                value={groupVoiceId}
-                                                                title={`현재 성우: ${groupVoiceName}`}
-                                                                onChange={(event) => void setSubtitleGroupVoice(group, event.target.value)}
-                                                                className="w-full bg-[#10141b] border border-white/10 rounded-md px-2 py-1.5 text-[11px] text-gray-100 focus:outline-none focus:border-cyan-500"
-                                                            >
-                                                                {allVoices.map((voice: any) => (
-                                                                    <option key={voice.id} value={voice.id}>
-                                                                        {voice.name}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                            {renderVoicePicker(
+                                                                `scene-${sNum}`,
+                                                                groupVoiceId,
+                                                                (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
+                                                                `씬 ${sNum} 전체 성우`
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )
@@ -6395,7 +6441,7 @@ export default function StdPortalPage() {
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
-                                                    {renderDialogueHighlightedText(
+                                                    {renderPreviewSubtitleText(
                                                         currentSub.text,
                                                         shouldShowTokenSync ? vrewActiveTokenIndex : -1
                                                     )}
