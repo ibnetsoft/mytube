@@ -105,6 +105,92 @@ def _sanitize_subtitles_for_render(subtitles):
     return cleaned
 
 
+def _render_std_template_overlay_png(render_settings, temp_dir: str, target_resolution):
+    if not isinstance(render_settings, dict) or not render_settings.get('std_image_template_enabled'):
+        return None
+
+    text_layers = render_settings.get('std_template_text_layers') or []
+    shape_layers = render_settings.get('std_template_shape_layers') or []
+    if not text_layers and not shape_layers:
+        return None
+
+    try:
+        from PIL import Image, ImageDraw
+        from services.thumbnail_service import thumbnail_service
+    except Exception as exc:
+        print(f"[STD Template] Failed to load overlay dependencies: {exc}")
+        return None
+
+    target_w = int(target_resolution[0])
+    target_h = int(target_resolution[1])
+    base_w, base_h = (1280, 720)
+    scale = target_h / base_h
+
+    overlay = Image.new('RGBA', (target_w, target_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    def hex_to_rgba(hex_color, opacity=1.0):
+        value = str(hex_color or '#000000').strip().lstrip('#')
+        if len(value) == 3:
+            value = ''.join(ch + ch for ch in value)
+        value = (value + '000000')[:6]
+        try:
+            red = int(value[0:2], 16)
+            green = int(value[2:4], 16)
+            blue = int(value[4:6], 16)
+        except Exception:
+            red, green, blue = 0, 0, 0
+        alpha = max(0, min(255, int(float(opacity) * 255)))
+        return (red, green, blue, alpha)
+
+    for shape in shape_layers:
+        if not isinstance(shape, dict):
+            continue
+        y = int((float(shape.get('y', 0) or 0) / 100.0) * target_h)
+        h = int((float(shape.get('height', 0) or 0) / 100.0) * target_h)
+        if h <= 0:
+            continue
+        draw.rectangle([(0, y), (target_w, y + h)], fill=hex_to_rgba(shape.get('color'), shape.get('opacity', 1.0)))
+
+    for layer in text_layers:
+        if not isinstance(layer, dict):
+            continue
+        text = str(layer.get('text') or '')
+        if not text:
+            continue
+        try:
+            font_size = max(1, int(float(layer.get('fontSize', layer.get('font_size', 28)) or 28) * scale))
+            stroke_width = max(0, int(float(layer.get('strokeWidth', layer.get('stroke_width', 0)) or 0) * scale))
+            x = (float(layer.get('x', 50) or 50) / 100.0) * target_w
+            y = (float(layer.get('y', 50) or 50) / 100.0) * target_h
+        except Exception:
+            continue
+
+        font_family = layer.get('fontFamily') or layer.get('font_family') or 'GmarketSansBold'
+        ttf_name = thumbnail_service.font_map.get(font_family, 'NotoSansKR-Bold.ttf')
+        font = thumbnail_service._load_font(ttf_name, font_size)
+        bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        text_x = x - text_w / 2
+        text_y = y - text_h / 2 - bbox[1]
+        draw.text(
+            (text_x, text_y),
+            text,
+            font=font,
+            fill=hex_to_rgba(layer.get('color', '#ffffff'), 1.0),
+            stroke_width=stroke_width,
+            stroke_fill=hex_to_rgba(layer.get('strokeColor', layer.get('stroke_color', '#000000')), 1.0),
+        )
+
+    overlays_dir = os.path.join(temp_dir, 'overlays')
+    os.makedirs(overlays_dir, exist_ok=True)
+    overlay_path = os.path.join(overlays_dir, 'std_template_overlay.png')
+    overlay.save(overlay_path)
+    print(f"[STD Template] Render overlay generated: {overlay_path}")
+    return overlay_path
+
+
 def _compute_image_durations(starts_or_durations, scene_count: int, audio_duration: float):
     if scene_count <= 0:
         return []
@@ -659,6 +745,8 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
         template_overlay_filename = metadata.get('template_overlay_filename')
         template_overlay_path = os.path.join(temp_dir, 'overlays', template_overlay_filename) if template_overlay_filename else None
+        if not template_overlay_path or not os.path.exists(template_overlay_path):
+            template_overlay_path = _render_std_template_overlay_png(render_settings, temp_dir, target_resolution)
         intro_filename = metadata.get('intro_filename')
         intro_video_path = os.path.join(temp_dir, intro_filename) if intro_filename else None
 

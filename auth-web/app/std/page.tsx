@@ -2274,6 +2274,28 @@ export default function StdPortalPage() {
         if (renderSettings.subtitle_line_spacing !== undefined) setSubLineSpacing(String(renderSettings.subtitle_line_spacing))
         if (renderSettings.subtitle_max_chars !== undefined) setSubMaxChars(String(renderSettings.subtitle_max_chars))
         if (renderSettings.subtitle_pos_y !== undefined) setSubPosY(Number(renderSettings.subtitle_pos_y))
+        const savedTemplateTextLayers = Array.isArray(renderSettings.std_template_text_layers) ? renderSettings.std_template_text_layers : []
+        const savedTemplateShapeLayers = Array.isArray(renderSettings.std_template_shape_layers) ? renderSettings.std_template_shape_layers : []
+        if (renderSettings.std_image_template_enabled || savedTemplateTextLayers.length > 0 || savedTemplateShapeLayers.length > 0) {
+            setSelectedImageTemplatePreset(String(renderSettings.std_image_template_preset_id || 'saved-template'))
+            setTemplateBgUrl(String(renderSettings.std_image_template_bg_url || ''))
+            setTemplateBgColor(String(renderSettings.std_image_template_bg_color || '#000000'))
+            if (savedTemplateTextLayers.length > 0) {
+                setTextLayers(savedTemplateTextLayers.map((layer: any, index: number) => ({
+                    ...layer,
+                    id: layer.id || `saved-template-layer-${index}`,
+                })))
+            }
+            if (savedTemplateShapeLayers.length > 0) {
+                setShapeLayers(savedTemplateShapeLayers.map((shape: any, index: number) => ({
+                    ...shape,
+                    id: shape.id || `saved-template-shape-${index}`,
+                })))
+            }
+        } else {
+            setSelectedImageTemplatePreset('')
+            setTemplateBgUrl('')
+        }
 
         const isSaved = Boolean(
             selectedProject?.project?.progress_payload?.subtitles_saved ||
@@ -2754,6 +2776,12 @@ export default function StdPortalPage() {
         subtitle_line_spacing: subLineSpacing,
         subtitle_max_chars: subMaxChars,
         subtitle_pos_y: subPosY,
+        std_image_template_enabled: Boolean(selectedImageTemplatePreset),
+        std_image_template_preset_id: selectedImageTemplatePreset || null,
+        std_image_template_bg_url: templateBgUrl || null,
+        std_image_template_bg_color: templateBgColor || '#000000',
+        std_template_text_layers: selectedImageTemplatePreset ? textLayers : [],
+        std_template_shape_layers: selectedImageTemplatePreset ? shapeLayers : [],
     })
 
     const hexToRgba = (hex: string, opacity: string | number) => {
