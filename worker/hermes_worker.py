@@ -510,6 +510,109 @@ def _script_writer_role(language: str) -> str:
     }.get(str(language or "").lower(), "You are an expert YouTube long-form narration writer.")
 
 
+def _normalize_script_category_name(category: str) -> str:
+    text = re.sub(r"\s+", "", str(category or "")).strip().casefold()
+    aliases = {
+        "탈북": "탈북사연",
+        "탈북사연": "탈북사연",
+        "북한": "탈북사연",
+        "해외감동": "해외감동",
+        "해외미담": "해외감동",
+        "감동실화": "해외감동",
+        "황혼19금": "황혼19금",
+        "황혼": "황혼19금",
+        "시니어로맨스": "황혼19금",
+        "옛날이야기": "옛날이야기",
+        "옛날": "옛날이야기",
+        "민담": "옛날이야기",
+        "한국사연": "한국사연",
+        "국내사연": "한국사연",
+        "시청자사연": "한국사연",
+        "무협": "무협",
+        "강호": "무협",
+        "englishfolktales": "English Folktales",
+        "englishfolktale": "English Folktales",
+        "folktales": "English Folktales",
+        "日本昔話".casefold(): "日本昔話",
+        "日本民話".casefold(): "日本昔話",
+        "일본옛날이야기": "日本昔話",
+        "노후금융": "노후금융",
+        "경제": "노후금융",
+    }
+    return aliases.get(text, str(category or "").strip())
+
+
+def _script_category_persona_instruction(category: str, language: str = "ko") -> str:
+    category_name = _normalize_script_category_name(category)
+    if not category_name:
+        return ""
+
+    personas = {
+        "탈북사연": (
+            "Hermes is a restrained human-rights story investigator: factual, empathetic, and careful with trauma. "
+            "Use a low, sincere temperature; separate verified North Korea/settlement context from the protagonist's lived experience; "
+            "avoid sensational gore, political shouting, and pity-driven narration."
+        ),
+        "해외감동": (
+            "Hermes is a warm global documentary narrator: observant, humane, and cinematic. "
+            "Lead with a concrete act of kindness or sacrifice, let cultural distance become emotional connection, "
+            "and avoid cheap miracle language or exaggerated nationalism."
+        ),
+        "황혼19금": (
+            "Hermes is a mature relationship psychologist and late-life drama narrator. "
+            "Keep the voice intimate, adult, and psychologically sharp; handle desire, betrayal, loneliness, and dignity with restraint; "
+            "never become explicit, vulgar, or comedic."
+        ),
+        "옛날이야기": (
+            "Hermes is a fireside Korean folktale storyteller: 구수하지만 지적이고, 옛 마을의 비밀을 천천히 풀어내는 이야기꾼. "
+            "Use oral-story rhythm, moral tension, objects, rumors, promises, and reversals; stay in a pre-modern world without modern institutions or props."
+        ),
+        "한국사연": (
+            "Hermes is a grounded Korean life-story narrator and conflict mediator. "
+            "Make family, money, pride, shame, and reconciliation feel specific and lived-in; keep the tone direct, emotional, and plausible, "
+            "without turning the script into 상담 칼럼 or legal advice."
+        ),
+        "무협": (
+            "Hermes is a 강호 chronicler: elegant, tense, and disciplined. "
+            "Write with martial honor, sect politics, hidden techniques, vows, betrayal, and decisive choices; keep action readable and emotional, "
+            "not a list of skill names or power levels."
+        ),
+        "노후금융": (
+            "Hermes is a calm senior-finance explainer anchored in human stakes. "
+            "Use numbers only when they change a decision; explain pension, cash flow, debt, and risk through the protagonist's choices; "
+            "avoid policy lectures, repeated amounts, or investment advice."
+        ),
+        "English Folktales": (
+            "Hermes is an English fireside folktale narrator: timeless, intimate, and quietly suspenseful. "
+            "Use classic oral-story cadence, concrete village details, moral reversals, and a clear final lesson; avoid modern slang, policy talk, or meta commentary."
+        ),
+        "日本昔話": (
+            "Hermes is a Japanese mukashibanashi storyteller: 静かで余韻のある語り手。 "
+            "Use simple but vivid Japanese folklore cadence, seasonal details, obligation, gratitude, fear, and moral reversal; "
+            "avoid modern objects, financial/pension contamination, and explanatory essays."
+        ),
+    }
+    persona = personas.get(category_name)
+    if not persona:
+        persona = (
+            "Hermes keeps the shared core persona: intelligent observer, precise interpreter, and retention-focused narrator. "
+            "Adjust tone, metaphor, pacing, and evidence level to the selected category without changing into a different brand voice."
+        )
+
+    label = {
+        "ko": "[헤르메스 카테고리 페르소나]",
+        "en": "[HERMES CATEGORY PERSONA]",
+        "ja": "[ヘルメス・カテゴリーペルソナ]",
+    }.get(str(language or "").lower(), "[HERMES CATEGORY PERSONA]")
+    return (
+        f"{label}\n"
+        f"Selected category: {category_name}\n"
+        f"{persona}\n"
+        "This is an overlay on the core Hermes identity, not a separate character. "
+        "Keep the narrator consistent across the channel while adapting expertise, emotional temperature, and storytelling lens to this category."
+    )
+
+
 def _script_output_rule(language: str) -> str:
     return {
         "ko": "Output Korean narration body only inside JSON.",
@@ -6578,7 +6681,7 @@ _CLEANUP_BRACKET_PATTERN = re.compile(r"\[[^\]]*\]")
 # re.compile sees them - a raw string would hand re the literal backslash-u
 # sequence instead, which Python's re engine does not reliably expand.
 _CLEANUP_ALLOWED_PATTERN = re.compile(
-    "[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\s,.\?\!\"'\.:\(\)\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]"
+    "[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\\s,.?!\"'.:()\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]"
 )
 _SPEAKER_STRIP_PATTERN = re.compile(r"^[가-힣\w\s]+[ \t]*:[ \t]*", re.MULTILINE)
 _SPEAKER_LINE_REGEX = re.compile(r"^\s*(?:([^\s:\[\]()]+)(?:\(.*\))?[:：]|([^\s:\[\]()]+)[)）\]])")
@@ -7168,6 +7271,7 @@ def _build_section_prompt(
     upload_title: str = "", structure_context: dict | None = None,
     narrative_blueprint: dict | None = None, previous_context: dict | None = None,
     narration_mode: str = "single",
+    category_persona_instruction: str = "",
 ) -> str:
     # [FIX][AIR-0230] scene_planner.py's actual schema - see module comment
     # above for why this replaces script_gen.html's title/key_points reads.
@@ -7277,6 +7381,7 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 {blueprint_section}
 {research_section}
 {continuity_section}
+{category_persona_instruction}
 
 [CURRENT SCENE]
 - Situation and purpose, authoritative: {key_points_text}
@@ -7345,6 +7450,7 @@ def _build_script_chunk_prompt(
     previous_context: dict | None = None,
     narration_mode: str = "single",
     main_character: dict | None = None,
+    category_persona_instruction: str = "",
 ) -> str:
     structure_context = structure_context or {}
     narrative_blueprint = narrative_blueprint or {}
@@ -7399,6 +7505,8 @@ Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=Fa
 {_main_character_context(main_character) or "{}"}
 - Keep this protagonist's identity, motive, age, and emotional baseline stable across every scene.
 - Do not print this JSON or describe it as metadata to viewers. Use it only to keep the story and later visuals consistent.
+
+{category_persona_instruction}
 
 {research_section}
 
@@ -8701,6 +8809,7 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
         for key in ("category", "category_name")
     ).strip()
     category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    category_persona_instruction = _script_category_persona_instruction(category_name, language)
     script_style_context = f"{script_style} {category_context}".strip()
     image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
     image_style_selection = (
@@ -8867,6 +8976,7 @@ Hard retry rules:
                 previous_context=previous_context,
                 narration_mode=narration_mode,
                 main_character=main_character,
+                category_persona_instruction=category_persona_instruction,
             )
             if style_directive:
                 prompt = f"{prompt}\n\n{style_directive}"
@@ -9204,6 +9314,7 @@ Hard retry rules:
         "structure": structure,
         "script_quality_report": final_quality,
         "script_style": script_style_context,
+        "script_category_persona": _normalize_script_category_name(category_for_gate),
         "image_style": image_style,
         "main_character": main_character,
         "supporting_characters": supporting_characters,

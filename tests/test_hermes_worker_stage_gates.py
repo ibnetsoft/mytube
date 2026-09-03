@@ -239,6 +239,51 @@ def test_korean_money_uses_sino_korean_tens_without_changing_age_counters():
     assert "예순몇" not in normalized
 
 
+@pytest.mark.parametrize(
+    ("category", "language", "expected"),
+    [
+        ("무협", "ko", "강호 chronicler"),
+        ("옛날이야기", "ko", "fireside Korean folktale storyteller"),
+        ("English Folktales", "en", "English fireside folktale narrator"),
+        ("日本昔話", "ja", "mukashibanashi storyteller"),
+    ],
+)
+def test_script_category_persona_varies_by_category(category, language, expected):
+    instruction = hermes_worker._script_category_persona_instruction(category, language)
+
+    assert expected in instruction
+    assert "core Hermes identity" in instruction
+
+
+def test_script_chunk_prompt_includes_category_persona_overlay():
+    scenes = [
+        {
+            "scene_order": 1,
+            "scene_situation": "낡은 객잔에서 검은 봉인이 발견된다.",
+            "scene_purpose": "주인공이 강호의 위협을 처음 마주한다.",
+        }
+    ]
+    budgets = [{"scene_order": 1, "duration_seconds": 30, "target_chars": 120, "min_chars": 80, "max_chars": 180}]
+    persona = hermes_worker._script_category_persona_instruction("무협", "ko")
+
+    prompt = hermes_worker._build_script_chunk_prompt(
+        "검은 봉인의 비밀",
+        scenes,
+        budgets,
+        False,
+        False,
+        [],
+        "30초 분량으로 작성하세요.",
+        "ko",
+        upload_title="낡은 객잔에서 열린 검은 봉인",
+        category_persona_instruction=persona,
+    )
+
+    assert "[헤르메스 카테고리 페르소나]" in prompt
+    assert "강호 chronicler" in prompt
+    assert prompt.index("[헤르메스 카테고리 페르소나]") < prompt.index("[WRITING RULES]")
+
+
 def test_script_generate_stage_rejects_missing_emotion_cues_and_accepts_normalized_script():
     payload = build_valid_sample_payload("옛날이야기")
     payload["script"] = payload["script"].replace("(차분하게) ", "")
