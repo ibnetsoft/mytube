@@ -699,6 +699,8 @@ export default function StdPortalPage() {
     const [musicSubmissionDrafts, setMusicSubmissionDrafts] = useState<Record<string, MusicSubmissionDraft>>({})
     const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
     const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
+    const [vrewNarrationVoice, setVrewNarrationVoice] = useState('')
+    const [vrewDialogueVoice, setVrewDialogueVoice] = useState('')
     const ttsSpeed = String(Math.max(0.7, Math.min(1.2, Number(
         selectedProject?.project?.project_payload?.tts_speed
         || selectedProject?.project?.progress_payload?.tts_speed
@@ -727,6 +729,11 @@ export default function StdPortalPage() {
     useEffect(() => {
         setAudioDurationSeconds(0)
     }, [audioResultUrl])
+
+    useEffect(() => {
+        setVrewNarrationVoice(prev => prev || selectedVoice)
+        setVrewDialogueVoice(prev => prev || selectedVoice)
+    }, [selectedVoice])
 
     useEffect(() => {
         getStdLocalDirectoryState()
@@ -1760,6 +1767,92 @@ export default function StdPortalPage() {
 
     const vrewTextTokens = (text: string) => {
         return String(text || '').match(/\S+/g) || []
+    }
+
+    const hasDialogueQuoteText = (text: string) => {
+        const value = String(text || '')
+        const quotePairs: Array<[string, string]> = [
+            ['"', '"'],
+            ["'", "'"],
+            ['“', '”'],
+            ['‘', '’'],
+            ['「', '」'],
+            ['『', '』'],
+        ]
+        return quotePairs.some(([open, close]) => {
+            const start = value.indexOf(open)
+            if (start < 0) return false
+            return value.indexOf(close, start + open.length) > start
+        })
+    }
+
+    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[]) => {
+        setLocalSubtitles(updatedSubtitles)
+        setIsSubtitleSaved(true)
+        setSelectedProject((prev: any) => {
+            if (!prev) return prev
+            const updated = {
+                ...prev,
+                project: {
+                    ...prev.project,
+                    progress_payload: {
+                        ...(prev.project.progress_payload || {}),
+                        subtitles_saved: true,
+                        subtitles_completed: true,
+                    },
+                    project_payload: {
+                        ...(prev.project.project_payload || {}),
+                        subtitles: updatedSubtitles,
+                        subtitles_saved: true,
+                    },
+                },
+            }
+            rememberProjectState(updated)
+            return updated
+        })
+
+        if (!selectedProject?.project?.id) return
+        try {
+            await fetch('/api/std/projects/' + selectedProject.project.id, {
+                method: 'PATCH',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    progress_payload: {
+                        subtitles_saved: true,
+                        subtitles_completed: true,
+                    },
+                    project_payload: {
+                        subtitles: updatedSubtitles,
+                        subtitles_saved: true,
+                    },
+                }),
+            })
+        } catch (error) {
+            console.warn('[STD subtitles] failed to persist subtitle voice state:', error)
+            setIsSubtitleSaved(false)
+        }
+    }
+
+    const applyVrewVoiceBulk = (target: 'narration' | 'dialogue' | 'all', voiceId: string) => {
+        const nextVoiceId = String(voiceId || selectedVoice)
+        const nextVoiceName = voiceNameById.get(nextVoiceId) || nextVoiceId
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
+
+        const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
+            const isDialogue = hasDialogueQuoteText(item?.text)
+            const shouldUpdate = target === 'all'
+                || (target === 'dialogue' && isDialogue)
+                || (target === 'narration' && !isDialogue)
+            if (!shouldUpdate) return item
+            const updated = {
+                ...item,
+                voice_id: nextVoiceId,
+                voice_name: nextVoiceName,
+            }
+            markVrewSegmentStale(updated, index)
+            return updated
+        })
+        void persistVrewVoiceSubtitles(updatedSubtitles)
     }
 
     const renderDialogueHighlightedText = (text: string, activeTokenIndex = -1) => {
@@ -5550,19 +5643,78 @@ export default function StdPortalPage() {
                             video_url: selectedProject?.scenes?.[0]?.video_url || null,
                             is_hook_zone: true,
                         }
+                        const narrationSubtitleCount = localSubtitles.filter(sub => !hasDialogueQuoteText(sub?.text)).length
+                        const dialogueSubtitleCount = localSubtitles.filter(sub => hasDialogueQuoteText(sub?.text)).length
                         return (
                         <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full lg:min-h-0 lg:overflow-hidden">
                             {isVrewSubtitleMode && (
-                                <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-xl px-4 py-3 flex items-center justify-between gap-3 shrink-0">
-                                    <div>
-                                        <div className="text-xs font-bold text-cyan-200">Vrew식 자막/TTS 실험 페이지</div>
-                                        <div className="text-[11px] text-cyan-100/70 mt-0.5">
-                                            기존 자막 페이지를 보존한 복사형 작업 공간입니다. 자막별 성우 선택과 구간 단위 TTS 미리듣기 기능을 이곳에서 안전하게 확장합니다.
+                                <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-xl px-4 py-3 shrink-0 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-xs font-bold text-cyan-200">Vrew식 자막/TTS 실험 페이지</div>
+                                            <div className="text-[11px] text-cyan-100/70 mt-0.5">
+                                                기존 자막 페이지를 보존한 복사형 작업 공간입니다. 자막별 성우 선택과 구간 단위 TTS 미리듣기 기능을 이곳에서 안전하게 확장합니다.
+                                            </div>
                                         </div>
+                                        <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-cyan-400/15 text-cyan-100 border border-cyan-300/20">
+                                            실험용
+                                        </span>
                                     </div>
-                                    <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-cyan-400/15 text-cyan-100 border border-cyan-300/20">
-                                        실험용
-                                    </span>
+                                    <div className="flex flex-wrap items-end gap-2 border-t border-cyan-300/10 pt-3">
+                                        <div className="min-w-[200px]">
+                                            <label className="block text-[10px] font-bold text-cyan-100/70 mb-1">
+                                                내레이션 성우 · {narrationSubtitleCount}개
+                                            </label>
+                                            <select
+                                                value={vrewNarrationVoice || selectedVoice}
+                                                onChange={(event) => setVrewNarrationVoice(event.target.value)}
+                                                className="w-full bg-[#10141b] border border-cyan-300/20 rounded-md px-2 py-1.5 text-[11px] text-gray-100 focus:outline-none focus:border-cyan-400"
+                                            >
+                                                {allVoices.map((voice: any) => (
+                                                    <option key={voice.id} value={voice.id}>
+                                                        {voice.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => applyVrewVoiceBulk('narration', vrewNarrationVoice || selectedVoice)}
+                                            className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition"
+                                        >
+                                            내레이션 일괄 적용
+                                        </button>
+                                        <div className="min-w-[200px]">
+                                            <label className="block text-[10px] font-bold text-emerald-200/70 mb-1">
+                                                대사 성우 · {dialogueSubtitleCount}개
+                                            </label>
+                                            <select
+                                                value={vrewDialogueVoice || selectedVoice}
+                                                onChange={(event) => setVrewDialogueVoice(event.target.value)}
+                                                className="w-full bg-[#10141b] border border-emerald-300/20 rounded-md px-2 py-1.5 text-[11px] text-gray-100 focus:outline-none focus:border-emerald-400"
+                                            >
+                                                {allVoices.map((voice: any) => (
+                                                    <option key={voice.id} value={voice.id}>
+                                                        {voice.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
+                                            className="px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold transition"
+                                        >
+                                            대사 일괄 적용
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => applyVrewVoiceBulk('all', selectedVoice)}
+                                            className="px-3 py-1.5 rounded-md border border-white/10 bg-[#14181f] hover:bg-[#202632] text-gray-100 text-[11px] font-bold transition"
+                                        >
+                                            전체 기본 성우로 복원
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
