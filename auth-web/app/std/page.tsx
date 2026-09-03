@@ -662,8 +662,8 @@ export default function StdPortalPage() {
     const [topicLengthFilter, setTopicLengthFilter] = useState('')
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
-    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
-    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_gen', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
+    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'subtitle_gen' | 'subtitle_vrew' | 'tts' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
+    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_gen', 'subtitle_vrew', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
     const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
         return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
     }
@@ -5114,6 +5114,7 @@ export default function StdPortalPage() {
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_gen', label: t('nav_subtitles') },
+                                    { id: 'subtitle_vrew', label: 'Vrew식 자막' },
                                     { id: 'tts', label: t('nav_tts') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
                                     { id: 'music_missions', label: '음악 미션' },
@@ -5226,6 +5227,7 @@ export default function StdPortalPage() {
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_gen', label: t('nav_subtitles') },
+                            { id: 'subtitle_vrew', label: 'Vrew식 자막' },
                             { id: 'tts', label: t('nav_tts') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'music_missions', label: '음악 미션' },
@@ -5259,7 +5261,8 @@ export default function StdPortalPage() {
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
                 <main className="flex-1 flex flex-col overflow-y-auto bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6">
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
-                    {currentNav === 'subtitle_gen' && selectedProject && (() => {
+                    {(currentNav === 'subtitle_gen' || currentNav === 'subtitle_vrew') && selectedProject && (() => {
+                        const isVrewSubtitleMode = currentNav === 'subtitle_vrew'
                         const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
                             id: 'sub-0',
                             scene_number: 1,
@@ -5274,6 +5277,19 @@ export default function StdPortalPage() {
                         }
                         return (
                         <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full lg:min-h-0 lg:overflow-hidden">
+                            {isVrewSubtitleMode && (
+                                <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-xl px-4 py-3 flex items-center justify-between gap-3 shrink-0">
+                                    <div>
+                                        <div className="text-xs font-bold text-cyan-200">Vrew식 자막/TTS 실험 페이지</div>
+                                        <div className="text-[11px] text-cyan-100/70 mt-0.5">
+                                            기존 자막 페이지를 보존한 복사형 작업 공간입니다. 자막별 성우 선택과 구간 단위 TTS 미리듣기 기능을 이곳에서 안전하게 확장합니다.
+                                        </div>
+                                    </div>
+                                    <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-cyan-400/15 text-cyan-100 border border-cyan-300/20">
+                                        실험용
+                                    </span>
+                                </div>
+                            )}
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
                                 {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
