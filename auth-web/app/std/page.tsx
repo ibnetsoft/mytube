@@ -718,9 +718,10 @@ export default function StdPortalPage() {
     const [topicLengthFilter, setTopicLengthFilter] = useState('')
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
-    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'subtitle_gen' | 'subtitle_vrew' | 'tts' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
-    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_gen', 'subtitle_vrew', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
+    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'subtitle_vrew' | 'tts' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
+    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_vrew', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
     const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
+        if (value === 'subtitle_gen') return 'subtitle_vrew'
         return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
     }
     const [currentNav, setCurrentNav] = useState<StdNavKey>(() => {
@@ -2124,9 +2125,9 @@ export default function StdPortalPage() {
                     voice_map: {},
                 }),
             })
-            const payload = await safeParseJson(res, 'Vrew 구간 TTS 생성 실패')
+            const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
             if (!res.ok || payload?.success === false || !payload?.audio_url) {
-                throw new Error(payload?.error || payload?.detail || `Vrew 구간 TTS 오류 (${res.status})`)
+                throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
             }
 
             const audioUrl = String(payload.audio_url)
@@ -2161,7 +2162,7 @@ export default function StdPortalPage() {
             const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
             setSelectedSubIndex(index)
             setPlaybackTime(start)
-            setMessage(`Vrew식 미리듣기 준비 중... (${index + 1}/${localSubtitles.length})`)
+            setMessage(`자막 미리듣기 준비 중... (${index + 1}/${localSubtitles.length})`)
 
             const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
             if (vrewPlaybackCancelRef.current !== cancelToken) return
@@ -2205,7 +2206,7 @@ export default function StdPortalPage() {
 
         if (vrewPlaybackCancelRef.current === cancelToken) {
             setIsPlayingPreview(false)
-            setMessage('Vrew식 자막 미리듣기가 완료되었습니다.')
+            setMessage('자막 미리듣기가 완료되었습니다.')
         }
     }
 
@@ -2216,7 +2217,7 @@ export default function StdPortalPage() {
         }
         void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
             stopVrewPlayback()
-            const messageText = error?.message || 'Vrew식 자막 미리듣기에 실패했습니다.'
+            const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
             setMessage(`❌ ${messageText}`)
         })
     }
@@ -5455,7 +5456,7 @@ export default function StdPortalPage() {
                         { id: 'topics', label: '기획', isDone: status.isPlanningDone },
                         { id: 'tts', label: '대본', isDone: status.isScriptDone },
                         { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-                        { id: 'subtitle_gen', label: '자막', isDone: status.isSubtitlesDone },
+                        { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
                         { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                         { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                     ]
@@ -5533,7 +5534,7 @@ export default function StdPortalPage() {
                     { id: 'topics', label: '기획', isDone: status.isPlanningDone },
                     { id: 'tts', label: '대본', isDone: status.isScriptDone },
                     { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-                    { id: 'subtitle_gen', label: '자막', isDone: status.isSubtitlesDone },
+                    { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
                     { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                     { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                 ]
@@ -5613,8 +5614,7 @@ export default function StdPortalPage() {
                                 {[
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
-                                    { id: 'subtitle_gen', label: t('nav_subtitles') },
-                                    { id: 'subtitle_vrew', label: 'Vrew식 자막' },
+                                    { id: 'subtitle_vrew', label: t('nav_subtitles') },
                                     { id: 'tts', label: t('nav_tts') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
                                     { id: 'music_missions', label: '음악 미션' },
@@ -5726,8 +5726,7 @@ export default function StdPortalPage() {
                         {[
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
-                            { id: 'subtitle_gen', label: t('nav_subtitles') },
-                            { id: 'subtitle_vrew', label: 'Vrew식 자막' },
+                            { id: 'subtitle_vrew', label: t('nav_subtitles') },
                             { id: 'tts', label: t('nav_tts') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'music_missions', label: '음악 미션' },
@@ -5760,11 +5759,11 @@ export default function StdPortalPage() {
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
                 <main className={`flex-1 flex flex-col bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 ${
-                    currentNav === 'subtitle_gen' || currentNav === 'subtitle_vrew' ? 'overflow-hidden' : 'overflow-y-auto'
+                    currentNav === 'subtitle_vrew' ? 'overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
-                    {(currentNav === 'subtitle_gen' || currentNav === 'subtitle_vrew') && selectedProject && (() => {
-                        const isVrewSubtitleMode = currentNav === 'subtitle_vrew'
+                    {currentNav === 'subtitle_vrew' && selectedProject && (() => {
+                        const isVrewSubtitleMode = true
                         const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
                             id: 'sub-0',
                             scene_number: 1,
@@ -6546,7 +6545,7 @@ export default function StdPortalPage() {
                                                     <button
                                                         onClick={isVrewSubtitleMode ? handleToggleVrewPlayback : () => setIsPlayingPreview(!isPlayingPreview)}
                                                         className="p-1 rounded-full bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-white transition-all"
-                                                        title={isVrewSubtitleMode ? (isPlayingPreview ? 'Vrew식 미리듣기 정지' : '현재 자막부터 Vrew식 연속 미리듣기') : (isPlayingPreview ? "일시정지" : "재생")}
+                                                        title={isVrewSubtitleMode ? (isPlayingPreview ? '자막 미리듣기 정지' : '현재 자막부터 연속 미리듣기') : (isPlayingPreview ? "일시정지" : "재생")}
                                                     >
                                                         {isPlayingPreview ? <Pause className="h-4 w-4 fill-cyan-400" /> : <Play className="h-4 w-4 fill-cyan-400" />}
                                                     </button>
