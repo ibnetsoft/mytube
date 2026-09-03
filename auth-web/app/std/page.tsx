@@ -5481,9 +5481,9 @@ export default function StdPortalPage() {
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0 lg:overflow-hidden">
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_430px] gap-3 flex-1 min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
-                                <div className="lg:col-span-7 xl:col-span-8 bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow lg:min-h-0">
+                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow lg:min-h-0">
                                     <div className="flex items-center justify-between p-3 border-b border-white/5 bg-[#14181f]">
                                         <div className="flex items-center gap-2">
                                             <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
@@ -5632,8 +5632,8 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-3 lg:self-start">
-                                    <div className="flex flex-col gap-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
+                                <div className="lg:relative">
+                                    <div className="flex flex-col gap-3 lg:fixed lg:right-6 lg:top-[92px] lg:w-[420px] xl:w-[430px] lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
