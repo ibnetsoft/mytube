@@ -6249,14 +6249,14 @@ export default function StdPortalPage() {
                                                             setSelectedSubIndex(group.firstIndex)
                                                             setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
-                                                        className={`p-3 rounded-xl border flex gap-3 cursor-pointer transition-all ${
+                                                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                                                             isActive
                                                                 ? 'bg-blue-600/10 border-blue-500 shadow-md'
                                                                 : 'bg-[#14181f] border-white/5 hover:border-white/20'
                                                         }`}
                                                     >
                                                         {/* 이미지 & 타임 */}
-                                                        <div className="w-20 aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0">
+                                                        <div className="w-20 h-[45px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
                                                             {group.video_url ? (
                                                                 <video src={group.video_url} className="w-full h-full object-cover" muted />
                                                             ) : group.image_url ? (
@@ -6277,7 +6277,7 @@ export default function StdPortalPage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0">
+                                                        <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0 self-start">
                                                             {group.start_time}s<br />~{group.end_time}s
                                                             <div className="mt-1 text-[9px] text-gray-500">
                                                                 {duration.toFixed(1)}s
