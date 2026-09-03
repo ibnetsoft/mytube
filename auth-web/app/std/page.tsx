@@ -5845,6 +5845,20 @@ export default function StdPortalPage() {
                                                 최종 TTS 준비됨
                                             </span>
                                         )}
+                                        <div className="flex items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5">
+                                            <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
+                                                안정성 <span className="font-mono text-purple-300">{elStability}</span>
+                                            </span>
+                                            <input
+                                                type="range"
+                                                min="0.0"
+                                                max="1.0"
+                                                step="0.05"
+                                                value={elStability}
+                                                onChange={e => setElStability(e.target.value)}
+                                                className="h-1 w-20 cursor-pointer appearance-none rounded bg-gray-600 accent-purple-500"
+                                            />
+                                        </div>
                                         {selectedVoiceObj?.preview_url && (
                                             <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
                                                 <div className="min-w-0 flex-1">
@@ -6717,19 +6731,6 @@ export default function StdPortalPage() {
                                                 <option key={v.id} value={v.id}>{v.name}</option>
                                             ))}
                                         </select>
-                                    </div>
-
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-gray-300">안정성 <span className="text-purple-400 font-mono">{elStability}</span></span>
-                                        <input
-                                            type="range"
-                                            min="0.0"
-                                            max="1.0"
-                                            step="0.05"
-                                            value={elStability}
-                                            onChange={e => setElStability(e.target.value)}
-                                            className="w-16 h-1 bg-gray-600 rounded appearance-none cursor-pointer accent-purple-500"
-                                        />
                                     </div>
 
                                     <label className="flex items-center gap-1.5 cursor-pointer bg-[#202632] px-2.5 py-1 rounded-lg border border-white/5">
