@@ -751,6 +751,11 @@ export default function StdPortalPage() {
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
+    const vrewAudioCacheRef = useRef<Record<string, string>>({})
+    const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const vrewPlaybackCancelRef = useRef(0)
+    const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'error'>>({})
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
@@ -1194,6 +1199,7 @@ export default function StdPortalPage() {
 
     // 실시간 재생 루프
     useEffect(() => {
+        if (currentNav === 'subtitle_vrew') return
         let interval: any = null
         if (isPlayingPreview) {
             interval = setInterval(() => {
@@ -1212,7 +1218,7 @@ export default function StdPortalPage() {
         return () => {
             if (interval) clearInterval(interval)
         }
-    }, [isPlayingPreview, totalDuration])
+    }, [currentNav, isPlayingPreview, totalDuration])
 
     // playbackTime에 맞춰 현재 자막 인덱스 동기화
     useEffect(() => {
@@ -1730,6 +1736,187 @@ export default function StdPortalPage() {
             }))
             .filter((item: any) => item.text && item.voice_id)
     }
+
+    const vrewSegmentCacheKey = (subtitle: any, index: number) => {
+        const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
+        const text = String(subtitle?.text || '').trim()
+        return [
+            selectedProject?.project?.id || 'project',
+            index,
+            voiceId,
+            Number(ttsSpeed) || 1,
+            Number(elStability) || 0.35,
+            Number(elStyle) || 0.45,
+            text,
+        ].join('|')
+    }
+
+    const stopVrewPlayback = () => {
+        vrewPlaybackCancelRef.current += 1
+        if (vrewProgressTimerRef.current) {
+            clearInterval(vrewProgressTimerRef.current)
+            vrewProgressTimerRef.current = null
+        }
+        if (vrewAudioRef.current) {
+            vrewAudioRef.current.pause()
+            vrewAudioRef.current = null
+        }
+        setIsPlayingPreview(false)
+    }
+
+    const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
+        const text = String(subtitle?.text || '').trim()
+        const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
+        if (!text) throw new Error('자막 텍스트가 비어있습니다.')
+        if (!voiceId) throw new Error('성우가 선택되지 않았습니다.')
+
+        const cacheKey = vrewSegmentCacheKey(subtitle, index)
+        if (vrewAudioCacheRef.current[cacheKey]) {
+            setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
+            return vrewAudioCacheRef.current[cacheKey]
+        }
+
+        setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
+        try {
+            let blob: Blob
+            if (voiceId.startsWith('google_')) {
+                const res = await fetch('/api/std/tts-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chunks: [text], lang: 'ko' }),
+                })
+                if (!res.ok) {
+                    const errPayload = await safeParseJson(res, 'Google 무료 TTS 생성 오류')
+                    throw new Error(errPayload?.error || `Google TTS 오류 (${res.status})`)
+                }
+                blob = await res.blob()
+            } else {
+                const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
+                const keyData = await safeParseJson(keyRes, 'ElevenLabs API 키 확인 실패')
+                if (!keyRes.ok || !keyData.elevenlabs_key) {
+                    throw new Error(keyData.error || 'ElevenLabs API 키를 가져올 수 없습니다.')
+                }
+                const res = await fetch(
+                    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'xi-api-key': keyData.elevenlabs_key,
+                            'Content-Type': 'application/json',
+                            Accept: 'audio/mpeg',
+                        },
+                        body: JSON.stringify({
+                            text,
+                            model_id: 'eleven_multilingual_v2',
+                            voice_settings: {
+                                stability: Number(elStability) || 0.35,
+                                similarity_boost: 0.75,
+                                style: Number(elStyle) || 0.45,
+                                speed: Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1)),
+                            },
+                        }),
+                    }
+                )
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '')
+                    throw new Error(`ElevenLabs 오류 (${res.status}): ${errText.slice(0, 200)}`)
+                }
+                blob = await res.blob()
+            }
+
+            if (blob.size < 128) throw new Error('생성된 음성 파일이 비어있습니다.')
+            const audioUrl = URL.createObjectURL(blob)
+            vrewAudioCacheRef.current[cacheKey] = audioUrl
+            setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
+            return audioUrl
+        } catch (error) {
+            setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'error' }))
+            throw error
+        }
+    }
+
+    const prefetchVrewSegment = (index: number) => {
+        const subtitle = localSubtitles[index]
+        if (!subtitle) return
+        const cacheKey = vrewSegmentCacheKey(subtitle, index)
+        if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating') return
+        void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch(error => {
+            console.warn('[STD Vrew subtitles] segment prefetch failed:', error)
+        })
+    }
+
+    const playVrewSegmentsFrom = async (startIndex: number) => {
+        if (!localSubtitles.length) return
+        const cancelToken = vrewPlaybackCancelRef.current + 1
+        vrewPlaybackCancelRef.current = cancelToken
+        setIsPlayingPreview(true)
+
+        for (let index = Math.max(0, startIndex); index < localSubtitles.length; index += 1) {
+            if (vrewPlaybackCancelRef.current !== cancelToken) return
+            const subtitle = localSubtitles[index]
+            const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
+            setSelectedSubIndex(index)
+            setPlaybackTime(start)
+            setMessage(`Vrew식 미리듣기 준비 중... (${index + 1}/${localSubtitles.length})`)
+
+            const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+            if (vrewPlaybackCancelRef.current !== cancelToken) return
+            prefetchVrewSegment(index + 1)
+
+            await new Promise<void>((resolve, reject) => {
+                const audio = new Audio(audioUrl)
+                vrewAudioRef.current = audio
+                const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
+                const cleanup = () => {
+                    if (vrewProgressTimerRef.current) {
+                        clearInterval(vrewProgressTimerRef.current)
+                        vrewProgressTimerRef.current = null
+                    }
+                    audio.onended = null
+                    audio.onerror = null
+                }
+                audio.onended = () => {
+                    cleanup()
+                    resolve()
+                }
+                audio.onerror = () => {
+                    cleanup()
+                    reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
+                }
+                vrewProgressTimerRef.current = setInterval(() => {
+                    setPlaybackTime(Math.round((baseStart + audio.currentTime) * 10) / 10)
+                }, 100)
+                audio.play().catch(error => {
+                    cleanup()
+                    reject(error)
+                })
+            })
+        }
+
+        if (vrewPlaybackCancelRef.current === cancelToken) {
+            setIsPlayingPreview(false)
+            setMessage('Vrew식 자막 미리듣기가 완료되었습니다.')
+        }
+    }
+
+    const handleToggleVrewPlayback = () => {
+        if (isPlayingPreview) {
+            stopVrewPlayback()
+            return
+        }
+        void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
+            stopVrewPlayback()
+            const messageText = error?.message || 'Vrew식 자막 미리듣기에 실패했습니다.'
+            setMessage(`❌ ${messageText}`)
+        })
+    }
+
+    useEffect(() => {
+        return () => {
+            Object.values(vrewAudioCacheRef.current).forEach(url => URL.revokeObjectURL(url))
+            stopVrewPlayback()
+        }
+    }, [])
 
     const audioPlaybackEndpoint = (projectId: string, asset: any): string | null => {
         if (!projectId) return null
@@ -5678,6 +5865,8 @@ export default function StdPortalPage() {
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
                                                 const groupVoiceName = voiceNameById.get(groupVoiceId) || group.subtitles.find((item: any) => item.voice_name)?.voice_name || '성우'
+                                                const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
+                                                const segmentStatus = vrewSegmentStatus[segmentKey]
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
@@ -5727,6 +5916,17 @@ export default function StdPortalPage() {
                                                                 <span className="text-[10px] text-gray-500">
                                                                     {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
                                                                 </span>
+                                                                {isVrewSubtitleMode && segmentStatus && (
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                                        segmentStatus === 'ready'
+                                                                            ? 'bg-emerald-500/15 text-emerald-300'
+                                                                            : segmentStatus === 'generating'
+                                                                            ? 'bg-cyan-500/15 text-cyan-300'
+                                                                            : 'bg-red-500/15 text-red-300'
+                                                                    }`}>
+                                                                        {segmentStatus === 'ready' ? '음성 준비됨' : segmentStatus === 'generating' ? '생성 중' : '오류'}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <div className="text-xs text-white leading-relaxed font-sans">
                                                                 {groupText}
@@ -5899,9 +6099,9 @@ export default function StdPortalPage() {
                                             <div className="flex items-center justify-between text-[11px] text-gray-400">
                                                 <div className="flex items-center gap-2">
                                                     <button
-                                                        onClick={() => setIsPlayingPreview(!isPlayingPreview)}
+                                                        onClick={isVrewSubtitleMode ? handleToggleVrewPlayback : () => setIsPlayingPreview(!isPlayingPreview)}
                                                         className="p-1 rounded-full bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 hover:text-white transition-all"
-                                                        title={isPlayingPreview ? "일시정지" : "재생"}
+                                                        title={isVrewSubtitleMode ? (isPlayingPreview ? 'Vrew식 미리듣기 정지' : '현재 자막부터 Vrew식 연속 미리듣기') : (isPlayingPreview ? "일시정지" : "재생")}
                                                     >
                                                         {isPlayingPreview ? <Pause className="h-4 w-4 fill-cyan-400" /> : <Play className="h-4 w-4 fill-cyan-400" />}
                                                     </button>
