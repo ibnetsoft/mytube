@@ -410,6 +410,62 @@ const DEFAULT_SUBTITLE_PRESETS = [
     }
 ]
 
+const DIALOGUE_QUOTE_OPEN_TO_CLOSE: Record<string, string> = {
+    '"': '"',
+    "'": "'",
+    '“': '”',
+    '‘': '’',
+    '「': '」',
+    '『': '』',
+}
+
+const DIALOGUE_CLOSING_QUOTES = new Set(Object.values(DIALOGUE_QUOTE_OPEN_TO_CLOSE))
+
+const isWordQuote = (text: string, index: number) => {
+    const char = text[index]
+    if (char !== "'" && char !== '"') return false
+    const prev = text[index - 1] || ''
+    const next = text[index + 1] || ''
+    return /[A-Za-z0-9]/.test(prev) && /[A-Za-z0-9]/.test(next)
+}
+
+const isLooseClosingQuote = (text: string, index: number) => {
+    const char = text[index]
+    if (char !== "'" && char !== '"') return false
+    const prev = text[index - 1] || ''
+    const next = text[index + 1] || ''
+    return Boolean(prev && !/\s/.test(prev) && (!next || /\s/.test(next)))
+}
+
+const scanDialogueQuoteState = (text: string, incomingClose = '') => {
+    const value = String(text || '')
+    let expectedClose = incomingClose
+    let isDialogue = Boolean(incomingClose)
+
+    for (let i = 0; i < value.length; i += 1) {
+        const char = value[i]
+        if (isWordQuote(value, i)) continue
+
+        if (expectedClose) {
+            isDialogue = true
+            if (char === expectedClose || DIALOGUE_CLOSING_QUOTES.has(char)) {
+                expectedClose = ''
+            }
+            continue
+        }
+
+        const nextClose = DIALOGUE_QUOTE_OPEN_TO_CLOSE[char]
+        if (nextClose) {
+            isDialogue = true
+            expectedClose = isLooseClosingQuote(value, i) ? '' : nextClose
+        } else if (DIALOGUE_CLOSING_QUOTES.has(char)) {
+            isDialogue = true
+        }
+    }
+
+    return { isDialogue, nextClose: expectedClose }
+}
+
 export default function StdPortalPage() {
 
     useEffect(() => {
@@ -1790,20 +1846,22 @@ export default function StdPortalPage() {
     }
 
     const hasDialogueQuoteText = (text: string) => {
-        const value = String(text || '')
-        const quotePairs: Array<[string, string]> = [
-            ['"', '"'],
-            ["'", "'"],
-            ['“', '”'],
-            ['‘', '’'],
-            ['「', '」'],
-            ['『', '』'],
-        ]
-        return quotePairs.some(([open, close]) => {
-            const start = value.indexOf(open)
-            if (start < 0) return false
-            return value.indexOf(close, start + open.length) > start
+        return scanDialogueQuoteState(text).isDialogue
+    }
+
+    const subtitleDialogueFlags = useMemo(() => {
+        const flags = new Map<number, boolean>()
+        let expectedClose = ''
+        ;(localSubtitles || []).forEach((subtitle: any, index: number) => {
+            const scan = scanDialogueQuoteState(subtitle?.text, expectedClose)
+            flags.set(index, scan.isDialogue)
+            expectedClose = scan.nextClose
         })
+        return flags
+    }, [localSubtitles])
+
+    const isSubtitleDialogue = (subtitle: any, index: number) => {
+        return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
     }
 
     const persistVrewVoiceSubtitles = async (updatedSubtitles: any[]) => {
@@ -1859,7 +1917,7 @@ export default function StdPortalPage() {
         if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
 
         const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
-            const isDialogue = hasDialogueQuoteText(item?.text)
+            const isDialogue = isSubtitleDialogue(item, index)
             const shouldUpdate = target === 'all'
                 || (target === 'dialogue' && isDialogue)
                 || (target === 'narration' && !isDialogue)
@@ -1875,7 +1933,7 @@ export default function StdPortalPage() {
         void persistVrewVoiceSubtitles(updatedSubtitles)
     }
 
-    const renderDialogueHighlightedText = (text: string, activeTokenIndex = -1) => {
+    const renderDialogueHighlightedText = (text: string, activeTokenIndex = -1, forceDialogue = false) => {
         const value = String(text || '')
         const parts: Array<{ text: string; quoted: boolean; tokenIndex: number | null }> = []
         let quoted = false
@@ -1931,7 +1989,7 @@ export default function StdPortalPage() {
             <span
                 key={`${index}-${part.text}`}
                 className={[
-                    part.quoted ? 'text-emerald-300' : '',
+                    forceDialogue || part.quoted ? 'text-emerald-300' : '',
                     part.tokenIndex === activeTokenIndex ? 'text-cyan-300' : '',
                 ].filter(Boolean).join(' ') || undefined}
             >
@@ -5719,8 +5777,8 @@ export default function StdPortalPage() {
                             video_url: selectedProject?.scenes?.[0]?.video_url || null,
                             is_hook_zone: true,
                         }
-                        const narrationSubtitleCount = localSubtitles.filter(sub => !hasDialogueQuoteText(sub?.text)).length
-                        const dialogueSubtitleCount = localSubtitles.filter(sub => hasDialogueQuoteText(sub?.text)).length
+                        const narrationSubtitleCount = localSubtitles.filter((sub, index) => !isSubtitleDialogue(sub, index)).length
+                        const dialogueSubtitleCount = localSubtitles.filter((sub, index) => isSubtitleDialogue(sub, index)).length
                         return (
                         <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
@@ -6265,7 +6323,7 @@ export default function StdPortalPage() {
                                                                 <div className="space-y-1.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
-                                                                        const isDialogueBlock = hasDialogueQuoteText(item.text)
+                                                                        const isDialogueBlock = isSubtitleDialogue(item, item.subtitleIndex)
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
@@ -6293,7 +6351,7 @@ export default function StdPortalPage() {
                                                                                     {lineIndex + 1}
                                                                                 </button>
                                                                                 <div className="min-w-0 text-xs text-white leading-relaxed font-sans">
-                                                                                    {renderDialogueHighlightedText(item.text)}
+                                                                                    {renderDialogueHighlightedText(item.text, -1, isDialogueBlock)}
                                                                                 </div>
                                                                                 {renderVoicePicker(
                                                                                     `block-${item.subtitleIndex}`,
