@@ -6245,6 +6245,19 @@ export default function StdPortalPage() {
                                                                         {segmentStatusLabel}
                                                                     </span>
                                                                 )}
+                                                                {isVrewSubtitleMode && (
+                                                                    <div
+                                                                        className="ml-auto"
+                                                                        onClick={(event) => event.stopPropagation()}
+                                                                    >
+                                                                        {renderVoicePicker(
+                                                                            `scene-${sNum}`,
+                                                                            groupVoiceId,
+                                                                            (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
+                                                                            `씬 ${sNum} 전체 성우`
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             {isVrewSubtitleMode ? (
                                                                 <div className="space-y-1.5">
@@ -6322,7 +6335,7 @@ export default function StdPortalPage() {
                                                             )}
                                                         </div>
                                                         <div
-                                                            className="w-12 shrink-0 self-center flex flex-col items-center"
+                                                            className={`${isVrewSubtitleMode ? 'hidden' : 'w-12'} shrink-0 self-center flex flex-col items-center`}
                                                             onClick={(event) => event.stopPropagation()}
                                                         >
                                                             <label className="block text-[9px] text-gray-500 mb-1 whitespace-nowrap">
@@ -6343,8 +6356,8 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="lg:relative">
-                                    <div className="flex flex-col gap-3 lg:fixed lg:right-[max(3rem,calc((100vw-94rem)/2-1.5rem))] lg:top-[264px] lg:z-10 lg:w-[420px] xl:w-[430px] lg:max-h-[calc(100vh-17.5rem)] lg:overflow-y-auto">
+                                <div className="lg:relative lg:min-w-0">
+                                    <div className="flex flex-col gap-3 lg:sticky lg:top-0 lg:z-20 lg:w-full lg:max-h-full lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
