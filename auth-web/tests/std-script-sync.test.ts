@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
     generateSynchronizedSubtitles,
     partitionScriptByExistingSceneBoundaries,
+    splitTextToSingleLineChunks,
 } from '../lib/stdSubtitles'
 
 const sceneCount = 53
@@ -71,5 +72,13 @@ assert.equal(caseD.scenes.length, sceneCount)
 assert.ok(caseD.scenes[0].scene_text.includes('대량 수정 문단 1'))
 assert.ok(caseD.scenes[52].scene_text.length > 0)
 assert.ok(caseD.subtitles.length >= sceneCount)
+
+const quotedSubtitleChunks = splitTextToSingleLineChunks(
+    "'저 아들, 어머니를 버렸나 봐.' '죽었을 수도 있지 않을까?'",
+    20
+)
+assert.equal(quotedSubtitleChunks[0], "'저 아들, 어머니를 버렸나 봐.'")
+assert.equal(quotedSubtitleChunks[1], "'죽었을 수도 있지 않을까?'")
+assert.ok(!/^['"’”」』]/.test(quotedSubtitleChunks[1].replace("'죽었을", '죽었을')))
 
 console.log('STD script sync regression tests passed')

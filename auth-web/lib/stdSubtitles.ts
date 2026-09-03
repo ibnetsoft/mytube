@@ -203,7 +203,50 @@ export function splitTextToSingleLineChunks(
     }
     if (current.trim()) chunks.push(current.trim())
 
-    return chunks
+    return repairSubtitleQuoteBoundaries(chunks)
+}
+
+const closingQuotePairs: Record<string, string> = {
+    '’': '‘',
+    '”': '“',
+    '」': '「',
+    '』': '『',
+}
+
+function hasUnclosedQuote(text: string, quote: string): boolean {
+    if (quote === "'" || quote === '"') {
+        return Array.from(text).filter(ch => ch === quote).length % 2 === 1
+    }
+
+    const opening = closingQuotePairs[quote]
+    if (!opening) return false
+    const openCount = Array.from(text).filter(ch => ch === opening).length
+    const closeCount = Array.from(text).filter(ch => ch === quote).length
+    return openCount > closeCount
+}
+
+export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
+    const repaired: string[] = []
+
+    for (const rawChunk of chunks) {
+        let chunk = String(rawChunk || '').trim()
+        if (!chunk) continue
+
+        while (repaired.length > 0 && chunk.length > 0) {
+            const quote = chunk[0]
+            const shouldMoveQuote = Boolean(closingQuotePairs[quote]) || (
+                (quote === "'" || quote === '"') && hasUnclosedQuote(repaired[repaired.length - 1], quote)
+            )
+            if (!shouldMoveQuote) break
+
+            repaired[repaired.length - 1] = `${repaired[repaired.length - 1]}${quote}`.trim()
+            chunk = chunk.slice(1).trimStart()
+        }
+
+        if (chunk) repaired.push(chunk)
+    }
+
+    return repaired
 }
 
 export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCount: number = BASE_STORY_SCENE_COUNT): string[] {
