@@ -5846,7 +5846,7 @@ export default function StdPortalPage() {
                                             </span>
                                         )}
                                         {selectedVoiceObj?.preview_url && (
-                                            <div className="ml-auto flex min-w-[260px] max-w-[360px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5">
+                                            <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[10px]">🎙</span>
@@ -5861,11 +5861,17 @@ export default function StdPortalPage() {
                                                         {selectedVoiceObj.name}
                                                     </div>
                                                 </div>
+                                                {renderVoicePicker(
+                                                    'preview-default-voice',
+                                                    selectedVoice,
+                                                    setSelectedVoice,
+                                                    '미리듣기 성우 변경'
+                                                )}
                                                 <audio
                                                     key={selectedVoiceObj.id}
                                                     controls
                                                     src={selectedVoiceObj.preview_url}
-                                                    className="h-7 w-40 shrink-0"
+                                                    className="h-7 w-36 shrink-0"
                                                 />
                                             </div>
                                         )}
