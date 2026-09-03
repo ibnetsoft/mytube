@@ -663,7 +663,7 @@ export default function StdPortalPage() {
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
     type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'tts' | 'subtitle_gen' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
-    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'tts', 'subtitle_gen', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
+    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_gen', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
     const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
         return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
     }
@@ -4165,7 +4165,7 @@ export default function StdPortalPage() {
     const currentSubVideoUrl = sanitizeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
 
     
-    // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, TTS, 자막, 썸네일)
+    // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일)
     const getProjectStepStatus = (proj: any, scenesList: any[] = [], currentAudio?: string, currentScript?: string, currentSubs?: any[], currentThumb?: string) => {
         const p = proj?.project || proj || {}
         const payload = p.project_payload || {}
@@ -4947,7 +4947,7 @@ export default function StdPortalPage() {
                     </span>
                 </div>
 
-                {/* 상단 단계별 상태 체크 스텝퍼 (데스크톱/태블릿: 주제, 기획, 대본, 이미지, TTS, 자막, 썸네일) */}
+                {/* 상단 단계별 상태 체크 스텝퍼 (데스크톱/태블릿: 주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
                 {(() => {
                     const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                     const steps = [
@@ -4955,8 +4955,8 @@ export default function StdPortalPage() {
                         { id: 'topics', label: '기획', isDone: status.isPlanningDone },
                         { id: 'tts', label: '대본', isDone: status.isScriptDone },
                         { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-                        { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                         { id: 'subtitle_gen', label: '자막', isDone: status.isSubtitlesDone },
+                        { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                         { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                     ]
                     return (
@@ -5033,8 +5033,8 @@ export default function StdPortalPage() {
                     { id: 'topics', label: '기획', isDone: status.isPlanningDone },
                     { id: 'tts', label: '대본', isDone: status.isScriptDone },
                     { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-                    { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                     { id: 'subtitle_gen', label: '자막', isDone: status.isSubtitlesDone },
+                    { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                     { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                 ]
                 return (
@@ -5113,8 +5113,8 @@ export default function StdPortalPage() {
                                 {[
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
-                                    { id: 'tts', label: t('nav_tts') },
                                     { id: 'subtitle_gen', label: t('nav_subtitles') },
+                                    { id: 'tts', label: t('nav_tts') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
                                     { id: 'music_missions', label: '음악 미션' },
                                     { id: 'projects', label: t('nav_projects') },
@@ -5225,8 +5225,8 @@ export default function StdPortalPage() {
                         {[
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
-                            { id: 'tts', label: t('nav_tts') },
                             { id: 'subtitle_gen', label: t('nav_subtitles') },
+                            { id: 'tts', label: t('nav_tts') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'music_missions', label: '음악 미션' },
                             { id: 'projects', label: t('nav_projects') },
@@ -7809,7 +7809,7 @@ export default function StdPortalPage() {
                                                     <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
                                                         {p.title}
                                                     </td>
-                                                    {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, TTS, 자막, 썸네일) */}
+                                                    {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
                                                     {(() => {
                                                         const pStatus = isSelectedProj
                                                              ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
