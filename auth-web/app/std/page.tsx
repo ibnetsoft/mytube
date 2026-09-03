@@ -1657,6 +1657,80 @@ export default function StdPortalPage() {
         return groups
     }, [localSubtitles, sceneVisualSignature])
 
+    const voiceNameById = useMemo(() => {
+        const map = new Map<string, string>()
+        ;(allVoices || []).forEach((voice: any) => {
+            if (voice?.id) map.set(String(voice.id), String(voice.name || voice.id))
+        })
+        return map
+    }, [allVoices])
+
+    const setSubtitleGroupVoice = async (group: any, voiceId: string) => {
+        const nextVoiceId = String(voiceId || selectedVoice)
+        const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
+            if (index < group.firstIndex || index > group.lastIndex) return item
+            return {
+                ...item,
+                voice_id: nextVoiceId,
+                voice_name: voiceNameById.get(nextVoiceId) || nextVoiceId,
+            }
+        })
+        setLocalSubtitles(updatedSubtitles)
+        setIsSubtitleSaved(true)
+        setSelectedProject((prev: any) => {
+            if (!prev) return prev
+            const updated = {
+                ...prev,
+                project: {
+                    ...prev.project,
+                    progress_payload: {
+                        ...(prev.project.progress_payload || {}),
+                        subtitles_saved: true,
+                        subtitles_completed: true,
+                    },
+                    project_payload: {
+                        ...(prev.project.project_payload || {}),
+                        subtitles: updatedSubtitles,
+                        subtitles_saved: true,
+                    },
+                },
+            }
+            rememberProjectState(updated)
+            return updated
+        })
+
+        if (selectedProject?.project?.id) {
+            try {
+                await fetch('/api/std/projects/' + selectedProject.project.id, {
+                    method: 'PATCH',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        progress_payload: {
+                            subtitles_saved: true,
+                            subtitles_completed: true,
+                        },
+                        project_payload: {
+                            subtitles: updatedSubtitles,
+                            subtitles_saved: true,
+                        },
+                    }),
+                })
+            } catch (error) {
+                console.warn('[STD subtitles] failed to persist subtitle voice override:', error)
+                setIsSubtitleSaved(false)
+            }
+        }
+    }
+
+    const subtitleVoiceSegments = () => {
+        return (localSubtitles || [])
+            .map((item: any) => ({
+                text: String(item?.text || '').trim(),
+                voice_id: String(item?.voice_id || selectedVoice || '').trim(),
+            }))
+            .filter((item: any) => item.text && item.voice_id)
+    }
+
     const audioPlaybackEndpoint = (projectId: string, asset: any): string | null => {
         if (!projectId) return null
         if (asset?.id) {
@@ -3293,7 +3367,8 @@ export default function StdPortalPage() {
         text: string,
         narratorVoiceId: string,
         voiceMap: Record<string, string>,
-        useMultiVoice: boolean
+        useMultiVoice: boolean,
+        voiceSegments: Array<{ text: string; voice_id: string }> = []
     ) => {
         const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
         const keyData = await safeParseJson(keyRes, 'ElevenLabs API 키 확인 실패')
@@ -3304,7 +3379,9 @@ export default function StdPortalPage() {
         const speed = Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1))
         const stability = Number(elStability) || 0.35
         const style = Number(elStyle) || 0.45
-        const rawSegments = useMultiVoice && Object.keys(voiceMap).length > 0
+        const rawSegments = voiceSegments.length > 0
+            ? voiceSegments.map(segment => ({ speaker: '', text: segment.text, voice_id: segment.voice_id, is_dialogue: false }))
+            : useMultiVoice && Object.keys(voiceMap).length > 0
             ? parseScriptToVoiceSegments(text).segments
             : [{ speaker: '나레이터', text, is_dialogue: false }]
         const segments = rawSegments.length ? rawSegments : [{ speaker: '나레이터', text, is_dialogue: false }]
@@ -3314,7 +3391,7 @@ export default function StdPortalPage() {
         const buffers: ArrayBuffer[] = []
         let doneChunks = 0
         for (const seg of segments) {
-            const targetVoiceId = voiceMap[seg.speaker] || narratorVoiceId
+            const targetVoiceId = (seg as any).voice_id || voiceMap[seg.speaker] || narratorVoiceId
             const chunks = splitTtsTextForBrowser(seg.text)
             for (const chunk of chunks) {
                 doneChunks += 1
@@ -3697,9 +3774,13 @@ export default function StdPortalPage() {
                         finalVoiceMap[char] = characterVoices[char] || selectedVoice
                     }
                 }
+                const voiceSegments = subtitleVoiceSegments()
+                const hasSubtitleVoiceOverrides = voiceSegments.some(segment => segment.voice_id !== selectedVoice)
 
                 setMessage(
-                    multiVoice
+                    hasSubtitleVoiceOverrides
+                        ? `TTS generating with ${voiceSegments.length} subtitle voice segment(s)...`
+                        : multiVoice
                         ? `TTS generating with narrator and ${detectedCharacters.length} character voice(s)...`
                         : 'TTS generating...'
                 )
@@ -3712,8 +3793,9 @@ export default function StdPortalPage() {
                     stability: Number(elStability),
                     style: Number(elStyle),
                     text: ttsText,
-                    multi_voice: multiVoice,
+                    multi_voice: hasSubtitleVoiceOverrides ? false : multiVoice,
                     voice_map: finalVoiceMap,
+                    voice_segments: hasSubtitleVoiceOverrides ? voiceSegments : [],
                 }
                 const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                     method: 'POST',
@@ -3730,7 +3812,7 @@ export default function StdPortalPage() {
                     }
 
                     console.warn('[STD TTS] server generation failed; trying browser ElevenLabs fallback:', payload)
-                    const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice)
+                    const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice, hasSubtitleVoiceOverrides ? voiceSegments : [])
                     audioUrl = URL.createObjectURL(fallbackBlob)
                     await persistGeneratedAudioLocally(fallbackBlob, null)
                     setAudioResultUrl(audioUrl)
@@ -3775,7 +3857,9 @@ export default function StdPortalPage() {
                     : ''
                 const serverWarning = payload.warning ? ` ${String(payload.warning).slice(0, 160)}` : ''
                 setMessage(
-                    multiVoice
+                    hasSubtitleVoiceOverrides
+                        ? `TTS generated with ${voiceSegments.length} subtitle voice segment(s).${keyUsageLabel}${serverWarning}`
+                        : multiVoice
                         ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}${serverWarning}`
                         : `${voiceObj.name} TTS audio generated.${keyUsageLabel}${serverWarning}`
                 )
@@ -5576,6 +5660,8 @@ export default function StdPortalPage() {
                                                 const isHook = sNum <= 12
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
+                                                const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
+                                                const groupVoiceName = voiceNameById.get(groupVoiceId) || group.subtitles.find((item: any) => item.voice_name)?.voice_name || '성우'
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
@@ -5651,6 +5737,24 @@ export default function StdPortalPage() {
                                                                     ))}
                                                                 </div>
                                                             )}
+                                                        </div>
+                                                        <div
+                                                            className="w-36 shrink-0 self-center"
+                                                            onClick={(event) => event.stopPropagation()}
+                                                        >
+                                                            <label className="block text-[9px] text-gray-500 mb-1">성우</label>
+                                                            <select
+                                                                value={groupVoiceId}
+                                                                title={`현재 성우: ${groupVoiceName}`}
+                                                                onChange={(event) => void setSubtitleGroupVoice(group, event.target.value)}
+                                                                className="w-full bg-[#10141b] border border-white/10 rounded-md px-2 py-1.5 text-[11px] text-gray-100 focus:outline-none focus:border-cyan-500"
+                                                            >
+                                                                {allVoices.map((voice: any) => (
+                                                                    <option key={voice.id} value={voice.id}>
+                                                                        {voice.name}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
                                                         </div>
                                                     </div>
                                                 )

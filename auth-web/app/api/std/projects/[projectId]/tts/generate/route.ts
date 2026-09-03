@@ -323,6 +323,7 @@ async function generateElevenLabsMp3(input: {
     voiceId: string
     modelId: string
     text: string
+    voiceSegments?: Array<{ text: string; voiceId: string }>
     speed?: number
     stability?: number
     similarityBoost?: number
@@ -337,6 +338,32 @@ async function generateElevenLabsMp3(input: {
         usedKeySlots.add(result.keySlot)
         usedModelIds.add(result.modelId)
         return result.audioBuffer
+    }
+
+    if (input.voiceSegments && input.voiceSegments.length > 0) {
+        const buffers: Buffer[] = []
+        for (const seg of input.voiceSegments) {
+            const targetVoiceId = seg.voiceId || input.voiceId || DEFAULT_ELEVENLABS_VOICE_ID
+            const chunks = splitText(seg.text)
+            for (const chunk of chunks) {
+                const result = await generateSingleElevenLabsChunk({
+                    apiKeys: input.apiKeys,
+                    voiceId: targetVoiceId,
+                    modelId: input.modelId,
+                    chunk,
+                    speed: input.speed,
+                    stability: input.stability,
+                    similarityBoost: input.similarityBoost,
+                    style: input.style,
+                })
+                buffers.push(rememberChunk(result))
+            }
+        }
+        return {
+            audioBuffer: Buffer.concat(buffers),
+            keySlots: Array.from(usedKeySlots).sort((a, b) => a - b),
+            modelIds: Array.from(usedModelIds),
+        }
     }
 
     // 1. 멀티 보이스 모드인 경우
@@ -602,6 +629,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         ) || 1))
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
+        const voiceSegments = Array.isArray(body?.voice_segments)
+            ? body.voice_segments
+                .map((segment: any) => ({
+                    text: String(segment?.text || '').trim(),
+                    voiceId: String(segment?.voice_id || segment?.voiceId || voiceId).trim(),
+                }))
+                .filter((segment: { text: string; voiceId: string }) => segment.text && segment.voiceId)
+            : []
 
         const textChunks = splitText(text)
         const chunkCount = textChunks.length
@@ -651,6 +686,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 voiceId,
                 modelId,
                 text,
+                voiceSegments,
                 speed: projectTtsSpeed,
                 stability: body?.stability == null ? undefined : Number(body.stability),
                 similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
@@ -752,6 +788,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         tts_speed: projectTtsSpeed,
                         multi_voice: multiVoice,
                         voice_map: voiceMap,
+                        voice_segments: voiceSegments,
                         text_length: text.length,
                         chunk_count: chunkCount,
                         elevenlabs_key_preflight: elevenLabsKeyInspections,
@@ -795,6 +832,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     tts_speed: projectTtsSpeed,
                     multi_voice: multiVoice,
                     voice_map: voiceMap,
+                    voice_segments: voiceSegments,
                     elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                     elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
                 },
@@ -806,6 +844,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     tts_speed: projectTtsSpeed,
                     multi_voice: multiVoice,
                     voice_map: voiceMap,
+                    voice_segments: voiceSegments,
                 },
                 updated_at: now,
             })
