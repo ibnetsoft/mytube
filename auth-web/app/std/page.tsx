@@ -1981,7 +1981,7 @@ export default function StdPortalPage() {
                 </button>
                 {isOpen && (
                     <div
-                        className="absolute right-0 top-full mt-1 z-50 w-64 max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
+                        className="absolute left-0 top-full mt-1 z-50 w-80 max-w-[min(20rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5 truncate">
@@ -1998,7 +1998,7 @@ export default function StdPortalPage() {
                                         onSelect(optionId)
                                         setOpenVoicePickerKey('')
                                     }}
-                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] transition ${
+                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] leading-snug whitespace-normal break-words transition ${
                                         active
                                             ? 'bg-blue-600/25 text-blue-100 font-bold'
                                             : 'text-gray-200 hover:bg-white/10'
@@ -5724,7 +5724,7 @@ export default function StdPortalPage() {
                         return (
                         <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
-                            <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
+                            <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
                                 {isVrewSubtitleMode && (
                                     <div className="flex flex-wrap items-end gap-2 pb-2 border-b border-white/10">
                                         <div className="flex items-end gap-2">
