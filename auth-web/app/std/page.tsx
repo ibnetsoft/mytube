@@ -5163,7 +5163,7 @@ export default function StdPortalPage() {
                         return (
                         <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full lg:min-h-0 lg:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
-                            <div className="bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
+                            <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
                                 {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
                                 <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap">
                                     {/* 외부 오디오 업로드 */}
@@ -5633,7 +5633,7 @@ export default function StdPortalPage() {
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
                                 <div className="lg:relative">
-                                    <div className="flex flex-col gap-3 lg:fixed lg:right-[max(3rem,calc((100vw-94rem)/2-1.5rem))] lg:top-[92px] lg:w-[420px] xl:w-[430px] lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+                                    <div className="flex flex-col gap-3 lg:fixed lg:right-[max(3rem,calc((100vw-94rem)/2-1.5rem))] lg:top-[264px] lg:z-10 lg:w-[420px] xl:w-[430px] lg:max-h-[calc(100vh-17.5rem)] lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
