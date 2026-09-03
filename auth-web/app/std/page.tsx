@@ -1184,94 +1184,6 @@ export default function StdPortalPage() {
         return Math.max(60.0, last.end_num || Number(last.end_time) || 60.0)
     }, [localSubtitles])
 
-    const sceneVisualSignature = useMemo(() => {
-        return (selectedProject?.scenes || [])
-            .map((scene: any, index: number) => [
-                Number(scene?.scene_number || scene?.scene_order || index + 1),
-                sanitizeAssetUrl(scene?.image_url || scene?.image) || '',
-                sanitizeAssetUrl(scene?.video_url || scene?.video) || '',
-            ].join(':'))
-            .join('|')
-    }, [selectedProject?.scenes])
-
-    const subtitleSceneVisual = (subtitle: any, subtitleIndex: number, scenes = selectedProject?.scenes || []) => {
-        const requestedSceneNumber = Number(subtitle?.scene_number || subtitle?.scene || subtitle?.sceneNumber)
-        const fallbackSceneNumber = subtitleIndex + 1
-        const sceneNumber = Number.isFinite(requestedSceneNumber) && requestedSceneNumber > 0
-            ? requestedSceneNumber
-            : fallbackSceneNumber
-        const matchedScene = scenes.find((scene: any, index: number) => {
-            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
-            return candidate === sceneNumber
-        }) || scenes[sceneNumber - 1] || scenes[0] || {}
-        return {
-            scene_number: sceneNumber,
-            image_url: sanitizeAssetUrl(matchedScene?.image_url || matchedScene?.image) || '',
-            video_url: sanitizeAssetUrl(matchedScene?.video_url || matchedScene?.video) || null,
-        }
-    }
-
-    const matchSubtitlesToSceneVisuals = (subtitles: any[], scenes = selectedProject?.scenes || []) => {
-        return (subtitles || []).map((subtitle: any, index: number) => {
-            const visual = subtitleSceneVisual(subtitle, index, scenes)
-            return {
-                ...subtitle,
-                scene_number: Number(subtitle?.scene_number || visual.scene_number),
-                image_url: visual.image_url || sanitizeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
-                video_url: visual.video_url || sanitizeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
-            }
-        })
-    }
-
-    useEffect(() => {
-        if (!selectedProject?.project?.id || !selectedProject?.scenes?.length) return
-        setLocalSubtitles(prev => {
-            if (!prev.length) return prev
-            const synced = matchSubtitlesToSceneVisuals(prev, selectedProject.scenes)
-            const changed = synced.some((item: any, index: number) => (
-                item.image_url !== prev[index]?.image_url
-                || item.video_url !== prev[index]?.video_url
-                || item.scene_number !== prev[index]?.scene_number
-            ))
-            return changed ? synced : prev
-        })
-    }, [selectedProject?.project?.id, sceneVisualSignature, localSubtitles.length])
-
-    const subtitleSceneGroups = useMemo(() => {
-        const groups: any[] = []
-        const byScene = new Map<number, any>()
-        ;(localSubtitles || []).forEach((sub: any, index: number) => {
-            const visual = subtitleSceneVisual(sub, index)
-            const sceneNumber = Number(sub?.scene_number || index + 1)
-            const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
-            let group = byScene.get(normalizedSceneNumber)
-            if (!group) {
-                group = {
-                    scene_number: normalizedSceneNumber,
-                    firstIndex: index,
-                    lastIndex: index,
-                    start_num: sub?.start_num ?? Number(sub?.start_time) ?? 0,
-                    end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
-                    start_time: sub?.start_time || '0.0',
-                    end_time: sub?.end_time || '0.0',
-                    image_url: visual.image_url || sub?.image_url || '',
-                    video_url: visual.video_url || sub?.video_url || null,
-                    is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
-                    subtitles: [],
-                }
-                byScene.set(normalizedSceneNumber, group)
-                groups.push(group)
-            }
-            group.lastIndex = index
-            group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
-            group.end_time = sub?.end_time || group.end_time
-            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
-            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
-            group.subtitles.push({ ...sub, subtitleIndex: index })
-        })
-        return groups
-    }, [localSubtitles, sceneVisualSignature])
-
     const formatTime = (sec: number): string => {
         if (isNaN(sec) || !isFinite(sec)) return "00:00"
         const m = Math.floor(sec / 60)
@@ -1655,6 +1567,94 @@ export default function StdPortalPage() {
             }
         })
     }
+
+    const sceneVisualSignature = useMemo(() => {
+        return (selectedProject?.scenes || [])
+            .map((scene: any, index: number) => [
+                Number(scene?.scene_number || scene?.scene_order || index + 1),
+                sanitizeAssetUrl(scene?.image_url || scene?.image) || '',
+                sanitizeAssetUrl(scene?.video_url || scene?.video) || '',
+            ].join(':'))
+            .join('|')
+    }, [selectedProject?.scenes])
+
+    const subtitleSceneVisual = (subtitle: any, subtitleIndex: number, scenes = selectedProject?.scenes || []) => {
+        const requestedSceneNumber = Number(subtitle?.scene_number || subtitle?.scene || subtitle?.sceneNumber)
+        const fallbackSceneNumber = subtitleIndex + 1
+        const sceneNumber = Number.isFinite(requestedSceneNumber) && requestedSceneNumber > 0
+            ? requestedSceneNumber
+            : fallbackSceneNumber
+        const matchedScene = scenes.find((scene: any, index: number) => {
+            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
+            return candidate === sceneNumber
+        }) || scenes[sceneNumber - 1] || scenes[0] || {}
+        return {
+            scene_number: sceneNumber,
+            image_url: sanitizeAssetUrl(matchedScene?.image_url || matchedScene?.image) || '',
+            video_url: sanitizeAssetUrl(matchedScene?.video_url || matchedScene?.video) || null,
+        }
+    }
+
+    const matchSubtitlesToSceneVisuals = (subtitles: any[], scenes = selectedProject?.scenes || []) => {
+        return (subtitles || []).map((subtitle: any, index: number) => {
+            const visual = subtitleSceneVisual(subtitle, index, scenes)
+            return {
+                ...subtitle,
+                scene_number: Number(subtitle?.scene_number || visual.scene_number),
+                image_url: visual.image_url || sanitizeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
+                video_url: visual.video_url || sanitizeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
+            }
+        })
+    }
+
+    useEffect(() => {
+        if (!selectedProject?.project?.id || !selectedProject?.scenes?.length) return
+        setLocalSubtitles(prev => {
+            if (!prev.length) return prev
+            const synced = matchSubtitlesToSceneVisuals(prev, selectedProject.scenes)
+            const changed = synced.some((item: any, index: number) => (
+                item.image_url !== prev[index]?.image_url
+                || item.video_url !== prev[index]?.video_url
+                || item.scene_number !== prev[index]?.scene_number
+            ))
+            return changed ? synced : prev
+        })
+    }, [selectedProject?.project?.id, sceneVisualSignature, localSubtitles.length])
+
+    const subtitleSceneGroups = useMemo(() => {
+        const groups: any[] = []
+        const byScene = new Map<number, any>()
+        ;(localSubtitles || []).forEach((sub: any, index: number) => {
+            const visual = subtitleSceneVisual(sub, index)
+            const sceneNumber = Number(sub?.scene_number || index + 1)
+            const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
+            let group = byScene.get(normalizedSceneNumber)
+            if (!group) {
+                group = {
+                    scene_number: normalizedSceneNumber,
+                    firstIndex: index,
+                    lastIndex: index,
+                    start_num: sub?.start_num ?? Number(sub?.start_time) ?? 0,
+                    end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
+                    start_time: sub?.start_time || '0.0',
+                    end_time: sub?.end_time || '0.0',
+                    image_url: visual.image_url || sub?.image_url || '',
+                    video_url: visual.video_url || sub?.video_url || null,
+                    is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
+                    subtitles: [],
+                }
+                byScene.set(normalizedSceneNumber, group)
+                groups.push(group)
+            }
+            group.lastIndex = index
+            group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
+            group.end_time = sub?.end_time || group.end_time
+            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
+            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
+            group.subtitles.push({ ...sub, subtitleIndex: index })
+        })
+        return groups
+    }, [localSubtitles, sceneVisualSignature])
 
     const audioPlaybackEndpoint = (projectId: string, asset: any): string | null => {
         if (!projectId) return null
