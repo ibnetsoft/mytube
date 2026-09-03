@@ -4144,9 +4144,12 @@ export default function StdPortalPage() {
                 }
                 const voiceSegments = subtitleVoiceSegments()
                 const hasSubtitleVoiceOverrides = voiceSegments.some(segment => segment.voice_id !== selectedVoice)
+                const useSubtitleVoiceSegments = currentNav === 'subtitle_vrew' && voiceSegments.length > 0
+                    ? true
+                    : hasSubtitleVoiceOverrides
 
                 setMessage(
-                    hasSubtitleVoiceOverrides
+                    useSubtitleVoiceSegments
                         ? `TTS generating with ${voiceSegments.length} subtitle voice segment(s)...`
                         : multiVoice
                         ? `TTS generating with narrator and ${detectedCharacters.length} character voice(s)...`
@@ -4161,9 +4164,9 @@ export default function StdPortalPage() {
                     stability: Number(elStability),
                     style: Number(elStyle),
                     text: ttsText,
-                    multi_voice: hasSubtitleVoiceOverrides ? false : multiVoice,
+                    multi_voice: useSubtitleVoiceSegments ? false : multiVoice,
                     voice_map: finalVoiceMap,
-                    voice_segments: hasSubtitleVoiceOverrides ? voiceSegments : [],
+                    voice_segments: useSubtitleVoiceSegments ? voiceSegments : [],
                 }
                 const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                     method: 'POST',
@@ -4180,7 +4183,7 @@ export default function StdPortalPage() {
                     }
 
                     console.warn('[STD TTS] server generation failed; trying browser ElevenLabs fallback:', payload)
-                    const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice, hasSubtitleVoiceOverrides ? voiceSegments : [])
+                    const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice, useSubtitleVoiceSegments ? voiceSegments : [])
                     audioUrl = URL.createObjectURL(fallbackBlob)
                     await persistGeneratedAudioLocally(fallbackBlob, null)
                     setAudioResultUrl(audioUrl)
@@ -4225,7 +4228,7 @@ export default function StdPortalPage() {
                     : ''
                 const serverWarning = payload.warning ? ` ${String(payload.warning).slice(0, 160)}` : ''
                 setMessage(
-                    hasSubtitleVoiceOverrides
+                    useSubtitleVoiceSegments
                         ? `TTS generated with ${voiceSegments.length} subtitle voice segment(s).${keyUsageLabel}${serverWarning}`
                         : multiVoice
                         ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}${serverWarning}`
@@ -5714,6 +5717,24 @@ export default function StdPortalPage() {
                                         >
                                             전체 기본 성우로 복원
                                         </button>
+                                        <div className="h-7 w-px bg-cyan-300/15 mx-1 hidden sm:block" />
+                                        <button
+                                            type="button"
+                                            onClick={() => void generateTts()}
+                                            disabled={generatingTts || !localSubtitles.length}
+                                            className={`px-3 py-1.5 rounded-md text-white text-[11px] font-bold transition ${
+                                                generatingTts || !localSubtitles.length
+                                                    ? 'bg-gray-700 cursor-not-allowed opacity-60'
+                                                    : 'bg-violet-600 hover:bg-violet-500'
+                                            }`}
+                                        >
+                                            {generatingTts ? '최종 TTS 생성 중...' : '최종 전체 TTS 생성/저장'}
+                                        </button>
+                                        {audioResultUrl && (
+                                            <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
+                                                최종 TTS 준비됨
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             )}
