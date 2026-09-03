@@ -5645,22 +5645,12 @@ export default function StdPortalPage() {
                         const narrationSubtitleCount = localSubtitles.filter(sub => !hasDialogueQuoteText(sub?.text)).length
                         const dialogueSubtitleCount = localSubtitles.filter(sub => hasDialogueQuoteText(sub?.text)).length
                         return (
-                        <div className="space-y-3 max-w-7xl mx-auto w-full flex flex-col h-full lg:min-h-0 lg:overflow-hidden">
-                            {isVrewSubtitleMode && (
-                                <div className="bg-cyan-500/10 border border-cyan-400/20 rounded-xl px-4 py-3 shrink-0 space-y-3">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                            <div className="text-xs font-bold text-cyan-200">Vrew식 자막/TTS 실험 페이지</div>
-                                            <div className="text-[11px] text-cyan-100/70 mt-0.5">
-                                                기존 자막 페이지를 보존한 복사형 작업 공간입니다. 자막별 성우 선택과 구간 단위 TTS 미리듣기 기능을 이곳에서 안전하게 확장합니다.
-                                            </div>
-                                        </div>
-                                        <span className="shrink-0 text-[10px] font-bold px-2 py-1 rounded bg-cyan-400/15 text-cyan-100 border border-cyan-300/20">
-                                            실험용
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-end gap-2 border-t border-cyan-300/10 pt-3">
-                                        <div className="min-w-[200px]">
+                        <div className="space-y-3 w-full flex flex-col h-full lg:min-h-0 lg:overflow-hidden">
+                            {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
+                            <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
+                                {isVrewSubtitleMode && (
+                                    <div className="flex flex-wrap items-end gap-2 pb-2 border-b border-white/10">
+                                        <div className="min-w-[180px] flex-1 max-w-[320px]">
                                             <label className="block text-[10px] font-bold text-cyan-100/70 mb-1">
                                                 내레이션 성우 · {narrationSubtitleCount}개
                                             </label>
@@ -5683,7 +5673,7 @@ export default function StdPortalPage() {
                                         >
                                             내레이션 일괄 적용
                                         </button>
-                                        <div className="min-w-[200px]">
+                                        <div className="min-w-[180px] flex-1 max-w-[320px]">
                                             <label className="block text-[10px] font-bold text-emerald-200/70 mb-1">
                                                 대사 성우 · {dialogueSubtitleCount}개
                                             </label>
@@ -5713,7 +5703,6 @@ export default function StdPortalPage() {
                                         >
                                             전체 기본 성우로 복원
                                         </button>
-                                        <div className="h-7 w-px bg-cyan-300/15 mx-1 hidden sm:block" />
                                         <button
                                             type="button"
                                             onClick={() => void generateTts()}
@@ -5732,10 +5721,7 @@ export default function StdPortalPage() {
                                             </span>
                                         )}
                                     </div>
-                                </div>
-                            )}
-                            {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
-                            <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0">
+                                )}
                                 {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
                                 <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap">
                                     {/* 외부 오디오 업로드 */}
