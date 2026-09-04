@@ -264,7 +264,16 @@ export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
 }
 
 export function repairSubtitleItemQuoteBoundaries<T extends { text?: string; scene_number?: number }>(items: T[]): T[] {
-    const repaired = (items || []).map(item => ({ ...item }))
+    const repaired = (items || []).map(item => {
+        const text = String(item?.text || '').trim()
+        return {
+            ...item,
+            // Older subtitle repair could leave the next dialogue with two opening
+            // straight quotes. Treat that legacy run as one opening quote so the
+            // scene receives its closing quote after the final punctuation.
+            text: text.replace(/^('{2,}|"{2,})(?=\S)/, match => match[0]),
+        }
+    })
 
     for (let i = 1; i < repaired.length; i += 1) {
         let text = String(repaired[i]?.text || '').trim()
