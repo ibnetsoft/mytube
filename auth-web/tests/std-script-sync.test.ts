@@ -133,4 +133,31 @@ const splitSceneQuote = repairSubtitleItemQuoteBoundaries([
 assert.equal(splitSceneQuote[0].text, "'이렇게까지 받지 않는다니, 뭔가")
 assert.equal(splitSceneQuote[1].text, "있는 거 아닐까?'")
 
+const mixedNarrationAndDialogue = repairSubtitleItemQuoteBoundaries([
+    { id: 'mixed-1', scene_number: 20, start_num: 0, end_num: 4, start_time: '0.0', end_time: '4.0', text: '만약 아들이 말할 수 있었다면 이렇게' },
+    { id: 'mixed-2', scene_number: 20, start_num: 4, end_num: 8, start_time: '4.0', end_time: '8.0', text: "말했을 거야. '엄마, 미안해. 나는", voice_id: 'dialogue-voice', voice_name: 'Dialogue' },
+    { id: 'mixed-3', scene_number: 20, start_num: 8, end_num: 12, start_time: '8.0', end_time: '12.0', text: "성공하지 못했어.'", voice_id: 'dialogue-voice', voice_name: 'Dialogue' },
+])
+assert.deepEqual(mixedNarrationAndDialogue.map(item => item.text), [
+    '만약 아들이 말할 수 있었다면 이렇게',
+    '말했을 거야.',
+    "'엄마, 미안해. 나는",
+    "성공하지 못했어.'",
+])
+assert.equal(mixedNarrationAndDialogue[1].voice_id, undefined)
+assert.equal(mixedNarrationAndDialogue[2].voice_id, 'dialogue-voice')
+assert.equal(mixedNarrationAndDialogue[1].start_num, 4)
+assert.equal(mixedNarrationAndDialogue[2].end_num, 8)
+assert.equal(mixedNarrationAndDialogue[1].end_num, mixedNarrationAndDialogue[2].start_num)
+
+const dialogueThenNarration = repairSubtitleItemQuoteBoundaries([
+    { scene_number: 21, text: "'괜찮아.' 그리고 그는 돌아섰다." },
+])
+assert.deepEqual(dialogueThenNarration.map(item => item.text), ["'괜찮아.'", '그리고 그는 돌아섰다.'])
+
+const englishApostrophe = repairSubtitleItemQuoteBoundaries([
+    { scene_number: 22, text: "It's still narration." },
+])
+assert.deepEqual(englishApostrophe.map(item => item.text), ["It's still narration."])
+
 console.log('STD script sync regression tests passed')

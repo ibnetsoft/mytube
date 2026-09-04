@@ -221,7 +221,7 @@ const openingQuotePairs: Record<string, string> = {
 
 function hasUnclosedQuote(text: string, quote: string): boolean {
     if (quote === "'" || quote === '"') {
-        return Array.from(text).filter(ch => ch === quote).length % 2 === 1
+        return countStandaloneStraightQuotes(text, quote) % 2 === 1
     }
 
     const opening = closingQuotePairs[quote]
@@ -263,7 +263,133 @@ export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
     return repaired
 }
 
-export function repairSubtitleItemQuoteBoundaries<T extends { text?: string; scene_number?: number }>(items: T[]): T[] {
+type QuoteRepairItem = {
+    id?: string
+    text?: string
+    scene_number?: number
+    start_time?: string | number
+    end_time?: string | number
+    start_num?: number
+    end_num?: number
+    voice_id?: string
+    voice_name?: string
+}
+
+type QuoteFragment = {
+    text: string
+    isDialogue: boolean
+}
+
+function isStraightQuoteInsideWord(text: string, index: number): boolean {
+    const char = text[index]
+    if (char !== "'" && char !== '"') return false
+    return /[A-Za-z0-9]/.test(text[index - 1] || '') && /[A-Za-z0-9]/.test(text[index + 1] || '')
+}
+
+function countStandaloneStraightQuotes(text: string, quote: "'" | '"'): number {
+    let count = 0
+    for (let index = 0; index < text.length; index += 1) {
+        if (text[index] === quote && !isStraightQuoteInsideWord(text, index)) count += 1
+    }
+    return count
+}
+
+function splitTextAtDialogueBoundaries(text: string, incomingClose = ''): {
+    fragments: QuoteFragment[]
+    nextClose: string
+} {
+    const fragments: QuoteFragment[] = []
+    let expectedClose = incomingClose
+    let fragmentText = ''
+    let fragmentIsDialogue = Boolean(incomingClose)
+
+    const flush = () => {
+        const normalized = fragmentText.trim()
+        if (normalized) fragments.push({ text: normalized, isDialogue: fragmentIsDialogue })
+        fragmentText = ''
+    }
+
+    for (let index = 0; index < text.length; index += 1) {
+        const char = text[index]
+        if (expectedClose) {
+            fragmentText += char
+            if (char === expectedClose && !isStraightQuoteInsideWord(text, index)) {
+                expectedClose = ''
+                flush()
+                fragmentIsDialogue = false
+            }
+            continue
+        }
+
+        const close = openingQuotePairs[char] || ((char === "'" || char === '"') ? char : '')
+        if (close && !isStraightQuoteInsideWord(text, index)) {
+            flush()
+            fragmentIsDialogue = true
+            expectedClose = close
+        }
+        fragmentText += char
+    }
+
+    flush()
+    return { fragments, nextClose: expectedClose }
+}
+
+function splitMixedNarrationAndDialogue<T extends QuoteRepairItem>(items: T[]): T[] {
+    const result: T[] = []
+    let expectedClose = ''
+    let previousScene = 0
+
+    items.forEach(item => {
+        const sceneNumber = Number(item?.scene_number || 0)
+        if (previousScene && sceneNumber && sceneNumber !== previousScene) expectedClose = ''
+        previousScene = sceneNumber || previousScene
+
+        const text = String(item?.text || '').trim()
+        const split = splitTextAtDialogueBoundaries(text, expectedClose)
+        expectedClose = split.nextClose
+        if (split.fragments.length <= 1) {
+            result.push(item)
+            return
+        }
+
+        const start = Number.isFinite(Number(item.start_num)) ? Number(item.start_num) : Number(item.start_time)
+        const end = Number.isFinite(Number(item.end_num)) ? Number(item.end_num) : Number(item.end_time)
+        const hasTiming = Number.isFinite(start) && Number.isFinite(end) && end > start
+        const weights = split.fragments.map(fragment => Math.max(1, fragment.text.replace(/\s/g, '').length))
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+        let elapsedWeight = 0
+
+        split.fragments.forEach((fragment, fragmentIndex) => {
+            const clone: QuoteRepairItem = {
+                ...item,
+                text: fragment.text,
+            }
+            if (fragmentIndex > 0 && item.id) clone.id = `${item.id}-quote-${fragmentIndex + 1}`
+
+            if (hasTiming) {
+                const fragmentStart = start + ((end - start) * elapsedWeight / totalWeight)
+                elapsedWeight += weights[fragmentIndex]
+                const fragmentEnd = fragmentIndex === split.fragments.length - 1
+                    ? end
+                    : start + ((end - start) * elapsedWeight / totalWeight)
+                clone.start_num = Math.round(fragmentStart * 1000) / 1000
+                clone.end_num = Math.round(fragmentEnd * 1000) / 1000
+                clone.start_time = clone.start_num.toFixed(3)
+                clone.end_time = clone.end_num.toFixed(3)
+            }
+
+            if (!fragment.isDialogue) {
+                delete clone.voice_id
+                delete clone.voice_name
+            }
+            result.push(clone as T)
+        })
+    })
+
+    return result
+}
+
+export function repairSubtitleItemQuoteBoundaries<T extends QuoteRepairItem>(items: T[]): T[] {
     const repaired = (items || []).map(item => {
         const text = String(item?.text || '').trim()
         return {
@@ -302,7 +428,8 @@ export function repairSubtitleItemQuoteBoundaries<T extends { text?: string; sce
     }
 
     const repairedByScene = repairUnclosedQuoteGroups(repaired)
-    return repairedByScene.filter(item => String(item?.text || '').trim().length > 0)
+    const nonEmptyItems = repairedByScene.filter(item => String(item?.text || '').trim().length > 0)
+    return splitMixedNarrationAndDialogue(nonEmptyItems)
 }
 
 function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: number }>(items: T[]): T[] {
@@ -336,8 +463,8 @@ function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: num
         if (!combined) return
 
         const closingSuffixes: string[] = []
-        const straightSingleCount = Array.from(combined).filter(ch => ch === "'").length
-        const straightDoubleCount = Array.from(combined).filter(ch => ch === '"').length
+        const straightSingleCount = countStandaloneStraightQuotes(combined, "'")
+        const straightDoubleCount = countStandaloneStraightQuotes(combined, '"')
         if (straightSingleCount % 2 === 1) closingSuffixes.push("'")
         if (straightDoubleCount % 2 === 1) closingSuffixes.push('"')
 
