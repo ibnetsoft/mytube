@@ -1819,6 +1819,26 @@ export default function StdPortalPage() {
         return map
     }, [allVoices])
 
+    const subtitleGroupVoiceNamesInOrder = (subtitles: any[]) => {
+        const names: string[] = []
+        const seen = new Set<string>()
+        ;(subtitles || []).forEach((subtitle: any) => {
+            const voiceId = String(subtitle?.voice_id || '').trim()
+            const voiceName = String(
+                subtitle?.voice_name
+                || (voiceId ? voiceNameById.get(voiceId) : '')
+                || voiceNameById.get(selectedVoice)
+                || selectedVoice
+                || '성우'
+            ).trim()
+            const key = voiceId || voiceName
+            if (!voiceName || seen.has(key)) return
+            seen.add(key)
+            names.push(voiceName)
+        })
+        return names
+    }
+
     const setSubtitleGroupVoice = async (group: any, voiceId: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
         const groupSceneNumber = Number(group.scene_number)
@@ -6832,6 +6852,7 @@ export default function StdPortalPage() {
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
+                                                const groupVoiceNames = subtitleGroupVoiceNamesInOrder(group.subtitles)
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
@@ -6911,6 +6932,29 @@ export default function StdPortalPage() {
                                                             <div className="mt-1 text-[9px] text-gray-500">
                                                                 {duration.toFixed(1)}s
                                                             </div>
+                                                            {isVrewSubtitleMode && groupVoiceNames.length > 0 && (
+                                                                <div className="mt-2 space-y-1 font-sans">
+                                                                    {groupVoiceNames.map((voiceName, voiceIndex) => (
+                                                                        <div
+                                                                            key={`${sNum}-voice-${voiceIndex}-${voiceName}`}
+                                                                            title={`${voiceIndex + 1}. ${voiceName}`}
+                                                                            className="min-w-0 rounded border border-cyan-400/20 bg-cyan-500/10 px-1.5 py-1 text-[9px] font-bold leading-tight text-cyan-100"
+                                                                        >
+                                                                            <span className="mr-1 font-mono text-cyan-300">{voiceIndex + 1}</span>
+                                                                            <span className="break-words">{voiceName}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            {isVrewSubtitleMode && transitionEffect && (
+                                                                <div
+                                                                    title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
+                                                                    className="mt-2 min-w-0 rounded border border-violet-400/20 bg-violet-500/10 px-1.5 py-1 font-sans text-[9px] font-bold leading-tight text-violet-200"
+                                                                >
+                                                                    <span className="block font-mono text-[8px] text-violet-300">전환</span>
+                                                                    <span className="break-words">{sceneTransitionLabel(transitionEffect)}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
