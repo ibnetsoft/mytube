@@ -626,6 +626,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         render_settings = metadata.get('render_settings', {})
         image_timing_starts = metadata.get('image_timing_starts')
         image_effects = metadata.get('image_effects') or []
+        transition_effects = metadata.get('transition_effects') or []
         sfx_cues = metadata.get('sfx_cues') or []
         focal_point_ys = metadata.get('focal_point_ys') or []
 
@@ -775,6 +776,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             intro_video_path=intro_video_path if intro_video_path and os.path.exists(intro_video_path) else None,
             focal_point_ys=focal_point_ys,
             image_effects=image_effects,
+            transition_effects=transition_effects,
             sfx_cues=sfx_cues,
             content_aspect_ratio=metadata.get('content_aspect_ratio'),
             codec=slideshow_encoder,

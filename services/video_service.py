@@ -1032,12 +1032,8 @@ class VideoService:
                         target_w, target_h = resolution
                         
                         for i, c in enumerate(valid_clips):
-                            current_effect = 'crossfade'
-                            if transition_mode == "ai_auto":
-                                if transition_effects and i < len(transition_effects):
-                                    current_effect = transition_effects[i] or 'crossfade'
-                            else:
-                                current_effect = transition_mode
+                            scene_effect = transition_effects[i] if transition_effects and i < len(transition_effects) else None
+                            current_effect = scene_effect or ('crossfade' if transition_mode == "ai_auto" else transition_mode)
                             current_effect = str(current_effect).strip().lower()
                                 
                             if i == 0:

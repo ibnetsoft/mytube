@@ -11,6 +11,32 @@ const STD_OFFICIAL_CATEGORIES = [
     { id: 13, name: '日本昔話', key: 'cat_japanese_folktales', language: 'ja' },
 ]
 
+const SCENE_TRANSITION_EFFECTS = [
+    { id: 'crossfade', label: '크로스페이드' },
+    { id: 'fade_to_black', label: '검정 페이드' },
+    { id: 'slide_left', label: '왼쪽 슬라이드' },
+    { id: 'slide_right', label: '오른쪽 슬라이드' },
+    { id: 'slide_up', label: '위 슬라이드' },
+    { id: 'slide_down', label: '아래 슬라이드' },
+    { id: 'wipe_left', label: '왼쪽 와이프' },
+    { id: 'wipe_right', label: '오른쪽 와이프' },
+    { id: 'push_left', label: '왼쪽 밀기' },
+    { id: 'blur_crossfade', label: '블러 전환' },
+    { id: 'flash_white', label: '화이트 플래시' },
+    { id: 'dip_to_white', label: '화이트 페이드' },
+    { id: 'zoom_in', label: '줌 인' },
+    { id: 'zoom_out', label: '줌 아웃' },
+    { id: 'zoom_blur', label: '줌 블러' },
+    { id: 'iris_in', label: '아이리스 인' },
+    { id: 'iris_out', label: '아이리스 아웃' },
+    { id: 'glitch', label: '글리치' },
+    { id: 'whip_pan', label: '휩 팬' },
+] as const
+
+const sceneTransitionLabel = (effectId: string) => (
+    SCENE_TRANSITION_EFFECTS.find(effect => effect.id === effectId)?.label || effectId
+)
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     AlertCircle,
@@ -818,6 +844,7 @@ export default function StdPortalPage() {
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
     const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
+    const [isTransitionPickerOpen, setIsTransitionPickerOpen] = useState(false)
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
     const [subLineSpacing, setSubLineSpacing] = useState('0.1')
@@ -848,6 +875,7 @@ export default function StdPortalPage() {
 
     useEffect(() => {
         setSelectedSubtitleSceneNumbers([])
+        setIsTransitionPickerOpen(false)
     }, [selectedProject?.project?.id])
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
@@ -1838,6 +1866,70 @@ export default function StdPortalPage() {
         }
     }
 
+    const applySelectedSceneTransition = async (effectId: string) => {
+        if (!selectedProject?.project?.id || selectedSubtitleSceneNumbers.length === 0) return
+        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
+        const updateScenes = (scenes: any[]) => (scenes || []).map((scene: any, index: number) => {
+            const sceneNumber = Number(scene?.scene_number || index + 1)
+            if (!selectedSceneSet.has(sceneNumber)) return scene
+            return {
+                ...scene,
+                transition_effect: effectId,
+                metadata: {
+                    ...(scene?.metadata || {}),
+                    transition_effect: effectId,
+                },
+            }
+        })
+        const currentPayload = selectedProject.project.project_payload || {}
+        const sourceScenes = selectedProject.scenes?.length
+            ? selectedProject.scenes
+            : (currentPayload.scenes || currentPayload.structure?.scenes || [])
+        const updatedScenes = updateScenes(sourceScenes)
+        const updatedPayloadScenes = updateScenes(currentPayload.scenes || updatedScenes)
+        const updatedStructureScenes = updateScenes(currentPayload.structure?.scenes || updatedPayloadScenes)
+        const updatedProject = {
+            ...selectedProject,
+            scenes: updatedScenes,
+            project: {
+                ...selectedProject.project,
+                project_payload: {
+                    ...currentPayload,
+                    scenes: updatedPayloadScenes,
+                    structure: {
+                        ...(currentPayload.structure || {}),
+                        scenes: updatedStructureScenes,
+                    },
+                },
+            },
+        }
+
+        setSelectedProject(updatedProject)
+        rememberProjectState(updatedProject)
+        setIsTransitionPickerOpen(false)
+        setMessage(`선택한 씬 ${selectedSubtitleSceneNumbers.length}개에 ${sceneTransitionLabel(effectId)} 효과를 적용했습니다.`)
+
+        try {
+            const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
+                method: 'PATCH',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    project_payload: {
+                        scenes: updatedPayloadScenes,
+                        structure: {
+                            ...(currentPayload.structure || {}),
+                            scenes: updatedStructureScenes,
+                        },
+                    },
+                }),
+            })
+            if (!response.ok) throw new Error(await response.text())
+        } catch (error) {
+            console.warn('[STD subtitles] failed to persist scene transition effects:', error)
+            setMessage('화면 전환 효과 저장에 실패했습니다. 다시 시도해 주세요.')
+        }
+    }
+
     const setSubtitleBlockVoice = async (subtitleIndex: number, voiceId: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
         const targetIndex = Number(subtitleIndex)
@@ -2110,6 +2202,44 @@ export default function StdPortalPage() {
             </div>
         )
     }
+
+    const renderSelectedSceneTransitionPicker = () => (
+        <div className="relative inline-flex">
+            <button
+                type="button"
+                title="선택한 씬 화면 전환 효과"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    setOpenVoicePickerKey('')
+                    setIsTransitionPickerOpen(prev => !prev)
+                }}
+                className="h-8 px-2.5 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 flex items-center gap-1.5 text-[11px] font-bold transition"
+            >
+                <Sparkles size={13} />
+                효과
+            </button>
+            {isTransitionPickerOpen && (
+                <div
+                    className="absolute left-0 top-full mt-1 z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5">
+                        선택한 씬 {selectedSubtitleSceneNumbers.length}개 화면 전환
+                    </div>
+                    {SCENE_TRANSITION_EFFECTS.map(effect => (
+                        <button
+                            key={effect.id}
+                            type="button"
+                            onClick={() => void applySelectedSceneTransition(effect.id)}
+                            className="w-full text-left px-2 py-1.5 rounded text-[11px] text-gray-200 hover:bg-violet-500/20 hover:text-violet-100 transition"
+                        >
+                            {effect.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
 
     const markVrewSegmentStale = (subtitle: any, index: number) => {
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
@@ -6299,6 +6429,7 @@ export default function StdPortalPage() {
                                                         (nextVoiceId) => void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId),
                                                         `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
                                                     )}
+                                                    {renderSelectedSceneTransitionPicker()}
                                                 </>
                                             )}
                                         </div>
@@ -6361,6 +6492,8 @@ export default function StdPortalPage() {
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
+                                                const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
+                                                const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey]
                                                 const segmentStatusLabel = segmentStatus === 'ready'
@@ -6447,6 +6580,11 @@ export default function StdPortalPage() {
                                                                 <span className="text-[10px] text-gray-500">
                                                                     {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
                                                                 </span>
+                                                                {transitionEffect && (
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+                                                                        효과 · {sceneTransitionLabel(transitionEffect)}
+                                                                    </span>
+                                                                )}
                                                                 {isVrewSubtitleMode && segmentStatus && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
