@@ -8438,6 +8438,7 @@ Rules:
             raw = await ai_router.generate_text(
                 f"{prompt}{retry_instruction}", model, temperature=0.2, max_tokens=3000,
                 task_type="hermes_script_quality_qa",
+                json_mode=True,
             )
             report = _extract_json(raw)
             report["score"] = max(0, min(100, round(float(report.get("score") or 0))))

@@ -494,9 +494,11 @@ def test_script_quality_retries_malformed_json_response():
     class Router:
         def __init__(self):
             self.calls = 0
+            self.kwargs = []
 
         async def generate_text(self, *_args, **_kwargs):
             self.calls += 1
+            self.kwargs.append(_kwargs)
             if self.calls == 1:
                 return "not-json"
             return '{"score": 90, "verdict": "pass", "critical_issues": [], "strengths": [], "revision_notes": []}'
@@ -514,4 +516,5 @@ def test_script_quality_retries_malformed_json_response():
     ))
 
     assert router.calls == 2
+    assert all(call["json_mode"] is True for call in router.kwargs)
     assert report["verdict"] == "pass"
