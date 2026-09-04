@@ -6577,26 +6577,6 @@ export default function StdPortalPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const maxChars = Number(subMaxChars) || 20
-                                                setLocalSubtitles(prev => prev.map(s => {
-                                                    if (s.text.length > maxChars && !s.text.includes('\n')) {
-                                                        const mid = Math.floor(s.text.length / 2)
-                                                        const spaceIdx = s.text.indexOf(' ', mid - 5)
-                                                        if (spaceIdx > 0) {
-                                                            return { ...s, text: s.text.slice(0, spaceIdx) + '\n' + s.text.slice(spaceIdx + 1) }
-                                                        }
-                                                    }
-                                                    return s
-                                                }))
-                                                alert('2줄 자막으로 자동 정렬 분할되었습니다.')
-                                            }}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
-                                        >
-                                            {t('sub_split_lines')}
-                                        </button>
-                                        <button
-                                            type="button"
                                             onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
                                             className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
                                         >
