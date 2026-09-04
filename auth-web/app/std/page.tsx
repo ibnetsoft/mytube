@@ -4706,6 +4706,27 @@ export default function StdPortalPage() {
         }
     }
 
+    const setSelectedSubtitleBlocksVoice = async (voiceId: string) => {
+        if (selectedSubtitleBlockIndexes.length < 2) return
+        const nextVoiceId = String(voiceId || selectedVoice)
+        const nextVoiceName = voiceNameById.get(nextVoiceId) || nextVoiceId
+        const selectedIndexSet = new Set(selectedSubtitleBlockIndexes)
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
+
+        const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
+            if (!selectedIndexSet.has(index)) return item
+            const updated = {
+                ...item,
+                voice_id: nextVoiceId,
+                voice_name: nextVoiceName,
+            }
+            markVrewSegmentStale(updated, index)
+            return updated
+        })
+        await persistVrewVoiceSubtitles(updatedSubtitles)
+        setMessage(`선택한 자막 ${selectedSubtitleBlockIndexes.length}개의 성우를 ${nextVoiceName}(으)로 변경했습니다.`)
+    }
+
     const mergeSelectedSubtitleBlocks = async () => {
         const indexes = [...selectedSubtitleBlockIndexes].sort((a, b) => a - b)
         if (indexes.length < 2) return
@@ -6149,6 +6170,10 @@ export default function StdPortalPage() {
                             selectedSubtitleSceneGroup?.subtitles.find((subtitle: any) => subtitle?.voice_id)?.voice_id
                             || selectedVoice
                         )
+                        const selectedSubtitleBlockVoiceId = String(
+                            localSubtitles[selectedSubtitleBlockIndexes[0]]?.voice_id
+                            || selectedVoice
+                        )
                         const allSubtitleScenesSelected = subtitleSceneGroups.length > 0 && subtitleSceneGroups.every(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
@@ -6624,21 +6649,32 @@ export default function StdPortalPage() {
                                                 </button>
                                             )}
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void mergeSelectedSubtitleBlocks()}
-                                                    className="h-7 px-2.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-[10px] font-bold flex items-center gap-1 transition"
-                                                >
-                                                    <Combine size={13} />
-                                                    합치기
-                                                </button>
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void mergeSelectedSubtitleBlocks()}
+                                                        className="h-7 px-2.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-[10px] font-bold flex items-center gap-1 transition"
+                                                    >
+                                                        <Combine size={13} />
+                                                        합치기
+                                                    </button>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
+                                                        자막 {selectedSubtitleBlockIndexes.length}개 선택
+                                                    </span>
+                                                    {renderVoicePicker(
+                                                        'selected-blocks-bulk',
+                                                        selectedSubtitleBlockVoiceId,
+                                                        (nextVoiceId) => void setSelectedSubtitleBlocksVoice(nextVoiceId),
+                                                        `선택한 자막 ${selectedSubtitleBlockIndexes.length}개 성우`
+                                                    )}
+                                                </>
                                             )}
                                             {selectedSubtitleSceneNumbers.length > 0 && (
                                                 <>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
                                                         씬 {selectedSubtitleSceneNumbers.length}개 선택
                                                     </span>
-                                                    {selectedSubtitleSceneGroup && renderVoicePicker(
+                                                    {selectedSubtitleBlockIndexes.length < 2 && selectedSubtitleSceneGroup && renderVoicePicker(
                                                         'selected-scenes-bulk',
                                                         selectedSubtitleSceneVoiceId,
                                                         (nextVoiceId) => void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId),
