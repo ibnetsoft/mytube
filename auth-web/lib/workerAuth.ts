@@ -96,10 +96,10 @@ export async function authenticateWorkerRequest(req: NextRequest): Promise<AuthR
     if (!match) return unauthorized('missing_or_malformed_authorization_header')
 
     const raw = match[1]
-    const parts = raw.split('_')
-    if (parts.length < 3 || parts[0] !== TOKEN_PREFIX) return unauthorized('malformed_token')
-    const tokenId = parts[1]
-    const secret = parts.slice(2).join('_')
+    const tokenMatch = /^awt_([A-Za-z0-9_-]{12})_(\S+)$/.exec(raw)
+    if (!tokenMatch) return unauthorized('malformed_token')
+    const tokenId = tokenMatch[1]
+    const secret = tokenMatch[2]
 
     const { data: row, error } = await supabaseAdmin
         .from('worker_tokens')
