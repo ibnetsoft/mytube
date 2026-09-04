@@ -612,8 +612,9 @@ export async function GET(req: Request) {
                 .from('topics_queue')
                 .select(select)
                 .eq('status', 'excluded')
+                .eq('progress_payload->>admin_hidden', 'true')
                 .order('created_at', { ascending: false })
-                .limit(500)
+                .limit(200)
 
             let { data: hiddenRows, error: hiddenError } = await loadHiddenRows(TOPICS_QUEUE_LIST_SELECT)
             if (isMissingColumnError(hiddenError)) {

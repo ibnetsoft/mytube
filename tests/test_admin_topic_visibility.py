@@ -22,6 +22,7 @@ def test_admin_topic_queue_loads_hidden_rows_for_management():
     assert "topic?.status === 'excluded'" in source
     assert "const loadHiddenRows" in source
     assert ".eq('status', 'excluded')" in source
+    assert ".eq('progress_payload->>admin_hidden', 'true')" in source
     assert "rows = [...rows, ...missingHiddenRows]" in source
     assert "updated_at" not in list_select
 
