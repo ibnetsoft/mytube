@@ -103,7 +103,8 @@ def _headers(idempotency_key: str | None = None) -> dict:
 
 
 def _request(method: str, path: str, json_body: dict | None = None, idempotency_key: str | None = None) -> dict:
-    url = f"{CENTRAL_SERVER_URL}{path}"
+    request_path = path
+    url = f"{CENTRAL_SERVER_URL}{request_path}"
     last_exc = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -114,12 +115,23 @@ def _request(method: str, path: str, json_body: dict | None = None, idempotency_
             time.sleep(delay)
             continue
 
+        if resp.status_code == 404 and request_path.startswith("/api/internal/worker/"):
+            request_path = request_path.replace("/api/internal/worker/", "/api/worker-central/", 1)
+            url = f"{CENTRAL_SERVER_URL}{request_path}"
+            try:
+                resp = requests.request(method, url, json=json_body, headers=_headers(idempotency_key), timeout=REQUEST_TIMEOUT)
+            except requests.RequestException as e:
+                last_exc = e
+                delay = min(BACKOFF_CAP_SECONDS, BACKOFF_BASE_SECONDS * (2 ** attempt))
+                time.sleep(delay)
+                continue
+
         if resp.status_code in (401, 403):
-            raise AuthError(f"{method} {path} -> {resp.status_code}: {resp.text[:200]}")
+            raise AuthError(f"{method} {request_path} -> {resp.status_code}: {resp.text[:200]}")
         if resp.status_code == 404:
-            raise CentralRouteNotFound(f"{method} {path} -> 404: {resp.text[:200]}")
+            raise CentralRouteNotFound(f"{method} {request_path} -> 404: {resp.text[:200]}")
         if resp.status_code == 409:
-            raise LeaseConflict(f"{method} {path} -> 409: {resp.text[:200]}")
+            raise LeaseConflict(f"{method} {request_path} -> 409: {resp.text[:200]}")
         if resp.status_code >= 500:
             last_exc = Exception(f"{resp.status_code}: {resp.text[:200]}")
             delay = min(BACKOFF_CAP_SECONDS, BACKOFF_BASE_SECONDS * (2 ** attempt))
@@ -131,14 +143,14 @@ def _request(method: str, path: str, json_body: dict | None = None, idempotency_
         content_type = resp.headers.get("content-type", "")
         if "application/json" not in content_type.lower():
             raise CentralServerUnavailable(
-                f"{method} {path} returned non-JSON response ({resp.status_code}, {content_type}): {resp.text[:120]}"
+                f"{method} {request_path} returned non-JSON response ({resp.status_code}, {content_type}): {resp.text[:120]}"
             )
         try:
             return resp.json()
         except (ValueError, JSONDecodeError) as e:
-            raise CentralServerUnavailable(f"{method} {path} returned invalid JSON: {e}")
+            raise CentralServerUnavailable(f"{method} {request_path} returned invalid JSON: {e}")
 
-    raise CentralServerUnavailable(f"{method} {path} failed after {MAX_RETRIES} attempts: {last_exc}")
+    raise CentralServerUnavailable(f"{method} {request_path} failed after {MAX_RETRIES} attempts: {last_exc}")
 
 
 def register(worker_id: str, worker_instance_id: str, allowed_job_types: list[str]) -> dict:
