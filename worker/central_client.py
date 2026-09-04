@@ -45,7 +45,17 @@ import requests
 from dotenv import dotenv_values, load_dotenv
 
 _env_values = {}
-for env_path in (Path.cwd() / ".env", Path(__file__).resolve().parent.parent / ".env"):
+_local_worker_home = Path(
+    os.environ.get(
+        "AIRWORKER_HOME",
+        Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "AIRStudio" / "AIRWorker",
+    )
+)
+for env_path in (
+    Path.cwd() / ".env",
+    Path(__file__).resolve().parent.parent / ".env",
+    _local_worker_home / ".env",
+):
     if env_path.exists():
         _env_values.update({k: v for k, v in dotenv_values(env_path).items() if v})
         load_dotenv(env_path, override=False)
@@ -57,7 +67,7 @@ CENTRAL_SERVER_URL = (
     or os.environ.get("DASHBOARD_URL")
     or "http://127.0.0.1:8799"
 ).rstrip("/")
-WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "")
+WORKER_TOKEN = _env_values.get("AIRWORKER_TOKEN") or os.environ.get("AIRWORKER_TOKEN", "")
 VERCEL_PROTECTION_BYPASS_SECRET = os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET", "")
 
 MAX_RETRIES = 5
