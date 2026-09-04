@@ -19,7 +19,13 @@ const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
 const FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']
 const MAX_CHARS_PER_REQUEST = 4500
 const MAX_INLINE_AUDIO_BYTES = 2_500_000
+const ELEVENLABS_KEY_INSPECTION_TTL_MS = 60_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const elevenLabsKeyInspectionCache = new Map<string, {
+    expiresAt: number
+    value: ElevenLabsKeyCandidate
+}>()
 
 type ElevenLabsKeyCandidate = {
     apiKey: string
@@ -147,6 +153,13 @@ function safeFileKey(value: string) {
 }
 
 async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<ElevenLabsKeyCandidate> {
+    const cacheKey = createHash('sha1').update(apiKey).digest('hex')
+    const cached = elevenLabsKeyInspectionCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+        return { ...cached.value, apiKey, keySlot }
+    }
+
+    let result: ElevenLabsKeyCandidate
     try {
         const res = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
             headers: {
@@ -157,7 +170,7 @@ async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<El
         })
         if (!res.ok) {
             const detail = await res.text().catch(() => '')
-            return {
+            result = {
                 apiKey,
                 keySlot,
                 remaining: null,
@@ -171,14 +184,14 @@ async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<El
         const remaining = Number.isFinite(limit) && Number.isFinite(used) && limit > 0
             ? Math.max(0, limit - used)
             : null
-        return {
+        result = {
             apiKey,
             keySlot,
             remaining,
             tier: data?.tier || null,
         }
     } catch (error: any) {
-        return {
+        result = {
             apiKey,
             keySlot,
             remaining: null,
@@ -186,6 +199,11 @@ async function inspectElevenLabsKey(apiKey: string, keySlot: number): Promise<El
             reason: `subscription_check_error: ${error?.message || String(error)}`,
         }
     }
+    elevenLabsKeyInspectionCache.set(cacheKey, {
+        expiresAt: Date.now() + ELEVENLABS_KEY_INSPECTION_TTL_MS,
+        value: result,
+    })
+    return result
 }
 
 async function selectUsableElevenLabsKeys(apiKeys: string[], requiredChunkChars: number) {
@@ -591,15 +609,18 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
-    const { data: scenesData, error: scenesError } = await supabaseAdmin
-        .from('std_project_scenes')
-        .select('*')
-        .eq('project_id', project.id)
-        .order('scene_number', { ascending: true })
-    const canIgnoreScenesError = scenesError?.message?.includes('invalid input syntax for type uuid')
-    const scenes = canIgnoreScenesError ? [] : (scenesData || [])
-    if (scenesError && !canIgnoreScenesError) {
-        return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
+    let scenes: any[] = []
+    if (!cleanTtsText(body?.text)) {
+        const { data: scenesData, error: scenesError } = await supabaseAdmin
+            .from('std_project_scenes')
+            .select('*')
+            .eq('project_id', project.id)
+            .order('scene_number', { ascending: true })
+        const canIgnoreScenesError = scenesError?.message?.includes('invalid input syntax for type uuid')
+        scenes = canIgnoreScenesError ? [] : (scenesData || [])
+        if (scenesError && !canIgnoreScenesError) {
+            return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
+        }
     }
 
     let stage = 'prepare'
@@ -634,7 +655,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         ) || 1))
         const multiVoice = Boolean(body?.multi_voice)
         const voiceMap = body?.voice_map || {}
-        const segmentPreview = body?.mode === 'vrew_segment_preview' || body?.segment_preview === true
+        const fastSegmentPreview = body?.mode === 'vrew_segment_preview_fast'
+        const segmentPreview = body?.mode === 'vrew_segment_preview' || fastSegmentPreview || body?.segment_preview === true
         const segmentIndex = Number(body?.segment_index)
         const segmentCacheKey = segmentPreview
             ? safeFileKey(String(body?.cache_key || createHash('sha1')
@@ -772,6 +794,23 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const fileName = segmentPreview
             ? `vrew_segment_${safeProjectKey}_${Number.isFinite(segmentIndex) ? String(segmentIndex + 1).padStart(4, '0') : '0000'}_${segmentHash}.mp3`
             : `std_tts_${safeProjectKey}_${Date.now()}.mp3`
+        if (fastSegmentPreview) {
+            if (audioBuffer.length > MAX_INLINE_AUDIO_BYTES) {
+                throw new Error('자막 미리듣기 음성 크기가 즉시 재생 한도를 초과했습니다.')
+            }
+            return NextResponse.json({
+                success: true,
+                segment_preview: true,
+                cached: false,
+                persistence_pending: true,
+                file_name: fileName,
+                cache_key: segmentCacheKey,
+                audio_url: `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`,
+                elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
+                elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
+                message: '자막 구간 TTS 음성을 즉시 생성했습니다.',
+            })
+        }
         stage = 'ensure_drive_folders'
         let folders: any = null
         let driveFile: any = null

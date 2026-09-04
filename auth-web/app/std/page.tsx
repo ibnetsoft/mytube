@@ -878,6 +878,7 @@ export default function StdPortalPage() {
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
+    const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -2308,6 +2309,39 @@ export default function StdPortalPage() {
         setVrewActiveTokenIndex(-1)
     }
 
+    const persistVrewSegmentAudio = async (
+        audioBlob: Blob,
+        payload: any,
+        subtitle: any,
+        index: number,
+        voiceId: string
+    ) => {
+        if (!selectedProject?.project?.id || payload?.cached || !payload?.cache_key) return
+        const fileName = String(payload?.file_name || `vrew_segment_${index + 1}.mp3`)
+        const form = new FormData()
+        form.set('file', new File([audioBlob], fileName, { type: audioBlob.type || 'audio/mpeg' }))
+        form.set('file_name', fileName)
+        form.set('cache_key', String(payload.cache_key))
+        form.set('segment_index', String(index))
+        form.set('provider', voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs')
+        form.set('voice_id', voiceId)
+        form.set('model_id', 'eleven_multilingual_v2')
+        form.set('speed', String(Number(ttsSpeed)))
+        form.set('stability', String(Number(elStability)))
+        form.set('style', String(Number(elStyle)))
+        form.set('text', String(subtitle?.text || ''))
+
+        const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/cache-segment`, {
+            method: 'POST',
+            headers: authedUploadHeaders,
+            body: form,
+        })
+        if (!res.ok) {
+            const errorPayload = await safeParseJson(res, '자막 구간 음성 캐시 저장 실패')
+            throw new Error(errorPayload?.error || `자막 구간 음성 캐시 저장 실패 (${res.status})`)
+        }
+    }
+
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
@@ -2320,14 +2354,18 @@ export default function StdPortalPage() {
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
             return vrewAudioCacheRef.current[cacheKey]
         }
+        const inFlightRequest = vrewAudioPromiseRef.current.get(cacheKey)
+        if (inFlightRequest) {
+            return await inFlightRequest
+        }
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
-        try {
+        const generationPromise = (async () => {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
-                    mode: 'vrew_segment_preview',
+                    mode: 'vrew_segment_preview_fast',
                     provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                     voice_id: voiceId,
                     model_id: 'eleven_multilingual_v2',
@@ -2346,13 +2384,29 @@ export default function StdPortalPage() {
                 throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
             }
 
-            const audioUrl = String(payload.audio_url)
+            let audioUrl = String(payload.audio_url)
+            if (audioUrl.startsWith('data:audio/')) {
+                const inlineAudioRes = await fetch(audioUrl)
+                const audioBlob = await inlineAudioRes.blob()
+                audioUrl = URL.createObjectURL(audioBlob)
+                void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
+                    console.warn('[STD Vrew subtitles] background segment cache failed:', error)
+                })
+            }
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
             return audioUrl
+        })()
+        vrewAudioPromiseRef.current.set(cacheKey, generationPromise)
+        try {
+            return await generationPromise
         } catch (error) {
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'error' }))
             throw error
+        } finally {
+            if (vrewAudioPromiseRef.current.get(cacheKey) === generationPromise) {
+                vrewAudioPromiseRef.current.delete(cacheKey)
+            }
         }
     }
 
@@ -2382,7 +2436,9 @@ export default function StdPortalPage() {
 
             const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
             if (vrewPlaybackCancelRef.current !== cancelToken) return
-            prefetchVrewSegment(index + 1)
+            for (let offset = 1; offset <= 3; offset += 1) {
+                prefetchVrewSegment(index + offset)
+            }
 
             await new Promise<void>((resolve, reject) => {
                 const audio = new Audio(audioUrl)
@@ -2439,8 +2495,26 @@ export default function StdPortalPage() {
     }
 
     useEffect(() => {
+        if (currentNav !== 'subtitle_vrew' || !localSubtitles[selectedSubIndex]) return
+        const timeout = window.setTimeout(() => prefetchVrewSegment(selectedSubIndex), 250)
+        return () => window.clearTimeout(timeout)
+        // Request identity is fully represented by the dependencies below.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        currentNav,
+        selectedSubIndex,
+        selectedProject?.project?.id,
+        localSubtitles,
+        selectedVoice,
+        ttsSpeed,
+        elStability,
+        elStyle,
+    ])
+
+    useEffect(() => {
         return () => {
             Object.values(vrewAudioCacheRef.current).forEach(url => URL.revokeObjectURL(url))
+            vrewAudioPromiseRef.current.clear()
             stopVrewPlayback()
         }
     }, [])

@@ -26,6 +26,9 @@ type DriveFileMetadata = {
     thumbnailLink?: string
 }
 
+const STD_FOLDER_CACHE_TTL_MS = 5 * 60_000
+const stdProjectFolderCache = new Map<string, { expiresAt: number; folders: DriveFolderSet }>()
+
 export async function resolveDriveRootFolderId(): Promise<string> {
     return (await getGoogleDriveConfig()).rootFolderId
 }
@@ -100,6 +103,9 @@ export async function ensureDriveFolder(parentId: string, name: string): Promise
 export async function ensureStdProjectDriveFolders(project: any): Promise<DriveFolderSet> {
     const rootFolderId = await resolveDriveRootFolderId()
     if (!rootFolderId) throw new Error('drive_root_folder_not_configured')
+    const cacheKey = `${String(project?.id || '')}:${rootFolderId}`
+    const cached = stdProjectFolderCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) return cached.folders
     const projectPayload = project?.progress_payload || {}
     const existing = projectPayload?.std_drive?.folder_ids || {}
     const existingProjectFolderId = String(existing.project || project?.drive_folder_id || '').trim()
@@ -118,12 +124,17 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
                 meta.mimeType === DRIVE_FOLDER_MIME && meta.parents?.includes(existingProjectFolderId)
             )
             if (projectIsInCurrentRoot && childFoldersAreCurrent) {
-                return {
+                const folders = {
                     projectFolderId: existingProjectFolderId,
                     imagesFolderId: existing.images,
                     videosFolderId: existing.videos,
                     originalsFolderId: existing.originals,
                 }
+                stdProjectFolderCache.set(cacheKey, {
+                    expiresAt: Date.now() + STD_FOLDER_CACHE_TTL_MS,
+                    folders,
+                })
+                return folders
             }
         } catch {
             // Missing or inaccessible legacy folders are recreated below under the active root.
@@ -137,7 +148,12 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
     const videosFolderId = await ensureDriveFolder(projectFolderId, '02_videos')
     const originalsFolderId = await ensureDriveFolder(projectFolderId, '03_originals')
 
-    return { projectFolderId, imagesFolderId, videosFolderId, originalsFolderId }
+    const folders = { projectFolderId, imagesFolderId, videosFolderId, originalsFolderId }
+    stdProjectFolderCache.set(cacheKey, {
+        expiresAt: Date.now() + STD_FOLDER_CACHE_TTL_MS,
+        folders,
+    })
+    return folders
 }
 
 export function folderForAssetType(folders: DriveFolderSet, assetType: string): string {
