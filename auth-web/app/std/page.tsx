@@ -6473,50 +6473,8 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
 
-                                    {/* 2열: 썸네일 스트립 + 자막 카드 목록 */}
+                                    {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
-                                        {/* 세로 이미지 썸네일 스트립 */}
-                                        <div className="w-20 bg-[#13171e] border-r border-white/5 p-1.5 flex flex-col gap-2 overflow-y-auto shrink-0">
-                                            {subtitleSceneGroups.map((group) => {
-                                                const isHook = (group.scene_number || 1) <= 12
-                                                const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
-                                                return (
-                                                    <div
-                                                        key={`scene-group-thumb-${group.scene_number}`}
-                                                        onClick={() => {
-                                                            setSelectedSubIndex(group.firstIndex)
-                                                            setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
-                                                        }}
-                                                        className={`w-full aspect-video rounded overflow-hidden cursor-pointer border relative transition-all ${
-                                                            isActive ? 'border-blue-500 scale-105 shadow' : 'border-white/10 opacity-70 hover:opacity-100'
-                                                        }`}
-                                                    >
-                                                        {group.video_url ? (
-                                                            <video src={group.video_url} className="w-full h-full object-cover" muted />
-                                                        ) : group.image_url ? (
-                                                            <img src={group.image_url} alt={`Scene ${group.scene_number}`} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full bg-[#0b0e14]" />
-                                                        )}
-                                                        {isHook && (
-                                                            <span className="absolute top-0.5 left-0.5 bg-orange-600 text-white text-[7px] font-bold px-1 rounded">
-                                                                5s 훅
-                                                            </span>
-                                                        )}
-                                                        <span className="absolute bottom-0.5 right-0.5 bg-black/80 text-white text-[7px] font-bold px-1 rounded">
-                                                            #{group.scene_number}
-                                                        </span>
-                                                        {group.subtitles.length > 1 && (
-                                                            <span className="absolute bottom-0.5 left-0.5 bg-blue-600/90 text-white text-[7px] font-bold px-1 rounded">
-                                                                {group.subtitles.length} lines
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-
-                                        {/* 자막 카드 목록 */}
                                         <div className="flex-1 overflow-y-auto p-2 space-y-2">
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
