@@ -420,6 +420,7 @@ const DIALOGUE_QUOTE_OPEN_TO_CLOSE: Record<string, string> = {
 }
 
 const DIALOGUE_CLOSING_QUOTES = new Set(Object.values(DIALOGUE_QUOTE_OPEN_TO_CLOSE))
+const STD_BUILD_LABEL = '4d319029'
 
 const isWordQuote = (text: string, index: number) => {
     const char = text[index]
@@ -1685,7 +1686,7 @@ export default function StdPortalPage() {
     }
 
     const matchSubtitlesToSceneVisuals = (subtitles: any[], scenes = selectedProject?.scenes || []) => {
-        return repairSubtitleItemQuoteBoundaries(subtitles || []).map((subtitle: any, index: number) => {
+        const normalizedSceneSubtitles = (subtitles || []).map((subtitle: any, index: number) => {
             const visual = subtitleSceneVisual(subtitle, index, scenes)
             return {
                 ...subtitle,
@@ -1694,6 +1695,7 @@ export default function StdPortalPage() {
                 video_url: visual.video_url || sanitizeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
             }
         })
+        return repairSubtitleItemQuoteBoundaries(normalizedSceneSubtitles)
     }
 
     useEffect(() => {
@@ -5694,7 +5696,7 @@ export default function StdPortalPage() {
                                     <LogOut className="h-3.5 w-3.5" />
                                     <span>로그아웃</span>
                                 </button>
-                                <span className="text-[10px] text-gray-500 font-mono">v2.3.46</span>
+                                <span className="text-[10px] text-gray-500 font-mono">{STD_BUILD_LABEL}</span>
                             </div>
                         </aside>
                     </div>
@@ -5797,7 +5799,7 @@ export default function StdPortalPage() {
 
                     <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>연결됨 v2.3.46</span>
+                        <span>연결됨 {STD_BUILD_LABEL}</span>
                     </div>
                 </aside>
 
