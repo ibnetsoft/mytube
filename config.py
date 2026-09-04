@@ -80,6 +80,10 @@ class Config:
     TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3.6-flash")
     TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", "gemini-3.6-flash")
     SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3.6-flash")
+    # Used only to diagnose/recover a failed Claude script call.  It is kept
+    # separate from planning so changing the primary writer never accidentally
+    # removes Hermes' explicitly selected Gemini coordinator.
+    HERMES_ORCHESTRATOR_MODEL = os.getenv("HERMES_ORCHESTRATOR_MODEL", "gemini-3.6-flash")
     IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3.6-flash")
     TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-3.6-flash")
     IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
@@ -244,7 +248,7 @@ class Config:
             'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
             'LONGFORM_MIN_DURATION_MINUTES', 'LONGFORM_BASE_PAYOUT',
             'LONGFORM_EXTRA_MINUTE_PAYOUT', 'LONGFORM_DURATION_LOCK_ENABLED',
-            'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL',
+            'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL', 'HERMES_ORCHESTRATOR_MODEL',
             'SCRIPT_GENERATION_MODEL', 'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
             'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
         }
@@ -257,7 +261,7 @@ class Config:
                     'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID', 'CLAUDE_API_KEY', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL',
                     'GLM_API_KEY', 'GLM_BASE_URL',
                     'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL',
-                    'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL',
+                    'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL', 'HERMES_ORCHESTRATOR_MODEL',
                     'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
                 }
                 if key_name in local_override_keys and os.getenv(key_name, '').strip():
@@ -293,6 +297,7 @@ class Config:
             "TOPIC_GENERATION_MODEL",
             "TITLE_GENERATION_MODEL",
             "SCRIPT_PLANNING_MODEL",
+            "HERMES_ORCHESTRATOR_MODEL",
             "SCRIPT_GENERATION_MODEL",
             "IMAGE_PROMPT_MODEL",
             "TRANSLATION_MODEL",

@@ -15,7 +15,7 @@ FORBIDDEN_FINANCE_TERMS = (
     "비트코인", "가상화폐", "암호화폐", "투자", "매수", "매도", "금리", "환율",
     "대출", "부동산투자", "은행예금", "통장", "가계부", "자동이체",
     "pension", "retirement fund", "financial", "finance", "investment", "stock",
-    "bond", "fund", "bitcoin", "cryptocurrency", "interest rate", "exchange rate",
+    "government bond", "corporate bond", "bond market", "fund", "bitcoin", "cryptocurrency", "interest rate", "exchange rate",
     "loan", "bankbook", "年金", "老後資金", "金融", "投資", "株式", "債券",
     "ビットコイン", "仮想通貨", "金利", "為替", "ローン",
 )
@@ -34,7 +34,14 @@ def finance_content_matches(*values: Any) -> list[str]:
     matches = []
     for term in FORBIDDEN_FINANCE_TERMS:
         normalized = term.casefold()
-        if normalized in text or re.sub(r"[\s\W_]+", "", normalized) in compact:
+        # Latin abbreviations/words must remain whole words.  Compact matching
+        # made harmless prompt prose such as "gentle tilt from" look like
+        # "ETF" after spaces were removed.
+        if re.fullmatch(r"[a-z ]+", normalized):
+            found = bool(re.search(rf"(?<![a-z]){re.escape(normalized)}(?![a-z])", text))
+        else:
+            found = normalized in text or re.sub(r"[\s\W_]+", "", normalized) in compact
+        if found:
             matches.append(term)
     return matches
 

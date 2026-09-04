@@ -471,6 +471,7 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
+TOPIC_DELIVERY_EXCLUSIONS_FILE = STATE_DIR / "topic_delivery_exclusions.json"
 NOTEBOOKLM_RESULTS_DIR = OUTPUT_DIR / "notebooklm_results"
 GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research", "publish_metadata_generate"}
 _OFFLINE_HARNESS_CACHE: dict = {"checked_at": 0.0, "report": None}
@@ -1160,6 +1161,66 @@ def _collect_topic_generated_results(limit: int = 500) -> dict[str, dict]:
         )
 
     return results
+
+
+def _load_topic_delivery_exclusions() -> dict[str, dict]:
+    try:
+        data = json.loads(TOPIC_DELIVERY_EXCLUSIONS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _write_topic_delivery_exclusions(items: dict[str, dict]) -> None:
+    TOPIC_DELIVERY_EXCLUSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temp = TOPIC_DELIVERY_EXCLUSIONS_FILE.with_suffix(".tmp")
+    temp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.replace(TOPIC_DELIVERY_EXCLUSIONS_FILE)
+
+
+def _set_topic_delivery_exclusion(topic_ids: list[str], excluded: bool) -> dict[str, dict]:
+    items = _load_topic_delivery_exclusions()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    for topic_id in topic_ids:
+        key = _topic_key(topic_id)
+        if not key:
+            continue
+        if excluded:
+            items[key] = {"excluded": True, "updated_at": now}
+        else:
+            items.pop(key, None)
+    _write_topic_delivery_exclusions(items)
+    return items
+
+
+def _hide_excluded_topics_in_supabase(topic_ids: list[str]) -> None:
+    """Remove already-synced excluded rows from user/admin pending queues."""
+    try:
+        import requests
+        supabase_url = str(os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+        supabase_key = str(os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "")
+        if not supabase_url or not supabase_key:
+            return
+        headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
+        for topic_id in topic_ids:
+            key = _topic_key(topic_id)
+            if not key:
+                continue
+            response = requests.get(
+                f"{supabase_url}/rest/v1/topics_queue", headers=headers,
+                params={"select": "progress_payload", "id": f"eq.{key}"}, timeout=10,
+            )
+            existing = response.json() if response.ok else []
+            progress = existing[0].get("progress_payload") if existing and isinstance(existing[0], dict) else {}
+            if not isinstance(progress, dict):
+                progress = {}
+            progress.update({"worker_delivery_excluded": True, "worker_delivery_excluded_at": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+            requests.patch(
+                f"{supabase_url}/rest/v1/topics_queue?id=eq.{key}", headers=headers,
+                json={"status": "excluded", "progress_payload": progress}, timeout=10,
+            )
+    except Exception as exc:
+        logger.warning("Could not hide excluded topics in Supabase: %s", exc)
 
 
 def _notion_token() -> str:
@@ -2642,6 +2703,7 @@ _MODEL_SETTING_KEYS = {
     "TITLE_GENERATION_MODEL",
     "SCRIPT_GENERATION_MODEL",
     "SCRIPT_PLANNING_MODEL",
+    "HERMES_ORCHESTRATOR_MODEL",
     "IMAGE_PROMPT_MODEL",
 }
 
@@ -2679,6 +2741,7 @@ async def api_get_settings(
         ("TITLE_GENERATION_MODEL", "제목 후보 모델"),
         ("SCRIPT_GENERATION_MODEL", "대본 생성 모델"),
         ("SCRIPT_PLANNING_MODEL", "대본 구조 모델"),
+        ("HERMES_ORCHESTRATOR_MODEL", "Hermes 실패 조율 모델 (Gemini)"),
         ("IMAGE_PROMPT_MODEL", "이미지/영상 프롬프트 모델"),
     ]
     result = []
@@ -2710,7 +2773,7 @@ async def api_set_setting(
         "GEMINI_API_KEY", "GEMINI_API_KEY_FREE", "GEMINI_API_KEY_PAID", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
-        "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
+        "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "HERMES_ORCHESTRATOR_MODEL", "IMAGE_PROMPT_MODEL",
     }
     if key not in allowed:
         return {"error": f"허용되지 않은 설정 키: {key}"}
@@ -3680,6 +3743,7 @@ async def api_generated_results(
     require_auth(authorization, cookie)
     AUTOPILOT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
+    exclusions = _load_topic_delivery_exclusions()
     seen_ids = set()
     seen_topic_ids = set()
     for path in sorted(AUTOPILOT_RESULTS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -3688,6 +3752,7 @@ async def api_generated_results(
             seen_ids.add(summary["id"])
             if summary.get("topic_queue_id") is not None:
                 seen_topic_ids.add(_topic_key(summary.get("topic_queue_id")))
+            summary["delivery_excluded"] = bool(exclusions.get(_topic_key(summary.get("topic_queue_id")), {}).get("excluded"))
             rows.append(summary)
     for result_id, data in _collect_topic_generated_results(limit=max(100, min(limit * 10, 1000))).items():
         if result_id in seen_ids:
@@ -3697,6 +3762,7 @@ async def api_generated_results(
             continue
         summary = _topic_generated_result_summary(result_id, data)
         if summary.get("has_script") or summary.get("scene_count"):
+            summary["delivery_excluded"] = bool(exclusions.get(_topic_key(summary.get("topic_queue_id")), {}).get("excluded"))
             rows.append(summary)
     rows.sort(key=lambda row: row.get("completed_at") or row.get("updated_at") or 0, reverse=True)
     rows = rows[:max(1, min(limit, 500))]
@@ -3705,6 +3771,27 @@ async def api_generated_results(
         "dir": f"{AUTOPILOT_RESULTS_DIR} + {HERMES_RESULTS_DIR}",
         "diagnostics": _autopilot_generation_diagnostics(),
     }
+
+
+@app.post("/api/generated-results/delivery-exclusion")
+async def api_generated_result_delivery_exclusion(
+    body: dict = Body(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    raw_ids = body.get("topic_queue_ids")
+    if not isinstance(raw_ids, list):
+        raise HTTPException(400, "topic_queue_ids 목록이 필요합니다.")
+    topic_ids = [_topic_key(value) for value in raw_ids]
+    topic_ids = [value for value in topic_ids if value]
+    if not topic_ids:
+        raise HTTPException(400, "유효한 주제 ID가 없습니다.")
+    excluded = bool(body.get("excluded", True))
+    _set_topic_delivery_exclusion(topic_ids, excluded)
+    if excluded:
+        await run_in_threadpool(_hide_excluded_topics_in_supabase, topic_ids)
+    return {"ok": True, "excluded": excluded, "topic_queue_ids": topic_ids}
 
 
 @app.get("/api/generated-results/{result_id}")
@@ -3723,6 +3810,7 @@ async def api_generated_result_detail(
         if not isinstance(data, dict):
             raise HTTPException(404, "Generated result not found")
         data["_file"] = {"id": safe_id, "path": "job_store/hermes_results", "updated_at": data.get("updated_at") or data.get("completed_at")}
+        data["delivery_excluded"] = bool(_load_topic_delivery_exclusions().get(_topic_key(data.get("topic_queue_id")), {}).get("excluded"))
         return data
     path = AUTOPILOT_RESULTS_DIR / f"{safe_id}.json"
     if not path.exists():
@@ -4389,8 +4477,11 @@ tr:hover { background: #161b22; }
           <div class="card">
             <div class="card-title">&#x1F4D1; 생성 결과 목록</div>
             <p class="info" style="margin:-4px 0 16px">Hermes 자동 생성이 저장한 제목, 기획, 대본, 이미지 프롬프트, 영상 프롬프트를 확인합니다.</p>
-            <div style="display:flex;gap:8px;margin-bottom:12px">
+            <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
               <button class="btn btn-sm" onclick="loadGeneratedResults()">&#x1F504; 새로고침</button>
+              <button class="btn btn-sm" onclick="setSelectedGeneratedDeliveryExclusion(true)">선택 항목 전달 제외</button>
+              <button class="btn btn-sm" onclick="setSelectedGeneratedDeliveryExclusion(false)">선택 항목 제외 해제</button>
+              <span class="info">제외하면 워커 로컬 결과만 남고 어드민·유저 주제 목록에는 노출되지 않습니다.</span>
               <span class="info" id="generated-results-dir"></span>
             </div>
             <div id="generated-results-tables">
@@ -4400,7 +4491,7 @@ tr:hover { background: #161b22; }
                   <span class="info" id="generated-results-completed-count">0건</span>
                 </div>
                 <table>
-                  <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+                  <thead><tr><th>선택</th><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
                   <tbody id="generated-results-completed-body"></tbody>
                 </table>
               </div>
@@ -4410,7 +4501,7 @@ tr:hover { background: #161b22; }
                   <span class="info" id="generated-results-partial-count">0건 · 완료율 높은 순</span>
                 </div>
                 <table>
-                  <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+                  <thead><tr><th>선택</th><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
                   <tbody id="generated-results-partial-body"></tbody>
                 </table>
               </div>
@@ -6206,7 +6297,7 @@ function generatedSortTime(row) {
 
 function renderGeneratedRows(rows, emptyText) {
   if (!rows.length) {
-    return `<tr><td colspan="5" class="info">${escapeHtml(emptyText)}</td></tr>`;
+    return `<tr><td colspan="6" class="info">${escapeHtml(emptyText)}</td></tr>`;
   }
   return rows.map(row => {
     const completion = row._completion || generatedCompletionStats(row);
@@ -6219,14 +6310,28 @@ function renderGeneratedRows(rows, emptyText) {
     const statusText = row.status && row.status !== 'COMPLETED' ? ` / ${row.status}` : '';
     const materialBadges = renderMaterialBadges(completion.statuses);
     const progressClass = completion.isComplete ? 'badge-completed' : (completion.percent >= 67 ? 'badge-review' : 'badge-idle');
+    const excluded = Boolean(row.delivery_excluded);
     return `<tr>
+      <td><input type="checkbox" class="generated-delivery-select" value="${escapeHtml(String(row.topic_queue_id || ''))}" ${excluded ? 'checked' : ''} title="어드민·유저 웹 전달 제외 선택"></td>
       <td><a href="#" onclick="showGeneratedResult('${escapeHtml(row.id)}');return false">${escapeHtml(row.topic_queue_id || row.id)}</a></td>
       <td>${escapeHtml(row.category || '-')}</td>
-      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong><div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
+      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong>${excluded ? '<span class="badge badge-review" style="margin-left:6px">전달 제외</span>' : ''}<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
       <td><span class="badge ${progressClass} generated-progress">${completion.percent}%</span> ${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0} scenes, ${scriptState}, ${promptState}</span></td>
       <td>${fmtTime(row.completed_at || row.updated_at)}</td>
     </tr>`;
   }).join('');
+}
+
+async function setSelectedGeneratedDeliveryExclusion(excluded) {
+  const ids = [...document.querySelectorAll('.generated-delivery-select:checked')]
+    .map(input => String(input.value || '').trim()).filter(Boolean);
+  if (!ids.length) { showToast('먼저 생성 결과를 선택하세요.', 'warning'); return; }
+  const action = excluded ? '어드민과 유저 웹에서 제외' : '전달 제외 해제';
+  if (!window.confirm(`${ids.length}개 주제를 ${action}하시겠습니까?`)) return;
+  const result = await api('POST', '/api/generated-results/delivery-exclusion', { topic_queue_ids: ids, excluded });
+  if (!result) return;
+  showToast(excluded ? `${ids.length}개 주제를 전달 제외했습니다.` : `${ids.length}개 주제의 전달 제외를 해제했습니다.`, 'success');
+  loadGeneratedResults(activeGeneratedResultId);
 }
 
 function renderGeneratedEmptyState(diagnostics) {
@@ -6260,7 +6365,7 @@ async function loadGeneratedResults(selectedResultId = '') {
   const completedCount = document.getElementById('generated-results-completed-count');
   const partialCount = document.getElementById('generated-results-partial-count');
   if (!completedBody || !partialBody || !empty) return;
-  completedBody.innerHTML = '<tr><td colspan="5" class="info">생성 결과를 불러오는 중...</td></tr>';
+  completedBody.innerHTML = '<tr><td colspan="6" class="info">생성 결과를 불러오는 중...</td></tr>';
   partialBody.innerHTML = '';
   empty.style.display = 'none';
   if (tables) tables.style.display = 'block';
@@ -7319,6 +7424,7 @@ const settingLabels = {
   'TITLE_GENERATION_MODEL': '제목 후보 모델',
   'SCRIPT_GENERATION_MODEL': '대본 생성 모델',
   'SCRIPT_PLANNING_MODEL': '구조 생성 모델',
+  'HERMES_ORCHESTRATOR_MODEL': 'Hermes 실패 조율 모델 (Gemini)',
   'IMAGE_PROMPT_MODEL': '이미지/영상 프롬프트 모델',
 };
 
@@ -7341,6 +7447,7 @@ const settingIcons = {
   'TITLE_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_PLANNING_MODEL': '&#x1F916;',
+  'HERMES_ORCHESTRATOR_MODEL': '&#x1F916;',
   'IMAGE_PROMPT_MODEL': '&#x1F3A8;',
 };
 

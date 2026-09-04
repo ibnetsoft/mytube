@@ -88,6 +88,7 @@ class WebAdminClient:
         "sys_api_topic_generation_model": "TOPIC_GENERATION_MODEL",
         "sys_api_title_generation_model": "TITLE_GENERATION_MODEL",
         "sys_api_script_planning_model": "SCRIPT_PLANNING_MODEL",
+        "sys_api_hermes_orchestrator_model": "HERMES_ORCHESTRATOR_MODEL",
         "sys_api_script_generation_model": "SCRIPT_GENERATION_MODEL",
         "sys_api_image_prompt_model": "IMAGE_PROMPT_MODEL",
         "sys_api_translation_model": "TRANSLATION_MODEL",

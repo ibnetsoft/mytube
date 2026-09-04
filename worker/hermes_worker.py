@@ -88,6 +88,7 @@ STATE_FILE = STATE_DIR / "hermes_worker.json"
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
 RESULTS_DIR = OUTPUT_DIR / "hermes_results"
 AUDIT_DIR = OUTPUT_DIR / "hermes_audit"
+TOPIC_DELIVERY_EXCLUSIONS_FILE = STATE_DIR / "topic_delivery_exclusions.json"
 logger = get_logger("hermes_worker")
 
 GENERATED_BY_TOPIC_FIELDS = {
@@ -269,6 +270,18 @@ def _reraise_if_provider_credit_exhausted(exc: Exception) -> None:
         return
     if isinstance(exc, ProviderCreditExhaustedError):
         raise exc
+
+
+def _is_topic_delivery_excluded(topic_queue_id) -> bool:
+    """Return whether the operator blocked this local result from cloud delivery."""
+    key = str(topic_queue_id or "").strip()
+    if not key:
+        return False
+    try:
+        data = json.loads(TOPIC_DELIVERY_EXCLUSIONS_FILE.read_text(encoding="utf-8"))
+        return bool(isinstance(data, dict) and isinstance(data.get(key), dict) and data[key].get("excluded"))
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def _extract_json(text: str) -> dict:
@@ -3383,15 +3396,7 @@ def _generate_direct_image_grid_prompts(
             })
         return fallback
 
-    # Longform jobs can have dozens of 2x2 grid windows. Asking the model to
-    # return all windows as one JSON document is brittle and often truncates.
-    # Do not manufacture prompt grids from generic text when that happens.
-    if len(grid_inputs) > 12:
-        raise RuntimeError(
-            f"image grid prompt generation requires {len(grid_inputs)} grids; "
-            "batch fallback is disabled and this job must be retried with supported batching"
-        )
-
+    grid_inputs_json = json.dumps(grid_inputs, ensure_ascii=False, indent=2)
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
 
@@ -3408,7 +3413,7 @@ VISUAL BIBLE:
 CHARACTER DNA ANCHORS - TEXT ONLY, MUST PRESERVE WHEN EACH CHARACTER APPEARS:
 {character_anchors_context or "{}"}
 GRID INPUTS:
-{json.dumps(grid_inputs, ensure_ascii=False, indent=2)}
+{grid_inputs_json}
 
 Rules:
 1. Return exactly one grid object for every GRID INPUT, preserving grid_number, scene_numbers, and scene_ids.
@@ -3438,27 +3443,38 @@ Schema:
   ]
 }}
 """
-    raw = asyncio.run(asyncio.wait_for(
-        ai_router.generate_text(
-            prompt,
-            model,
-            temperature=0.35,
-            max_tokens=12000,
-            task_type="image_grid_prompt_generation",
-        ),
-        timeout=90,
-    ))
-    try:
-        generated = _extract_json(raw)
-        grids = generated.get("grids") if isinstance(generated, dict) else None
-    except Exception as exc:
-        raise RuntimeError(f"AI image-grid response was invalid; no synthetic grid fallback is allowed: {exc}") from exc
-    if not isinstance(grids, list) or len(grids) != len(grid_inputs):
-        got_count = len(grids) if isinstance(grids, list) else 0
-        raise RuntimeError(
-            f"AI image-grid response count mismatch; no synthetic grid fallback is allowed: "
-            f"expected={len(grid_inputs)}, got={got_count}"
-        )
+    # Generate large longform runs in bounded real-AI batches. This prevents
+    # JSON truncation without creating synthetic image prompts.
+    grids = []
+    for batch_start in range(0, len(grid_inputs), 12):
+        grid_batch = grid_inputs[batch_start:batch_start + 12]
+        batch_json = json.dumps(grid_batch, ensure_ascii=False, indent=2)
+        batch_prompt = prompt.replace(grid_inputs_json, batch_json, 1)
+        try:
+            raw = asyncio.run(asyncio.wait_for(
+                ai_router.generate_text(
+                    batch_prompt,
+                    model,
+                    temperature=0.35,
+                    max_tokens=12000,
+                    task_type="image_grid_prompt_generation",
+                ),
+                timeout=90,
+            ))
+            generated = _extract_json(raw)
+            batch_grids = generated.get("grids") if isinstance(generated, dict) else None
+        except Exception as exc:
+            raise RuntimeError(
+                f"AI image-grid batch {batch_start // 12 + 1} response was invalid; "
+                f"no synthetic grid fallback is allowed: {exc}"
+            ) from exc
+        if not isinstance(batch_grids, list) or len(batch_grids) != len(grid_batch):
+            got_count = len(batch_grids) if isinstance(batch_grids, list) else 0
+            raise RuntimeError(
+                f"AI image-grid batch {batch_start // 12 + 1} count mismatch; no synthetic grid fallback is allowed: "
+                f"expected={len(grid_batch)}, got={got_count}"
+            )
+        grids.extend(batch_grids)
 
     by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
     for grid in grids:
@@ -5310,6 +5326,29 @@ def _sanitize_old_story_scene_plan_to_title(structure: dict, topic: str, upload_
     return repaired
 
 
+def _structure_story_content(structure: dict) -> dict:
+    """Extract narrative fields for subject-safety validation only.
+
+    Visual prompt text is deliberately excluded: camera prose may contain
+    incidental English words unrelated to a story's subject.
+    """
+    if not isinstance(structure, dict):
+        return {}
+    scene_fields = (
+        "scene_summary", "scene_situation", "scene_purpose", "retention_hook",
+        "character_choice", "emotional_shift", "reveal_or_question",
+        "title_promise_link", "end_bridge", "dramatic_function",
+    )
+    return {
+        "story_core": structure.get("story_core") or "",
+        "scenes": [
+            {field: scene.get(field) or "" for field in scene_fields}
+            for scene in (structure.get("scenes") or [])
+            if isinstance(scene, dict)
+        ],
+    }
+
+
 def _scene_plan_category_contamination_errors(
     structure: dict,
     *,
@@ -5321,7 +5360,11 @@ def _scene_plan_category_contamination_errors(
 ) -> list[str]:
     from services.content_safety import finance_content_matches
 
-    finance_matches = finance_content_matches(structure)
+    # Media prompts include arbitrary English cinematography phrases.  They
+    # are not narration and must not make a harmless story fail because a
+    # compacted substring resembles a finance abbreviation.  Check only the
+    # story-bearing plan fields here; prompts have their own readiness checks.
+    finance_matches = finance_content_matches(_structure_story_content(structure))
     if finance_matches:
         return [
             "finance/pension contamination is prohibited in every category: "
@@ -5529,7 +5572,7 @@ def _validate_script_generate_stage(
     require_korean_script = require_korean_script and language == "ko"
     from services.content_safety import finance_content_matches
 
-    finance_matches = finance_content_matches(script, structure)
+    finance_matches = finance_content_matches(script, _structure_story_content(structure))
     if finance_matches:
         errors.append(
             "finance/pension contamination is prohibited in every category: "
@@ -7257,6 +7300,7 @@ def _hermes_orchestrator_gemini_model(config) -> str:
     from services.ai_router import detect_provider
 
     for candidate in (
+        getattr(config, "HERMES_ORCHESTRATOR_MODEL", ""),
         getattr(config, "SCRIPT_PLANNING_MODEL", ""),
         getattr(config, "TOPIC_GENERATION_MODEL", ""),
         getattr(config, "IMAGE_PROMPT_MODEL", ""),
@@ -7264,7 +7308,7 @@ def _hermes_orchestrator_gemini_model(config) -> str:
         model = str(candidate or "").strip()
         if model and detect_provider(model) == "gemini":
             return model
-    raise RuntimeError("Hermes orchestration requires an explicitly configured Gemini model")
+    raise RuntimeError("Hermes orchestration model must be a Gemini model")
 
 
 async def _request_hermes_failure_orchestration(
@@ -7720,11 +7764,15 @@ def _ensure_scene_section_target_length(
 ) -> str:
     """Validate a generated scene's length without manufacturing missing prose."""
     result = _clean_section_text(str(text or ""), is_multi)
-    required = max(1, int(target_chars or 0))
+    requested = max(1, int(target_chars or 0))
+    # This is a validation tolerance, never padding: a 60-character scene
+    # satisfies a 62-character timing target, while genuinely empty/short
+    # model output remains a hard failure.
+    required = max(1, (requested * 95 + 99) // 100)
     if len(result) >= required:
         return result
     raise RuntimeError(
-        f"scene text is underlength ({len(result)}/{required}); generated prose will not be padded"
+        f"scene text is underlength ({len(result)}/{requested}; minimum accepted {required}); generated prose will not be padded"
     )
 
 
@@ -8118,6 +8166,10 @@ TITLE GENERATION: {json.dumps(title_generation or {}, ensure_ascii=False)}
 SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
 STYLE DIRECTIVE: {style_directive or "none"}
 
+For every supplied scene, return one scene_beats row.  Keep each beat,
+tension, and turn to at most 18 Korean words. Do not add commentary or
+additional keys. This compactness is mandatory for long (53-scene) plans.
+
 Return ONLY JSON:
 {{
   "logline": "one-sentence story premise",
@@ -8133,25 +8185,77 @@ Return ONLY JSON:
       "scene_order": 1,
       "beat": "what changes in this scene",
       "tension": "question or pressure held in this scene",
-      "turn": "new reveal or emotional move",
-      "must_include": ["specific story detail"],
-      "must_avoid": ["filler, explanation, meta commentary"]
+      "turn": "new reveal or emotional move"
     }}
   ]
 }}
 """
-    try:
-        raw = await ai_router.generate_text(
-            prompt, model, temperature=0.45, max_tokens=4096,
-            task_type="hermes_script_blueprint",
-        )
-        parsed = _extract_json(raw)
-        if not isinstance(parsed.get("scene_beats"), list):
-            raise ValueError("blueprint.scene_beats missing")
-        return parsed
-    except Exception as exc:
-        _reraise_if_provider_credit_exhausted(exc)
-        raise RuntimeError(f"story blueprint generation failed; no synthetic blueprint fallback is allowed: {exc}") from exc
+    last_error: Exception | None = None
+    repair_instruction = ""
+    attempt_model = model
+    scene_count = len(structure.get("scenes") or []) if isinstance(structure, dict) else 0
+    # A 53-scene JSON blueprint cannot fit safely in the former fixed 4,096
+    # output-token ceiling. This only changes the allowed response size; it
+    # does not manufacture any story content.
+    blueprint_max_tokens = min(12_000, max(4_096, 1_200 + scene_count * 180))
+    for attempt in range(2):
+        repair_note = ""
+        if last_error:
+            repair_note = (
+                "\n\nPREVIOUS RESPONSE FAILED JSON VALIDATION: "
+                f"{last_error}. Return the complete schema as one valid JSON object only; "
+                "preserve the supplied title and scene structure."
+            )
+            if repair_instruction:
+                repair_note += f"\nHERMES COORDINATOR INSTRUCTION: {repair_instruction}"
+        try:
+            raw = await ai_router.generate_text(
+                f"{prompt}{repair_note}", attempt_model,
+                temperature=0.45 if attempt == 0 else 0.25,
+                max_tokens=blueprint_max_tokens,
+                task_type="hermes_script_blueprint",
+            )
+            parsed = _extract_json(raw)
+            if not isinstance(parsed.get("scene_beats"), list):
+                raise ValueError("blueprint.scene_beats missing")
+            return parsed
+        except Exception as exc:
+            _reraise_if_provider_credit_exhausted(exc)
+            last_error = exc
+            # A Claude response that cannot be parsed is a real generation
+            # failure, not a reason to invent a blueprint locally.  Let the
+            # explicitly configured Gemini coordinator choose the one bounded
+            # recovery attempt requested by the operator.
+            if attempt == 0:
+                from services.ai_router import detect_provider
+                if detect_provider(model) == "claude":
+                    try:
+                        from config import config as runtime_config
+                        coordinator_model = _hermes_orchestrator_gemini_model(runtime_config)
+                        advice = await _request_hermes_failure_orchestration(
+                            ai_router,
+                            coordinator_model,
+                            model,
+                            "story_blueprint_json",
+                            prompt,
+                            exc,
+                            attempt=1,
+                        )
+                        repair_instruction = advice["repair_instruction"]
+                        attempt_model = (
+                            coordinator_model
+                            if advice["action"] == "generate_with_gemini"
+                            else model
+                        )
+                    except Exception as coordinator_error:
+                        _reraise_if_provider_credit_exhausted(coordinator_error)
+                        raise RuntimeError(
+                            "Hermes Gemini coordinator failed while handling a Claude blueprint error: "
+                            f"{coordinator_error}"
+                        ) from coordinator_error
+    raise RuntimeError(
+        f"story blueprint generation failed after one AI JSON-repair attempt; manual regeneration required: {last_error}"
+    ) from last_error
 
 
 def _fallback_script_quality_report(script: str, upload_title: str) -> dict:
@@ -8987,14 +9091,10 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
     from services.content_safety import reject_finance_content
 
-    reject_finance_content(
-        "script_generate payload",
-        topic,
-        upload_title,
-        title_generation,
-        structure,
-        payload.get("research_bundle") or {},
-    )
+    # Reject a forbidden subject before generation, but do not scan auxiliary
+    # visual/research metadata here.  Those fields are model output and can
+    # contain incidental English that is unrelated to the story itself.
+    reject_finance_content("script_generate payload", topic, upload_title)
 
     return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, narration_pace, tts_speed, duration_seconds, upload_title, title_generation
 
@@ -9294,13 +9394,19 @@ Hard retry rules:
                                 attempt + 1,
                             )
                             orchestration_note = advice["repair_instruction"]
+                            # An underlength response means Claude did return
+                            # content but did not obey the scene contract.
+                            # Retrying the exact same writer caused repeated
+                            # one-character sections in production, so the
+                            # bounded recovery must be Gemini's takeover.
+                            requires_gemini_takeover = "underlength" in str(exc).casefold()
                             active_generation_model = (
                                 orchestrator_model
-                                if advice["action"] == "generate_with_gemini"
+                                if advice["action"] == "generate_with_gemini" or requires_gemini_takeover
                                 else draft_model
                             )
                             job_log.info(
-                                f"Hermes coordinator chose {advice['action']} after Claude failure: "
+                                f"Hermes coordinator chose {'generate_with_gemini' if requires_gemini_takeover else advice['action']} after Claude failure: "
                                 f"{advice.get('reason') or 'no reason provided'}"
                             )
                         except ai_router.ProviderCreditExhaustedError:
@@ -9395,6 +9501,63 @@ Hard retry rules:
                         final_quality = revised_quality
                         revision_count = 1
                         scene_script_sections = revised_sections
+                    elif ai_router.detect_provider(model) == "claude":
+                        # A failed Claude rewrite is not allowed to silently
+                        # fall back to the old draft. Hermes asks the dedicated
+                        # Gemini coordinator for one bounded rewrite decision,
+                        # then validates that rewrite with the same QA gate.
+                        from config import config as runtime_config
+                        coordinator_model = _hermes_orchestrator_gemini_model(runtime_config)
+                        qa_failure = RuntimeError(
+                            "Claude rewrite did not pass QA: "
+                            f"verdict={revised_quality.get('verdict')}, "
+                            f"score={revised_quality.get('score')}, "
+                            f"issues={(revised_quality.get('critical_issues') or revised_quality.get('revision_notes') or [])[:8]}"
+                        )
+                        advice = await _request_hermes_failure_orchestration(
+                            ai_router,
+                            coordinator_model,
+                            model,
+                            "script_qa_rewrite",
+                            f"TITLE: {upload_title}\nTOPIC: {topic}\n"
+                            f"QA REPORT: {json.dumps(revised_quality, ensure_ascii=False)}",
+                            qa_failure,
+                            attempt=1,
+                        )
+                        recovery_model = coordinator_model if advice["action"] == "generate_with_gemini" else model
+                        recovery_quality = dict(revised_quality)
+                        recovery_quality["revision_notes"] = list(
+                            recovery_quality.get("revision_notes") or []
+                        ) + [advice["repair_instruction"]]
+                        recovered_sections = await _revise_script_sections(
+                            ai_router, recovery_model, topic, upload_title, narrative_blueprint,
+                            scenes, revised_sections, scene_budgets, recovery_quality, language, is_multi,
+                            category_writing_profile=category_writing_profile,
+                        )
+                        recovered = "\n\n".join(section for section in recovered_sections if section).strip()
+                        if recovered and len(recovered) >= max(500, int(len(draft_script) * 0.55)):
+                            recovered_quality = await _evaluate_script_quality(
+                                ai_router, recovery_model, topic, upload_title, narrative_blueprint,
+                                structure, recovered, language,
+                            )
+                            if (
+                                recovered_quality.get("verdict") == "pass"
+                                and not recovered_quality.get("critical_issues")
+                                and int(recovered_quality.get("score") or 0) >= 78
+                            ):
+                                final_script = recovered
+                                final_quality = recovered_quality
+                                revision_count = 2
+                                scene_script_sections = recovered_sections
+                            else:
+                                raise RuntimeError(
+                                    "script quality gate failed after Hermes-coordinated rewrite: "
+                                    f"verdict={recovered_quality.get('verdict')}, "
+                                    f"score={recovered_quality.get('score')}, "
+                                    f"issues={(recovered_quality.get('critical_issues') or recovered_quality.get('revision_notes') or [])[:8]}"
+                                )
+                        else:
+                            raise RuntimeError("Hermes-coordinated rewrite returned insufficient script content")
             except ai_router.ProviderCreditExhaustedError:
                 job_log.error(
                     "AI provider credit/balance exhausted during script rewrite; "
@@ -9413,8 +9576,10 @@ Hard retry rules:
             )
 
         if _script_needs_revision(final_quality):
+            issues = final_quality.get("critical_issues") or final_quality.get("revision_notes") or []
             raise RuntimeError(
-                "script quality gate failed after AI revision; no category rescue or fixed-template script is allowed"
+                "script quality gate failed after AI revision; no category rescue or fixed-template script is allowed: "
+                f"verdict={final_quality.get('verdict')}, score={final_quality.get('score')}, issues={issues[:8]}"
             )
 
         if language == "ko" and _script_has_excessive_latin(final_script):
@@ -9761,6 +9926,14 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
     key gives full PostgREST access.  Failures are logged but never propagated
     (the local result file is already the authoritative copy).
     """
+    topic_queue_id = result_payload.get("topic_queue_id")
+    if topic_queue_id and _is_topic_delivery_excluded(topic_queue_id):
+        job_log.info(
+            "Operator excluded topics_queue#%s from admin/user delivery; retaining local worker result only",
+            topic_queue_id,
+        )
+        return
+
     supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
     if not supabase_url or not supabase_key:
@@ -10102,6 +10275,53 @@ def process_one_job(job: dict) -> None:
 
         _report_remote_outcome(job, job_log, success=True, output_ref=output_ref, result_payload=result_payload)
         _save_result_to_supabase(job_type, result_payload, job_log)
+        # A visible-script replacement is not considered finished after only
+        # its narration/media package is ready. Queue its real publish
+        # metadata stage so the same validated result becomes visible in both
+        # the admin category and user topic pages.
+        if job_type == "script_generate" and (job.get("payload") or {}).get("existing_result_replacement"):
+            topic_queue_id = str(result_payload.get("topic_queue_id") or "").strip()
+            if topic_queue_id:
+                metadata_payload = {
+                    "topic_queue_id": topic_queue_id,
+                    "category": (job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "",
+                    "category_id": (job.get("payload") or {}).get("category_id"),
+                    "topic": result_payload.get("topic") or "",
+                    "script": result_payload.get("script") or "",
+                    "structure": result_payload.get("structure") or {},
+                    "upload_title": result_payload.get("upload_title") or "",
+                    "title_generation": result_payload.get("title_generation") or {},
+                    "narrative_blueprint": result_payload.get("narrative_blueprint") or {},
+                    "script_quality_report": result_payload.get("script_quality_report") or {},
+                    "generation_models": result_payload.get("generation_models") or {},
+                    "sfx_cues": result_payload.get("sfx_cues") or [],
+                    "sfx_cues_json": result_payload.get("sfx_cues_json") or "[]",
+                    "language": result_payload.get("language") or "ko",
+                    "defer_ready_until_quality_gate": True,
+                    "existing_result_replacement": True,
+                }
+                existing_metadata = any(
+                    existing.get("job_type") == "publish_metadata_generate"
+                    and str((existing.get("payload") or {}).get("topic_queue_id") or "") == topic_queue_id
+                    and existing.get("source") == "visible-script-regeneration-metadata"
+                    and existing.get("status") in {
+                        job_store.QUEUED, job_store.CLAIMED, job_store.PREPARING,
+                        job_store.RENDERING, job_store.UPLOADING, job_store.COMPLETED,
+                    }
+                    for existing in job_store.list_jobs(limit=1000)
+                )
+                if not existing_metadata:
+                    metadata_job_id = job_store.submit_job(
+                        "publish_metadata_generate",
+                        metadata_payload,
+                        priority=89,
+                        source="visible-script-regeneration-metadata",
+                        max_retries=0,
+                    )
+                    job_log.info(
+                        "Queued publish metadata job %s for visible replacement topic_queue_id=%s",
+                        metadata_job_id, topic_queue_id,
+                    )
         _last_success_at = time.time()
 
     except job_store.InvalidTransitionError as e:

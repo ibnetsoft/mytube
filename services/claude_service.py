@@ -27,6 +27,8 @@ def normalize_claude_model_name(model_name: str) -> str:
     
     if "haiku-4" in lower or "haiku-4.5" in lower or "haiku-4-5" in lower or "haiku" in lower:
         return "claude-haiku-4-5-20251001"
+    if "sonnet-4-6" in lower:
+        return "claude-sonnet-4-6"
     if "sonnet-5" in lower:
         return "claude-sonnet-5"
     if "sonnet" in lower:
