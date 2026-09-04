@@ -4001,6 +4001,11 @@ export default function DashboardContent() {
                                         const pendingTopics = allPendingTopics.filter(t => getTopicPreparation(t).ready);
                                         const preparingTopics = allPendingTopics.filter(t => !getTopicPreparation(t).ready);
                                         const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
+                                        const hiddenTopics = topics.filter(t =>
+                                            t.category_id === cat.id
+                                            && t.status === 'excluded'
+                                            && t.progress_payload?.admin_hidden === true
+                                        );
                                         const previewTopicItems = pendingTopics.slice(0, 10);
                                         const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
                                         const staleYearPendingCount = allPendingTopics.filter((topicItem: any) => /2024|2025/.test(String(topicItem.topic || ''))).length;
@@ -4059,6 +4064,9 @@ export default function DashboardContent() {
                                                     <div className="flex flex-wrap gap-3 text-[11px] font-black tracking-wider uppercase mb-6">
                                                         <span className="px-3 py-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-lg">대기주제: {pendingTopics.length}개</span>
                                                         <span className="px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-lg">완료주제: {completedTopics.length}개</span>
+                                                        {hiddenTopics.length > 0 && (
+                                                            <span className="px-3 py-1 bg-gray-500/10 text-gray-300 border border-gray-500/20 rounded-lg">가림주제: {hiddenTopics.length}개</span>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -4235,6 +4243,31 @@ export default function DashboardContent() {
                                                                 </li>
                                                             ))}
                                                         </ol>
+                                                    </div>
+                                                )}
+                                                {hiddenTopics.length > 0 && (
+                                                    <div className="mt-3 rounded-2xl border border-gray-500/20 bg-gray-950/30 p-4">
+                                                        <div className="mb-3 flex items-center justify-between gap-2">
+                                                            <p className="text-[11px] font-black text-gray-300">가림된 주제</p>
+                                                            <span className="text-[10px] font-bold text-gray-500">{hiddenTopics.length}개</span>
+                                                        </div>
+                                                        <ul className="space-y-2 text-[11px] leading-relaxed text-gray-400">
+                                                            {hiddenTopics.map((topicItem: any) => (
+                                                                <li key={`${cat.id}-hidden-topic-${topicItem.id}`} className="flex items-start gap-2 rounded-xl px-2 py-2 hover:bg-white/[0.03]">
+                                                                    <span className="min-w-0 flex-1 break-words line-through decoration-gray-600">
+                                                                        {topicItem.topic}
+                                                                    </span>
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={topicActionLoadingId === `visibility-${topicItem.id}`}
+                                                                        onClick={() => handleTopicVisibility(topicItem, false)}
+                                                                        className="shrink-0 text-[10px] font-black text-emerald-300 hover:text-emerald-200 disabled:opacity-50"
+                                                                    >
+                                                                        {topicActionLoadingId === `visibility-${topicItem.id}` ? '처리 중' : '가림 해제'}
+                                                                    </button>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
                                                     </div>
                                                 )}
                                             </div>
