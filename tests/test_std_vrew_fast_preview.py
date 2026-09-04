@@ -43,3 +43,9 @@ def test_std_drive_folder_checks_are_reused_for_background_segment_saves():
     assert "STD_FOLDER_CACHE_TTL_MS = 5 * 60_000" in STD_DRIVE
     assert "stdProjectFolderCache.get(cacheKey)" in STD_DRIVE
     assert STD_DRIVE.count("stdProjectFolderCache.set(cacheKey") == 2
+
+
+def test_background_cache_accepts_topic_queue_project_ids():
+    assert "topicIdFromProjectParam" in SEGMENT_CACHE
+    assert ".eq('topic_queue_id', topicQueueId)" in SEGMENT_CACHE
+    assert "loadStdProject(" in SEGMENT_CACHE

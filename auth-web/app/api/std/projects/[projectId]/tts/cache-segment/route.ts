@@ -12,6 +12,36 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 const MAX_SEGMENT_AUDIO_BYTES = 2_500_000
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function topicIdFromProjectParam(projectId: string) {
+    const value = String(projectId || '').trim()
+    const match = value.match(/^(?:proj-)?(\d+)$/i)
+    return match ? Number(match[1]) : null
+}
+
+async function loadStdProject(projectId: string, employeeEmail: string) {
+    const topicQueueId = topicIdFromProjectParam(projectId)
+    let query = supabaseAdmin.from('std_projects').select('*')
+    if (UUID_RE.test(projectId)) {
+        query = query.eq('id', projectId)
+    } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
+        query = query.eq('topic_queue_id', topicQueueId)
+    } else {
+        return { data: null, error: null }
+    }
+
+    const ownedResult = await query.eq('employee_email', employeeEmail).maybeSingle()
+    if (ownedResult.data || ownedResult.error) return ownedResult
+
+    let fallbackQuery = supabaseAdmin.from('std_projects').select('*')
+    if (UUID_RE.test(projectId)) {
+        fallbackQuery = fallbackQuery.eq('id', projectId)
+    } else {
+        fallbackQuery = fallbackQuery.eq('topic_queue_id', topicQueueId)
+    }
+    return fallbackQuery.maybeSingle()
+}
 
 function safeCacheKey(value: FormDataEntryValue | null): string {
     return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80)
@@ -40,12 +70,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Segment audio size is invalid' }, { status: 413 })
     }
 
-    const { data: project, error: projectError } = await supabaseAdmin
-        .from('std_projects')
-        .select('*')
-        .eq('id', params.projectId)
-        .eq('employee_email', auth.requester.email)
-        .maybeSingle()
+    const { data: project, error: projectError } = await loadStdProject(
+        params.projectId,
+        auth.requester.email
+    )
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
