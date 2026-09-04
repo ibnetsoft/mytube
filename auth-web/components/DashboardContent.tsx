@@ -1916,18 +1916,28 @@ export default function DashboardContent() {
                 page: '1',
                 perPage: '300',
             })
-            const res = await adminFetch(`/api/admin/topics-queue?${params.toString()}`)
-            const data = await res.json()
-            if (!Array.isArray(data.topics)) return
+            const [activeResult, hiddenResult] = await Promise.allSettled([
+                adminFetch(`/api/admin/topics-queue?${params.toString()}`),
+                adminFetch('/api/admin/topics-queue/visibility'),
+            ])
+
+            let activeTopics: any[] = []
+            if (activeResult.status === 'fulfilled') {
+                try {
+                    const data = await activeResult.value.json()
+                    if (activeResult.value.ok && Array.isArray(data.topics)) activeTopics = data.topics
+                } catch {}
+            }
 
             let hiddenTopics: any[] = []
-            try {
-                const hiddenRes = await adminFetch('/api/admin/topics-queue/visibility')
-                const hiddenData = await hiddenRes.json()
-                if (hiddenRes.ok && Array.isArray(hiddenData.topics)) hiddenTopics = hiddenData.topics
-            } catch {}
+            if (hiddenResult.status === 'fulfilled') {
+                try {
+                    const hiddenData = await hiddenResult.value.json()
+                    if (hiddenResult.value.ok && Array.isArray(hiddenData.topics)) hiddenTopics = hiddenData.topics
+                } catch {}
+            }
 
-            const mergedTopics = [...data.topics]
+            const mergedTopics = [...activeTopics]
             const loadedTopicIds = new Set(mergedTopics.map((topic: any) => String(topic.id)))
             hiddenTopics.forEach((topic: any) => {
                 if (!loadedTopicIds.has(String(topic.id))) mergedTopics.push(topic)
