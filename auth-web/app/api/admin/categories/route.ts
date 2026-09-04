@@ -56,7 +56,7 @@ export async function GET(req: Request) {
         if (cached) {
             return NextResponse.json({ ...cached, hiddenTopics: await loadHiddenTopics() }, {
                 headers: {
-                    'Cache-Control': `private, max-age=${CATEGORIES_CACHE_TTL_SECONDS}`,
+                    'Cache-Control': 'private, no-store',
                     'X-Admin-Cache': 'HIT',
                 },
             })
@@ -84,7 +84,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ ...response, hiddenTopics: await loadHiddenTopics() }, {
             headers: {
-                'Cache-Control': `private, max-age=${CATEGORIES_CACHE_TTL_SECONDS}`,
+                'Cache-Control': 'private, no-store',
                 'X-Admin-Cache': 'MISS',
             },
         })

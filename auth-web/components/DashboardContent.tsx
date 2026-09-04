@@ -1897,7 +1897,7 @@ export default function DashboardContent() {
         const shouldShowBlockingLoader = !hasLoadedCategoriesRef.current && !background
         try {
             if (shouldShowBlockingLoader) setCategoriesLoading(true)
-            const res = await adminFetch('/api/admin/categories')
+            const res = await adminFetch('/api/admin/categories?includeHiddenTopics=1', { cache: 'no-store' })
             const data = await res.json()
             if (data.categories) {
                 setCategories(data.categories)
