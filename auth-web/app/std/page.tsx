@@ -437,6 +437,13 @@ const isLooseClosingQuote = (text: string, index: number) => {
     return Boolean(prev && !/\s/.test(prev) && (!next || /\s/.test(next)))
 }
 
+const isRepeatedOpeningQuote = (text: string, index: number, expectedClose: string) => {
+    const char = text[index]
+    if ((char !== "'" && char !== '"') || char !== expectedClose || index <= 0) return false
+    if (text[index - 1] !== char) return false
+    return text.slice(0, index - 1).trim() === '' && text.slice(index + 1).trim() !== ''
+}
+
 const scanDialogueQuoteState = (text: string, incomingClose = '') => {
     const value = String(text || '')
     let expectedClose = incomingClose
@@ -448,6 +455,7 @@ const scanDialogueQuoteState = (text: string, incomingClose = '') => {
 
         if (expectedClose) {
             isDialogue = true
+            if (isRepeatedOpeningQuote(value, i, expectedClose)) continue
             if (char === expectedClose || DIALOGUE_CLOSING_QUOTES.has(char)) {
                 expectedClose = ''
             }
@@ -6285,6 +6293,13 @@ export default function StdPortalPage() {
                                                     : segmentStatus === 'stale'
                                                     ? '재생성 필요'
                                                     : '오류'
+                                                const groupDialogueFlags = new Map<number, boolean>()
+                                                let groupExpectedClose = ''
+                                                group.subtitles.forEach((item: any) => {
+                                                    const scan = scanDialogueQuoteState(item?.text, groupExpectedClose)
+                                                    groupDialogueFlags.set(item.subtitleIndex, scan.isDialogue)
+                                                    groupExpectedClose = scan.nextClose
+                                                })
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
@@ -6366,7 +6381,7 @@ export default function StdPortalPage() {
                                                                 <div className="space-y-1.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
-                                                                        const isDialogueBlock = isSubtitleDialogue(item, item.subtitleIndex)
+                                                                        const isDialogueBlock = Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
