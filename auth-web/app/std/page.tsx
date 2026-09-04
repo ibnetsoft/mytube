@@ -817,6 +817,7 @@ export default function StdPortalPage() {
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
+    const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
     const [subLineSpacing, setSubLineSpacing] = useState('0.1')
@@ -844,6 +845,10 @@ export default function StdPortalPage() {
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
     const [newSubPresetName, setNewSubPresetName] = useState('')
+
+    useEffect(() => {
+        setSelectedSubtitleSceneNumbers([])
+    }, [selectedProject?.project?.id])
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
     
@@ -1765,9 +1770,16 @@ export default function StdPortalPage() {
 
     const setSubtitleGroupVoice = async (group: any, voiceId: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
+        const groupSceneNumber = Number(group.scene_number)
+        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers)
+        const targetSceneNumbers = selectedSceneSet.has(groupSceneNumber)
+            ? selectedSceneSet
+            : new Set([groupSceneNumber])
+        const changedIndexes: number[] = []
         if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
         const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
-            if (index < group.firstIndex || index > group.lastIndex) return item
+            if (!targetSceneNumbers.has(Number(item?.scene_number))) return item
+            changedIndexes.push(index)
             return {
                 ...item,
                 voice_id: nextVoiceId,
@@ -1775,8 +1787,8 @@ export default function StdPortalPage() {
             }
         })
         if (currentNav === 'subtitle_vrew') {
-            updatedSubtitles.slice(group.firstIndex, group.lastIndex + 1).forEach((item: any, offset: number) => {
-                markVrewSegmentStale(item, group.firstIndex + offset)
+            changedIndexes.forEach((index) => {
+                markVrewSegmentStale(updatedSubtitles[index], index)
             })
         }
         setLocalSubtitles(updatedSubtitles)
@@ -6269,6 +6281,11 @@ export default function StdPortalPage() {
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
                                                 총 {localSubtitles.length}개 자막 블록
                                             </span>
+                                            {selectedSubtitleSceneNumbers.length > 0 && (
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
+                                                    씬 {selectedSubtitleSceneNumbers.length}개 선택
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">+ 추가</button>
@@ -6324,6 +6341,7 @@ export default function StdPortalPage() {
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
+                                                const isChecked = selectedSubtitleSceneNumbers.includes(Number(sNum))
                                                 const isHook = sNum <= 12
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
@@ -6353,11 +6371,31 @@ export default function StdPortalPage() {
                                                             setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
                                                         className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
-                                                            isActive
+                                                            isChecked
+                                                                ? 'bg-cyan-500/10 border-cyan-400/70 shadow-md'
+                                                                : isActive
                                                                 ? 'bg-blue-600/10 border-blue-500 shadow-md'
                                                                 : 'bg-[#14181f] border-white/5 hover:border-white/20'
                                                         }`}
                                                     >
+                                                        <div
+                                                            className="w-6 pt-1 shrink-0 flex justify-center"
+                                                            onClick={(event) => event.stopPropagation()}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => {
+                                                                    setSelectedSubtitleSceneNumbers(prev => (
+                                                                        prev.includes(Number(sNum))
+                                                                            ? prev.filter(sceneNumber => sceneNumber !== Number(sNum))
+                                                                            : [...prev, Number(sNum)]
+                                                                    ))
+                                                                }}
+                                                                aria-label={`씬 ${sNum} 선택`}
+                                                                className="w-4 h-4 accent-cyan-500 cursor-pointer"
+                                                            />
+                                                        </div>
                                                         {/* 이미지 & 타임 */}
                                                         <div className="w-40 h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
                                                             {group.video_url ? (
@@ -6416,7 +6454,9 @@ export default function StdPortalPage() {
                                                                             `scene-${sNum}`,
                                                                             groupVoiceId,
                                                                             (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
-                                                                            `씬 ${sNum} 전체 성우`
+                                                                            isChecked && selectedSubtitleSceneNumbers.length > 1
+                                                                                ? `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
+                                                                                : `씬 ${sNum} 전체 성우`
                                                                         )}
                                                                     </div>
                                                                 )}
