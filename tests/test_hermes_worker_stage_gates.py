@@ -489,6 +489,8 @@ def test_script_jobs_support_scoped_model_override_and_smaller_longform_chunks()
     assert 'get("ai_model_override")' in source
     assert "8 if len(scenes) >= 40 else 4" in source
     assert "model_override=job_model_override" in source
+    rewrite_source = inspect.getsource(hermes_worker._revise_script_sections)
+    assert '.get("min_chars") or 80' in rewrite_source
 
 
 def test_script_quality_retries_malformed_json_response():

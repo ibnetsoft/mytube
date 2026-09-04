@@ -8662,7 +8662,7 @@ Return ONLY JSON:
         _ensure_scene_section_target_length(
             section,
             scene,
-            int((scene_budgets[index] if index < len(scene_budgets) else {}).get("target_chars") or 80),
+            int((scene_budgets[index] if index < len(scene_budgets) else {}).get("min_chars") or 80),
             language=language,
             is_multi=is_multi,
         )
