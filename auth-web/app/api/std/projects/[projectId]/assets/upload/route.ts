@@ -171,6 +171,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 ? project.project_payload.structure.scenes
                 : (Array.isArray(project.project_payload?.scenes) ? project.project_payload.scenes : [])
             const payloadScene = payloadScenes.find((s: any, index: number) => sceneNumberOf(s, index) === sceneNumber) || {}
+            const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber)
             const { data: insertedScene, error: insertSceneError } = await supabaseAdmin
                 .from('std_project_scenes')
                 .insert({
@@ -179,9 +180,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     scene_title: String(payloadScene.scene_title || payloadScene.title || `Scene ${sceneNumber}`).slice(0, 500),
                     scene_text: String(payloadScene.scene_text || payloadScene.script_excerpt || payloadScene.text || '').slice(0, 10000),
                     image_prompt: String(payloadScene.image_prompt || payloadScene.prompt || '').slice(0, 20000),
-                    video_prompt: String(payloadScene.video_prompt || '').slice(0, 20000),
+                    video_prompt: requiresVideoPrompt ? String(payloadScene.video_prompt || '').slice(0, 20000) : '',
                     asset_status: 'missing',
-                    metadata: payloadScene.metadata || payloadScene || {},
+                    metadata: {
+                        ...(payloadScene.metadata || payloadScene || {}),
+                        visual_type: requiresVideoPrompt ? (payloadScene.visual_type || 'video') : 'image',
+                        video_prompt_required: requiresVideoPrompt,
+                    },
                 })
                 .select('id,scene_number')
                 .single()

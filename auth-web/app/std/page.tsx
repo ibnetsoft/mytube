@@ -1213,11 +1213,16 @@ export default function StdPortalPage() {
             scene_title: String(scene?.scene_title || `Scene ${index + 1}`),
             scene_text: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
             image_prompt: String(scene?.image_prompt || ''),
-            video_prompt: String(scene?.video_prompt || ''),
+            video_prompt: isStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
+                ? String(scene?.video_prompt || '')
+                : '',
             metadata: {
                 ...(scene?.metadata || {}),
                 script_excerpt: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
-                visual_type: scene?.visual_type || null,
+                visual_type: isStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
+                    ? (scene?.visual_type || 'video')
+                    : 'image',
+                video_prompt_required: isStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1),
                 synced_from_full_script_at: syncedAt,
             },
         }))
@@ -2774,12 +2779,17 @@ export default function StdPortalPage() {
         let rawScenes = Array.isArray(struct.scenes) && struct.scenes.length > 0 ? struct.scenes : []
         if (rawScenes.length === 0) {
             rawScenes = Array.from({ length: 53 }, (_, i) => {
+                const sceneNumber = i + 1
+                const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber)
                 const excerpt = realDefaultNarratives[i % realDefaultNarratives.length]
                 return {
-                    scene_number: i + 1,
-                    scene_order: i + 1,
+                    scene_number: sceneNumber,
+                    scene_order: sceneNumber,
                     script_excerpt: `${excerpt}`,
-                    video_prompt: `The shot uses a slow push-in. Scene ${i + 1} for ${sampleTopicTitle}. Traditional Korean period cinematography, 8k photorealism.`,
+                    video_prompt: requiresVideoPrompt
+                        ? `The shot uses a slow push-in. Scene ${sceneNumber} for ${sampleTopicTitle}. Traditional Korean period cinematography, 8k photorealism.`
+                        : '',
+                    video_prompt_required: requiresVideoPrompt,
                 }
             })
         }
@@ -2808,7 +2818,10 @@ export default function StdPortalPage() {
 
             const rawScript = partitionedScript[i] || s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
-            const videoPromptText = s.video_prompt || s.prompt_en || s.prompt || s.image_prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`
+            const requiresVideoPrompt = isStdRequiredVideoScene(num)
+            const videoPromptText = requiresVideoPrompt
+                ? (s.video_prompt || s.prompt_en || s.prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`)
+                : ''
             const generatedImagePrompt = `Image prompt: visualize this narration beat with the selected project style, consistent characters, no text, no captions: ${scriptText}`
             const imagePromptText = partitionedScript[i] ? generatedImagePrompt : (s.image_prompt || generatedImagePrompt)
 
@@ -2826,7 +2839,8 @@ export default function StdPortalPage() {
                 video_url: videoUrl,
                 image_url: imageUrl,
                 asset_status: videoUrl ? 'ready' : (imageUrl ? 'ready' : 'pending'),
-                video_prompt_required: true,
+                visual_type: requiresVideoPrompt ? 'video' : 'image',
+                video_prompt_required: requiresVideoPrompt,
                 metadata: s,
             }
         })
@@ -3899,13 +3913,18 @@ export default function StdPortalPage() {
                     const payloadScene = payloadSceneByNumber.get(sceneNumber) || {}
                     const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
                     const cleanedText = cleanScriptContextText(rawText)
+                    const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber)
                     return {
                         ...s,
                         scene_text: cleanedText,
                         script_excerpt: cleanedText,
-                        video_prompt: s.video_prompt || payloadScene.video_prompt || s.prompt_en || s.prompt || s.image_prompt || payloadScene.prompt_en || payloadScene.prompt || payloadScene.image_prompt || '',
+                        video_prompt: requiresVideoPrompt
+                            ? (s.video_prompt || payloadScene.video_prompt || s.prompt_en || s.prompt || '')
+                            : '',
                         video_url: sanitizeAssetUrl(s.video_url || s.video || payloadScene.video_url || payloadScene.video),
                         image_url: sanitizeAssetUrl(s.image_url || s.image || payloadScene.image_url || payloadScene.image),
+                        visual_type: requiresVideoPrompt ? (s.visual_type || 'video') : 'image',
+                        video_prompt_required: requiresVideoPrompt,
                     }
                 })
 
@@ -7905,6 +7924,9 @@ export default function StdPortalPage() {
                                 {selectedProject.scenes.map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
+                                    const videoPromptText = inRequiredZone
+                                        ? String(scene.video_prompt || scene.prompt_en || '')
+                                        : ''
                                     const isDual = Boolean(dualFrameStates[i])
                                     const isSelected = selectedSceneIndexes.includes(i)
 
@@ -7987,7 +8009,7 @@ export default function StdPortalPage() {
                                                         <span className="text-[10px] font-bold text-blue-400">🌊 Video Prompt</span>
                                                         <div className="flex items-center gap-1">
                                                             <button
-                                                                onClick={() => copyPromptText(scene.video_prompt || scene.prompt_en || '')}
+                                                                onClick={() => copyPromptText(videoPromptText)}
                                                                 className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-all"
                                                             >
                                                                 Copy
@@ -8001,7 +8023,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                     </div>
                                                     <p className="text-[11px] text-gray-300 leading-relaxed overflow-hidden line-clamp-5 font-mono">
-                                                        {scene.video_prompt || scene.prompt_en || `Start from the exact image keyframe for scene ${sceneNum}. At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife's old handbag...`}
+                                                        {videoPromptText}
                                                     </p>
                                                 </div>
 

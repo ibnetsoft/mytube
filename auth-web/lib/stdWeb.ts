@@ -267,7 +267,8 @@ export function buildStdScenes(topic: any) {
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
-            const videoPrompt = sceneVideoPrompt(scene)
+            const requiresVideoPrompt = normalizedSceneNumber <= MAX_VIDEO_PROMPT_SCENES
+            const videoPrompt = requiresVideoPrompt ? sceneVideoPrompt(scene) : ''
             const sceneText = firstText(
                 partitioned[index],
                 scene?.script_excerpt,
@@ -294,6 +295,8 @@ export function buildStdScenes(topic: any) {
                 scene_text: sceneText,
                 image_prompt: imagePrompt,
                 video_prompt: videoPrompt,
+                visual_type: requiresVideoPrompt ? 'video' : 'image',
+                video_prompt_required: requiresVideoPrompt,
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }

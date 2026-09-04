@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 
 export const dynamic = 'force-dynamic'
 
@@ -164,16 +165,19 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .map((scene: any, index: number) => {
                 const sceneNumber = Number(scene?.scene_number || index + 1)
                 if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
+                const normalizedSceneNumber = Math.floor(sceneNumber)
+                const requiresVideoPrompt = isStdRequiredVideoScene(normalizedSceneNumber)
                 return {
-                    scene_number: Math.floor(sceneNumber),
-                    scene_title: String(scene?.scene_title || scene?.title || `Scene ${Math.floor(sceneNumber)}`).slice(0, 500),
+                    scene_number: normalizedSceneNumber,
+                    scene_title: String(scene?.scene_title || scene?.title || `Scene ${normalizedSceneNumber}`).slice(0, 500),
                     scene_text: String(scene?.text || scene?.script_excerpt || scene?.scene_text || '').slice(0, 10000),
                     image_prompt: String(scene?.image_prompt || scene?.prompt || '').slice(0, 20000),
-                    video_prompt: String(scene?.video_prompt || '').slice(0, 20000),
+                    video_prompt: requiresVideoPrompt ? String(scene?.video_prompt || '').slice(0, 20000) : '',
                     metadata: {
                         ...(scene?.metadata || {}),
                         script_excerpt: scene?.script_excerpt || scene?.text || scene?.scene_text || '',
-                        visual_type: scene?.visual_type || null,
+                        visual_type: requiresVideoPrompt ? (scene?.visual_type || 'video') : 'image',
+                        video_prompt_required: requiresVideoPrompt,
                     },
                 }
             })
