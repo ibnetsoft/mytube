@@ -3634,6 +3634,159 @@ export default function StdPortalPage() {
         alert(`외부 오디오 파일 '${file.name}'이(가) 업로드되었습니다.`)
     }
 
+    const assetPlaybackUrl = (asset: any) => {
+        if (!selectedProject?.project?.id || !asset?.id) return ''
+        return `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
+    }
+
+    const updateBgmSfxSettings = async (nextRenderSettings: any, nextAssets?: any[]) => {
+        if (!selectedProject?.project?.id) return
+        const nextProjectPayload = {
+            ...(selectedProject.project.project_payload || {}),
+            render_settings: nextRenderSettings,
+            bgm_sfx_saved: true,
+        }
+        const nextProject = {
+            ...selectedProject,
+            ...(nextAssets ? { assets: nextAssets } : {}),
+            project: {
+                ...selectedProject.project,
+                progress_payload: {
+                    ...(selectedProject.project.progress_payload || {}),
+                    bgm_sfx_saved: true,
+                },
+                project_payload: nextProjectPayload,
+            },
+        }
+        setSelectedProject(nextProject)
+        rememberProjectState(nextProject)
+
+        const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
+            method: 'PATCH',
+            headers: authedJsonHeaders,
+            body: JSON.stringify({
+                progress_payload: { bgm_sfx_saved: true },
+                project_payload: nextProjectPayload,
+            }),
+        })
+        const payload = await safeParseJson(res, 'BGM/SFX settings save failed')
+        if (!res.ok || payload.success === false) {
+            throw new Error(payload.error || 'BGM/SFX settings save failed')
+        }
+    }
+
+    const uploadDriveAudioAsset = async (file: File, assetType: 'bgm' | 'sfx', sceneNumber?: number | null) => {
+        if (!selectedProject?.project?.id) throw new Error('Project not selected')
+        const form = new FormData()
+        form.set('file', file)
+        form.set('asset_type', assetType)
+        form.set('mime_type', file.type || 'audio/mpeg')
+        form.set('file_name', file.name)
+        form.set('file_size', String(file.size))
+        if (sceneNumber != null && Number.isFinite(sceneNumber)) form.set('scene_number', String(sceneNumber))
+
+        const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
+            method: 'POST',
+            headers: authedUploadHeaders,
+            body: form,
+        })
+        const uploadPayload = await safeParseJson(uploadRes, `${assetType.toUpperCase()} upload failed`)
+        if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
+            throw new Error(uploadPayload.error || `${assetType.toUpperCase()} upload failed`)
+        }
+        return uploadPayload.asset
+    }
+
+    const handleUploadBgmFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file || !selectedProject?.project?.id) return
+        setUploadingKey('bgm-upload')
+        try {
+            const asset = await uploadDriveAudioAsset(file, 'bgm')
+            const currentSettings = selectedProject.project.project_payload?.render_settings || {}
+            const nextAssets = [asset, ...selectedProject.assets.filter(a => a.asset_type !== 'bgm')]
+            await updateBgmSfxSettings({
+                ...currentSettings,
+                bgm_asset_id: asset.id,
+                bgm_file_name: asset.file_name || file.name,
+                bgm_volume: currentSettings.bgm_volume ?? 0.25,
+            }, nextAssets)
+            setMessage(`BGM '${file.name}'이 Google Drive에 저장되었습니다.`)
+        } catch (error: any) {
+            setMessage(error?.message || 'BGM upload failed')
+        } finally {
+            setUploadingKey('')
+            e.target.value = ''
+        }
+    }
+
+    const handleUploadCurrentSfxFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file || !selectedProject?.project?.id) return
+        const subtitle = localSubtitles[selectedSubIndex] || {}
+        const sceneNumber = Number(subtitle.scene_number) || null
+        setUploadingKey('sfx-upload')
+        try {
+            const asset = await uploadDriveAudioAsset(file, 'sfx', sceneNumber)
+            const currentSettings = selectedProject.project.project_payload?.render_settings || {}
+            const currentCues = Array.isArray(currentSettings.sfx_cues) ? currentSettings.sfx_cues : []
+            const start = Number(subtitle.start_num ?? subtitle.start_time ?? 0) || 0
+            const nextCue = {
+                id: `subtitle-${selectedSubIndex}`,
+                asset_id: asset.id,
+                file_name: asset.file_name || file.name,
+                scene_number: sceneNumber,
+                subtitle_index: selectedSubIndex,
+                start,
+                volume_db: -18,
+                enabled: true,
+            }
+            const nextCues = [
+                ...currentCues.filter((cue: any) => Number(cue?.subtitle_index) !== selectedSubIndex),
+                nextCue,
+            ].sort((a: any, b: any) => Number(a.start || 0) - Number(b.start || 0))
+            const nextAssets = [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)]
+            await updateBgmSfxSettings({
+                ...currentSettings,
+                sfx_cues: nextCues,
+            }, nextAssets)
+            setMessage(`현재 자막 구간에 SFX '${file.name}'을 적용했습니다.`)
+        } catch (error: any) {
+            setMessage(error?.message || 'SFX upload failed')
+        } finally {
+            setUploadingKey('')
+            e.target.value = ''
+        }
+    }
+
+    const clearBgmSetting = async () => {
+        if (!selectedProject?.project?.id) return
+        const currentSettings = selectedProject.project.project_payload?.render_settings || {}
+        const { bgm_asset_id, bgm_file_name, ...rest } = currentSettings
+        try {
+            await updateBgmSfxSettings(rest)
+            setMessage('BGM 적용을 해제했습니다.')
+        } catch (error: any) {
+            setMessage(error?.message || 'BGM setting clear failed')
+        }
+    }
+
+    const clearCurrentSfxSetting = async () => {
+        if (!selectedProject?.project?.id) return
+        const currentSettings = selectedProject.project.project_payload?.render_settings || {}
+        const nextCues = (Array.isArray(currentSettings.sfx_cues) ? currentSettings.sfx_cues : [])
+            .filter((cue: any) => Number(cue?.subtitle_index) !== selectedSubIndex)
+        try {
+            await updateBgmSfxSettings({
+                ...currentSettings,
+                sfx_cues: nextCues,
+            })
+            setMessage('현재 자막 구간의 SFX 적용을 해제했습니다.')
+        } catch (error: any) {
+            setMessage(error?.message || 'SFX setting clear failed')
+        }
+    }
+
     const handleApplySubtitlePreset = (presetName: string) => {
         if (!presetName) return
         setSelectedSubPreset(presetName)
@@ -5248,6 +5401,15 @@ export default function StdPortalPage() {
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
     const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
     const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
+    const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
+    const bgmAsset = selectedProject?.assets?.find((asset: any) =>
+        asset.asset_type === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
+    )
+    const sfxCues = Array.isArray(bgmSfxSettings.sfx_cues) ? bgmSfxSettings.sfx_cues : []
+    const currentSfxCue = sfxCues.find((cue: any) => Number(cue?.subtitle_index) === selectedSubIndex)
+    const currentSfxAsset = currentSfxCue?.asset_id
+        ? selectedProject?.assets?.find((asset: any) => asset.id === currentSfxCue.asset_id)
+        : null
 
     
     // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일)
@@ -7437,8 +7599,116 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="py-6 text-center text-xs text-gray-400">
-                                                🎵 BGM 배경음 및 SFX 효과음 설정 패널
+                                            <div className="space-y-3">
+                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 text-xs font-black text-white">
+                                                                <Music size={15} className="text-cyan-300" />
+                                                                <span>BGM 배경음</span>
+                                                            </div>
+                                                            <div className="mt-1 truncate text-[11px] text-gray-400">
+                                                                {bgmAsset?.file_name || bgmSfxSettings.bgm_file_name || 'Google Drive에 업로드된 BGM이 없습니다.'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex shrink-0 items-center gap-2">
+                                                            <input
+                                                                id="std-bgm-upload"
+                                                                type="file"
+                                                                accept="audio/*"
+                                                                className="hidden"
+                                                                onChange={handleUploadBgmFile}
+                                                            />
+                                                            {bgmAsset && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={clearBgmSetting}
+                                                                    title="BGM 적용 해제"
+                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-red-400/50 hover:text-red-300"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            )}
+                                                            <label
+                                                                htmlFor="std-bgm-upload"
+                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
+                                                                    uploadingKey === 'bgm-upload'
+                                                                        ? 'cursor-wait border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                                                                        : 'cursor-pointer border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
+                                                                }`}
+                                                            >
+                                                                <Upload size={13} />
+                                                                {uploadingKey === 'bgm-upload' ? '업로드 중' : 'Drive 업로드'}
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {bgmAsset && (
+                                                        <audio
+                                                            src={assetPlaybackUrl(bgmAsset)}
+                                                            controls
+                                                            className="mt-3 h-8 w-full"
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 text-xs font-black text-white">
+                                                                <FileAudio size={15} className="text-purple-300" />
+                                                                <span>현재 자막 SFX</span>
+                                                                <span className="rounded bg-[#0f1420] px-1.5 py-0.5 font-mono text-[10px] text-gray-400">
+                                                                    {formatTime(Number(currentSub.start_num ?? currentSub.start_time ?? 0) || 0)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1 truncate text-[11px] text-gray-400">
+                                                                {currentSfxAsset?.file_name || currentSfxCue?.file_name || '선택한 자막 구간에 적용된 효과음이 없습니다.'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex shrink-0 items-center gap-2">
+                                                            <input
+                                                                id="std-sfx-upload"
+                                                                type="file"
+                                                                accept="audio/*"
+                                                                className="hidden"
+                                                                onChange={handleUploadCurrentSfxFile}
+                                                            />
+                                                            {currentSfxCue && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={clearCurrentSfxSetting}
+                                                                    title="현재 자막 SFX 해제"
+                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-red-400/50 hover:text-red-300"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            )}
+                                                            <label
+                                                                htmlFor="std-sfx-upload"
+                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
+                                                                    uploadingKey === 'sfx-upload'
+                                                                        ? 'cursor-wait border-purple-500/30 bg-purple-500/10 text-purple-200'
+                                                                        : 'cursor-pointer border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20'
+                                                                }`}
+                                                            >
+                                                                <Upload size={13} />
+                                                                {uploadingKey === 'sfx-upload' ? '업로드 중' : 'Drive 업로드'}
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {currentSfxAsset && (
+                                                        <audio
+                                                            src={assetPlaybackUrl(currentSfxAsset)}
+                                                            controls
+                                                            className="mt-3 h-8 w-full"
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] leading-5 text-blue-100">
+                                                    업로드한 파일은 프로젝트 Google Drive 폴더의 <span className="font-mono">04_audio</span>에 저장되고,
+                                                    렌더 제출 시 워커가 Drive에서 내려받아 기존 믹서로 적용합니다.
+                                                </div>
                                             </div>
                                         )}
                                     </div>

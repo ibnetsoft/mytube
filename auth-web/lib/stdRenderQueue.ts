@@ -57,6 +57,19 @@ function mediaExtension(name: string, mimeType?: string | null, fallback = '.bin
     return fallback
 }
 
+function clampNumber(value: any, fallback: number, min: number, max: number) {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.max(min, Math.min(max, parsed))
+}
+
+function audioManifestPath(asset: any, prefix: string, index = 0) {
+    const ext = mediaExtension(asset?.file_name, asset?.mime_type, '.mp3')
+    const safeId = String(asset?.id || asset?.drive_file_id || index || 'audio').replace(/[^a-z0-9_-]/gi, '').slice(0, 48)
+    const suffix = index > 0 ? `${String(index).padStart(2, '0')}_` : ''
+    return `audio/${prefix}_${suffix}${safeId}${ext}`
+}
+
 function crc32(buffer: Buffer) {
     let crc = 0xffffffff
     for (const byte of buffer) {
@@ -373,9 +386,62 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         })
     }
 
-    const renderSettings = {
+    const projectRenderSettings = {
         ...(project.project_payload?.settings || {}),
         ...(project.project_payload?.render_settings || {}),
+    }
+    const audioEffectAssets = activeAssets.filter((asset: any) => {
+        const type = String(asset.asset_type || '').toLowerCase()
+        return ['bgm', 'sfx'].includes(type) && String(asset.drive_file_id || '').trim()
+    })
+    const assetById = new Map(audioEffectAssets.map((asset: any) => [String(asset.id), asset]))
+    const bgmAssetId = String(projectRenderSettings.bgm_asset_id || project.project_payload?.bgm_asset_id || '').trim()
+    const bgmAsset = bgmAssetId ? assetById.get(bgmAssetId) : null
+    let bgmPath = ''
+    if (bgmAsset?.drive_file_id) {
+        bgmPath = audioManifestPath(bgmAsset, 'bgm')
+        manifestFiles.push({
+            asset_type: 'bgm',
+            drive_file_id: bgmAsset.drive_file_id,
+            path: bgmPath,
+            file_name: bgmAsset.file_name,
+            mime_type: bgmAsset.mime_type,
+            size: bgmAsset.file_size || null,
+        })
+    }
+
+    const savedSfxCues = Array.isArray(projectRenderSettings.sfx_cues)
+        ? projectRenderSettings.sfx_cues
+        : (Array.isArray(project.project_payload?.sfx_cues) ? project.project_payload.sfx_cues : [])
+    const sfxCues: any[] = []
+    savedSfxCues.forEach((cue: any, index: number) => {
+        if (!cue || cue.enabled === false) return
+        const assetId = String(cue.asset_id || '').trim()
+        const asset = assetId ? assetById.get(assetId) : null
+        if (!asset?.drive_file_id) return
+        const path = audioManifestPath(asset, 'sfx', index + 1)
+        manifestFiles.push({
+            asset_type: 'sfx',
+            scene_number: Number(cue.scene_number) || null,
+            subtitle_index: Number.isFinite(Number(cue.subtitle_index)) ? Number(cue.subtitle_index) : null,
+            drive_file_id: asset.drive_file_id,
+            path,
+            file_name: asset.file_name,
+            mime_type: asset.mime_type,
+            size: asset.file_size || null,
+        })
+        sfxCues.push({
+            ...cue,
+            path,
+            filename: path,
+            key: undefined,
+            start: clampNumber(cue.start ?? cue.time, 0, 0, 24 * 60 * 60),
+            volume_db: clampNumber(cue.volume_db, -18, -60, 12),
+        })
+    })
+
+    const renderSettings = {
+        ...projectRenderSettings,
         app_mode: 'longform',
         subtitle_bg_enabled: project.project_payload?.render_settings?.subtitle_bg_enabled
             ?? project.project_payload?.settings?.subtitle_bg_enabled
@@ -407,6 +473,10 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             ?? 0.5,
         title: project.title,
         language: project.language || 'ko',
+        ...(bgmPath ? {
+            bgm_path: bgmPath,
+            bgm_volume: clampNumber(projectRenderSettings.bgm_volume, 0.25, 0, 1),
+        } : {}),
     }
 
     return {
@@ -431,6 +501,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         content_aspect_ratio: null,
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
+        sfx_cues: sfxCues,
         asset_manifest: {
             version: 1,
             transport: 'google_drive_folder',

@@ -7,6 +7,7 @@ type DriveFolderSet = {
     imagesFolderId: string
     videosFolderId: string
     originalsFolderId: string
+    audioFolderId: string
 }
 
 type UploadSessionInput = {
@@ -112,15 +113,17 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
 
     if (existingProjectFolderId && existing.images && existing.videos && existing.originals) {
         try {
-            const [projectMeta, imagesMeta, videosMeta, originalsMeta] = await Promise.all([
+            const audioFolderId = existing.audio || await ensureDriveFolder(existingProjectFolderId, '04_audio')
+            const [projectMeta, imagesMeta, videosMeta, originalsMeta, audioMeta] = await Promise.all([
                 getStdDriveFileMetadata(existingProjectFolderId),
                 getStdDriveFileMetadata(existing.images),
                 getStdDriveFileMetadata(existing.videos),
                 getStdDriveFileMetadata(existing.originals),
+                getStdDriveFileMetadata(audioFolderId),
             ])
             const projectIsInCurrentRoot = projectMeta.mimeType === DRIVE_FOLDER_MIME
                 && projectMeta.parents?.includes(rootFolderId)
-            const childFoldersAreCurrent = [imagesMeta, videosMeta, originalsMeta].every(meta =>
+            const childFoldersAreCurrent = [imagesMeta, videosMeta, originalsMeta, audioMeta].every(meta =>
                 meta.mimeType === DRIVE_FOLDER_MIME && meta.parents?.includes(existingProjectFolderId)
             )
             if (projectIsInCurrentRoot && childFoldersAreCurrent) {
@@ -129,6 +132,7 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
                     imagesFolderId: existing.images,
                     videosFolderId: existing.videos,
                     originalsFolderId: existing.originals,
+                    audioFolderId,
                 }
                 stdProjectFolderCache.set(cacheKey, {
                     expiresAt: Date.now() + STD_FOLDER_CACHE_TTL_MS,
@@ -147,8 +151,9 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
     const imagesFolderId = await ensureDriveFolder(projectFolderId, '01_images')
     const videosFolderId = await ensureDriveFolder(projectFolderId, '02_videos')
     const originalsFolderId = await ensureDriveFolder(projectFolderId, '03_originals')
+    const audioFolderId = await ensureDriveFolder(projectFolderId, '04_audio')
 
-    const folders = { projectFolderId, imagesFolderId, videosFolderId, originalsFolderId }
+    const folders = { projectFolderId, imagesFolderId, videosFolderId, originalsFolderId, audioFolderId }
     stdProjectFolderCache.set(cacheKey, {
         expiresAt: Date.now() + STD_FOLDER_CACHE_TTL_MS,
         folders,
@@ -159,6 +164,7 @@ export async function ensureStdProjectDriveFolders(project: any): Promise<DriveF
 export function folderForAssetType(folders: DriveFolderSet, assetType: string): string {
     if (assetType === 'image' || assetType === 'thumbnail') return folders.imagesFolderId
     if (assetType === 'video') return folders.videosFolderId
+    if (assetType === 'audio' || assetType === 'bgm' || assetType === 'sfx') return folders.audioFolderId
     return folders.originalsFolderId
 }
 

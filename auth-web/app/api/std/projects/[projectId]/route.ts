@@ -129,6 +129,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'thumbnail_confirmed_at',
         'subtitles_saved',
         'subtitles_completed',
+        'bgm_sfx_saved',
     ])
     const allowedProjectPayloadKeys = new Set([
         'script',
@@ -143,6 +144,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'settings',
         'thumbnail_design',
         'thumbnail_url',
+        'bgm_sfx_saved',
     ])
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))

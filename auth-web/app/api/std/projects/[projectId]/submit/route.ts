@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .from('std_project_assets')
             .select('id,scene_number,asset_type,status,drive_file_id')
             .eq('project_id', project.id)
-            .in('asset_type', ['image', 'video', 'audio', 'thumbnail'])
+            .in('asset_type', ['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail'])
             .in('status', ['uploaded', 'assigned']),
     ])
 

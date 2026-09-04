@@ -14,7 +14,7 @@ import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const ASSET_TYPES = new Set(['image', 'video', 'audio', 'thumbnail', 'original'])
+const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
@@ -24,7 +24,7 @@ function sceneNumberOf(scene: any, index: number) {
 function validMimeForAsset(assetType: string, mimeType: string): boolean {
     if (assetType === 'image' || assetType === 'thumbnail') return mimeType.startsWith('image/')
     if (assetType === 'video') return mimeType.startsWith('video/')
-    if (assetType === 'audio') return mimeType.startsWith('audio/')
+    if (assetType === 'audio' || assetType === 'bgm' || assetType === 'sfx') return mimeType.startsWith('audio/')
     return Boolean(mimeType)
 }
 
@@ -276,6 +276,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                             images: folders.imagesFolderId,
                             videos: folders.videosFolderId,
                             originals: folders.originalsFolderId,
+                            audio: folders.audioFolderId,
                         },
                     },
                 },

@@ -925,6 +925,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                                 images: folders.imagesFolderId,
                                 videos: folders.videosFolderId,
                                 originals: folders.originalsFolderId,
+                                audio: folders.audioFolderId,
                             },
                         },
                         vrew_segment_audio_cache: {
@@ -1026,6 +1027,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                             images: folders.imagesFolderId,
                             videos: folders.videosFolderId,
                             originals: folders.originalsFolderId,
+                            audio: folders.audioFolderId,
                         },
                     },
                     has_tts_audio: true,

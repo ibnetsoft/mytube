@@ -7,7 +7,7 @@ import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 
 export const dynamic = 'force-dynamic'
 
-const ASSET_TYPES = new Set(['image', 'video', 'audio', 'thumbnail', 'original'])
+const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
