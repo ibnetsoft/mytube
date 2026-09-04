@@ -32,6 +32,9 @@ def test_admin_topic_queue_ui_can_hide_and_restore_topics():
     assert "가림된 주제" in source
     assert "가림주제: {hiddenTopics.length}개" in source
     assert "handleTopicVisibility(topicItem, false)" in source
+    assert "status: 'excluded'" in source
+    assert "hiddenData.topics.filter" in source
+    assert "setTopics(mergedTopics)" in source
 
     preview = source.split("previewTopicItems.map((topicItem, idx)", 1)[1].split("{activeTab === 'topics-queue'", 1)[0]
     edit_index = preview.index("수정")
