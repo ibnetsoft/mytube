@@ -4021,14 +4021,14 @@ export default function DashboardContent() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {categories.filter(c => (c.video_type || 'longform') === categoryListTab && normalizeContentLanguage(c.language) === categoryLangTab).map((cat) => {
-                                        const allPendingTopics = topics.filter(t => t.category_id === cat.id && t.status === 'pending');
+                                        const categoryTopics = topics.filter(t => String(t.category_id) === String(cat.id));
+                                        const allPendingTopics = categoryTopics.filter(t => t.status === 'pending');
                                         const pendingTopics = allPendingTopics.filter(t => getTopicPreparation(t).ready);
                                         const preparingTopics = allPendingTopics.filter(t => !getTopicPreparation(t).ready);
-                                        const completedTopics = topics.filter(t => t.category_id === cat.id && t.status === 'completed');
-                                        const hiddenTopics = topics.filter(t =>
-                                            t.category_id === cat.id
-                                            && t.status === 'excluded'
-                                            && t.progress_payload?.admin_hidden === true
+                                        const completedTopics = categoryTopics.filter(t => t.status === 'completed');
+                                        const hiddenTopics = categoryTopics.filter(t =>
+                                            t.status === 'excluded'
+                                            && (t.progress_payload?.admin_hidden === true || t.progress_payload?.admin_hidden === 'true')
                                         );
                                         const previewTopicItems = pendingTopics.slice(0, 10);
                                         const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
