@@ -5842,6 +5842,13 @@ export default function StdPortalPage() {
                         }
                         const narrationSubtitleCount = localSubtitles.filter((sub, index) => !isSubtitleDialogue(sub, index)).length
                         const dialogueSubtitleCount = localSubtitles.filter((sub, index) => isSubtitleDialogue(sub, index)).length
+                        const selectedSubtitleSceneGroup = subtitleSceneGroups.find(group => (
+                            selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
+                        ))
+                        const selectedSubtitleSceneVoiceId = String(
+                            selectedSubtitleSceneGroup?.subtitles.find((subtitle: any) => subtitle?.voice_id)?.voice_id
+                            || selectedVoice
+                        )
                         return (
                         <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
@@ -6282,9 +6289,17 @@ export default function StdPortalPage() {
                                                 총 {localSubtitles.length}개 자막 블록
                                             </span>
                                             {selectedSubtitleSceneNumbers.length > 0 && (
-                                                <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
-                                                    씬 {selectedSubtitleSceneNumbers.length}개 선택
-                                                </span>
+                                                <>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
+                                                        씬 {selectedSubtitleSceneNumbers.length}개 선택
+                                                    </span>
+                                                    {selectedSubtitleSceneGroup && renderVoicePicker(
+                                                        'selected-scenes-bulk',
+                                                        selectedSubtitleSceneVoiceId,
+                                                        (nextVoiceId) => void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId),
+                                                        `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
