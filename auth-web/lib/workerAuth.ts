@@ -78,6 +78,16 @@ export function isHermesWorker(worker: AuthenticatedWorker): boolean {
     return worker.allowed_job_types.some((t) => HERMES_JOB_TYPES.includes(t))
 }
 
+export async function isHermesJobId(jobId: string): Promise<boolean> {
+    const { data, error } = await supabaseAdmin
+        .from('remote_hermes_queue')
+        .select('id')
+        .eq('id', jobId)
+        .maybeSingle()
+    if (error) throw new Error(`failed to resolve worker job family: ${error.message}`)
+    return Boolean(data)
+}
+
 type AuthResult = { ok: true; worker: AuthenticatedWorker } | { ok: false; response: NextResponse }
 
 function unauthorized(detail: string): AuthResult {
@@ -196,7 +206,12 @@ export async function reportJobOutcome(
     // [AIR-0230] result_payload is render-irrelevant (undefined) on that
     // path - report_worker_render_job_outcome has no matching param, so it
     // must not be passed to that RPC call at all.
-    const hermes = isHermesWorker(auth.worker)
+    let hermes: boolean
+    try {
+        hermes = await isHermesJobId(jobId)
+    } catch (error) {
+        return NextResponse.json({ error: 'db_error', detail: String(error) }, { status: 500 })
+    }
     const { data, error } = await supabaseAdmin.rpc(
         hermes ? 'report_worker_hermes_job_outcome' : 'report_worker_render_job_outcome',
         {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { authenticateWorkerRequest, readJsonBodyWithLimit, isHermesWorker } from '@/lib/workerAuth'
+import { authenticateWorkerRequest, readJsonBodyWithLimit, isHermesJobId } from '@/lib/workerAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,8 +27,14 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
 
     // [AIR-0230] see claim/route.ts's comment - table/RPC choice is derived
     // from the authenticated worker's job-type family, not request input.
+    let hermes: boolean
+    try {
+        hermes = await isHermesJobId(params.jobId)
+    } catch (error) {
+        return NextResponse.json({ error: 'db_error', detail: String(error) }, { status: 500 })
+    }
     const { data, error } = await supabaseAdmin.rpc(
-        isHermesWorker(auth.worker) ? 'report_worker_hermes_job_progress' : 'report_worker_render_job_progress',
+        hermes ? 'report_worker_hermes_job_progress' : 'report_worker_render_job_progress',
         {
             p_job_id: params.jobId,
             p_lease_id: lease_id,

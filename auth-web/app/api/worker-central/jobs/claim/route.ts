@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     const bodyResult = await readJsonBodyWithLimit(req)
     if (!bodyResult.ok) return bodyResult.response
-    const { worker_instance_id, requested_job_types } = bodyResult.body || {}
+    const { worker_instance_id, requested_job_types, allowed_job_types } = bodyResult.body || {}
 
     if (!worker_instance_id || typeof worker_instance_id !== 'string') {
         return NextResponse.json({ error: 'invalid_request', detail: 'worker_instance_id is required' }, { status: 400 })
@@ -33,9 +33,10 @@ export async function POST(req: NextRequest) {
 
     const { worker } = auth
     let allowedJobTypes = worker.allowed_job_types
-    if (Array.isArray(requested_job_types) && requested_job_types.every((t) => typeof t === 'string')) {
+    const requestedTypes = Array.isArray(requested_job_types) ? requested_job_types : allowed_job_types
+    if (Array.isArray(requestedTypes) && requestedTypes.every((t) => typeof t === 'string')) {
         // narrow-only: intersect, never widen beyond what the token actually allows
-        allowedJobTypes = worker.allowed_job_types.filter((t) => requested_job_types.includes(t))
+        allowedJobTypes = worker.allowed_job_types.filter((t) => requestedTypes.includes(t))
     }
     if (allowedJobTypes.length === 0) {
         return NextResponse.json({ error: 'invalid_request', detail: 'no overlapping job_type between token and request' }, { status: 400 })
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     // claim RPC (migrations/air_0230_hermes_worker_central_protocol.sql) -
     // see workerAuth.ts's isHermesWorker() doc comment for why this is
     // derived from the authenticated token, not request input.
-    const hermes = isHermesWorker(worker)
+    const hermes = isHermesWorker({ ...worker, allowed_job_types: allowedJobTypes })
     const { data, error } = await supabaseAdmin.rpc(
         hermes ? 'claim_worker_hermes_job' : 'claim_worker_render_job',
         {
