@@ -106,6 +106,7 @@ import { calculateLongformPayoutByScenes, capLongformPayout } from '@/lib/stdPay
 type Topic = {
     id: number
     topic: string
+    generated_title?: string | null
     category_name: string
     language: string
     duration_minutes?: number | null
@@ -454,6 +455,7 @@ const DIALOGUE_QUOTE_OPEN_TO_CLOSE: Record<string, string> = {
 
 const DIALOGUE_CLOSING_QUOTES = new Set(Object.values(DIALOGUE_QUOTE_OPEN_TO_CLOSE))
 const STD_BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_COMMIT || 'local'
+const SHOW_TOPIC_TREND_PANEL = false
 
 const isWordQuote = (text: string, index: number) => {
     const char = text[index]
@@ -5219,28 +5221,62 @@ export default function StdPortalPage() {
         }
     }
 
-    const displayedTopics = useMemo(() => {
-        const rawList = topics
-
-        // 1. 이미 작업 중인 프로젝트들의 제목/ID 목록 수집 (추천 큐에서 제외하여 중복 작업 방지)
-        const activeProjectTitles = new Set(
+    const activeTopicTitleKeys = useMemo(() => {
+        const keys = new Set(
             projects.map(p => String(p.title || '').trim().toLowerCase().replace(/\s+/g, ''))
         )
         if (selectedProject?.project?.title) {
-            activeProjectTitles.add(String(selectedProject.project.title).trim().toLowerCase().replace(/\s+/g, ''))
+            keys.add(String(selectedProject.project.title).trim().toLowerCase().replace(/\s+/g, ''))
         }
+        return keys
+    }, [projects, selectedProject])
 
-        // 2. 검색 및 길이 필터링 + 작업 중인 프로젝트 제외
-        const filtered = rawList.filter(t => {
+    const trendTopicPool = useMemo(() => {
+        return topics.filter(t => {
             const topicKey = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
-            if (topicKey && activeProjectTitles.has(topicKey)) {
-                return false
-            }
+            if (topicKey && activeTopicTitleKeys.has(topicKey)) return false
+            if (selectedCategories.length > 0 && !selectedCategories.includes(String(t.category_name || '').trim())) return false
+            if (trendLang && String(t.language || '').toLowerCase() !== trendLang) return false
+            return true
+        })
+    }, [topics, activeTopicTitleKeys, selectedCategories, trendLang])
 
-            if (selectedCategories.length > 0 && !selectedCategories.includes(String(t.category_name || '').trim())) {
-                return false
-            }
+    const trendKeywordChips = useMemo(() => {
+        const stopwords = new Set([
+            '그리고', '하지만', '에서', '으로', '에게', '영상', '주제', '사연', '이야기',
+            'the', 'and', 'for', 'with', 'from', 'that', 'this',
+        ])
+        const stats = new Map<string, { text: string; count: number; cat: string }>()
 
+        trendTopicPool.forEach(topic => {
+            const source = `${topic.generated_title || ''} ${topic.topic || ''}`
+            const category = String(topic.category_name || '').trim()
+            source
+                .split(/[\s,./#!$%^&*;:{}=\-_`~()[\]"'“”‘’!?]+/)
+                .map(token => token.trim())
+                .filter(token => token.length >= 2 && !stopwords.has(token.toLowerCase()) && !/^\d+$/.test(token))
+                .slice(0, 16)
+                .forEach(token => {
+                    const key = token.toLowerCase()
+                    const prev = stats.get(key)
+                    stats.set(key, {
+                        text: prev?.text || token,
+                        count: (prev?.count || 0) + 1,
+                        cat: prev?.cat || category,
+                    })
+                })
+        })
+
+        return Array.from(stats.values())
+            .sort((a, b) => b.count - a.count || b.text.length - a.text.length)
+            .slice(0, 12)
+    }, [trendTopicPool])
+
+    const displayedTopics = useMemo(() => {
+        const rawList = trendTopicPool
+
+        // 2. 검색 및 길이 필터링
+        const filtered = rawList.filter(t => {
             if (topicLengthFilter === 'short' && (t.assigned_duration_minutes || t.duration_minutes || 15) >= 15) return false
             if (topicLengthFilter === 'medium' && ((t.assigned_duration_minutes || t.duration_minutes || 15) < 15 || (t.assigned_duration_minutes || t.duration_minutes || 15) > 30)) return false
             if (topicLengthFilter === 'long' && (t.assigned_duration_minutes || t.duration_minutes || 15) <= 30) return false
@@ -5268,7 +5304,7 @@ export default function StdPortalPage() {
         }
 
         return unique
-    }, [topics, topicSearchQuery, topicLengthFilter, projects, selectedProject, selectedCategories])
+    }, [trendTopicPool, topicSearchQuery, topicLengthFilter])
 
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
@@ -7934,6 +7970,7 @@ export default function StdPortalPage() {
                     {/* [주제 탐색 탭 (유저앱 topic.html 100% 동일 구현 + 상세 모달 + 프로젝트 자동 연동)] */}
                     {currentNav === 'topics' && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full pb-10">
+                            {SHOW_TOPIC_TREND_PANEL && (
                             <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
                                     <div className="flex items-center gap-2.5">
@@ -8014,24 +8051,18 @@ export default function StdPortalPage() {
                                 {/* 트렌드 버블 키워드 클라우드 */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between text-[11px] text-gray-400">
-                                        <span>추천 급상승 검색어 (클릭 시 주제 필터 적용)</span>
-                                        <span className="font-mono text-blue-400">12개 키워드 감지됨</span>
+                                        <span>현재 대기열 기반 추천 키워드 (클릭 시 주제 필터 적용)</span>
+                                        <span className="font-mono text-blue-400">{trendKeywordChips.length}개 키워드 감지됨</span>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {[
-                                            { text: '장례식 날 발견된 낡은 편지', volume: 98, cat: '한국사연' },
-                                            { text: '아내의 숨겨진 30년 첫사랑 편지', volume: 95, cat: '사연' },
-                                            { text: '조선왕조 비밀 야사', volume: 88, cat: '역사' },
-                                            { text: '유품 상자에서 나온 가족사진', volume: 85, cat: '한국사연' },
-                                            { text: '사라진 며느리가 남긴 붉은 댕기', volume: 82, cat: '옛날이야기' },
-                                            { text: '100세 시대 치매 예방 음식', volume: 79, cat: '건강' },
-                                            { text: '황혼 이혼 재산분할 진실', volume: 76, cat: '사연' },
-                                            { text: 'AI 자동화 수익 모델 2026', volume: 74, cat: '테크' },
-                                            { text: '마을 우물에서 들린 아이의 울음', volume: 70, cat: '옛날이야기' },
-                                            { text: '시니어 일자리 추천 Top 5', volume: 68, cat: '라이프' },
-                                        ].map((kw, idx) => (
+                                        {trendKeywordChips.length === 0 && (
+                                            <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#14181f] text-gray-500 border border-white/10">
+                                                조건에 맞는 대기 주제가 없습니다.
+                                            </span>
+                                        )}
+                                        {trendKeywordChips.map((kw, idx) => (
                                             <button
-                                                key={idx}
+                                                key={`${kw.text}-${idx}`}
                                                 type="button"
                                                 onClick={() => {
                                                     setTopicSearchQuery(kw.text)
@@ -8050,6 +8081,7 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
                             </div>
+                            )}
 
                             {/* 2. 검색 및 큐 목록 헤더 바 */}
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#1c2027] border border-white/10 rounded-2xl p-4 shadow-lg">
@@ -8074,10 +8106,10 @@ export default function StdPortalPage() {
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => {}}
+                                        onClick={() => loadStdData(token)}
                                         className="px-4 py-2 bg-[#202632] hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition border border-white/10"
                                     >
-                                        검색
+                                        새로고침
                                     </button>
                                 </div>
 
