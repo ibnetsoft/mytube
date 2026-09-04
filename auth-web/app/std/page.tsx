@@ -770,6 +770,7 @@ export default function StdPortalPage() {
     const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_vrew', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
     const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
         if (value === 'subtitle_gen') return 'subtitle_vrew'
+        if (value === 'tts') return 'subtitle_vrew'
         return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
     }
     const [currentNav, setCurrentNav] = useState<StdNavKey>(() => {
@@ -5647,16 +5648,15 @@ export default function StdPortalPage() {
                     </span>
                 </div>
 
-                {/* 상단 단계별 상태 체크 스텝퍼 (데스크톱/태블릿: 주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
+                {/* 상단 단계별 상태 체크 스텝퍼 */}
                 {(() => {
                     const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                     const steps = [
                         { id: 'topics', label: '주제', isDone: status.isTopicDone },
                         { id: 'topics', label: '기획', isDone: status.isPlanningDone },
-                        { id: 'tts', label: '대본', isDone: status.isScriptDone },
+                        { id: 'script_gen', label: '대본', isDone: status.isScriptDone },
                         { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
                         { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
-                        { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                         { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                     ]
                     return (
@@ -5725,16 +5725,15 @@ export default function StdPortalPage() {
                 </div>
             </header>
 
-            {/* 모바일 전용 가로 스크롤 스텝퍼 바 (7단계) */}
+            {/* 모바일 전용 가로 스크롤 스텝퍼 바 */}
             {(() => {
                 const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                 const steps = [
                     { id: 'topics', label: '주제', isDone: status.isTopicDone },
                     { id: 'topics', label: '기획', isDone: status.isPlanningDone },
-                    { id: 'tts', label: '대본', isDone: status.isScriptDone },
+                    { id: 'script_gen', label: '대본', isDone: status.isScriptDone },
                     { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
                     { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
-                    { id: 'tts', label: 'TTS', isDone: status.isTtsDone },
                     { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
                 ]
                 return (
@@ -5814,7 +5813,6 @@ export default function StdPortalPage() {
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_vrew', label: t('nav_subtitles') },
-                                    { id: 'tts', label: t('nav_tts') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
                                     { id: 'music_missions', label: '음악 미션' },
                                     { id: 'projects', label: t('nav_projects') },
@@ -5926,7 +5924,6 @@ export default function StdPortalPage() {
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_vrew', label: t('nav_subtitles') },
-                            { id: 'tts', label: t('nav_tts') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'music_missions', label: '음악 미션' },
                             { id: 'projects', label: t('nav_projects') },
@@ -9380,10 +9377,10 @@ export default function StdPortalPage() {
                                         대본 전체 저장
                                     </button>
                                     <button
-                                        onClick={() => setCurrentNav('tts')}
+                                        onClick={() => setCurrentNav('subtitle_vrew')}
                                         className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-1.5"
                                     >
-                                        <span>TTS 음성 생성 단계로 이동</span>
+                                        <span>자막 편집 단계로 이동</span>
                                         <span>→</span>
                                     </button>
                                 </div>
