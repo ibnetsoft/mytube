@@ -6068,6 +6068,14 @@ export default function StdPortalPage() {
                                                 className="h-1 w-20 cursor-pointer appearance-none rounded bg-gray-600 accent-purple-500"
                                             />
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={restoreOriginalWorkerScript}
+                                            className="h-8 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap"
+                                        >
+                                            <RefreshCw size={13} />
+                                            워커 원본 대본 복구
+                                        </button>
                                         {selectedVoiceObj?.preview_url && (
                                             <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
                                                 <div className="min-w-0 flex-1">
@@ -7213,13 +7221,6 @@ export default function StdPortalPage() {
                                             <p className="text-[10px] text-gray-400 mt-0.5">이곳에서 직접 대본을 수정하면 수정된 대본으로 음성이 생성됩니다.</p>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={restoreOriginalWorkerScript}
-                                                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition shadow flex items-center gap-1.5"
-                                            >
-                                                <span>↺</span> 워커 원본 대본 복구
-                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
