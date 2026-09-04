@@ -47,7 +47,7 @@ export async function POST(req: Request) {
         const now = new Date().toISOString()
         const supabase = getAdmin()
 
-        let { data: topic, error: topicError } = await supabase
+        const initialTopicResult = await supabase
             .from('topics_queue')
             .select(`
                 id,
@@ -74,6 +74,8 @@ export async function POST(req: Request) {
             `)
             .eq('id', topicId)
             .maybeSingle()
+        let topic: any = initialTopicResult.data
+        let topicError: any = initialTopicResult.error
 
         if (isMissingColumnError(topicError)) {
             const retry = await supabase
@@ -153,8 +155,11 @@ export async function POST(req: Request) {
                 'Reuse the existing title, story premise, and useful draft details, but regenerate the scene plan and script as a complete longform video.',
                 `Target duration: ${targetMinutes} minutes (${targetDurationSeconds} seconds).`,
                 `Target scene count: exactly ${targetSceneCount} scenes.`,
+                'Every scene must contain non-empty narration, image_prompt, and video_prompt fields; do not mark the package ready when any scene is missing one of them.',
+                'Calibrate the total narration length for the requested duration and tts_speed, and keep transitions continuous so adjacent scenes form one coherent story.',
+                'Run the final script quality gate and require a passing report: no repeated paragraph openers, duplicated beats, unresolved setup, abrupt ending, or category-inappropriate tone.',
                 'Do not include planning notes, prompt labels, beat labels, camera instructions, or meta text inside the final narration script.',
-                'Regenerate image-grid prompts from the repaired scene plan so every scene is covered.'
+                'Regenerate image-grid prompts from the repaired scene plan so every scene is covered, then generate the final publish metadata package.'
             ].join(' ')
         }
 

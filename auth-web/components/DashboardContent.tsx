@@ -315,6 +315,7 @@ export default function DashboardContent() {
     })
     const [topicActionLoadingId, setTopicActionLoadingId] = useState<string | null>(null)
     const [topicRepairInputs, setTopicRepairInputs] = useState<Record<string, { minutes: string; scenes: string }>>({})
+    const [topicRepairConfirmId, setTopicRepairConfirmId] = useState<string | null>(null)
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
@@ -2731,8 +2732,12 @@ export default function DashboardContent() {
             alert('Repair 씬 수는 1~400 사이로 입력해주세요.')
             return
         }
-        if (!confirm(`${targetMinutes}분 / ${targetSceneCount}씬 기준으로 이 주제를 다시 생성할까요?`)) return
+        if (topicRepairConfirmId !== topicId) {
+            setTopicRepairConfirmId(topicId)
+            return
+        }
 
+        setTopicRepairConfirmId(null)
         setTopicActionLoadingId(`repair-${topicId}`)
         try {
             const res = await adminFetch('/api/admin/topics-queue/repair', {
@@ -4517,6 +4522,7 @@ export default function DashboardContent() {
                                             const isRepairingTopic = topicActionLoadingId === `repair-${topicId}`
                                             const isEditingOrDeletingTopic = topicActionLoadingId === topicId
                                             const isVisibilityUpdating = topicActionLoadingId === `visibility-${topicId}`
+                                            const isConfirmingRepair = topicRepairConfirmId === topicId
                                             return (
                                             <tr
                                                 key={item.id}
@@ -4746,9 +4752,12 @@ export default function DashboardContent() {
                                                                     type="button"
                                                                     disabled={isEditingOrDeletingTopic || isRepairingTopic}
                                                                     onClick={() => handleRepairTopic(item)}
-                                                                    className="h-7 rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2.5 text-[10px] font-black text-cyan-200 hover:border-cyan-300 hover:text-white disabled:opacity-50"
+                                                                    className={`h-7 rounded-md border px-2.5 text-[10px] font-black disabled:opacity-50 ${isConfirmingRepair
+                                                                        ? 'border-amber-300/60 bg-amber-500/20 text-amber-100 hover:border-amber-200'
+                                                                        : 'border-cyan-400/30 bg-cyan-500/10 text-cyan-200 hover:border-cyan-300 hover:text-white'
+                                                                        }`}
                                                                 >
-                                                                    {isRepairingTopic ? '...' : 'Repair'}
+                                                                    {isRepairingTopic ? '...' : isConfirmingRepair ? '확정 실행' : 'Repair'}
                                                                 </button>
                                                             </div>
                                                         </div>
