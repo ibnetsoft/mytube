@@ -1797,7 +1797,7 @@ def _start_lease_renewal(job: dict, job_log) -> tuple[threading.Thread, threadin
             try:
                 result = central_client.renew_lease(job["remote_job_id"], job["lease_id"], WORKER_INSTANCE_ID)
                 job_store.update_lease(job["job_id"], result["lease_expires_at"])
-                job_log.info(f"Lease renewed, expires_at={result['lease_expires_at']:.1f}")
+                job_log.info(f"Lease renewed, expires_at={result['lease_expires_at']}")
             except Exception as e:
                 job_log.warning(f"Lease renewal failed (non-fatal, will retry next interval): {e}")
 
