@@ -69,7 +69,21 @@ export default function WorkersPage() {
         try {
             const res = await authedFetch(token, '/api/admin/worker-tokens', {
                 method: 'POST',
-                body: JSON.stringify({ worker_id: newWorkerId.trim() }),
+                body: JSON.stringify({
+                    worker_id: newWorkerId.trim(),
+                    allowed_job_types: [
+                        'render_video',
+                        'topic_research',
+                        'topic_benchmark_analyze',
+                        'music_trend_analyze',
+                        'music_prompt_pack_generate',
+                        'web_research',
+                        'script_plan_generate',
+                        'script_generate',
+                        'publish_metadata_generate',
+                    ],
+                    capabilities: { profile: 'full' },
+                }),
             })
             const data = await res.json()
             if (res.ok) {
