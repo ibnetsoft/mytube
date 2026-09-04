@@ -245,6 +245,19 @@ function shouldMoveLeadingQuoteToPrevious(prevText: string, quote: string, sameS
     return sameScene || endsWithQuestionOrExclamation(prevText)
 }
 
+function removeLeadingQuoteFromGroup<T extends { text?: string }>(items: T[], start: number, end: number, quote: string): boolean {
+    for (let i = start; i <= end; i += 1) {
+        const text = String(items[i]?.text || '').trim()
+        if (!text.startsWith(quote)) continue
+        items[i] = {
+            ...items[i],
+            text: text.slice(1).trimStart(),
+        }
+        return true
+    }
+    return false
+}
+
 export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
     const repaired: string[] = []
 
@@ -267,7 +280,7 @@ export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
     return repaired
 }
 
-export function repairSubtitleItemQuoteBoundaries<T extends { text?: string }>(items: T[]): T[] {
+export function repairSubtitleItemQuoteBoundaries<T extends { text?: string; scene_number?: number }>(items: T[]): T[] {
     const repaired = (items || []).map(item => ({ ...item }))
 
     for (let i = 1; i < repaired.length; i += 1) {
@@ -316,8 +329,8 @@ function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: num
         const closingSuffixes: string[] = []
         const straightSingleCount = Array.from(combined).filter(ch => ch === "'").length
         const straightDoubleCount = Array.from(combined).filter(ch => ch === '"').length
-        if (straightSingleCount % 2 === 1) closingSuffixes.push("'")
-        if (straightDoubleCount % 2 === 1) closingSuffixes.push('"')
+        if (straightSingleCount % 2 === 1 && !removeLeadingQuoteFromGroup(repaired, start, end, "'")) closingSuffixes.push("'")
+        if (straightDoubleCount % 2 === 1 && !removeLeadingQuoteFromGroup(repaired, start, end, '"')) closingSuffixes.push('"')
 
         Object.entries(openingQuotePairs).forEach(([open, close]) => {
             const openCount = Array.from(combined).filter(ch => ch === open).length

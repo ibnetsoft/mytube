@@ -97,11 +97,24 @@ assert.equal(quoteDraggedToNextScene[0].text, "'죽었을 수도 있지 않을�
 assert.equal(quoteDraggedToNextScene[1].text, "이렇게까지 받지 않다니, 뭔가")
 assert.equal(quoteDraggedToNextScene[2].text, "있는 거 아닐까?")
 
+const alreadyClosedPreviousQuote = repairSubtitleItemQuoteBoundaries([
+    { scene_number: 10, text: "'죽었을 수도 있지 않을까?'" },
+    { scene_number: 11, text: "'이렇게까지 받지 않다니, 뭔가" },
+    { scene_number: 11, text: "있는 거 아닐까?" },
+    { scene_number: 12, text: "'그런 말들이 할머니 귀에" },
+    { scene_number: 12, text: "들어왔지." },
+])
+assert.equal(alreadyClosedPreviousQuote[0].text, "'죽었을 수도 있지 않을까?'")
+assert.equal(alreadyClosedPreviousQuote[1].text, "이렇게까지 받지 않다니, 뭔가")
+assert.equal(alreadyClosedPreviousQuote[2].text, "있는 거 아닐까?")
+assert.equal(alreadyClosedPreviousQuote[3].text, "그런 말들이 할머니 귀에")
+assert.equal(alreadyClosedPreviousQuote[4].text, "들어왔지.")
+
 const splitSceneQuote = repairSubtitleItemQuoteBoundaries([
     { scene_number: 11, text: "'이렇게까지 받지 않는다니, 뭔가" },
     { scene_number: 11, text: "있는 거 아닐까?" },
 ])
-assert.equal(splitSceneQuote[0].text, "'이렇게까지 받지 않는다니, 뭔가")
-assert.equal(splitSceneQuote[1].text, "있는 거 아닐까?'")
+assert.equal(splitSceneQuote[0].text, "이렇게까지 받지 않는다니, 뭔가")
+assert.equal(splitSceneQuote[1].text, "있는 거 아닐까?")
 
 console.log('STD script sync regression tests passed')
