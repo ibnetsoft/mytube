@@ -115,7 +115,7 @@ class ClaudeService:
         start_time = time.time()
         try:
             self.log_debug(f"💬 [Claude Text] Starting generation (model={model}, prompt={prompt[:100]}...)")
-            request_timeout = 600.0 if max_tokens >= 16384 else 180.0
+            request_timeout = 900.0 if max_tokens >= 32768 else (600.0 if max_tokens >= 16384 else 180.0)
             async with httpx.AsyncClient(timeout=request_timeout) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 result = response.json()
@@ -125,10 +125,20 @@ class ClaudeService:
                     usage = result.get("usage", {})
                     in_tokens = usage.get('input_tokens', 0)
                     out_tokens = usage.get('output_tokens', 0)
+                    stop_reason = result.get("stop_reason")
 
                     elapsed = time.time() - start_time
 
-                    self.log_debug(f"✅ [Claude Text] Success ({elapsed:.1f}s)")
+                    self.log_debug(
+                        f"✅ [Claude Text] Success ({elapsed:.1f}s, "
+                        f"output_tokens={out_tokens}, stop_reason={stop_reason})"
+                    )
+
+                    if stop_reason == "max_tokens":
+                        raise Exception(
+                            f"Claude output truncated at max_tokens={max_tokens} "
+                            f"(output_tokens={out_tokens})"
+                        )
 
                     # 로그 기록
                     import database as db

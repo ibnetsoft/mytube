@@ -17,6 +17,22 @@ FAKE_DIRECTIVE = "[Writing Style Directive]\nTEST STYLE MARKER\nApply this style
 
 
 class ScenePlannerStyleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_long_form_plan_reserves_enough_output_tokens(self):
+        captured = {}
+
+        async def fake_generate_text(prompt, model, **kwargs):
+            captured.update(kwargs)
+            return '{"topic": "t", "scene_count": 53, "global_mood": "calm", "scenes": [], "planner_notes": {"strategy": "x", "error": false}}'
+
+        with patch("app.services.scene_planner.ai_router.generate_text", side_effect=fake_generate_text):
+            await scene_planner_service.plan_scenes(
+                topic="long-form",
+                target_duration=900,
+                target_scene_count=53,
+            )
+
+        self.assertEqual(captured["max_tokens"], 32768)
+
     async def test_style_directive_is_embedded_in_planning_prompt(self):
         captured = {}
 
