@@ -6946,21 +6946,23 @@ export default function StdPortalPage() {
                                                     <span className="font-mono">{currentSub.start_time}s ~ {currentSub.end_time}s</span>
                                                 </div>
 
-                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
-                                                    <span className="text-gray-300 font-bold">시작 시간</span>
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="font-mono text-white mr-2">{currentSub.start_time}s</span>
-                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
-                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                        <span className="shrink-0 text-gray-300 font-bold">시작 시간</span>
+                                                        <div className="flex min-w-0 items-center gap-1">
+                                                            <span className="font-mono text-white">{currentSub.start_time}s</span>
+                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                        </div>
                                                     </div>
-                                                </div>
 
-                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-red-500/20">
-                                                    <span className="text-red-400 font-bold">종료 시간</span>
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="font-mono text-white mr-2">{currentSub.end_time}s</span>
-                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
-                                                        <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-red-500/20">
+                                                        <span className="shrink-0 text-red-400 font-bold">종료 시간</span>
+                                                        <div className="flex min-w-0 items-center gap-1">
+                                                            <span className="font-mono text-white">{currentSub.end_time}s</span>
+                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -6968,6 +6970,7 @@ export default function StdPortalPage() {
                                                 <div>
                                                     <textarea
                                                         rows={1}
+                                                        wrap="off"
                                                         value={currentSub.text}
                                                         onChange={e => {
                                                             const newText = e.target.value
@@ -6976,7 +6979,7 @@ export default function StdPortalPage() {
                                                             if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
                                                             setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
                                                         }}
-                                                        className="w-full h-9 min-h-9 px-3 py-2 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-5 resize-none overflow-y-auto focus:outline-none focus:border-blue-500"
+                                                        className="w-full h-9 min-h-9 px-3 py-2 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-5 resize-none overflow-hidden focus:outline-none focus:border-blue-500"
                                                     />
                                                 </div>
                                             </div>
