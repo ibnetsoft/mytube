@@ -643,6 +643,10 @@ export default function StdPortalPage() {
         const projectId = String(projectPayload?.project?.id || '').trim()
         if (!projectId) return projectPayload
 
+        const storedSubtitles = projectPayload.project?.project_payload?.subtitles
+        const repairedSubtitles = Array.isArray(storedSubtitles)
+            ? repairSubtitleItemQuoteBoundaries(storedSubtitles)
+            : storedSubtitles
         const latestBySceneType = new Map<string, any>()
         ;(projectPayload.assets || [])
             .filter((asset: any) => ['uploaded', 'assigned'].includes(String(asset?.status || '')))
@@ -675,6 +679,10 @@ export default function StdPortalPage() {
             }),
             project: {
                 ...projectPayload.project,
+                project_payload: {
+                    ...(projectPayload.project?.project_payload || {}),
+                    ...(Array.isArray(repairedSubtitles) ? { subtitles: repairedSubtitles } : {}),
+                },
                 progress_payload: {
                     ...(projectPayload.project?.progress_payload || {}),
                     ...(persistentThumbnailUrl ? { thumbnail_url: persistentThumbnailUrl } : {}),
@@ -698,7 +706,7 @@ export default function StdPortalPage() {
         try {
             const raw = localStorage.getItem(projectStateCacheKey(projectId))
                 || (localStorage.getItem('std_active_project_id') === projectId ? localStorage.getItem('std_active_project_state') : null)
-            return raw ? JSON.parse(raw) : null
+            return raw ? buildPersistentProjectState(JSON.parse(raw)) : null
         } catch {
             return null
         }
@@ -1694,7 +1702,9 @@ export default function StdPortalPage() {
             if (!prev.length) return prev
             const synced = matchSubtitlesToSceneVisuals(prev, selectedProject.scenes)
             const changed = synced.some((item: any, index: number) => (
-                item.image_url !== prev[index]?.image_url
+                item.text !== prev[index]?.text
+                || item.voice_id !== prev[index]?.voice_id
+                || item.image_url !== prev[index]?.image_url
                 || item.video_url !== prev[index]?.video_url
                 || item.scene_number !== prev[index]?.scene_number
             ))
@@ -2827,7 +2837,33 @@ export default function StdPortalPage() {
                 scenes,
                 Number(subMaxChars) || 20
             )
-        setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
+        const normalizedSubtitles = matchSubtitlesToSceneVisuals(subs, scenes)
+        setLocalSubtitles(normalizedSubtitles)
+        if (Array.isArray(savedSubtitles)) {
+            const subtitlesChanged = normalizedSubtitles.length !== savedSubtitles.length
+                || normalizedSubtitles.some((item: any, index: number) => (
+                    item.text !== savedSubtitles[index]?.text
+                    || item.voice_id !== savedSubtitles[index]?.voice_id
+                    || item.scene_number !== savedSubtitles[index]?.scene_number
+                ))
+            if (subtitlesChanged) {
+                setSelectedProject((prev: any) => {
+                    if (!prev) return prev
+                    const updated = {
+                        ...prev,
+                        project: {
+                            ...prev.project,
+                            project_payload: {
+                                ...(prev.project?.project_payload || {}),
+                                subtitles: normalizedSubtitles,
+                            },
+                        },
+                    }
+                    rememberProjectState(updated)
+                    return updated
+                })
+            }
+        }
         setSelectedSubIndex(0)
 
         const renderSettings = {

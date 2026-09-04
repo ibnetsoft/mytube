@@ -258,6 +258,22 @@ function removeLeadingQuoteFromGroup<T extends { text?: string }>(items: T[], st
     return false
 }
 
+function removeOuterStraightQuoteFromGroup<T extends { text?: string }>(items: T[], start: number, end: number, quote: string): boolean {
+    const firstText = String(items[start]?.text || '').trim()
+    const lastText = String(items[end]?.text || '').trim()
+    if (!firstText.startsWith(quote) || !lastText.endsWith(quote)) return false
+
+    items[start] = {
+        ...items[start],
+        text: firstText.slice(1).trimStart(),
+    }
+    items[end] = {
+        ...items[end],
+        text: String(items[end]?.text || '').trim().slice(0, -1).trimEnd(),
+    }
+    return true
+}
+
 export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
     const repaired: string[] = []
 
@@ -329,6 +345,24 @@ function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: num
         const closingSuffixes: string[] = []
         const straightSingleCount = Array.from(combined).filter(ch => ch === "'").length
         const straightDoubleCount = Array.from(combined).filter(ch => ch === '"').length
+        const previousText = start > 0 ? String(repaired[start - 1]?.text || '').trim() : ''
+        const previousHasStraightQuote = previousText.includes("'") || previousText.includes('"')
+        if (
+            straightSingleCount === 2
+            && endsWithQuestionOrExclamation(previousText)
+            && !previousHasStraightQuote
+            && removeOuterStraightQuoteFromGroup(repaired, start, end, "'")
+        ) {
+            return
+        }
+        if (
+            straightDoubleCount === 2
+            && endsWithQuestionOrExclamation(previousText)
+            && !previousHasStraightQuote
+            && removeOuterStraightQuoteFromGroup(repaired, start, end, '"')
+        ) {
+            return
+        }
         if (straightSingleCount % 2 === 1 && !removeLeadingQuoteFromGroup(repaired, start, end, "'")) closingSuffixes.push("'")
         if (straightDoubleCount % 2 === 1 && !removeLeadingQuoteFromGroup(repaired, start, end, '"')) closingSuffixes.push('"')
 
