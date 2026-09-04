@@ -9463,6 +9463,8 @@ Hard retry rules:
                 await asyncio.sleep(0.5)
 
         draft_script = "\n\n".join(p for p in final_parts if p).strip()
+        draft_script = _ensure_script_emotion_cues(draft_script, language)
+        draft_script = _reduce_repeated_paragraph_openers(draft_script)
         job_store.update_progress(job_id, 78, "script QA")
         write_state("running", job, 78, job_id)
         initial_quality = await _evaluate_script_quality(
@@ -9486,6 +9488,8 @@ Hard retry rules:
                     category_writing_profile=category_writing_profile,
                 )
                 revised = "\n\n".join(section for section in revised_sections if section).strip()
+                revised = _ensure_script_emotion_cues(revised, language)
+                revised = _reduce_repeated_paragraph_openers(revised)
                 if revised and len(revised) >= max(500, int(len(draft_script) * 0.55)):
                     revised_quality = await _evaluate_script_quality(
                         ai_router, model, topic, upload_title, narrative_blueprint, structure, revised, language
@@ -9535,6 +9539,8 @@ Hard retry rules:
                             category_writing_profile=category_writing_profile,
                         )
                         recovered = "\n\n".join(section for section in recovered_sections if section).strip()
+                        recovered = _ensure_script_emotion_cues(recovered, language)
+                        recovered = _reduce_repeated_paragraph_openers(recovered)
                         if recovered and len(recovered) >= max(500, int(len(draft_script) * 0.55)):
                             recovered_quality = await _evaluate_script_quality(
                                 ai_router, recovery_model, topic, upload_title, narrative_blueprint,
@@ -9599,6 +9605,8 @@ Hard retry rules:
                 final_script,
                 job_log,
             )
+            final_script = _ensure_script_emotion_cues(final_script, language)
+            final_script = _reduce_repeated_paragraph_openers(final_script)
             final_quality = await _evaluate_script_quality(
                 ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
             )
@@ -9624,6 +9632,8 @@ Hard retry rules:
                 final_script,
                 job_log,
             )
+            final_script = _ensure_script_emotion_cues(final_script, language)
+            final_script = _reduce_repeated_paragraph_openers(final_script)
             final_quality = await _evaluate_script_quality(
                 ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
             )
