@@ -594,6 +594,12 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
+    const tf = (key: string, values: Record<string, string | number>, fallback?: string) => (
+        Object.entries(values).reduce(
+            (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+            t(key, fallback)
+        )
+    )
     const getTopicPayoutUsdt = (topic: any): number => {
         const sceneCount = Number(topic?.scene_count ?? topic?.total_scenes ?? 0)
         if (Number.isFinite(sceneCount) && sceneCount > 0) {
@@ -6185,7 +6191,7 @@ export default function StdPortalPage() {
                                     <div className="flex flex-wrap items-end gap-2 pb-2 border-b border-white/10">
                                         <div className="flex items-end gap-2">
                                             <label className="block text-[10px] font-bold text-cyan-100/70 mb-1">
-                                                내레이션 성우 · {narrationSubtitleCount}개
+                                                {tf('sub_narration_voice_count', { count: narrationSubtitleCount })}
                                             </label>
                                             {renderVoicePicker(
                                                 'bulk-narration',
@@ -6199,11 +6205,11 @@ export default function StdPortalPage() {
                                             onClick={() => applyVrewVoiceBulk('narration', vrewNarrationVoice || selectedVoice)}
                                             className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition"
                                         >
-                                            내레이션 일괄 적용
+                                            {t('sub_apply_narration_voice')}
                                         </button>
                                         <div className="flex items-end gap-2">
                                             <label className="block text-[10px] font-bold text-emerald-200/70 mb-1">
-                                                대사 성우 · {dialogueSubtitleCount}개
+                                                {tf('sub_dialogue_voice_count', { count: dialogueSubtitleCount })}
                                             </label>
                                             {renderVoicePicker(
                                                 'bulk-dialogue',
@@ -6218,14 +6224,14 @@ export default function StdPortalPage() {
                                             onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
                                             className="px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold transition"
                                         >
-                                            대사 일괄 적용
+                                            {t('sub_apply_dialogue_voice')}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => applyVrewVoiceBulk('all', selectedVoice)}
                                             className="px-3 py-1.5 rounded-md border border-white/10 bg-[#14181f] hover:bg-[#202632] text-gray-100 text-[11px] font-bold transition"
                                         >
-                                            전체 기본 성우로 복원
+                                            {t('sub_restore_default_voice')}
                                         </button>
                                         <button
                                             type="button"
@@ -6237,16 +6243,16 @@ export default function StdPortalPage() {
                                                     : 'bg-violet-600 hover:bg-violet-500'
                                             }`}
                                         >
-                                            {generatingTts ? '최종 저장 중...' : '최종 저장 및 TTS 생성'}
+                                            {generatingTts ? t('sub_final_saving') : t('sub_final_save_tts')}
                                         </button>
                                         {audioResultUrl && (
                                             <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
-                                                최종 TTS 준비됨
+                                                {t('sub_tts_ready')}
                                             </span>
                                         )}
                                         <div className="flex items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5">
                                             <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
-                                                안정성 <span className="font-mono text-purple-300">{elStability}</span>
+                                                {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
                                             </span>
                                             <input
                                                 type="range"
@@ -6264,7 +6270,7 @@ export default function StdPortalPage() {
                                             className="h-8 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap"
                                         >
                                             <RefreshCw size={13} />
-                                            워커 원본 대본 복구
+                                            {t('sub_restore_worker_script')}
                                         </button>
                                         {selectedVoiceObj?.preview_url && (
                                             <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
@@ -6272,7 +6278,7 @@ export default function StdPortalPage() {
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[10px]">🎙</span>
                                                         <span className="truncate text-[10px] font-black text-white">
-                                                            성우 미리듣기
+                                                            {t('sub_voice_preview')}
                                                         </span>
                                                         <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-200">
                                                             {selectedVoiceObj.gender === 'female' ? '여성' : selectedVoiceObj.gender === 'male' ? '남성' : '중성'}
@@ -6315,7 +6321,7 @@ export default function StdPortalPage() {
                                             className="px-2.5 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-white/5 text-gray-200 hover:text-white rounded-md transition-all flex items-center gap-1.5 shrink-0"
                                             title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
                                         >
-                                            <span className="text-yellow-400">📁</span> 외부 오디오 업로드
+                                            <span className="text-yellow-400">📁</span> {t('sub_external_audio_upload')}
                                         </button>
                                     </div>
 
@@ -6327,7 +6333,7 @@ export default function StdPortalPage() {
                                             className="text-[11px] font-medium bg-[#1c2027]/50 border border-indigo-500/40 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                                         >
                                             <option value="" className="bg-[#1c2027] text-white">
-                                                -- 템플릿 선택 --
+                                                {t('sub_select_template')}
                                             </option>
                                             {templatePresets.map(preset => (
                                                 <option key={preset.id} value={preset.id} className="bg-[#1c2027] text-white">
@@ -6340,7 +6346,7 @@ export default function StdPortalPage() {
                                             onClick={loadTemplatePresetsFromStorage}
                                             className="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all"
                                         >
-                                            새로고침
+                                            {t('btn_refresh')}
                                         </button>
                                     </div>
 
@@ -6353,7 +6359,7 @@ export default function StdPortalPage() {
                                             onChange={e => handleApplySubtitlePreset(e.target.value)}
                                             className="text-[11px] font-medium bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                                         >
-                                            <option value="">선택</option>
+                                            <option value="">{t('sub_select_preset')}</option>
                                             {subPresetList.map(p => (
                                                 <option key={p.name} value={p.name} className="bg-[#1c2027] text-white">
                                                     {p.name}
@@ -6365,13 +6371,13 @@ export default function StdPortalPage() {
                                             onClick={handleDeleteSubtitlePreset}
                                             className="text-[10px] font-bold px-1.5 py-1 text-red-400 hover:text-white border border-red-900/50 hover:bg-red-900 rounded transition-all"
                                         >
-                                            삭제
+                                            {t('btn_delete')}
                                         </button>
                                         <input
                                             type="text"
                                             value={newSubPresetName}
                                             onChange={e => setNewSubPresetName(e.target.value)}
-                                            placeholder="새 프리셋명"
+                                            placeholder={t('sub_new_preset_name')}
                                             className="text-[11px] bg-[#14181f] border border-white/10 rounded px-1.5 py-1 text-white w-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                         />
                                         <button
@@ -6379,7 +6385,7 @@ export default function StdPortalPage() {
                                             onClick={handleSaveSubtitlePreset}
                                             className="text-[11px] border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white px-2 py-1 rounded transition-all font-bold"
                                         >
-                                            저장
+                                            {t('btn_save')}
                                         </button>
                                     </div>
 
@@ -6442,7 +6448,7 @@ export default function StdPortalPage() {
                                                 className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
                                                 title="글자색"
                                             />
-                                            <span className="text-[9px] text-gray-400">글자</span>
+                                            <span className="text-[9px] text-gray-400">{t('sub_text_color_short')}</span>
                                         </div>
                                         <div className="flex flex-col items-center gap-0.5">
                                             <input
@@ -6452,7 +6458,7 @@ export default function StdPortalPage() {
                                                 className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
                                                 title="테두리색"
                                             />
-                                            <span className="text-[9px] text-gray-400">테두리</span>
+                                            <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -6461,7 +6467,7 @@ export default function StdPortalPage() {
                                 <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap pt-1.5 border-t border-white/5">
                                     {/* 테두리 두께 & Y 위치 */}
                                     <div className="flex items-center gap-1 shrink-0">
-                                        <span className="text-[10px] text-gray-400 font-bold">테두리</span>
+                                        <span className="text-[10px] text-gray-400 font-bold">{t('sub_outline_short')}</span>
                                         <input
                                             type="number"
                                             value={subStrokeWidth}
@@ -6499,7 +6505,7 @@ export default function StdPortalPage() {
 
                                     {/* 배경 바 */}
                                     <div className="flex items-center gap-1.5 shrink-0">
-                                        <span className="text-[10px] text-gray-400 font-bold">배경 바</span>
+                                        <span className="text-[10px] text-gray-400 font-bold">{t('sub_background_bar')}</span>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input
                                                 type="checkbox"
@@ -6560,14 +6566,14 @@ export default function StdPortalPage() {
                                             }}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
-                                            초기화 및 재로드
+                                            {t('sub_reset_reload')}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleSyncSubtitleSceneVisuals}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
-                                            AI 이미지 동기화
+                                            {t('sub_sync_ai_images')}
                                         </button>
                                         <button
                                             type="button"
@@ -6587,21 +6593,21 @@ export default function StdPortalPage() {
                                             }}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                         >
-                                            1줄/2줄 분할
+                                            {t('sub_split_lines')}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
                                             className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
                                         >
-                                            <span>🔮</span> 대본 전체 자막 동기화
+                                            <span>🔮</span> {t('sub_sync_all_script')}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => alert('선택한 언어로 자막 번역 작업이 완료되었습니다.')}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all"
                                         >
-                                            Translate
+                                            {t('sub_translate')}
                                         </button>
                                     </div>
                                 </div>
@@ -6632,11 +6638,11 @@ export default function StdPortalPage() {
                                                     aria-label="전체 씬 선택"
                                                     className="w-4 h-4 accent-cyan-500 cursor-pointer"
                                                 />
-                                                전체 선택
+                                                {t('sub_select_all')}
                                             </label>
-                                            <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
+                                            <h3 className="text-xs font-bold text-white">{t('sub_layer_list')}</h3>
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
-                                                총 {localSubtitles.length}개 자막 블록
+                                                {tf('sub_total_blocks', { count: localSubtitles.length })}
                                             </span>
                                             {selectedSubtitleBlockIndexes.length === 1 && (
                                                 <button
@@ -6645,7 +6651,7 @@ export default function StdPortalPage() {
                                                     className="h-7 px-2.5 rounded-md border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 text-[10px] font-bold flex items-center gap-1 transition"
                                                 >
                                                     <Scissors size={13} />
-                                                    분리하기
+                                                    {t('sub_split_action')}
                                                 </button>
                                             )}
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
@@ -6656,10 +6662,10 @@ export default function StdPortalPage() {
                                                         className="h-7 px-2.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-[10px] font-bold flex items-center gap-1 transition"
                                                     >
                                                         <Combine size={13} />
-                                                        합치기
+                                                        {t('sub_merge_action')}
                                                     </button>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
-                                                        자막 {selectedSubtitleBlockIndexes.length}개 선택
+                                                        {tf('sub_selected_blocks', { count: selectedSubtitleBlockIndexes.length })}
                                                     </span>
                                                     {renderVoicePicker(
                                                         'selected-blocks-bulk',
@@ -6672,7 +6678,7 @@ export default function StdPortalPage() {
                                             {selectedSubtitleSceneNumbers.length > 0 && (
                                                 <>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
-                                                        씬 {selectedSubtitleSceneNumbers.length}개 선택
+                                                        {tf('sub_selected_scenes', { count: selectedSubtitleSceneNumbers.length })}
                                                     </span>
                                                     {selectedSubtitleBlockIndexes.length < 2 && selectedSubtitleSceneGroup && renderVoicePicker(
                                                         'selected-scenes-bulk',
@@ -6685,8 +6691,8 @@ export default function StdPortalPage() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">+ 추가</button>
-                                            <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">선택 삭제</button>
+                                            <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">{t('sub_add_action')}</button>
+                                            <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">{t('sub_delete_selected')}</button>
                                         </div>
                                     </div>
 
@@ -7073,7 +7079,7 @@ export default function StdPortalPage() {
                                                         onClick={() => setPlaybackTime(0)}
                                                         className="text-gray-400 hover:text-white px-1.5 py-0.5 bg-[#202632] rounded"
                                                     >
-                                                        처음으로
+                                                        {t('sub_back_to_start')}
                                                     </button>
                                                     <span className="text-gray-500 font-mono">
                                                         {(playbackTime).toFixed(1)}s
@@ -7092,7 +7098,7 @@ export default function StdPortalPage() {
                                                     subEditTab === 'subtitle' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'
                                                 }`}
                                             >
-                                                자막 편집
+                                                {t('sub_edit_tab')}
                                             </button>
                                             <button
                                                 onClick={() => setSubEditTab('bgm')}
@@ -7100,14 +7106,14 @@ export default function StdPortalPage() {
                                                     subEditTab === 'bgm' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'
                                                 }`}
                                             >
-                                                배경음/효과음
+                                                {t('sub_bgm_sfx_tab')}
                                             </button>
                                         </div>
 
                                         {subEditTab === 'subtitle' ? (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between text-xs font-bold text-white">
-                                                    <span>선택된 구간 편집</span>
+                                                    <span>{t('sub_selected_range_edit')}</span>
                                                     <div className="flex items-center gap-1">
                                                         <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
                                                         <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
@@ -7116,19 +7122,19 @@ export default function StdPortalPage() {
                                                             onClick={() => alert('선택된 구간의 자막 및 싱크 수정사항이 반영되었습니다. 상단 파란색 [저장] 버튼을 누르면 프로젝트에 최종 완료 저장됩니다.')}
                                                             className="text-[10px] px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition-all active:scale-95"
                                                         >
-                                                            저장
+                                                            {t('btn_save')}
                                                         </button>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
-                                                    <span className="text-blue-400 font-bold">현재 이미지</span>
+                                                    <span className="text-blue-400 font-bold">{t('sub_current_image')}</span>
                                                     <span className="font-mono">{currentSub.start_time}s ~ {currentSub.end_time}s</span>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2">
                                                     <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
-                                                        <span className="shrink-0 text-gray-300 font-bold">시작 시간</span>
+                                                        <span className="shrink-0 text-gray-300 font-bold">{t('sub_start_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{currentSub.start_time}s</span>
                                                             <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
@@ -7137,7 +7143,7 @@ export default function StdPortalPage() {
                                                     </div>
 
                                                     <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-red-500/20">
-                                                        <span className="shrink-0 text-red-400 font-bold">종료 시간</span>
+                                                        <span className="shrink-0 text-red-400 font-bold">{t('sub_end_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{currentSub.end_time}s</span>
                                                             <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
