@@ -317,7 +317,7 @@ export default function DashboardContent() {
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
-    const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'preparing' | 'completed'>('working')
+    const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'preparing' | 'hidden' | 'completed'>('working')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
     const [topicQueuePage, setTopicQueuePage] = useState(1)
     const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
@@ -2670,6 +2670,35 @@ export default function DashboardContent() {
         }
     }
 
+    const handleTopicVisibility = async (topicItem: any, hidden: boolean) => {
+        if (!canManageTopics || !topicItem?.id) return
+        const actionLabel = hidden ? '가림 처리' : '가림 해제'
+        if (!confirm(`이 주제를 ${actionLabel}할까요?`)) return
+
+        const loadingId = `visibility-${topicItem.id}`
+        setTopicActionLoadingId(loadingId)
+        try {
+            const res = await adminFetch('/api/admin/topics-queue/visibility', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: topicItem.id, hidden }),
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) {
+                alert(`주제 ${actionLabel} 실패: ` + (data.error || `HTTP ${res.status}`))
+                return
+            }
+            setTopics(prev => prev.map(item => item.id === topicItem.id
+                ? { ...item, ...data.topic }
+                : item
+            ))
+        } catch (err: any) {
+            alert(`주제 ${actionLabel} 오류: ` + (err?.message || String(err)))
+        } finally {
+            setTopicActionLoadingId(null)
+        }
+    }
+
     const handleRepairTopic = async (topicItem: any) => {
         if (!canManageTopics) return
         if (!topicItem?.id) return
@@ -4217,12 +4246,15 @@ export default function DashboardContent() {
                             const isWorkingTopic = (item: any) => item.status === 'assigned';
                             const isPendingTopic = (item: any) => item.status === 'pending' && getTopicPreparation(item).ready;
                             const isPreparingTopic = (item: any) => item.status === 'pending' && !getTopicPreparation(item).ready;
-                            const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned';
+                            const isHiddenTopic = (item: any) => item.status === 'excluded';
+                            const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned' || item.status === 'excluded';
                             const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working'
                                 ? isWorkingTopic(item)
                                 : topicQueueStatusFilter === 'preparing'
                                     ? isPreparingTopic(item)
-                                    : isPendingTopic(item);
+                                    : topicQueueStatusFilter === 'hidden'
+                                        ? isHiddenTopic(item)
+                                        : isPendingTopic(item);
                             // "완료" 탭은 topics_queue가 아니라 리모트 렌더큐를 그대로 보여준다 (아래 참고) -
                             // 여기 topics는 계속 pending/assigned 두 상태만 대상으로 한다.
                             const topicQueueSource = topics;
@@ -4270,7 +4302,15 @@ export default function DashboardContent() {
                             const selectedCategory = topicQueueCategoryFilter === 'all'
                                 ? null
                                 : categories.find(cat => String(cat.id) === topicQueueCategoryFilter);
-                            const activeStatusLabel = topicQueueStatusFilter === 'working' ? '작업중' : topicQueueStatusFilter === 'pending' ? '대기중' : '완료';
+                            const activeStatusLabel = topicQueueStatusFilter === 'working'
+                                ? '작업중'
+                                : topicQueueStatusFilter === 'pending'
+                                    ? '대기중'
+                                    : topicQueueStatusFilter === 'preparing'
+                                        ? '준비중'
+                                        : topicQueueStatusFilter === 'hidden'
+                                            ? '가림'
+                                            : '완료';
                             const TOPIC_QUEUE_PAGE_SIZE = 20;
                             const topicQueueTotalPages = Math.max(1, Math.ceil(filteredTopics.length / TOPIC_QUEUE_PAGE_SIZE));
                             const topicQueueCurrentPage = Math.min(topicQueuePage, topicQueueTotalPages);
@@ -4308,16 +4348,23 @@ export default function DashboardContent() {
                                         {[
                                             { key: 'working', label: '작업중' },
                                             { key: 'pending', label: '대기중' },
+                                            { key: 'hidden', label: '가림' },
                                             { key: 'completed', label: '완료' },
                                         ].map(item => {
                                             const count = item.key === 'completed'
                                                 ? renderQueue.length
-                                                : topics.filter(topic => isQueueVisibleTopic(topic) && (item.key === 'working' ? isWorkingTopic(topic) : isPendingTopic(topic))).length;
+                                                : topics.filter(topic => isQueueVisibleTopic(topic) && (
+                                                    item.key === 'working'
+                                                        ? isWorkingTopic(topic)
+                                                        : item.key === 'hidden'
+                                                            ? isHiddenTopic(topic)
+                                                            : isPendingTopic(topic)
+                                                )).length;
                                             return (
                                                 <button
                                                     key={`topic-status-filter-${item.key}`}
                                                     type="button"
-                                                    onClick={() => setTopicQueueStatusFilter(item.key as 'working' | 'pending' | 'completed')}
+                                                    onClick={() => setTopicQueueStatusFilter(item.key as 'working' | 'pending' | 'hidden' | 'completed')}
                                                     className={`px-4 py-2 rounded-xl text-[11px] font-black border transition-all ${
                                                         topicQueueStatusFilter === item.key
                                                             ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/20'
@@ -4417,15 +4464,18 @@ export default function DashboardContent() {
                                             }
                                             const isRepairingTopic = topicActionLoadingId === `repair-${topicId}`
                                             const isEditingOrDeletingTopic = topicActionLoadingId === topicId
+                                            const isVisibilityUpdating = topicActionLoadingId === `visibility-${topicId}`
                                             return (
                                             <tr
                                                 key={item.id}
                                                 className={`transition-colors h-10 text-xs ${
                                                     editingTopicId === String(item.id)
                                                         ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-400/30'
-                                                        : prep.ready
-                                                            ? 'hover:bg-white/[0.03]'
-                                                            : 'bg-orange-500/[0.03] hover:bg-orange-500/[0.06]'
+                                                        : isHiddenTopic(item)
+                                                            ? 'bg-gray-500/[0.06] opacity-75 hover:opacity-100'
+                                                            : prep.ready
+                                                                ? 'hover:bg-white/[0.03]'
+                                                                : 'bg-orange-500/[0.03] hover:bg-orange-500/[0.06]'
                                                 }`}
                                             >
                                                 <td className="px-10 py-3 text-gray-300 font-bold">
@@ -4468,6 +4518,11 @@ export default function DashboardContent() {
                                                                 <div className="space-y-2">
                                                                     <span className="block truncate">{item.topic}</span>
                                                                     <div className="flex flex-wrap gap-1.5">
+                                                                        {isHiddenTopic(item) && (
+                                                                            <span className="rounded-full border border-gray-400/20 bg-gray-400/10 px-2 py-1 text-[10px] font-black text-gray-300">
+                                                                                유저웹 가림
+                                                                            </span>
+                                                                        )}
                                                                         <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${
                                                                             prep.ready
                                                                                 ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
@@ -4533,6 +4588,11 @@ export default function DashboardContent() {
                                                                 대기중
                                                             </span>
                                                         )}
+                                                        {isHiddenTopic(item) && (
+                                                            <span className="text-[10px] font-bold text-gray-400">
+                                                                가림 처리됨
+                                                            </span>
+                                                        )}
                                                         {isWorkingTopic(item) && (() => {
                                                             const stepDefs = [
                                                                 { key: 'plan', label: '기획' },
@@ -4588,7 +4648,15 @@ export default function DashboardContent() {
                                                                 </button>
                                                                 <button
                                                                     type="button"
-                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic}
+                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic || isVisibilityUpdating}
+                                                                    onClick={() => handleTopicVisibility(item, true)}
+                                                                    className="text-gray-300 hover:text-white disabled:opacity-50"
+                                                                >
+                                                                    {isVisibilityUpdating ? '처리 중' : '가리기'}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic || isVisibilityUpdating}
                                                                     onClick={() => handleDeleteTopic(item)}
                                                                     className="text-red-300 hover:text-red-200 disabled:opacity-50"
                                                                 >
@@ -4632,6 +4700,24 @@ export default function DashboardContent() {
                                                                 </button>
                                                             </div>
                                                         </div>
+                                                    ) : canManageTopics && item.status === 'excluded' ? (
+                                                        <button
+                                                            type="button"
+                                                            disabled={isVisibilityUpdating}
+                                                            onClick={() => handleTopicVisibility(item, false)}
+                                                            className="text-emerald-300 hover:text-emerald-200 disabled:opacity-50 text-[11px] font-black"
+                                                        >
+                                                            {isVisibilityUpdating ? '처리 중' : '가림 해제'}
+                                                        </button>
+                                                    ) : canManageTopics && item.status === 'assigned' ? (
+                                                        <button
+                                                            type="button"
+                                                            disabled={isVisibilityUpdating}
+                                                            onClick={() => handleTopicVisibility(item, true)}
+                                                            className="text-gray-300 hover:text-white disabled:opacity-50 text-[11px] font-black"
+                                                        >
+                                                            {isVisibilityUpdating ? '처리 중' : '가리기'}
+                                                        </button>
                                                     ) : (
                                                         <span className="text-[10px] font-bold text-gray-600">-</span>
                                                     )}

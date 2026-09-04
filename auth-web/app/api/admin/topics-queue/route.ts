@@ -577,7 +577,7 @@ export async function GET(req: Request) {
                 .order('created_at', { ascending: false })
 
             if (status === 'active') {
-                query = query.in('status', ['pending', 'assigned'])
+                query = query.in('status', ['pending', 'assigned', 'excluded'])
             } else if (status && status !== 'all') {
                 query = query.eq('status', status)
             }
@@ -609,7 +609,7 @@ export async function GET(req: Request) {
 
         const normalizedRows = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
         const topics = status === 'active'
-            ? normalizedRows.filter((topic: any) => topic?.status === 'assigned' || topic?.is_prepared_for_claim)
+            ? normalizedRows.filter((topic: any) => topic?.status === 'assigned' || topic?.status === 'excluded' || topic?.is_prepared_for_claim)
             : normalizedRows
 
         return NextResponse.json({
