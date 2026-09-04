@@ -4213,7 +4213,15 @@ export default function DashboardContent() {
                                                                                         </button>
                                                                                         <button
                                                                                             type="button"
-                                                                                            disabled={topicActionLoadingId === String(topicItem.id)}
+                                                                                            disabled={topicActionLoadingId === `visibility-${topicItem.id}`}
+                                                                                            onClick={() => handleTopicVisibility(topicItem, true)}
+                                                                                            className="text-[10px] font-black text-gray-300 hover:text-white disabled:opacity-50"
+                                                                                        >
+                                                                                            {topicActionLoadingId === `visibility-${topicItem.id}` ? '처리 중' : '가림'}
+                                                                                        </button>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            disabled={topicActionLoadingId === String(topicItem.id) || topicActionLoadingId === `visibility-${topicItem.id}`}
                                                                                             onClick={() => handleDeleteTopic(topicItem)}
                                                                                             className="text-[10px] font-black text-red-300 hover:text-red-200 disabled:opacity-50"
                                                                                         >

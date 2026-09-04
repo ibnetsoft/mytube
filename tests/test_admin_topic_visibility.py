@@ -29,6 +29,12 @@ def test_admin_topic_queue_ui_can_hide_and_restore_topics():
     assert "유저웹 가림" in source
     assert "가림 해제" in source
 
+    preview = source.split("previewTopicItems.map((topicItem, idx)", 1)[1].split("{activeTab === 'topics-queue'", 1)[0]
+    edit_index = preview.index("수정")
+    hide_index = preview.index("'가림'")
+    delete_index = preview.index("삭제")
+    assert edit_index < hide_index < delete_index
+
 
 def test_user_recommendations_only_return_pending_topics():
     source = (ROOT / "auth-web" / "lib" / "stdRecommendations.ts").read_text(encoding="utf-8")
