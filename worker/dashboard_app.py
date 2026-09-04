@@ -6,6 +6,7 @@ Runs inside the Manager process on a separate uvicorn instance bound to
 Local API (local_api_token.py) so the user only needs one token.
 """
 import datetime
+import base64
 import json
 import os
 import re
@@ -3145,11 +3146,16 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
     us reliable command-line process filtering without adding a runtime dep.
     """
     worker_dir = Path(__file__).resolve().parent
+    project_root = worker_dir.parent
     python_exe = Path(sys.executable)
-    dashboard_args = "-m uvicorn dashboard_app:app --host 127.0.0.1 --port 3002"
     roles_to_start = ["manager"] if restart else []
     helper_script = STATE_DIR / ("restart_worker_server.ps1" if restart else "shutdown_worker_server.ps1")
     lifecycle_log = LOG_DIR / "server_lifecycle.log"
+
+    def ps_utf8(value: str) -> str:
+        """Embed a Windows path without PowerShell/locale escaping problems."""
+        encoded = base64.b64encode(value.encode("utf-8")).decode("ascii")
+        return f"[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{encoded}'))"
 
     ps_lines = [
         "$ErrorActionPreference = 'SilentlyContinue'",
@@ -3160,8 +3166,10 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "}",
         "Write-LifeLog 'helper started'",
         "Start-Sleep -Milliseconds 900",
-        f"$worker = {json.dumps(str(worker_dir))}",
-        f"$python = {json.dumps(str(python_exe))}",
+        f"$worker = {ps_utf8(str(worker_dir))}",
+        f"$projectRoot = {ps_utf8(str(project_root))}",
+        f"$python = {ps_utf8(str(python_exe))}",
+        f"$managerArgs = {ps_utf8(str(worker_dir / 'air_worker_entry.py') + ' --role manager')}",
         "$patterns = @(",
         "  'dashboard_app:app',",
         "  'air_worker_entry.py',",
@@ -3174,7 +3182,9 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "function Get-AirWorkerProcesses {",
         "  Get-CimInstance Win32_Process | Where-Object {",
         "    $cmd = $_.CommandLine",
-        "    $_.ProcessId -ne $PID -and $cmd -and $cmd -like '*LongformGenerator*' -and",
+        # Scope by this exact checkout.  The old packaged-app name
+        # (LongformGenerator) made restart a no-op in source installs.
+        '    $_.ProcessId -ne $PID -and $cmd -and $cmd -like "*$projectRoot*" -and',
         "    (($patterns | Where-Object { $cmd -like \"*$_*\" }).Count -gt 0)",
         "  }",
         "}",
@@ -3182,7 +3192,9 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "Write-LifeLog ('matched processes: ' + (($procs | ForEach-Object { \"$($_.ProcessId):$($_.Name)\" }) -join ', '))",
         "foreach ($proc in $procs) {",
         "  Write-LifeLog ('killing pid=' + $proc.ProcessId + ' cmd=' + $proc.CommandLine)",
-        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden -Wait",
+        # Do not wait per PID: a previous failed restart can leave dozens of
+        # child workers, making a serial shutdown exceed the request timeout.
+        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden",
         "}",
         "$deadline = (Get-Date).AddSeconds(12)",
         "do {",
@@ -3196,20 +3208,14 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "}",
     ]
     if restart:
-        ps_lines.append(
-            "Write-LifeLog 'starting dashboard'"
-        )
-        ps_lines.append(
-            "Start-Process -FilePath $python "
-            f"-ArgumentList {json.dumps(dashboard_args)} "
-            "-WorkingDirectory $worker -WindowStyle Hidden"
-        )
-        ps_lines.append("Start-Sleep -Milliseconds 1200")
+        # manager.py owns port 3002; launching standalone uvicorn here races
+        # it and can keep stale dashboard HTML alive after Git Pull.
+        ps_lines.append("Write-LifeLog 'starting manager (it starts dashboard)'")
         for role in roles_to_start:
             ps_lines.append(f"Write-LifeLog 'starting role {role}'")
             ps_lines.append(
                 "Start-Process -FilePath $python "
-                f"-ArgumentList {json.dumps(str(worker_dir / 'air_worker_entry.py') + ' --role ' + role)} "
+                "-ArgumentList $managerArgs "
                 "-WorkingDirectory $worker -WindowStyle Hidden"
             )
     ps_lines.append("Write-LifeLog 'helper completed'")
@@ -7824,15 +7830,16 @@ async function updateWorkerCode(confirmRestart = true) {
     }
 
     if (res && res.success) {
-      if (res.already_up_to_date) {
-        showToast('✅ 이미 최신 상태입니다. (추가 업데이트 없음)', 'success');
-      } else {
-        showToast('🎉 최신 업데이트를 성공적으로 가져왔습니다!', 'success');
-        if (confirmRestart) {
-          if (confirm('최신 코드가 다운로드되었습니다.\n\n새 기능을 즉시 적용하기 위해 지금 워커 서버를 재시작하시겠습니까?')) {
-            confirmRestartServer();
-            return;
-          }
+      const updateMessage = res.already_up_to_date
+        ? '✅ Git 코드는 이미 최신입니다.'
+        : '🎉 최신 업데이트를 성공적으로 가져왔습니다!';
+      showToast(updateMessage, 'success');
+      // Git working tree can already be current while this dashboard still
+      // serves the old Python module loaded in memory. Always offer restart.
+      if (confirmRestart) {
+        if (confirm(`${updateMessage}\n\n실행 중인 워커에 현재 코드를 적용하려면 지금 워커 서버를 재시작하시겠습니까?`)) {
+          confirmRestartServer();
+          return;
         }
       }
       await loadGitInfo();

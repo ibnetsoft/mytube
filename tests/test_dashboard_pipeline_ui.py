@@ -99,7 +99,10 @@ def test_server_restart_helper_matches_project_dashboard_processes():
     source = (ROOT / "worker" / "dashboard_app.py").read_text(encoding="utf-8")
 
     assert "'dashboard_app:app'," in source
-    assert "$cmd -like '*LongformGenerator*'" in source
+    assert "project_root = worker_dir.parent" in source
+    assert "def ps_utf8(value: str)" in source
+    assert "$projectRoot" in source
     assert "'air_worker_entry.py'," in source
     assert "server_lifecycle.log" in source
-    assert "taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F')" in source
+    assert "taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden" in source
+    assert "-WindowStyle Hidden -Wait" not in source

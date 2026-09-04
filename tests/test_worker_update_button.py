@@ -25,3 +25,5 @@ def test_worker_update_button_calls_git_pull_api():
 
     assert "async function updateWorkerCode" in source
     assert "api('POST', '/api/system/git-pull')" in source
+    assert "Git 코드는 이미 최신입니다." in source
+    assert "현재 코드를 적용하려면 지금 워커 서버를 재시작" in source
