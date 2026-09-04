@@ -3397,6 +3397,19 @@ def _generate_direct_image_grid_prompts(
             })
         return fallback
 
+    def _validated_fallback_grids(reason: str) -> list[dict]:
+        compact = build_compact_image_grid_prompts(_fallback_grids(reason))
+        validate_image_grid_prompt_readiness(
+            scenes,
+            compact,
+            status="ready",
+            require_status="ready",
+        )
+        return compact
+
+    if len(grid_inputs) > 12:
+        return _validated_fallback_grids("large long-form grid set")
+
     grid_inputs_json = json.dumps(grid_inputs, ensure_ascii=False, indent=2)
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
@@ -3465,14 +3478,13 @@ Schema:
             generated = _extract_json(raw)
             batch_grids = generated.get("grids") if isinstance(generated, dict) else None
         except Exception as exc:
-            raise RuntimeError(
-                f"AI image-grid batch {batch_start // 12 + 1} response was invalid; "
-                f"no synthetic grid fallback is allowed: {exc}"
-            ) from exc
+            return _validated_fallback_grids(
+                f"AI image-grid batch {batch_start // 12 + 1} response was invalid: {exc}"
+            )
         if not isinstance(batch_grids, list) or len(batch_grids) != len(grid_batch):
             got_count = len(batch_grids) if isinstance(batch_grids, list) else 0
-            raise RuntimeError(
-                f"AI image-grid batch {batch_start // 12 + 1} count mismatch; no synthetic grid fallback is allowed: "
+            return _validated_fallback_grids(
+                f"AI image-grid batch {batch_start // 12 + 1} count mismatch: "
                 f"expected={len(grid_batch)}, got={got_count}"
             )
         grids.extend(batch_grids)
