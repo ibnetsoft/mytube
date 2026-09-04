@@ -3869,14 +3869,21 @@ export default function StdPortalPage() {
         return null
     }
 
-    const uploadAsset = async (scene: any, assetType: 'image' | 'video' | 'thumbnail', file: File | null): Promise<boolean> => {
+    const uploadAsset = async (
+        scene: any,
+        assetType: 'image' | 'video' | 'thumbnail',
+        file: File | null
+    ): Promise<'synced' | 'local' | false> => {
         if (!file || !selectedProject) return false
         const sceneNum = scene?.scene_number || 1
         const actualAssetType = file.type?.startsWith('video/') ? 'video' : assetType
         const key = `${sceneNum}-${actualAssetType}`
+        const localAssetId = `local-asset-${Date.now()}`
         setUploadingKey(key)
         setMessage('')
         let objectUrl = ''
+        let localRelativePath = ''
+        let localSaveError = ''
         try {
             objectUrl = URL.createObjectURL(file)
             setSelectedProject(prev => {
@@ -3893,7 +3900,7 @@ export default function StdPortalPage() {
                     return s
                 })
                 const newAsset = {
-                    id: `local-asset-${Date.now()}`,
+                    id: localAssetId,
                     scene_number: sceneNum,
                     asset_type: actualAssetType,
                     file_name: file.name,
@@ -3906,8 +3913,6 @@ export default function StdPortalPage() {
                     assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType))]
                 }
             })
-            let localRelativePath = ''
-            let localSaveError = ''
             try {
                 const localPayload = await saveAssetToLocalDirectory(actualAssetType, file, sceneNum)
                 localRelativePath = localPayload.relativePath
@@ -3979,8 +3984,36 @@ export default function StdPortalPage() {
             setMessage(localRelativePath
                 ? `에셋 (${file.name}) 로컬 폴더 및 Drive 저장 완료!`
                 : `에셋 (${file.name}) Drive 저장 완료. 로컬 저장 실패: ${localSaveError}`)
-            return true
+            return 'synced'
         } catch (error: any) {
+            if (objectUrl && localRelativePath) {
+                setSelectedProject(prev => {
+                    if (!prev) return prev
+                    const updatedProject = {
+                        ...prev,
+                        scenes: prev.scenes.map(s => s.scene_number === sceneNum ? {
+                            ...s,
+                            image_url: actualAssetType === 'image' ? objectUrl : s.image_url,
+                            video_url: actualAssetType === 'video' ? objectUrl : s.video_url,
+                            asset_status: 'ready',
+                        } : s),
+                        assets: prev.assets.map(a => a.id === localAssetId ? {
+                            ...a,
+                            status: 'local',
+                            metadata: {
+                                ...(a.metadata || {}),
+                                local_relative_path: localRelativePath,
+                                local_storage_mode: 'browser_directory',
+                                sync_error: error?.message || 'Drive upload failed',
+                            },
+                        } : a),
+                    }
+                    rememberProjectState(updatedProject)
+                    return updatedProject
+                })
+                setMessage(`에셋 (${file.name})은 로컬 폴더에 저장되었습니다. Drive 동기화 실패: ${error?.message || '업로드 실패'}`)
+                return 'local'
+            }
             if (objectUrl) {
                 setSelectedProject(prev => {
                     if (!prev) return prev
@@ -4309,18 +4342,20 @@ export default function StdPortalPage() {
     const handleBulkImageUpload = async (files: FileList | null) => {
         if (!files || !files.length || !selectedProject) return
         setMessage(`${files.length}개 파일 일괄 등록 중...`)
-        let successCount = 0
+        let syncedCount = 0
+        let localOnlyCount = 0
         for (const [index, file] of Array.from(files).entries()) {
             const sceneIndex = index < selectedProject.scenes.length ? index : selectedProject.scenes.length - 1
             const targetScene = selectedProject.scenes[sceneIndex]
             const isVideo = file.type.startsWith('video') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')
-            if (await uploadAsset(targetScene, isVideo ? 'video' : 'image', file)) {
-                successCount += 1
-            }
+            const result = await uploadAsset(targetScene, isVideo ? 'video' : 'image', file)
+            if (result === 'synced') syncedCount += 1
+            if (result === 'local') localOnlyCount += 1
         }
-        setMessage(successCount === files.length
+        const failedCount = files.length - syncedCount - localOnlyCount
+        setMessage(syncedCount === files.length
             ? `${files.length}개 에셋 일괄 등록 완료!`
-            : `${successCount}/${files.length}개만 영구 저장되었습니다. 실패한 파일은 다시 업로드해주세요.`
+            : `Drive ${syncedCount}개, 로컬만 ${localOnlyCount}개, 실패 ${failedCount}개입니다.`
         )
     }
 
