@@ -27,8 +27,8 @@ def test_hidden_topic_endpoint_only_returns_admin_hidden_rows():
     assert "export async function GET" in source
     assert "requireAdmin(req)" in source
     assert ".eq('status', 'excluded')" in source
-    assert ".eq('progress_payload->>admin_hidden', 'true')" in source
-    assert "topics: data || []" in source
+    assert "topic?.progress_payload?.admin_hidden === true" in source
+    assert "topics: hiddenTopics" in source
 
 
 def test_admin_topic_queue_ui_can_hide_and_restore_topics():

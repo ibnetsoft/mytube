@@ -18,12 +18,16 @@ export async function GET(req: Request) {
             .from('topics_queue')
             .select('id, category_id, topic, status, progress_payload, created_at')
             .eq('status', 'excluded')
-            .eq('progress_payload->>admin_hidden', 'true')
             .order('created_at', { ascending: false })
-            .limit(200)
+            .limit(500)
         if (error) throw error
 
-        return NextResponse.json({ success: true, topics: data || [] })
+        const hiddenTopics = (data || []).filter((topic: any) => (
+            topic?.progress_payload?.admin_hidden === true
+            || topic?.progress_payload?.admin_hidden === 'true'
+        ))
+
+        return NextResponse.json({ success: true, topics: hiddenTopics })
     } catch (e: any) {
         console.error('Failed to load hidden topics:', e)
         return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
