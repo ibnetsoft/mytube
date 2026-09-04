@@ -2328,9 +2328,9 @@ export default function StdPortalPage() {
                     setOpenVoicePickerKey('')
                     setIsTransitionPickerOpen(prev => !prev)
                 }}
-                className="h-8 px-2.5 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 flex items-center gap-1.5 text-[11px] font-bold transition"
+                className="h-7 px-2 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 flex items-center gap-1 text-[10px] font-bold transition"
             >
-                <Sparkles size={13} />
+                <Sparkles size={12} />
                 효과
             </button>
             {isTransitionPickerOpen && (
@@ -6820,8 +6820,8 @@ export default function StdPortalPage() {
                             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 flex-1 min-h-0 overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-0">
-                                    <div className="flex items-center justify-between p-3 border-b border-white/5 bg-[#14181f]">
-                                        <div className="flex items-center gap-2">
+                                    <div className="flex min-h-[57px] items-center justify-between gap-2 p-3 border-b border-white/5 bg-[#14181f]">
+                                        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-visible">
                                             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
                                                 <input
                                                     type="checkbox"
@@ -6894,8 +6894,8 @@ export default function StdPortalPage() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">{t('sub_add_action')}</button>
-                                            <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="text-[11px] font-bold px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">{t('sub_delete_selected')}</button>
+                                            <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">{t('sub_add_action')}</button>
+                                            <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="h-7 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded">{t('sub_delete_selected')}</button>
                                         </div>
                                     </div>
 
