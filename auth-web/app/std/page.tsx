@@ -6753,7 +6753,7 @@ export default function StdPortalPage() {
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
-                                            className="relative aspect-video bg-black flex items-center justify-center overflow-hidden"
+                                            className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={selectedImageTemplatePreset ? { backgroundColor: templateBgColor || '#000000' } : undefined}
                                         >
                                             {selectedImageTemplatePreset && templateBgUrl ? (
