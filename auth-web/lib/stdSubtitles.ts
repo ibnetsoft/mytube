@@ -231,10 +231,6 @@ function hasUnclosedQuote(text: string, quote: string): boolean {
     return openCount > closeCount
 }
 
-function endsWithQuestionOrExclamation(text: string): boolean {
-    return /[?!？！]\s*$/.test(String(text || '').trim())
-}
-
 function shouldMoveLeadingQuoteToPrevious(prevText: string, quote: string, sameScene = true): boolean {
     if (Boolean(closingQuotePairs[quote])) {
         return sameScene || hasUnclosedQuote(prevText, quote)
@@ -242,36 +238,7 @@ function shouldMoveLeadingQuoteToPrevious(prevText: string, quote: string, sameS
 
     if (quote !== "'" && quote !== '"') return false
     if (!hasUnclosedQuote(prevText, quote)) return false
-    return sameScene || endsWithQuestionOrExclamation(prevText)
-}
-
-function removeLeadingQuoteFromGroup<T extends { text?: string }>(items: T[], start: number, end: number, quote: string): boolean {
-    for (let i = start; i <= end; i += 1) {
-        const text = String(items[i]?.text || '').trim()
-        if (!text.startsWith(quote)) continue
-        items[i] = {
-            ...items[i],
-            text: text.slice(1).trimStart(),
-        }
-        return true
-    }
-    return false
-}
-
-function removeOuterStraightQuoteFromGroup<T extends { text?: string }>(items: T[], start: number, end: number, quote: string): boolean {
-    const firstText = String(items[start]?.text || '').trim()
-    const lastText = String(items[end]?.text || '').trim()
-    if (!firstText.startsWith(quote) || !lastText.endsWith(quote)) return false
-
-    items[start] = {
-        ...items[start],
-        text: firstText.slice(1).trimStart(),
-    }
-    items[end] = {
-        ...items[end],
-        text: String(items[end]?.text || '').trim().slice(0, -1).trimEnd(),
-    }
-    return true
+    return sameScene
 }
 
 export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
@@ -283,7 +250,7 @@ export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
 
         while (repaired.length > 0 && chunk.length > 0) {
             const quote = chunk[0]
-            const shouldMoveQuote = shouldMoveLeadingQuoteToPrevious(repaired[repaired.length - 1], quote)
+            const shouldMoveQuote = shouldMoveLeadingQuoteToPrevious(repaired[repaired.length - 1], quote, false)
             if (!shouldMoveQuote) break
 
             repaired[repaired.length - 1] = `${repaired[repaired.length - 1]}${quote}`.trim()
@@ -345,26 +312,8 @@ function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: num
         const closingSuffixes: string[] = []
         const straightSingleCount = Array.from(combined).filter(ch => ch === "'").length
         const straightDoubleCount = Array.from(combined).filter(ch => ch === '"').length
-        const previousText = start > 0 ? String(repaired[start - 1]?.text || '').trim() : ''
-        const previousHasStraightQuote = previousText.includes("'") || previousText.includes('"')
-        if (
-            straightSingleCount === 2
-            && endsWithQuestionOrExclamation(previousText)
-            && !previousHasStraightQuote
-            && removeOuterStraightQuoteFromGroup(repaired, start, end, "'")
-        ) {
-            return
-        }
-        if (
-            straightDoubleCount === 2
-            && endsWithQuestionOrExclamation(previousText)
-            && !previousHasStraightQuote
-            && removeOuterStraightQuoteFromGroup(repaired, start, end, '"')
-        ) {
-            return
-        }
-        if (straightSingleCount % 2 === 1 && !removeLeadingQuoteFromGroup(repaired, start, end, "'")) closingSuffixes.push("'")
-        if (straightDoubleCount % 2 === 1 && !removeLeadingQuoteFromGroup(repaired, start, end, '"')) closingSuffixes.push('"')
+        if (straightSingleCount % 2 === 1) closingSuffixes.push("'")
+        if (straightDoubleCount % 2 === 1) closingSuffixes.push('"')
 
         Object.entries(openingQuotePairs).forEach(([open, close]) => {
             const openCount = Array.from(combined).filter(ch => ch === open).length
