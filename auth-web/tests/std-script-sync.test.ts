@@ -98,13 +98,20 @@ assert.equal(quoteDraggedToNextScene[1].text, "'이렇게까지 받지 않다니
 assert.equal(quoteDraggedToNextScene[2].text, "있는 거 아닐까?'")
 
 const duplicatedOpeningQuotes = repairSubtitleItemQuoteBoundaries([
-    { scene_number: 10, text: "''죽었을 수도 있지 않을까?" },
-    { scene_number: 11, text: "''이렇게까지 받지 않다니, 뭔가" },
+    { scene_number: 10, text: "' '죽었을 수도 있지 않을까?" },
+    { scene_number: 11, text: "' '이렇게까지 받지 않다니, 뭔가" },
     { scene_number: 11, text: "있는 거 아닐까?" },
 ])
 assert.equal(duplicatedOpeningQuotes[0].text, "'죽었을 수도 있지 않을까?'")
 assert.equal(duplicatedOpeningQuotes[1].text, "'이렇게까지 받지 않다니, 뭔가")
 assert.equal(duplicatedOpeningQuotes[2].text, "있는 거 아닐까?'")
+
+const narrationWithStrayQuotes = repairSubtitleItemQuoteBoundaries([
+    { scene_number: 12, text: "' 그런 말들이 할머니 귀에" },
+    { scene_number: 12, text: "들어왔지.'" },
+])
+assert.equal(narrationWithStrayQuotes[0].text, '그런 말들이 할머니 귀에')
+assert.equal(narrationWithStrayQuotes[1].text, '들어왔지.')
 
 const alreadyClosedPreviousQuote = repairSubtitleItemQuoteBoundaries([
     { scene_number: 10, text: "'죽었을 수도 있지 않을까?'" },

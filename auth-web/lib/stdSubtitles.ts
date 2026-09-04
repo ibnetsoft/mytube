@@ -271,7 +271,7 @@ export function repairSubtitleItemQuoteBoundaries<T extends { text?: string; sce
             // Older subtitle repair could leave the next dialogue with two opening
             // straight quotes. Treat that legacy run as one opening quote so the
             // scene receives its closing quote after the final punctuation.
-            text: text.replace(/^('{2,}|"{2,})(?=\S)/, match => match[0]),
+            text: text.replace(/^(['"])(?:\s*\1)+\s*/, '$1'),
         }
     })
 
@@ -311,6 +311,23 @@ function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: num
 
     const flushGroup = (start: number, end: number) => {
         if (start > end) return
+        const firstText = String(repaired[start]?.text || '').trim()
+        const spacedOpening = firstText.match(/^(['"])\s+/)
+        if (spacedOpening) {
+            const quote = spacedOpening[1]
+            repaired[start] = {
+                ...repaired[start],
+                text: firstText.replace(/^(['"])\s+/, ''),
+            }
+            const lastText = String(repaired[end]?.text || '').trim()
+            if (lastText.endsWith(quote)) {
+                repaired[end] = {
+                    ...repaired[end],
+                    text: lastText.slice(0, -1).trimEnd(),
+                }
+            }
+        }
+
         const combined = repaired
             .slice(start, end + 1)
             .map(item => String(item?.text || '').trim())

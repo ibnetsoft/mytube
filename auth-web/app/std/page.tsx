@@ -420,7 +420,7 @@ const DIALOGUE_QUOTE_OPEN_TO_CLOSE: Record<string, string> = {
 }
 
 const DIALOGUE_CLOSING_QUOTES = new Set(Object.values(DIALOGUE_QUOTE_OPEN_TO_CLOSE))
-const STD_BUILD_LABEL = '4d319029'
+const STD_BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_COMMIT || 'local'
 
 const isWordQuote = (text: string, index: number) => {
     const char = text[index]

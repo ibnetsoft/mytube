@@ -22,8 +22,18 @@ function loadEnvIfExists(envPath) {
 loadEnvIfExists(path.join(__dirname, '.env.local'))
 loadEnvIfExists(path.join(__dirname, '..', '.env'))
 
+const deploymentCommit = String(
+    process.env.VERCEL_GIT_COMMIT_SHA
+    || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+    || process.env.GITHUB_SHA
+    || 'local'
+).slice(0, 8)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    env: {
+        NEXT_PUBLIC_BUILD_COMMIT: deploymentCommit,
+    },
     eslint: {
         // 빌드 시 린트 에러를 무시합니다 (배포 테스트용)
         ignoreDuringBuilds: true,
