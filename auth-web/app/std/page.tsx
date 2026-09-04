@@ -3639,7 +3639,7 @@ export default function StdPortalPage() {
         alert('각 자막 블록이 현재 씬의 이미지/영상과 자동 매칭되어 저장되었습니다.')
     }
 
-    const handleSaveSubtitles = async () => {
+    const handleSaveSubtitles = async (showSuccessAlert: boolean = true) => {
         setIsSubtitleSaved(true)
         const subtitlesForStorage = matchSubtitlesToSceneVisuals(localSubtitles, selectedProject?.scenes || [])
         setLocalSubtitles(subtitlesForStorage)
@@ -3714,7 +3714,11 @@ export default function StdPortalPage() {
                 throw error
             }
         }
-        alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다! (상단 헤더 자막 단계 완료)')
+        if (showSuccessAlert) {
+            alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다! (상단 헤더 자막 단계 완료)')
+        }
+        setScriptSyncDirty(false)
+        return true
     }
 
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string): Promise<SelectedProjectPayload | null> => {
@@ -4331,11 +4335,11 @@ export default function StdPortalPage() {
         await submitProject()
     }
 
-    const generateTts = async () => {
+    const generateTts = async (skipScriptSync: boolean = false) => {
         if (!selectedProject) return
         setGeneratingTts(true)
         setMessage('')
-        if (!(await ensureScriptSyncedBeforeAction())) {
+        if (!skipScriptSync && !(await ensureScriptSyncedBeforeAction())) {
             setGeneratingTts(false)
             return
         }
@@ -4663,6 +4667,20 @@ export default function StdPortalPage() {
             alert(`음성 생성 실패: ${errorMessage}`)
         } finally {
             setGeneratingTts(false)
+        }
+    }
+
+    const handleFinalizeSubtitlesAndTts = async () => {
+        setGeneratingTts(true)
+        setMessage('자막 설정 저장 중...')
+        try {
+            await handleSaveSubtitles(false)
+            await generateTts(true)
+        } catch (error: any) {
+            setGeneratingTts(false)
+            const errorMessage = error?.message || '최종 저장 실패'
+            setMessage(`❌ ${errorMessage}`)
+            alert(`최종 저장 실패: ${errorMessage}`)
         }
     }
 
@@ -6036,7 +6054,7 @@ export default function StdPortalPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => void generateTts()}
+                                            onClick={() => void handleFinalizeSubtitlesAndTts()}
                                             disabled={generatingTts || !localSubtitles.length}
                                             className={`px-3 py-1.5 rounded-md text-white text-[11px] font-bold transition ${
                                                 generatingTts || !localSubtitles.length
@@ -6044,7 +6062,7 @@ export default function StdPortalPage() {
                                                     : 'bg-violet-600 hover:bg-violet-500'
                                             }`}
                                         >
-                                            {generatingTts ? '최종 TTS 생성 중...' : '최종 전체 TTS 생성/저장'}
+                                            {generatingTts ? '최종 저장 중...' : '최종 저장 및 TTS 생성'}
                                         </button>
                                         {audioResultUrl && (
                                             <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
@@ -6410,13 +6428,6 @@ export default function StdPortalPage() {
                                         >
                                             Translate
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSaveSubtitles}
-                                            className="text-[10px] font-bold px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md shadow transition-all active:scale-95 flex items-center gap-1"
-                                        >
-                                            저장
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -6709,33 +6720,35 @@ export default function StdPortalPage() {
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
-                                            style={selectedImageTemplatePreset ? { backgroundColor: templateBgColor || '#000000' } : undefined}
+                                            style={!currentSubVideoUrl && !currentSubImageUrl && selectedImageTemplatePreset
+                                                ? { backgroundColor: templateBgColor || '#000000' }
+                                                : undefined}
                                         >
-                                            {selectedImageTemplatePreset && templateBgUrl ? (
-                                                <img
-                                                    src={templateBgUrl}
-                                                    alt="Template Preview"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : !selectedImageTemplatePreset && currentSubVideoUrl ? (
+                                            {currentSubVideoUrl ? (
                                                 <video
                                                     src={currentSubVideoUrl}
                                                     className="w-full h-full object-cover"
                                                     controls
                                                     muted
                                                 />
-                                            ) : !selectedImageTemplatePreset && currentSubImageUrl ? (
+                                            ) : currentSubImageUrl ? (
                                                 <img
                                                     src={currentSubImageUrl}
                                                     alt="Preview"
                                                     className="w-full h-full object-cover"
                                                 />
-                                            ) : !selectedImageTemplatePreset ? (
+                                            ) : selectedImageTemplatePreset && templateBgUrl ? (
+                                                <img
+                                                    src={templateBgUrl}
+                                                    alt="Template Preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
                                                 <div className="w-full h-full bg-[#0b0e14] flex flex-col items-center justify-center text-gray-600 gap-1 select-none">
                                                     <span className="text-2xl opacity-40">🖼️</span>
                                                     <span className="text-[10px] font-mono text-gray-500">이미지 없음 (업로드 대기)</span>
                                                 </div>
-                                            ) : null}
+                                            )}
                                             {selectedImageTemplatePreset && shapeLayers.map(shape => (
                                                 <div
                                                     key={shape.id}
@@ -6999,7 +7012,7 @@ export default function StdPortalPage() {
                                         설정만 저장
                                     </button>
                                     <button
-                                        onClick={generateTts}
+                                        onClick={() => void generateTts()}
                                         disabled={generatingTts}
                                         className="px-4 py-1.5 text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
                                     >
