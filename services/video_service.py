@@ -4,6 +4,7 @@
 """
 import os
 import re
+import math
 import datetime
 import uuid
 import json
@@ -18,29 +19,32 @@ def _get_scene_transition_mode() -> str:
     import database as db
     def _normalize_transition_mode(mode: Optional[str]) -> str:
         mode = (mode or "ai_auto").strip().lower()
-        if mode == "none":
-            return "ai_auto"
         allowed = {
             "ai_auto",
-            "crossfade",
-            "fade_to_black",
-            "slide_left",
-            "slide_right",
-            "slide_up",
-            "slide_down",
+            "diagonal_wipe",
+            "morph",
+            "darken",
+            "brighten",
+            "color_blend",
+            "grayscale_fade",
+            "wipe_down",
+            "focus",
+            "ripple",
+            "clockwise",
+            "blinds",
+            "circle_spread",
+            "horizontal_lines",
+            "push",
+            "zoom",
             "wipe_left",
             "wipe_right",
-            "push_left",
-            "blur_crossfade",
-            "flash_white",
-            "dip_to_white",
-            "zoom_in",
-            "zoom_out",
-            "zoom_blur",
-            "iris_in",
-            "iris_out",
-            "glitch",
-            "whip_pan",
+            "wipe_up",
+            "none",
+            "dissolve",
+            "blur",
+            "directional_warp",
+            "static",
+            "mosaic",
         }
         return mode if mode in allowed else "ai_auto"
 
@@ -1033,13 +1037,11 @@ class VideoService:
                         
                         for i, c in enumerate(valid_clips):
                             scene_effect = transition_effects[i] if transition_effects and i < len(transition_effects) else None
-                            current_effect = scene_effect or ('crossfade' if transition_mode == "ai_auto" else transition_mode)
+                            current_effect = scene_effect or ('dissolve' if transition_mode == "ai_auto" else transition_mode)
                             current_effect = str(current_effect).strip().lower()
                                 
                             if i == 0:
                                 current_effect = 'none'
-                            elif current_effect == 'none':
-                                current_effect = 'crossfade'
 
                             if current_effect == 'none':
                                 overlap_dur = 0.0
@@ -1051,22 +1053,41 @@ class VideoService:
                                 
                                 c = c.with_start(start_time)
                                 
-                                if current_effect == 'crossfade':
+                                if current_effect == 'dissolve':
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'fade_to_black':
+                                elif current_effect == 'darken':
                                     if i > 0 and len(processed_clips) > 0:
                                         prev_c = processed_clips[-1]
                                         processed_clips[-1] = prev_c.crossfadeout(TRANSITION_DUR)
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect in ('slide_left', 'wipe_left', 'whip_pan'):
+                                    shade = ColorClip(size=(target_w, target_h), color=(0, 0, 0)).with_duration(TRANSITION_DUR).with_start(start_time).with_opacity(0.35)
+                                    transition_overlays.append(shade)
+                                elif current_effect == 'brighten':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                    light = ColorClip(size=(target_w, target_h), color=(255, 255, 255)).with_duration(TRANSITION_DUR).with_start(start_time).with_opacity(0.42)
+                                    transition_overlays.append(light)
+                                elif current_effect == 'color_blend':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                    tint = ColorClip(size=(target_w, target_h), color=(72, 118, 180)).with_duration(TRANSITION_DUR).with_start(start_time).with_opacity(0.28)
+                                    transition_overlays.append(tint)
+                                elif current_effect == 'grayscale_fade':
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                    gray = ColorClip(size=(target_w, target_h), color=(128, 128, 128)).with_duration(TRANSITION_DUR).with_start(start_time).with_opacity(0.3)
+                                    transition_overlays.append(gray)
+                                elif current_effect == 'diagonal_wipe':
+                                    c = c.with_position(lambda t, tw=target_w, th=target_h, td=TRANSITION_DUR: (int(tw * (1.0 - min(1.0, t / td))), int(th * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
+                                elif current_effect == 'morph':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 0.88 + 0.12 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position('center').crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'wipe_left':
                                     c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
-                                elif current_effect in ('slide_right', 'wipe_right'):
+                                elif current_effect == 'wipe_right':
                                     c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(-tw * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
-                                elif current_effect == 'slide_up':
+                                elif current_effect == 'wipe_up':
                                     c = c.with_position(lambda t, th=target_h, td=TRANSITION_DUR: ('center', int(th * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
-                                elif current_effect == 'slide_down':
+                                elif current_effect == 'wipe_down':
                                     c = c.with_position(lambda t, th=target_h, td=TRANSITION_DUR: ('center', int(-th * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
-                                elif current_effect == 'push_left':
+                                elif current_effect == 'push':
                                     if i > 0 and len(processed_clips) > 0:
                                         prev_c = processed_clips[-1]
                                         prev_duration = prev_c.duration or 0
@@ -1076,39 +1097,48 @@ class VideoService:
                                             if t >= pd - td else ('center', 'center')
                                         )
                                     c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
-                                elif current_effect in ('zoom_in', 'zoom_blur'):
-                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 0.92 + 0.08 * min(1.0, t / td) if t < td else 1.0)
+                                elif current_effect in ('zoom', 'circle_spread'):
+                                    initial_scale = 0.72 if current_effect == 'circle_spread' else 0.84
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR, base=initial_scale: base + (1.0 - base) * min(1.0, t / td) if t < td else 1.0)
                                     c = c.with_position('center')
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'zoom_out':
-                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.08 - 0.08 * min(1.0, t / td) if t < td else 1.0)
+                                elif current_effect == 'focus':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.16 - 0.16 * min(1.0, t / td) if t < td else 1.0)
                                     c = c.with_position('center')
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'iris_in':
-                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 0.82 + 0.18 * min(1.0, t / td) if t < td else 1.0)
-                                    c = c.with_position('center')
+                                elif current_effect == 'ripple':
+                                    c = c.with_position(lambda t, td=TRANSITION_DUR: (int(math.sin(t * 55) * 18 * (1.0 - min(1.0, t / td))), 'center') if t < td else ('center', 'center'))
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'iris_out':
-                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.18 - 0.18 * min(1.0, t / td) if t < td else 1.0)
-                                    c = c.with_position('center')
+                                elif current_effect == 'clockwise':
+                                    c = c.with_position(lambda t, td=TRANSITION_DUR: (int(math.cos(t / td * math.pi * 2) * 70 * (1.0 - min(1.0, t / td))), int(math.sin(t / td * math.pi * 2) * 70 * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'glitch':
+                                elif current_effect == 'directional_warp':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.1 - 0.1 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position(lambda t, tw=target_w, td=TRANSITION_DUR: (int(tw * 0.18 * (1.0 - min(1.0, t / td))), int(-tw * 0.06 * (1.0 - min(1.0, t / td)))) if t < td else ('center', 'center'))
+                                    c = c.crossfadein(TRANSITION_DUR)
+                                elif current_effect == 'static':
                                     c = c.with_position(
                                         lambda t, td=TRANSITION_DUR:
                                         ((-18 if int(t * 40) % 2 else 18), (-8 if int(t * 55) % 2 else 8))
                                         if t < td else ('center', 'center')
                                     )
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'blur_crossfade':
+                                elif current_effect == 'blur':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 1.06 - 0.06 * min(1.0, t / td) if t < td else 1.0)
+                                    c = c.with_position('center')
                                     c = c.crossfadein(TRANSITION_DUR)
-                                elif current_effect == 'flash_white':
+                                elif current_effect == 'mosaic':
+                                    c = vfx.resize(c, lambda t, td=TRANSITION_DUR: 0.9 + 0.1 * (int(min(1.0, t / td) * 5) / 5) if t < td else 1.0)
+                                    c = c.with_position('center').crossfadein(TRANSITION_DUR)
+                                elif current_effect in ('blinds', 'horizontal_lines'):
                                     c = c.crossfadein(TRANSITION_DUR)
-                                    flash = ColorClip(size=(target_w, target_h), color=(255, 255, 255)).with_duration(TRANSITION_DUR).with_start(start_time).with_opacity(0.55)
-                                    transition_overlays.append(flash)
-                                elif current_effect == 'dip_to_white':
-                                    c = c.crossfadein(TRANSITION_DUR)
-                                    dip = ColorClip(size=(target_w, target_h), color=(255, 255, 255)).with_duration(TRANSITION_DUR).with_start(start_time - TRANSITION_DUR / 2).with_opacity(0.75)
-                                    transition_overlays.append(dip)
+                                    line_count = 8 if current_effect == 'blinds' else 14
+                                    line_height = max(2, target_h // (line_count * (2 if current_effect == 'blinds' else 12)))
+                                    line_color = (24, 28, 34) if current_effect == 'blinds' else (235, 238, 240)
+                                    for line_index in range(line_count):
+                                        y_pos = int((line_index + 0.5) * target_h / line_count)
+                                        line = ColorClip(size=(target_w, line_height), color=line_color).with_duration(TRANSITION_DUR).with_start(start_time).with_position((0, y_pos)).with_opacity(0.55)
+                                        transition_overlays.append(line)
                                 else:
                                     c = c.crossfadein(TRANSITION_DUR) # Fallback
                             

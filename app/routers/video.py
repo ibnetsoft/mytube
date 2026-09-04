@@ -1691,7 +1691,7 @@ async def render_project_video(
                     prompts_data = db.get_image_prompts(project_id)
                     if prompts_data and prompts_data.get('prompts'):
                         fade_in_flags = [p.get('fade_in', False) for p in prompts_data['prompts']]
-                        transition_effects = [p.get('transition_effect') or 'crossfade' for p in prompts_data['prompts']]
+                        transition_effects = [p.get('transition_effect') or 'dissolve' for p in prompts_data['prompts']]
                 except Exception as e:
                     print(f"Failed to load prompts: {e}")
 
