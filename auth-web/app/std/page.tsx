@@ -1831,7 +1831,7 @@ export default function StdPortalPage() {
                 || selectedVoice
                 || '성우'
             ).trim()
-            const key = voiceId || voiceName
+            const key = voiceName
             if (!voiceName || seen.has(key)) return
             seen.add(key)
             names.push(voiceName)
@@ -6853,6 +6853,7 @@ export default function StdPortalPage() {
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
                                                 const groupVoiceNames = subtitleGroupVoiceNamesInOrder(group.subtitles)
+                                                const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
@@ -6932,20 +6933,6 @@ export default function StdPortalPage() {
                                                             <div className="mt-1 text-[9px] text-gray-500">
                                                                 {duration.toFixed(1)}s
                                                             </div>
-                                                            {isVrewSubtitleMode && groupVoiceNames.length > 0 && (
-                                                                <div className="mt-2 space-y-1 font-sans">
-                                                                    {groupVoiceNames.map((voiceName, voiceIndex) => (
-                                                                        <div
-                                                                            key={`${sNum}-voice-${voiceIndex}-${voiceName}`}
-                                                                            title={`${voiceIndex + 1}. ${voiceName}`}
-                                                                            className="min-w-0 rounded border border-cyan-400/20 bg-cyan-500/10 px-1.5 py-1 text-[9px] font-bold leading-tight text-cyan-100"
-                                                                        >
-                                                                            <span className="mr-1 font-mono text-cyan-300">{voiceIndex + 1}</span>
-                                                                            <span className="break-words">{voiceName}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
                                                             {isVrewSubtitleMode && transitionEffect && (
                                                                 <div
                                                                     title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
@@ -6984,9 +6971,17 @@ export default function StdPortalPage() {
                                                                 )}
                                                                 {isVrewSubtitleMode && (
                                                                     <div
-                                                                        className="ml-auto"
+                                                                        className="ml-auto flex items-center gap-2"
                                                                         onClick={(event) => event.stopPropagation()}
                                                                     >
+                                                                        {hasSingleGroupVoice && (
+                                                                            <span
+                                                                                title={groupVoiceNames[0]}
+                                                                                className="max-w-24 truncate rounded border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold leading-none text-cyan-100"
+                                                                            >
+                                                                                {groupVoiceNames[0]}
+                                                                            </span>
+                                                                        )}
                                                                         {renderVoicePicker(
                                                                             `scene-${sNum}`,
                                                                             groupVoiceId,
@@ -7002,12 +6997,13 @@ export default function StdPortalPage() {
                                                                 <div className="space-y-1.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
+                                                                        const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
                                                                         const isDialogueBlock = Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
-                                                                                className={`grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-2 rounded-md border px-2 py-1.5 ${
+                                                                                className={`grid ${hasSingleGroupVoice ? 'grid-cols-[1.5rem_minmax(0,1fr)_2rem]' : 'grid-cols-[1.5rem_minmax(0,1fr)_auto_2rem]'} items-center gap-2 rounded-md border px-2 py-1.5 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
@@ -7034,6 +7030,18 @@ export default function StdPortalPage() {
                                                                                 <div className="min-w-0 text-xs text-white leading-relaxed font-sans">
                                                                                     {renderDialogueHighlightedText(item.text, -1, isDialogueBlock)}
                                                                                 </div>
+                                                                                {!hasSingleGroupVoice && (
+                                                                                    <span
+                                                                                        title={blockVoiceName}
+                                                                                        className={`max-w-24 truncate rounded border px-2 py-1 text-[10px] font-bold leading-none ${
+                                                                                            isDialogueBlock
+                                                                                                ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                                                                                                : 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {blockVoiceName}
+                                                                                    </span>
+                                                                                )}
                                                                                 {renderVoicePicker(
                                                                                     `block-${item.subtitleIndex}`,
                                                                                     blockVoiceId,
