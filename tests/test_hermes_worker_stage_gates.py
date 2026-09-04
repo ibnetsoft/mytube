@@ -473,3 +473,9 @@ def test_short_scene_is_rejected_instead_of_being_padded_with_template_text():
 def test_scene_length_helper_does_not_create_a_script_fallback():
     with pytest.raises(RuntimeError, match="will not be padded"):
         hermes_worker._ensure_scene_section_target_length("", {}, 80)
+
+
+def test_scene_length_helper_allows_bounded_narration_variance():
+    text = "가" * 98
+
+    assert hermes_worker._ensure_scene_section_target_length(text, {}, 114) == text

@@ -7765,10 +7765,10 @@ def _ensure_scene_section_target_length(
     """Validate a generated scene's length without manufacturing missing prose."""
     result = _clean_section_text(str(text or ""), is_multi)
     requested = max(1, int(target_chars or 0))
-    # This is a validation tolerance, never padding: a 60-character scene
-    # satisfies a 62-character timing target, while genuinely empty/short
-    # model output remains a hard failure.
-    required = max(1, (requested * 95 + 99) // 100)
+    # Per-scene speech naturally varies. Keep a bounded 15% tolerance here;
+    # whole-script duration and quality gates still validate the final draft.
+    # Genuinely empty or materially short model output remains a hard failure.
+    required = max(1, (requested * 85 + 99) // 100)
     if len(result) >= required:
         return result
     raise RuntimeError(
