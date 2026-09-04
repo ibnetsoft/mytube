@@ -607,7 +607,29 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        const normalizedRows = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
+        let rows = data || []
+        if (status === 'active') {
+            const loadHiddenRows = (select: string) => supabase
+                .from('topics_queue')
+                .select(select)
+                .eq('status', 'excluded')
+                .order('created_at', { ascending: false })
+                .limit(500)
+
+            let { data: hiddenRows, error: hiddenError } = await loadHiddenRows(TOPICS_QUEUE_LIST_SELECT)
+            if (isMissingColumnError(hiddenError)) {
+                const hiddenRetry = await loadHiddenRows('*, categories(*)')
+                hiddenRows = hiddenRetry.data
+                hiddenError = hiddenRetry.error
+            }
+            if (hiddenError) throw hiddenError
+
+            const loadedIds = new Set(rows.map((topic: any) => String(topic.id)))
+            const missingHiddenRows = (hiddenRows || []).filter((topic: any) => !loadedIds.has(String(topic.id)))
+            rows = [...rows, ...missingHiddenRows]
+        }
+
+        const normalizedRows = rows.map((topic: any) => normalizeTopicQueueRow(topic))
         const topics = status === 'active'
             ? normalizedRows.filter((topic: any) => topic?.status === 'assigned' || topic?.status === 'excluded' || topic?.is_prepared_for_claim)
             : normalizedRows

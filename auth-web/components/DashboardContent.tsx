@@ -1911,34 +1911,14 @@ export default function DashboardContent() {
 
     const fetchTopics = useCallback(async () => {
         try {
-            const activeParams = new URLSearchParams({
+            const params = new URLSearchParams({
                 status: 'active',
                 page: '1',
                 perPage: '300',
             })
-            const hiddenParams = new URLSearchParams({
-                status: 'excluded',
-                page: '1',
-                perPage: '500',
-            })
-            const [activeRes, hiddenRes] = await Promise.all([
-                adminFetch(`/api/admin/topics-queue?${activeParams.toString()}`),
-                adminFetch(`/api/admin/topics-queue?${hiddenParams.toString()}`),
-            ])
-            const [activeData, hiddenData] = await Promise.all([
-                activeRes.json(),
-                hiddenRes.json(),
-            ])
-            const activeTopics = Array.isArray(activeData.topics) ? activeData.topics : []
-            const hiddenTopics = Array.isArray(hiddenData.topics)
-                ? hiddenData.topics.filter((topic: any) => topic?.progress_payload?.admin_hidden === true)
-                : []
-            const mergedTopics = [...activeTopics]
-            const loadedTopicIds = new Set(activeTopics.map((topic: any) => String(topic.id)))
-            hiddenTopics.forEach((topic: any) => {
-                if (!loadedTopicIds.has(String(topic.id))) mergedTopics.push(topic)
-            })
-            setTopics(mergedTopics)
+            const res = await adminFetch(`/api/admin/topics-queue?${params.toString()}`)
+            const data = await res.json()
+            if (data.topics) setTopics(data.topics)
         } catch (e) {
             // Silently ignore errors to prevent console spam
         }
