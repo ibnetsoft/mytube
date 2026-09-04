@@ -1,12 +1,34 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { isAuthResponse, requireSuperAdmin } from '../../_auth'
+import { isAuthResponse, requireAdmin, requireSuperAdmin } from '../../_auth'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } }
 )
+
+export async function GET(req: Request) {
+    try {
+        const requester = await requireAdmin(req)
+        if (isAuthResponse(requester)) return requester
+
+        const supabase = getAdmin()
+        const { data, error } = await supabase
+            .from('topics_queue')
+            .select('id, category_id, topic, status, progress_payload, created_at')
+            .eq('status', 'excluded')
+            .eq('progress_payload->>admin_hidden', 'true')
+            .order('created_at', { ascending: false })
+            .limit(200)
+        if (error) throw error
+
+        return NextResponse.json({ success: true, topics: data || [] })
+    } catch (e: any) {
+        console.error('Failed to load hidden topics:', e)
+        return NextResponse.json({ error: e?.message || String(e) }, { status: 500 })
+    }
+}
 
 export async function PATCH(req: Request) {
     try {

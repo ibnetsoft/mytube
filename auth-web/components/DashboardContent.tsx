@@ -1918,7 +1918,21 @@ export default function DashboardContent() {
             })
             const res = await adminFetch(`/api/admin/topics-queue?${params.toString()}`)
             const data = await res.json()
-            if (data.topics) setTopics(data.topics)
+            if (!Array.isArray(data.topics)) return
+
+            let hiddenTopics: any[] = []
+            try {
+                const hiddenRes = await adminFetch('/api/admin/topics-queue/visibility')
+                const hiddenData = await hiddenRes.json()
+                if (hiddenRes.ok && Array.isArray(hiddenData.topics)) hiddenTopics = hiddenData.topics
+            } catch {}
+
+            const mergedTopics = [...data.topics]
+            const loadedTopicIds = new Set(mergedTopics.map((topic: any) => String(topic.id)))
+            hiddenTopics.forEach((topic: any) => {
+                if (!loadedTopicIds.has(String(topic.id))) mergedTopics.push(topic)
+            })
+            setTopics(mergedTopics)
         } catch (e) {
             // Silently ignore errors to prevent console spam
         }

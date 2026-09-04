@@ -16,15 +16,19 @@ def test_admin_topic_visibility_uses_excluded_status_and_superadmin_auth():
 
 def test_admin_topic_queue_loads_hidden_rows_for_management():
     source = (ROOT / "auth-web" / "app" / "api" / "admin" / "topics-queue" / "route.ts").read_text(encoding="utf-8")
-    list_select = source.split("const TOPICS_QUEUE_LIST_SELECT", 1)[1].split("type ContentLanguage", 1)[0]
 
     assert "['pending', 'assigned', 'excluded']" in source
     assert "topic?.status === 'excluded'" in source
-    assert "const loadHiddenRows" in source
+
+
+def test_hidden_topic_endpoint_only_returns_admin_hidden_rows():
+    source = (ROOT / "auth-web" / "app" / "api" / "admin" / "topics-queue" / "visibility" / "route.ts").read_text(encoding="utf-8")
+
+    assert "export async function GET" in source
+    assert "requireAdmin(req)" in source
     assert ".eq('status', 'excluded')" in source
     assert ".eq('progress_payload->>admin_hidden', 'true')" in source
-    assert "rows = [...rows, ...missingHiddenRows]" in source
-    assert "updated_at" not in list_select
+    assert "topics: data || []" in source
 
 
 def test_admin_topic_queue_ui_can_hide_and_restore_topics():
@@ -38,6 +42,8 @@ def test_admin_topic_queue_ui_can_hide_and_restore_topics():
     assert "가림된 주제" in source
     assert "가림주제: {hiddenTopics.length}개" in source
     assert "handleTopicVisibility(topicItem, false)" in source
+    assert "admin/topics-queue/visibility" in source
+    assert "setTopics(mergedTopics)" in source
 
     preview = source.split("previewTopicItems.map((topicItem, idx)", 1)[1].split("{activeTab === 'topics-queue'", 1)[0]
     edit_index = preview.index("수정")

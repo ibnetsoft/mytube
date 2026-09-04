@@ -45,6 +45,7 @@ const TOPICS_QUEUE_LIST_SELECT = `
     assigned_employee_email,
     status,
     created_at,
+    updated_at,
     is_auto_generated,
     assigned_script_style,
     language,
@@ -606,30 +607,7 @@ export async function GET(req: Request) {
 
         if (error) throw error
 
-        let rows = data || []
-        if (status === 'active') {
-            const loadHiddenRows = (select: string) => supabase
-                .from('topics_queue')
-                .select(select)
-                .eq('status', 'excluded')
-                .eq('progress_payload->>admin_hidden', 'true')
-                .order('created_at', { ascending: false })
-                .limit(200)
-
-            let { data: hiddenRows, error: hiddenError } = await loadHiddenRows(TOPICS_QUEUE_LIST_SELECT)
-            if (isMissingColumnError(hiddenError)) {
-                const hiddenRetry = await loadHiddenRows('*, categories(*)')
-                hiddenRows = hiddenRetry.data
-                hiddenError = hiddenRetry.error
-            }
-            if (hiddenError) throw hiddenError
-
-            const loadedIds = new Set(rows.map((topic: any) => String(topic.id)))
-            const missingHiddenRows = (hiddenRows || []).filter((topic: any) => !loadedIds.has(String(topic.id)))
-            rows = [...rows, ...missingHiddenRows]
-        }
-
-        const normalizedRows = rows.map((topic: any) => normalizeTopicQueueRow(topic))
+        const normalizedRows = (data || []).map((topic: any) => normalizeTopicQueueRow(topic))
         const topics = status === 'active'
             ? normalizedRows.filter((topic: any) => topic?.status === 'assigned' || topic?.status === 'excluded' || topic?.is_prepared_for_claim)
             : normalizedRows
