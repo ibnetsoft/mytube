@@ -6839,7 +6839,7 @@ export default function StdPortalPage() {
                                                             : subtitleSceneGroups.map(group => Number(group.scene_number)))
                                                     }}
                                                     aria-label="전체 씬 선택"
-                                                    className="w-4 h-4 accent-cyan-500 cursor-pointer"
+                                                    className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                 />
                                                 {t('sub_select_all')}
                                             </label>
@@ -6901,7 +6901,7 @@ export default function StdPortalPage() {
 
                                     {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
-                                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-2 space-y-2">
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
@@ -6961,7 +6961,7 @@ export default function StdPortalPage() {
                                                                     ))
                                                                 }}
                                                                 aria-label={`씬 ${sNum} 선택`}
-                                                                className="w-4 h-4 accent-cyan-500 cursor-pointer"
+                                                                className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                             />
                                                         </div>
                                                         {/* 이미지 & 타임 */}
