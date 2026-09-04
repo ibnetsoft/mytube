@@ -51,6 +51,14 @@ const nextConfig = {
             },
         ];
     },
+    async rewrites() {
+        return [
+            {
+                source: '/api/worker-central/:path*',
+                destination: '/api/internal/worker/:path*',
+            },
+        ];
+    },
 };
 
 export default nextConfig;
