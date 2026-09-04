@@ -562,6 +562,25 @@ def test_scene_plan_repetition_detects_same_summary_with_different_hooks():
     assert any("repeats one summary" in error for error in errors)
 
 
+def test_scene_plan_repetition_allows_reused_voice_direction():
+    beats = ["arrival", "warning", "choice", "betrayal", "rescue", "return"]
+    structure = {
+        "scenes": [
+            {
+                "scene_summary": f"The {beat} changes the story",
+                "scene_situation": f"A distinct {beat} situation unfolds",
+                "scene_purpose": f"Advance the {beat} conflict",
+                "retention_hook": f"What follows the {beat}?",
+                "end_bridge": f"The {beat} opens a new consequence",
+                "tts_direction": "조용하고 감정적인 나레이션",
+            }
+            for beat in beats
+        ]
+    }
+
+    assert not hermes_worker._scene_plan_repetition_errors(structure)
+
+
 def test_old_story_grave_vigil_repair_matches_daughter_in_law_title():
     structure = {
         "scenes": [

@@ -4147,7 +4147,6 @@ def _scene_plan_repetition_errors(structure: dict) -> list[str]:
     duplicate_field_counts: dict[str, Counter[str]] = {
         "scene_situation": Counter(),
         "visual_direction": Counter(),
-        "tts_direction": Counter(),
         "end_bridge": Counter(),
     }
     ordinal_middle_template_hits: list[int] = []
