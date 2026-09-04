@@ -3514,6 +3514,7 @@ def _generate_scene_media_prompts(
     scene_script_sections: list[str] | None = None,
     main_character: dict | None = None,
     supporting_characters: list[dict] | None = None,
+    model_override: str = "",
 ) -> dict:
     """Attach image/video generation prompts without changing scene boundaries."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else None
@@ -3525,7 +3526,7 @@ def _generate_scene_media_prompts(
     from services.image_grid_prompts import validate_image_grid_prompt_readiness
 
     Config.refresh_remote_keys_if_stale()
-    model = str(config.IMAGE_PROMPT_MODEL or config.SCRIPT_GENERATION_MODEL or "").strip()
+    model = str(model_override or config.IMAGE_PROMPT_MODEL or config.SCRIPT_GENERATION_MODEL or "").strip()
     if not model:
         raise RuntimeError("No image-prompt model selected; provider fallback is disabled")
     scenes = _attach_script_excerpts_to_scenes(scenes, script_text, scene_script_sections)
@@ -9734,6 +9735,7 @@ Hard retry rules:
         scene_script_sections=scene_script_sections,
         main_character=main_character,
         supporting_characters=supporting_characters,
+        model_override=job_model_override,
     )
     category_errors = _scene_plan_category_contamination_errors(
         structure,
