@@ -323,6 +323,8 @@ Instructions:
 3a. LONGFORM OPENING RULE: If TARGET DURATION is {LONGFORM_OPENING_RULE_MIN_SECONDS} seconds or longer, the first {OPENING_WINDOW_SECONDS} seconds MUST be exactly {OPENING_MICRO_SCENE_COUNT} separate opening scenes, each exactly {OPENING_MICRO_SCENE_SECONDS} seconds. Do not merge these opening beats into larger scenes.
 3b. These first {OPENING_MICRO_SCENE_COUNT} scenes are mandatory fast visual cuts for retention. Each must have its own scene_id, scene_order, scene_summary, scene_situation, visual_direction, retention_hook, and end_bridge.
 3c. If TARGET SCENE COUNT is a number, return exactly that many scenes.
+3d. Keep every per-scene string concise: one sentence and at most 120 characters. Do not write paragraphs inside scene fields.
+3e. Keep scene_summary at most 60 characters and scene_situation at most 120 characters. This is a production plan, not the final script.
 4. Provide a brief summary of what happens in the scene.
 5. Provide a visual hint for the overall background/setting of the scene.
 6. If a Writing Style Directive is provided above, let it shape the scene progression itself — pacing, section count, how much of each scene is dialogue vs narration, and where tension/hooks land — not just the wording of the summaries.

@@ -2,6 +2,7 @@
 Claude API 서비스 - 대본 생성에 Anthropic Claude 사용
 """
 import httpx
+import asyncio
 import time
 from typing import Optional, List
 from config import config
@@ -117,8 +118,32 @@ class ClaudeService:
             self.log_debug(f"💬 [Claude Text] Starting generation (model={model}, prompt={prompt[:100]}...)")
             request_timeout = 900.0 if max_tokens >= 32768 else (600.0 if max_tokens >= 16384 else 180.0)
             async with httpx.AsyncClient(timeout=request_timeout) as client:
-                response = await client.post(url, json=payload, headers=headers)
-                result = response.json()
+                result = {}
+                response = None
+                for attempt in range(1, 4):
+                    response = await client.post(url, json=payload, headers=headers)
+                    try:
+                        result = response.json()
+                    except ValueError:
+                        result = {"error": {"message": response.text[:500] or "invalid JSON response"}}
+
+                    error = result.get("error") if isinstance(result, dict) else None
+                    error_type = str(error.get("type") or "") if isinstance(error, dict) else ""
+                    transient = (
+                        response.status_code in {408, 409, 429}
+                        or response.status_code >= 500
+                        or error_type in {"api_error", "overloaded_error", "rate_limit_error"}
+                    )
+                    if "content" in result and result["content"]:
+                        break
+                    if not transient or attempt == 3:
+                        break
+                    delay = 2 ** attempt
+                    self.log_debug(
+                        f"⚠️ [Claude Text] Transient failure; retrying "
+                        f"({attempt}/3, status={response.status_code}, type={error_type}, wait={delay}s)"
+                    )
+                    await asyncio.sleep(delay)
 
                 if "content" in result and result["content"]:
                     text = result["content"][0].get("text", "")

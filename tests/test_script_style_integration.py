@@ -21,6 +21,7 @@ class ScenePlannerStyleTests(unittest.IsolatedAsyncioTestCase):
         captured = {}
 
         async def fake_generate_text(prompt, model, **kwargs):
+            captured["prompt"] = prompt
             captured.update(kwargs)
             return '{"topic": "t", "scene_count": 53, "global_mood": "calm", "scenes": [], "planner_notes": {"strategy": "x", "error": false}}'
 
@@ -32,6 +33,7 @@ class ScenePlannerStyleTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(captured["max_tokens"], 32768)
+        self.assertIn("scene_summary at most 60 characters", captured["prompt"])
 
     async def test_style_directive_is_embedded_in_planning_prompt(self):
         captured = {}
