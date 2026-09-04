@@ -272,6 +272,7 @@ export default function DashboardContent() {
     // 카테고리 & AI 주제 자판기 상태
     const [categories, setCategories] = useState<any[]>([])
     const [topics, setTopics] = useState<any[]>([])
+    const [hiddenAdminTopics, setHiddenAdminTopics] = useState<any[]>([])
     const [categoriesLoading, setCategoriesLoading] = useState(false)
     const hasLoadedCategoriesRef = useRef(false)
     const [newCatName, setNewCatName] = useState('')
@@ -1900,6 +1901,7 @@ export default function DashboardContent() {
             const data = await res.json()
             if (data.categories) {
                 setCategories(data.categories)
+                if (Array.isArray(data.hiddenTopics)) setHiddenAdminTopics(data.hiddenTopics)
                 hasLoadedCategoriesRef.current = true
             }
         } catch (e) {
@@ -1916,33 +1918,14 @@ export default function DashboardContent() {
                 page: '1',
                 perPage: '300',
             })
-            const [activeResult, hiddenResult] = await Promise.allSettled([
-                adminFetch(`/api/admin/topics-queue?${params.toString()}`),
-                adminFetch('/api/admin/topics-queue/visibility'),
-            ])
+            const activeResult = await Promise.resolve(adminFetch(`/api/admin/topics-queue?${params.toString()}`))
 
             let activeTopics: any[] = []
-            if (activeResult.status === 'fulfilled') {
-                try {
-                    const data = await activeResult.value.json()
-                    if (activeResult.value.ok && Array.isArray(data.topics)) activeTopics = data.topics
-                } catch {}
-            }
-
-            let hiddenTopics: any[] = []
-            if (hiddenResult.status === 'fulfilled') {
-                try {
-                    const hiddenData = await hiddenResult.value.json()
-                    if (hiddenResult.value.ok && Array.isArray(hiddenData.topics)) hiddenTopics = hiddenData.topics
-                } catch {}
-            }
-
-            const mergedTopics = [...activeTopics]
-            const loadedTopicIds = new Set(mergedTopics.map((topic: any) => String(topic.id)))
-            hiddenTopics.forEach((topic: any) => {
-                if (!loadedTopicIds.has(String(topic.id))) mergedTopics.push(topic)
-            })
-            setTopics(mergedTopics)
+            try {
+                const data = await activeResult.json()
+                if (activeResult.ok && Array.isArray(data.topics)) activeTopics = data.topics
+            } catch {}
+            setTopics(activeTopics)
         } catch (e) {
             // Silently ignore errors to prevent console spam
         }
@@ -2716,6 +2699,13 @@ export default function DashboardContent() {
                 ? { ...item, ...data.topic }
                 : item
             ))
+            setHiddenAdminTopics(prev => hidden
+                ? [
+                    { ...topicItem, ...data.topic },
+                    ...prev.filter(item => String(item.id) !== String(topicItem.id)),
+                ]
+                : prev.filter(item => String(item.id) !== String(topicItem.id))
+            )
         } catch (err: any) {
             alert(`주제 ${actionLabel} 오류: ` + (err?.message || String(err)))
         } finally {
@@ -4026,10 +4016,7 @@ export default function DashboardContent() {
                                         const pendingTopics = allPendingTopics.filter(t => getTopicPreparation(t).ready);
                                         const preparingTopics = allPendingTopics.filter(t => !getTopicPreparation(t).ready);
                                         const completedTopics = categoryTopics.filter(t => t.status === 'completed');
-                                        const hiddenTopics = categoryTopics.filter(t =>
-                                            t.status === 'excluded'
-                                            && (t.progress_payload?.admin_hidden === true || t.progress_payload?.admin_hidden === 'true')
-                                        );
+                                        const hiddenTopics = hiddenAdminTopics.filter(t => String(t.category_id) === String(cat.id));
                                         const previewTopicItems = pendingTopics.slice(0, 10);
                                         const isFreshPreview = Boolean(generatedTopicsByCat[cat.id]?.length);
                                         const staleYearPendingCount = allPendingTopics.filter((topicItem: any) => /2024|2025/.test(String(topicItem.topic || ''))).length;

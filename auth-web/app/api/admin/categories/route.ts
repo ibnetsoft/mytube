@@ -37,9 +37,24 @@ export async function GET(req: Request) {
         const requester = await requireAdmin(req)
         if (isAuthResponse(requester)) return requester
 
+        const supabase = getAdmin()
+        const loadHiddenTopics = async () => {
+            const { data, error } = await supabase
+                .from('topics_queue')
+                .select('id, category_id, topic, status, progress_payload, created_at')
+                .eq('status', 'excluded')
+                .order('created_at', { ascending: false })
+                .limit(500)
+            if (error) throw error
+            return (data || []).filter((topic: any) => (
+                topic?.progress_payload?.admin_hidden === true
+                || topic?.progress_payload?.admin_hidden === 'true'
+            ))
+        }
+
         const cached = await getServerCache<{ categories: any[] }>(CATEGORIES_CACHE_KEY)
         if (cached) {
-            return NextResponse.json(cached, {
+            return NextResponse.json({ ...cached, hiddenTopics: await loadHiddenTopics() }, {
                 headers: {
                     'Cache-Control': `private, max-age=${CATEGORIES_CACHE_TTL_SECONDS}`,
                     'X-Admin-Cache': 'HIT',
@@ -47,7 +62,6 @@ export async function GET(req: Request) {
             })
         }
 
-        const supabase = getAdmin()
         const { data, error } = await supabase
             .from('categories')
             .select('*')
@@ -68,7 +82,7 @@ export async function GET(req: Request) {
         }
         await setServerCache(CATEGORIES_CACHE_KEY, response, CATEGORIES_CACHE_TTL_SECONDS)
 
-        return NextResponse.json(response, {
+        return NextResponse.json({ ...response, hiddenTopics: await loadHiddenTopics() }, {
             headers: {
                 'Cache-Control': `private, max-age=${CATEGORIES_CACHE_TTL_SECONDS}`,
                 'X-Admin-Cache': 'MISS',
