@@ -3148,6 +3148,7 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
     worker_dir = Path(__file__).resolve().parent
     project_root = worker_dir.parent
     python_exe = Path(sys.executable)
+    current_manager_pid = os.getpid()
     roles_to_start = ["manager"] if restart else []
     helper_script = STATE_DIR / ("restart_worker_server.ps1" if restart else "shutdown_worker_server.ps1")
     lifecycle_log = LOG_DIR / "server_lifecycle.log"
@@ -3169,6 +3170,7 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         f"$worker = {ps_utf8(str(worker_dir))}",
         f"$projectRoot = {ps_utf8(str(project_root))}",
         f"$python = {ps_utf8(str(python_exe))}",
+        f"$currentManagerPid = {current_manager_pid}",
         f"$managerArgs = {ps_utf8(str(worker_dir / 'air_worker_entry.py') + ' --role manager')}",
         "$patterns = @(",
         "  'dashboard_app:app',",
@@ -3184,8 +3186,12 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "    $cmd = $_.CommandLine",
         # Scope by this exact checkout.  The old packaged-app name
         # (LongformGenerator) made restart a no-op in source installs.
-        '    $_.ProcessId -ne $PID -and $cmd -and $cmd -like "*$projectRoot*" -and',
-        "    (($patterns | Where-Object { $cmd -like \"*$_*\" }).Count -gt 0)",
+        '    $_.ProcessId -ne $PID -and (',
+        '      $_.ProcessId -eq $currentManagerPid -or (',
+        '        $cmd -and $cmd -like "*$projectRoot*" -and',
+        "        (($patterns | Where-Object { $cmd -like \"*$_*\" }).Count -gt 0)",
+        '      )',
+        '    )',
         "  }",
         "}",
         "$procs = @(Get-AirWorkerProcesses | Sort-Object ProcessId -Unique)",

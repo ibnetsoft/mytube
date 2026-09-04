@@ -102,6 +102,8 @@ def test_server_restart_helper_matches_project_dashboard_processes():
     assert "project_root = worker_dir.parent" in source
     assert "def ps_utf8(value: str)" in source
     assert "$projectRoot" in source
+    assert "$currentManagerPid" in source
+    assert "$_.ProcessId -eq $currentManagerPid" in source
     assert "'air_worker_entry.py'," in source
     assert "server_lifecycle.log" in source
     assert "taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden" in source
