@@ -65,6 +65,7 @@ import {
     MoreVertical,
     Music,
     Pause,
+    Pencil,
     Play,
     RefreshCw,
     Scissors,
@@ -863,6 +864,8 @@ export default function StdPortalPage() {
     const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
     const subtitleBlockSelectionAnchorRef = useRef<number | null>(null)
     const subtitleTextSelectionRef = useRef<{ subtitleIndex: number; cursor: number } | null>(null)
+    const subtitleTextEditorRef = useRef<HTMLTextAreaElement | null>(null)
+    const [isSubtitleTextEditing, setIsSubtitleTextEditing] = useState(false)
     const [isTransitionPickerOpen, setIsTransitionPickerOpen] = useState(false)
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
@@ -900,6 +903,19 @@ export default function StdPortalPage() {
         setSelectedSubtitleSceneNumbers([])
         setIsTransitionPickerOpen(false)
     }, [selectedProject?.project?.id])
+
+    useEffect(() => {
+        setIsSubtitleTextEditing(false)
+    }, [selectedSubIndex])
+
+    useEffect(() => {
+        if (!isSubtitleTextEditing) return
+        const timeout = window.setTimeout(() => {
+            subtitleTextEditorRef.current?.focus()
+            subtitleTextEditorRef.current?.select()
+        }, 0)
+        return () => window.clearTimeout(timeout)
+    }, [isSubtitleTextEditing, selectedSubIndex])
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
     
@@ -2213,6 +2229,29 @@ export default function StdPortalPage() {
                 className={index === activeTokenIndex ? 'rounded bg-white/20 px-0.5' : undefined}
             >
                 {token}
+            </span>
+        ))
+    }
+
+    const renderVrewSubtitleTokenEditor = (text: string, activeTokenIndex = -1) => {
+        const tokens = String(text || '').trim().match(/\S+/g) || []
+        if (!tokens.length) {
+            return (
+                <span className="text-[11px] text-gray-500">자막 내용 없음</span>
+            )
+        }
+
+        return tokens.map((token, index) => (
+            <span
+                key={`${index}-${token}`}
+                title={token}
+                className={`inline-flex h-8 max-w-full items-center rounded-md border border-white/10 bg-[#10151d] px-3 text-xs leading-none text-gray-200 shadow-sm transition ${
+                    index === activeTokenIndex
+                        ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100'
+                        : 'hover:border-white/20 hover:bg-[#161c26]'
+                }`}
+            >
+                <span className="truncate">{token}</span>
             </span>
         ))
     }
@@ -7348,27 +7387,53 @@ export default function StdPortalPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* 자막 텍스트 에디터 */}
-                                                <div>
-                                                    <textarea
-                                                        rows={1}
-                                                        wrap="off"
-                                                        value={currentSub.text}
-                                                        onSelect={event => {
-                                                            subtitleTextSelectionRef.current = {
-                                                                subtitleIndex: selectedSubIndex,
-                                                                cursor: event.currentTarget.selectionStart ?? 0,
-                                                            }
-                                                        }}
-                                                        onChange={e => {
-                                                            const newText = e.target.value
-                                                            const updatedSub = { ...currentSub, text: newText }
-                                                            if (isVrewSubtitleMode && isPlayingPreview) stopVrewPlayback()
-                                                            if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
-                                                            setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
-                                                        }}
-                                                        className="w-full h-9 min-h-9 px-3 py-2 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-5 resize-none overflow-hidden focus:outline-none focus:border-blue-500"
-                                                    />
+                                                {/* Vrew 스타일 자막 토큰 에디터 */}
+                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-2">
+                                                    {isSubtitleTextEditing ? (
+                                                        <textarea
+                                                            ref={subtitleTextEditorRef}
+                                                            rows={2}
+                                                            wrap="soft"
+                                                            value={currentSub.text}
+                                                            onSelect={event => {
+                                                                subtitleTextSelectionRef.current = {
+                                                                    subtitleIndex: selectedSubIndex,
+                                                                    cursor: event.currentTarget.selectionStart ?? 0,
+                                                                }
+                                                            }}
+                                                            onBlur={() => setIsSubtitleTextEditing(false)}
+                                                            onChange={e => {
+                                                                const newText = e.target.value
+                                                                const updatedSub = { ...currentSub, text: newText }
+                                                                if (isVrewSubtitleMode && isPlayingPreview) stopVrewPlayback()
+                                                                if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
+                                                                setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
+                                                            }}
+                                                            className="w-full min-h-16 resize-none overflow-hidden rounded-md border border-blue-500 bg-[#10151d] px-3 py-2 text-xs leading-5 text-white focus:outline-none"
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-start gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsSubtitleTextEditing(true)}
+                                                                className="flex min-h-10 flex-1 flex-wrap content-start gap-1.5 rounded-md text-left"
+                                                                title="자막 텍스트 편집"
+                                                            >
+                                                                {renderVrewSubtitleTokenEditor(
+                                                                    currentSub.text,
+                                                                    isPlayingPreview ? vrewActiveTokenIndex : -1
+                                                                )}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsSubtitleTextEditing(true)}
+                                                                title="자막 텍스트 편집"
+                                                                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-white/20 hover:bg-[#202632] hover:text-white"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ) : (
