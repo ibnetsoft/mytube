@@ -62,10 +62,9 @@ export async function PATCH(req: Request) {
             .update({
                 status: hidden ? 'excluded' : restoredStatus,
                 progress_payload: progressPayload,
-                updated_at: new Date().toISOString(),
             })
             .eq('id', id)
-            .select('id, status, progress_payload, updated_at')
+            .select('id, status, progress_payload')
             .single()
 
         if (updateError) throw updateError

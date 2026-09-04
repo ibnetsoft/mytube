@@ -11,6 +11,7 @@ def test_admin_topic_visibility_uses_excluded_status_and_superadmin_auth():
     assert "status: hidden ? 'excluded' : restoredStatus" in source
     assert "admin_hidden_previous_status" in source
     assert ".from('topics_queue')" in source
+    assert "updated_at" not in source
 
 
 def test_admin_topic_queue_loads_hidden_rows_for_management():
