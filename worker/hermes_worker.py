@@ -8382,6 +8382,7 @@ async def _evaluate_script_quality(
     ai_router, model: str, topic: str, upload_title: str, narrative_blueprint: dict,
     structure: dict, script: str, language: str,
 ) -> dict:
+    qa_structure = _structure_story_content(structure)
     prompt = f"""
 {_script_qa_role(language)}
 
@@ -8404,7 +8405,7 @@ LANGUAGE: {language}
 TOPIC: {topic}
 UPLOAD TITLE: {upload_title}
 STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
-SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
+SCENE STRUCTURE: {json.dumps(qa_structure, ensure_ascii=False)}
 SCRIPT:
 {script}
 
@@ -8426,19 +8427,27 @@ Rules:
 - If verdict is "pass", critical_issues MUST be an empty array. Put non-blocking improvement notes in revision_notes.
 - If any item is severe enough to be called a critical issue, verdict MUST be "revise".
 """
-    try:
-        raw = await ai_router.generate_text(
-            prompt, model, temperature=0.2, max_tokens=3000,
-            task_type="hermes_script_quality_qa",
+    last_error: Exception | None = None
+    for attempt in range(2):
+        retry_instruction = (
+            "\nYour previous response was not valid JSON. Return the JSON object only, "
+            "with no prose or markdown."
+            if attempt else ""
         )
-        report = _extract_json(raw)
-        report["score"] = max(0, min(100, round(float(report.get("score") or 0))))
-        if report.get("score", 0) < 78 and report.get("verdict") == "pass":
-            report["verdict"] = "revise"
-        return _apply_paragraph_opener_quality(report, script)
-    except Exception as e:
-        _reraise_if_provider_credit_exhausted(e)
-        raise RuntimeError(f"script QA failed; synthetic QA approval is disabled: {e}") from e
+        try:
+            raw = await ai_router.generate_text(
+                f"{prompt}{retry_instruction}", model, temperature=0.2, max_tokens=3000,
+                task_type="hermes_script_quality_qa",
+            )
+            report = _extract_json(raw)
+            report["score"] = max(0, min(100, round(float(report.get("score") or 0))))
+            if report.get("score", 0) < 78 and report.get("verdict") == "pass":
+                report["verdict"] = "revise"
+            return _apply_paragraph_opener_quality(report, script)
+        except Exception as e:
+            _reraise_if_provider_credit_exhausted(e)
+            last_error = e
+    raise RuntimeError(f"script QA failed; synthetic QA approval is disabled: {last_error}") from last_error
 
 
 def _script_needs_revision(report: dict) -> bool:

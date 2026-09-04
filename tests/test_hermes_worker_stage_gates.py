@@ -1,5 +1,6 @@
 ﻿import sys
 from pathlib import Path
+import asyncio
 
 import pytest
 
@@ -487,3 +488,30 @@ def test_script_jobs_support_scoped_model_override_and_smaller_longform_chunks()
     source = inspect.getsource(hermes_worker._process_script_generate)
     assert 'get("ai_model_override")' in source
     assert "8 if len(scenes) >= 40 else 4" in source
+
+
+def test_script_quality_retries_malformed_json_response():
+    class Router:
+        def __init__(self):
+            self.calls = 0
+
+        async def generate_text(self, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return "not-json"
+            return '{"score": 90, "verdict": "pass", "critical_issues": [], "strengths": [], "revision_notes": []}'
+
+    router = Router()
+    report = asyncio.run(hermes_worker._evaluate_script_quality(
+        router,
+        "gemini-3-flash-preview",
+        "topic",
+        "title",
+        {},
+        {"scenes": []},
+        "(차분하게) 충분히 구체적인 테스트 대본입니다.",
+        "ko",
+    ))
+
+    assert router.calls == 2
+    assert report["verdict"] == "pass"
