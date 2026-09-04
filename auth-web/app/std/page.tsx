@@ -2153,7 +2153,8 @@ export default function StdPortalPage() {
         voiceId: string,
         onSelect: (voiceId: string) => void,
         title: string,
-        tone: 'default' | 'dialogue' = 'default'
+        tone: 'default' | 'dialogue' = 'default',
+        openDirection: 'left' | 'right' = 'right'
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = openVoicePickerKey === pickerKey
@@ -2176,7 +2177,7 @@ export default function StdPortalPage() {
                 </button>
                 {isOpen && (
                     <div
-                        className="absolute left-0 top-full mt-1 z-50 w-80 max-w-[min(20rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
+                        className={`absolute ${openDirection === 'left' ? 'right-0' : 'left-0'} top-full mt-1 z-50 w-80 max-w-[min(20rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1`}
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5 truncate">
@@ -6656,7 +6657,8 @@ export default function StdPortalPage() {
                                                                                     blockVoiceId,
                                                                                     (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
                                                                                     `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
-                                                                                    isDialogueBlock ? 'dialogue' : 'default'
+                                                                                    isDialogueBlock ? 'dialogue' : 'default',
+                                                                                    'left'
                                                                                 )}
                                                                             </div>
                                                                         )
