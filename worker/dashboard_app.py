@@ -2821,7 +2821,6 @@ async def api_get_worker_profile_settings(
     token_val = os.environ.get("AIRWORKER_TOKEN") or worker_config.WORKER_TOKEN or ""
     masked_token = (token_val[:4] + "••••••••") if len(token_val) > 4 else ("••••••••" if token_val else "")
     notion_token_val = os.environ.get("NOTION_API_KEY") or os.environ.get("NOTION_TOKEN") or ""
-    masked_notion_token = (notion_token_val[:4] + "••••••••") if len(notion_token_val) > 4 else ("••••••••" if notion_token_val else "")
     return {
         "worker_profile": worker_config.WORKER_PROFILE,
         "worker_id": os.environ.get("AIRWORKER_ID") or worker_config.WORKER_ID,
@@ -2830,7 +2829,7 @@ async def api_get_worker_profile_settings(
         "worker_token_set": bool(token_val),
         "remote_worker_id": os.environ.get("REMOTE_RENDER_WORKER_ID", ""),
         "use_gpu_render": os.environ.get("USE_GPU_RENDER", "false").lower() in ("true", "1", "yes"),
-        "notion_api_key": masked_notion_token,
+        "notion_api_key": notion_token_val,
         "notion_api_key_set": bool(notion_token_val),
         "notion_learning_database_id": os.environ.get("NOTION_LEARNING_DATABASE_ID", ""),
     }
@@ -4793,7 +4792,10 @@ tr:hover { background: #161b22; }
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
             <div class="form-group">
               <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion API Key</label>
-              <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" autocomplete="off" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" autocomplete="off" style="min-width:0;flex:1;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
+                <button id="worker-set-notion-api-key-toggle" type="button" onclick="toggleNotionApiKeyVisibility()" aria-label="Notion API Key 표시" title="Notion API Key 표시" style="height:34px;padding:0 11px;border:1px solid #30363d;border-radius:6px;background:#21262d;color:#c9d1d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">보기</button>
+              </div>
               <div style="font-size:11px;color:#8b949e;margin-top:4px;">Notion 통합의 Internal Integration Secret 값을 입력합니다.</div>
             </div>
             <div class="form-group">
@@ -7455,6 +7457,18 @@ const settingIcons = {
 let settingsOriginal = {};
 
 
+function toggleNotionApiKeyVisibility() {
+  const input = document.getElementById('worker-set-notion-api-key');
+  const button = document.getElementById('worker-set-notion-api-key-toggle');
+  if (!input || !button) return;
+  const shouldShow = input.type === 'password';
+  input.type = shouldShow ? 'text' : 'password';
+  button.textContent = shouldShow ? '숨기기' : '보기';
+  button.setAttribute('aria-label', shouldShow ? 'Notion API Key 숨기기' : 'Notion API Key 표시');
+  button.setAttribute('title', shouldShow ? 'Notion API Key 숨기기' : 'Notion API Key 표시');
+}
+
+
 async function loadWorkerProfileSettings() {
   try {
     const data = await api('GET', '/api/worker-profile-settings');
@@ -7475,8 +7489,15 @@ async function loadWorkerProfileSettings() {
       tokenEl.placeholder = data.worker_token_set ? '•••••••• (설정됨)' : '중앙 서버 발급 토큰';
     }
     if (notionApiKeyEl) {
-      notionApiKeyEl.value = '';
+      notionApiKeyEl.type = 'password';
+      notionApiKeyEl.value = data.notion_api_key || '';
       notionApiKeyEl.placeholder = data.notion_api_key_set ? '•••••••• (설정됨)' : 'secret_xxx';
+    }
+    const notionApiKeyToggleEl = document.getElementById('worker-set-notion-api-key-toggle');
+    if (notionApiKeyToggleEl) {
+      notionApiKeyToggleEl.textContent = '보기';
+      notionApiKeyToggleEl.setAttribute('aria-label', 'Notion API Key 표시');
+      notionApiKeyToggleEl.setAttribute('title', 'Notion API Key 표시');
     }
     if (notionDbIdEl) notionDbIdEl.value = data.notion_learning_database_id || '';
     if (badgeEl) {

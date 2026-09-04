@@ -49,7 +49,9 @@ def test_worker_settings_can_save_notion_env_values():
     assert "worker-set-notion-api-key" in dashboard
     assert "worker-set-notion-db-id" in dashboard
     assert "notion_api_key_set" in dashboard
-    assert "notionApiKeyEl.value = ''" in dashboard
+    assert '"notion_api_key": notion_token_val' in dashboard
+    assert "toggleNotionApiKeyVisibility" in dashboard
+    assert "notionApiKeyEl.value = data.notion_api_key || ''" in dashboard
 
 
 def test_music_learning_sync_uses_notion_database_schema():
