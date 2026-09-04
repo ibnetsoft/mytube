@@ -258,6 +258,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                     script_quality_report: resultPayload.script_quality_report || {},
                     sfx_cues: sfxCues,
                     sfx_cues_json: sfxCuesJson,
+                    ai_model_override: jobPayload.ai_model_override,
                     defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
                     language: jobPayload.language,
                 },

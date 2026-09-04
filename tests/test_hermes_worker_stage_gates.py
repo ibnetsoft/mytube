@@ -479,3 +479,11 @@ def test_scene_length_helper_allows_bounded_narration_variance():
     text = "가" * 98
 
     assert hermes_worker._ensure_scene_section_target_length(text, {}, 114) == text
+
+
+def test_script_jobs_support_scoped_model_override_and_smaller_longform_chunks():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._process_script_generate)
+    assert 'get("ai_model_override")' in source
+    assert "8 if len(scenes) >= 40 else 4" in source

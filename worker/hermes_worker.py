@@ -9145,9 +9145,10 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     # Mirrors /api/script/generate's own model selection
     # (app/routers/gemini.py::script_generate) so pre-baked and live-generated
     # narration use the same model choice.
-    model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    job_model_override = str((job.get("payload") or {}).get("ai_model_override") or "").strip()
+    model = job_model_override or config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
     model = _prefer_gemini_text_model(config, model)
-    draft_model = _select_script_draft_model(config, model)
+    draft_model = model if job_model_override else _select_script_draft_model(config, model)
     generation_models = {
         **(
             (job.get("payload") or {}).get("generation_models")
@@ -9282,7 +9283,12 @@ Hard retry rules:
             budget["target_chars"] = target
             budget["min_chars"] = max(int(budget.get("min_chars") or 0), round(target * 0.8))
             budget["max_chars"] = max(int(budget.get("max_chars") or 0), round(target * 1.18))
-    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
+    max_script_chunks = 8 if len(scenes) >= 40 else 4
+    script_chunks = _chunk_scenes_for_script_generation(
+        scenes,
+        scene_budgets,
+        max_chunks=max_script_chunks,
+    )
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int, dict, list[str]]:
         narrative_blueprint = await _generate_narrative_blueprint(
@@ -9828,7 +9834,8 @@ def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple
     import asyncio
 
     Config.refresh_remote_keys_if_stale()
-    model = config.TITLE_GENERATION_MODEL or config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    job_model_override = str((job.get("payload") or {}).get("ai_model_override") or "").strip()
+    model = job_model_override or config.TITLE_GENERATION_MODEL or config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
     generation_models = {
         **(
             (job.get("payload") or {}).get("generation_models")
