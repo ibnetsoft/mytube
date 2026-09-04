@@ -115,7 +115,8 @@ class ClaudeService:
         start_time = time.time()
         try:
             self.log_debug(f"💬 [Claude Text] Starting generation (model={model}, prompt={prompt[:100]}...)")
-            async with httpx.AsyncClient(timeout=180.0) as client:
+            request_timeout = 600.0 if max_tokens >= 16384 else 180.0
+            async with httpx.AsyncClient(timeout=request_timeout) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 result = response.json()
 
@@ -170,13 +171,14 @@ class ClaudeService:
             raise Exception(f"Claude HTTP 오류: {error_msg}")
         except Exception as e:
             elapsed = time.time() - start_time
-            self.log_debug(f"❌ [Claude Text] Exception: {e}")
+            error_detail = str(e) or type(e).__name__
+            self.log_debug(f"❌ [Claude Text] Exception: {error_detail}")
 
             import database as db
             db.add_ai_log(
                 project_id, task_type, model, 'anthropic', 'failed',
                 prompt_summary=prompt[:100],
-                error_msg=str(e),
+                error_msg=error_detail,
                 elapsed_time=elapsed
             )
             raise e
