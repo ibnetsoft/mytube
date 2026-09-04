@@ -50,6 +50,7 @@ import {
     CheckCircle2,
     ChevronDown,
     Clock,
+    Combine,
     Copy,
     Download,
     ExternalLink,
@@ -849,7 +850,9 @@ export default function StdPortalPage() {
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
+    const [selectedSubtitleBlockIndexes, setSelectedSubtitleBlockIndexes] = useState<number[]>([])
     const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
+    const subtitleBlockSelectionAnchorRef = useRef<number | null>(null)
     const [isTransitionPickerOpen, setIsTransitionPickerOpen] = useState(false)
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
@@ -880,6 +883,8 @@ export default function StdPortalPage() {
     const [newSubPresetName, setNewSubPresetName] = useState('')
 
     useEffect(() => {
+        setSelectedSubtitleBlockIndexes([])
+        subtitleBlockSelectionAnchorRef.current = null
         setSelectedSubtitleSceneNumbers([])
         setIsTransitionPickerOpen(false)
     }, [selectedProject?.project?.id])
@@ -1999,6 +2004,33 @@ export default function StdPortalPage() {
 
     const isSubtitleDialogue = (subtitle: any, index: number) => {
         return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
+    }
+
+    const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean) => {
+        const targetIndex = Number(subtitleIndex)
+        if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= localSubtitles.length) return
+
+        const anchorIndex = subtitleBlockSelectionAnchorRef.current
+        if (shiftKey && anchorIndex !== null && localSubtitles[anchorIndex]) {
+            const anchorScene = Number(localSubtitles[anchorIndex]?.scene_number)
+            const targetScene = Number(localSubtitles[targetIndex]?.scene_number)
+            if (anchorScene === targetScene) {
+                const start = Math.min(anchorIndex, targetIndex)
+                const end = Math.max(anchorIndex, targetIndex)
+                setSelectedSubtitleBlockIndexes(Array.from({ length: end - start + 1 }, (_, offset) => start + offset))
+            } else {
+                setSelectedSubtitleBlockIndexes([targetIndex])
+                subtitleBlockSelectionAnchorRef.current = targetIndex
+                setMessage('자막 합치기는 같은 씬 안에서 선택해 주세요.')
+            }
+        } else {
+            setSelectedSubtitleBlockIndexes([targetIndex])
+            subtitleBlockSelectionAnchorRef.current = targetIndex
+        }
+
+        setSelectedSubIndex(targetIndex)
+        const subtitle = localSubtitles[targetIndex]
+        setPlaybackTime(subtitle?.start_num ?? Number(subtitle?.start_time) ?? 0)
     }
 
     const persistVrewVoiceSubtitles = async (updatedSubtitles: any[]) => {
@@ -4671,6 +4703,49 @@ export default function StdPortalPage() {
         }
     }
 
+    const mergeSelectedSubtitleBlocks = async () => {
+        const indexes = [...selectedSubtitleBlockIndexes].sort((a, b) => a - b)
+        if (indexes.length < 2) return
+
+        const firstIndex = indexes[0]
+        const lastIndex = indexes[indexes.length - 1]
+        const isContiguous = indexes.every((index, position) => index === firstIndex + position)
+        const selectedItems = indexes.map(index => localSubtitles[index]).filter(Boolean)
+        const sceneNumber = Number(selectedItems[0]?.scene_number)
+        const isSameScene = selectedItems.every(item => Number(item?.scene_number) === sceneNumber)
+        const firstIsDialogue = isSubtitleDialogue(selectedItems[0], firstIndex)
+        const isSameVoiceType = selectedItems.every((item, position) => (
+            isSubtitleDialogue(item, indexes[position]) === firstIsDialogue
+        ))
+
+        if (!isContiguous || !isSameScene || !isSameVoiceType) {
+            setMessage('같은 씬의 연속된 내레이션끼리 또는 대사끼리만 합칠 수 있습니다.')
+            return
+        }
+
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
+        const firstItem = selectedItems[0]
+        const lastItem = selectedItems[selectedItems.length - 1]
+        const mergedItem = {
+            ...firstItem,
+            text: selectedItems.map(item => String(item?.text || '').trim()).filter(Boolean).join(' '),
+            end_time: lastItem.end_time,
+            end_num: lastItem.end_num,
+        }
+        const updatedSubtitles = [
+            ...localSubtitles.slice(0, firstIndex),
+            mergedItem,
+            ...localSubtitles.slice(lastIndex + 1),
+        ]
+
+        markVrewSegmentStale(mergedItem, firstIndex)
+        setSelectedSubIndex(firstIndex)
+        setSelectedSubtitleBlockIndexes([firstIndex])
+        subtitleBlockSelectionAnchorRef.current = firstIndex
+        await persistVrewVoiceSubtitles(updatedSubtitles)
+        setMessage(`씬 ${sceneNumber}의 자막 ${selectedItems.length}개를 하나로 합쳤습니다.`)
+    }
+
     const handleFinalizeSubtitlesAndTts = async () => {
         setGeneratingTts(true)
         setMessage('자막 설정 저장 중...')
@@ -6464,6 +6539,16 @@ export default function StdPortalPage() {
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
                                                 총 {localSubtitles.length}개 자막 블록
                                             </span>
+                                            {selectedSubtitleBlockIndexes.length >= 2 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void mergeSelectedSubtitleBlocks()}
+                                                    className="h-7 px-2.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-[10px] font-bold flex items-center gap-1 transition"
+                                                >
+                                                    <Combine size={13} />
+                                                    합치기
+                                                </button>
+                                            )}
                                             {selectedSubtitleSceneNumbers.length > 0 && (
                                                 <>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
@@ -6623,11 +6708,12 @@ export default function StdPortalPage() {
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const isDialogueBlock = Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
+                                                                        const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
                                                                                 className={`grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-2 rounded-md border px-2 py-1.5 ${
-                                                                                    selectedSubIndex === item.subtitleIndex
+                                                                                    isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
                                                                                         ? 'border-emerald-400/25 bg-emerald-500/5'
@@ -6638,11 +6724,12 @@ export default function StdPortalPage() {
                                                                                     type="button"
                                                                                     onClick={(event) => {
                                                                                         event.stopPropagation()
-                                                                                        setSelectedSubIndex(item.subtitleIndex)
-                                                                                        setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
+                                                                                        selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
                                                                                     }}
+                                                                                    aria-pressed={isBlockSelected}
+                                                                                    title="클릭하여 선택, Shift+클릭하여 범위 선택"
                                                                                     className={`h-5 rounded border text-[9px] font-bold transition-all ${
-                                                                                        selectedSubIndex === item.subtitleIndex
+                                                                                        isBlockSelected
                                                                                             ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
                                                                                             : 'bg-black/20 border-white/10 text-gray-400 hover:text-white'
                                                                                     }`}
