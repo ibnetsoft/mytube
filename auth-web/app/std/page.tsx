@@ -67,6 +67,7 @@ import {
     Pause,
     Play,
     RefreshCw,
+    Scissors,
     Send,
     Settings as SettingsIcon,
     Sparkles,
@@ -853,6 +854,7 @@ export default function StdPortalPage() {
     const [selectedSubtitleBlockIndexes, setSelectedSubtitleBlockIndexes] = useState<number[]>([])
     const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
     const subtitleBlockSelectionAnchorRef = useRef<number | null>(null)
+    const subtitleTextSelectionRef = useRef<{ subtitleIndex: number; cursor: number } | null>(null)
     const [isTransitionPickerOpen, setIsTransitionPickerOpen] = useState(false)
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
@@ -885,6 +887,7 @@ export default function StdPortalPage() {
     useEffect(() => {
         setSelectedSubtitleBlockIndexes([])
         subtitleBlockSelectionAnchorRef.current = null
+        subtitleTextSelectionRef.current = null
         setSelectedSubtitleSceneNumbers([])
         setIsTransitionPickerOpen(false)
     }, [selectedProject?.project?.id])
@@ -4746,6 +4749,77 @@ export default function StdPortalPage() {
         setMessage(`씬 ${sceneNumber}의 자막 ${selectedItems.length}개를 하나로 합쳤습니다.`)
     }
 
+    const splitSelectedSubtitleBlock = async () => {
+        if (selectedSubtitleBlockIndexes.length !== 1) return
+        const subtitleIndex = selectedSubtitleBlockIndexes[0]
+        const subtitle = localSubtitles[subtitleIndex]
+        const text = String(subtitle?.text || '').trim()
+        if (!subtitle || text.length < 2) {
+            setMessage('분리할 수 있는 자막 내용이 없습니다.')
+            return
+        }
+
+        const savedSelection = subtitleTextSelectionRef.current
+        let splitIndex = savedSelection?.subtitleIndex === subtitleIndex
+            ? savedSelection.cursor
+            : -1
+        if (splitIndex <= 0 || splitIndex >= text.length) {
+            const midpoint = text.length / 2
+            const spaces = Array.from(text.matchAll(/\s+/g)).map(match => Number(match.index))
+            splitIndex = spaces.length > 0
+                ? spaces.reduce((closest, current) => (
+                    Math.abs(current - midpoint) < Math.abs(closest - midpoint) ? current : closest
+                ))
+                : Math.floor(midpoint)
+        }
+
+        const firstText = text.slice(0, splitIndex).trim()
+        const secondText = text.slice(splitIndex).trim()
+        if (!firstText || !secondText) {
+            setMessage('자막 내용의 중간에 커서를 놓고 다시 분리해 주세요.')
+            return
+        }
+
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
+        const start = Number(subtitle.start_num ?? subtitle.start_time ?? 0)
+        const end = Number(subtitle.end_num ?? subtitle.end_time ?? start)
+        const firstWeight = Math.max(1, firstText.replace(/\s/g, '').length)
+        const secondWeight = Math.max(1, secondText.replace(/\s/g, '').length)
+        const rawBoundary = start + ((end - start) * firstWeight / (firstWeight + secondWeight))
+        const boundary = end - start >= 0.2
+            ? Math.min(end - 0.1, Math.max(start + 0.1, rawBoundary))
+            : rawBoundary
+        const roundedBoundary = Math.round(boundary * 1000) / 1000
+        const firstItem = {
+            ...subtitle,
+            text: firstText,
+            end_time: roundedBoundary.toFixed(3),
+            end_num: roundedBoundary,
+        }
+        const secondItem = {
+            ...subtitle,
+            id: `${subtitle.id || `sub-${subtitleIndex}`}-split-${Date.now()}`,
+            text: secondText,
+            start_time: roundedBoundary.toFixed(3),
+            start_num: roundedBoundary,
+        }
+        const updatedSubtitles = [
+            ...localSubtitles.slice(0, subtitleIndex),
+            firstItem,
+            secondItem,
+            ...localSubtitles.slice(subtitleIndex + 1),
+        ]
+
+        markVrewSegmentStale(firstItem, subtitleIndex)
+        markVrewSegmentStale(secondItem, subtitleIndex + 1)
+        setSelectedSubIndex(subtitleIndex)
+        setSelectedSubtitleBlockIndexes([subtitleIndex])
+        subtitleBlockSelectionAnchorRef.current = subtitleIndex
+        subtitleTextSelectionRef.current = null
+        await persistVrewVoiceSubtitles(updatedSubtitles)
+        setMessage(`씬 ${Number(subtitle.scene_number)}의 자막을 2개로 분리했습니다.`)
+    }
+
     const handleFinalizeSubtitlesAndTts = async () => {
         setGeneratingTts(true)
         setMessage('자막 설정 저장 중...')
@@ -6539,6 +6613,16 @@ export default function StdPortalPage() {
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
                                                 총 {localSubtitles.length}개 자막 블록
                                             </span>
+                                            {selectedSubtitleBlockIndexes.length === 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void splitSelectedSubtitleBlock()}
+                                                    className="h-7 px-2.5 rounded-md border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 text-[10px] font-bold flex items-center gap-1 transition"
+                                                >
+                                                    <Scissors size={13} />
+                                                    분리하기
+                                                </button>
+                                            )}
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
                                                 <button
                                                     type="button"
@@ -7032,6 +7116,12 @@ export default function StdPortalPage() {
                                                         rows={1}
                                                         wrap="off"
                                                         value={currentSub.text}
+                                                        onSelect={event => {
+                                                            subtitleTextSelectionRef.current = {
+                                                                subtitleIndex: selectedSubIndex,
+                                                                cursor: event.currentTarget.selectionStart ?? 0,
+                                                            }
+                                                        }}
                                                         onChange={e => {
                                                             const newText = e.target.value
                                                             const updatedSub = { ...currentSub, text: newText }
