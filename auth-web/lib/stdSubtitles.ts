@@ -231,6 +231,20 @@ function hasUnclosedQuote(text: string, quote: string): boolean {
     return openCount > closeCount
 }
 
+function endsWithQuestionOrExclamation(text: string): boolean {
+    return /[?!？！]\s*$/.test(String(text || '').trim())
+}
+
+function shouldMoveLeadingQuoteToPrevious(prevText: string, quote: string, sameScene = true): boolean {
+    if (Boolean(closingQuotePairs[quote])) {
+        return sameScene || hasUnclosedQuote(prevText, quote)
+    }
+
+    if (quote !== "'" && quote !== '"') return false
+    if (!hasUnclosedQuote(prevText, quote)) return false
+    return sameScene || endsWithQuestionOrExclamation(prevText)
+}
+
 export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
     const repaired: string[] = []
 
@@ -240,9 +254,7 @@ export function repairSubtitleQuoteBoundaries(chunks: string[]): string[] {
 
         while (repaired.length > 0 && chunk.length > 0) {
             const quote = chunk[0]
-            const shouldMoveQuote = Boolean(closingQuotePairs[quote]) || (
-                (quote === "'" || quote === '"') && hasUnclosedQuote(repaired[repaired.length - 1], quote)
-            )
+            const shouldMoveQuote = shouldMoveLeadingQuoteToPrevious(repaired[repaired.length - 1], quote)
             if (!shouldMoveQuote) break
 
             repaired[repaired.length - 1] = `${repaired[repaired.length - 1]}${quote}`.trim()
@@ -268,10 +280,8 @@ export function repairSubtitleItemQuoteBoundaries<T extends { text?: string }>(i
             const prevScene = Number(repaired[i - 1]?.scene_number || 0)
             const currentScene = Number(repaired[i]?.scene_number || 0)
             const sameScene = !prevScene || !currentScene || prevScene === currentScene
-            const shouldMoveQuote = Boolean(closingQuotePairs[quote]) || (
-                (quote === "'" || quote === '"') && hasUnclosedQuote(prevText, quote)
-            )
-            if (!shouldMoveQuote || !sameScene) break
+            const shouldMoveQuote = shouldMoveLeadingQuoteToPrevious(prevText, quote, sameScene)
+            if (!shouldMoveQuote) break
 
             repaired[i - 1] = {
                 ...repaired[i - 1],

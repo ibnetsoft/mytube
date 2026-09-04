@@ -88,6 +88,15 @@ const persistedBrokenQuotes = repairSubtitleItemQuoteBoundaries([
 assert.equal(persistedBrokenQuotes[0].text, "'저 아들, 어머니를 버렸나 봐.'")
 assert.equal(persistedBrokenQuotes[1].text, "'죽었을 수도 있지 않을까?'")
 
+const quoteDraggedToNextScene = repairSubtitleItemQuoteBoundaries([
+    { scene_number: 10, text: "'죽었을 수도 있지 않을까?" },
+    { scene_number: 11, text: "'이렇게까지 받지 않다니, 뭔가" },
+    { scene_number: 11, text: "있는 거 아닐까?" },
+])
+assert.equal(quoteDraggedToNextScene[0].text, "'죽었을 수도 있지 않을까?'")
+assert.equal(quoteDraggedToNextScene[1].text, "이렇게까지 받지 않다니, 뭔가")
+assert.equal(quoteDraggedToNextScene[2].text, "있는 거 아닐까?")
+
 const splitSceneQuote = repairSubtitleItemQuoteBoundaries([
     { scene_number: 11, text: "'이렇게까지 받지 않는다니, 뭔가" },
     { scene_number: 11, text: "있는 거 아닐까?" },
