@@ -1549,6 +1549,8 @@ class HermesAutopilotManager:
         return False
 
     def _is_usable_title_candidate(self, title: str, category: str) -> bool:
+        from services.content_safety import finance_content_matches
+
         def has_balanced_quotes(value: str) -> bool:
             checks = [
                 ('"', '"'),
@@ -1601,11 +1603,14 @@ class HermesAutopilotManager:
             and not (language == "ja" and hangul_chars > 0)
             and not self._contains_category_label(title, category)
             and not any(term.lower() in (title or "").lower() for term in hard_meta_terms)
+            and not finance_content_matches(title)
             and not any(term in title for term in forbidden_terms)
             and not any(term in title for term in category_forbidden_terms.get(category, []))
         )
 
     def _is_usable_production_topic(self, topic: str, category: str) -> bool:
+        from services.content_safety import finance_content_matches
+
         text = (topic or "").strip()
         lowered = text.lower()
         if len(text) < 8:
@@ -1618,6 +1623,8 @@ class HermesAutopilotManager:
             "storytelling", "formula", "secret", "strategy", "pattern", "analysis",
         ]
         if any(term.lower() in lowered for term in meta_terms):
+            return False
+        if finance_content_matches(text):
             return False
         if self._contains_category_label(text, category):
             return False
@@ -1755,12 +1762,9 @@ class HermesAutopilotManager:
 
         scored.sort(key=lambda item: item["score"], reverse=True)
         viable = [item for item in scored if item["score"] >= 35]
-        if viable:
-            scored = viable
-        else:
-            fallback = self._clean_title_text(self._category_fallback_title(category))
-            score, reasons = self._score_title_candidate(fallback, category, benchmark_titles, learning_profile)
-            scored = [{"title": fallback, "angle": "fallback_low_quality_candidates", "score": score, "score_reasons": reasons}]
+        if not viable:
+            raise ValueError("AI title generation produced no usable title candidates; fixed category titles are disabled")
+        scored = viable
 
         selected = scored[0]
         return {
@@ -1834,18 +1838,12 @@ class HermesAutopilotManager:
     def _title_generation_models(self) -> list[str]:
         from config import config as app_config
 
-        candidates = [
-            app_config.TITLE_GENERATION_MODEL,
-            app_config.TOPIC_GENERATION_MODEL,
-            "gemini-3.6-flash",
-            "gemini-3-flash-preview",
-        ]
-        models: list[str] = []
-        for model in candidates:
-            model = str(model or "").strip()
-            if model and model not in models:
-                models.append(model)
-        return models or ["gemini-3.6-flash"]
+        model = str(
+            app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or ""
+        ).strip()
+        if not model:
+            raise RuntimeError("No title-generation model selected; provider fallback is disabled")
+        return [model]
 
     async def _generate_title_text_with_fallback(
         self,
@@ -1864,45 +1862,24 @@ class HermesAutopilotManager:
                 timeout=TITLE_GENERATION_TIMEOUT_SECONDS,
             )
 
-        last_error: Exception | None = None
-        for model in self._title_generation_models():
-            try:
-                if model.lower().startswith("gemini"):
-                    from services.gemini_service import gemini_service
-
-                    result = await _with_thread_timeout(
-                        lambda: gemini_service.generate_text(
-                            prompt,
-                            model=model,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                            task_type=task_type,
-                        )
-                    )
-                else:
-                    result = await _with_thread_timeout(
-                        lambda: ai_router.generate_text(
-                            prompt,
-                            model=model,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                            task_type=task_type,
-                        )
-                    )
-                model_trace = getattr(self, "_generation_model_trace", {})
-                model_trace[task_type] = model
-                self._generation_model_trace = model_trace
-                return result
-            except asyncio.TimeoutError as e:
-                last_error = e
-                logger.warning(
-                    f"{task_type} timed out with model={model} after "
-                    f"{TITLE_GENERATION_TIMEOUT_SECONDS}s; trying fallback if available"
+        model = self._title_generation_models()[0]
+        if model.lower().startswith("gemini"):
+            from services.gemini_service import gemini_service
+            result = await _with_thread_timeout(
+                lambda: gemini_service.generate_text(
+                    prompt, model=model, temperature=temperature, max_tokens=max_tokens, task_type=task_type,
                 )
-            except Exception as e:
-                last_error = e
-                logger.warning(f"{task_type} failed with model={model}; trying fallback if available: {e}")
-        raise last_error or RuntimeError(f"{task_type} failed without a configured model")
+            )
+        else:
+            result = await _with_thread_timeout(
+                lambda: ai_router.generate_text(
+                    prompt, model=model, temperature=temperature, max_tokens=max_tokens, task_type=task_type,
+                )
+            )
+        model_trace = getattr(self, "_generation_model_trace", {})
+        model_trace[task_type] = model
+        self._generation_model_trace = model_trace
+        return result
 
     async def _ai_evaluate_title_plan(self, category: str, plan: dict, benchmark_titles: list[str]) -> dict:
         candidates = plan.get("title_candidates") or []
@@ -2334,17 +2311,9 @@ Return ONLY valid JSON in this schema:
             )
             raw_plan = self._extract_json_object(raw_text)
         except Exception as e:
-            fallback = self._clean_title_text(self._category_fallback_title(category))
-            self.add_log(f"Title generation timed out/failed; using category fallback title: {fallback} ({e})")
-            raw_plan = {
-                "title_candidates": [
-                    {
-                        "title": fallback,
-                        "angle": "category_fallback_after_title_generation_error",
-                    }
-                ],
-                "title_generation_error": str(e),
-            }
+            raise RuntimeError(
+                f"title generation failed; fixed category-title fallback is disabled: {e}"
+            ) from e
         raw_plan.pop("production_topic", None)
         raw_plan.pop("topic", None)
         plan = self._select_title_plan(raw_plan, category, benchmark_titles, learning_profile)

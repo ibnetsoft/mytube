@@ -393,6 +393,8 @@ JSON SCHEMA:
             structure = json.loads(response_text)
             return self._enforce_longform_pacing_scenes(structure, int(target_duration or 0), upload_title, target_scene_count=target_scene_count)
         except Exception as e:
+            if isinstance(e, ai_router.ProviderCreditExhaustedError):
+                raise
             print(f"[ScenePlanner] Failed to plan scenes: {e}")
             return {
                 "topic": topic,

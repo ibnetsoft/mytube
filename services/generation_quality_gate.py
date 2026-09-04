@@ -9,6 +9,8 @@ from collections.abc import Mapping
 from difflib import SequenceMatcher
 from typing import Any
 
+from services.content_safety import finance_content_matches
+
 
 DEFAULT_MIN_SCRIPT_HANGUL = 1000
 DEFAULT_MAX_LATIN_RATIO = 0.05
@@ -339,14 +341,20 @@ def validate_generation_package(
     if any(marker in script for marker in _FALLBACK_SCRIPT_MARKERS):
         errors.append("script contains fallback/scratch English template text")
 
+    content_blob = f"{_contamination_context(payload)}\n{_category_content(payload)}"
+    finance_matches = finance_content_matches(content_blob)
+    if finance_matches:
+        errors.append(
+            "finance/pension contamination is prohibited in every category: "
+            + ", ".join(finance_matches[:8])
+        )
+
     contamination_terms = _CATEGORY_CONTAMINATION_MAP.get(category)
-    if contamination_terms:
-        content_blob = f"{_contamination_context(payload)}\n{_category_content(payload)}"
-        if re.search("|".join(re.escape(term) for term in contamination_terms), content_blob, re.I):
-            if category in {"옛날이야기", "English Folktales", "日本昔話"}:
-                errors.append(f"off-category finance/economy contamination detected for story category '{category}'")
-            else:
-                errors.append(f"off-category contamination detected for category '{category}'")
+    if contamination_terms and re.search("|".join(re.escape(term) for term in contamination_terms), content_blob, re.I):
+        if category in {"옛날이야기", "English Folktales", "日本昔話"}:
+            errors.append(f"off-category finance/economy contamination detected for story category '{category}'")
+        else:
+            errors.append(f"off-category contamination detected for category '{category}'")
 
     video_prompts: list[tuple[str, str]] = []
     for fallback_number, scene in enumerate(scenes, start=1):

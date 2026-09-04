@@ -1997,6 +1997,40 @@ def api_cancel_job(
     return wait_for_result(submit_command("cancel_job", {"job_id": job_id}), timeout=15)
 
 
+@app.post("/api/jobs/{job_id}/retry-credit-exhausted")
+def api_retry_credit_exhausted_job(
+    job_id: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Queue a user-approved retry after the provider account was charged."""
+    require_auth(authorization, cookie)
+    try:
+        job = job_store.retry_after_credit_recharge(job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="job not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"success": True, "job": job}
+
+
+@app.post("/api/jobs/{job_id}/regenerate")
+def api_regenerate_job(
+    job_id: str,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Requeue a failed local AI/QA job with its original title and structure."""
+    require_auth(authorization, cookie)
+    try:
+        job = job_store.retry_after_regeneration_required(job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="job not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"success": True, "job": job}
+
+
 @app.post("/api/hermes/pipelines/{job_id}/resume")
 def api_resume_hermes_pipeline(
     job_id: str,
@@ -6823,7 +6857,15 @@ async function showJobDetail(jobId) {
     html += `<div class="card" style="margin-top:16px"><div class="card-title">결과</div><div class="result-viewer">${escapeHtml(resultText)}</div></div>`;
   }
 
-  html += `<div style="margin-top:16px">${canCancel(data.status) ? `<button class="btn btn-danger" onclick="cancelJob('${jobId}');closeModal()">작업 취소</button>` : ''}</div>`;
+  const canRetryCredit = canRetryCreditExhausted(data);
+  const canRegenerate = canRegenerateRequired(data);
+  if (canRetryCredit) {
+    html += `<div class="card" style="margin-top:16px;border-color:#d29922"><div class="card-title" style="color:#d29922">API 크레딧 소진으로 작업 중단</div><div class="info">API 키를 충전한 뒤 원래 입력값으로 다시 실행할 수 있습니다. 자동 풀백이나 자동 재시도는 하지 않습니다.</div></div>`;
+  }
+  if (canRegenerate) {
+    html += `<div class="card" style="margin-top:16px;border-color:#f85149"><div class="card-title" style="color:#f85149">AI 생성 또는 품질 검사 실패</div><div class="info">완료 처리되지 않았습니다. 현재 제목과 구조를 유지한 채 새 AI 결과로 다시 생성할 수 있습니다.</div></div>`;
+  }
+  html += `<div style="margin-top:16px">${canRetryCredit ? `<button class="btn btn-primary" onclick="retryCreditExhaustedJob('${jobId}')">충전 후 재실행</button>` : ''}${canRegenerate ? `<button class="btn btn-primary" onclick="regenerateRequiredJob('${jobId}')">현재 구조로 재생성</button>` : ''}${canCancel(data.status) ? `<button class="btn btn-danger" onclick="cancelJob('${jobId}');closeModal()">작업 취소</button>` : ''}</div>`;
 
   el.innerHTML = html;
   document.getElementById('job-modal').classList.add('active');
@@ -7088,9 +7130,43 @@ async function cancelJob(jobId) {
   }
 }
 
+async function retryCreditExhaustedJob(jobId) {
+  if (!confirm('API 크레딧 충전이 완료됐나요? 기존 작업을 다시 대기열에 넣습니다.')) return;
+  const res = await api('POST', `/api/jobs/${jobId}/retry-credit-exhausted`);
+  if (res && res.success) {
+    closeModal();
+    showToast(`작업 ${jobId.substring(0,8)}을(를) 재실행 대기열에 넣었습니다.`);
+    refreshAll();
+  } else {
+    showToast(`재실행 실패: ${res?.detail || res?.error || '알 수 없음'}`, 'error');
+  }
+}
+
+async function regenerateRequiredJob(jobId) {
+  if (!confirm('현재 제목과 구조를 유지한 채 AI 대본과 프롬프트를 다시 생성합니다.')) return;
+  const res = await api('POST', `/api/jobs/${jobId}/regenerate`);
+  if (res && res.success) {
+    closeModal();
+    showToast(`작업 ${jobId.substring(0,8)}을(를) 재생성 대기열에 넣었습니다.`);
+    refreshAll();
+  } else {
+    showToast(`재생성 실패: ${res?.detail || res?.error || '알 수 없음'}`, 'error');
+  }
+}
+
 /* ── Cancel helper ── */
 function canCancel(status) {
   return ['QUEUED','CLAIMED','PREPARING','RENDERING','UPLOADING'].includes(status);
+}
+
+function canRetryCreditExhausted(job) {
+  return job?.status === 'FAILED' && job?.error_code === 'HERMES_CREDIT_EXHAUSTED'
+    && job?.source !== 'central_server' && !job?.remote_job_id;
+}
+
+function canRegenerateRequired(job) {
+  return job?.status === 'FAILED' && job?.error_code === 'HERMES_REGEN_REQUIRED'
+    && job?.source !== 'central_server' && !job?.remote_job_id;
 }
 
 /* ── Process start / stop ── */

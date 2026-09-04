@@ -119,6 +119,56 @@ def test_script_generate_stage_blocks_revise_quality_report():
         hermes_worker._validate_script_generate_stage(payload, category="옛날이야기")
 
 
+def test_script_plan_rejects_finance_content_before_model_generation():
+    with pytest.raises(ValueError, match="finance/pension content is prohibited before generation"):
+        hermes_worker._validate_script_plan_payload(
+            {
+                "topic_queue_id": "123",
+                "topic": "국민연금 수령액을 바꾼 선택",
+                "upload_title": "국민연금 수령액을 바꾼 선택",
+            }
+        )
+
+
+def test_old_story_short_plan_places_midpoint_and_payoff_proportionally():
+    title = "산속 우물에서 들린 아이의 노래와 나무꾼의 약속"
+    structure = {
+        "scenes": [
+            {"scene_order": index, "scene_summary": f"{index}번째 사건", "scene_situation": f"{index}번째 사건"}
+            for index in range(1, 16)
+        ]
+    }
+
+    repaired = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
+
+    assert not hermes_worker._old_story_drama_plan_errors(repaired, title, title)
+
+
+def test_old_story_four_scene_plan_has_reachable_midpoint_and_payoff():
+    title = "장터에서 산 낡은 비녀가 알려 준 어머니의 약속"
+    structure = {
+        "scenes": [
+            {"scene_order": index, "scene_summary": f"{index}번째 사건", "scene_situation": f"{index}번째 사건"}
+            for index in range(1, 5)
+        ]
+    }
+
+    repaired = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
+
+    assert repaired["scenes"][1]["dramatic_function"] == "midpoint reversal"
+    assert repaired["scenes"][-1]["dramatic_function"] == "final payoff"
+    assert repaired["story_core"]["acts"][-1]["scene_range"] == "4-4"
+    assert not hermes_worker._old_story_drama_plan_errors(repaired, title, title)
+
+
+def test_script_generate_stage_rejects_finance_content_for_every_category():
+    payload = build_valid_sample_payload("무협")
+    payload["script"] += " 국민연금 수령액을 확인했다."
+
+    with pytest.raises(RuntimeError, match="finance/pension contamination is prohibited in every category"):
+        hermes_worker._validate_script_generate_stage(payload, category="무협")
+
+
 def test_script_generate_stage_rejects_missing_2x2_grid_prompts():
     payload = build_valid_sample_payload("옛날이야기")
     payload["structure"]["image_grid_prompts"] = []
@@ -401,3 +451,25 @@ def test_publish_metadata_syncs_full_prepared_package_even_when_quality_gated(mo
     assert patch_payload["progress_payload"]["main_character"]["name"] == "무진"
     assert patch_payload["progress_payload"]["supporting_characters"][0]["name"] == "사부"
     assert patch_payload["progress_payload"]["character_anchors"]["max_character_anchors"] == 3
+
+
+def test_short_scene_is_rejected_instead_of_being_padded_with_template_text():
+    scene = {
+        "scene_situation": "덕수는 어머니의 비녀가 사라진 방에서 낡은 장부를 발견한다",
+        "character_choice": "덕수는 장부를 들고 마을 어른을 찾아간다",
+        "emotional_shift": "의심이 두려움으로 바뀐다",
+        "reveal_or_question": "장부에는 비녀를 맡긴 사람의 이름이 적혀 있다",
+    }
+
+    with pytest.raises(RuntimeError, match="will not be padded"):
+        hermes_worker._ensure_scene_section_target_length(
+            "덕수는 비녀가 사라진 자리를 한참 바라봤다.",
+            scene,
+            260,
+            language="ko",
+        )
+
+
+def test_scene_length_helper_does_not_create_a_script_fallback():
+    with pytest.raises(RuntimeError, match="will not be padded"):
+        hermes_worker._ensure_scene_section_target_length("", {}, 80)

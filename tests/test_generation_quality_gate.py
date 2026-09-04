@@ -189,6 +189,16 @@ def test_generation_quality_gate_blocks_story_script_with_pension_contamination(
     assert any("finance/economy contamination" in error for error in errors)
 
 
+def test_generation_quality_gate_blocks_finance_contamination_for_non_story_category():
+    payload = _valid_payload()
+    payload["category"] = "무협"
+    payload["script"] += " 국민연금 수령액을 확인했다."
+
+    errors = validate_generation_package(payload, category="무협")
+
+    assert any("finance/pension contamination is prohibited in every category" in error for error in errors)
+
+
 def test_old_story_contamination_ignores_benchmark_analysis_body():
     payload = _valid_payload()
     payload["benchmark_analysis"] = {

@@ -34,6 +34,8 @@ COMPLETED = "COMPLETED"
 FAILED = "FAILED"
 CANCELED = "CANCELED"
 ABANDONED = "ABANDONED"
+CREDIT_EXHAUSTED_ERROR_CODE = "HERMES_CREDIT_EXHAUSTED"
+REGEN_REQUIRED_ERROR_CODE = "HERMES_REGEN_REQUIRED"
 
 TERMINAL_STATUSES = {COMPLETED, CANCELED}
 ACTIVE_STATUSES = {CLAIMED, PREPARING, RENDERING, UPLOADING}
@@ -320,6 +322,7 @@ def transition(job_id: str, to_status: str, *, reason: str = "", worker_pid: Opt
         fields.append("retry_count = retry_count + 1")
         fields.append("worker_pid = NULL")
         fields.append("started_at = NULL")
+        fields.append("completed_at = NULL")
     if progress is not None:
         fields.append("progress = ?")
         params.append(progress)
@@ -341,6 +344,63 @@ def transition(job_id: str, to_status: str, *, reason: str = "", worker_pid: Opt
     _log_transition(conn, job_id, current, to_status, reason)
     conn.commit()
     return get_job(job_id)
+
+
+def retry_after_credit_recharge(job_id: str) -> dict:
+    """Explicitly requeue a local job stopped for an exhausted AI credit.
+
+    Credit exhaustion is deliberately never retried automatically.  Once the
+    operator has charged the provider account, this is the single manual path
+    that clears the old billing error and puts the original payload back in
+    the queue.  Central-server jobs must be retried by their owner, because a
+    local requeue would bypass their lease protocol.
+    """
+    job = get_job(job_id)
+    if not job:
+        raise KeyError(f"Unknown job_id: {job_id}")
+    if job.get("source") == "central_server" or job.get("remote_job_id"):
+        raise ValueError("중앙 서버에서 받은 작업은 원본 작업 큐에서 재실행해야 합니다.")
+    if job.get("status") != FAILED:
+        raise ValueError("실패 상태인 작업만 재실행할 수 있습니다.")
+    if job.get("error_code") != CREDIT_EXHAUSTED_ERROR_CODE:
+        raise ValueError("API 크레딧 소진으로 중단된 작업만 이 경로로 재실행할 수 있습니다.")
+    return transition(
+        job_id,
+        QUEUED,
+        reason="manual retry after API credit recharge",
+        progress=0,
+        progress_message="API 크레딧 충전 후 수동 재실행 대기",
+        error_code="",
+        error_message="",
+    )
+
+
+def retry_after_regeneration_required(job_id: str) -> dict:
+    """Requeue the original local payload after a content-generation/QA failure.
+
+    Unlike a credit retry, this does not claim that charging an account fixes
+    the error.  It deliberately keeps the original topic, title, and scene
+    structure in the immutable job payload, clears only the terminal error,
+    and requires a user to explicitly request another AI generation attempt.
+    """
+    job = get_job(job_id)
+    if not job:
+        raise KeyError(f"Unknown job_id: {job_id}")
+    if job.get("source") == "central_server" or job.get("remote_job_id"):
+        raise ValueError("중앙 서버에서 받은 작업은 원본 작업 큐에서 재생성해야 합니다.")
+    if job.get("status") != FAILED:
+        raise ValueError("실패 상태인 작업만 재생성할 수 있습니다.")
+    if job.get("error_code") != REGEN_REQUIRED_ERROR_CODE:
+        raise ValueError("재생성 필요로 중단된 작업만 이 경로로 재실행할 수 있습니다.")
+    return transition(
+        job_id,
+        QUEUED,
+        reason="manual regeneration after AI/QA failure",
+        progress=0,
+        progress_message="현재 제목·구조 유지, 수동 재생성 대기",
+        error_code="",
+        error_message="",
+    )
 
 
 def update_progress(job_id: str, progress: int, message: str = ""):

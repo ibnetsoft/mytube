@@ -160,6 +160,34 @@ async def cancel_job(job_id: str, authorization: str | None = Header(default=Non
     return wait_for_result(submit_command("cancel_job", {"job_id": job_id}), timeout=15)
 
 
+@app.post("/jobs/{job_id}/retry-credit-exhausted")
+async def retry_credit_exhausted_job(job_id: str, authorization: str | None = Header(default=None)):
+    """Requeue only a job deliberately halted by an exhausted AI credit."""
+    require_auth(authorization)
+    try:
+        job = job_store.retry_after_credit_recharge(job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="job not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    audit("jobs/retry-credit-exhausted", f"job_id={job_id}")
+    return {"success": True, "job": job}
+
+
+@app.post("/jobs/{job_id}/regenerate")
+async def regenerate_job(job_id: str, authorization: str | None = Header(default=None)):
+    """Requeue a locally stored script job after an AI/QA failure."""
+    require_auth(authorization)
+    try:
+        job = job_store.retry_after_regeneration_required(job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="job not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    audit("jobs/regenerate", f"job_id={job_id}")
+    return {"success": True, "job": job}
+
+
 @app.get("/logs")
 async def logs(process: str = "manager", tail_lines: int = 50, authorization: str | None = Header(default=None)):
     require_auth(authorization)

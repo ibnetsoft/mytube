@@ -31,13 +31,9 @@ sequence with topic-research-appropriate progress messages:
   UPLOADING -> COMPLETED
 job_store.py itself is not touched by this Task.
 
-AI provider key: GEMINI_API_KEY / CLAUDE_API_KEY are read from the local
-process environment on the render PC (config.py's existing os.getenv
-fallback) - no web-admin fetch, no service_role on this machine. Model
-selection reuses the existing config.TOPIC_GENERATION_MODEL knob so an
-operator can point Hermes at Claude by setting that env var to a
-claude-prefixed model name; services/ai_router.py's Claude->Gemini fallback
-then applies unchanged.
+AI provider keys are read from the local process environment on the render PC.
+The selected provider is used as-is: a missing key, provider error, or depleted
+credit stops the job rather than switching providers or manufacturing output.
 
 [AIR-0230] Added a second job_type: topic_benchmark_analyze. This is the
 "which real, high-performing YouTube video should inform this category's
@@ -263,6 +259,16 @@ def write_state(status: str, current_job: dict | None, progress: int, job_id: st
         ),
         encoding="utf-8",
     )
+
+
+def _reraise_if_provider_credit_exhausted(exc: Exception) -> None:
+    """Never turn an API balance failure into a local fallback artifact."""
+    try:
+        from services.ai_router import ProviderCreditExhaustedError
+    except ImportError:
+        return
+    if isinstance(exc, ProviderCreditExhaustedError):
+        raise exc
 
 
 def _extract_json(text: str) -> dict:
@@ -1004,6 +1010,7 @@ SCRIPT EXCERPT:
                 last_error = str(qa_error)
         raise ValueError(last_error or "publish metadata quality check failed")
     except Exception as e:
+        _reraise_if_provider_credit_exhausted(e)
         fallback = _fallback_publish_metadata(topic, upload_title, script, language)
         fallback["metadata_error"] = str(e)
         return fallback
@@ -2494,6 +2501,9 @@ Return JSON only:
             )
         )
     except Exception as exc:
+        from services.ai_router import is_credit_exhaustion_error, ProviderCreditExhaustedError
+        if is_credit_exhaustion_error(exc):
+            raise ProviderCreditExhaustedError("Gemini", exc) from exc
         # Search grounding can hang or be temporarily unavailable. Continue
         # with the real benchmark URLs instead of blocking the whole video.
         if not benchmark_sources:
@@ -2799,6 +2809,16 @@ def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, st
     benchmark_analysis = payload.get("benchmark_analysis") if isinstance(payload.get("benchmark_analysis"), dict) else None
     title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
+    from services.content_safety import reject_finance_content
+
+    reject_finance_content(
+        "script_plan payload",
+        topic,
+        upload_title,
+        title_generation,
+        benchmark_analysis or {},
+        payload.get("research_bundle") or {},
+    )
     return topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation
 
 
@@ -3035,7 +3055,6 @@ def _build_visual_direction_plan(
                 "visual_direction": scene.get("visual_direction"),
                 "scene_emotion": scene.get("scene_emotion"),
             })
-    fallback = _fallback_visual_direction_plan(topic, upload_title, structure, image_style_key, image_style_directive)
     prompt = f"""
 You are the visual showrunner for a longform AI video.
 
@@ -3086,18 +3105,27 @@ Schema:
         plan = _extract_json(raw)
         if not isinstance(plan, dict):
             raise ValueError("visual direction plan is not an object")
-        for key, value in fallback.items():
-            plan.setdefault(key, value)
+        required_fields = (
+            "overall_vision", "category_visual_grammar", "recurring_characters",
+            "recurring_locations", "continuity_anchors", "palette", "negative_prompt",
+        )
+        missing = [key for key in required_fields if not plan.get(key)]
+        if missing:
+            raise ValueError(f"visual direction plan missing required fields: {missing}")
         plan["image_style_key"] = image_style_key
         plan["image_style_directive"] = image_style_directive
         plan["camera_language"] = [
             item for item in (plan.get("camera_language") or [])
             if str(item).strip() in MEDIA_CAMERA_MOVEMENTS
-        ] or list(MEDIA_CAMERA_MOVEMENTS)
+        ]
+        if not plan["camera_language"]:
+            raise ValueError("visual direction plan has no approved camera language")
         return plan
     except Exception as exc:
-        fallback["error"] = str(exc)
-        return fallback
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(
+            f"visual direction plan generation failed; no fixed visual-plan fallback is allowed: {exc}"
+        ) from exc
 
 
 def _validate_video_prompt_quality(media: dict, scene_label: str) -> None:
@@ -3357,12 +3385,12 @@ def _generate_direct_image_grid_prompts(
 
     # Longform jobs can have dozens of 2x2 grid windows. Asking the model to
     # return all windows as one JSON document is brittle and often truncates.
+    # Do not manufacture prompt grids from generic text when that happens.
     if len(grid_inputs) > 12:
-        grids = _fallback_grids("large grid batch")
-        compact_grids = build_compact_image_grid_prompts(grids)
-        validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
-        job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
-        return compact_grids
+        raise RuntimeError(
+            f"image grid prompt generation requires {len(grid_inputs)} grids; "
+            "batch fallback is disabled and this job must be retried with supported batching"
+        )
 
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
@@ -3424,14 +3452,13 @@ Schema:
         generated = _extract_json(raw)
         grids = generated.get("grids") if isinstance(generated, dict) else None
     except Exception as exc:
-        grids = _fallback_grids(f"AI JSON parse failed: {exc}")
+        raise RuntimeError(f"AI image-grid response was invalid; no synthetic grid fallback is allowed: {exc}") from exc
     if not isinstance(grids, list) or len(grids) != len(grid_inputs):
         got_count = len(grids) if isinstance(grids, list) else 0
-        job_log.warning(
-            "Image grid prompt count mismatch from AI; rebuilding compact 2x2 prompts "
-            f"from grid inputs. expected={len(grid_inputs)}, got={got_count}"
+        raise RuntimeError(
+            f"AI image-grid response count mismatch; no synthetic grid fallback is allowed: "
+            f"expected={len(grid_inputs)}, got={got_count}"
         )
-        grids = _fallback_grids("AI grid count mismatch")
 
     by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
     for grid in grids:
@@ -3481,9 +3508,9 @@ def _generate_scene_media_prompts(
     from services.image_grid_prompts import validate_image_grid_prompt_readiness
 
     Config.refresh_remote_keys_if_stale()
-    model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
-    if str(model).lower().startswith("claude"):
-        model = "gemini-3.6-flash"
+    model = str(config.IMAGE_PROMPT_MODEL or config.SCRIPT_GENERATION_MODEL or "").strip()
+    if not model:
+        raise RuntimeError("No image-prompt model selected; provider fallback is disabled")
     scenes = _attach_script_excerpts_to_scenes(scenes, script_text, scene_script_sections)
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
     visual_direction_plan = _build_visual_direction_plan(
@@ -4344,6 +4371,13 @@ def _old_story_title_has_any(topic: str, upload_title: str, *terms: str) -> bool
 def _build_old_story_story_core(topic: str, upload_title: str, structure: dict | None = None) -> dict:
     """Create the dramatic spine that old-story plans must follow."""
     title = (upload_title or topic or "옛날이야기").strip()
+    scenes = (structure or {}).get("scenes") if isinstance(structure, dict) else []
+    scene_count = len(scenes) if isinstance(scenes, list) and scenes else 53
+    act_1_end = max(1, round(scene_count * 0.25))
+    act_2_end = max(act_1_end + 1, round(scene_count * 0.50))
+    act_3_end = max(act_2_end + 1, round(scene_count * 0.75))
+    act_2_end = min(scene_count, act_2_end)
+    act_3_end = min(scene_count, act_3_end)
     if _old_story_title_has_any(topic, upload_title, "호랑이", "범"):
         protagonist = "사냥꾼 만복"
         desire = "사라진 사람들의 흔적을 따라가 호랑이 소문의 진짜 원인을 밝힌다"
@@ -4386,15 +4420,24 @@ def _build_old_story_story_core(topic: str, upload_title: str, structure: dict |
         "midpoint_reversal": midpoint_reversal,
         "final_payoff": final_payoff,
         "acts": [
-            {"act": 1, "scene_range": "1-12", "goal": "첫 30초 안에 실제 사건을 보여주고 주인공의 개인적 이유를 세운다"},
-            {"act": 2, "scene_range": "13-28", "goal": "단서를 따라가며 주인공이 선택과 손실을 겪게 한다"},
-            {"act": 3, "scene_range": "29-44", "goal": "중반 반전 이후 숨겨진 죄와 대가를 구체적 장면으로 밀어붙인다"},
-            {"act": 4, "scene_range": "45-53", "goal": "설교가 아니라 사건의 결말로 제목의 약속을 갚는다"},
+            {"act": 1, "scene_range": f"1-{act_1_end}", "goal": "첫 장면에서 실제 사건을 보여주고 주인공의 개인적 이유를 세운다"},
+            {"act": 2, "scene_range": f"{act_1_end + 1}-{act_2_end}", "goal": "단서를 따라가며 주인공이 선택과 손실을 겪게 한다"},
+            {"act": 3, "scene_range": f"{act_2_end + 1}-{act_3_end}", "goal": "중반 반전 이후 숨겨진 죄와 대가를 구체적 장면으로 밀어붙인다"},
+            {"act": 4, "scene_range": f"{act_3_end + 1}-{scene_count}", "goal": "설교가 아니라 사건의 결말로 제목의 약속을 갚는다"},
         ],
     }
 
 
 def _old_story_dramatic_function(scene_order: int, scene_count: int) -> str:
+    if scene_count <= 4:
+        midpoint_start, midpoint_end, final_payoff_start = _old_story_phase_boundaries(scene_count)
+        if scene_order == 1:
+            return "opening incident and personal stake"
+        if midpoint_start <= scene_order <= midpoint_end:
+            return "midpoint reversal"
+        if scene_order >= final_payoff_start:
+            return "final payoff"
+        return "cost and confrontation"
     if scene_order <= 4:
         return "opening incident and personal stake"
     if scene_order <= 12:
@@ -4408,6 +4451,26 @@ def _old_story_dramatic_function(scene_order: int, scene_count: int) -> str:
     return "final payoff"
 
 
+def _old_story_phase_boundaries(scene_count: int) -> tuple[int, int, int]:
+    """Return reachable midpoint/payoff scene positions for any plan length.
+
+    The prior fixed lower bound of scene 5 worked for longform plans but made
+    a 4-scene short plan mathematically incapable of having a midpoint or
+    payoff: the validator then rejected every such plan even after repair.
+    Keep the beats proportional while ensuring they remain inside the plan.
+    """
+    count = max(1, int(scene_count or 1))
+    if count == 1:
+        return 1, 1, 1
+    if count <= 4:
+        midpoint = 2 if count >= 3 else 1
+        return midpoint, midpoint, count
+    midpoint_start = min(count - 1, max(2, round(count * 0.45)))
+    midpoint_end = min(count - 1, max(midpoint_start, round(count * 0.60)))
+    final_payoff_start = min(count, max(midpoint_end + 1, round(count * 0.82)))
+    return midpoint_start, midpoint_end, final_payoff_start
+
+
 def _apply_old_story_story_core_to_structure(structure: dict, topic: str, upload_title: str) -> dict:
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     if not isinstance(scenes, list) or not scenes:
@@ -4417,6 +4480,7 @@ def _apply_old_story_story_core_to_structure(structure: dict, topic: str, upload
     scene_count = len(scenes)
     protagonist = core["protagonist"]
     title = (upload_title or topic or "옛날이야기").strip()
+    midpoint_start, midpoint_end, final_payoff_start = _old_story_phase_boundaries(scene_count)
     repaired["story_core"] = core
     repaired["title_promise"] = repaired.get("title_promise") or core["central_conflict"]
     repaired["opening_hook"] = core["opening_incident"]
@@ -4454,17 +4518,17 @@ def _apply_old_story_story_core_to_structure(structure: dict, topic: str, upload
             scene["character_choice"] = f"{protagonist}이 침묵하는 어른에게 직접 묻는다"
             scene["emotional_shift"] = "혼자만의 의심에서 마을 전체의 침묵으로 확장된다"
             scene["reveal_or_question"] = "마을 사람들이 같은 사실을 서로 다르게 숨긴다"
-        elif 24 <= idx <= 30:
+        elif midpoint_start <= idx <= midpoint_end:
             scene["dramatic_function"] = "midpoint reversal"
             scene["scene_purpose"] = scene.get("scene_purpose") or "중반 반전으로 제목의 의미를 뒤집는다"
             scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 안전한 해석을 버리고 위험한 진실 쪽으로 걸어간다"
             scene["emotional_shift"] = scene.get("emotional_shift") or "공포가 분노와 죄책감으로 바뀐다"
             scene["reveal_or_question"] = scene.get("reveal_or_question") or core["midpoint_reversal"]
-            if idx == 26:
+            if idx == midpoint_start:
                 scene["scene_summary"] = core["midpoint_reversal"]
                 scene["scene_situation"] = core["midpoint_reversal"]
                 scene["retention_hook"] = "그렇다면 지금까지 모두가 두려워한 것은 무엇을 감추기 위한 것이었을까?"
-        elif idx >= max(45, scene_count - 8):
+        elif idx >= final_payoff_start:
             scene["dramatic_function"] = "final payoff"
             scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 침묵 대신 공개적인 고백과 대면을 선택한다"
             scene["emotional_shift"] = scene.get("emotional_shift") or "공포가 결심과 해소로 바뀐다"
@@ -4480,6 +4544,30 @@ def _apply_old_story_story_core_to_structure(structure: dict, topic: str, upload
             scene["reveal_or_question"] = scene.get("reveal_or_question") or (
                 scene.get("retention_hook") or scene.get("scene_purpose") or "새로운 의문이 남는다"
             )
+
+        # For short plans, the second/third scene can also be one of the
+        # opening special cases above.  Apply phase labels afterwards so a
+        # reachable midpoint/payoff is never accidentally overwritten.
+        if midpoint_start <= idx <= midpoint_end:
+            scene["dramatic_function"] = "midpoint reversal"
+            scene["scene_purpose"] = scene.get("scene_purpose") or "중반 반전으로 제목의 의미를 뒤집는다"
+            scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 안전한 해석을 버리고 위험한 진실 쪽으로 걸어간다"
+            scene["emotional_shift"] = scene.get("emotional_shift") or "공포가 분노와 죄책감으로 바뀐다"
+            scene["reveal_or_question"] = core["midpoint_reversal"]
+            if idx == midpoint_start:
+                scene["scene_summary"] = core["midpoint_reversal"]
+                scene["scene_situation"] = core["midpoint_reversal"]
+                scene["retention_hook"] = "그렇다면 지금까지 모두가 두려워한 것은 무엇을 감추기 위한 것이었을까?"
+        elif idx >= final_payoff_start:
+            scene["dramatic_function"] = "final payoff"
+            scene["character_choice"] = scene.get("character_choice") or f"{protagonist}이 침묵 대신 공개적인 고백과 대면을 선택한다"
+            scene["emotional_shift"] = scene.get("emotional_shift") or "공포가 결심과 해소로 바뀐다"
+            scene["reveal_or_question"] = core["final_payoff"]
+            if idx == scene_count:
+                scene["scene_summary"] = core["final_payoff"]
+                scene["scene_situation"] = f"{title}의 의문이 {protagonist}의 선택으로 끝난다"
+                scene["scene_purpose"] = "교훈 설명이 아니라 마지막 행동과 결과로 결말을 맺는다"
+                scene["retention_hook"] = "마지막 장면이 제목의 의문을 감정적으로 닫는다"
 
         scene.pop("visual_direction", None)
         scene.pop("tts_direction", None)
@@ -4519,9 +4607,11 @@ def _old_story_drama_plan_errors(structure: dict, topic: str, upload_title: str)
     first_twelve_choices = sum(1 for scene in scenes[:12] if str((scene or {}).get("character_choice") or "").strip())
     if first_twelve_choices < 4:
         errors.append("old-story first act lacks active protagonist choices")
+    scene_count = len(scenes)
+    midpoint_start, midpoint_end, _ = _old_story_phase_boundaries(scene_count)
     midpoint_blob = " ".join(
         str((scene or {}).get(field) or "")
-        for scene in scenes[22:34]
+        for scene in scenes[max(0, midpoint_start - 2):midpoint_end + 1]
         for field in ("dramatic_function", "scene_summary", "scene_situation", "reveal_or_question")
     )
     if "midpoint" not in midpoint_blob and str(core.get("midpoint_reversal") or "")[:16] not in midpoint_blob:
@@ -5229,6 +5319,14 @@ def _scene_plan_category_contamination_errors(
     image_style: str,
     category: str = "",
 ) -> list[str]:
+    from services.content_safety import finance_content_matches
+
+    finance_matches = finance_content_matches(structure)
+    if finance_matches:
+        return [
+            "finance/pension contamination is prohibited in every category: "
+            + ", ".join(finance_matches[:8])
+        ]
     if not _is_folktale_plan_context(
         script_style, topic, upload_title, image_style, category=category
     ):
@@ -5370,6 +5468,10 @@ def _validate_script_plan_stage(
     image_style: str,
     category: str = "",
 ) -> dict:
+    # Keep the raw-plan repetition check.  Category normalization may replace
+    # several scene summaries (especially in a short folktale), but it must
+    # not turn an obviously copy-pasted plan into a silent pass.
+    raw_repetition_errors = _scene_plan_repetition_errors(structure)
     # The planner can return a valid scene list without the old-story
     # story_core fields.  Do not rely on every caller having already run the
     # category repair pipeline: normalize in place immediately before the
@@ -5395,6 +5497,7 @@ def _validate_script_plan_stage(
             if not isinstance(scene, dict):
                 errors.append(f"scene {fallback_number} is not an object")
                 continue
+    errors.extend(raw_repetition_errors)
     errors.extend(_scene_plan_repetition_errors(structure))
     errors.extend(
         _scene_plan_category_contamination_errors(
@@ -5424,6 +5527,14 @@ def _validate_script_generate_stage(
     script_quality = payload.get("script_quality_report") if isinstance(payload.get("script_quality_report"), dict) else {}
     language = str(payload.get("language") or "ko").strip().lower()
     require_korean_script = require_korean_script and language == "ko"
+    from services.content_safety import finance_content_matches
+
+    finance_matches = finance_content_matches(script, structure)
+    if finance_matches:
+        errors.append(
+            "finance/pension contamination is prohibited in every category: "
+            + ", ".join(finance_matches[:8])
+        )
 
     try:
         score = int(float(script_quality.get("score") or 0))
@@ -6421,6 +6532,10 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     ).strip()
     category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     script_style_context = f"{script_style} {category_context}".strip()
+    from services.category_writing_profiles import resolve_category_writing_profile
+    category_writing_profile = resolve_category_writing_profile(category_name)
+    if category_writing_profile:
+        style_directive = f"{style_directive}\n\n{category_writing_profile}".strip()
     if _is_old_story_plan_context(
         script_style_context,
         topic,
@@ -6492,19 +6607,10 @@ Scene planning guard:
     planner_notes = structure.get("planner_notes") or {}
     if planner_notes.get("error"):
         planner_error = planner_notes.get("error_message") or "scene_planner_service.plan_scenes() failed"
-        job_log.warning(f"Scene planner fallback activated: {planner_error}")
-        if _requires_strict_scene_planner_success(job):
-            raise RuntimeError(f"scene planner failed before fallback: {planner_error}")
-        structure = _build_fallback_scene_plan(
-            topic=topic,
-            upload_title=upload_title,
-            target_duration=target_duration,
-            script_style=script_style,
-            style_directive=style_directive,
-            benchmark_analysis=benchmark_analysis,
-            title_generation=title_generation,
-            category=detected_cat,
-        )
+        from services.ai_router import is_credit_exhaustion_error, ProviderCreditExhaustedError
+        if is_credit_exhaustion_error(planner_error):
+            raise ProviderCreditExhaustedError("AI provider", planner_error)
+        raise RuntimeError(f"scene planner failed; no synthetic scene-plan fallback is allowed: {planner_error}")
     research_bundle = (benchmark_analysis or {}).get("web_research")
     if isinstance(research_bundle, dict):
         structure["research_bundle"] = research_bundle
@@ -6516,65 +6622,11 @@ Scene planning guard:
         category=detected_cat,
     )
     old_story_plan_context = _is_old_story_plan_context(script_style_context, topic, upload_title, image_style)
-    if old_story_plan_context and not _old_story_title_is_grave_vigil(topic, upload_title):
-        structure = _sanitize_old_story_scene_plan_to_title(structure, topic, upload_title)
-    if old_story_plan_context:
-        structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
     plan_errors = _scene_plan_repetition_errors(structure)
     if plan_errors:
-        if _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested martial rebuild: {plan_errors[:8]}")
-            structure = _repair_martial_scene_plan_repetition(structure, topic, upload_title)
-        elif old_story_plan_context:
-            job_log.warning(f"Scene plan repetition QA requested old-story rebuild: {plan_errors[:8]}")
-            structure = _repair_old_story_scene_plan_repetition(structure, topic, upload_title)
-            structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
-        elif _is_survival_story_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested survival-story rebuild: {plan_errors[:8]}")
-            structure = _repair_survival_story_scene_plan_repetition(structure, topic, upload_title)
-        elif _is_twilight_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested twilight rebuild: {plan_errors[:8]}")
-            structure = _repair_twilight_scene_plan_repetition(structure, topic, upload_title)
-        elif _is_korean_drama_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested korean drama rebuild: {plan_errors[:8]}")
-            structure = _repair_korean_drama_scene_plan_repetition(structure, topic, upload_title)
-        elif _is_overseas_touching_plan_context(script_style_context, topic, upload_title, image_style):
-            job_log.warning(f"Scene plan repetition QA requested overseas touching rebuild: {plan_errors[:8]}")
-            structure = _repair_overseas_touching_scene_plan_repetition(structure, topic, upload_title)
-        else:
-            job_log.warning(f"Scene plan repetition QA requested category-safe fallback rebuild: {plan_errors[:8]}")
-            structure = _build_fallback_scene_plan(
-                topic=topic,
-                upload_title=upload_title,
-                target_duration=target_duration,
-                script_style=script_style,
-                style_directive=style_directive,
-                benchmark_analysis=benchmark_analysis,
-                title_generation=title_generation,
-                category=detected_cat,
-            )
-
-        # Repair builders preserve the planner's original visual fields unless
-        # refreshed here. Those fields can contain internal template labels such
-        # as "Timed visual beat" and must be replaced before the second QA pass.
-        structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
-        plan_errors = _scene_plan_repetition_errors(structure)
-        if plan_errors:
-            job_log.warning(f"Scene plan repair still repeated; rebuilding deterministic fallback: {plan_errors[:8]}")
-            structure = _build_fallback_scene_plan(
-                topic=topic,
-                upload_title=upload_title,
-                target_duration=target_duration,
-                script_style=script_style,
-                style_directive=style_directive,
-                benchmark_analysis=benchmark_analysis,
-                title_generation=title_generation,
-                category=detected_cat,
-            )
-            structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
-            plan_errors = _scene_plan_repetition_errors(structure)
-            if plan_errors:
-                raise RuntimeError(f"scene plan repetition QA failed after fallback rebuild: {plan_errors[:8]}")
+        raise RuntimeError(
+            f"scene plan QA failed; no deterministic repair or fallback is allowed: {plan_errors[:8]}"
+        )
 
     structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
     category_errors = _scene_plan_category_contamination_errors(
@@ -7191,15 +7243,87 @@ def _scene_payload_for_script(scene: dict, budget: dict, upload_title: str = "")
 
 
 def _prefer_gemini_text_model(config, selected: str = "") -> str:
-    """Respect user's configured model (Claude, DeepSeek, GLM, etc.) and fallback to Gemini only if empty."""
+    """Return only the user's explicitly selected model; never replace it."""
     current = str(selected or "").strip()
     if current:
         if current.lower() in {"gemini-2.5-flash", "gemini-3-flash-preview"}:
             return "gemini-3.6-flash"
         return current
-    if (getattr(config, "GEMINI_API_KEY", "") or "").strip():
-        return "gemini-3.6-flash"
-    return "gemini-3.6-flash"
+    raise RuntimeError("No AI model selected; provider fallback is disabled")
+
+
+def _hermes_orchestrator_gemini_model(config) -> str:
+    """Return an explicitly configured Gemini model for failure orchestration."""
+    from services.ai_router import detect_provider
+
+    for candidate in (
+        getattr(config, "SCRIPT_PLANNING_MODEL", ""),
+        getattr(config, "TOPIC_GENERATION_MODEL", ""),
+        getattr(config, "IMAGE_PROMPT_MODEL", ""),
+    ):
+        model = str(candidate or "").strip()
+        if model and detect_provider(model) == "gemini":
+            return model
+    raise RuntimeError("Hermes orchestration requires an explicitly configured Gemini model")
+
+
+async def _request_hermes_failure_orchestration(
+    ai_router,
+    gemini_model: str,
+    primary_model: str,
+    task_name: str,
+    prompt: str,
+    failure: Exception,
+    attempt: int,
+) -> dict:
+    """Ask Gemini how Hermes should recover without changing story constraints.
+
+    Gemini is a bounded coordinator: it may request one more Claude attempt or
+    explicitly take over the same generation request. Hermes still validates
+    the resulting text exactly as it validates Claude output.
+    """
+    coordinator_prompt = f"""
+You are Hermes, an AI production failure coordinator. Claude is the primary
+writer. Diagnose the failure below and decide the safest recovery for the
+same title, scene plan, and story facts. Never invent a replacement outline.
+
+PRIMARY MODEL: {primary_model}
+FAILED TASK: {task_name}
+ATTEMPT: {attempt}
+FAILURE: {str(failure)[:2500]}
+ORIGINAL REQUEST:
+{prompt[-12000:]}
+
+Return ONLY JSON:
+{{
+  "action": "retry_primary|generate_with_gemini",
+  "repair_instruction": "specific concise instruction that fixes the failure while preserving every supplied fact and scene",
+  "reason": "why this action is appropriate"
+}}
+
+Use retry_primary for malformed output, missing fields, or a transient Claude
+failure. Use generate_with_gemini only when Claude is unavailable or repeated
+retries are unlikely to succeed. Credit/billing failures are handled outside
+this coordinator and must never be routed here.
+"""
+    raw = await ai_router.generate_text(
+        coordinator_prompt,
+        gemini_model,
+        temperature=0.1,
+        max_tokens=1000,
+        task_type="hermes_failure_orchestration",
+        json_mode=True,
+    )
+    advice = _extract_json(raw)
+    if not isinstance(advice, dict):
+        raise ValueError("Gemini orchestration response was not a JSON object")
+    action = str(advice.get("action") or "").strip()
+    if action not in {"retry_primary", "generate_with_gemini"}:
+        raise ValueError(f"Gemini orchestration returned an invalid action: {action!r}")
+    instruction = str(advice.get("repair_instruction") or "").strip()
+    if not instruction:
+        raise ValueError("Gemini orchestration omitted repair_instruction")
+    return {"action": action, "repair_instruction": instruction[:4000], "reason": str(advice.get("reason") or "")[:1000]}
 
 
 
@@ -7587,6 +7711,23 @@ def _parse_script_chunk_sections(
     return result
 
 
+def _ensure_scene_section_target_length(
+    text: str,
+    scene: dict,
+    target_chars: int,
+    language: str = "ko",
+    is_multi: bool = False,
+) -> str:
+    """Validate a generated scene's length without manufacturing missing prose."""
+    result = _clean_section_text(str(text or ""), is_multi)
+    required = max(1, int(target_chars or 0))
+    if len(result) >= required:
+        return result
+    raise RuntimeError(
+        f"scene text is underlength ({len(result)}/{required}); generated prose will not be padded"
+    )
+
+
 
 def _short_script_excerpt(text: str, max_chars: int = 1400) -> str:
     value = (text or "").strip()
@@ -7799,19 +7940,18 @@ Rules:
         data = _extract_json(raw)
         if not isinstance(data, dict):
             raise ValueError("main character response was not an object")
-        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
-        character = {**fallback, **{k: v for k, v in data.items() if v not in (None, "", [])}}
+        required_fields = ("name", "visual_dna_en", "wardrobe_en", "continuity_instruction")
+        missing = [key for key in required_fields if not str(data.get(key) or "").strip()]
+        if missing:
+            raise ValueError(f"main character response missing required fields: {missing}")
+        character = {k: v for k, v in data.items() if v not in (None, "", [])}
         character["source"] = "worker_ai"
         character["created_at"] = time.time()
-        if not str(character.get("visual_dna_en") or "").strip():
-            character["visual_dna_en"] = fallback["visual_dna_en"]
         job_log.info(f"Main character anchor ready: {character.get('name') or 'protagonist'}")
         return character
     except Exception as e:
-        job_log.warning(f"Main character anchor generation failed; using fallback: {e}")
-        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
-        fallback["created_at"] = time.time()
-        return fallback
+        _reraise_if_provider_credit_exhausted(e)
+        raise RuntimeError(f"main character anchor generation failed; no synthetic anchor fallback is allowed: {e}") from e
 
 
 async def _generate_supporting_character_anchors(
@@ -7921,6 +8061,7 @@ Rules:
         job_log.info(f"Supporting character anchors ready: {len(anchors)}")
         return anchors
     except Exception as e:
+        _reraise_if_provider_credit_exhausted(e)
         job_log.warning(f"Supporting character anchor generation failed; continuing without supporting anchors: {e}")
         return []
 
@@ -8008,8 +8149,9 @@ Return ONLY JSON:
         if not isinstance(parsed.get("scene_beats"), list):
             raise ValueError("blueprint.scene_beats missing")
         return parsed
-    except Exception:
-        return _fallback_narrative_blueprint(topic, upload_title, structure)
+    except Exception as exc:
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(f"story blueprint generation failed; no synthetic blueprint fallback is allowed: {exc}") from exc
 
 
 def _fallback_script_quality_report(script: str, upload_title: str) -> dict:
@@ -8191,9 +8333,8 @@ Rules:
             report["verdict"] = "revise"
         return _apply_paragraph_opener_quality(report, script)
     except Exception as e:
-        report = _fallback_script_quality_report(script, upload_title)
-        report["qa_error"] = str(e)
-        return _apply_paragraph_opener_quality(report, script)
+        _reraise_if_provider_credit_exhausted(e)
+        raise RuntimeError(f"script QA failed; synthetic QA approval is disabled: {e}") from e
 
 
 def _script_needs_revision(report: dict) -> bool:
@@ -8280,6 +8421,9 @@ def _deduplicate_script_text(script: str, repeated_sentences: list[dict] | None 
 async def _revise_full_script(
     ai_router, model: str, topic: str, upload_title: str, narrative_blueprint: dict,
     structure: dict, script: str, quality_report: dict, language: str,
+    category_writing_profile: str = "",
+    required_scene_count: int = 0,
+    minimum_chars: int = 0,
 ) -> str:
     prompt = f"""
 {_script_rewrite_role(language)}
@@ -8297,6 +8441,9 @@ Rules:
 - Preserve the upload title promise and final payoff.
 - Keep length within roughly +/-20% of the original.
 - Never repeatedly open paragraphs or scenes with stock transitions such as "그런데 말이야", "글쎄", or "하지만 말이야". Use each transition family at most twice in the full script; prefer a concrete subject, action, or sensory detail.
+- Preserve every planned scene in order. Do not merge, skip, or summarize a scene merely because the script is short.
+- Write one clearly separated narration paragraph for each planned scene, without printing scene numbers or headings.
+- The rewritten script must be at least {minimum_chars or 'the required target'} characters long and must dramatize each scene with an action, sensory detail, and emotional turn.
 
 LANGUAGE: {language}
 TOPIC: {topic}
@@ -8304,6 +8451,7 @@ UPLOAD TITLE: {upload_title}
 STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
 SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
 QA REPORT: {json.dumps(quality_report or {}, ensure_ascii=False)}
+CATEGORY WRITING PROFILE: {category_writing_profile or "Follow the selected script style while preserving the category's narrative world."}
 
 ORIGINAL SCRIPT:
 {script}
@@ -8312,7 +8460,87 @@ ORIGINAL SCRIPT:
         prompt, model, temperature=0.55, max_tokens=12000,
         task_type="hermes_script_rewrite",
     )
-    return _ensure_script_emotion_cues(_clean_section_text(revised.strip(), False), language)
+    return _clean_section_text(revised.strip(), False)
+
+
+async def _revise_script_sections(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    narrative_blueprint: dict,
+    scenes: list[dict],
+    draft_sections: list[str],
+    scene_budgets: list[dict],
+    quality_report: dict,
+    language: str,
+    is_multi: bool,
+    category_writing_profile: str = "",
+) -> list[str]:
+    """Rewrite a script without allowing the model to collapse scene beats.
+
+    Whole-script rewrites repeatedly merged a short-plan midpoint into a
+    neighbouring paragraph.  The JSON contract below is keyed by the actual
+    scene orders, and the parser retains the original scene text if the model
+    omits or malforms one output item.
+    """
+    inputs = []
+    for index, scene in enumerate(scenes):
+        budget = scene_budgets[index] if index < len(scene_budgets) else {}
+        inputs.append({
+            "scene_order": scene.get("scene_order") or scene.get("order") or index + 1,
+            "required_beat": scene.get("scene_summary") or scene.get("scene_situation") or "",
+            "dramatic_function": scene.get("dramatic_function") or "",
+            "character_choice": scene.get("character_choice") or "",
+            "emotional_shift": scene.get("emotional_shift") or "",
+            "reveal_or_question": scene.get("reveal_or_question") or "",
+            "min_chars": int(budget.get("min_chars") or 80),
+            "max_chars": int(budget.get("max_chars") or 400),
+            "draft_text": draft_sections[index] if index < len(draft_sections) else "",
+        })
+    prompt = f"""
+{_script_rewrite_role(language)}
+
+Rewrite each planned narration scene below to address the QA report. This is
+a STRUCTURED REWRITE, not a summary: return exactly one item for every input
+scene_order, in the same order. Never merge, omit, or move a scene.
+
+For the midpoint reversal, show the discovery or confrontation as an action;
+for the final payoff, earn it through the prior scene's setup. Preserve the
+protagonist's identity and make the title object actively matter in the plot.
+
+LANGUAGE: {language}
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+QA REPORT: {json.dumps(quality_report or {}, ensure_ascii=False)}
+CATEGORY WRITING PROFILE: {category_writing_profile or "Preserve the selected category voice."}
+SCENES TO REWRITE: {json.dumps(inputs, ensure_ascii=False)}
+
+Return ONLY JSON:
+{{"sections":[{{"scene_order":1,"text":"rewritten narration for this exact scene"}}]}}
+"""
+    raw = await ai_router.generate_text(
+        prompt, model, temperature=0.45, max_tokens=12000,
+        task_type="hermes_script_structured_rewrite",
+    )
+    original_by_index = list(draft_sections)
+    rewritten_sections = _parse_script_chunk_sections(
+        raw,
+        scenes,
+        is_multi,
+        lambda index, _scene: original_by_index[index] if index < len(original_by_index) else "",
+    )
+    return [
+        _ensure_scene_section_target_length(
+            section,
+            scene,
+            int((scene_budgets[index] if index < len(scene_budgets) else {}).get("target_chars") or 80),
+            language=language,
+            is_multi=is_multi,
+        )
+        for index, (scene, section) in enumerate(zip(scenes, rewritten_sections))
+    ]
 
 
 def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
@@ -8426,22 +8654,11 @@ SCRIPT TO REWRITE:
         )
         rewritten = _clean_section_text(str(rewritten or "").strip(), False)
         if rewritten and not _script_has_excessive_latin(rewritten):
-            return _ensure_script_emotion_cues(rewritten, "ko")
-        job_log.warning(
-            "Korean language rewrite still had excessive Latin text; using deterministic rescue script "
-            f"(stats={_script_language_stats(rewritten)})"
-        )
+            return rewritten
+        raise RuntimeError(f"Korean language rewrite did not pass validation: {_script_language_stats(rewritten)}")
     except Exception as exc:
-        job_log.warning(f"Korean language rewrite failed; using deterministic rescue script: {exc}")
-    return _ensure_script_emotion_cues(
-        _build_korean_language_rescue_script(
-            topic,
-            upload_title,
-            structure,
-            min_total_chars=max(2600, int(len(script) * 0.55)),
-        ),
-        "ko",
-    )
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(f"Korean language rewrite failed; no deterministic rescue script is allowed: {exc}") from exc
 
 
 def _build_japanese_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
@@ -8531,23 +8748,15 @@ SCRIPT TO REWRITE:
         )
         rewritten = _clean_section_text(str(rewritten or "").strip(), False)
         if rewritten and _japanese_char_count(rewritten) >= max(800, len(rewritten) // 6) and not re.search(r"[\uac00-\ud7a3]", rewritten):
-            return _ensure_script_emotion_cues(rewritten, "ja")
+            return rewritten
         rewritten_hangul = len(re.findall(r"[\uac00-\ud7a3]", rewritten or ""))
-        job_log.warning(
-            "Japanese language rewrite still failed language validation; using deterministic rescue script "
-            f"(japanese={_japanese_char_count(rewritten)}, chars={len(rewritten)}, hangul={rewritten_hangul})"
+        raise RuntimeError(
+            "Japanese language rewrite did not pass validation: "
+            f"japanese={_japanese_char_count(rewritten)}, chars={len(rewritten)}, hangul={rewritten_hangul}"
         )
     except Exception as exc:
-        job_log.warning(f"Japanese language rewrite failed; using deterministic rescue script: {exc}")
-    return _ensure_script_emotion_cues(
-        _build_japanese_language_rescue_script(
-            topic,
-            upload_title,
-            structure,
-            min_total_chars=max(2600, int(len(script) * 0.55)),
-        ),
-        "ja",
-    )
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(f"Japanese language rewrite failed; no deterministic rescue script is allowed: {exc}") from exc
 
 
 
@@ -8622,6 +8831,58 @@ def _build_overseas_rescue_script(topic: str, upload_title: str, structure: dict
     script = "\n\n".join(paragraphs).strip()
     while len(script) < min_total_chars:
         script += "\n\n마음에서 마음으로 전해진 온기는 국경을 넘어 더 큰 사랑으로 피어났습니다. 작은 친절 하나가 또 다른 기적을 낳는다는 믿음은 세상 모든 이들에게 잊지 못할 감동을 선물했습니다."
+    return script
+
+
+def _build_old_story_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 1100) -> str:
+    """Category-safe rescue for any old-story title, grounded in its own plan."""
+    title = (upload_title or topic or "오늘의 옛이야기").strip()
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        scenes = [{} for _ in range(4)]
+    paragraphs = []
+    total_scenes = len(scenes)
+    for index, scene in enumerate(scenes, start=1):
+        scene = scene if isinstance(scene, dict) else {}
+        situation = _clean_script_scene_text(str(scene.get("scene_situation") or scene.get("scene_summary") or title))
+        choice = _clean_script_scene_text(str(scene.get("character_choice") or "주인공은 그 일을 그냥 지나치지 않기로 했습니다"))
+        shift = _clean_script_scene_text(str(scene.get("emotional_shift") or "마음속 의심은 더 깊은 책임감으로 바뀌었습니다"))
+        reveal = _clean_script_scene_text(str(scene.get("reveal_or_question") or scene.get("retention_hook") or "숨겨진 사정은 아직 모두 드러나지 않았습니다"))
+        if index == 1:
+            lead = f"{title}. 옛날 어느 날, {situation}."
+        elif index == len(scenes):
+            lead = f"마침내 {situation}."
+        else:
+            lead = f"시간이 흐르자, {situation}."
+        midpoint_action = ""
+        payoff_action = ""
+        if index == max(2, (total_scenes + 1) // 2):
+            midpoint_action = (
+                " 그제야 앞서 보았던 단서가 따로 떨어진 일이 아니라, 어머니가 감춘 약속과 "
+                "이어져 있다는 사실이 드러났습니다. 주인공은 그 연결을 눈앞의 물건과 사람들의 "
+                "말로 확인한 뒤에야, 되돌릴 수 없는 길을 택합니다."
+            )
+        if index == total_scenes:
+            payoff_action = (
+                " 주인공은 더는 혼자 품지 않고, 약속의 당사자와 침묵하던 사람들 앞에 단서를 펼쳐 "
+                "그 뜻을 끝까지 밝혔습니다. 그렇게 숨겨졌던 가족의 사정은 말로만 고백되지 않고, "
+                "주인공이 약속을 지키는 행동으로 마침내 매듭지어졌습니다."
+            )
+        paragraphs.append(
+            f"{lead} 주인공은 손에 잡힌 작은 단서와 사람들의 굳은 표정을 번갈아 살폈습니다. "
+            f"그러고는 {choice}. 그 선택 뒤에는 {shift}. "
+            f"하지만 {reveal}. 그래서 누구도 쉽게 발걸음을 돌릴 수 없었습니다."
+            f"{midpoint_action}{payoff_action}"
+        )
+    script = "\n\n".join(paragraphs).strip()
+    fillers = [
+        "바람이 스치는 소리마저 오래된 비밀을 재촉하는 듯했습니다. 주인공은 서두르지 않고, 앞선 말과 남겨진 물건의 뜻을 하나씩 맞추어 보았습니다.",
+        "그때까지 흩어져 있던 사정은 한 사람의 선택으로 이어지기 시작했습니다. 기다림이 길수록 진실을 마주할 용기도 더 필요했습니다.",
+    ]
+    filler_index = 0
+    while len(script) < min_total_chars:
+        script += "\n\n" + fillers[filler_index % len(fillers)]
+        filler_index += 1
     return script
 
 
@@ -8724,6 +8985,16 @@ def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, di
 
     title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
     upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
+    from services.content_safety import reject_finance_content
+
+    reject_finance_content(
+        "script_generate payload",
+        topic,
+        upload_title,
+        title_generation,
+        structure,
+        payload.get("research_bundle") or {},
+    )
 
     return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, narration_pace, tts_speed, duration_seconds, upload_title, title_generation
 
@@ -8811,6 +9082,10 @@ def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict
     category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     category_persona_instruction = _script_category_persona_instruction(category_name, language)
     script_style_context = f"{script_style} {category_context}".strip()
+    from services.category_writing_profiles import resolve_category_writing_profile
+    category_writing_profile = resolve_category_writing_profile(category_name)
+    if category_writing_profile:
+        style_directive = f"{style_directive}\n\n{category_writing_profile}".strip()
     image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
     image_style_selection = (
         (job.get("payload") or {}).get("image_style_selection")
@@ -8840,14 +9115,7 @@ Old-story script guard:
             "Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.",
             "Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.",
         ]
-        if _is_finance_plan_context(script_style_context, topic, upload_title, image_style):
-            hard_retry_rules.extend(
-                [
-                    "Do not repeat the same money amount or pension fact across multiple scenes. Mention a number once, then move to a new consequence or decision.",
-                    "Do not turn the middle into a policy lecture or PSA. Keep the couple's action and decision driving the information.",
-                ]
-            )
-        elif _is_old_story_plan_context(script_style_context, topic, upload_title, image_style, category=category_name):
+        if _is_old_story_plan_context(script_style_context, topic, upload_title, image_style, category=category_name):
             hard_retry_rules.extend(
                 [
                     "Stay strictly within the Joseon/pre-modern folktale setting. Never introduce modern objects, legal actions, or contemporary terms.",
@@ -8877,10 +9145,10 @@ Hard retry rules:
         image_style,
         category=category_name,
     )
-    grave_vigil_context = any(
-        term in _text_with_mojibake_repairs(topic, upload_title)
-        for term in ("며느리", "시어머니", "묘에", "묘지", "grave vigil")
-    )
+    # The former grave-vigil shortcut replaced a failed script with one fixed
+    # story.  Do not route production work through it: even an exact grave
+    # title must stay anchored to the supplied scene plan and title.
+    grave_vigil_context = False
     if old_story_context and grave_vigil_context:
         structure = _repair_old_story_grave_vigil_scene_plan_repetition(structure, topic, upload_title)
         structure = _apply_old_story_story_core_to_structure(structure, topic, upload_title)
@@ -8903,45 +9171,26 @@ Hard retry rules:
         tts_speed,
     )
     scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts, narration_pace)
+    if old_story_context and not is_shorts:
+        # Korean long-form quality validation requires enough room for an
+        # actual causal tale (and at least 1,000 Hangul characters), even when
+        # a caller supplied an unusually short scene plan.  Give every planned
+        # beat a real narration paragraph instead of letting a 4-scene plan
+        # collapse into a synopsis.
+        for budget in scene_budgets:
+            target = max(260, int(budget.get("target_chars") or 0))
+            budget["target_chars"] = target
+            budget["min_chars"] = max(int(budget.get("min_chars") or 0), round(target * 0.8))
+            budget["max_chars"] = max(int(budget.get("max_chars") or 0), round(target * 1.18))
     script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
 
     async def _run_generation() -> tuple[str, dict, dict, dict, int, dict, list[str]]:
-        if old_story_context and grave_vigil_context:
-            narrative_blueprint = {
-                "protagonist": "순옥",
-                "central_conflict": "시어머니 묘 곁에서 3년을 살며 마을의 소문과 시댁의 탐욕을 견디고, 죽은 시어머니가 잃어버린 딸 복례에게 남긴 사과를 지켜야 한다.",
-                "hidden_information": "붉은 실과 등잔은 귀신을 묶는 물건이 아니라, 잃어버린 복례가 돌아올 길을 밝혀 두는 약속의 표시다.",
-                "midpoint_turn": "남편 만득의 편지와 비녀 속 혼서지를 통해 시어머니가 평생 숨긴 딸 복례의 존재가 드러난다.",
-                "payoff": "순옥이 묘 곁에서 3년을 산 이유는 죽은 시어머니가 하지 못한 사과를 살아 돌아온 딸 복례에게 전하기 위해서다.",
-                "tone": "구수한 한국 옛날이야기 입말, 전근대 산골 마을, 현대 소재 없음",
-            }
-            narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
-            narrative_blueprint["tone"] = "구수한 한국 옛날이야기 입말, 전근대 산골 마을, 현대 소재 없음"
-            main_character = await _generate_main_character_anchor(
-                ai_router, draft_model, topic, upload_title, structure, language, narrative_blueprint, job_log
-            )
-            job_log.info("Using old-story grave-vigil script path before section generation")
-            job_store.update_progress(job_id, 78, "script QA")
-            write_state("running", job, 78, job_id)
-            rescue_script = _ensure_script_emotion_cues(
-                _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure),
-                language,
-            )
-            rescue_quality = await _evaluate_script_quality(
-                ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
-            )
-            if not _script_needs_revision(rescue_quality):
-                return rescue_script, narrative_blueprint, rescue_quality, rescue_quality, 0, main_character, []
-            rescue_issues = rescue_quality.get("critical_issues") or rescue_quality.get("revision_notes") or []
-            job_log.warning(
-                "Old-story grave-vigil script path did not pass QA; falling back to section generation "
-                f"(score={rescue_quality.get('score')}, verdict={rescue_quality.get('verdict')}, issues={rescue_issues})"
-            )
-        else:
-            narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
-            main_character = await _generate_main_character_anchor(
-                ai_router, draft_model, topic, upload_title, structure, language, narrative_blueprint, job_log
-            )
+        narrative_blueprint = await _generate_narrative_blueprint(
+            ai_router, draft_model, topic, upload_title, structure, title_generation, language, style_directive
+        )
+        main_character = await _generate_main_character_anchor(
+            ai_router, draft_model, topic, upload_title, structure, language, narrative_blueprint, job_log
+        )
 
         final_parts = []
         known_characters: list[str] = []
@@ -8981,44 +9230,106 @@ Hard retry rules:
             if style_directive:
                 prompt = f"{prompt}\n\n{style_directive}"
 
-            try:
-                raw_text = await ai_router.generate_text(
-                    prompt, draft_model, temperature=0.65, max_tokens=16384,
-                    task_type="hermes_script_generate",
-                )
-                chunk_parts = _parse_script_chunk_sections(
-                    raw_text,
-                    chunk_scenes,
-                    is_multi,
-                    lambda local_idx, scene: _fallback_narration_section(
-                        topic,
-                        upload_title,
-                        scene,
-                        start_idx + local_idx,
-                        len(scenes),
-                        int(chunk_budgets[local_idx].get("min_chars") or 80),
-                        language=language,
-                    ),
-                )
-            except Exception as e:
-                job_log.warning(
-                    f"Script chunk {chunk_idx + 1}/{len(script_chunks)} generation fallback: {e}"
-                )
-                chunk_parts = [
-                    _fallback_narration_section(
-                        topic,
-                        upload_title,
-                        scene,
-                        start_idx + local_idx,
-                        len(scenes),
-                        int(chunk_budgets[local_idx].get("min_chars") or 80),
-                        language=language,
+            chunk_parts = []
+            last_chunk_error: Exception | None = None
+            active_generation_model = draft_model
+            orchestration_note = ""
+            orchestrator_model = _hermes_orchestrator_gemini_model(config)
+            # Cost guardrail: one primary attempt, then at most one Gemini-
+            # coordinated recovery generation. Do not fan out into retries.
+            for attempt in range(2):
+                repair_note = ""
+                if last_chunk_error:
+                    repair_note = (
+                        "\n\nPREVIOUS OUTPUT FAILED VALIDATION. Regenerate every section from the same "
+                        f"title and scene plan; do not change story facts. Failure: {last_chunk_error}\n"
+                        f"HERMES COORDINATOR INSTRUCTION: {orchestration_note}"
                     )
-                    for local_idx, scene in enumerate(chunk_scenes)
-                ]
+                try:
+                    raw_text = await ai_router.generate_text(
+                        f"{prompt}{repair_note}", active_generation_model,
+                        temperature=0.65 if attempt == 0 else 0.45,
+                        max_tokens=16384,
+                        task_type=(
+                            "hermes_gemini_orchestrated_script_generate"
+                            if active_generation_model == orchestrator_model else "hermes_script_generate"
+                        ),
+                    )
+                    chunk_parts = _parse_script_chunk_sections(
+                        raw_text,
+                        chunk_scenes,
+                        is_multi,
+                        lambda _local_idx, _scene: "",
+                    )
+                    if len(chunk_parts) != len(chunk_scenes) or any(not str(part or "").strip() for part in chunk_parts):
+                        raise RuntimeError("script generator omitted or malformed one or more required scene sections")
+                    for local_idx, (scene, section_text) in enumerate(zip(chunk_scenes, chunk_parts)):
+                        budget = chunk_budgets[local_idx]
+                        required_chars = int(
+                            budget.get("min_chars") if float(budget.get("duration_seconds") or 0) <= 6
+                            else budget.get("target_chars") or budget.get("min_chars") or 80
+                        )
+                        _ensure_scene_section_target_length(
+                            section_text, scene, required_chars, language=language, is_multi=is_multi,
+                        )
+                    break
+                except ai_router.ProviderCreditExhaustedError:
+                    job_log.error("AI provider credit/balance exhausted during script generation; stopping job immediately.")
+                    raise
+                except Exception as exc:
+                    last_chunk_error = exc
+                    job_log.warning(
+                        f"Script chunk {chunk_idx + 1}/{len(script_chunks)} AI generation "
+                        f"attempt {attempt + 1}/2 failed: {exc}"
+                    )
+                    if str(draft_model or "").lower().startswith("claude") and attempt < 1:
+                        try:
+                            advice = await _request_hermes_failure_orchestration(
+                                ai_router,
+                                orchestrator_model,
+                                draft_model,
+                                "script chunk generation",
+                                prompt,
+                                exc,
+                                attempt + 1,
+                            )
+                            orchestration_note = advice["repair_instruction"]
+                            active_generation_model = (
+                                orchestrator_model
+                                if advice["action"] == "generate_with_gemini"
+                                else draft_model
+                            )
+                            job_log.info(
+                                f"Hermes coordinator chose {advice['action']} after Claude failure: "
+                                f"{advice.get('reason') or 'no reason provided'}"
+                            )
+                        except ai_router.ProviderCreditExhaustedError:
+                            raise
+                        except Exception as coordinator_error:
+                            raise RuntimeError(
+                                "Hermes Gemini coordinator failed while handling a Claude generation error: "
+                                f"{coordinator_error}"
+                            ) from coordinator_error
+            else:
+                raise RuntimeError(
+                    f"script chunk {chunk_idx + 1}/{len(script_chunks)} failed after one Hermes-coordinated recovery; "
+                    f"manual regeneration required: {last_chunk_error}"
+                )
 
             for local_idx, (scene, section_text) in enumerate(zip(chunk_scenes, chunk_parts)):
                 budget = chunk_budgets[local_idx]
+                required_chars = int(
+                    budget.get("min_chars")
+                    if float(budget.get("duration_seconds") or 0) <= 6
+                    else budget.get("target_chars") or budget.get("min_chars") or 80
+                )
+                section_text = _ensure_scene_section_target_length(
+                    section_text,
+                    scene,
+                    required_chars,
+                    language=language,
+                    is_multi=is_multi,
+                )
                 section_text = _trim_section_to_limit(
                     section_text,
                     int(budget.get("max_chars") or 220),
@@ -9045,10 +9356,7 @@ Hard retry rules:
             if chunk_idx < len(script_chunks) - 1:
                 await asyncio.sleep(0.5)
 
-        draft_script = _ensure_script_emotion_cues(
-            "\n\n".join(p for p in final_parts if p).strip(),
-            language,
-        )
+        draft_script = "\n\n".join(p for p in final_parts if p).strip()
         job_store.update_progress(job_id, 78, "script QA")
         write_state("running", job, 78, job_id)
         initial_quality = await _evaluate_script_quality(
@@ -9066,10 +9374,12 @@ Hard retry rules:
             job_store.update_progress(job_id, 84, "script rewrite")
             write_state("running", job, 84, job_id)
             try:
-                revised = await _revise_full_script(
+                revised_sections = await _revise_script_sections(
                     ai_router, model, topic, upload_title, narrative_blueprint,
-                    structure, draft_script, initial_quality, language,
+                    scenes, scene_script_sections, scene_budgets, initial_quality, language, is_multi,
+                    category_writing_profile=category_writing_profile,
                 )
+                revised = "\n\n".join(section for section in revised_sections if section).strip()
                 if revised and len(revised) >= max(500, int(len(draft_script) * 0.55)):
                     revised_quality = await _evaluate_script_quality(
                         ai_router, model, topic, upload_title, narrative_blueprint, structure, revised, language
@@ -9084,59 +9394,28 @@ Hard retry rules:
                         final_script = revised
                         final_quality = revised_quality
                         revision_count = 1
-                        scene_script_sections = []
+                        scene_script_sections = revised_sections
+            except ai_router.ProviderCreditExhaustedError:
+                job_log.error(
+                    "AI provider credit/balance exhausted during script rewrite; "
+                    "stopping job without keeping a fallback draft."
+                )
+                raise
             except Exception as e:
-                job_log.warning(f"Script rewrite failed (keeping draft): {e}")
+                raise RuntimeError(
+                    f"script rewrite failed; keeping a pre-revision draft is disabled: {e}"
+                ) from e
 
         opener_findings = _detect_repeated_paragraph_openers(final_script)
         if opener_findings:
-            job_log.warning(
-                f"Script QA found repeated paragraph openers: {opener_findings}. "
-                "Applying deterministic opener cleanup before rescue selection."
+            raise RuntimeError(
+                f"script has repeated paragraph openers; deterministic text cleanup is disabled: {opener_findings}"
             )
-            cleaned_script = _reduce_repeated_paragraph_openers(final_script)
-            if cleaned_script != final_script:
-                final_script = _ensure_script_emotion_cues(cleaned_script, language)
-                final_quality = await _evaluate_script_quality(
-                    ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
-                )
-                revision_count = max(revision_count, 1)
-                scene_script_sections = []
 
         if _script_needs_revision(final_quality):
-            rescue_script = None
-            if _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
-                job_log.info("Script QA still requested revision; trying martial rescue script")
-                rescue_script = _build_martial_rescue_script(topic, upload_title, structure)
-            elif _is_survival_story_plan_context(script_style_context, topic, upload_title, image_style):
-                job_log.info("Script QA still requested revision; trying survival rescue script")
-                rescue_script = _build_survival_rescue_script(topic, upload_title, structure)
-            elif _is_twilight_plan_context(script_style_context, topic, upload_title, image_style):
-                job_log.info("Script QA still requested revision; trying twilight rescue script")
-                rescue_script = _build_twilight_rescue_script(topic, upload_title, structure)
-            elif _is_korean_drama_plan_context(script_style_context, topic, upload_title, image_style):
-                job_log.info("Script QA still requested revision; trying korean drama rescue script")
-                rescue_script = _build_korean_drama_rescue_script(topic, upload_title, structure)
-            elif _is_overseas_touching_plan_context(script_style_context, topic, upload_title, image_style):
-                job_log.info("Script QA still requested revision; trying overseas touching rescue script")
-                rescue_script = _build_overseas_rescue_script(topic, upload_title, structure)
-            elif old_story_context:
-                job_log.info("Script QA still requested revision; trying old-story rescue script")
-                rescue_script = _build_old_story_grave_vigil_rescue_script(topic, upload_title, structure)
-            elif language == "ja":
-                job_log.info("Script QA still requested revision; trying Japanese rescue script")
-                rescue_script = _build_japanese_language_rescue_script(topic, upload_title, structure)
-
-            if rescue_script:
-                rescue_script = _ensure_script_emotion_cues(rescue_script, language)
-                rescue_quality = await _evaluate_script_quality(
-                    ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
-                )
-                if not _script_needs_revision(rescue_quality):
-                    final_script = rescue_script
-                    final_quality = rescue_quality
-                    revision_count = max(revision_count, 1)
-                    scene_script_sections = []
+            raise RuntimeError(
+                "script quality gate failed after AI revision; no category rescue or fixed-template script is allowed"
+            )
 
         if language == "ko" and _script_has_excessive_latin(final_script):
             job_log.warning(
@@ -9188,17 +9467,9 @@ Hard retry rules:
 
         final_opener_findings = _detect_repeated_paragraph_openers(final_script)
         if final_opener_findings:
-            job_log.warning(
-                f"Final language/rewrite pass reintroduced repeated paragraph openers: {final_opener_findings}."
+            raise RuntimeError(
+                f"script rewrite produced repeated paragraph openers; deterministic cleanup is disabled: {final_opener_findings}"
             )
-            cleaned_script = _reduce_repeated_paragraph_openers(final_script)
-            if cleaned_script != final_script:
-                final_script = _ensure_script_emotion_cues(cleaned_script, language)
-                final_quality = await _evaluate_script_quality(
-                    ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
-                )
-                revision_count = max(revision_count, 1)
-                scene_script_sections = []
 
         return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character, scene_script_sections
 
@@ -9222,23 +9493,11 @@ Hard retry rules:
 
     repeated_sentences = _detect_repeated_script_sentences(final_script)
     if repeated_sentences:
-        job_log.warning(
-            f"Script contains {len(repeated_sentences)} repeated sentence groups. Running automatic deduplication pass..."
+        raise RuntimeError(
+            f"script contains repeated sentence groups; automatic deduplication is disabled ({len(repeated_sentences)})"
         )
-        deduped = _deduplicate_script_text(final_script, repeated_sentences)
-        remaining = _detect_repeated_script_sentences(deduped)
-        if not remaining or len(remaining) <= 8:
-            final_script = deduped
-            job_log.info("Automatic script deduplication successfully resolved repeated sentences.")
-        else:
-            final_script = deduped
-            job_log.warning(
-                f"Script deduplicated ({len(remaining)} residual minor repetitions allowed for continuity)."
-            )
-    final_script = _ensure_script_emotion_cues(final_script, language)
     if not isinstance(main_character, dict) or not main_character:
-        main_character = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
-        main_character["source"] = "worker_required_fallback"
+        raise RuntimeError("main character anchor is missing; synthetic character fallback is disabled")
     main_character = _normalize_character_anchor(
         main_character,
         fallback_name="protagonist",
@@ -9850,13 +10109,20 @@ def process_one_job(job: dict) -> None:
         job_log.warning(f"Aborted: externally transitioned ({e})")
     except Exception as e:
         error_message = str(e)
-        job_store.transition(job_id, job_store.FAILED, reason=error_message, error_code="HERMES_EXCEPTION", error_message=error_message)
-        job_log.error(f"FAILED: [HERMES_EXCEPTION] {error_message}")
-        refreshed = job_store.get_job(job_id)
-        if refreshed["retry_count"] < refreshed["max_retries"]:
-            job_store.transition(job_id, job_store.QUEUED, reason=f"auto-retry after failure ({refreshed['retry_count'] + 1}/{refreshed['max_retries']})")
-            job_log.info(f"Re-queued for retry {refreshed['retry_count'] + 1}/{refreshed['max_retries']}")
-        _report_remote_outcome(job, job_log, success=False, error_code="HERMES_EXCEPTION", error_message=error_message)
+        is_credit_exhausted = False
+        try:
+            from services.ai_router import ProviderCreditExhaustedError, is_credit_exhaustion_error
+            is_credit_exhausted = isinstance(e, ProviderCreditExhaustedError) or is_credit_exhaustion_error(e)
+        except ImportError:
+            pass
+        error_code = "HERMES_CREDIT_EXHAUSTED" if is_credit_exhausted else "HERMES_REGEN_REQUIRED"
+        job_store.transition(job_id, job_store.FAILED, reason=error_message, error_code=error_code, error_message=error_message)
+        job_log.error(f"FAILED: [{error_code}] {error_message}")
+        if is_credit_exhausted:
+            job_log.error("작업을 중지했습니다. API 키를 충전하거나 결제 상태를 확인한 뒤 수동으로 재시도하세요.")
+        else:
+            job_log.error("작업을 완료 처리하지 않았습니다. 현재 제목과 구조를 유지한 채 수동으로 재생성하세요.")
+        _report_remote_outcome(job, job_log, success=False, error_code=error_code, error_message=error_message)
         _last_error = error_message
     finally:
         if renew_stop:
