@@ -61,6 +61,15 @@ def test_visual_direction_plan_normalizes_approved_camera_language_case():
     assert plan["camera_language"] == ["slow push-in", "gentle pan"]
 
 
+def test_scene_length_accepts_bounded_twenty_percent_variance():
+    text = "가" * 60
+
+    assert hermes_worker._ensure_scene_section_target_length(text, {}, 72) == text
+
+    with pytest.raises(RuntimeError, match="minimum accepted 58"):
+        hermes_worker._ensure_scene_section_target_length("가" * 57, {}, 72)
+
+
 def test_script_plan_stage_rejects_repeated_scene_summaries():
     structure = {
         "scenes": [
