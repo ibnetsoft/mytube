@@ -32,6 +32,35 @@ class _FakeResponse:
     text = ""
 
 
+class _VisualPlanRouter:
+    async def generate_text(self, *_args, **_kwargs):
+        return """{
+            "overall_vision": "A grounded visual sequence",
+            "category_visual_grammar": "Natural documentary framing",
+            "recurring_characters": ["Keep the lead consistent"],
+            "recurring_locations": ["Keep the village consistent"],
+            "continuity_anchors": ["Preserve wardrobe and props"],
+            "palette": "Muted earth tones",
+            "camera_language": ["Slow push-in", "GENTLE PAN"],
+            "negative_prompt": "No text or logos"
+        }"""
+
+
+def test_visual_direction_plan_normalizes_approved_camera_language_case():
+    plan = hermes_worker._build_visual_direction_plan(
+        _VisualPlanRouter(),
+        "test-model",
+        "topic",
+        "title",
+        {"scenes": []},
+        "realistic",
+        "realistic image style",
+        "ko",
+    )
+
+    assert plan["camera_language"] == ["slow push-in", "gentle pan"]
+
+
 def test_script_plan_stage_rejects_repeated_scene_summaries():
     structure = {
         "scenes": [

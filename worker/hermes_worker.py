@@ -3085,10 +3085,11 @@ CATEGORY VISUAL GRAMMAR:
 SCENE PREVIEW:
 {json.dumps(scenes_preview, ensure_ascii=False, indent=2)}
 
-Rules:
-- Preserve story facts and category tone.
-- Define recurring character continuity, recurring location continuity, palette, camera language, and negative prompt.
-- Keep it practical for image/video generation, not a prose essay.
+ Rules:
+ - Preserve story facts and category tone.
+ - Define recurring character continuity, recurring location continuity, palette, camera language, and negative prompt.
+ - camera_language may contain ONLY these exact phrases: {", ".join(MEDIA_CAMERA_MOVEMENTS)}.
+ - Keep it practical for image/video generation, not a prose essay.
 - Do not include Korean administrative explanation inside fields that will be reused in English prompts.
 - Return ONLY JSON.
 
@@ -3128,10 +3129,12 @@ Schema:
             raise ValueError(f"visual direction plan missing required fields: {missing}")
         plan["image_style_key"] = image_style_key
         plan["image_style_directive"] = image_style_directive
-        plan["camera_language"] = [
-            item for item in (plan.get("camera_language") or [])
-            if str(item).strip() in MEDIA_CAMERA_MOVEMENTS
-        ]
+        approved_movements = {movement.casefold(): movement for movement in MEDIA_CAMERA_MOVEMENTS}
+        plan["camera_language"] = list(dict.fromkeys(
+            approved_movements[item]
+            for value in (plan.get("camera_language") or [])
+            if (item := str(value).strip().casefold()) in approved_movements
+        ))
         if not plan["camera_language"]:
             raise ValueError("visual direction plan has no approved camera language")
         return plan
