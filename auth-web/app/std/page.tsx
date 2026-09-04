@@ -1615,6 +1615,12 @@ export default function StdPortalPage() {
         return str
     }
 
+    const runtimeAssetUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null
+        const str = String(url).trim()
+        return str.startsWith('blob:') ? str : sanitizeAssetUrl(str)
+    }
+
     const driveFileViewLink = (fileId: string | null | undefined): string | null => {
         const id = String(fileId || '').trim()
         return id ? `https://drive.google.com/file/d/${id}/view` : null
@@ -1662,8 +1668,8 @@ export default function StdPortalPage() {
         return (selectedProject?.scenes || [])
             .map((scene: any, index: number) => [
                 Number(scene?.scene_number || scene?.scene_order || index + 1),
-                sanitizeAssetUrl(scene?.image_url || scene?.image) || '',
-                sanitizeAssetUrl(scene?.video_url || scene?.video) || '',
+                runtimeAssetUrl(scene?.image_url || scene?.image) || '',
+                runtimeAssetUrl(scene?.video_url || scene?.video) || '',
             ].join(':'))
             .join('|')
     }, [selectedProject?.scenes])
@@ -1680,8 +1686,8 @@ export default function StdPortalPage() {
         }) || scenes[sceneNumber - 1] || scenes[0] || {}
         return {
             scene_number: sceneNumber,
-            image_url: sanitizeAssetUrl(matchedScene?.image_url || matchedScene?.image) || '',
-            video_url: sanitizeAssetUrl(matchedScene?.video_url || matchedScene?.video) || null,
+            image_url: runtimeAssetUrl(matchedScene?.image_url || matchedScene?.image) || '',
+            video_url: runtimeAssetUrl(matchedScene?.video_url || matchedScene?.video) || null,
         }
     }
 
@@ -1691,8 +1697,8 @@ export default function StdPortalPage() {
             return {
                 ...subtitle,
                 scene_number: Number(subtitle?.scene_number || visual.scene_number),
-                image_url: visual.image_url || sanitizeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
-                video_url: visual.video_url || sanitizeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
+                image_url: visual.image_url || runtimeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
+                video_url: visual.video_url || runtimeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
             }
         })
         return repairSubtitleItemQuoteBoundaries(normalizedSceneSubtitles)
@@ -4708,8 +4714,8 @@ export default function StdPortalPage() {
         image_url: '',
     }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
-    const currentSubImageUrl = sanitizeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
-    const currentSubVideoUrl = sanitizeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
+    const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
+    const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
 
     
     // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일)
