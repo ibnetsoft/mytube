@@ -130,7 +130,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 mime_type: driveFile.mimeType || fileValue.type || 'audio/mpeg',
                 file_size: driveFile.size ? Number(driveFile.size) : buffer.length,
                 status: 'uploaded',
-                uploaded_by: auth.requester.user.id,
+                uploaded_by: UUID_RE.test(String(auth.requester.user.id || ''))
+                    ? auth.requester.user.id
+                    : null,
                 metadata: {
                     kind: 'vrew_segment_tts',
                     cache_key: cacheKey,

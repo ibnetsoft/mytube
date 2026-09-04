@@ -49,3 +49,7 @@ def test_background_cache_accepts_topic_queue_project_ids():
     assert "topicIdFromProjectParam" in SEGMENT_CACHE
     assert ".eq('topic_queue_id', topicQueueId)" in SEGMENT_CACHE
     assert "loadStdProject(" in SEGMENT_CACHE
+
+
+def test_background_cache_omits_non_uuid_fallback_uploader_ids():
+    assert "uploaded_by: UUID_RE.test(String(auth.requester.user.id || ''))" in SEGMENT_CACHE
