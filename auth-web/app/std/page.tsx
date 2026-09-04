@@ -5984,6 +5984,9 @@ export default function StdPortalPage() {
                             selectedSubtitleSceneGroup?.subtitles.find((subtitle: any) => subtitle?.voice_id)?.voice_id
                             || selectedVoice
                         )
+                        const allSubtitleScenesSelected = subtitleSceneGroups.length > 0 && subtitleSceneGroups.every(group => (
+                            selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
+                        ))
                         return (
                         <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
@@ -6419,6 +6422,27 @@ export default function StdPortalPage() {
                                 <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-0">
                                     <div className="flex items-center justify-between p-3 border-b border-white/5 bg-[#14181f]">
                                         <div className="flex items-center gap-2">
+                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
+                                                <input
+                                                    type="checkbox"
+                                                    ref={(element) => {
+                                                        if (element) {
+                                                            element.indeterminate = selectedSubtitleSceneNumbers.length > 0 && !allSubtitleScenesSelected
+                                                        }
+                                                    }}
+                                                    checked={allSubtitleScenesSelected}
+                                                    onChange={() => {
+                                                        setOpenVoicePickerKey('')
+                                                        setIsTransitionPickerOpen(false)
+                                                        setSelectedSubtitleSceneNumbers(allSubtitleScenesSelected
+                                                            ? []
+                                                            : subtitleSceneGroups.map(group => Number(group.scene_number)))
+                                                    }}
+                                                    aria-label="전체 씬 선택"
+                                                    className="w-4 h-4 accent-cyan-500 cursor-pointer"
+                                                />
+                                                전체 선택
+                                            </label>
                                             <h3 className="text-xs font-bold text-white">자막 레이어 목록</h3>
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
                                                 총 {localSubtitles.length}개 자막 블록
