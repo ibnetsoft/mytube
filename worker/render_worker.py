@@ -45,6 +45,7 @@ import time
 import traceback
 from pathlib import Path
 
+import worker_config  # Load persisted settings before the central client snapshots credentials.
 import central_client
 import job_store
 import upload_adapter

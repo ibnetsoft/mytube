@@ -78,6 +78,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import worker_config  # Load persisted settings before the central client snapshots credentials.
 import central_client
 import job_store
 from logging_setup import get_job_logger, get_logger

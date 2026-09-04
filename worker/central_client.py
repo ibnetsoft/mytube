@@ -67,7 +67,7 @@ CENTRAL_SERVER_URL = (
     or os.environ.get("DASHBOARD_URL")
     or "http://127.0.0.1:8799"
 ).rstrip("/")
-WORKER_TOKEN = _env_values.get("AIRWORKER_TOKEN") or os.environ.get("AIRWORKER_TOKEN", "")
+WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN") or _env_values.get("AIRWORKER_TOKEN", "")
 VERCEL_PROTECTION_BYPASS_SECRET = os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET", "")
 
 MAX_RETRIES = 5
