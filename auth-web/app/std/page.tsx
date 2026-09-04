@@ -6970,6 +6970,7 @@ export default function StdPortalPage() {
                                                 {/* 자막 텍스트 에디터 */}
                                                 <div>
                                                     <textarea
+                                                        rows={1}
                                                         value={currentSub.text}
                                                         onChange={e => {
                                                             const newText = e.target.value
@@ -6978,7 +6979,7 @@ export default function StdPortalPage() {
                                                             if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
                                                             setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
                                                         }}
-                                                        className="w-full p-3 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-relaxed resize-none focus:outline-none focus:border-blue-500 min-h-[90px]"
+                                                        className="w-full h-9 min-h-9 px-3 py-2 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white leading-5 resize-none overflow-y-auto focus:outline-none focus:border-blue-500"
                                                     />
                                                 </div>
                                             </div>
