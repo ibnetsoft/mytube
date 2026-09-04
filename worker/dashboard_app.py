@@ -3149,6 +3149,8 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
     project_root = worker_dir.parent
     python_exe = Path(sys.executable)
     current_manager_pid = os.getpid()
+    import worker_config
+    restart_profile = worker_config.WORKER_PROFILE
     roles_to_start = ["manager"] if restart else []
     helper_script = STATE_DIR / ("restart_worker_server.ps1" if restart else "shutdown_worker_server.ps1")
     lifecycle_log = LOG_DIR / "server_lifecycle.log"
@@ -3171,7 +3173,7 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         f"$projectRoot = {ps_utf8(str(project_root))}",
         f"$python = {ps_utf8(str(python_exe))}",
         f"$currentManagerPid = {current_manager_pid}",
-        f"$managerArgs = {ps_utf8(str(worker_dir / 'air_worker_entry.py') + ' --role manager')}",
+        f"$managerArgs = {ps_utf8(str(worker_dir / 'air_worker_entry.py') + f' --role manager --profile {restart_profile}')}",
         "$patterns = @(",
         "  'dashboard_app:app',",
         "  'air_worker_entry.py',",

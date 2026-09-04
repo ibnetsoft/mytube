@@ -104,6 +104,8 @@ def test_server_restart_helper_matches_project_dashboard_processes():
     assert "$projectRoot" in source
     assert "$currentManagerPid" in source
     assert "$_.ProcessId -eq $currentManagerPid" in source
+    assert "restart_profile = worker_config.WORKER_PROFILE" in source
+    assert "--role manager --profile {restart_profile}" in source
     assert "'air_worker_entry.py'," in source
     assert "server_lifecycle.log" in source
     assert "taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden" in source
