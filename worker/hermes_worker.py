@@ -3379,7 +3379,7 @@ Schema:
     # Generate large longform runs in bounded real-AI batches. This prevents
     # JSON truncation without creating synthetic image prompts.
     grids = []
-    grid_batch_size = 4
+    grid_batch_size = 1
     for batch_start in range(0, len(grid_inputs), grid_batch_size):
         grid_batch = grid_inputs[batch_start:batch_start + grid_batch_size]
         batch_json = json.dumps(grid_batch, ensure_ascii=False, indent=2)
@@ -3393,7 +3393,7 @@ Schema:
                         batch_prompt,
                         model,
                         temperature=0.25 if attempt else 0.35,
-                        max_tokens=6000,
+                        max_tokens=3000,
                         task_type="image_grid_prompt_generation",
                     ),
                     timeout=90,

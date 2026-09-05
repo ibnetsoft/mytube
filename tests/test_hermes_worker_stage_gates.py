@@ -626,7 +626,7 @@ def test_image_grid_generation_uses_small_batches_to_avoid_json_truncation():
     import inspect
 
     source = inspect.getsource(hermes_worker._generate_direct_image_grid_prompts)
-    assert "grid_batch_size = 4" in source
+    assert "grid_batch_size = 1" in source
     assert "grid_inputs[batch_start:batch_start + grid_batch_size]" in source
 
 
