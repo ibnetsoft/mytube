@@ -1840,6 +1840,23 @@ def _report_remote_outcome(job: dict, job_log, *, success: bool, output_ref: str
         job_log.warning(f"Could not report {'completion' if success else 'failure'} to central server ({e}) - queued for retry, local status is final regardless")
 
 
+def _compact_remote_result_payload(job_type: str, result_payload: dict | None) -> dict | None:
+    """Keep central completion requests below hosted API body limits.
+
+    Script media prompts are already persisted directly to topics_queue. The
+    central route only needs the narration and quality metadata to mark the job
+    complete and enqueue publish metadata generation.
+    """
+    if job_type != "script_generate" or not isinstance(result_payload, dict):
+        return result_payload
+    keep = (
+        "topic_queue_id", "topic", "script", "upload_title", "title_generation",
+        "narrative_blueprint", "script_quality_report", "generation_models",
+        "sfx_cues", "sfx_cues_json", "language", "tts_speed",
+    )
+    return {key: result_payload.get(key) for key in keep if key in result_payload}
+
+
 def _flush_pending_remote_acks() -> None:
     """[AIR-0230] Ported verbatim from render_worker.py - job_store's
     pending-ack bookkeeping is shared/generic, not render-specific."""
@@ -10094,7 +10111,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if r.status_code not in (200, 204):
                 fallback = {
                     k: v for k, v in patch_data.items()
-                    if k not in ("narrative_blueprint", "script_quality_report") and k not in GENERATED_BY_TOPIC_FIELDS
+                    if k not in ("narrative_blueprint", "script_quality_report", "publish_metadata_status")
+                    and k not in GENERATED_BY_TOPIC_FIELDS
                 }
                 r = _req.patch(
                     f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
@@ -10317,8 +10335,14 @@ def process_one_job(job: dict) -> None:
         else:
             output_ref, result_payload = _process_topic_research(job, job_id, job_log)
 
-        _report_remote_outcome(job, job_log, success=True, output_ref=output_ref, result_payload=result_payload)
         _save_result_to_supabase(job_type, result_payload, job_log)
+        _report_remote_outcome(
+            job,
+            job_log,
+            success=True,
+            output_ref=output_ref,
+            result_payload=_compact_remote_result_payload(job_type, result_payload),
+        )
         # A visible-script replacement is not considered finished after only
         # its narration/media package is ready. Queue its real publish
         # metadata stage so the same validated result becomes visible in both

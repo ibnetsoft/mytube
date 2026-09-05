@@ -70,6 +70,23 @@ def test_scene_length_accepts_bounded_twenty_percent_variance():
         hermes_worker._ensure_scene_section_target_length("가" * 57, {}, 72)
 
 
+def test_remote_script_result_omits_large_media_structure():
+    payload = {
+        "topic_queue_id": "3290",
+        "script": "완성 대본",
+        "script_quality_report": {"verdict": "pass", "score": 90},
+        "structure": {"scenes": [{"media_prompt": "x" * 1_000_000}]},
+        "supporting_characters": ["large generated anchors"],
+    }
+
+    compact = hermes_worker._compact_remote_result_payload("script_generate", payload)
+
+    assert compact["script"] == "완성 대본"
+    assert compact["script_quality_report"]["verdict"] == "pass"
+    assert "structure" not in compact
+    assert "supporting_characters" not in compact
+
+
 def test_script_plan_stage_rejects_repeated_scene_summaries():
     structure = {
         "scenes": [
