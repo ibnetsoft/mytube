@@ -1822,7 +1822,7 @@ def _compact_remote_result_payload(job_type: str, result_payload: dict | None) -
     keep = (
         "topic_queue_id", "topic", "script", "upload_title", "title_generation",
         "narrative_blueprint", "script_quality_report", "generation_models",
-        "sfx_cues", "sfx_cues_json", "language", "tts_speed",
+        "sfx_cues", "sfx_cues_json", "language", "tts_speed", "quality_policy_snapshot",
     )
     return {key: result_payload.get(key) for key in keep if key in result_payload}
 
@@ -5509,9 +5509,11 @@ def _validate_script_generate_stage(
     language = str(payload.get("language") or "ko").strip().lower()
     require_korean_script = require_korean_script and language == "ko"
     from services.content_safety import finance_content_matches
+    from services.quality_policy import active_quality_policy
+    script_policy = active_quality_policy()["script"]
 
     finance_matches = finance_content_matches(script, _structure_story_content(structure))
-    if finance_matches:
+    if script_policy["enabled"] and script_policy["prohibit_off_category"] and finance_matches:
         errors.append(
             "finance/pension contamination is prohibited in every category: "
             + ", ".join(finance_matches[:8])
@@ -5523,20 +5525,21 @@ def _validate_script_generate_stage(
         score = 0
     verdict = str(script_quality.get("verdict") or "").strip().lower()
     critical_issues = script_quality.get("critical_issues") or []
-    if verdict != "pass" or score < 78 or critical_issues:
+    if verdict != "pass" or score < script_policy["min_quality_score"] or critical_issues:
         errors.append(
             "script quality report not passing: "
             f"verdict={verdict or 'missing'}, score={score}, critical_issues={len(critical_issues)}"
         )
 
 
-    if require_korean_script:
+    if script_policy["enabled"] and require_korean_script:
         lang_stats = _script_language_stats(script)
-        if lang_stats["hangul"] < 1000:
+        if lang_stats["hangul"] < script_policy["min_hangul_chars"]:
             errors.append(f"script too short or not Korean enough: hangul={lang_stats['hangul']}, chars={lang_stats['chars']}")
-        if lang_stats["latin"] > lang_stats["max_latin"]:
+        max_latin = max(80, int(lang_stats["hangul"] * script_policy["max_latin_ratio"]))
+        if lang_stats["latin"] > max_latin:
             errors.append(f"script has too much Latin text: latin={lang_stats['latin']}")
-    elif language == "ja":
+    elif script_policy["enabled"] and language == "ja":
         japanese_chars = _japanese_char_count(script)
         hangul_chars = len(re.findall(r"[\uac00-\ud7a3]", script))
         if japanese_chars < 800:
@@ -5544,7 +5547,7 @@ def _validate_script_generate_stage(
         if hangul_chars > 0:
             errors.append(f"script contains Hangul for Japanese category: hangul={hangul_chars}")
 
-    if require_korean_script and any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
+    if script_policy["enabled"] and script_policy["prohibit_fallback"] and require_korean_script and any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
         errors.append("script contains fallback/scratch English template text")
     repeated_sentences = _detect_repeated_script_sentences(script)
     if repeated_sentences:
@@ -8267,7 +8270,10 @@ def _match_repetitive_paragraph_opener(paragraph: str):
     return None
 
 
-def _detect_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> list[dict]:
+def _detect_repeated_paragraph_openers(script: str, *, max_allowed: int | None = None) -> list[dict]:
+    if max_allowed is None:
+        from services.quality_policy import active_quality_policy
+        max_allowed = int(active_quality_policy()["script"]["max_repeated_paragraph_opener"])
     counts = Counter()
     examples: dict[str, str] = {}
     for paragraph in re.split(r"\n\s*\n+", script or ""):
@@ -8291,8 +8297,11 @@ def _detect_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> 
     return sorted(findings, key=lambda item: (-int(item["count"]), str(item["opener"])))
 
 
-def _reduce_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> str:
+def _reduce_repeated_paragraph_openers(script: str, *, max_allowed: int | None = None) -> str:
     """Remove only excess stock openers while preserving cues and paragraph content."""
+    if max_allowed is None:
+        from services.quality_policy import active_quality_policy
+        max_allowed = int(active_quality_policy()["script"]["max_repeated_paragraph_opener"])
     if not script:
         return script
     seen = Counter()
@@ -8320,14 +8329,15 @@ def _apply_paragraph_opener_quality(report: dict, script: str) -> dict:
     if not findings:
         return normalized
     summary = ", ".join(f"{item['opener']} {item['count']}회" for item in findings)
-    issue = f"문단 시작 상투어 반복 초과: {summary} (각 계열 최대 2회)"
+    max_allowed = int(findings[0]["max_allowed"])
+    issue = f"문단 시작 상투어 반복 초과: {summary} (각 계열 최대 {max_allowed}회)"
     critical_issues = list(normalized.get("critical_issues") or [])
     revision_notes = list(normalized.get("revision_notes") or [])
     if issue not in critical_issues:
         critical_issues.append(issue)
     revision_instruction = (
         "반복된 문단 시작 접속어를 삭제하거나 구체적인 인물, 행동, 감각 묘사로 바꾸세요. "
-        "같은 접속어 계열은 전체 대본에서 최대 2회만 사용하세요."
+        f"같은 접속어 계열은 전체 대본에서 최대 {max_allowed}회만 사용하세요."
     )
     if revision_instruction not in revision_notes:
         revision_notes.append(revision_instruction)
@@ -8402,7 +8412,9 @@ Rules:
             )
             report = _extract_json(raw)
             report["score"] = max(0, min(100, round(float(report.get("score") or 0))))
-            if report.get("score", 0) < 78 and report.get("verdict") == "pass":
+            from services.quality_policy import active_quality_policy
+            min_score = active_quality_policy()["script"]["min_quality_score"]
+            if report.get("score", 0) < min_score and report.get("verdict") == "pass":
                 report["verdict"] = "revise"
             return _apply_paragraph_opener_quality(report, script)
         except Exception as e:
@@ -8418,7 +8430,9 @@ def _script_needs_revision(report: dict) -> bool:
     if verdict == "manual_override":
         return False
     score = int(report.get("score") or 0)
-    return verdict != "pass" or score < 78 or bool(report.get("critical_issues"))
+    from services.quality_policy import active_quality_policy
+    min_score = active_quality_policy()["script"]["min_quality_score"]
+    return verdict != "pass" or score < min_score or bool(report.get("critical_issues"))
 
 
 
@@ -9469,10 +9483,12 @@ Hard retry rules:
                         ai_router, model, topic, upload_title, narrative_blueprint, structure, revised, language
                     )
                     revised_score = int(revised_quality.get("score") or 0)
+                    from services.quality_policy import active_quality_policy
+                    min_quality_score = active_quality_policy()["script"]["min_quality_score"]
                     revised_passed = (
                         revised_quality.get("verdict") == "pass"
                         and not revised_quality.get("critical_issues")
-                        and revised_score >= 78
+                        and revised_score >= min_quality_score
                     )
                     if revised_passed and revised_score >= int(initial_quality.get("score") or 0) - 3:
                         final_script = revised
@@ -9529,7 +9545,7 @@ Hard retry rules:
                             if (
                                 recovered_quality.get("verdict") == "pass"
                                 and not recovered_quality.get("critical_issues")
-                                and int(recovered_quality.get("score") or 0) >= 78
+                                and int(recovered_quality.get("score") or 0) >= min_quality_score
                             ):
                                 final_script = recovered
                                 final_quality = recovered_quality
@@ -10146,6 +10162,8 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
                 patch_data["narrative_blueprint"] = result_payload.get("narrative_blueprint")
             if result_payload.get("script_quality_report"):
                 patch_data["script_quality_report"] = result_payload.get("script_quality_report")
+            if result_payload.get("quality_policy_snapshot"):
+                patch_data["quality_policy_snapshot"] = result_payload.get("quality_policy_snapshot")
             r = _req.patch(
                 f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
                 headers={**headers, "Prefer": "return=minimal"},
@@ -10155,7 +10173,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log) -> No
             if r.status_code not in (200, 204):
                 fallback = {
                     key: value for key, value in patch_data.items()
-                    if key not in ("narrative_blueprint", "script_quality_report") and key not in GENERATED_BY_TOPIC_FIELDS
+                    if key not in ("narrative_blueprint", "script_quality_report", "quality_policy_snapshot") and key not in GENERATED_BY_TOPIC_FIELDS
                 }
                 r = _req.patch(
                     f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
@@ -10235,6 +10253,18 @@ def process_one_job(job: dict) -> None:
     _last_success_at = None
     _last_error = None
     try:
+        from services.quality_policy import set_active_quality_policy
+
+        try:
+            policy_row = central_client.get_quality_policy()
+            policy_snapshot = set_active_quality_policy(policy_row.get("policy"), policy_row.get("version", 0))
+            job["payload"]["quality_policy_snapshot"] = policy_snapshot
+            job_log.info("Quality policy snapshot loaded: version=%s", policy_snapshot["version"])
+        except Exception as exc:
+            policy_snapshot = set_active_quality_policy(None, 0)
+            job["payload"]["quality_policy_snapshot"] = policy_snapshot
+            job_log.warning("Quality policy unavailable; using bundled strict policy: %s", exc)
+
         # A running worker must not keep a stale model choice after an
         # operator changes the web-admin setting. Keep this inside the job
         # boundary so a bad setting is recorded, retried, and reported rather
@@ -10265,6 +10295,9 @@ def process_one_job(job: dict) -> None:
             output_ref, result_payload = _process_music_prompt_pack_generate(job, job_id, job_log)
         else:
             output_ref, result_payload = _process_topic_research(job, job_id, job_log)
+
+        if isinstance(result_payload, dict):
+            result_payload["quality_policy_snapshot"] = job["payload"].get("quality_policy_snapshot")
 
         _save_result_to_supabase(job_type, result_payload, job_log)
         _report_remote_outcome(

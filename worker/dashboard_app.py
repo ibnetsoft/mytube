@@ -20,6 +20,7 @@ from tempfile import NamedTemporaryFile
 from xml.etree import ElementTree
 
 import httpx
+import central_client
 import job_store
 from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
@@ -2812,6 +2813,37 @@ async def api_set_setting(
         return {"error": f"저장 실패: {e}"}
 
 
+@app.get("/api/quality-policy")
+async def api_get_quality_policy(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    try:
+        return await run_in_threadpool(central_client.get_quality_policy)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"중앙 품질 정책 조회 실패: {exc}")
+
+
+@app.put("/api/quality-policy")
+async def api_save_quality_policy(
+    body: dict,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    policy = body.get("policy")
+    expected_version = body.get("expected_version")
+    if not isinstance(policy, dict) or not isinstance(expected_version, int):
+        raise HTTPException(status_code=400, detail="policy와 expected_version이 필요합니다.")
+    try:
+        return await run_in_threadpool(central_client.save_quality_policy, policy, expected_version)
+    except central_client.LeaseConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"중앙 품질 정책 저장 실패: {exc}")
+
+
 @app.get("/api/worker-profile-settings")
 async def api_get_worker_profile_settings(
     authorization: str | None = Header(default=None),
@@ -4856,6 +4888,22 @@ tr:hover { background: #161b22; }
           <div id="notion-backfill-results" style="display:none;margin-top:12px;"></div>
           <div id="notion-repair-summary" style="display:none;margin-top:14px;padding:12px 14px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(13,17,23,0.55);font-size:12px;color:#c9d1d9;"></div>
           <div id="notion-repair-results" style="display:none;margin-top:12px;"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:20px;border:1px solid rgba(88,166,255,0.45);background:rgba(56,139,253,0.04);">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <span>Hermes 단계별 품질 기준</span>
+            <span id="quality-policy-meta" class="badge">불러오는 중</span>
+          </div>
+          <p style="color:#8b949e;margin-bottom:14px;font-size:13px;line-height:1.5;">
+            DB에 공용 저장되며 모든 Hermes 워커가 작업 시작 시 현재 버전을 스냅샷으로 읽습니다. 실행 중인 작업에는 변경값이 소급 적용되지 않습니다.
+          </p>
+          <div id="quality-policy-editor" class="settings-grid"></div>
+          <div style="margin-top:16px;display:flex;gap:12px;align-items:center;">
+            <button class="btn btn-primary" onclick="saveQualityPolicy()">품질 기준 저장</button>
+            <button class="btn" onclick="loadQualityPolicy()">다시 불러오기</button>
+            <span id="quality-policy-status" style="font-size:13px;color:#8b949e"></span>
+          </div>
         </div>
 
         <div class="card">
@@ -7871,6 +7919,7 @@ async function updateWorkerCode(confirmRestart = true) {
 async function loadSettings() {
   loadGitInfo();
   loadWorkerProfileSettings();
+  loadQualityPolicy();
   const data = await api('GET', '/api/settings');
   if (!data) return;
   const list = data.settings || [];
@@ -7970,6 +8019,64 @@ async function loadSettings() {
       </div>
     </div>`;
   document.getElementById('settings-status').textContent = '';
+}
+
+let qualityPolicyState = null;
+const qualityPolicyFields = {
+  topic: [['enabled','활성화','bool'],['min_title_chars','최소 제목 글자 수','number']],
+  plan: [['enabled','활성화','bool'],['min_scenes','최소 씬 수','number'],['require_media_status_ready','씬 프롬프트 ready 필수','bool']],
+  script: [['enabled','활성화','bool'],['min_quality_score','최소 QA 점수','number'],['min_hangul_chars','최소 한글 글자 수','number'],['max_latin_ratio','영문 최대 비율','number'],['max_repeated_paragraph_opener','동일 문단 시작어 최대 횟수','number'],['prohibit_fallback','대체문/폴백 금지 (강제)','locked'],['prohibit_off_category','카테고리 오염 금지','bool']],
+  media: [['enabled','활성화','bool'],['min_image_prompt_chars','이미지 프롬프트 최소 글자 수','number'],['min_video_prompt_chars','영상 프롬프트 최소 글자 수','number'],['max_video_prompt_scenes','영상 프롬프트 대상 씬 수','number'],['required_camera_movements','씬당 카메라 움직임 수','number'],['require_video_guardrails','무음 가드레일 필수','bool'],['prohibit_duplicate_prompts','중복 프롬프트 금지','bool'],['require_image_grids','2x2 이미지 그리드 필수','bool']],
+  publish: [['enabled','활성화','bool'],['min_description_chars','설명 최소 글자 수','number'],['require_language_match','언어 일치 필수','bool'],['prohibit_internal_terms','내부 작업 용어 금지','bool']],
+  delivery: [['enabled','활성화','bool'],['require_all_prior_stages','이전 단계 전체 통과 필수 (강제)','locked'],['require_quality_report_pass','QA 보고서 pass 필수 (강제)','locked'],['block_scene_count_mismatch','씬 수 불일치 차단','bool']],
+};
+const qualityStageLabels = {topic:'주제',plan:'기획/씬',script:'대본',media:'이미지/영상',publish:'게시 메타데이터',delivery:'유저 전달'};
+
+function renderQualityPolicyEditor(policy) {
+  const editor = document.getElementById('quality-policy-editor');
+  if (!editor) return;
+  editor.innerHTML = Object.entries(qualityPolicyFields).map(([stage, fields]) => `
+    <div class="settings-panel">
+      <div class="settings-panel-title">${escapeHtml(qualityStageLabels[stage])}</div>
+      ${fields.map(([key, label, type]) => {
+        const value = policy?.[stage]?.[key];
+        const id = `quality-${stage}-${key}`;
+        return type === 'bool' || type === 'locked'
+          ? `<label style="display:flex;align-items:center;gap:8px;margin:9px 0;color:#c9d1d9;font-size:12px;"><input id="${id}" type="checkbox" ${value ? 'checked' : ''} ${type === 'locked' ? 'disabled' : ''}> ${escapeHtml(label)}</label>`
+          : `<label style="display:grid;grid-template-columns:1fr 110px;align-items:center;gap:10px;margin:9px 0;color:#c9d1d9;font-size:12px;"><span>${escapeHtml(label)}</span><input id="${id}" type="number" step="any" value="${escapeHtml(String(value ?? ''))}" style="padding:7px 9px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;"></label>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+async function loadQualityPolicy() {
+  const status = document.getElementById('quality-policy-status');
+  if (status) status.textContent = '불러오는 중...';
+  const data = await api('GET', '/api/quality-policy');
+  if (!data?.policy) { if (status) status.textContent = '조회 실패'; return; }
+  qualityPolicyState = data;
+  renderQualityPolicyEditor(data.policy);
+  document.getElementById('quality-policy-meta').textContent = `v${data.version} · ${data.updated_by || '-'}`;
+  if (status) status.textContent = '';
+}
+
+async function saveQualityPolicy() {
+  if (!qualityPolicyState?.policy) return;
+  const policy = JSON.parse(JSON.stringify(qualityPolicyState.policy));
+  for (const [stage, fields] of Object.entries(qualityPolicyFields)) {
+    for (const [key, , type] of fields) {
+      const input = document.getElementById(`quality-${stage}-${key}`);
+      policy[stage][key] = type === 'bool' || type === 'locked' ? input.checked : Number(input.value);
+    }
+  }
+  const status = document.getElementById('quality-policy-status');
+  status.textContent = '저장 중...';
+  const data = await api('PUT', '/api/quality-policy', {policy, expected_version: qualityPolicyState.version});
+  if (!data?.policy) { status.textContent = '저장 실패. 다시 불러온 뒤 재시도하세요.'; return; }
+  qualityPolicyState = data;
+  renderQualityPolicyEditor(data.policy);
+  document.getElementById('quality-policy-meta').textContent = `v${data.version} · ${data.updated_by || '-'}`;
+  status.textContent = `버전 ${data.version} 저장 완료`;
+  showToast(`Hermes 품질 기준 v${data.version} 저장 완료`);
 }
 
 async function saveSetting(key) {

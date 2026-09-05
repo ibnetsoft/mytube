@@ -246,7 +246,11 @@ def normalize_image_grid_prompts(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def validate_scene_image_prompt_readiness(scenes: Iterable[Mapping[str, Any]]) -> None:
+def validate_scene_image_prompt_readiness(
+    scenes: Iterable[Mapping[str, Any]],
+    *,
+    min_prompt_chars: int = MIN_SCENE_IMAGE_PROMPT_CHARS,
+) -> None:
     """Require a real, scene-specific image prompt for every planned scene."""
     seen_prompts: set[str] = set()
     for fallback_number, scene in enumerate(scenes, start=1):
@@ -254,7 +258,7 @@ def validate_scene_image_prompt_readiness(scenes: Iterable[Mapping[str, Any]]) -
             raise ValueError(f"scene {fallback_number} is not an object")
         scene_number = _scene_number(scene, fallback_number)
         prompt = str(scene.get("image_prompt") or "").strip()
-        if len(prompt) < MIN_SCENE_IMAGE_PROMPT_CHARS:
+        if len(prompt) < max(1, int(min_prompt_chars)):
             raise ValueError(f"scene {scene_number} image_prompt too short/missing")
         lowered = prompt.lower()
         if any(marker in lowered for marker in FALLBACK_IMAGE_PROMPT_MARKERS):

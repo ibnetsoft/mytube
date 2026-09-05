@@ -176,6 +176,17 @@ def heartbeat(worker_id: str, worker_instance_id: str) -> dict:
     })
 
 
+def get_quality_policy() -> dict:
+    return _request("GET", "/api/internal/worker/quality-policy")
+
+
+def save_quality_policy(policy: dict, expected_version: int) -> dict:
+    return _request("PUT", "/api/internal/worker/quality-policy", {
+        "policy": policy,
+        "expected_version": expected_version,
+    })
+
+
 def claim_job(worker_id: str, worker_instance_id: str, allowed_job_types: list[str]) -> dict | None:
     result = _request("POST", "/api/internal/worker/jobs/claim", {
         "worker_id": worker_id, "worker_instance_id": worker_instance_id,
