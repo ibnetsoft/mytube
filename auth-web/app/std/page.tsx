@@ -56,7 +56,6 @@ import {
     ExternalLink,
     FileAudio,
     FileText,
-    FolderKanban,
     Grid,
     Image as ImageIcon,
     LayoutTemplate,
@@ -94,14 +93,6 @@ import {
 } from '@/lib/stdSubtitles'
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
-import {
-    getStdLocalDirectoryState,
-    reconnectStdLocalDirectory,
-    restoreStdLocalProjectMedia,
-    saveStdLocalMediaFile,
-    selectStdLocalDirectory,
-    type StdLocalDirectoryState,
-} from '@/lib/stdLocalMedia'
 import { calculateLongformPayoutByScenes, capLongformPayout } from '@/lib/stdPayoutPolicy'
 
 type Topic = {
@@ -850,11 +841,6 @@ export default function StdPortalPage() {
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
     const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
-    const [localMediaDirectory, setLocalMediaDirectory] = useState<StdLocalDirectoryState>({
-        status: 'not_selected',
-        folderName: '',
-    })
-    const [localMediaDirectoryBusy, setLocalMediaDirectoryBusy] = useState(false)
 
     useEffect(() => {
         setAudioDurationSeconds(0)
@@ -864,12 +850,6 @@ export default function StdPortalPage() {
         setVrewNarrationVoice(prev => prev || selectedVoice)
         setVrewDialogueVoice(prev => prev || selectedVoice)
     }, [selectedVoice])
-
-    useEffect(() => {
-        getStdLocalDirectoryState()
-            .then(setLocalMediaDirectory)
-            .catch(() => setLocalMediaDirectory({ status: 'not_selected', folderName: '' }))
-    }, [])
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
@@ -1450,49 +1430,6 @@ export default function StdPortalPage() {
             return {
                 error: error?.message || fallbackErrMsg || `Request failed with HTTP ${res.status}`,
             }
-        }
-    }
-
-    const connectLocalMediaDirectory = async (): Promise<boolean> => {
-        setLocalMediaDirectoryBusy(true)
-        setMessage('로컬 작업 폴더를 연결하는 중...')
-        try {
-            const state = localMediaDirectory.status === 'permission_needed'
-                ? await reconnectStdLocalDirectory()
-                : await selectStdLocalDirectory()
-            setLocalMediaDirectory(state)
-            if (selectedProject) {
-                await restorePersistedProjectMedia(selectedProject, authedJsonHeaders)
-            }
-            setMessage(
-                localMediaDirectory.status === 'permission_needed'
-                    ? `로컬 작업 폴더 '${state.folderName}' 권한 재연결 완료`
-                    : `로컬 작업 폴더 '${state.folderName}' 연결 완료`
-            )
-            return true
-        } catch (error: any) {
-            if (error?.name === 'AbortError') {
-                setMessage(
-                    localMediaDirectory.status === 'permission_needed'
-                        ? '로컬 작업 폴더 권한 재연결이 취소되었습니다.'
-                        : '로컬 작업 폴더 선택이 취소되었습니다.'
-                )
-            } else {
-                setMessage(error?.message || '로컬 작업 폴더 연결 실패')
-            }
-            return false
-        } finally {
-            setLocalMediaDirectoryBusy(false)
-        }
-    }
-
-    const prepareLocalDirectoryForUpload = async (event: React.MouseEvent<HTMLInputElement>) => {
-        if (localMediaDirectory.status === 'connected' || localMediaDirectory.status === 'unsupported') return
-        event.preventDefault()
-        if (localMediaDirectoryBusy) return
-        const connected = await connectLocalMediaDirectory()
-        if (connected) {
-            setMessage('로컬 폴더가 연결되었습니다. 업로드 버튼을 다시 눌러 파일을 선택해주세요.')
         }
     }
 
@@ -2685,36 +2622,17 @@ export default function StdPortalPage() {
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
         if (!projectId) return
 
-        const localRestore = await restoreStdLocalProjectMedia(projectId, assets).catch(() => ({
-            state: { status: 'not_selected', folderName: '' } as StdLocalDirectoryState,
-            entries: [],
-        }))
-        setLocalMediaDirectory(localRestore.state)
-        for (const entry of localRestore.entries) {
-            projectMediaObjectUrlsRef.current[`${projectId}:local:${entry.key}`] = entry.objectUrl
-        }
-        const localBySceneType = new Map(
-            localRestore.entries.map(entry => [`${entry.sceneNumber == null ? 'project' : entry.sceneNumber}:${entry.assetType}`, entry])
-        )
-
         const mediaAssets = assets.filter((asset: any) =>
             ['uploaded', 'assigned'].includes(String(asset?.status || ''))
             && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
             && (asset?.id || asset?.drive_file_id)
         )
 
-        const remoteOrLocalEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
+        const driveEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
             if (!cacheKey) return null
             if (projectMediaObjectUrlsRef.current[cacheKey]) {
                 return { asset, objectUrl: projectMediaObjectUrlsRef.current[cacheKey] }
-            }
-            const assetType = String(asset?.asset_type || '').toLowerCase()
-            const sceneKey = asset?.scene_number == null ? 'project' : Number(asset.scene_number)
-            const localEntry = localBySceneType.get(`${sceneKey}:${assetType}`)
-            if (localEntry?.objectUrl) {
-                projectMediaObjectUrlsRef.current[cacheKey] = localEntry.objectUrl
-                return { asset, objectUrl: localEntry.objectUrl }
             }
             if (!headers?.Authorization) return null
             try {
@@ -2734,17 +2652,7 @@ export default function StdPortalPage() {
             }
         }))
 
-        const restoredEntries = [
-            ...localRestore.entries.map(entry => ({
-                asset: {
-                    scene_number: entry.sceneNumber,
-                    asset_type: entry.assetType,
-                    file_name: entry.fileName,
-                },
-                objectUrl: entry.objectUrl,
-            })),
-            ...remoteOrLocalEntries,
-        ]
+        const restoredEntries = driveEntries
 
         const restoredMap = new Map<string, string>()
         let restoredThumbnailUrl = ''
@@ -3604,21 +3512,12 @@ export default function StdPortalPage() {
         setAudioResultUrl(fakeUrl)
         setUploadingKey('audio-upload')
         try {
-            let localRelativePath = ''
-            try {
-                const localPayload = await saveAssetToLocalDirectory('audio', file)
-                localRelativePath = localPayload.relativePath
-            } catch (error) {
-                console.warn('[STD] local audio save failed; continuing with Drive upload:', error)
-            }
-
             const form = new FormData()
             form.set('file', file)
             form.set('asset_type', 'audio')
             form.set('mime_type', file.type || 'audio/mpeg')
             form.set('file_name', file.name)
             form.set('file_size', String(file.size))
-            if (localRelativePath) form.set('local_relative_path', localRelativePath)
 
             const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
                 method: 'POST',
@@ -4254,7 +4153,7 @@ export default function StdPortalPage() {
         scene: any,
         assetType: 'image' | 'video' | 'thumbnail',
         file: File | null
-    ): Promise<'synced' | 'local' | false> => {
+    ): Promise<'synced' | false> => {
         if (!file || !selectedProject) return false
         const sceneNum = scene?.scene_number || 1
         const actualAssetType = file.type?.startsWith('video/') ? 'video' : assetType
@@ -4263,8 +4162,6 @@ export default function StdPortalPage() {
         setUploadingKey(key)
         setMessage('')
         let objectUrl = ''
-        let localRelativePath = ''
-        let localSaveError = ''
         try {
             objectUrl = URL.createObjectURL(file)
             setSelectedProject(prev => {
@@ -4282,14 +4179,6 @@ export default function StdPortalPage() {
                     assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType))]
                 }
             })
-            try {
-                const localPayload = await saveAssetToLocalDirectory(actualAssetType, file, sceneNum)
-                localRelativePath = localPayload.relativePath
-            } catch (error: any) {
-                localSaveError = error?.message || '로컬 폴더 저장 실패'
-                console.warn('[STD] local asset save failed; continuing with Drive upload:', error)
-            }
-
             const mimeType = file.type || 'application/octet-stream'
             const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                 method: 'POST',
@@ -4328,7 +4217,6 @@ export default function StdPortalPage() {
                     file_name: file.name,
                     file_size: file.size,
                     scene_number: sceneNum,
-                    local_relative_path: localRelativePath || undefined,
                 }),
             })
             const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
@@ -4377,39 +4265,9 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
-            setMessage(localRelativePath
-                ? `에셋 (${file.name}) 로컬 폴더 및 Drive 저장 완료!`
-                : `에셋 (${file.name}) Drive 저장 완료. 로컬 저장 실패: ${localSaveError}`)
+            setMessage(`에셋 (${file.name}) Google Drive 저장 완료!`)
             return 'synced'
         } catch (error: any) {
-            if (objectUrl && localRelativePath) {
-                setSelectedProject(prev => {
-                    if (!prev) return prev
-                    const updatedProject = {
-                        ...prev,
-                        scenes: prev.scenes.map(s => s.scene_number === sceneNum ? {
-                            ...s,
-                            image_url: actualAssetType === 'image' ? objectUrl : s.image_url,
-                            video_url: actualAssetType === 'video' ? objectUrl : s.video_url,
-                            asset_status: 'ready',
-                        } : s),
-                        assets: prev.assets.map(a => a.id === localAssetId ? {
-                            ...a,
-                            status: 'local',
-                            metadata: {
-                                ...(a.metadata || {}),
-                                local_relative_path: localRelativePath,
-                                local_storage_mode: 'browser_directory',
-                                sync_error: error?.message || 'Drive upload failed',
-                            },
-                        } : a),
-                    }
-                    rememberProjectState(updatedProject)
-                    return updatedProject
-                })
-                setMessage(`에셋 (${file.name})은 로컬 폴더에 저장되었습니다. Drive 동기화 실패: ${error?.message || '업로드 실패'}`)
-                return 'local'
-            }
             if (objectUrl) {
                 setSelectedProject(prev => {
                     if (!prev) return prev
@@ -4444,37 +4302,6 @@ export default function StdPortalPage() {
             return false
         } finally {
             setUploadingKey('')
-        }
-    }
-
-    const saveAssetToLocalDirectory = async (
-        assetType: 'image' | 'video' | 'thumbnail' | 'audio',
-        file: File,
-        sceneNumber?: number
-    ) => {
-        if (!selectedProject?.project?.id) throw new Error('활성 프로젝트가 없습니다.')
-        const result = await saveStdLocalMediaFile({
-            projectId: selectedProject.project.id,
-            projectTitle: selectedProject.project.title || 'project',
-            sceneNumber: sceneNumber == null ? null : sceneNumber,
-            assetType,
-            file,
-        })
-        setLocalMediaDirectory({ status: 'connected', folderName: result.folderName })
-        return result
-    }
-
-    const persistGeneratedAudioLocally = async (audioBlob: Blob, persistedAudioAsset: any) => {
-        if (!selectedProject?.project?.id) return
-        const fileName = String(persistedAudioAsset?.file_name || `tts_${selectedProject.project.id}.mp3`).trim() || `tts_${selectedProject.project.id}.mp3`
-        const audioFile = new File([audioBlob], fileName, {
-            type: audioBlob.type || 'audio/mpeg',
-            lastModified: Date.now(),
-        })
-        try {
-            await saveAssetToLocalDirectory('audio', audioFile)
-        } catch (error) {
-            console.warn('[STD] local generated audio save failed:', error)
         }
     }
 
@@ -4659,23 +4486,12 @@ export default function StdPortalPage() {
         setUploadingKey('thumbnail-upload')
         setMessage('썸네일 이미지를 업로드하는 중...')
         try {
-            let localRelativePath = ''
-            let localSaveError = ''
-            try {
-                const localPayload = await saveAssetToLocalDirectory('thumbnail', file)
-                localRelativePath = localPayload.relativePath
-            } catch (error: any) {
-                localSaveError = error?.message || '로컬 폴더 저장 실패'
-                console.warn('[STD] local thumbnail save failed; continuing with Drive upload:', error)
-            }
-
             const form = new FormData()
             form.set('file', file)
             form.set('asset_type', 'thumbnail')
             form.set('mime_type', file.type || 'image/png')
             form.set('file_name', file.name)
             form.set('file_size', String(file.size))
-            if (localRelativePath) form.set('local_relative_path', localRelativePath)
 
             const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
                 method: 'POST',
@@ -4705,11 +4521,8 @@ export default function StdPortalPage() {
             })
             setThumbBgUrl(persistedThumbnailUrl)
             setThumbBgUploadFile(null)
-            setMessage(localRelativePath
-                ? 'Thumbnail saved to the local folder and backed up to Drive.'
-                : `Thumbnail saved to Drive. Local save failed: ${localSaveError}`)
+            setMessage('썸네일 이미지가 Google Drive에 저장되었습니다.')
             return persistedThumbnailUrl
-            setMessage('썸네일 이미지 (' + file.name + ') 업로드가 완료되었습니다.')
         } finally {
             setUploadingKey('')
         }
@@ -4775,19 +4588,17 @@ export default function StdPortalPage() {
         if (!files || !files.length || !selectedProject) return
         setMessage(`${files.length}개 파일 일괄 등록 중...`)
         let syncedCount = 0
-        let localOnlyCount = 0
         for (const [index, file] of Array.from(files).entries()) {
             const sceneIndex = index < selectedProject.scenes.length ? index : selectedProject.scenes.length - 1
             const targetScene = selectedProject.scenes[sceneIndex]
             const isVideo = file.type.startsWith('video') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')
             const result = await uploadAsset(targetScene, isVideo ? 'video' : 'image', file)
             if (result === 'synced') syncedCount += 1
-            if (result === 'local') localOnlyCount += 1
         }
-        const failedCount = files.length - syncedCount - localOnlyCount
+        const failedCount = files.length - syncedCount
         setMessage(syncedCount === files.length
-            ? `${files.length}개 에셋 일괄 등록 완료!`
-            : `Drive ${syncedCount}개, 로컬만 ${localOnlyCount}개, 실패 ${failedCount}개입니다.`
+            ? `${files.length}개 에셋 Google Drive 일괄 등록 완료!`
+            : `Google Drive 저장 ${syncedCount}개, 실패 ${failedCount}개입니다.`
         )
     }
 
@@ -4953,7 +4764,6 @@ export default function StdPortalPage() {
                 }
                 const blob = new Blob([combined], { type: 'audio/mpeg' })
                 audioUrl = URL.createObjectURL(blob)
-                await persistGeneratedAudioLocally(blob, null)
                 const persistRes = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -4972,7 +4782,6 @@ export default function StdPortalPage() {
                     if (persistedAudioRes.ok) {
                         const audioBlob = await persistedAudioRes.blob()
                         audioUrl = URL.createObjectURL(audioBlob)
-                        await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                     }
                 } else if (!persistRes.ok) {
                     console.warn('[STD TTS] Google free audio was generated, but server persistence failed:', persistPayload)
@@ -5028,7 +4837,6 @@ export default function StdPortalPage() {
                     console.warn('[STD TTS] server generation failed; trying browser ElevenLabs fallback:', payload)
                     const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice, useSubtitleVoiceSegments ? voiceSegments : [])
                     audioUrl = URL.createObjectURL(fallbackBlob)
-                    await persistGeneratedAudioLocally(fallbackBlob, null)
                     setAudioResultUrl(audioUrl)
                     setMessage(`ElevenLabs TTS 생성 완료. 서버 저장은 실패했습니다: ${String(detail).slice(0, 160)}`)
                     return
@@ -5047,7 +4855,6 @@ export default function StdPortalPage() {
                         throw new Error('ElevenLabs returned an empty audio file.')
                     }
                     audioUrl = URL.createObjectURL(audioBlob)
-                    await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                 } else {
                     const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
                     if (!audioRes.ok) {
@@ -5057,7 +4864,6 @@ export default function StdPortalPage() {
                     } else {
                         const audioBlob = await audioRes.blob()
                         audioUrl = URL.createObjectURL(audioBlob)
-                        await persistGeneratedAudioLocally(audioBlob, persistedAudioAsset)
                     }
                 }
 
@@ -8190,7 +7996,6 @@ export default function StdPortalPage() {
                                                 multiple
                                                 accept="image/*,video/*"
                                                 className="hidden"
-                                                onClick={prepareLocalDirectoryForUpload}
                                                 onChange={e => handleBulkImageUpload(e.target.files)}
                                             />
                                         </label>
@@ -8213,41 +8018,6 @@ export default function StdPortalPage() {
                                             <span>💾</span> 전체 저장
                                         </button>
                                     </div>
-                                </div>
-
-                                <div className={`rounded-lg border px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                                    localMediaDirectory.status === 'connected'
-                                        ? 'border-emerald-500/30 bg-emerald-500/10'
-                                        : 'border-amber-500/30 bg-amber-500/10'
-                                }`}>
-                                    <div className="min-w-0">
-                                        <div className="text-xs font-bold text-white flex items-center gap-2">
-                                            <FolderKanban size={15} />
-                                            {localMediaDirectory.status === 'connected'
-                                                ? `로컬 저장 폴더 연결됨: ${localMediaDirectory.folderName}`
-                                                : localMediaDirectory.status === 'unsupported'
-                                                    ? '이 브라우저는 로컬 폴더 저장을 지원하지 않습니다.'
-                                                    : localMediaDirectory.status === 'permission_needed'
-                                                        ? `로컬 폴더 권한 재연결 필요: ${localMediaDirectory.folderName}`
-                                                        : '로컬 저장 폴더를 먼저 선택해주세요.'}
-                                        </div>
-                                        <p className="text-[11px] text-gray-400 mt-1">
-                                            업로드 파일은 선택한 폴더의 AIRStudio-STD/프로젝트/씬 위치에 저장되며 새로고침 후 이 위치에서 우선 복원됩니다.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={connectLocalMediaDirectory}
-                                        disabled={localMediaDirectoryBusy || localMediaDirectory.status === 'unsupported'}
-                                        className="shrink-0 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-xs font-bold transition-all"
-                                    >
-                                        {localMediaDirectoryBusy
-                                            ? '연결 중...'
-                                            : localMediaDirectory.status === 'connected'
-                                                ? '폴더 변경'
-                                                : localMediaDirectory.status === 'permission_needed'
-                                                    ? '권한 재연결'
-                                                : '로컬 폴더 선택'}
-                                    </button>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -8356,7 +8126,6 @@ export default function StdPortalPage() {
                                                                     accept="video/*"
                                                                     className="hidden"
                                                                     disabled={isUploading}
-                                                                    onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
@@ -8422,7 +8191,6 @@ export default function StdPortalPage() {
                                                                     accept="image/*,video/*"
                                                                     className="hidden"
                                                                     disabled={isUploading}
-                                                                    onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
@@ -8512,7 +8280,6 @@ export default function StdPortalPage() {
                                                                     type="file"
                                                                     accept={inRequiredZone ? 'video/*' : 'image/*,video/*'}
                                                                     className="hidden"
-                                                                    onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, inRequiredZone ? 'video' : 'image', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>

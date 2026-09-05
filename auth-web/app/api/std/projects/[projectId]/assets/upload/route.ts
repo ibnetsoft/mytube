@@ -126,7 +126,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     const assetType = String(form.get('asset_type') || '').toLowerCase()
-    const localRelativePath = String(form.get('local_relative_path') || '').trim().slice(0, 2000)
     const sceneRaw = form.get('scene_number')
     const sceneNumber = sceneRaw == null || String(sceneRaw).trim() === '' ? null : Number(sceneRaw)
     const mimeType = String(fileValue.type || form.get('mime_type') || 'application/octet-stream')
@@ -236,8 +235,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 metadata: {
                     web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
                     thumbnail_link: driveFile.thumbnailLink || null,
-                    local_relative_path: localRelativePath || null,
-                    local_storage_mode: localRelativePath ? 'browser_directory' : null,
                     uploaded_by: auth.requester.email,
                     upload_mode: 'server_drive_upload',
                 },
