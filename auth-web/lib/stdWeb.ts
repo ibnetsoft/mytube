@@ -251,7 +251,6 @@ export function sceneImagePromptFromGrid(structure: any, scene: any, normalizedS
 export function buildStdScenes(topic: any) {
     const struct = topic?.pregenerated_structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
-    const topicTitle = firstText(topic?.generated_title, topic?.topic, struct?.title, 'Untitled story')
     const script = stripGeneratedPlanningText(topic?.pregenerated_script || topic?.script || scenes
         .map((scene: any) => firstText(scene?.script_excerpt, scene?.scene_text, scene?.narration, scene?.description))
         .filter(Boolean)
@@ -279,16 +278,10 @@ export function buildStdScenes(topic: any) {
                 scene?.visual_description,
                 scene?.description
             )
-            const generatedImagePrompt = sceneText
-                ? `Scene ${normalizedSceneNumber} visual for "${topicTitle}". Narration beat: ${sceneText}. Photorealistic Korean longform story scene, consistent characters, cinematic lighting, no text, no captions, no subtitles, no logos.`
-                : ''
-            const imagePrompt = partitioned[index]
-                ? generatedImagePrompt
-                : firstText(
-                    scene?.image_prompt,
-                    sceneImagePromptFromGrid(struct, scene, normalizedSceneNumber),
-                    generatedImagePrompt
-                )
+            const imagePrompt = firstText(
+                scene?.image_prompt,
+                sceneImagePromptFromGrid(struct, scene, normalizedSceneNumber)
+            )
             return {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
