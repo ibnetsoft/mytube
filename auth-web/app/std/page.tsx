@@ -4578,7 +4578,8 @@ export default function StdPortalPage() {
         useMultiVoice: boolean,
         voiceSegments: Array<{ text: string; voice_id: string }> = []
     ) => {
-        const keyRes = await fetch('/api/std/tts-key', { headers: authedJsonHeaders })
+        const requiredChars = encodeURIComponent(String(text.length))
+        const keyRes = await fetch(`/api/std/tts-key?requiredChars=${requiredChars}`, { headers: authedJsonHeaders })
         const keyData = await safeParseJson(keyRes, 'ElevenLabs API 키 확인 실패')
         if (!keyRes.ok || !keyData.elevenlabs_key) {
             throw new Error(keyData.error || 'ElevenLabs API 키를 가져올 수 없습니다.')
