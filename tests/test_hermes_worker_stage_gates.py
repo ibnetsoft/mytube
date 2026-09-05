@@ -605,6 +605,14 @@ def test_script_jobs_support_scoped_model_override_and_smaller_longform_chunks()
     assert '.get("min_chars") or 80' in rewrite_source
 
 
+def test_script_plan_jobs_support_scoped_model_override():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._process_script_plan_generate)
+    assert 'get("ai_model_override")' in source
+    assert "job_model_override or config.SCRIPT_PLANNING_MODEL" in source
+
+
 def test_script_quality_retries_malformed_json_response():
     class Router:
         def __init__(self):

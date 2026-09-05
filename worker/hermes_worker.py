@@ -6490,7 +6490,11 @@ def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str,
     from app.services.scene_planner import scene_planner_service
     import asyncio
 
-    config.SCRIPT_PLANNING_MODEL = _prefer_gemini_text_model(config, config.SCRIPT_PLANNING_MODEL)
+    job_model_override = str((job.get("payload") or {}).get("ai_model_override") or "").strip()
+    config.SCRIPT_PLANNING_MODEL = _prefer_gemini_text_model(
+        config,
+        job_model_override or config.SCRIPT_PLANNING_MODEL,
+    )
     Config.SCRIPT_PLANNING_MODEL = config.SCRIPT_PLANNING_MODEL
 
     # Relies on this worker PC's local script_style_presets being in sync
