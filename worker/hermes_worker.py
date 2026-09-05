@@ -3291,6 +3291,8 @@ def _generate_direct_image_grid_prompts(
     image_style_directive: str,
     job_log,
     character_anchors_context: str = "",
+    existing_grids: list[dict] | None = None,
+    checkpoint_callback=None,
 ) -> list[dict]:
     """Generate 2x2 prompts directly instead of concatenating per-scene prompts."""
     from services.image_grid_prompts import (
@@ -3379,9 +3381,29 @@ Schema:
     # Generate large longform runs in bounded real-AI batches. This prevents
     # JSON truncation without creating synthetic image prompts.
     grids = []
+    existing_by_number = {
+        int(grid.get("grid_number") or 0): grid
+        for grid in (existing_grids or [])
+        if isinstance(grid, dict) and str(grid.get("grid_number") or "").isdigit()
+    }
     grid_batch_size = 1
     for batch_start in range(0, len(grid_inputs), grid_batch_size):
         grid_batch = grid_inputs[batch_start:batch_start + grid_batch_size]
+        expected_grid_number = int(grid_batch[0]["grid_number"])
+        existing_grid = existing_by_number.get(expected_grid_number)
+        if existing_grid:
+            existing_compact = build_compact_image_grid_prompts([existing_grid])
+            compact_prompt = str(existing_compact[0].get("prompt") or "") if existing_compact else ""
+            compact_scene_numbers = list(existing_compact[0].get("scene_numbers") or []) if existing_compact else []
+            required_guardrails = ("no text", "no words", "no letters", "no captions", "no watermarks")
+            if (
+                existing_compact
+                and compact_scene_numbers == list(grid_batch[0].get("scene_numbers") or [])
+                and all(rule in compact_prompt.casefold() for rule in required_guardrails)
+            ):
+                grids.append(existing_grid)
+                job_log.info(f"Reusing image-grid checkpoint {expected_grid_number}")
+                continue
         batch_json = json.dumps(grid_batch, ensure_ascii=False, indent=2)
         batch_prompt = prompt.replace(grid_inputs_json, batch_json, 1)
         batch_grids = None
@@ -3413,10 +3435,59 @@ Schema:
                     f"AI image-grid batch {batch_start // grid_batch_size + 1} attempt {attempt + 1}/3 failed: {exc}"
                 )
         if batch_grids is None:
+            if checkpoint_callback:
+                checkpoint_callback(
+                    stage="image_grid_prompt",
+                    status="failed",
+                    scene_numbers=list(grid_batch[0].get("scene_numbers") or []),
+                    error=str(last_error or "image grid generation failed"),
+                )
             raise ValueError(
                 f"AI image-grid batch {batch_start // grid_batch_size + 1} failed after retry: {last_error}"
             )
+        expected = grid_batch[0]
+        generated_grid = batch_grids[0]
+        generated_grid["grid_number"] = expected["grid_number"]
+        generated_grid["scene_numbers"] = expected["scene_numbers"]
+        generated_grid["scene_ids"] = expected["scene_ids"]
+        generated_grid["prompt"] = ""
+        panels = generated_grid.get("panels") if isinstance(generated_grid.get("panels"), list) else []
+        for index, panel in enumerate(panels[:4]):
+            if isinstance(panel, dict):
+                panel["scene_number"] = expected["scene_numbers"][index]
+                if index < len(expected["scene_ids"]):
+                    panel["scene_id"] = expected["scene_ids"][index]
+                panel["position"] = ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"][index]
         grids.extend(batch_grids)
+        if checkpoint_callback:
+            compact_batch = build_compact_image_grid_prompts(batch_grids)
+            compact_grid = compact_batch[0] if compact_batch else None
+            checkpoint_callback(
+                stage="image_grid_prompt",
+                status="ready",
+                scene_numbers=list(grid_batch[0].get("scene_numbers") or []),
+                grid=compact_grid,
+            )
+            if compact_grid:
+                shared_style = str(compact_grid.get("shared_style") or "").strip()
+                for panel in compact_grid.get("panels") or []:
+                    panel_prompt = str(panel.get("panel_prompt") or panel.get("brief") or "").strip()
+                    scene_number = panel.get("scene_number")
+                    if panel_prompt and scene_number is not None:
+                        checkpoint_callback(
+                            stage="image_prompt",
+                            status="ready",
+                            scene_numbers=[scene_number],
+                            scene={
+                                "scene_id": panel.get("scene_id"),
+                                "scene_order": scene_number,
+                                "image_prompt": (
+                                    f"{shared_style}\nPanel image prompt: {panel_prompt}".strip()
+                                    if shared_style else panel_prompt
+                                ),
+                                "image_prompt_source": "ai",
+                            },
+                        )
 
     by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
     for grid in grids:
@@ -3434,7 +3505,7 @@ Schema:
                 if isinstance(panel, dict):
                     panel["scene_number"] = expected["scene_numbers"][index]
                     if index < len(expected["scene_ids"]):
-                        panel.setdefault("scene_id", expected["scene_ids"][index])
+                        panel["scene_id"] = expected["scene_ids"][index]
                     panel["position"] = ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"][index]
 
     compact_grids = build_compact_image_grid_prompts(grids)
@@ -3456,6 +3527,8 @@ def _generate_scene_media_prompts(
     main_character: dict | None = None,
     supporting_characters: list[dict] | None = None,
     model_override: str = "",
+    existing_structure: dict | None = None,
+    checkpoint_callback=None,
 ) -> dict:
     """Attach image/video generation prompts without changing scene boundaries."""
     scenes = structure.get("scenes") if isinstance(structure, dict) else None
@@ -3471,6 +3544,29 @@ def _generate_scene_media_prompts(
     if not model:
         raise RuntimeError("No image-prompt model selected; provider fallback is disabled")
     scenes = _attach_script_excerpts_to_scenes(scenes, script_text, scene_script_sections)
+    existing_structure = existing_structure if isinstance(existing_structure, dict) else {}
+    existing_scene_by_key = {}
+    for index, existing_scene in enumerate(existing_structure.get("scenes") or [], start=1):
+        if not isinstance(existing_scene, dict):
+            continue
+        key = str(existing_scene.get("scene_id") or existing_scene.get("scene_order") or index)
+        existing_scene_by_key[key] = existing_scene
+    for index, scene in enumerate(scenes, start=1):
+        key = str(scene.get("scene_id") or scene.get("scene_order") or index)
+        existing_scene = existing_scene_by_key.get(key)
+        if existing_scene and existing_scene.get("media_prompt_status") == "ready":
+            try:
+                _validate_video_prompt_quality(existing_scene, key)
+            except Exception:
+                continue
+            for field in (
+                "video_prompt", "lighting_hint", "visual_style", "continuity_identity",
+                "keyframe_subject", "motion_plan", "shot_hints", "image_prompt",
+                "image_prompt_source",
+            ):
+                if existing_scene.get(field) is not None:
+                    scene[field] = existing_scene[field]
+            scene["media_prompt_status"] = "ready"
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
     visual_direction_plan = _build_visual_direction_plan(
         ai_router,
@@ -3558,7 +3654,10 @@ Return ONLY valid JSON in this shape:
         import asyncio
         generated_scenes = []
         director_notes = {"overall_vision": "chunked media prompt generation", "error": False, "chunks": []}
-        prompt_scenes = scenes[:MAX_VIDEO_PROMPT_SCENES]
+        prompt_scenes = [
+            scene for scene in scenes[:MAX_VIDEO_PROMPT_SCENES]
+            if scene.get("media_prompt_status") != "ready" or not str(scene.get("video_prompt") or "").strip()
+        ]
         chunk_size = 8
         for offset in range(0, len(prompt_scenes), chunk_size):
             chunk = prompt_scenes[offset:offset + chunk_size]
@@ -3598,11 +3697,30 @@ Return ONLY valid JSON in this shape:
                         generated_item["video_prompt"] = _sanitize_video_prompt_text(generated_item["video_prompt"])
                         _validate_video_prompt_quality(generated_item, scene_label)
                     _validate_unique_video_prompts(chunk_scenes)
+                    for generated_item in chunk_scenes:
+                        generated_item["media_prompt_status"] = "ready"
+                        if checkpoint_callback:
+                            checkpoint_callback(
+                                stage="video_prompt",
+                                status="ready",
+                                scene_numbers=[generated_item.get("scene_order")],
+                                scene=generated_item,
+                            )
                     break
                 except Exception as chunk_error:
                     last_chunk_error = chunk_error
                     job_log.warning(f"Media prompt chunk {chunk_label} attempt {attempt + 1}/2 failed: {chunk_error}")
             else:
+                if checkpoint_callback:
+                    checkpoint_callback(
+                        stage="video_prompt",
+                        status="failed",
+                        scene_numbers=[
+                            scene.get("scene_order") or scene.get("scene_number")
+                            for scene in chunk
+                        ],
+                        error=str(last_chunk_error or "media prompt generation failed"),
+                    )
                 raise ValueError(
                     f"media prompt chunk {chunk_label} failed after retry: {last_chunk_error}"
                 )
@@ -3637,6 +3755,8 @@ Return ONLY valid JSON in this shape:
                 merged["media_prompt_status"] = "ready"
                 enriched_scenes.append(merged)
                 continue
+            if not media and scene.get("media_prompt_status") == "ready" and str(scene.get("video_prompt") or "").strip():
+                media = scene
             if not media:
                 raise ValueError(f"media prompt missing for scene {key[0] or key[1]}")
             if not str(media.get("video_prompt") or "").strip():
@@ -3676,6 +3796,8 @@ Return ONLY valid JSON in this shape:
             image_style_directive,
             job_log,
             character_anchors_context=character_anchors_context,
+            existing_grids=existing_structure.get("image_grid_prompts") or [],
+            checkpoint_callback=checkpoint_callback,
         )
         image_prompt_by_scene: dict[str, str] = {}
         for grid in image_grid_prompts:
@@ -3701,6 +3823,13 @@ Return ONLY valid JSON in this shape:
                 if image_prompt:
                     scene["image_prompt"] = image_prompt
                     scene["image_prompt_source"] = "ai"
+                    if checkpoint_callback:
+                        checkpoint_callback(
+                            stage="image_prompt",
+                            status="ready",
+                            scene_numbers=[scene.get("scene_order") or scene.get("scene_number")],
+                            scene=scene,
+                        )
 
         image_grid_prompt_mode = "direct_2x2_only"
         from services.image_grid_prompts import validate_scene_image_prompt_readiness
@@ -9136,6 +9265,76 @@ def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, st
     return topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language, script_quality_report
 
 
+def _load_topic_generation_checkpoint(topic_queue_id: str) -> dict:
+    """Load the last durable script/media checkpoint for a prepared topic."""
+    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+    if not topic_queue_id or not supabase_url or not supabase_key:
+        return {}
+    import requests as _req
+
+    response = _req.get(
+        f"{supabase_url}/rest/v1/topics_queue",
+        params={
+            "id": f"eq.{topic_queue_id}",
+            "select": (
+                "pregenerated_script,pregenerated_script_status,pregenerated_structure,"
+                "pregenerated_structure_status,progress_payload,narrative_blueprint,script_quality_report"
+            ),
+            "limit": "1",
+        },
+        headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"},
+        timeout=15,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"checkpoint load failed: HTTP {response.status_code} {response.text[:300]}")
+    rows = response.json()
+    return rows[0] if isinstance(rows, list) and rows else {}
+
+
+def _save_topic_generation_checkpoint(
+    topic_queue_id: str,
+    *,
+    script: str,
+    structure: dict,
+    script_quality_report: dict,
+    narrative_blueprint: dict,
+    progress_payload: dict,
+) -> None:
+    """Persist a strict checkpoint; generation must stop if durability fails."""
+    if _is_topic_delivery_excluded(topic_queue_id):
+        return
+    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("Supabase is required for durable Hermes generation checkpoints")
+    import requests as _req
+
+    response = _req.patch(
+        f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_queue_id}",
+        headers={
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        json={
+            "pregenerated_script": script,
+            "pregenerated_script_status": "ready",
+            "pregenerated_structure": structure,
+            # Only the final package sync may promote this to ready. A media
+            # checkpoint can still fail later category or metadata validation.
+            "pregenerated_structure_status": "generating",
+            "script_quality_report": script_quality_report,
+            "narrative_blueprint": narrative_blueprint,
+            "progress_payload": progress_payload,
+        },
+        timeout=20,
+    )
+    if response.status_code not in (200, 204):
+        raise RuntimeError(f"checkpoint save failed: HTTP {response.status_code} {response.text[:300]}")
+
+
 def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
     write_state("preparing", job, 0, job_id)
@@ -9679,15 +9878,48 @@ Hard retry rules:
 
         return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character, scene_script_sections
 
-    (
-        final_script,
-        narrative_blueprint,
-        initial_quality,
-        final_quality,
-        revision_count,
-        main_character,
-        scene_script_sections,
-    ) = asyncio.run(_run_generation())
+    resume_requested = bool((job.get("payload") or {}).get("resume_from_checkpoint"))
+    saved_checkpoint = _load_topic_generation_checkpoint(topic_queue_id) if resume_requested else {}
+    saved_progress = (
+        saved_checkpoint.get("progress_payload")
+        if isinstance(saved_checkpoint.get("progress_payload"), dict)
+        else {}
+    )
+    saved_marker = (
+        saved_progress.get("generation_checkpoint")
+        if isinstance(saved_progress.get("generation_checkpoint"), dict)
+        else {}
+    )
+    can_resume_media = (
+        saved_marker.get("version") == 1
+        and saved_checkpoint.get("pregenerated_script_status") == "ready"
+        and bool(str(saved_checkpoint.get("pregenerated_script") or "").strip())
+        and isinstance(saved_checkpoint.get("pregenerated_structure"), dict)
+    )
+    if can_resume_media:
+        final_script = str(saved_checkpoint["pregenerated_script"]).strip()
+        structure = dict(saved_checkpoint["pregenerated_structure"])
+        scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
+        narrative_blueprint = saved_checkpoint.get("narrative_blueprint") or {}
+        final_quality = saved_checkpoint.get("script_quality_report") or {}
+        initial_quality = final_quality
+        revision_count = int(saved_marker.get("revision_count") or 0)
+        main_character = structure.get("main_character") or saved_progress.get("main_character") or {}
+        scene_script_sections = []
+        job_log.info(
+            "Resuming from durable media checkpoint "
+            f"(stage={saved_marker.get('stage')}, scenes={saved_marker.get('completed_scene_numbers') or []})"
+        )
+    else:
+        (
+            final_script,
+            narrative_blueprint,
+            initial_quality,
+            final_quality,
+            revision_count,
+            main_character,
+            scene_script_sections,
+        ) = asyncio.run(_run_generation())
     if not final_script:
         raise ValueError("Generated script was empty after all sections were processed")
     if _script_needs_revision(final_quality):
@@ -9731,6 +9963,88 @@ Hard retry rules:
         },
     }
 
+    checkpoint_structure = dict(structure)
+    checkpoint_structure["scenes"] = [dict(scene) for scene in scenes]
+    checkpoint_structure["main_character"] = main_character
+    checkpoint_structure["supporting_characters"] = supporting_characters[:2]
+    checkpoint_progress = dict(saved_progress)
+    checkpoint_progress.update({
+        "main_character": main_character,
+        "supporting_characters": supporting_characters[:2],
+        "character_anchors": character_anchors,
+        "prepared_topic_ready": False,
+    })
+
+    def _persist_media_checkpoint(
+        *,
+        stage: str,
+        status: str,
+        scene_numbers: list | None = None,
+        scene: dict | None = None,
+        grid: dict | None = None,
+        error: str = "",
+    ) -> None:
+        nonlocal checkpoint_structure, checkpoint_progress
+        affected = [number for number in (scene_numbers or []) if number is not None]
+        checkpoint_scenes = checkpoint_structure.get("scenes") or []
+        if isinstance(scene, dict):
+            scene_key = str(scene.get("scene_id") or scene.get("scene_order") or scene.get("scene_number") or "")
+            for index, current in enumerate(checkpoint_scenes):
+                current_key = str(current.get("scene_id") or current.get("scene_order") or current.get("scene_number") or index + 1)
+                if current_key == scene_key:
+                    checkpoint_scenes[index] = {**current, **scene}
+                    break
+        if isinstance(grid, dict):
+            grids = list(checkpoint_structure.get("image_grid_prompts") or [])
+            grid_number = str(grid.get("grid_number") or "")
+            grids = [item for item in grids if str(item.get("grid_number") or "") != grid_number]
+            grids.append(grid)
+            grids.sort(key=lambda item: int(item.get("grid_number") or 0))
+            checkpoint_structure["image_grid_prompts"] = grids
+            checkpoint_structure["image_grid_prompt_status"] = "generating"
+
+        completed = sorted({
+            int(item.get("scene_order") or item.get("scene_number"))
+            for item in checkpoint_scenes
+            if item.get("media_prompt_status") == "ready"
+            and str(item.get("video_prompt") or "").strip()
+            and str(item.get("image_prompt") or "").strip()
+            and str(item.get("scene_order") or item.get("scene_number") or "").isdigit()
+        })
+        current_marker = (
+            checkpoint_progress.get("generation_checkpoint")
+            if isinstance(checkpoint_progress.get("generation_checkpoint"), dict)
+            else saved_marker
+        )
+        failed = set(current_marker.get("failed_scene_numbers") or [])
+        if status == "failed":
+            failed.update(affected)
+        else:
+            failed.difference_update(affected)
+        checkpoint_progress["generation_checkpoint"] = {
+            "version": 1,
+            "job_id": job_id,
+            "stage": stage,
+            "status": status,
+            "completed_scene_numbers": completed,
+            "failed_scene_numbers": sorted(failed),
+            "last_completed_scene": max(completed) if completed else None,
+            "revision_count": revision_count,
+            "error": error[:1000] if error else None,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+        _save_topic_generation_checkpoint(
+            topic_queue_id,
+            script=final_script,
+            structure=checkpoint_structure,
+            script_quality_report=final_quality,
+            narrative_blueprint=narrative_blueprint,
+            progress_payload=checkpoint_progress,
+        )
+
+    # The validated script is durable before any media-prompt request starts.
+    _persist_media_checkpoint(stage="script", status="ready")
+
     job_store.update_progress(job_id, 90, "generating media prompts from final script")
     write_state("running", job, 90, job_id)
     job_log.info(
@@ -9750,7 +10064,10 @@ Hard retry rules:
         main_character=main_character,
         supporting_characters=supporting_characters,
         model_override=job_model_override,
+        existing_structure=checkpoint_structure if can_resume_media else None,
+        checkpoint_callback=_persist_media_checkpoint,
     )
+    checkpoint_structure = structure
     category_errors = _scene_plan_category_contamination_errors(
         structure,
         script_style=script_style_context,
@@ -9792,6 +10109,7 @@ Hard retry rules:
         script_stage_payload,
         category=category_for_gate,
     )
+    _persist_media_checkpoint(stage="media_prompts", status="ready")
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
     write_state("running", job, 95, job_id)

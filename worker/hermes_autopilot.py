@@ -818,6 +818,7 @@ class HermesAutopilotManager:
                     "learning_profile": plan_data.get("learning_profile") or plan_payload.get("learning_profile"),
                     "defer_ready_until_quality_gate": True,
                     "resume_from_job_id": plan_job.get("job_id"),
+                    "resume_from_checkpoint": True,
                 },
                 priority=100,
                 source="autopilot",

@@ -33,6 +33,56 @@ class _FakeResponse:
     text = ""
 
 
+def test_generation_checkpoint_saves_script_before_media_completion(monkeypatch):
+    import requests
+
+    calls = []
+
+    def fake_patch(*args, **kwargs):
+        calls.append(kwargs["json"])
+        return _FakeResponse()
+
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setattr(requests, "patch", fake_patch)
+
+    hermes_worker._save_topic_generation_checkpoint(
+        "3197",
+        script="품질검사를 통과한 대본",
+        structure={"scenes": [{"scene_order": 1}], "media_prompt_status": "generating"},
+        script_quality_report={"verdict": "pass", "score": 90},
+        narrative_blueprint={"logline": "완성된 기획"},
+        progress_payload={"generation_checkpoint": {"stage": "script", "status": "ready"}},
+    )
+
+    assert calls[0]["pregenerated_script"] == "품질검사를 통과한 대본"
+    assert calls[0]["pregenerated_script_status"] == "ready"
+    assert calls[0]["pregenerated_structure_status"] == "generating"
+    assert calls[0]["progress_payload"]["generation_checkpoint"]["stage"] == "script"
+
+
+def test_generation_checkpoint_failure_stops_pipeline(monkeypatch):
+    import requests
+
+    class FailedResponse:
+        status_code = 500
+        text = "database unavailable"
+
+    monkeypatch.setenv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setattr(requests, "patch", lambda *args, **kwargs: FailedResponse())
+
+    with pytest.raises(RuntimeError, match="checkpoint save failed"):
+        hermes_worker._save_topic_generation_checkpoint(
+            "3197",
+            script="대본",
+            structure={"scenes": []},
+            script_quality_report={"verdict": "pass"},
+            narrative_blueprint={},
+            progress_payload={},
+        )
+
+
 class _VisualPlanRouter:
     async def generate_text(self, *_args, **_kwargs):
         return """{

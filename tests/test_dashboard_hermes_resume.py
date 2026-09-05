@@ -83,6 +83,7 @@ def test_resume_from_completed_plan_submits_script_job(monkeypatch):
     assert submitted["payload"]["topic_queue_id"] == "3285"
     assert submitted["payload"]["structure"] == [{"scene": 1, "beat": "검보를 펼친다"}]
     assert submitted["payload"]["resume_from_job_id"] == "plan-job"
+    assert submitted["payload"]["resume_from_checkpoint"] is True
 
 
 def test_resume_from_completed_script_submits_metadata_job(monkeypatch):

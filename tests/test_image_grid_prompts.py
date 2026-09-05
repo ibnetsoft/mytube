@@ -326,6 +326,7 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
         for number in range(1, 9)
     ]
 
+    checkpoints = []
     grids = hermes_worker._generate_direct_image_grid_prompts(
         FakeRouter(),
         "fake-model",
@@ -336,11 +337,75 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
         "3d_render",
         "cinematic Korean period style",
         FakeLog(),
+        checkpoint_callback=lambda **event: checkpoints.append(event),
     )
 
     assert len(grids) == 2
     assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert all(grid["template"] == "strict_2x2_compact_v1" for grid in grids)
+    grid_checkpoints = [event for event in checkpoints if event["stage"] == "image_grid_prompt"]
+    scene_checkpoints = [event for event in checkpoints if event["stage"] == "image_prompt"]
+    assert [event["scene_numbers"] for event in grid_checkpoints] == [[1, 2, 3, 4], [5, 6, 7, 8]]
+    assert [event["scene_numbers"] for event in scene_checkpoints] == [[1], [2], [3], [4], [5], [6], [7], [8]]
+    assert all(event["status"] == "ready" for event in checkpoints)
+
+
+def test_worker_resumes_image_grids_after_last_saved_grid():
+    class ResumeRouter:
+        def __init__(self):
+            self.calls = 0
+
+        async def generate_text(self, *_args, **_kwargs):
+            self.calls += 1
+            return json.dumps({"grids": [_grid_spec(2)]})
+
+    class FakeLog:
+        def info(self, *_args, **_kwargs):
+            pass
+
+        def warning(self, *_args, **_kwargs):
+            pass
+
+    def _grid_spec(grid_number):
+        numbers = list(range((grid_number - 1) * 4 + 1, grid_number * 4 + 1))
+        return {
+            "grid_number": grid_number,
+            "scene_numbers": numbers,
+            "scene_ids": [f"scene{number:03d}" for number in numbers],
+            "shared_style": "consistent period documentary style with stable wardrobe and natural lighting",
+            "negative_prompt": "no text, no words, no letters, no captions, no watermarks",
+            "panels": [
+                {
+                    "scene_number": number,
+                    "scene_id": f"scene{number:03d}",
+                    "position": position,
+                    "panel_prompt": (
+                        f"Scene {number}: a distinct subject performs a specific action in a period village, "
+                        "with emotional body language, natural light, clear composition, and a unique prop."
+                    ),
+                }
+                for number, position in zip(numbers, ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"])
+            ],
+        }
+
+    scenes = _scenes(8)
+    existing_grid = build_compact_image_grid_prompts([_grid_spec(1)])[0]
+    router = ResumeRouter()
+    grids = hermes_worker._generate_direct_image_grid_prompts(
+        router,
+        "fake-model",
+        "topic",
+        "upload title",
+        scenes,
+        {},
+        "watercolor",
+        "soft documentary watercolor style",
+        FakeLog(),
+        existing_grids=[existing_grid],
+    )
+
+    assert router.calls == 1
+    assert [grid["grid_number"] for grid in grids] == [1, 2]
 
 
 def test_worker_rejects_image_grid_prompts_when_ai_json_remains_malformed():
