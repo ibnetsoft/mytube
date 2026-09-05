@@ -384,8 +384,12 @@ def validate_generation_package(
     errors.extend(_duplicate_or_near_duplicate_errors(video_prompts, "video_prompt"))
 
     try:
-        from services.image_grid_prompts import validate_image_grid_prompt_readiness
+        from services.image_grid_prompts import (
+            validate_image_grid_prompt_readiness,
+            validate_scene_image_prompt_readiness,
+        )
 
+        validate_scene_image_prompt_readiness(scenes)
         validate_image_grid_prompt_readiness(
             scenes,
             structure.get("image_grid_prompts") if isinstance(structure, Mapping) else None,

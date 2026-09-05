@@ -261,25 +261,29 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
             return json.dumps({
                 "grids": [
                     {
-                        "grid_number": 1,
-                        "scene_numbers": [1, 2, 3, 4],
-                        "scene_ids": [f"scene{number:03d}" for number in range(1, 5)],
+                        "grid_number": grid_number,
+                        "scene_numbers": list(range((grid_number - 1) * 4 + 1, grid_number * 4 + 1)),
+                        "scene_ids": [f"scene{number:03d}" for number in range((grid_number - 1) * 4 + 1, grid_number * 4 + 1)],
                         "shared_style": "consistent style",
                         "panels": [
                             {
                                 "scene_number": number,
                                 "scene_id": f"scene{number:03d}",
                                 "position": position,
-                                "panel_prompt": f"Scene {number} visual beat.",
+                                "panel_prompt": (
+                                    f"Scene {number}: a distinct subject performs a specific action in a period setting, "
+                                    "with clear composition, emotional body language, natural light, and one unique prop."
+                                ),
                             }
-                            for number, position in zip(
-                                range(1, 5),
-                                ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
-                            )
-                        ],
-                    }
-                ]
-            })
+                                for number, position in zip(
+                                    range((grid_number - 1) * 4 + 1, grid_number * 4 + 1),
+                                    ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                                )
+                            ],
+                        }
+                        for grid_number in range(1, 3)
+                    ]
+                })
 
     class FakeLog:
         def info(self, *_args, **_kwargs):
@@ -317,7 +321,7 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     assert all(grid["template"] == "strict_2x2_compact_v1" for grid in grids)
 
 
-def test_worker_rebuilds_image_grid_prompts_when_ai_json_is_malformed():
+def test_worker_rejects_image_grid_prompts_when_ai_json_remains_malformed():
     class FakeRouter:
         async def generate_text(self, *_args, **_kwargs):
             return '{"grids": [{"grid_number": 1, "scene_numbers": [1, 2, 3, 4]'
@@ -341,27 +345,57 @@ def test_worker_rebuilds_image_grid_prompts_when_ai_json_is_malformed():
         for number in range(1, 9)
     ]
 
-    grids = hermes_worker._generate_direct_image_grid_prompts(
-        FakeRouter(),
-        "fake-model",
-        "topic",
-        "upload title",
-        scenes,
-        {},
-        "watercolor",
-        "soft documentary watercolor style",
-        FakeLog(),
-    )
+    import pytest
 
-    assert len(grids) == 2
-    assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
-    validate_image_grid_prompt_readiness(scenes, grids, status="ready", require_status="ready")
+    with pytest.raises(ValueError, match="failed after retry"):
+        hermes_worker._generate_direct_image_grid_prompts(
+            FakeRouter(),
+            "fake-model",
+            "topic",
+            "upload title",
+            scenes,
+            {},
+            "watercolor",
+            "soft documentary watercolor style",
+            FakeLog(),
+        )
 
 
-def test_worker_skips_ai_json_for_large_image_grid_batches():
-    class FailIfCalledRouter:
+def test_worker_generates_large_image_grid_sets_in_bounded_ai_batches():
+    class BatchedRouter:
+        def __init__(self):
+            self.calls = 0
+
         async def generate_text(self, *_args, **_kwargs):
-            raise AssertionError("large image grid batches should not request one giant AI JSON response")
+            self.calls += 1
+            start = 1 if self.calls == 1 else 13
+            end = 13 if self.calls == 1 else 14
+            return json.dumps({
+                "grids": [
+                    {
+                        "grid_number": grid_number,
+                        "scene_numbers": list(range((grid_number - 1) * 4 + 1, grid_number * 4 + 1)),
+                        "scene_ids": [f"scene{number:03d}" for number in range((grid_number - 1) * 4 + 1, grid_number * 4 + 1)],
+                        "shared_style": "consistent period documentary style with stable characters and wardrobe",
+                        "panels": [
+                            {
+                                "scene_number": number,
+                                "scene_id": f"scene{number:03d}",
+                                "position": position,
+                                "panel_prompt": (
+                                    f"Scene {number}: a distinct subject performs a specific action in a period setting, "
+                                    "with clear composition, emotional body language, natural light, and one unique prop."
+                                ),
+                            }
+                            for number, position in zip(
+                                range((grid_number - 1) * 4 + 1, grid_number * 4 + 1),
+                                ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"],
+                            )
+                        ],
+                    }
+                    for grid_number in range(start, end)
+                ]
+            })
 
     class FakeLog:
         def info(self, *_args, **_kwargs):
@@ -382,8 +416,9 @@ def test_worker_skips_ai_json_for_large_image_grid_batches():
         for number in range(1, 53)
     ]
 
+    router = BatchedRouter()
     grids = hermes_worker._generate_direct_image_grid_prompts(
-        FailIfCalledRouter(),
+        router,
         "fake-model",
         "topic",
         "upload title",
@@ -395,5 +430,6 @@ def test_worker_skips_ai_json_for_large_image_grid_batches():
     )
 
     assert len(grids) == 13
+    assert router.calls == 2
     assert grids[-1]["scene_numbers"] == [49, 50, 51, 52]
     validate_image_grid_prompt_readiness(scenes, grids, status="ready", require_status="ready")

@@ -94,6 +94,10 @@ def _scene(scene_number: int) -> dict[str, Any]:
         "scene_purpose": f"갈등을 다음 단계로 밀어 올리는 고유한 목적 {scene_number}",
         "retention_hook": f"다음 장면에서 밝혀질 다른 의문 {scene_number}",
         "media_prompt_status": "ready",
+        "image_prompt": (
+            f"Scene {scene_number}: a Korean protagonist examines a unique period prop in a distinct location, "
+            "with specific body language, cinematic natural light, consistent wardrobe, clear composition, and emotional tension."
+        ),
         "video_prompt": _video_prompt(scene_number),
         "keyframe_subject": f"장면 {scene_number}의 중심 인물과 고유한 소품",
     }

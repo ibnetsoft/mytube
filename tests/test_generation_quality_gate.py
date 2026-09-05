@@ -31,6 +31,10 @@ def _scene(number: int, suffix: str = "") -> dict:
         "media_prompt_status": "ready",
         "video_prompt": video_detail,
         "keyframe_subject": f"Scene {number}: daughter-in-law with cloth bundle in a hanok courtyard. {suffix}",
+        "image_prompt": (
+            f"Scene {number}: the daughter-in-law grips a weathered cloth bundle in a hanok courtyard, "
+            f"with distinct body language, dusk lantern light, period wardrobe, and unique visual clue {number}."
+        ),
     }
 
 
@@ -135,6 +139,18 @@ def test_generation_quality_gate_rejects_missing_video_and_grid_prompts():
 
     assert any("video_prompt too short" in error for error in errors)
     assert any("image_grid_prompts" in error for error in errors)
+
+
+def test_generation_quality_gate_rejects_deterministic_image_prompt_fallback():
+    payload = _valid_payload()
+    payload["structure"]["scenes"][0]["image_prompt"] = (
+        "Scene 1: visualize the final narration beat. Story excerpt: a generic scene. "
+        "Emotion: tense. Unique visual anchor: courtyard."
+    )
+
+    errors = validate_generation_package(payload, category="옛날이야기")
+
+    assert any("deterministic fallback" in error for error in errors)
 
 
 def test_generation_quality_gate_allows_video_prompts_only_for_first_12_scenes():

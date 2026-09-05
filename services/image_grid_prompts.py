@@ -9,6 +9,12 @@ from typing import Any
 GRID_PROMPT_TEMPLATE = "strict_2x2_v1"
 COMPACT_GRID_PROMPT_TEMPLATE = "strict_2x2_compact_v1"
 GRID_PANEL_POSITIONS = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
+MIN_SCENE_IMAGE_PROMPT_CHARS = 120
+MIN_PANEL_PROMPT_CHARS = 80
+FALLBACK_IMAGE_PROMPT_MARKERS = (
+    "visualize the final narration beat",
+    "distinct story beat with consistent characters and setting",
+)
 
 
 def _scene_number(scene: Mapping[str, Any], fallback: int) -> int | str:
@@ -225,17 +231,37 @@ def normalize_image_grid_prompts(value: Any) -> list[dict[str, Any]]:
         scene_numbers = item.get("scene_numbers")
         if not prompt or not isinstance(scene_numbers, list) or len(scene_numbers) != 4:
             continue
-        normalized.append(
-            {
-                "grid_number": item.get("grid_number") or index,
-                "template": item.get("template") or GRID_PROMPT_TEMPLATE,
-                "scene_numbers": scene_numbers,
-                "scene_ids": item.get("scene_ids") if isinstance(item.get("scene_ids"), list) else [],
-                "panel_count": 4,
-                "prompt": prompt,
-            }
-        )
+        record = {
+            "grid_number": item.get("grid_number") or index,
+            "template": item.get("template") or GRID_PROMPT_TEMPLATE,
+            "scene_numbers": scene_numbers,
+            "scene_ids": item.get("scene_ids") if isinstance(item.get("scene_ids"), list) else [],
+            "panel_count": 4,
+            "prompt": prompt,
+        }
+        if item.get("template") == COMPACT_GRID_PROMPT_TEMPLATE:
+            record["shared_style"] = str(item.get("shared_style") or "").strip()
+            record["panels"] = item.get("panels") if isinstance(item.get("panels"), list) else []
+        normalized.append(record)
     return normalized
+
+
+def validate_scene_image_prompt_readiness(scenes: Iterable[Mapping[str, Any]]) -> None:
+    """Require a real, scene-specific image prompt for every planned scene."""
+    seen_prompts: set[str] = set()
+    for fallback_number, scene in enumerate(scenes, start=1):
+        if not isinstance(scene, Mapping):
+            raise ValueError(f"scene {fallback_number} is not an object")
+        scene_number = _scene_number(scene, fallback_number)
+        prompt = str(scene.get("image_prompt") or "").strip()
+        if len(prompt) < MIN_SCENE_IMAGE_PROMPT_CHARS:
+            raise ValueError(f"scene {scene_number} image_prompt too short/missing")
+        lowered = prompt.lower()
+        if any(marker in lowered for marker in FALLBACK_IMAGE_PROMPT_MARKERS):
+            raise ValueError(f"scene {scene_number} image_prompt used deterministic fallback")
+        if prompt in seen_prompts:
+            raise ValueError(f"duplicate image_prompt for scene {scene_number}")
+        seen_prompts.add(prompt)
 
 
 def validate_image_grid_prompt_readiness(
@@ -289,6 +315,26 @@ def validate_image_grid_prompt_readiness(
         numbers = grid.get("scene_numbers")
         if not isinstance(numbers, list) or len(numbers) != 4:
             raise ValueError(f"image_grid_prompt must contain exactly 4 scene numbers for grid {grid.get('grid_number')}")
+        if grid.get("template") == COMPACT_GRID_PROMPT_TEMPLATE:
+            panels = grid.get("panels")
+            if not isinstance(panels, list) or len(panels) != 4:
+                raise ValueError(f"image_grid_prompt must contain exactly 4 panels for grid {grid.get('grid_number')}")
+            panel_prompts: set[str] = set()
+            for index, panel in enumerate(panels):
+                if not isinstance(panel, Mapping):
+                    raise ValueError(f"image_grid_prompt panel {index + 1} is invalid for grid {grid.get('grid_number')}")
+                panel_prompt = str(panel.get("panel_prompt") or panel.get("brief") or "").strip()
+                if len(panel_prompt) < MIN_PANEL_PROMPT_CHARS:
+                    raise ValueError(f"image_grid_prompt panel {index + 1} too short for grid {grid.get('grid_number')}")
+                if any(marker in panel_prompt.lower() for marker in FALLBACK_IMAGE_PROMPT_MARKERS):
+                    raise ValueError(f"image_grid_prompt used deterministic fallback for grid {grid.get('grid_number')}")
+                if panel_prompt in panel_prompts:
+                    raise ValueError(f"duplicate panel prompt for grid {grid.get('grid_number')}")
+                panel_prompts.add(panel_prompt)
+                if str(panel.get("position") or "") != GRID_PANEL_POSITIONS[index]:
+                    raise ValueError(f"image_grid_prompt panel position mismatch for grid {grid.get('grid_number')}")
+                if str(panel.get("scene_number") or "") != str(numbers[index]):
+                    raise ValueError(f"image_grid_prompt panel scene mismatch for grid {grid.get('grid_number')}")
         covered_scene_numbers.update(numbers)
 
     missing = [number for number in scene_numbers if number not in covered_scene_numbers]

@@ -3372,64 +3372,6 @@ def _generate_direct_image_grid_prompts(
             "panels": panels,
         })
 
-    def _fallback_grids(reason: str) -> list[dict]:
-        job_log.warning(
-            "Rebuilding compact 2x2 image grid prompts without AI JSON "
-            f"({reason}). grid_count={len(grid_inputs)}"
-        )
-        fallback = []
-        for grid_input in grid_inputs:
-            panels = []
-            for panel in grid_input["panels"]:
-                scene_number = panel.get("scene_number")
-                scene_id = panel.get("scene_id")
-                position = panel.get("position")
-                excerpt = str(panel.get("script_excerpt") or "").strip()
-                situation = str(panel.get("scene_situation") or panel.get("scene_summary") or "").strip()
-                emotion = str(panel.get("scene_emotion") or "").strip()
-                anchor = str(panel.get("keyframe_subject") or panel.get("continuity_identity") or "").strip()
-                panel_prompt = (
-                    f"Scene {scene_number}: visualize the final narration beat. "
-                    f"Story excerpt: {excerpt[:360] or situation[:360]}. "
-                    f"Emotion: {emotion or 'quiet dramatic tension'}. "
-                    f"Unique visual anchor: {anchor or situation[:160] or 'period location and character action'}."
-                )
-                panels.append({
-                    "scene_number": scene_number,
-                    "scene_id": scene_id,
-                    "position": position,
-                    "panel_prompt": panel_prompt,
-                })
-            fallback.append({
-                "grid_number": grid_input["grid_number"],
-                "scene_numbers": grid_input["scene_numbers"],
-                "scene_ids": grid_input["scene_ids"],
-                "shared_style": (
-                    f"{image_style_key}: {image_style_directive} "
-                    f"{character_anchors_context} "
-                    "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
-                ),
-                "negative_prompt": (
-                    "no text, no words, no letters, no labels, no captions, no watermarks, "
-                    "No borders, NO grid lines, no dividers, correct anatomy, no extra limbs"
-                ),
-                "panels": panels,
-            })
-        return fallback
-
-    def _validated_fallback_grids(reason: str) -> list[dict]:
-        compact = build_compact_image_grid_prompts(_fallback_grids(reason))
-        validate_image_grid_prompt_readiness(
-            scenes,
-            compact,
-            status="ready",
-            require_status="ready",
-        )
-        return compact
-
-    if len(grid_inputs) > 12:
-        return _validated_fallback_grids("large long-form grid set")
-
     grid_inputs_json = json.dumps(grid_inputs, ensure_ascii=False, indent=2)
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
@@ -3484,28 +3426,37 @@ Schema:
         grid_batch = grid_inputs[batch_start:batch_start + 12]
         batch_json = json.dumps(grid_batch, ensure_ascii=False, indent=2)
         batch_prompt = prompt.replace(grid_inputs_json, batch_json, 1)
-        try:
-            raw = asyncio.run(asyncio.wait_for(
-                ai_router.generate_text(
-                    batch_prompt,
-                    model,
-                    temperature=0.35,
-                    max_tokens=12000,
-                    task_type="image_grid_prompt_generation",
-                ),
-                timeout=90,
-            ))
-            generated = _extract_json(raw)
-            batch_grids = generated.get("grids") if isinstance(generated, dict) else None
-        except Exception as exc:
-            return _validated_fallback_grids(
-                f"AI image-grid batch {batch_start // 12 + 1} response was invalid: {exc}"
-            )
-        if not isinstance(batch_grids, list) or len(batch_grids) != len(grid_batch):
-            got_count = len(batch_grids) if isinstance(batch_grids, list) else 0
-            return _validated_fallback_grids(
-                f"AI image-grid batch {batch_start // 12 + 1} count mismatch: "
-                f"expected={len(grid_batch)}, got={got_count}"
+        batch_grids = None
+        last_error = None
+        for attempt in range(2):
+            try:
+                raw = asyncio.run(asyncio.wait_for(
+                    ai_router.generate_text(
+                        batch_prompt,
+                        model,
+                        temperature=0.25 if attempt else 0.35,
+                        max_tokens=12000,
+                        task_type="image_grid_prompt_generation",
+                    ),
+                    timeout=90,
+                ))
+                generated = _extract_json(raw)
+                candidate = generated.get("grids") if isinstance(generated, dict) else None
+                if not isinstance(candidate, list) or len(candidate) != len(grid_batch):
+                    got_count = len(candidate) if isinstance(candidate, list) else 0
+                    raise ValueError(
+                        f"count mismatch: expected={len(grid_batch)}, got={got_count}"
+                    )
+                batch_grids = candidate
+                break
+            except Exception as exc:
+                last_error = exc
+                job_log.warning(
+                    f"AI image-grid batch {batch_start // 12 + 1} attempt {attempt + 1}/2 failed: {exc}"
+                )
+        if batch_grids is None:
+            raise ValueError(
+                f"AI image-grid batch {batch_start // 12 + 1} failed after retry: {last_error}"
             )
         grids.extend(batch_grids)
 
@@ -3791,8 +3742,11 @@ Return ONLY valid JSON in this shape:
                 image_prompt = image_prompt_by_scene.get(scene_number)
                 if image_prompt:
                     scene["image_prompt"] = image_prompt
+                    scene["image_prompt_source"] = "ai"
 
         image_grid_prompt_mode = "direct_2x2_only"
+        from services.image_grid_prompts import validate_scene_image_prompt_readiness
+        validate_scene_image_prompt_readiness(enriched_scenes)
         validate_image_grid_prompt_readiness(enriched_scenes, image_grid_prompts, status="ready", require_status="ready")
         result = dict(structure)
         result["scenes"] = enriched_scenes

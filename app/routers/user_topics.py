@@ -17,7 +17,11 @@ from typing import List, Optional
 import database as db
 from config import config
 from services.auth_service import auth_service
-from services.image_grid_prompts import normalize_image_grid_prompts, validate_image_grid_prompt_readiness
+from services.image_grid_prompts import (
+    normalize_image_grid_prompts,
+    validate_image_grid_prompt_readiness,
+    validate_scene_image_prompt_readiness,
+)
 
 router = APIRouter(tags=["User Topics"])
 MAX_VIDEO_PROMPT_SCENES = 12
@@ -103,6 +107,7 @@ def _structure_has_ready_media_prompts(structure: dict | None) -> bool:
     if structure.get("image_grid_prompt_status") != "ready":
         return False
     try:
+        validate_scene_image_prompt_readiness(scenes)
         validate_image_grid_prompt_readiness(
             scenes,
             structure.get("image_grid_prompts"),
@@ -187,7 +192,7 @@ def _image_prompts_from_pregenerated_structure(structure: dict) -> list[dict]:
             "scene_title": scene_title,
             "scene_text": scene_text,
             "prompt_ko": "",
-            "prompt_en": "",
+            "prompt_en": _scene_image_prompt(scene),
             "motion_desc": video_prompt,
             "flow_prompt": video_prompt,
             "visual_style": scene.get("visual_style") or "",

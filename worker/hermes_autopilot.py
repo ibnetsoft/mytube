@@ -1221,7 +1221,11 @@ class HermesAutopilotManager:
             if requires_video_prompt and not str(scene.get("video_prompt") or "").strip():
                 return False
         try:
-            from services.image_grid_prompts import validate_image_grid_prompt_readiness
+            from services.image_grid_prompts import (
+                validate_image_grid_prompt_readiness,
+                validate_scene_image_prompt_readiness,
+            )
+            validate_scene_image_prompt_readiness(scenes)
             validate_image_grid_prompt_readiness(
                 scenes,
                 structure.get("image_grid_prompts"),
