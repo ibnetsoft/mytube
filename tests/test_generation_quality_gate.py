@@ -222,6 +222,24 @@ def test_finance_filter_does_not_treat_denunciation_as_stock_sale():
     assert "매도" in finance_content_matches("보유 주식을 시장 가격에 매도 주문했다.")
 
 
+def test_old_story_contamination_ignores_korean_suffix_substrings():
+    payload = _valid_payload()
+    payload["script"] += " 우물가로 다가온 그는 저주가 아니라 이유가 남긴 흔적을 보았다." * 20
+
+    errors = validate_generation_package(payload, category="옛날이야기")
+
+    assert not any("finance/economy contamination" in error for error in errors)
+
+
+def test_old_story_contamination_still_blocks_standalone_price_terms():
+    payload = _valid_payload()
+    payload["script"] += " 물가 상승과 유가 급등을 분석했다." * 20
+
+    errors = validate_generation_package(payload, category="옛날이야기")
+
+    assert any("finance/economy contamination" in error for error in errors)
+
+
 def test_old_story_contamination_ignores_benchmark_analysis_body():
     payload = _valid_payload()
     payload["benchmark_analysis"] = {

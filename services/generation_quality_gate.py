@@ -93,6 +93,8 @@ _CATEGORY_CONTAMINATION_MAP = {
     "무협": ("스마트폰", "아파트", "달러", "주식", "비행기", "경찰", "CCTV", "엘리베이터", "지하철"),
     "탈북사연": ("비급", "장문인", "사부", "단전", "내공", "무림", "호랑이 사냥꾼", "조선시대"),
 }
+_KOREAN_WORD_CHARS = "가-힣A-Za-z0-9"
+_KOREAN_PRICE_TICKER_TERMS = {"물가", "주가", "유가"}
 _METADATA_INTERNAL_TERMS = (
     "AI",
     "worker",
@@ -137,6 +139,18 @@ def _metadata_contains_internal_term(text: str) -> bool:
         if term_lower in lowered:
             return True
     return False
+
+
+def _has_category_contamination_term(text: str, term: str) -> bool:
+    if term in _KOREAN_PRICE_TICKER_TERMS:
+        return bool(
+            re.search(
+                rf"(?<![{_KOREAN_WORD_CHARS}]){re.escape(term)}(?![{_KOREAN_WORD_CHARS}])",
+                text,
+                re.I,
+            )
+        )
+    return bool(re.search(re.escape(term), text, re.I))
 
 
 def _text(value: Any) -> str:
@@ -396,7 +410,12 @@ def validate_generation_package(
         )
 
     contamination_terms = _CATEGORY_CONTAMINATION_MAP.get(category)
-    if script_policy["enabled"] and script_policy["prohibit_off_category"] and contamination_terms and re.search("|".join(re.escape(term) for term in contamination_terms), content_blob, re.I):
+    if (
+        script_policy["enabled"]
+        and script_policy["prohibit_off_category"]
+        and contamination_terms
+        and any(_has_category_contamination_term(content_blob, term) for term in contamination_terms)
+    ):
         if category in {"옛날이야기", "English Folktales", "日本昔話"}:
             errors.append(f"off-category finance/economy contamination detected for story category '{category}'")
         else:
