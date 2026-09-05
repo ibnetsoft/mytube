@@ -1274,6 +1274,7 @@ export default function StdPortalPage() {
                     method: 'PATCH',
                     headers: authedJsonHeaders,
                     body: JSON.stringify({
+                        allow_scene_update: true,
                         progress_payload: {
                             subtitles_saved: true,
                             subtitles_completed: true,
@@ -1935,6 +1936,7 @@ export default function StdPortalPage() {
                 method: 'PATCH',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
+                    allow_scene_update: true,
                     project_payload: {
                         scenes: updatedPayloadScenes,
                         structure: {
@@ -3985,7 +3987,6 @@ export default function StdPortalPage() {
                     ...(prev.project.project_payload || {}),
                     script: cleanScriptContextText(customScriptText || prev.project.project_payload?.script || ''),
                     subtitles: subtitlesForStorage,
-                    scenes: prev.scenes || [],
                     render_settings: {
                         ...(prev.project.project_payload?.render_settings || {}),
                         ...subtitleRenderSettings(),
@@ -4014,7 +4015,6 @@ export default function StdPortalPage() {
                         project_payload: {
                             script: cleanScriptContextText(customScriptText || selectedProject.project.project_payload?.script || ''),
                             subtitles: subtitlesForStorage,
-                            scenes: selectedProject.scenes || [],
                             render_settings: {
                                 ...(selectedProject.project.project_payload?.render_settings || {}),
                                 ...subtitleRenderSettings(),

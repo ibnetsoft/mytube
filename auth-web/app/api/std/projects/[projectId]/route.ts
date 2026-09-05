@@ -122,7 +122,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
-    const incomingScenes = Array.isArray(incomingProjectPayload?.scenes) ? incomingProjectPayload.scenes : []
+    const allowSceneUpdate = body?.allow_scene_update === true
+    const allowSceneInsert = body?.allow_scene_insert === true
+    const incomingScenes = allowSceneUpdate && Array.isArray(incomingProjectPayload?.scenes) ? incomingProjectPayload.scenes : []
     const allowedProgressKeys = new Set([
         'thumbnail_completed',
         'thumbnail_url',
@@ -152,6 +154,17 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const projectPayloadPatch = Object.fromEntries(
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
+    if (!allowSceneUpdate) {
+        delete (projectPayloadPatch as any).scenes
+        if (
+            projectPayloadPatch.structure
+            && typeof projectPayloadPatch.structure === 'object'
+            && !Array.isArray(projectPayloadPatch.structure)
+        ) {
+            const { scenes: _ignoredScenes, ...structureWithoutScenes } = projectPayloadPatch.structure as any
+            projectPayloadPatch.structure = structureWithoutScenes
+        }
+    }
     const canonicalOriginalWorkerScript = await resolveOriginalWorkerScript(project)
     if (canonicalOriginalWorkerScript) {
         projectPayloadPatch.original_worker_script = canonicalOriginalWorkerScript
@@ -186,6 +199,19 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .filter(Boolean) as any[]
         : []
 
+    let existingBySceneNumber = new Map<number, any>()
+    if (normalizedScenes.length > 0) {
+        const { data: existingScenes, error: existingScenesError } = await supabaseAdmin
+            .from('std_project_scenes')
+            .select('id,scene_number')
+            .eq('project_id', project.id)
+        if (existingScenesError) return NextResponse.json({ success: false, error: existingScenesError.message }, { status: 500 })
+        existingBySceneNumber = new Map((existingScenes || []).map((scene: any) => [Number(scene.scene_number), scene]))
+    }
+    const persistableScenes = allowSceneInsert
+        ? normalizedScenes
+        : normalizedScenes.filter(scene => existingBySceneNumber.has(Number(scene.scene_number)))
+
     const updatePayload: Record<string, any> = {
         updated_at: new Date().toISOString(),
     }
@@ -203,13 +229,13 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 ...projectPayloadPatch.structure,
             }
             : currentStructure
-        if (normalizedScenes.length > 0) {
-            nextStructure.scenes = normalizedScenes
+        if (persistableScenes.length > 0) {
+            nextStructure.scenes = persistableScenes
         }
         updatePayload.project_payload = {
             ...(project.project_payload || {}),
             ...projectPayloadPatch,
-            ...(normalizedScenes.length > 0 ? { scenes: normalizedScenes } : {}),
+            ...(persistableScenes.length > 0 ? { scenes: persistableScenes } : {}),
             ...(Object.keys(nextStructure).length > 0 ? { structure: nextStructure } : {}),
         }
     }
@@ -226,14 +252,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     let updatedScenes: any[] | null = null
     if (normalizedScenes.length > 0) {
-        const { data: existingScenes, error: existingScenesError } = await supabaseAdmin
-            .from('std_project_scenes')
-            .select('id,scene_number')
-            .eq('project_id', project.id)
-        if (existingScenesError) return NextResponse.json({ success: false, error: existingScenesError.message }, { status: 500 })
-
-        const existingBySceneNumber = new Map((existingScenes || []).map((scene: any) => [Number(scene.scene_number), scene]))
-        const updates = normalizedScenes
+        const updates = persistableScenes
             .filter(scene => existingBySceneNumber.has(Number(scene.scene_number)))
             .map(scene => supabaseAdmin
                 .from('std_project_scenes')
@@ -247,7 +266,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 })
                 .eq('id', existingBySceneNumber.get(Number(scene.scene_number))?.id)
             )
-        const inserts = normalizedScenes
+        const inserts = persistableScenes
             .filter(scene => !existingBySceneNumber.has(Number(scene.scene_number)))
             .map(scene => ({
                 ...scene,
@@ -259,7 +278,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         const failedUpdate = updateResults.find((result: any) => result.error)
         if (failedUpdate?.error) return NextResponse.json({ success: false, error: failedUpdate.error.message }, { status: 500 })
 
-        if (inserts.length > 0) {
+        if (allowSceneInsert && inserts.length > 0) {
             const { error: insertScenesError } = await supabaseAdmin.from('std_project_scenes').insert(inserts)
             if (insertScenesError) return NextResponse.json({ success: false, error: insertScenesError.message }, { status: 500 })
         }
