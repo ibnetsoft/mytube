@@ -622,6 +622,14 @@ def test_script_rewrite_is_chunked_to_preserve_every_scene_contract():
     assert "_parse_script_chunk_sections(raw, chunk_scenes, is_multi)" in source
 
 
+def test_image_grid_generation_uses_small_batches_to_avoid_json_truncation():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._generate_direct_image_grid_prompts)
+    assert "grid_batch_size = 4" in source
+    assert "grid_inputs[batch_start:batch_start + grid_batch_size]" in source
+
+
 def test_script_quality_retries_malformed_json_response():
     class Router:
         def __init__(self):

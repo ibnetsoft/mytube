@@ -3371,8 +3371,9 @@ Schema:
     # Generate large longform runs in bounded real-AI batches. This prevents
     # JSON truncation without creating synthetic image prompts.
     grids = []
-    for batch_start in range(0, len(grid_inputs), 12):
-        grid_batch = grid_inputs[batch_start:batch_start + 12]
+    grid_batch_size = 4
+    for batch_start in range(0, len(grid_inputs), grid_batch_size):
+        grid_batch = grid_inputs[batch_start:batch_start + grid_batch_size]
         batch_json = json.dumps(grid_batch, ensure_ascii=False, indent=2)
         batch_prompt = prompt.replace(grid_inputs_json, batch_json, 1)
         batch_grids = None
@@ -3384,7 +3385,7 @@ Schema:
                         batch_prompt,
                         model,
                         temperature=0.25 if attempt else 0.35,
-                        max_tokens=12000,
+                        max_tokens=6000,
                         task_type="image_grid_prompt_generation",
                     ),
                     timeout=90,
@@ -3401,11 +3402,11 @@ Schema:
             except Exception as exc:
                 last_error = exc
                 job_log.warning(
-                    f"AI image-grid batch {batch_start // 12 + 1} attempt {attempt + 1}/2 failed: {exc}"
+                    f"AI image-grid batch {batch_start // grid_batch_size + 1} attempt {attempt + 1}/2 failed: {exc}"
                 )
         if batch_grids is None:
             raise ValueError(
-                f"AI image-grid batch {batch_start // 12 + 1} failed after retry: {last_error}"
+                f"AI image-grid batch {batch_start // grid_batch_size + 1} failed after retry: {last_error}"
             )
         grids.extend(batch_grids)
 
