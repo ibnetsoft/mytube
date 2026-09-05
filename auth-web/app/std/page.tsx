@@ -2941,12 +2941,21 @@ export default function StdPortalPage() {
         if (showLoading) setLoading(true)
         setMessage('')
         try {
-            const headers = { Authorization: `Bearer ${accessToken}` }
+            const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` }
+            const activeImpersonateEmail = isImpersonating ? impersonateEmail.trim().toLowerCase() : ''
+            if (activeImpersonateEmail) headers['x-impersonate-email'] = activeImpersonateEmail
+            const impersonateQuery = activeImpersonateEmail
+                ? `impersonate=${encodeURIComponent(activeImpersonateEmail)}`
+                : ''
+            const withImpersonation = (path: string) => {
+                if (!impersonateQuery) return path
+                return `${path}${path.includes('?') ? '&' : '?'}${impersonateQuery}`
+            }
             const [meRes, topicsRes, projectsRes, voicesRes] = await Promise.allSettled([
-                fetch('/api/std/me', { headers }),
-                fetch(`/api/std/topics?refresh=1&limit=50`, { headers }),
-                fetch('/api/std/projects', { headers }),
-                fetch('/api/std/voices', { headers }),
+                fetch(withImpersonation('/api/std/me'), { headers }),
+                fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers }),
+                fetch(withImpersonation('/api/std/projects'), { headers }),
+                fetch(withImpersonation('/api/std/voices'), { headers }),
             ])
 
             let meData: any = {}
