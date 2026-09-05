@@ -55,7 +55,7 @@ VALUES ('hermes_generation', 1, '{
   "topic": {"enabled": true, "min_title_chars": 12},
   "plan": {"enabled": true, "min_scenes": 1, "require_media_status_ready": true},
   "script": {"enabled": true, "min_quality_score": 78, "min_hangul_chars": 1000, "max_latin_ratio": 0.05, "max_repeated_paragraph_opener": 2, "prohibit_fallback": true, "prohibit_off_category": true},
-  "media": {"enabled": true, "min_image_prompt_chars": 120, "min_video_prompt_chars": 260, "max_video_prompt_scenes": 12, "required_camera_movements": 1, "require_video_guardrails": true, "prohibit_duplicate_prompts": true, "require_image_grids": true},
+  "media": {"enabled": true, "min_image_prompt_chars": 120, "min_video_prompt_chars": 260, "max_video_prompt_scenes": 12, "required_camera_movements": 1, "require_video_guardrails": true, "prohibit_duplicate_prompts": true, "prohibit_duplicate_scene_summaries": true, "prohibit_duplicate_retention_hooks": true, "require_image_grids": true},
   "publish": {"enabled": true, "min_description_chars": 120, "require_language_match": true, "prohibit_internal_terms": true},
   "delivery": {"enabled": true, "require_all_prior_stages": true, "require_quality_report_pass": true, "block_scene_count_mismatch": true}
 }'::jsonb, 'migration')

@@ -13,7 +13,8 @@ export const DEFAULT_QUALITY_POLICY = {
         enabled: true, min_image_prompt_chars: 120, min_video_prompt_chars: 260,
         max_video_prompt_scenes: 12, required_camera_movements: 1,
         require_video_guardrails: true, prohibit_duplicate_prompts: true,
-        require_image_grids: true,
+        prohibit_duplicate_scene_summaries: true,
+        prohibit_duplicate_retention_hooks: true, require_image_grids: true,
     },
     publish: {
         enabled: true, min_description_chars: 120,
@@ -62,7 +63,9 @@ export function normalizeQualityPolicy(value: unknown) {
             max_video_prompt_scenes: number(media.max_video_prompt_scenes, 12, 0, 500),
             required_camera_movements: number(media.required_camera_movements, 1, 0, 10),
             require_video_guardrails: bool(media.require_video_guardrails, true),
-            prohibit_duplicate_prompts: bool(media.prohibit_duplicate_prompts, true),
+            prohibit_duplicate_prompts: true,
+            prohibit_duplicate_scene_summaries: true,
+            prohibit_duplicate_retention_hooks: true,
             require_image_grids: bool(media.require_image_grids, true),
         },
         publish: {
