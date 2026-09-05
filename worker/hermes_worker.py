@@ -8401,16 +8401,32 @@ Rules:
 - If verdict is "pass", critical_issues MUST be an empty array. Put non-blocking improvement notes in revision_notes.
 - If any item is severe enough to be called a critical issue, verdict MUST be "revise".
 """
+    compact_prompt = f"""
+{_script_qa_role(language)}
+
+Evaluate the final narration below with the same strict standards: hook, title
+promise, protagonist and conflict, rising tension, continuity, midpoint turn,
+emotional payoff, no filler/meta commentary, natural spoken narration, valid
+emotion cues, and varied paragraph openings.
+
+LANGUAGE: {language}
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+STORY CORE: {json.dumps((narrative_blueprint or {}).get("story_core") or narrative_blueprint or {}, ensure_ascii=False)}
+SCRIPT:
+{script}
+
+Return ONLY one JSON object with score, verdict, hook_score, structure_score,
+retention_score, payoff_score, naturalness_score, critical_issues, strengths,
+and revision_notes. If verdict is pass, critical_issues must be empty.
+"""
     last_error: Exception | None = None
-    for attempt in range(2):
-        retry_instruction = (
-            "\nYour previous response was not valid JSON. Return the JSON object only, "
-            "with no prose or markdown."
-            if attempt else ""
-        )
+    for attempt in range(3):
+        qa_prompt = prompt if attempt == 0 else compact_prompt
+        retry_instruction = "\nReturn valid JSON only, with no prose, markdown, or code fence."
         try:
             raw = await ai_router.generate_text(
-                f"{prompt}{retry_instruction}", model, temperature=0.2, max_tokens=3000,
+                f"{qa_prompt}{retry_instruction}", model, temperature=0.1, max_tokens=3000,
                 task_type="hermes_script_quality_qa",
                 json_mode=True,
             )

@@ -650,3 +650,12 @@ def test_script_quality_retries_malformed_json_response():
     assert router.calls == 2
     assert all(call["json_mode"] is True for call in router.kwargs)
     assert report["verdict"] == "pass"
+
+
+def test_script_quality_retry_uses_compact_prompt_without_full_scene_structure():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._evaluate_script_quality)
+    assert "compact_prompt = f" in source
+    assert "qa_prompt = prompt if attempt == 0 else compact_prompt" in source
+    assert "for attempt in range(3)" in source
