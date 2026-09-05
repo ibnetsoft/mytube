@@ -183,7 +183,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
         const resultPayload = job.result_payload || {}
         const { data: existingTopic } = await supabaseAdmin
             .from('topics_queue')
-            .select('progress_payload')
+            .select('progress_payload, pregenerated_structure')
             .eq('id', topicQueueId)
             .maybeSingle()
         const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
@@ -251,7 +251,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                     topic_queue_id: String(topicQueueId),
                     topic: resultPayload.topic || jobPayload.topic,
                     script,
-                    structure: resultPayload.structure || jobPayload.structure || {},
+                    structure: resultPayload.structure || existingTopic?.pregenerated_structure || jobPayload.structure || {},
                     upload_title: resultPayload.upload_title || jobPayload.upload_title,
                     title_generation: resultPayload.title_generation || jobPayload.title_generation,
                     narrative_blueprint: resultPayload.narrative_blueprint || {},
