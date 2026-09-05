@@ -8256,7 +8256,7 @@ Return ONLY JSON:
     # output-token ceiling. This only changes the allowed response size; it
     # does not manufacture any story content.
     blueprint_max_tokens = min(12_000, max(4_096, 1_200 + scene_count * 180))
-    for attempt in range(2):
+    for attempt in range(3):
         repair_note = ""
         if last_error:
             repair_note = (
@@ -8272,6 +8272,7 @@ Return ONLY JSON:
                 temperature=0.45 if attempt == 0 else 0.25,
                 max_tokens=blueprint_max_tokens,
                 task_type="hermes_script_blueprint",
+                json_mode=True,
             )
             parsed = _extract_json(raw)
             if not isinstance(parsed.get("scene_beats"), list):
@@ -8312,7 +8313,7 @@ Return ONLY JSON:
                             f"{coordinator_error}"
                         ) from coordinator_error
     raise RuntimeError(
-        f"story blueprint generation failed after one AI JSON-repair attempt; manual regeneration required: {last_error}"
+        f"story blueprint generation failed after two AI JSON-repair attempts; manual regeneration required: {last_error}"
     ) from last_error
 
 

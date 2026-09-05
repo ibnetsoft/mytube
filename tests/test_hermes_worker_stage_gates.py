@@ -52,6 +52,17 @@ class _ShortRewriteRouter:
         return '{"sections":[{"scene_order":1,"text":"짧은 수정문"}]}'
 
 
+class _BlueprintRetryRouter:
+    def __init__(self):
+        self.calls = []
+
+    async def generate_text(self, *_args, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) < 3:
+            return '{"scene_beats": [{"scene_order": 1 "beat": "broken"}]}'
+        return '{"logline":"ok","scene_beats":[{"scene_order":1,"beat":"전환","tension":"긴장","turn":"반전"}]}'
+
+
 def test_visual_direction_plan_normalizes_approved_camera_language_case():
     plan = hermes_worker._build_visual_direction_plan(
         _VisualPlanRouter(),
@@ -111,6 +122,25 @@ def test_structured_rewrite_preserves_valid_original_when_rewrite_is_too_short()
     ))
 
     assert sections == [original]
+
+
+def test_blueprint_uses_json_mode_and_allows_two_format_repairs():
+    router = _BlueprintRetryRouter()
+
+    blueprint = asyncio.run(hermes_worker._generate_narrative_blueprint(
+        router,
+        "gemini-3-flash-preview",
+        "주제",
+        "제목",
+        {"scenes": [{"scene_order": 1, "scene_summary": "전환"}]},
+        {},
+        "ko",
+        "무협 서사",
+    ))
+
+    assert blueprint["logline"] == "ok"
+    assert len(router.calls) == 3
+    assert all(call.get("json_mode") is True for call in router.calls)
 
 
 def test_script_plan_stage_rejects_repeated_scene_summaries():
