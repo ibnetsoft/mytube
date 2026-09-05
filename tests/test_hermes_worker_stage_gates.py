@@ -630,6 +630,15 @@ def test_image_grid_generation_uses_small_batches_to_avoid_json_truncation():
     assert "grid_inputs[batch_start:batch_start + grid_batch_size]" in source
 
 
+def test_visual_direction_plan_retries_real_json_without_fallback():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._build_visual_direction_plan)
+    assert "for attempt in range(3)" in source
+    assert "json_mode=True" in source
+    assert "_fallback_visual_direction_plan" not in source
+
+
 def test_script_quality_retries_malformed_json_response():
     class Router:
         def __init__(self):

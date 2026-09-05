@@ -3072,43 +3072,51 @@ Schema:
   "negative_prompt": "English negative prompt"
 }}
 """
-    try:
-        raw = asyncio.run(asyncio.wait_for(
-            ai_router.generate_text(
-                prompt,
-                model,
-                temperature=0.25,
-                max_tokens=2200,
-                task_type="scene_visual_direction_plan",
-            ),
-            timeout=45,
-        ))
-        plan = _extract_json(raw)
-        if not isinstance(plan, dict):
-            raise ValueError("visual direction plan is not an object")
-        required_fields = (
-            "overall_vision", "category_visual_grammar", "recurring_characters",
-            "recurring_locations", "continuity_anchors", "palette", "negative_prompt",
+    last_error: Exception | None = None
+    for attempt in range(3):
+        retry_instruction = (
+            "\nThe previous response was invalid. Return exactly one valid JSON object matching the schema."
+            if attempt else ""
         )
-        missing = [key for key in required_fields if not plan.get(key)]
-        if missing:
-            raise ValueError(f"visual direction plan missing required fields: {missing}")
-        plan["image_style_key"] = image_style_key
-        plan["image_style_directive"] = image_style_directive
-        approved_movements = {movement.casefold(): movement for movement in MEDIA_CAMERA_MOVEMENTS}
-        plan["camera_language"] = list(dict.fromkeys(
-            approved_movements[item]
-            for value in (plan.get("camera_language") or [])
-            if (item := str(value).strip().casefold()) in approved_movements
-        ))
-        if not plan["camera_language"]:
-            raise ValueError("visual direction plan has no approved camera language")
-        return plan
-    except Exception as exc:
-        _reraise_if_provider_credit_exhausted(exc)
-        raise RuntimeError(
-            f"visual direction plan generation failed; no fixed visual-plan fallback is allowed: {exc}"
-        ) from exc
+        try:
+            raw = asyncio.run(asyncio.wait_for(
+                ai_router.generate_text(
+                    f"{prompt}{retry_instruction}",
+                    model,
+                    temperature=0.1 if attempt else 0.2,
+                    max_tokens=2200,
+                    task_type="scene_visual_direction_plan",
+                    json_mode=True,
+                ),
+                timeout=45,
+            ))
+            plan = _extract_json(raw)
+            if not isinstance(plan, dict):
+                raise ValueError("visual direction plan is not an object")
+            required_fields = (
+                "overall_vision", "category_visual_grammar", "recurring_characters",
+                "recurring_locations", "continuity_anchors", "palette", "negative_prompt",
+            )
+            missing = [key for key in required_fields if not plan.get(key)]
+            if missing:
+                raise ValueError(f"visual direction plan missing required fields: {missing}")
+            plan["image_style_key"] = image_style_key
+            plan["image_style_directive"] = image_style_directive
+            approved_movements = {movement.casefold(): movement for movement in MEDIA_CAMERA_MOVEMENTS}
+            plan["camera_language"] = list(dict.fromkeys(
+                approved_movements[item]
+                for value in (plan.get("camera_language") or [])
+                if (item := str(value).strip().casefold()) in approved_movements
+            ))
+            if not plan["camera_language"]:
+                raise ValueError("visual direction plan has no approved camera language")
+            return plan
+        except Exception as exc:
+            _reraise_if_provider_credit_exhausted(exc)
+            last_error = exc
+    raise RuntimeError(
+        f"visual direction plan generation failed; no fixed visual-plan fallback is allowed: {last_error}"
+    ) from last_error
 
 
 def _validate_video_prompt_quality(media: dict, scene_label: str) -> None:
