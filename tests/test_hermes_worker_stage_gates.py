@@ -47,6 +47,11 @@ class _VisualPlanRouter:
         }"""
 
 
+class _ShortRewriteRouter:
+    async def generate_text(self, *_args, **_kwargs):
+        return '{"sections":[{"scene_order":1,"text":"짧은 수정문"}]}'
+
+
 def test_visual_direction_plan_normalizes_approved_camera_language_case():
     plan = hermes_worker._build_visual_direction_plan(
         _VisualPlanRouter(),
@@ -86,6 +91,26 @@ def test_remote_script_result_omits_large_media_structure():
     assert compact["script_quality_report"]["verdict"] == "pass"
     assert "structure" not in compact
     assert "supporting_characters" not in compact
+
+
+def test_structured_rewrite_preserves_valid_original_when_rewrite_is_too_short():
+    original = "검증된 원래 장면의 문장이 충분히 이어집니다."
+
+    sections = asyncio.run(hermes_worker._revise_script_sections(
+        _ShortRewriteRouter(),
+        "test-model",
+        "주제",
+        "제목",
+        {},
+        [{"scene_order": 1, "scene_summary": "첫 장면"}],
+        [original],
+        [{"min_chars": 30, "max_chars": 80}],
+        {"verdict": "revise", "critical_issues": ["후반부 문제"]},
+        "ko",
+        False,
+    ))
+
+    assert sections == [original]
 
 
 def test_script_plan_stage_rejects_repeated_scene_summaries():

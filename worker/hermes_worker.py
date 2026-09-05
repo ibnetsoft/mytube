@@ -8703,16 +8703,23 @@ Return ONLY JSON:
         is_multi,
         lambda index, _scene: original_by_index[index] if index < len(original_by_index) else "",
     )
-    return [
-        _ensure_scene_section_target_length(
-            section,
-            scene,
-            int((scene_budgets[index] if index < len(scene_budgets) else {}).get("min_chars") or 80),
-            language=language,
-            is_multi=is_multi,
-        )
-        for index, (scene, section) in enumerate(zip(scenes, rewritten_sections))
-    ]
+    validated_sections = []
+    for index, (scene, section) in enumerate(zip(scenes, rewritten_sections)):
+        minimum = int((scene_budgets[index] if index < len(scene_budgets) else {}).get("min_chars") or 80)
+        try:
+            validated = _ensure_scene_section_target_length(
+                section, scene, minimum, language=language, is_multi=is_multi,
+            )
+        except RuntimeError:
+            # Do not let a whole-script QA rewrite damage a scene that was
+            # already valid. The final whole-script QA still rejects the
+            # preserved source if it contains the issue being repaired.
+            original = original_by_index[index] if index < len(original_by_index) else ""
+            validated = _ensure_scene_section_target_length(
+                original, scene, minimum, language=language, is_multi=is_multi,
+            )
+        validated_sections.append(validated)
+    return validated_sections
 
 
 def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
