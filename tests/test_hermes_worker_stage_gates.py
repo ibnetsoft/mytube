@@ -104,24 +104,23 @@ def test_remote_script_result_omits_large_media_structure():
     assert "supporting_characters" not in compact
 
 
-def test_structured_rewrite_preserves_valid_original_when_rewrite_is_too_short():
+def test_structured_rewrite_fails_when_rewrite_is_too_short():
     original = "검증된 원래 장면의 문장이 충분히 이어집니다."
 
-    sections = asyncio.run(hermes_worker._revise_script_sections(
-        _ShortRewriteRouter(),
-        "test-model",
-        "주제",
-        "제목",
-        {},
-        [{"scene_order": 1, "scene_summary": "첫 장면"}],
-        [original],
-        [{"min_chars": 30, "max_chars": 80}],
-        {"verdict": "revise", "critical_issues": ["후반부 문제"]},
-        "ko",
-        False,
-    ))
-
-    assert sections == [original]
+    with pytest.raises(RuntimeError, match="underlength"):
+        asyncio.run(hermes_worker._revise_script_sections(
+            _ShortRewriteRouter(),
+            "test-model",
+            "주제",
+            "제목",
+            {},
+            [{"scene_order": 1, "scene_summary": "첫 장면"}],
+            [original],
+            [{"min_chars": 30, "max_chars": 80}],
+            {"verdict": "revise", "critical_issues": ["후반부 문제"]},
+            "ko",
+            False,
+        ))
 
 
 def test_blueprint_uses_json_mode_and_allows_two_format_repairs():
@@ -322,19 +321,9 @@ def test_cleanup_section_text_preserves_japanese_cjk_characters_and_punctuation(
     assert hermes_worker._clean_section_text(source, is_multi=False) == source
 
 
-def test_korean_language_rescue_script_passes_latin_gate():
-    payload = build_valid_sample_payload("탈북사연")
-    title = payload["generated_title"]
-
-    script = hermes_worker._build_korean_language_rescue_script(
-        title,
-        title,
-        payload["structure"],
-    )
-    stats = hermes_worker._script_language_stats(script)
-
-    assert stats["hangul"] >= 1000
-    assert not hermes_worker._script_has_excessive_latin(script)
+def test_korean_language_rescue_script_is_disabled():
+    with pytest.raises(RuntimeError, match="Synthetic Korean rescue script is disabled"):
+        hermes_worker._build_korean_language_rescue_script("주제", "제목", {})
 
 
 @pytest.mark.parametrize(
@@ -344,8 +333,9 @@ def test_korean_language_rescue_script_passes_latin_gate():
         (hermes_worker._build_japanese_language_rescue_script, "テーマ", "タイトル"),
     ],
 )
-def test_language_rescue_scripts_honor_requested_minimum_length(builder, topic, title):
-    assert len(builder(topic, title, {}, min_total_chars=10_000)) >= 10_000
+def test_language_rescue_scripts_are_disabled(builder, topic, title):
+    with pytest.raises(RuntimeError, match="Synthetic .* rescue script is disabled"):
+        builder(topic, title, {}, min_total_chars=10_000)
 
 
 def test_emotion_cue_normalizer_repairs_dialogue_and_long_narration():

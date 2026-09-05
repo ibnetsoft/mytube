@@ -705,17 +705,14 @@ Return JSON only:
             p_settings = db.get_project_settings(project_id) or {}
             target_lang = p_settings.get("target_language") or p_data.get("language") or "ko"
             metadata = await gemini_service.generate_video_metadata(script_text, target_language=target_lang)
-            if metadata:
-                db.update_project_setting(project_id, "title", metadata.get("title"))
-                db.update_project_setting(project_id, "description", metadata.get("description"))
-                db.update_project_setting(project_id, "hashtags", ",".join(metadata.get("tags", [])))
-                print(f"✅ [Auto-Pilot] 메타데이터 생성 완료: {metadata.get('title')}")
+            if not metadata:
+                raise RuntimeError("Metadata generation returned no content")
+            db.update_project_setting(project_id, "title", metadata.get("title"))
+            db.update_project_setting(project_id, "description", metadata.get("description"))
+            db.update_project_setting(project_id, "hashtags", ",".join(metadata.get("tags", [])))
+            print(f"✅ [Auto-Pilot] 메타데이터 생성 완료: {metadata.get('title')}")
         except Exception as e:
-            print(f"⚠️ [Auto-Pilot] 메타데이터 생성 실패: {e}")
-            topic = db.get_project(project_id).get("topic", "흥미로운 이야기")
-            db.update_project_setting(project_id, "title", f"{topic}에 대한 흥미로운 이야기")
-            db.update_project_setting(project_id, "description", f"오늘 우리는 {topic}에 대한 주제를 심도 있게 알아봅니다.")
-            db.update_project_setting(project_id, "hashtags", f"{topic},유튜브,쇼츠")
+            raise RuntimeError(f"Metadata generation failed; synthetic fallback is disabled: {e}") from e
 
     async def _find_best_material(self, keyword: str):
         try:
@@ -728,18 +725,9 @@ Return JSON only:
             data = await async_youtube_get("search", params, timeout=10)
             if "items" in data and data["items"]:
                 return data["items"][0]
+            raise RuntimeError("YouTube search returned no source videos")
         except Exception as e:
-            print(f"⚠️ [SDK Autopilot Fallback] _find_best_material failed: {e}")
-            
-        # Fallback dummy video data
-        return {
-            "id": {"videoId": "default_fallback_vid"},
-            "snippet": {
-                "title": f"Viral Trend of: {keyword}",
-                "description": f"Exploring the latest updates and popular concepts about {keyword} dynamically analyzed.",
-                "thumbnails": {"default": {"url": ""}}
-            }
-        }
+            raise RuntimeError(f"Source video discovery failed; synthetic fallback is disabled: {e}") from e
 
     async def _analyze_video(self, video_data: dict, project_id: int = None):
         try:
@@ -768,14 +756,11 @@ Return JSON only:
             result_text = await gemini_service.generate_text(prompt, temperature=0.7, project_id=project_id, task_type="analysis")
             import re
             json_match = re.search(r'\{[\s\S]*\}', result_text)
-            return json.loads(json_match.group()) if json_match else {"summary": result_text}
+            if not json_match:
+                raise ValueError("Video analysis did not return JSON")
+            return json.loads(json_match.group())
         except Exception as e:
-            print(f"⚠️ [SDK Autopilot Fallback] _analyze_video failed: {e}. Generating default analysis.")
-            return {
-                "sentiment": "neutral",
-                "topics": [video_data.get('snippet', {}).get('title', 'Default Topic')],
-                "viewer_needs": "Standard content interest"
-            }
+            raise RuntimeError(f"Video analysis failed; synthetic fallback is disabled: {e}") from e
 
     async def _generate_script(self, project_id: int, analysis: dict, config_dict: dict):
         # 웹어드민에서 방금 바꾼 대본 생성 모델/스타일이 앱 재시작 없이도
@@ -899,16 +884,17 @@ Return JSON only:
 
                   import re
                   match = re.search(r'\{[\s\S]*\}', result_text_s)
-                  if match:
-                      new_struct = json.loads(match.group())
-                      if "style" not in new_struct: new_struct["style"] = style_key
-                      db.save_script_structure(project_id, new_struct)
-                      if is_music_playlist:
-                          db.update_project_setting(project_id, "longform_music_plan_json", json.dumps(new_struct, ensure_ascii=False))
-                      manual_plan = {"structure": new_struct}
-                      print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장.")
+                  if not match:
+                      raise ValueError("Automatic planning did not return JSON")
+                  new_struct = json.loads(match.group())
+                  if "style" not in new_struct: new_struct["style"] = style_key
+                  db.save_script_structure(project_id, new_struct)
+                  if is_music_playlist:
+                      db.update_project_setting(project_id, "longform_music_plan_json", json.dumps(new_struct, ensure_ascii=False))
+                  manual_plan = {"structure": new_struct}
+                  print(f"✅ [Auto-Pilot] 자동 기획 완료 및 저장.")
              except Exception as e:
-                 print(f"⚠️ [Auto-Pilot] 자동 기획 실패: {e}")
+                 raise RuntimeError(f"Automatic planning failed; unplanned generation fallback is disabled: {e}") from e
         
         if manual_plan and manual_plan.get("structure"):
             print(f"📄 [Auto-Pilot] 수동 기획 데이터 발견! 기획 기반 대본 작성 모드로 전환합니다.")
@@ -1009,15 +995,7 @@ Create a production-ready playlist script/brief in Korean from this planning dat
             script = None
 
         if not script:
-            print(f"🚨 [Auto-Pilot] Both models failed to generate script. Using fallback draft script.")
-            topic_name = db.get_project(project_id).get('topic', '흥미로운 주제')
-            script = f"""(차분하게)
-안녕하십니까. 오늘 우리는 {topic_name}에 대한 이야기를 나누어 보고자 합니다.
-많은 분들이 궁금해 하셨던 이 주제의 진실과 핵심 포인트를 지금부터 명확하게 짚어 드리겠습니다.
-첫째로, 이 주제의 가장 본질적인 부분입니다. 이것은 우리의 일상과 사회에 큰 영향을 미치고 있습니다.
-둘째로, 우리가 생각해보아야 할 쟁점들입니다. 미처 알지 못했던 흥미로운 사실들이 여기에 숨어 있습니다.
-마지막으로, 우리가 앞으로 어떤 태도를 가져야 할지에 대한 고찰입니다.
-오늘 영상이 여러분의 생각의 깊이를 더해주는 계기가 되었기를 바랍니다. 시청해주셔서 감사합니다."""
+            raise RuntimeError("Script generation returned no content; synthetic fallback is disabled")
 
         # [CRITICAL] 4가지 금지 항목 정제 (괄호, 타임스탬프, 이모티콘, 화자 표시)
         import re
@@ -2950,6 +2928,7 @@ JSON만 출력하세요:
 
     def _generate_fallback_image(self, prompt: str, aspect_ratio: str = "16:9") -> bytes:
         """[SDK Autopilot Hook] Generate a fallback gradient image using PIL when AI image APIs fail"""
+        raise RuntimeError("Synthetic image fallback is disabled")
         from PIL import Image, ImageDraw
         import io
         import random

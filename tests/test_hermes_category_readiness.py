@@ -3,6 +3,8 @@ import sys
 import json
 import asyncio
 
+import pytest
+
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKER = ROOT / "worker"
@@ -365,93 +367,29 @@ def test_category_autopilot_can_bypass_resume_when_explicit_new_pipeline(monkeyp
     assert asyncio.run(manager._resume_existing_category_pipeline_if_any("탈북사연")) is False
 
 
-def test_autopilot_plan_jobs_can_use_scene_planner_fallback():
-    assert not hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
-    assert not hermes_worker._requires_strict_scene_planner_success(
-        {"source": "manual", "payload": {"defer_ready_until_quality_gate": True}}
-    )
-    assert hermes_worker._requires_strict_scene_planner_success(
-        {"source": "manual", "payload": {"require_scene_planner_success": True}}
-    )
-    assert not hermes_worker._requires_strict_scene_planner_success({"source": "manual", "payload": {}})
+def test_all_script_plan_jobs_require_real_scene_planner_output():
+    assert hermes_worker._requires_strict_scene_planner_success({"source": "autopilot", "payload": {}})
+    assert hermes_worker._requires_strict_scene_planner_success({"source": "manual", "payload": {}})
 
 
 def test_fallback_scene_plan_builds_slots_without_ai_output():
-    structure = hermes_worker._build_fallback_scene_plan(
-        topic="황혼19금",
-        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
-        target_duration=120,
-        script_style="황혼 story",
-        style_directive="",
-        benchmark_analysis={"title": "reference"},
-        title_generation={},
-    )
-
-    assert structure["scene_count"] == len(structure["scenes"])
-    assert structure["scenes"]
-    assert structure["scenes"][0]["time_range"] == "0-5s"
-    assert structure["planner_notes"]["fallback"] is True
+    with pytest.raises(RuntimeError, match="Synthetic scene-plan fallback is disabled"):
+        hermes_worker._build_fallback_scene_plan("topic", "title", 120, "default", "", {}, {})
 
 
 def test_long_fallback_scene_plan_does_not_trip_repetition_qa():
-    structure = hermes_worker._build_fallback_scene_plan(
-        topic="황혼19금",
-        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
-        target_duration=9000,
-        script_style="story",
-        style_directive="",
-        benchmark_analysis={"title": "reference"},
-        title_generation={},
-    )
-
-    assert not hermes_worker._scene_plan_repetition_errors(structure)
+    with pytest.raises(RuntimeError, match="Synthetic scene-plan fallback is disabled"):
+        hermes_worker._build_fallback_scene_plan("topic", "title", 9000, "default", "", {}, {})
 
 
 def test_fallback_scene_plan_uses_category_when_style_is_generic():
-    structure = hermes_worker._build_fallback_scene_plan(
-        topic="탈북사연",
-        upload_title="고아원에서 함께 자란 친구, 내 대신 붙잡히다...3년 만에 마주친 그녀의 눈빛",
-        target_duration=120,
-        script_style="dramatic_single",
-        style_directive="",
-        benchmark_analysis={"title": "reference"},
-        title_generation={},
-        category="탈북사연",
-    )
-
-    serialized = json.dumps(structure, ensure_ascii=False)
-    assert "money decisions" not in serialized
-    assert "economic signal" not in serialized
-    assert "urgent economic explainer" not in serialized
-    assert "survival" in serialized.lower()
-    assert "North Korean defector testimony" in serialized
+    with pytest.raises(RuntimeError, match="Synthetic scene-plan fallback is disabled"):
+        hermes_worker._build_fallback_scene_plan("topic", "title", 120, "default", "", {}, {}, "story")
 
 
 def test_non_economy_category_fallbacks_do_not_use_economy_copy():
-    categories = [
-        ("탈북사연", "국경을 넘은 딸이 10년 뒤 어머니에게 보낸 편지"),
-        ("해외감동", "공항에서 잃어버린 지갑을 들고 3시간을 기다린 노인"),
-        ("황혼19금", "아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지"),
-        ("한국사연", "회사에서 쫓겨난 엄마가 회의실에 들고 온 녹음파일"),
-        ("무협", "사부의 검을 숨긴 제자가 십 년 만에 돌아온 밤"),
-        ("옛날이야기", "도깨비 할머니가 숨긴 금화 - 마을 사람들이 60년을 찾던 이유"),
-    ]
-
-    for category, title in categories:
-        structure = hermes_worker._build_fallback_scene_plan(
-            topic=category,
-            upload_title=title,
-            target_duration=120,
-            script_style="dramatic_single",
-            style_directive="",
-            benchmark_analysis={"title": "reference"},
-            title_generation={},
-            category=category,
-        )
-        serialized = json.dumps(structure, ensure_ascii=False)
-        assert "money decisions" not in serialized, category
-        assert "economic signal" not in serialized, category
-        assert "urgent economic explainer" not in serialized, category
+    with pytest.raises(RuntimeError, match="Synthetic scene-plan fallback is disabled"):
+        hermes_worker._build_fallback_scene_plan("topic", "title", 120, "default", "", {}, {})
 
 
 def test_twilight_repair_keeps_long_scene_plan_unique():
@@ -476,35 +414,13 @@ def test_twilight_repair_keeps_long_scene_plan_unique():
 
 
 def test_fallback_narration_section_avoids_repeated_fillers():
-    scene = {
-        "scene_summary": "낡은 편지를 발견한 남편이 아내의 비밀을 의심한다",
-        "scene_situation": "황혼의 집 안에서 일기장과 편지가 발견된다",
-        "scene_purpose": "숨겨진 사연의 첫 단서를 제시한다",
-        "retention_hook": "편지의 주인은 누구였을까",
-    }
-
-    text = hermes_worker._fallback_narration_section(
-        topic="황혼19금",
-        upload_title="아내가 남긴 일기장 속에서 발견한 40년 전 첫사랑의 편지",
-        scene=scene,
-        idx=42,
-        total=258,
-        min_chars=1400,
-    )
-
-    assert not hermes_worker._detect_repeated_script_sentences(text, max_allowed=3)
+    with pytest.raises(RuntimeError, match="Synthetic narration fallback is disabled"):
+        hermes_worker._fallback_narration_section("topic", "title", {}, 1, 1, 100)
 
 
 def test_target_categories_have_title_styles_and_safe_fallbacks():
-    manager = hermes_autopilot.HermesAutopilotManager()
-
-    for category in TARGET_CATEGORIES:
-        style = manager._category_title_style(category)
-        fallback = manager._category_fallback_title(category)
-
-        assert style
-        assert fallback
-        assert manager._is_usable_title_candidate(fallback, category)
+    with pytest.raises(RuntimeError, match="Synthetic category title fallback is disabled"):
+        hermes_autopilot.HermesAutopilotManager()._category_fallback_title("옛날이야기")
 
 
 def test_target_categories_have_rss_relevance_terms():

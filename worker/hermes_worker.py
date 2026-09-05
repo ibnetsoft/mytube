@@ -379,7 +379,7 @@ def _music_market_defaults(target_market: str) -> dict:
     }
 
 
-def _normalize_music_string_list(raw, fallback: list[str], *, limit: int = 8) -> list[str]:
+def _normalize_music_string_list(raw, *, limit: int = 8) -> list[str]:
     values = raw if isinstance(raw, list) else str(raw or "").split(",")
     normalized = []
     seen = set()
@@ -392,7 +392,7 @@ def _normalize_music_string_list(raw, fallback: list[str], *, limit: int = 8) ->
         normalized.append(text)
         if len(normalized) >= limit:
             break
-    return normalized or list(fallback)
+    return normalized
 
 
 def _coerce_music_positive_int(value, default: int, *, minimum: int, maximum: int) -> int:
@@ -424,34 +424,22 @@ def _normalize_music_trend_result(
     track_count: int,
     track_duration_seconds: int,
 ) -> dict:
-    defaults = _music_market_defaults(target_market)
     result = dict(data or {})
-    genres = _normalize_music_string_list(
-        result.get("popular_genres"),
-        defaults["popular_genres"],
-        limit=6,
-    )
-    moods = _normalize_music_string_list(result.get("core_moods"), defaults["moods"], limit=6)
+    genres = _normalize_music_string_list(result.get("popular_genres"), limit=6)
+    moods = _normalize_music_string_list(result.get("core_moods"), limit=6)
+    trend_summary = str(result.get("trend_summary") or "").strip()
+    title_pattern_notes = _normalize_music_string_list(result.get("title_pattern_notes"), limit=5)
+    if not genres or not moods or not trend_summary or not title_pattern_notes:
+        raise ValueError("music trend response omitted required AI-authored fields")
     return {
         "target_market": target_market,
-        "playlist_concept": str(result.get("playlist_concept") or playlist_concept or defaults["playlist_concept"]).strip(),
+        "playlist_concept": str(result.get("playlist_concept") or playlist_concept).strip(),
         "popular_genres": genres,
         "core_moods": moods,
         "track_count": track_count,
         "track_duration_seconds": track_duration_seconds,
-        "trend_summary": str(result.get("trend_summary") or "").strip() or (
-            f"{target_market} longform music demand leans toward {', '.join(genres[:3])} with a "
-            f"{', '.join(moods[:3])} listening mood."
-        ),
-        "title_pattern_notes": _normalize_music_string_list(
-            result.get("title_pattern_notes"),
-            [
-                "Use place + atmosphere + function wording",
-                "Prefer calm promise over hype language",
-                "Keep titles instrumental-safe and playlist-friendly",
-            ],
-            limit=5,
-        ),
+        "trend_summary": trend_summary,
+        "title_pattern_notes": title_pattern_notes,
         "source_evidence_summary": result.get("source_evidence_summary") if isinstance(result.get("source_evidence_summary"), dict) else {},
     }
 
@@ -471,27 +459,20 @@ def _normalize_music_prompt_pack_result(
         track_count=track_count,
         track_duration_seconds=track_duration_seconds,
     )
-    defaults = _music_market_defaults(target_market)
     tracks = data.get("tracks") if isinstance(data, dict) and isinstance(data.get("tracks"), list) else []
+    if len(tracks) != track_count:
+        raise ValueError(f"music prompt pack requires exactly {track_count} tracks; received {len(tracks)}")
     normalized_tracks = []
-    for index in range(1, track_count + 1):
-        source = tracks[index - 1] if index - 1 < len(tracks) and isinstance(tracks[index - 1], dict) else {}
-        genre = str(source.get("genre") or trend["popular_genres"][(index - 1) % len(trend["popular_genres"])]).strip()
-        mood = str(source.get("mood") or ", ".join(trend["core_moods"][:3])).strip()
-        title = str(source.get("title") or "").strip() or _build_music_track_title(
-            index, trend["playlist_concept"], defaults["title_tokens"]
-        )
+    for index, source in enumerate(tracks, start=1):
+        if not isinstance(source, dict):
+            raise ValueError(f"music track {index} must be an object")
+        genre = str(source.get("genre") or "").strip()
+        mood = str(source.get("mood") or "").strip()
+        title = str(source.get("title") or "").strip()
         prompt = str(source.get("prompt") or "").strip()
-        if not prompt:
-            prompt = (
-                f"Original instrumental {genre} track with {mood} mood, {trend['playlist_concept']}, "
-                "loopable arrangement, clean intro and outro, no vocals, no copyrighted melody."
-            )
-        negative_rules = _normalize_music_string_list(
-            source.get("negative_rules"),
-            _default_music_negative_rules(),
-            limit=6,
-        )
+        negative_rules = _normalize_music_string_list(source.get("negative_rules"), limit=6)
+        if not all((title, genre, mood, prompt)) or not negative_rules:
+            raise ValueError(f"music track {index} omitted required AI-authored fields")
         normalized_tracks.append(
             {
                 "title": title,
@@ -512,13 +493,9 @@ def _normalize_music_prompt_pack_result(
         "job_focus": "suno_prompt_pack",
         "generation_language": _music_market_language_code(target_market),
         "tracks": normalized_tracks,
-        "negative_rules_default": _default_music_negative_rules(),
-        "tag_candidates": _normalize_music_string_list(
-            data.get("tag_candidates") if isinstance(data, dict) else None,
-            trend["popular_genres"] + trend["core_moods"],
-            limit=12,
-        ),
-        "lyrics_direction": str((data or {}).get("lyrics_direction") or "Instrumental-first, no lead vocal, no copyrighted lyric fragments.").strip(),
+        "negative_rules_default": _normalize_music_string_list((data or {}).get("negative_rules_default"), limit=6),
+        "tag_candidates": _normalize_music_string_list(data.get("tag_candidates"), limit=12),
+        "lyrics_direction": str((data or {}).get("lyrics_direction") or "").strip(),
     }
 
 
@@ -670,6 +647,7 @@ def _u(text: str) -> str:
 
 
 def _fallback_publish_metadata(topic: str, upload_title: str, script: str, language: str) -> dict:
+    raise RuntimeError("Synthetic publish metadata fallback is disabled")
     title = (upload_title or topic or "Untitled").strip()
     script_excerpt = re.sub(r"\s+", " ", (script or "")).strip()
     if len(script_excerpt) > 260:
@@ -769,17 +747,17 @@ def _text_with_mojibake_repairs(*values) -> str:
     return " ".join(parts).lower()
 
 
-def _clean_metadata_description(description: str, fallback: str) -> str:
+def _clean_metadata_description(description: str) -> str:
     paragraphs = []
     for paragraph in re.split(r"\n{2,}", str(description or "").strip()):
         normalized = paragraph.strip()
         if normalized and not _looks_corrupt_metadata_text(normalized):
             paragraphs.append(normalized)
     cleaned = "\n\n".join(paragraphs).strip()
-    return cleaned or fallback
+    return cleaned
 
 
-def _clean_metadata_list(values: list, fallback: list[str], *, hashtag: bool = False) -> list[str]:
+def _clean_metadata_list(values: list, *, hashtag: bool = False) -> list[str]:
     cleaned = []
     seen = set()
     for item in values:
@@ -794,7 +772,7 @@ def _clean_metadata_list(values: list, fallback: list[str], *, hashtag: bool = F
             continue
         seen.add(key)
         cleaned.append(value)
-    return cleaned or fallback
+    return cleaned
 
 
 _METADATA_INTERNAL_TERMS = (
@@ -897,6 +875,9 @@ def _validate_publish_metadata_quality(metadata: dict, topic: str, upload_title:
         raise ValueError("publish_metadata title does not match script content")
     clean_tags = [str(tag or "").strip() for tag in tags if str(tag or "").strip()]
     clean_hashtags = [str(tag or "").strip() for tag in hashtags if str(tag or "").strip()]
+    clean_titles = [str(item or "").strip() for item in (metadata.get("titles") or []) if str(item or "").strip()]
+    if not clean_titles:
+        raise ValueError("publish_metadata requires generated titles")
     if language == "ja":
         if any(not _is_japanese_visible_text(tag.lstrip("#"), min_chars=1) for tag in clean_tags[:8]):
             raise ValueError("publish_metadata tags are not Japanese enough")
@@ -913,20 +894,16 @@ def _validate_publish_metadata_quality(metadata: dict, topic: str, upload_title:
 
 
 def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, script: str, language: str) -> dict:
-    fallback = _fallback_publish_metadata(topic, upload_title, script, language)
     if not isinstance(data, dict):
-        return fallback
+        raise ValueError("publish_metadata response must be an object")
 
     titles = data.get("titles")
     if not isinstance(titles, list):
         titles = []
     titles = [str(title).strip() for title in titles if str(title or "").strip()]
-    primary_title = str(data.get("title") or upload_title or "").strip()
+    primary_title = str(data.get("title") or "").strip()
     if primary_title and primary_title not in titles:
         titles.insert(0, primary_title)
-    if not titles:
-        titles = fallback["titles"]
-
     tags = data.get("tags")
     if not isinstance(tags, list):
         tags = []
@@ -934,14 +911,9 @@ def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, scrip
     if not isinstance(hashtags, list):
         hashtags = []
 
-    description = _clean_metadata_description(str(data.get("description") or ""), fallback["description"])
-
-    cleaned_tags = _clean_metadata_list(tags, fallback["tags"])[:15]
-    cleaned_hashtags = _clean_metadata_list(hashtags, fallback["hashtags"], hashtag=True)[:10]
-    if len(cleaned_tags) < 5:
-        cleaned_tags = _clean_metadata_list(cleaned_tags + list(fallback["tags"]), fallback["tags"])[:15]
-    if len(cleaned_hashtags) < 3:
-        cleaned_hashtags = _clean_metadata_list(cleaned_hashtags + list(fallback["hashtags"]), fallback["hashtags"], hashtag=True)[:10]
+    description = _clean_metadata_description(str(data.get("description") or ""))
+    cleaned_tags = _clean_metadata_list(tags)[:15]
+    cleaned_hashtags = _clean_metadata_list(hashtags, hashtag=True)[:10]
 
     return {
         "titles": titles[:5],
@@ -1025,9 +997,7 @@ SCRIPT EXCERPT:
         raise ValueError(last_error or "publish metadata quality check failed")
     except Exception as e:
         _reraise_if_provider_credit_exhausted(e)
-        fallback = _fallback_publish_metadata(topic, upload_title, script, language)
-        fallback["metadata_error"] = str(e)
-        return fallback
+        raise RuntimeError(f"publish metadata generation failed; synthetic fallback is disabled: {e}") from e
 
 
 def _build_prompt(keyword: str, language: str, country: str, count: int) -> str:
@@ -2335,14 +2305,8 @@ Preferred starting concept: {playlist_concept}
             track_duration_seconds=track_duration_seconds,
         )
     except Exception as exc:
-        job_log.warning(f"Music trend AI analysis failed, using fallback: {exc}")
-        analysis = _normalize_music_trend_result(
-            {},
-            target_market=target_market,
-            playlist_concept=playlist_concept,
-            track_count=track_count,
-            track_duration_seconds=track_duration_seconds,
-        )
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(f"music trend analysis failed; synthetic fallback is disabled: {exc}") from exc
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving music trend result")
     write_state("running", job, 90, job_id)
@@ -2460,14 +2424,8 @@ Optional source evidence:
             track_duration_seconds=track_duration_seconds,
         )
     except Exception as exc:
-        job_log.warning(f"Music prompt-pack generation failed, using fallback: {exc}")
-        pack = _normalize_music_prompt_pack_result(
-            trend_seed,
-            target_market=target_market,
-            playlist_concept=playlist_concept,
-            track_count=track_count,
-            track_duration_seconds=track_duration_seconds,
-        )
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(f"music prompt-pack generation failed; synthetic fallback is disabled: {exc}") from exc
 
     job_store.transition(job_id, job_store.UPLOADING, reason="saving music prompt pack")
     write_state("running", job, 90, job_id)
@@ -2578,10 +2536,9 @@ Return JSON only:
 def _normalize_music_prompt_tasks(data: dict, payload: dict) -> list[dict]:
     raw_tracks = data.get("tracks")
     if not isinstance(raw_tracks, list):
-        raw_tracks = []
+        raise ValueError("music prompt response must contain a tracks array")
 
     target_market = str(payload.get("target_market") or data.get("target_market") or "th").strip().lower()
-    genre_fallback = str(payload.get("genre") or data.get("genre") or "lofi").strip() or "lofi"
     duration = payload.get("duration_target_seconds") or payload.get("track_duration_seconds") or 180
     try:
         duration = max(30, min(900, int(duration)))
@@ -2596,25 +2553,22 @@ def _normalize_music_prompt_tasks(data: dict, payload: dict) -> list[dict]:
     tasks: list[dict] = []
     for index, item in enumerate(raw_tracks, start=1):
         if not isinstance(item, dict):
-            continue
-        title = str(item.get("title") or f"Music Mission {index:02d}").strip()
+            raise ValueError(f"music track {index} must be an object")
+        title = str(item.get("title") or "").strip()
         prompt = str(item.get("prompt") or item.get("suno_prompt") or "").strip()
-        if not prompt:
-            continue
+        genre = str(item.get("genre") or "").strip()
+        mood = str(item.get("mood") or "").strip()
         rules = item.get("negative_rules")
-        if not isinstance(rules, list):
-            rules = [
-                "Do not imitate a real artist",
-                "Do not use copyrighted lyrics or melodies",
-                "No watermark or voice tag",
-            ]
+        clean_rules = [str(rule).strip() for rule in rules if str(rule).strip()] if isinstance(rules, list) else []
+        if not all((title, prompt, genre, mood)) or not clean_rules:
+            raise ValueError(f"music track {index} omitted required AI-authored fields")
         tasks.append({
             "title": title[:300],
             "target_market": target_market,
-            "genre": str(item.get("genre") or genre_fallback).strip()[:120],
-            "mood": str(item.get("mood") or item.get("description") or "").strip()[:1000],
+            "genre": genre[:120],
+            "mood": mood[:1000],
             "prompt": prompt[:12000],
-            "negative_rules": [str(rule).strip() for rule in rules if str(rule).strip()][:10],
+            "negative_rules": clean_rules[:10],
             "duration_target_seconds": duration,
             "reward_usdt": reward,
             "max_submissions": max(1, int(payload.get("max_submissions_per_task") or 1)),
@@ -2628,6 +2582,7 @@ def _normalize_music_prompt_tasks(data: dict, payload: dict) -> list[dict]:
 
 
 def _fallback_music_prompt_tasks(payload: dict) -> list[dict]:
+    raise RuntimeError("Synthetic music prompt fallback is disabled")
     track_count = payload.get("track_count") or 10
     try:
         track_count = max(1, min(100, int(track_count)))
@@ -2764,12 +2719,11 @@ Return JSON only:
         data = _extract_json(raw)
         tasks = _normalize_music_prompt_tasks(data, payload)
     except Exception as exc:
-        job_log.warning("Music prompt AI generation failed; using fallback prompts: %s", exc)
-        data = {"playlist_concept": playlist_concept, "trend_summary": "", "tracks": []}
-        tasks = _fallback_music_prompt_tasks(payload)
+        _reraise_if_provider_credit_exhausted(exc)
+        raise RuntimeError(f"music prompt generation failed; synthetic fallback is disabled: {exc}") from exc
 
     if not tasks:
-        tasks = _fallback_music_prompt_tasks(payload)
+        raise RuntimeError("music prompt generation returned no valid tasks; synthetic fallback is disabled")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     result_path = RESULTS_DIR / f"{job_id}.music_prompt_pack.json"
@@ -2914,7 +2868,7 @@ def _resolve_image_style_directive(image_style: str, image_style_selection: dict
         logger.warning(f"Image style resolution failed for {style_key}: {e}")
 
     if not style_prompt:
-        style_prompt = style_key
+        raise RuntimeError(f"Image style directive is missing for style {style_key!r}; text fallback is disabled")
 
     # The selection rationale is internal metadata, not a visual instruction.
     # Keeping it out of the generator directive prevents Korean decision text
@@ -2972,13 +2926,7 @@ def _select_worker_image_style_for_plan(
         selected_style = str(selection.get("assigned_image_style") or category_default or "realistic").strip() or "realistic"
         return selected_style, selection
     except Exception as e:
-        logger.warning(f"Worker image style selection failed; using fallback {category_default}: {e}")
-        return category_default, {
-            "assigned_image_style": category_default,
-            "automatic_style": category_default,
-            "selection_source": "worker_fallback",
-            "reason": "Worker image style selection failed, so the category fallback style was used.",
-        }
+        raise RuntimeError(f"Worker image style selection failed; category fallback is disabled: {e}") from e
 
 
 def _mostly_english(value: str) -> bool:
@@ -3036,6 +2984,7 @@ def _fallback_visual_direction_plan(
     image_style_key: str,
     image_style_directive: str,
 ) -> dict:
+    raise RuntimeError("Synthetic visual direction fallback is disabled")
     return {
         "visual_bible_version": "fallback_v1",
         "overall_vision": f"Consistent longform visual sequence for {upload_title or topic}.",
@@ -3783,6 +3732,7 @@ def _build_fallback_scene_plan(
     category: str = "",
 ) -> dict:
     """Create a deterministic scene plan when the AI planner returns no scenes."""
+    raise RuntimeError("Synthetic scene-plan fallback is disabled")
     target_duration = max(60, int(target_duration or 900))
     slots = []
     cursor = 0
@@ -4038,6 +3988,7 @@ def _fallback_narration_section(
     min_chars: int,
     language: str = "ko",
 ) -> str:
+    raise RuntimeError("Synthetic narration fallback is disabled")
     title = (upload_title or topic or "이번 이야기").strip()
     summary = str(scene.get("scene_summary") or scene.get("scene_situation") or title).strip()
     purpose = str(scene.get("scene_purpose") or "").strip()
@@ -6503,8 +6454,7 @@ def _repair_survival_story_scene_plan_repetition(structure: dict, topic: str, up
 
 
 def _requires_strict_scene_planner_success(job: dict) -> bool:
-    payload = job.get("payload") or {}
-    return bool(payload.get("require_scene_planner_success"))
+    return True
 
 
 def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
@@ -7728,7 +7678,6 @@ def _parse_script_chunk_sections(
     raw_text: str,
     chunk_scenes: list[dict],
     is_multi: bool,
-    fallback_factory,
 ) -> list[str]:
     by_order: dict[str, str] = {}
     try:
@@ -7755,6 +7704,7 @@ def _parse_script_chunk_sections(
                     by_order[order] = text
 
     result: list[str] = []
+    missing_orders: list[str] = []
     for local_idx, scene in enumerate(chunk_scenes):
         scene_order = str(scene.get("scene_order") or scene.get("order") or "").strip()
         text = by_order.get(scene_order)
@@ -7762,8 +7712,11 @@ def _parse_script_chunk_sections(
             # Also try matching 1-based local index
             text = by_order.get(str(local_idx + 1))
         if not text:
-            text = fallback_factory(local_idx, scene)
-        result.append(text)
+            missing_orders.append(scene_order or str(local_idx + 1))
+        else:
+            result.append(text)
+    if missing_orders:
+        raise RuntimeError(f"script response omitted required scene sections: {missing_orders}")
     return result
 
 
@@ -7824,7 +7777,7 @@ def _character_anchor_name(character: dict | None) -> str:
 
 def _normalize_character_anchor(character: dict | None, *, fallback_name: str, role: str) -> dict:
     source = character if isinstance(character, dict) else {}
-    name = _character_anchor_name(source) or fallback_name
+    name = _character_anchor_name(source)
     visual_dna = str(
         source.get("visual_dna_en")
         or source.get("prompt_en")
@@ -7834,18 +7787,8 @@ def _normalize_character_anchor(character: dict | None, *, fallback_name: str, r
     ).strip()
     wardrobe = str(source.get("wardrobe_en") or source.get("wardrobe") or "").strip()
     continuity = str(source.get("continuity_instruction") or "").strip()
-    if not visual_dna:
-        visual_dna = (
-            f"ordinary Korean {role} with a consistent age range, face shape, hairstyle, "
-            "body type, natural skin texture, restrained expression, and stable wardrobe colors"
-        )
-    if not wardrobe:
-        wardrobe = "story-appropriate everyday clothing with consistent color and silhouette"
-    if not continuity:
-        continuity = (
-            "Preserve this character's age, face shape, hairstyle, wardrobe, body type, "
-            "and emotional baseline in every image and video prompt."
-        )
+    if not all((name, visual_dna, wardrobe, continuity)):
+        raise ValueError(f"{role} character anchor omitted required AI-authored fields")
     return {
         "name": name,
         "gender": str(source.get("gender") or "unknown").strip() or "unknown",
@@ -7888,6 +7831,7 @@ def _character_anchors_context(
 
 
 def _fallback_main_character(topic: str, upload_title: str, structure: dict, narrative_blueprint: dict | None = None) -> dict:
+    raise RuntimeError("Synthetic character fallback is disabled")
     blueprint = narrative_blueprint or {}
     protagonist = str(blueprint.get("protagonist") or "").strip()
     if not protagonist:
@@ -8122,11 +8066,13 @@ Rules:
         return anchors
     except Exception as e:
         _reraise_if_provider_credit_exhausted(e)
-        job_log.warning(f"Supporting character anchor generation failed; continuing without supporting anchors: {e}")
-        return []
+        raise RuntimeError(
+            f"supporting character anchor generation failed; omission fallback is disabled: {e}"
+        ) from e
 
 
 def _fallback_narrative_blueprint(topic: str, upload_title: str, structure: dict) -> dict:
+    raise RuntimeError("Synthetic narrative blueprint fallback is disabled")
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     story_core = structure.get("story_core") if isinstance(structure, dict) and isinstance(structure.get("story_core"), dict) else {}
     scene_beats = []
@@ -8272,6 +8218,7 @@ Return ONLY JSON:
 
 
 def _fallback_script_quality_report(script: str, upload_title: str) -> dict:
+    raise RuntimeError("Synthetic script QA fallback is disabled")
     text = script or ""
     issues = []
     score = 70
@@ -8651,33 +8598,23 @@ Return ONLY JSON:
         prompt, model, temperature=0.45, max_tokens=12000,
         task_type="hermes_script_structured_rewrite",
     )
-    original_by_index = list(draft_sections)
     rewritten_sections = _parse_script_chunk_sections(
         raw,
         scenes,
         is_multi,
-        lambda index, _scene: original_by_index[index] if index < len(original_by_index) else "",
     )
     validated_sections = []
     for index, (scene, section) in enumerate(zip(scenes, rewritten_sections)):
         minimum = int((scene_budgets[index] if index < len(scene_budgets) else {}).get("min_chars") or 80)
-        try:
-            validated = _ensure_scene_section_target_length(
-                section, scene, minimum, language=language, is_multi=is_multi,
-            )
-        except RuntimeError:
-            # Do not let a whole-script QA rewrite damage a scene that was
-            # already valid. The final whole-script QA still rejects the
-            # preserved source if it contains the issue being repaired.
-            original = original_by_index[index] if index < len(original_by_index) else ""
-            validated = _ensure_scene_section_target_length(
-                original, scene, minimum, language=language, is_multi=is_multi,
-            )
+        validated = _ensure_scene_section_target_length(
+            section, scene, minimum, language=language, is_multi=is_multi,
+        )
         validated_sections.append(validated)
     return validated_sections
 
 
 def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
+    raise RuntimeError("Synthetic script rescue text is disabled")
     if not isinstance(scene, dict):
         return f"{fallback_idx}번째 장면에서 주인공은 앞선 선택의 결과를 직접 마주하고, 숨겨져 있던 단서 하나를 확인합니다."
     for key in (
@@ -8697,6 +8634,7 @@ def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
 
 def _build_korean_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
     """Build a Korean-only safety script when the model drifts into English."""
+    raise RuntimeError("Synthetic Korean rescue script is disabled")
     title = (upload_title or topic or "오늘의 이야기").strip()
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     if not isinstance(scenes, list) or not scenes:
@@ -8796,6 +8734,7 @@ SCRIPT TO REWRITE:
 
 
 def _build_japanese_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    raise RuntimeError("Synthetic Japanese rescue script is disabled")
     title = (upload_title or topic or "今夜の昔話").strip()
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     if not isinstance(scenes, list) or not scenes:
@@ -9395,7 +9334,6 @@ Hard retry rules:
                         raw_text,
                         chunk_scenes,
                         is_multi,
-                        lambda _local_idx, _scene: "",
                     )
                     if len(chunk_parts) != len(chunk_scenes) or any(not str(part or "").strip() for part in chunk_parts):
                         raise RuntimeError("script generator omitted or malformed one or more required scene sections")

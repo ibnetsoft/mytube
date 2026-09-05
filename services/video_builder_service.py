@@ -141,22 +141,11 @@ async def analyze_scenes_for_director(
         if json_match:
             parsed = json.loads(json_match.group())
 
-            # 이미지가 8개 초과했을 때 나머지 씬 placeholder 추가
+            # Every requested scene must be authored by the model.
             existing_ids = {s["scene_id"] for s in parsed.get("scenes", [])}
-            for i in range(1, total_scenes + 1):
-                if i not in existing_ids:
-                    parsed["scenes"].append({
-                        "scene_id": i,
-                        "image_desc": f"씬 {i} — 이전 분위기 연속",
-                        "mood": "연속",
-                        "camera_motion": "이전 씬과 유사한 카메라 움직임",
-                        "camera_motion_en": "similar camera motion as previous scene",
-                        "pacing": "자연스럽게",
-                        "director_note": f"씬 {i}는 이전 흐름을 이어받아 전개됩니다.",
-                        "transition_to_next": None,
-                        "motion_prompt": "Cinematic vertical animation, smooth camera motion, high quality webtoon style, atmospheric lighting, emotional pacing.",
-                        "duration_suggestion": 5.0
-                    })
+            missing_ids = [i for i in range(1, total_scenes + 1) if i not in existing_ids]
+            if missing_ids:
+                raise RuntimeError(f"Director analysis omitted scenes {missing_ids}; synthetic placeholders are disabled")
 
             # scene_id 기준 정렬
             parsed["scenes"] = sorted(parsed["scenes"], key=lambda x: x.get("scene_id", 0))
@@ -179,13 +168,12 @@ async def analyze_scenes_for_director(
         raise Exception("JSON 파싱 실패")
 
     except Exception as e:
-        print(f"[VideoBuilder] analyze_scenes_for_director error: {e}")
-        # 폴백: 기본 템플릿 반환
-        return _fallback_director_plan(png_paths)
+        raise RuntimeError(f"Director analysis failed; synthetic fallback is disabled: {e}") from e
 
 
 def _fallback_director_plan(png_paths: List[str]) -> dict:
     """Gemini 실패 시 기본 연출 기획서 반환"""
+    raise RuntimeError("Synthetic director-plan fallback is disabled")
     scenes = []
     for i, p in enumerate(png_paths):
         scenes.append({

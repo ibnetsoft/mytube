@@ -2,6 +2,8 @@ import sys
 import asyncio
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER_DIR = ROOT / "worker"
@@ -215,16 +217,8 @@ def test_old_story_blueprint_uses_story_core_instead_of_generic_fallback():
     }
     structured = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
 
-    blueprint = hermes_worker._fallback_narrative_blueprint(title, title, structured)
-
-    assert blueprint["protagonist"] == structured["story_core"]["protagonist"]
-    assert blueprint["opening_incident"] == structured["story_core"]["opening_incident"]
-    assert blueprint["personal_stake"] == structured["story_core"]["personal_stake"]
-    assert blueprint["midpoint_reversal"] == structured["story_core"]["midpoint_reversal"]
-    assert blueprint["final_payoff"] == structured["story_core"]["final_payoff"]
-    assert blueprint["act_structure"]
-    assert blueprint["scene_beats"][0]["character_choice"]
-    assert blueprint["scene_beats"][25]["dramatic_function"] == "midpoint reversal"
+    with pytest.raises(RuntimeError, match="Synthetic narrative blueprint fallback is disabled"):
+        hermes_worker._fallback_narrative_blueprint(title, title, structured)
 
 
 def test_script_scene_payload_carries_drama_fields_without_visual_tts():

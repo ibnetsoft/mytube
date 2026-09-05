@@ -87,6 +87,7 @@ def test_worker_character_anchors_are_injected_into_compact_grid_prompts():
             "role": "protagonist",
             "visual_dna_en": "Korean woman in her 60s, oval face, silver bob hair, tired but kind eyes",
             "wardrobe_en": "navy cardigan and cream blouse",
+            "continuity_instruction": "Keep Minseo's face, hair, and navy cardigan identical in every scene.",
         },
         [
             {
@@ -94,6 +95,7 @@ def test_worker_character_anchors_are_injected_into_compact_grid_prompts():
                 "role": "son",
                 "visual_dna_en": "Korean man in his 30s, square jaw, short black hair",
                 "wardrobe_en": "gray office jacket",
+                "continuity_instruction": "Keep Joonho's face, hair, and gray jacket identical in every scene.",
             }
         ],
     )

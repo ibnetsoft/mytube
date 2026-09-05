@@ -1640,6 +1640,7 @@ class HermesAutopilotManager:
         return True
 
     def _category_fallback_title(self, category: str) -> str:
+        raise RuntimeError("Synthetic category title fallback is disabled")
         fallbacks = {
             "무협": "버림받은 삼류무사가 사부의 낡은 검보를 펼친 날",
             "탈북사연": "두만강 앞에서 마지막 선택을 해야 했던 한 가족의 밤",
@@ -1930,8 +1931,7 @@ Return ONLY JSON:
             )
             evaluation = self._extract_json_object(raw_text)
         except Exception as e:
-            plan["evaluation_error"] = str(e)
-            return plan
+            raise RuntimeError(f"title evaluation failed; fallback selection is disabled: {e}") from e
 
         by_title = {
             self._clean_title_text(item.get("title")): item
@@ -2009,8 +2009,7 @@ Return ONLY JSON:
             )
             result = self._extract_json_object(raw_text)
         except Exception as e:
-            title_plan["script_fit_error"] = str(e)
-            return title_plan
+            raise RuntimeError(f"title/script fit validation failed; fallback title is disabled: {e}") from e
 
         proposed_title = self._clean_title_text(result.get("title") or current_title)
         if result.get("status") == "revise" and proposed_title and self._is_usable_title_candidate(proposed_title, category):
@@ -2359,9 +2358,8 @@ Return ONLY valid JSON in this schema:
     ) -> dict:
         """Select one existing visual style for a generated video.
 
-        The model may choose only from the Worker style catalog. A category
-        default remains the fallback so a temporary AI/API failure never
-        leaves the topic without a usable visual direction.
+        The model may choose only from the Worker style catalog. Generation
+        stops if the catalog or AI selection is unavailable.
         """
         if not manual_override:
             manual_override = (self.settings.get("category_image_style_overrides") or {}).get(category)
@@ -2404,12 +2402,7 @@ Return ONLY valid JSON in this schema:
         if fallback not in by_key:
             fallback = "realistic" if "realistic" in by_key else (next(iter(by_key.keys())) if by_key else "realistic")
         if not by_key:
-            return {
-                "assigned_image_style": fallback,
-                "automatic_style": fallback,
-                "selection_source": "fallback",
-                "reason": "등록된 이미지 스타일 목록을 읽지 못해 카테고리 기본값을 사용합니다.",
-            }
+            raise RuntimeError("Image style catalog is empty; category fallback is disabled")
 
         catalog = [
             {
@@ -2467,14 +2460,7 @@ Return ONLY JSON:
                 "category_default": fallback,
             }
         except Exception as e:
-            logger.warning(f"Image style selection failed; using category default '{fallback}': {e}")
-            return {
-                "assigned_image_style": fallback,
-                "automatic_style": fallback,
-                "selection_source": "category_default_fallback",
-                "reason": "스타일 자동 선택을 완료하지 못해 카테고리 기본 스타일을 사용합니다.",
-                "category_default": fallback,
-            }
+            raise RuntimeError(f"Image style selection failed; category fallback is disabled: {e}") from e
 
     async def _discover_benchmark_keywords(self, category: str) -> list[str]:
         """Turn an internal category into concrete YouTube search phrases."""
