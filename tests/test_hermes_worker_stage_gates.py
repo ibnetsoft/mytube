@@ -1,6 +1,7 @@
 ﻿import sys
 from pathlib import Path
 import asyncio
+import re
 
 import pytest
 
@@ -308,6 +309,17 @@ def test_emotion_cue_normalizer_repairs_dialogue_and_long_narration():
     assert not hermes_worker._script_emotion_cue_errors(normalized, "ko")
     quote_index = normalized.index('"제발 이제는 진실을 말해주세요!"')
     assert hermes_worker._has_trailing_script_emotion_cue(normalized[max(0, quote_index - 80):quote_index], "ko")
+
+
+def test_emotion_cues_remain_distributed_through_final_act():
+    paragraphs = [(f"후반 사건 {idx}가 이어지고 인물의 선택이 달라집니다. " * 12).strip() for idx in range(20)]
+    source = "(차분하게) " + "\n\n".join(paragraphs)
+
+    normalized = hermes_worker._ensure_script_emotion_cues(source, "ko")
+    last_cue = list(hermes_worker._SCRIPT_EMOTION_CUE_PATTERN.finditer(normalized))[-1]
+
+    assert len(re.sub(r"\s+", "", normalized[last_cue.end():])) <= 1000
+    assert hermes_worker._script_emotion_cue_count(normalized, "ko") > 1
 
 
 def test_emotion_cue_normalizer_preserves_existing_dialogue_cue_without_duplication():

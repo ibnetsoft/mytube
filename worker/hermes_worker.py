@@ -7010,8 +7010,6 @@ def _ensure_script_emotion_cues(script: str, language: str = "ko") -> str:
     value = _SCRIPT_QUOTED_DIALOGUE_PATTERN.sub(add_dialogue_cue, value)
     required = _required_script_emotion_cue_count(value)
     current = _script_emotion_cue_count(value, language)
-    if current >= required:
-        return value
 
     parts = re.split(r"(\n\s*\n)", value)
     candidates = [
@@ -7049,6 +7047,33 @@ def _ensure_script_emotion_cues(script: str, language: str = "ko") -> str:
         for position in sorted(set(selected), reverse=True):
             following = value[position:position + 220].lstrip()
             value = value[:position] + f"{_infer_script_emotion_cue(following, language)} " + value[position:]
+
+    # A correct total count can still leave the entire final act without a
+    # direction cue. Add cues at paragraph boundaries when the narration gap
+    # since the previous cue grows beyond roughly 1,000 visible characters.
+    parts = re.split(r"(\n\s*\n)", value)
+    chars_since_cue = 0
+    for idx in range(0, len(parts), 2):
+        paragraph = parts[idx]
+        if not paragraph.strip():
+            continue
+        cue_matches = [
+            match for match in _SCRIPT_EMOTION_CUE_PATTERN.finditer(paragraph)
+            if _is_script_emotion_cue(match.group(1) or match.group(2) or "", language)
+        ]
+        visible_length = len(re.sub(r"\s+", "", paragraph))
+        if cue_matches:
+            tail = paragraph[cue_matches[-1].end():]
+            chars_since_cue = len(re.sub(r"\s+", "", tail))
+            continue
+        if chars_since_cue + visible_length > 1000:
+            stripped = paragraph.lstrip()
+            leading = paragraph[:len(paragraph) - len(stripped)]
+            parts[idx] = f"{leading}{_infer_script_emotion_cue(stripped[:220], language)} {stripped}"
+            chars_since_cue = visible_length
+        else:
+            chars_since_cue += visible_length
+    value = "".join(parts)
     return value.strip()
 
 
@@ -9554,34 +9579,40 @@ Hard retry rules:
                         final_quality = revised_quality
                         revision_count = 1
                         scene_script_sections = revised_sections
-                    elif ai_router.detect_provider(model) == "claude":
+                    else:
                         # A failed Claude rewrite is not allowed to silently
                         # fall back to the old draft. Hermes asks the dedicated
                         # Gemini coordinator for one bounded rewrite decision,
                         # then validates that rewrite with the same QA gate.
-                        from config import config as runtime_config
-                        coordinator_model = _hermes_orchestrator_gemini_model(runtime_config)
-                        qa_failure = RuntimeError(
-                            "Claude rewrite did not pass QA: "
-                            f"verdict={revised_quality.get('verdict')}, "
-                            f"score={revised_quality.get('score')}, "
-                            f"issues={(revised_quality.get('critical_issues') or revised_quality.get('revision_notes') or [])[:8]}"
-                        )
-                        advice = await _request_hermes_failure_orchestration(
-                            ai_router,
-                            coordinator_model,
-                            model,
-                            "script_qa_rewrite",
-                            f"TITLE: {upload_title}\nTOPIC: {topic}\n"
-                            f"QA REPORT: {json.dumps(revised_quality, ensure_ascii=False)}",
-                            qa_failure,
-                            attempt=1,
-                        )
-                        recovery_model = coordinator_model if advice["action"] == "generate_with_gemini" else model
+                        recovery_model = model
                         recovery_quality = dict(revised_quality)
-                        recovery_quality["revision_notes"] = list(
-                            recovery_quality.get("revision_notes") or []
-                        ) + [advice["repair_instruction"]]
+                        if ai_router.detect_provider(model) == "claude":
+                            from config import config as runtime_config
+                            coordinator_model = _hermes_orchestrator_gemini_model(runtime_config)
+                            qa_failure = RuntimeError(
+                                "Claude rewrite did not pass QA: "
+                                f"verdict={revised_quality.get('verdict')}, "
+                                f"score={revised_quality.get('score')}, "
+                                f"issues={(revised_quality.get('critical_issues') or revised_quality.get('revision_notes') or [])[:8]}"
+                            )
+                            advice = await _request_hermes_failure_orchestration(
+                                ai_router,
+                                coordinator_model,
+                                model,
+                                "script_qa_rewrite",
+                                f"TITLE: {upload_title}\nTOPIC: {topic}\n"
+                                f"QA REPORT: {json.dumps(revised_quality, ensure_ascii=False)}",
+                                qa_failure,
+                                attempt=1,
+                            )
+                            recovery_model = coordinator_model if advice["action"] == "generate_with_gemini" else model
+                            recovery_quality["revision_notes"] = list(
+                                recovery_quality.get("revision_notes") or []
+                            ) + [advice["repair_instruction"]]
+                        else:
+                            recovery_quality["revision_notes"] = list(
+                                recovery_quality.get("revision_notes") or []
+                            ) + ["Fix every remaining QA issue precisely without rewriting already-correct sections."]
                         recovered_sections = await _revise_script_sections(
                             ai_router, recovery_model, topic, upload_title, narrative_blueprint,
                             scenes, revised_sections, scene_budgets, recovery_quality, language, is_multi,
