@@ -4467,6 +4467,41 @@ export default function StdPortalPage() {
         )
     }
 
+    const formatTtsErrorMessage = (errorMessage: string) => {
+        const raw = String(errorMessage || 'TTS generation failed')
+        const lower = raw.toLowerCase()
+
+        if (
+            lower.includes('quota_exceeded')
+            || lower.includes('exceeds your quota')
+            || lower.includes('credits remaining')
+            || lower.includes('insufficient credits')
+            || lower.includes('크레딧')
+            || lower.includes('quota')
+        ) {
+            const creditMatch = raw.match(/you have\s+([\d,]+)\s+credits?\s+remaining,\s+while\s+([\d,]+)\s+credits?\s+are required/i)
+            const creditDetail = creditMatch
+                ? ` 현재 남은 크레딧은 ${creditMatch[1]}이고, 이번 생성에는 ${creditMatch[2]} 크레딧이 필요합니다.`
+                : ''
+            return `ElevenLabs 크레딧/쿼터가 부족해서 음성을 생성할 수 없습니다.${creditDetail} 워커 설정의 ElevenLabs 키를 충전하거나 사용 가능한 키로 교체한 뒤 다시 시도해주세요.`
+        }
+
+        if (
+            lower.includes('function_invocation_timeout')
+            || lower.includes('gateway timeout')
+            || lower.includes('504')
+            || lower.includes('timeout')
+        ) {
+            return '서버 음성 생성 시간이 초과되었습니다. 긴 대본은 선택 구간을 나눠 생성하거나, 잠시 후 다시 시도해주세요.'
+        }
+
+        if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('api key')) {
+            return 'ElevenLabs API 키가 없거나 유효하지 않아 음성을 생성할 수 없습니다. 워커 설정의 ElevenLabs 키를 확인해주세요.'
+        }
+
+        return raw
+    }
+
     const generateElevenLabsAudioInBrowser = async (
         text: string,
         narratorVoiceId: string,
@@ -4518,7 +4553,7 @@ export default function StdPortalPage() {
                 )
                 if (!elRes.ok) {
                     const errText = await elRes.text().catch(() => '')
-                    throw new Error(`ElevenLabs 직접 생성 오류 (${elRes.status}): ${errText.slice(0, 300)}`)
+                    throw new Error(formatTtsErrorMessage(`ElevenLabs 직접 생성 오류 (${elRes.status}): ${errText.slice(0, 300)}`))
                 }
                 buffers.push(await elRes.arrayBuffer())
             }
@@ -5066,7 +5101,7 @@ export default function StdPortalPage() {
             setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!${ttsWarning}`)
         } catch (error: any) {
             setAudioResultUrl('')
-            const errorMessage = error?.message || 'TTS generation failed'
+            const errorMessage = formatTtsErrorMessage(error?.message || 'TTS generation failed')
             setMessage(`❌ ${errorMessage}`)
             alert(`음성 생성 실패: ${errorMessage}`)
         } finally {
