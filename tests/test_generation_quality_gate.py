@@ -199,6 +199,13 @@ def test_generation_quality_gate_blocks_finance_contamination_for_non_story_cate
     assert any("finance/pension contamination is prohibited in every category" in error for error in errors)
 
 
+def test_finance_filter_does_not_treat_denunciation_as_stock_sale():
+    from services.content_safety import finance_content_matches
+
+    assert "매도" not in finance_content_matches("문파 사람들은 그를 배신자로 매도하고 모욕했다.")
+    assert "매도" in finance_content_matches("보유 주식을 시장 가격에 매도 주문했다.")
+
+
 def test_old_story_contamination_ignores_benchmark_analysis_body():
     payload = _valid_payload()
     payload["benchmark_analysis"] = {
