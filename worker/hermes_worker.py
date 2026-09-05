@@ -3386,14 +3386,14 @@ Schema:
         batch_prompt = prompt.replace(grid_inputs_json, batch_json, 1)
         batch_grids = None
         last_error = None
-        for attempt in range(2):
+        for attempt in range(3):
             try:
                 raw = asyncio.run(asyncio.wait_for(
                     ai_router.generate_text(
                         batch_prompt,
                         model,
                         temperature=0.25 if attempt else 0.35,
-                        max_tokens=3000,
+                        max_tokens=6000,
                         task_type="image_grid_prompt_generation",
                     ),
                     timeout=90,
@@ -3410,7 +3410,7 @@ Schema:
             except Exception as exc:
                 last_error = exc
                 job_log.warning(
-                    f"AI image-grid batch {batch_start // grid_batch_size + 1} attempt {attempt + 1}/2 failed: {exc}"
+                    f"AI image-grid batch {batch_start // grid_batch_size + 1} attempt {attempt + 1}/3 failed: {exc}"
                 )
         if batch_grids is None:
             raise ValueError(

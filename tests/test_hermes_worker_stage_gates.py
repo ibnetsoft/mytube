@@ -628,6 +628,8 @@ def test_image_grid_generation_uses_small_batches_to_avoid_json_truncation():
     source = inspect.getsource(hermes_worker._generate_direct_image_grid_prompts)
     assert "grid_batch_size = 1" in source
     assert "grid_inputs[batch_start:batch_start + grid_batch_size]" in source
+    assert "for attempt in range(3)" in source
+    assert "max_tokens=6000" in source
 
 
 def test_visual_direction_plan_retries_real_json_without_fallback():
