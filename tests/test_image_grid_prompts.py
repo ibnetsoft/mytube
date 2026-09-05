@@ -10,6 +10,22 @@ from services.image_grid_prompts import (
     validate_image_grid_prompt_readiness,
 )
 
+
+def test_compact_grid_merges_required_guardrails_into_ai_negative_prompt():
+    grid = build_compact_image_grid_prompts([{
+        "grid_number": 1,
+        "scene_numbers": [1, 2, 3, 4],
+        "negative_prompt": "avoid blur",
+        "panels": [
+            {"scene_number": number, "panel_prompt": f"Distinct scene {number} with a clear subject and action."}
+            for number in range(1, 5)
+        ],
+    }])[0]
+
+    assert "avoid blur" in grid["prompt"]
+    for required in ("no text", "no words", "no letters", "no captions", "no watermarks"):
+        assert required in grid["prompt"].lower()
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
 from worker import hermes_worker
 
@@ -259,7 +275,12 @@ def test_image_api_does_not_rebuild_grid_prompts_when_loading_without_saved_grid
 
 def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     class FakeRouter:
+        def __init__(self):
+            self.calls = 0
+
         async def generate_text(self, *_args, **_kwargs):
+            self.calls += 1
+            grid_number = self.calls
             return json.dumps({
                 "grids": [
                     {
@@ -283,7 +304,6 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
                                 )
                             ],
                         }
-                        for grid_number in range(1, 3)
                     ]
                 })
 
@@ -370,8 +390,7 @@ def test_worker_generates_large_image_grid_sets_in_bounded_ai_batches():
 
         async def generate_text(self, *_args, **_kwargs):
             self.calls += 1
-            start = 1 if self.calls == 1 else 13
-            end = 13 if self.calls == 1 else 14
+            grid_number = self.calls
             return json.dumps({
                 "grids": [
                     {
@@ -395,7 +414,6 @@ def test_worker_generates_large_image_grid_sets_in_bounded_ai_batches():
                             )
                         ],
                     }
-                    for grid_number in range(start, end)
                 ]
             })
 
@@ -432,6 +450,6 @@ def test_worker_generates_large_image_grid_sets_in_bounded_ai_batches():
     )
 
     assert len(grids) == 13
-    assert router.calls == 2
+    assert router.calls == 13
     assert grids[-1]["scene_numbers"] == [49, 50, 51, 52]
     validate_image_grid_prompt_readiness(scenes, grids, status="ready", require_status="ready")

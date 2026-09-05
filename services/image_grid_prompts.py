@@ -91,11 +91,14 @@ def make_compact_image_grid_prompt(
 
     shared = str(shared_style or "").strip()
     negative = str(negative_prompt or "").strip()
-    if not negative:
-        negative = (
-            "no text, no words, no letters, no labels, no captions, no watermarks, "
-            "no borders, no grid lines, no dividers, correct anatomy, no extra limbs"
-        )
+    required_negative = (
+        "no text", "no words", "no letters", "no labels", "no captions",
+        "no watermarks", "no borders", "no grid lines", "no dividers",
+        "correct anatomy", "no extra limbs",
+    )
+    missing_negative = [rule for rule in required_negative if rule not in negative.casefold()]
+    if missing_negative:
+        negative = ", ".join(part for part in (negative, ", ".join(missing_negative)) if part)
 
     return (
         "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). "
