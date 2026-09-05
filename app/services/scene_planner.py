@@ -15,6 +15,45 @@ PACING_PHASES = [
 ]
 
 class ScenePlannerService:
+    def _strip_json_fence(self, response_text: str) -> str:
+        response_text = str(response_text or "").strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        return response_text.strip()
+
+    def _scene_field(self, scene: dict, key: str, fallback: str) -> str:
+        value = str((scene or {}).get(key) or "").strip()
+        return value if value else fallback
+
+    def _normalize_batch_scene(self, scene: dict, slot: dict, scene_number: int, upload_title: str) -> dict:
+        scene = dict(scene or {})
+        opening = slot["phase"] == "opening"
+        normalized = {
+            "scene_id": f"scene{scene_number:03d}",
+            "scene_order": scene_number,
+            "scene_number": scene_number,
+            "opening_micro_scene": opening,
+            "target_duration": slot["duration"],
+            "pacing_phase": slot["phase"],
+            "time_range": f"{slot['start']}-{slot['end']}s",
+            "scene_summary": self._scene_field(scene, "scene_summary", f"Scene {scene_number} advances the title promise"),
+            "scene_situation": self._scene_field(scene, "scene_situation", f"Scene {scene_number} shows a distinct event tied to {upload_title}"),
+            "scene_emotion": self._scene_field(scene, "scene_emotion", "tense curiosity"),
+            "scene_purpose": self._scene_field(scene, "scene_purpose", "Advance the story with one new concrete turn"),
+            "retention_hook": self._scene_field(scene, "retention_hook", "What new truth will this action reveal?"),
+            "title_promise_link": self._scene_field(scene, "title_promise_link", f"Deepens the viewer promise of {upload_title}"),
+            "end_bridge": self._scene_field(scene, "end_bridge", "The next scene must answer this with a new event"),
+            "visual_direction": self._scene_field(scene, "visual_direction", "Distinct cinematic composition, no text, no captions"),
+            "tts_direction": self._scene_field(scene, "tts_direction", "Calm, suspenseful narration"),
+        }
+        if opening:
+            normalized["opening_time_range"] = normalized["time_range"]
+        return normalized
+
     def _normalize_scene_duration(self, value, fallback: int = 60) -> int:
         try:
             duration = int(float(value))
@@ -414,5 +453,174 @@ JSON SCHEMA:
                     "error_message": str(e)
                 }
             }
+
+    async def plan_scenes_batched(
+        self,
+        topic: str,
+        target_duration: int = 60,
+        project_id: int = None,
+        style_directive: str = "",
+        benchmark_analysis: dict = None,
+        upload_title: str = "",
+        title_generation: dict = None,
+        target_scene_count: int = None,
+        batch_size: int = 8,
+        batch_callback=None,
+    ) -> dict:
+        """Plan long scene structures in small validated JSON batches.
+
+        The old one-shot 50+ scene JSON response was prone to truncation and
+        repeated middle beats. This keeps each provider response small and lets
+        the worker persist successful scene ranges before any later failure.
+        """
+        title_generation = title_generation if isinstance(title_generation, dict) else {}
+        upload_title = (upload_title or title_generation.get("generated_title") or topic or "").strip()
+        target_scene_count = int(target_scene_count or len(self._build_pacing_slots(int(target_duration or 60))))
+        target_scene_count = max(1, min(400, target_scene_count))
+        batch_size = max(1, min(12, int(batch_size or 8)))
+        pacing_slots = self._build_target_count_pacing_slots(int(target_duration or 60), target_scene_count)
+        planning_model = config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
+        scenes: list[dict] = []
+        title_promise = (title_generation.get("selected_angle") or title_generation.get("angle") or upload_title).strip()
+
+        for batch_start in range(1, target_scene_count + 1, batch_size):
+            batch_end = min(target_scene_count, batch_start + batch_size - 1)
+            batch_slots = pacing_slots[batch_start - 1:batch_end]
+            previous_summaries = "\n".join(
+                f"- {scene['scene_order']}: {scene.get('scene_summary', '')}"
+                for scene in scenes[-12:]
+            )
+            slot_lines = "\n".join(
+                f"- scene {batch_start + idx}: {slot['start']}-{slot['end']}s, {slot['phase']}, {slot['duration']}s"
+                for idx, slot in enumerate(batch_slots)
+            )
+            benchmark_summary = ""
+            if isinstance(benchmark_analysis, dict):
+                script_analysis = benchmark_analysis.get("script_analysis") or {}
+                benchmark_summary = "\n".join(
+                    f"- {key}: {script_analysis.get(key, '')}"
+                    for key in ("structure", "hooks", "pacing", "key_message")
+                    if script_analysis.get(key)
+                )
+            prompt = f"""
+You are planning ONE SMALL BATCH of a long video scene structure.
+Return valid JSON only. Do not use markdown. Do not include scenes outside this requested range.
+
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+TITLE PROMISE: {title_promise}
+TARGET DURATION: {target_duration} seconds
+TOTAL SCENE COUNT: {target_scene_count}
+REQUESTED SCENE RANGE: {batch_start}-{batch_end}
+SLOTS:
+{slot_lines}
+
+STYLE DIRECTIVE:
+{style_directive}
+
+BENCHMARK TECHNIQUE NOTES, if any:
+{benchmark_summary or "- none"}
+
+PREVIOUS SCENES TO AVOID REPEATING:
+{previous_summaries or "- none yet"}
+
+STRICT RULES:
+- Output exactly {batch_end - batch_start + 1} scenes.
+- Every scene must be a different event, decision, discovery, conflict, physical action, or emotional reversal.
+- Do not repeat objects, clues, or dramatic beats from previous scenes unless this scene clearly changes their meaning.
+- Do not write fallback, placeholder, template, camera-label, or production-instruction text as story content.
+- Keep every field concise: one sentence per field.
+- Avoid repeated Korean paragraph openers such as "그런데 말이야".
+- The response must parse as a JSON object with a "scenes" array.
+
+JSON SCHEMA:
+{{
+  "scenes": [
+    {{
+      "scene_summary": "unique concrete beat",
+      "scene_situation": "specific situation and action",
+      "scene_emotion": "dominant emotion",
+      "scene_purpose": "why this scene must exist",
+      "retention_hook": "question or tension pulling into the next scene",
+      "title_promise_link": "how this scene advances the upload title promise",
+      "end_bridge": "unresolved turn into the next scene",
+      "visual_direction": "distinct visual setting and composition hint",
+      "tts_direction": "voice tone and pacing"
+    }}
+  ]
+}}
+"""
+            last_error: Exception | None = None
+            parsed = None
+            for attempt in range(3):
+                try:
+                    response_text = await ai_router.generate_text(
+                        prompt,
+                        planning_model,
+                        temperature=0.35,
+                        max_tokens=7000,
+                        project_id=project_id,
+                        task_type="planning_batch",
+                        json_mode=True,
+                    )
+                    parsed = json.loads(self._strip_json_fence(response_text))
+                    batch_scenes = parsed.get("scenes")
+                    if not isinstance(batch_scenes, list) or len(batch_scenes) != (batch_end - batch_start + 1):
+                        raise ValueError(f"batch {batch_start}-{batch_end} returned invalid scene count")
+                    normalized_batch = [
+                        self._normalize_batch_scene(scene, batch_slots[idx], batch_start + idx, upload_title)
+                        for idx, scene in enumerate(batch_scenes)
+                    ]
+                    trial = {
+                        "topic": topic,
+                        "upload_title": upload_title,
+                        "title_promise": title_promise,
+                        "opening_hook": title_promise,
+                        "payoff": title_promise,
+                        "scene_count": len(scenes) + len(normalized_batch),
+                        "global_mood": "tense emotional old-story narration",
+                        "scenes": scenes + normalized_batch,
+                        "planner_notes": {"strategy": "batched scene planning", "error": False},
+                    }
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    parsed = None
+                    prompt += f"\n\nPrevious attempt failed: {str(exc)[:500]}\nReturn shorter valid JSON for only scenes {batch_start}-{batch_end}."
+            if parsed is None:
+                return {
+                    "topic": topic,
+                    "estimated_duration": 0,
+                    "scene_count": len(scenes),
+                    "global_mood": "unknown",
+                    "scenes": scenes,
+                    "planner_notes": {
+                        "strategy": "batched scene planning failed",
+                        "error": True,
+                        "error_message": f"batch {batch_start}-{batch_end} failed: {last_error}",
+                        "completed_scene_count": len(scenes),
+                    },
+                }
+            scenes = trial["scenes"]
+            if batch_callback:
+                batch_callback(dict(trial), batch_start, batch_end)
+
+        return {
+            "topic": topic,
+            "upload_title": upload_title,
+            "title_promise": title_promise,
+            "opening_hook": title_promise,
+            "payoff": title_promise,
+            "scene_count": len(scenes),
+            "target_duration_seconds": target_duration,
+            "global_mood": "tense emotional old-story narration",
+            "scenes": scenes,
+            "planner_notes": {
+                "strategy": "Long-form scene plan generated in small JSON batches and persisted after each batch.",
+                "error": False,
+                "batched": True,
+                "batch_size": batch_size,
+            },
+        }
 
 scene_planner_service = ScenePlannerService()

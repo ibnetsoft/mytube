@@ -663,6 +663,18 @@ def test_script_plan_jobs_support_scoped_model_override():
     assert "job_model_override or config.SCRIPT_PLANNING_MODEL" in source
 
 
+def test_longform_script_plan_jobs_use_batched_scene_planning_with_checkpoints():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._process_script_plan_generate)
+    assert "target_duration >= 600" in source
+    assert "plan_scenes_batched" in source
+    assert "_checkpoint_plan_batch" in source
+    checkpoint_source = inspect.getsource(hermes_worker._save_script_plan_checkpoint)
+    assert '"pregenerated_structure_status": "generating"' in checkpoint_source
+    assert '"prepared_topic_ready": False' in checkpoint_source
+
+
 def test_script_rewrite_is_chunked_to_preserve_every_scene_contract():
     import inspect
 

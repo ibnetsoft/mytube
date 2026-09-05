@@ -6717,17 +6717,53 @@ Scene planning guard:
 """.strip()
     style_directive = f"{style_directive}\n\n{scene_plan_guard}".strip()
 
-    structure = asyncio.run(
-        scene_planner_service.plan_scenes(
-            topic=topic,
-            target_duration=target_duration,
-            style_directive=style_directive,
-            benchmark_analysis=benchmark_analysis,
-            upload_title=upload_title,
-            title_generation=title_generation,
-            target_scene_count=target_scene_count,
+    use_batched_scene_plan = bool((job.get("payload") or {}).get("use_batched_scene_plan"))
+    if target_scene_count and target_scene_count >= 40:
+        use_batched_scene_plan = True
+    if target_duration >= 600:
+        use_batched_scene_plan = True
+
+    def _checkpoint_plan_batch(partial_structure: dict, batch_start: int, batch_end: int) -> None:
+        progress = int(20 + 55 * min(batch_end, target_scene_count or batch_end) / max(1, target_scene_count or batch_end))
+        job_store.update_progress(
+            job_id,
+            progress,
+            f"planning scenes {batch_start}-{batch_end}",
         )
-    )
+        write_state("running", job, progress, job_id)
+        _save_script_plan_checkpoint(
+            topic_queue_id,
+            structure=partial_structure,
+            progress_message=f"planned scenes {batch_start}-{batch_end}",
+            quality_policy_snapshot=(job.get("payload") or {}).get("quality_policy_snapshot"),
+        )
+
+    if use_batched_scene_plan:
+        structure = asyncio.run(
+            scene_planner_service.plan_scenes_batched(
+                topic=topic,
+                target_duration=target_duration,
+                style_directive=style_directive,
+                benchmark_analysis=benchmark_analysis,
+                upload_title=upload_title,
+                title_generation=title_generation,
+                target_scene_count=target_scene_count,
+                batch_size=int((job.get("payload") or {}).get("scene_plan_batch_size") or 8),
+                batch_callback=_checkpoint_plan_batch,
+            )
+        )
+    else:
+        structure = asyncio.run(
+            scene_planner_service.plan_scenes(
+                topic=topic,
+                target_duration=target_duration,
+                style_directive=style_directive,
+                benchmark_analysis=benchmark_analysis,
+                upload_title=upload_title,
+                title_generation=title_generation,
+                target_scene_count=target_scene_count,
+            )
+        )
 
     category_context = " ".join(
         str((job.get("payload") or {}).get(key) or "")
@@ -9340,6 +9376,73 @@ def _save_topic_generation_checkpoint(
     )
     if response.status_code not in (200, 204):
         raise RuntimeError(f"checkpoint save failed: HTTP {response.status_code} {response.text[:300]}")
+
+
+def _save_script_plan_checkpoint(
+    topic_queue_id: str,
+    *,
+    structure: dict,
+    progress_message: str,
+    quality_policy_snapshot: dict | None = None,
+) -> None:
+    """Persist partial scene planning without promoting the topic to ready."""
+    if _is_topic_delivery_excluded(topic_queue_id):
+        return
+    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+    if not topic_queue_id or not supabase_url or not supabase_key:
+        return
+    import requests as _req
+
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+    existing_payload: dict = {}
+    try:
+        get_response = _req.get(
+            f"{supabase_url}/rest/v1/topics_queue",
+            params={"id": f"eq.{topic_queue_id}", "select": "progress_payload", "limit": "1"},
+            headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"},
+            timeout=15,
+        )
+        if get_response.status_code == 200:
+            rows = get_response.json()
+            if isinstance(rows, list) and rows and isinstance(rows[0].get("progress_payload"), dict):
+                existing_payload = rows[0]["progress_payload"]
+    except Exception:
+        existing_payload = {}
+
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    merged_payload = {
+        **existing_payload,
+        "prepared_topic_ready": False,
+        "quality_gate_verdict": "planning",
+        "planner_checkpoint": {
+            "status": "partial",
+            "completed_scene_count": len(scenes) if isinstance(scenes, list) else 0,
+            "message": progress_message,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        },
+    }
+    patch_data: dict = {
+        "pregenerated_structure": structure,
+        "pregenerated_structure_status": "generating",
+        "progress_payload": merged_payload,
+        "progress_updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    if quality_policy_snapshot:
+        patch_data["quality_policy_snapshot"] = quality_policy_snapshot
+    response = _req.patch(
+        f"{supabase_url}/rest/v1/topics_queue?id=eq.{topic_queue_id}",
+        headers=headers,
+        json=patch_data,
+        timeout=20,
+    )
+    if response.status_code not in (200, 204):
+        raise RuntimeError(f"script plan checkpoint save failed: HTTP {response.status_code} {response.text[:300]}")
 
 
 def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
