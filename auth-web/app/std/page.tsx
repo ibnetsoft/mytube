@@ -4204,17 +4204,6 @@ export default function StdPortalPage() {
             objectUrl = URL.createObjectURL(file)
             setSelectedProject(prev => {
                 if (!prev) return prev
-                const updatedScenes = prev.scenes.map(s => {
-                    if (s.scene_number === sceneNum) {
-                        return {
-                            ...s,
-                            image_url: actualAssetType === 'image' ? objectUrl : s.image_url,
-                            video_url: actualAssetType === 'video' ? objectUrl : s.video_url,
-                            asset_status: 'ready',
-                        }
-                    }
-                    return s
-                })
                 const newAsset = {
                     id: localAssetId,
                     scene_number: sceneNum,
@@ -4225,7 +4214,6 @@ export default function StdPortalPage() {
                 }
                 return {
                     ...prev,
-                    scenes: updatedScenes,
                     assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType))]
                 }
             })
@@ -4237,25 +4225,52 @@ export default function StdPortalPage() {
                 console.warn('[STD] local asset save failed; continuing with Drive upload:', error)
             }
 
-            const form = new FormData()
-            form.set('file', file)
-            form.set('asset_type', actualAssetType)
-            form.set('mime_type', file.type || 'application/octet-stream')
-            form.set('file_name', file.name)
-            form.set('file_size', String(file.size))
-            form.set('scene_number', String(sceneNum))
-            if (localRelativePath) form.set('local_relative_path', localRelativePath)
-
-            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
+            const mimeType = file.type || 'application/octet-stream'
+            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                 method: 'POST',
-                headers: authedUploadHeaders,
-                body: form,
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    asset_type: actualAssetType,
+                    mime_type: mimeType,
+                    file_name: file.name,
+                    file_size: file.size,
+                    scene_number: sceneNum,
+                }),
             })
-            const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
-            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
-                throw new Error(uploadPayload.error || 'Asset upload failed')
+            const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
+            if (!initRes.ok || !initPayload.upload_url) {
+                throw new Error(initPayload.error || 'Asset upload init failed')
             }
-            const persistedAsset = uploadPayload.asset
+
+            const driveRes = await fetch(initPayload.upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': mimeType },
+                body: file,
+            })
+            const drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
+            if (!driveRes.ok || !drivePayload.id) {
+                throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+            }
+
+            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    drive_file_id: drivePayload.id,
+                    target_folder_id: initPayload.target_folder_id,
+                    asset_type: actualAssetType,
+                    mime_type: mimeType,
+                    file_name: file.name,
+                    file_size: file.size,
+                    scene_number: sceneNum,
+                    local_relative_path: localRelativePath || undefined,
+                }),
+            })
+            const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
+            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                throw new Error(completePayload.error || 'Asset upload complete failed')
+            }
+            const persistedAsset = completePayload.asset
             const assetCacheKey = projectAssetCacheKey(selectedProject.project.id, persistedAsset)
             if (assetCacheKey && objectUrl) {
                 projectMediaObjectUrlsRef.current[assetCacheKey] = objectUrl
@@ -8151,6 +8166,7 @@ export default function StdPortalPage() {
                                             {selectedProject.scenes.slice(0, 12).map((scene: any, idx: number) => {
                                                 const sNum = scene.scene_number || idx + 1
                                                 const isReady = Boolean(scene.video_url)
+                                                const isUploading = uploadingKey === `${sNum}-video`
                                                 return (
                                                     <div
                                                         key={scene.id || idx}
@@ -8164,8 +8180,8 @@ export default function StdPortalPage() {
                                                             <span className="text-xs font-black px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
                                                                 #{sNum}
                                                             </span>
-                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : 'text-orange-400'}`}>
-                                                                {isReady ? '✅ 영상 완료' : '영상 없음'}
+                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-orange-400'}`}>
+                                                                {isReady ? '✅ 영상 완료' : isUploading ? '업로드 중...' : '영상 없음'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -8180,12 +8196,13 @@ export default function StdPortalPage() {
                                                                 보기
                                                             </button>
                                                             <span className="text-gray-600">|</span>
-                                                            <label className="cursor-pointer text-orange-400 hover:text-orange-300 transition-colors">
-                                                                {isReady ? '교체' : '업로드'}
+                                                            <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-orange-400 hover:text-orange-300'} transition-colors`}>
+                                                                {isUploading ? '처리 중' : isReady ? '교체' : '업로드'}
                                                                 <input
                                                                     type="file"
                                                                     accept="video/*"
                                                                     className="hidden"
+                                                                    disabled={isUploading}
                                                                     onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
                                                                 />
@@ -8215,6 +8232,7 @@ export default function StdPortalPage() {
                                                 const idx = offsetIdx + 12
                                                 const sNum = scene.scene_number || idx + 1
                                                 const isReady = Boolean(scene.image_url || scene.video_url)
+                                                const isUploading = uploadingKey.startsWith(`${sNum}-`)
                                                 return (
                                                     <div
                                                         key={scene.id || idx}
@@ -8228,8 +8246,8 @@ export default function StdPortalPage() {
                                                             <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">
                                                                 #{sNum}
                                                             </span>
-                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : 'text-amber-400/80'}`}>
-                                                                {isReady ? '✅ 이미지 완료' : '이미지 없음'}
+                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
+                                                                {isReady ? '✅ 이미지 완료' : isUploading ? '업로드 중...' : '이미지 없음'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -8244,12 +8262,13 @@ export default function StdPortalPage() {
                                                                 보기
                                                             </button>
                                                             <span className="text-gray-600">|</span>
-                                                            <label className="cursor-pointer text-amber-400 hover:text-amber-300 transition-colors">
-                                                                {isReady ? '교체' : '업로드'}
+                                                            <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-400 hover:text-amber-300'} transition-colors`}>
+                                                                {isUploading ? '처리 중' : isReady ? '교체' : '업로드'}
                                                                 <input
                                                                     type="file"
                                                                     accept="image/*,video/*"
                                                                     className="hidden"
+                                                                    disabled={isUploading}
                                                                     onClick={prepareLocalDirectoryForUpload}
                                                                     onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
                                                                 />

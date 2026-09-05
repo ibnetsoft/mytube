@@ -184,19 +184,39 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             return NextResponse.json({ success: false, error: 'Drive file is not in the expected folder' }, { status: 400 })
         }
 
-        if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
-            await supabaseAdmin
-                .from('std_project_assets')
-                .update({ status: 'replaced', updated_at: new Date().toISOString() })
-                .eq('project_id', project.id)
-                .eq('scene_number', sceneNumber)
-                .eq('asset_type', assetType)
-                .in('status', ['uploaded', 'assigned'])
+        const { data: existingAsset, error: existingAssetError } = await supabaseAdmin
+            .from('std_project_assets')
+            .select('*')
+            .eq('project_id', project.id)
+            .eq('drive_file_id', metadata.id)
+            .maybeSingle()
+        if (existingAssetError) {
+            return NextResponse.json({ success: false, error: existingAssetError.message }, { status: 500 })
         }
 
-        const { data: asset, error: assetError } = await supabaseAdmin
-            .from('std_project_assets')
-            .insert({
+        if (existingAsset && (
+            Number(existingAsset.scene_number) !== Number(sceneNumber)
+            || String(existingAsset.asset_type) !== assetType
+        )) {
+            return NextResponse.json({ success: false, error: 'Drive file is already assigned to another asset' }, { status: 409 })
+        }
+
+        let asset = existingAsset
+        if (!asset) {
+            if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
+                const { error: replaceError } = await supabaseAdmin
+                    .from('std_project_assets')
+                    .update({ status: 'replaced', updated_at: new Date().toISOString() })
+                    .eq('project_id', project.id)
+                    .eq('scene_number', sceneNumber)
+                    .eq('asset_type', assetType)
+                    .in('status', ['uploaded', 'assigned'])
+                if (replaceError) return NextResponse.json({ success: false, error: replaceError.message }, { status: 500 })
+            }
+
+            const { data: insertedAsset, error: assetError } = await supabaseAdmin
+                .from('std_project_assets')
+                .insert({
                 project_id: project.id,
                 scene_id: scene?.id || null,
                 scene_number: sceneNumber,
@@ -214,12 +234,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     local_relative_path: localRelativePath || null,
                     local_storage_mode: localRelativePath ? 'browser_directory' : null,
                     uploaded_by: auth.requester.email,
+                    upload_mode: 'browser_drive_resumable',
                 },
             })
             .select('*')
             .single()
 
-        if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
+            if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
+            asset = insertedAsset
+        }
 
         if (sceneNumber != null) {
             await updateSceneAssetStatus(project.id, sceneNumber)
@@ -234,7 +257,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const progressPayload = project.progress_payload || {}
         const nextProjectPayload = buildProjectPayloadWithVisualAsset(project, sceneNumber, assetType, asset)
 
-        await supabaseAdmin
+        const { error: projectUpdateError } = await supabaseAdmin
             .from('std_projects')
             .update({
                 status: project.status === 'claimed' ? 'in_progress' : project.status,
@@ -247,6 +270,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 updated_at: new Date().toISOString(),
             })
             .eq('id', project.id)
+        if (projectUpdateError) {
+            return NextResponse.json({ success: false, error: projectUpdateError.message }, { status: 500 })
+        }
 
         try {
             await syncStdProjectToLegacy(project.id)
