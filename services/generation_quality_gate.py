@@ -221,6 +221,23 @@ def _duplicate_or_near_duplicate_errors(values: list[tuple[str, str]], label: st
     return errors
 
 
+def _duplicate_scene_text_field_errors(scenes: list[Any], field: str) -> list[str]:
+    values: dict[str, list[str]] = {}
+    for fallback_number, scene in enumerate(scenes, start=1):
+        if not isinstance(scene, Mapping):
+            continue
+        value = _text(scene.get(field))
+        if len(value) < 12:
+            continue
+        label = str(_scene_number(scene, fallback_number))
+        values.setdefault(value, []).append(label)
+    return [
+        f"duplicate scene {field}: scenes {', '.join(labels)}"
+        for labels in values.values()
+        if len(labels) > 1
+    ]
+
+
 def _hangul_ratio(value: str) -> float:
     hangul = len(re.findall(r"[\uac00-\ud7a3]", value or ""))
     latin = len(re.findall(r"[A-Za-z]", value or ""))
@@ -379,6 +396,9 @@ def validate_generation_package(
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")
         scenes = []
+    else:
+        errors.extend(_duplicate_scene_text_field_errors(scenes, "scene_summary"))
+        errors.extend(_duplicate_scene_text_field_errors(scenes, "retention_hook"))
 
     if script_policy["enabled"] and require_korean_script:
         hangul = len(re.findall(r"[\uac00-\ud7a3]", script))

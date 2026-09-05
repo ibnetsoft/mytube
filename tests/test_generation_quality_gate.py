@@ -153,6 +153,18 @@ def test_generation_quality_gate_rejects_deterministic_image_prompt_fallback():
     assert any("deterministic fallback" in error for error in errors)
 
 
+def test_generation_quality_gate_rejects_duplicate_scene_summary_and_hook():
+    payload = _valid_payload()
+    for scene in payload["structure"]["scenes"][:2]:
+        scene["scene_summary"] = "며느리가 붉은 실로 묘 앞 소나무와 초가 문고리를 잇는다"
+        scene["retention_hook"] = "며느리가 붉은 실을 묶은 진짜 이유는 무엇일까?"
+
+    errors = validate_generation_package(payload, category="옛날이야기")
+
+    assert any("duplicate scene scene_summary" in error for error in errors)
+    assert any("duplicate scene retention_hook" in error for error in errors)
+
+
 def test_generation_quality_gate_allows_video_prompts_only_for_first_12_scenes():
     payload = _valid_payload()
     scenes = [_scene(index, f"unique visual clue {index}") for index in range(1, 17)]
