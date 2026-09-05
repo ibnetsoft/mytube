@@ -8218,45 +8218,55 @@ Rules:
 - Do not duplicate the main character.
 - Do not invent celebrities, brands, copyrighted characters, or public figures.
 - Use text DNA only; do not request or describe a generated portrait file."""
-    try:
-        raw = await ai_router.generate_text(
-            prompt,
-            model,
-            temperature=0.25,
-            max_tokens=2200,
-            task_type="hermes_supporting_character_anchors",
-        )
-        data = _extract_json(raw)
-        candidates = data.get("supporting_characters") if isinstance(data, dict) else []
-        if not isinstance(candidates, list):
-            raise ValueError("supporting_characters was not a list")
-        main_name = _character_anchor_name(main_character).casefold()
-        anchors = []
-        seen = {main_name} if main_name else set()
-        for index, candidate in enumerate(candidates, start=1):
-            if not isinstance(candidate, dict):
-                continue
-            anchor = _normalize_character_anchor(
-                candidate,
-                fallback_name=f"supporting_character_{index}",
-                role="supporting",
+    last_error: Exception | None = None
+    retry_prompt = prompt
+    for attempt in range(3):
+        try:
+            raw = await ai_router.generate_text(
+                retry_prompt,
+                model,
+                temperature=0.2,
+                max_tokens=3000,
+                task_type="hermes_supporting_character_anchors",
+                json_mode=True,
             )
-            key = _character_anchor_name(anchor).casefold()
-            if key and key in seen:
-                continue
-            if key:
-                seen.add(key)
-            anchor["source"] = "worker_ai"
-            anchors.append(anchor)
-            if len(anchors) >= 2:
-                break
-        job_log.info(f"Supporting character anchors ready: {len(anchors)}")
-        return anchors
-    except Exception as e:
-        _reraise_if_provider_credit_exhausted(e)
-        raise RuntimeError(
-            f"supporting character anchor generation failed; omission fallback is disabled: {e}"
-        ) from e
+            data = _extract_json(raw)
+            candidates = data.get("supporting_characters") if isinstance(data, dict) else []
+            if not isinstance(candidates, list):
+                raise ValueError("supporting_characters was not a list")
+            main_name = _character_anchor_name(main_character).casefold()
+            anchors = []
+            seen = {main_name} if main_name else set()
+            for index, candidate in enumerate(candidates, start=1):
+                if not isinstance(candidate, dict):
+                    continue
+                anchor = _normalize_character_anchor(
+                    candidate,
+                    fallback_name=f"supporting_character_{index}",
+                    role="supporting",
+                )
+                key = _character_anchor_name(anchor).casefold()
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                anchor["source"] = "worker_ai"
+                anchors.append(anchor)
+                if len(anchors) >= 2:
+                    break
+            job_log.info(f"Supporting character anchors ready: {len(anchors)}")
+            return anchors
+        except Exception as e:
+            _reraise_if_provider_credit_exhausted(e)
+            last_error = e
+            retry_prompt = f"""{prompt}
+
+Previous attempt {attempt + 1} failed to parse or validate: {str(e)[:500]}
+Return a shorter valid JSON object only. If no supporting character is essential, return {{"supporting_characters":[]}}.
+"""
+    raise RuntimeError(
+        f"supporting character anchor generation failed after 3 JSON attempts; omission fallback is disabled: {last_error}"
+    )
 
 
 def _fallback_narrative_blueprint(topic: str, upload_title: str, structure: dict) -> dict:
