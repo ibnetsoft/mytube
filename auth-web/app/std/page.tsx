@@ -4602,6 +4602,87 @@ export default function StdPortalPage() {
         )
     }
 
+    const handleSaveVisibleMediaToDrive = async () => {
+        if (!selectedProject?.project?.id) return
+        const activeVisualAssets = new Set(
+            (selectedProject.assets || [])
+                .filter((asset: any) =>
+                    ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+                    && ['image', 'video'].includes(String(asset?.asset_type || '').toLowerCase())
+                    && String(asset?.drive_file_id || '').trim()
+                    && Number.isFinite(Number(asset?.scene_number))
+                )
+                .map((asset: any) => `${Number(asset.scene_number)}:${String(asset.asset_type).toLowerCase()}`)
+        )
+        const canReadBrowserUrl = (url: string) => {
+            const value = String(url || '').trim()
+            return value.startsWith('blob:') || value.startsWith('data:')
+        }
+        const extensionForMime = (mime: string, assetType: 'image' | 'video') => {
+            const lower = mime.toLowerCase()
+            if (lower.includes('png')) return 'png'
+            if (lower.includes('webp')) return 'webp'
+            if (lower.includes('gif')) return 'gif'
+            if (lower.includes('quicktime')) return 'mov'
+            if (lower.includes('webm')) return 'webm'
+            if (lower.includes('mp4')) return 'mp4'
+            return assetType === 'video' ? 'mp4' : 'jpg'
+        }
+        const candidates = (selectedProject.scenes || []).flatMap((scene: any) => {
+            const sceneNumber = Number(scene?.scene_number)
+            if (!Number.isFinite(sceneNumber)) return []
+            const items: Array<{ scene: any; assetType: 'image' | 'video'; url: string }> = []
+            const videoUrl = String(scene?.video_url || '').trim()
+            const imageUrl = String(scene?.image_url || '').trim()
+            if (videoUrl && canReadBrowserUrl(videoUrl) && !activeVisualAssets.has(`${sceneNumber}:video`)) {
+                items.push({ scene, assetType: 'video', url: videoUrl })
+            }
+            if (!isStdRequiredVideoScene(sceneNumber) && imageUrl && canReadBrowserUrl(imageUrl) && !activeVisualAssets.has(`${sceneNumber}:image`)) {
+                items.push({ scene, assetType: 'image', url: imageUrl })
+            }
+            return items
+        })
+        if (candidates.length === 0) {
+            alert('현재 화면에서 Google Drive로 다시 저장할 수 있는 임시 이미지/영상이 없습니다. 이미 Drive에 저장되었거나, 임시 blob이 만료된 상태입니다.')
+            return
+        }
+        if (!confirm(`현재 브라우저가 아직 읽을 수 있는 임시 이미지/영상 ${candidates.length}개를 Google Drive에 저장합니다. 진행할까요?`)) return
+
+        setUploadingKey('drive-resync')
+        setMessage(`임시 미디어 ${candidates.length}개 Google Drive 저장 중...`)
+        let syncedCount = 0
+        let failedCount = 0
+        try {
+            for (const item of candidates) {
+                try {
+                    const response = await fetch(item.url)
+                    if (!response.ok) throw new Error(`임시 파일 읽기 실패 (${response.status})`)
+                    const blob = await response.blob()
+                    if (!blob.size) throw new Error('임시 파일이 비어 있습니다.')
+                    const mimeType = blob.type || (item.assetType === 'video' ? 'video/mp4' : 'image/jpeg')
+                    const sceneNumber = Number(item.scene?.scene_number || 0)
+                    const file = new File(
+                        [blob],
+                        `scene_${String(sceneNumber).padStart(4, '0')}_${item.assetType}.${extensionForMime(mimeType, item.assetType)}`,
+                        { type: mimeType }
+                    )
+                    const result = await uploadAsset(item.scene, item.assetType, file)
+                    if (result === 'synced') syncedCount += 1
+                    else failedCount += 1
+                } catch {
+                    failedCount += 1
+                }
+            }
+            setMessage(
+                failedCount === 0
+                    ? `임시 미디어 ${syncedCount}개를 Google Drive에 저장했습니다.`
+                    : `Google Drive 저장 ${syncedCount}개, 실패 ${failedCount}개입니다. 실패한 항목은 원본 파일 재업로드가 필요합니다.`
+            )
+        } finally {
+            setUploadingKey('')
+        }
+    }
+
     const submitProject = async (projectOverride?: SelectedProjectPayload) => {
         const targetProject = projectOverride || selectedProject
         if (!targetProject) return
@@ -7999,6 +8080,15 @@ export default function StdPortalPage() {
                                                 onChange={e => handleBulkImageUpload(e.target.files)}
                                             />
                                         </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleSaveVisibleMediaToDrive()}
+                                            disabled={uploadingKey === 'drive-resync'}
+                                            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-wait text-emerald-300 border border-emerald-500/30 rounded text-xs font-bold flex items-center gap-1.5 transition-all"
+                                            title="현재 브라우저에 남아 있는 임시 이미지/영상을 Google Drive에 확정 저장합니다."
+                                        >
+                                            <span>☁</span> {uploadingKey === 'drive-resync' ? 'Drive 저장 중' : 'Drive 확정 저장'}
+                                        </button>
                                         <button
                                             onClick={() => alert('등록된 모든 이미지를 다운로드합니다.')}
                                             className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
