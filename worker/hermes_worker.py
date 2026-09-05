@@ -3658,12 +3658,15 @@ Return ONLY valid JSON in this shape:
             scene for scene in scenes[:MAX_VIDEO_PROMPT_SCENES]
             if scene.get("media_prompt_status") != "ready" or not str(scene.get("video_prompt") or "").strip()
         ]
-        chunk_size = 8
+        # Generate one scene per model call. Long multi-scene JSON responses were
+        # the remaining source of malformed chunks and repeated visual beats.
+        chunk_size = 1
         for offset in range(0, len(prompt_scenes), chunk_size):
             chunk = prompt_scenes[offset:offset + chunk_size]
-            chunk_label = f"{offset + 1}-{offset + len(chunk)} of {len(prompt_scenes)}"
+            scene_number = chunk[0].get("scene_order") or chunk[0].get("scene_number") or offset + 1
+            chunk_label = f"scene {scene_number} ({offset + 1} of {len(prompt_scenes)})"
             last_chunk_error = None
-            for attempt in range(2):
+            for attempt in range(3):
                 try:
                     prompt = _build_media_prompt(
                         chunk,
@@ -3674,8 +3677,8 @@ Return ONLY valid JSON in this shape:
                         ai_router.generate_text(
                             prompt,
                             model,
-                            temperature=0.35 if attempt else 0.45,
-                            max_tokens=8192,
+                            temperature=0.2 if attempt else 0.35,
+                            max_tokens=4096,
                             task_type="scene_media_prompt_generation",
                         ),
                         timeout=90,
@@ -3709,7 +3712,7 @@ Return ONLY valid JSON in this shape:
                     break
                 except Exception as chunk_error:
                     last_chunk_error = chunk_error
-                    job_log.warning(f"Media prompt chunk {chunk_label} attempt {attempt + 1}/2 failed: {chunk_error}")
+                    job_log.warning(f"Media prompt chunk {chunk_label} attempt {attempt + 1}/3 failed: {chunk_error}")
             else:
                 if checkpoint_callback:
                     checkpoint_callback(
