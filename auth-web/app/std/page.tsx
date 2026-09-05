@@ -816,6 +816,7 @@ export default function StdPortalPage() {
 
     useEffect(() => {
         return () => {
+            stopVrewPlayback()
             revokeProjectMediaObjectUrls()
         }
     }, [])
@@ -2388,6 +2389,8 @@ export default function StdPortalPage() {
         }
         if (vrewAudioRef.current) {
             vrewAudioRef.current.pause()
+            vrewAudioRef.current.removeAttribute('src')
+            vrewAudioRef.current.load()
             vrewAudioRef.current = null
         }
         setIsPlayingPreview(false)
@@ -2598,9 +2601,9 @@ export default function StdPortalPage() {
 
     useEffect(() => {
         return () => {
+            stopVrewPlayback()
             Object.values(vrewAudioCacheRef.current).forEach(url => URL.revokeObjectURL(url))
             vrewAudioPromiseRef.current.clear()
-            stopVrewPlayback()
         }
     }, [])
 
@@ -4158,6 +4161,7 @@ export default function StdPortalPage() {
         const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
         if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
         try {
+            stopVrewPlayback()
             revokeProjectMediaObjectUrls(selectedProject?.project?.id)
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
