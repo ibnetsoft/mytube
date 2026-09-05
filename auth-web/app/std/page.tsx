@@ -128,6 +128,7 @@ type StdProject = {
     title: string
     status: string
     language: string
+    employee_email?: string | null
     assigned_duration_minutes: number | null
     estimated_payout: number | null
     drive_folder_id?: string | null
@@ -753,6 +754,17 @@ export default function StdPortalPage() {
         } catch {
             return null
         }
+    }
+
+    const projectMatchesRequester = (projectPayload: SelectedProjectPayload | null | undefined, requesterEmail?: string | null) => {
+        const expectedEmail = String(requesterEmail || '').trim().toLowerCase()
+        if (!expectedEmail || !projectPayload?.project?.id) return false
+        const ownerEmail = String(
+            projectPayload.project.employee_email
+            || projectPayload.project.project_payload?.employee_email
+            || ''
+        ).trim().toLowerCase()
+        return ownerEmail === expectedEmail
     }
 
     const revokeProjectMediaObjectUrls = (projectId?: string | null) => {
@@ -3024,7 +3036,7 @@ export default function StdPortalPage() {
             } else if (savedProjectStateRaw) {
                 try {
                     const parsed = JSON.parse(savedProjectStateRaw)
-                    if (parsed?.project?.id) {
+                    if (parsed?.project?.id && projectMatchesRequester(parsed, email || user?.email)) {
                         const cleanedProject = {
                             ...parsed,
                             scenes: (parsed.scenes || []).map((s: any) => {
@@ -3493,17 +3505,12 @@ export default function StdPortalPage() {
             }
             throw new Error(payload.error || '주제 선택 실패')
         } catch (error: any) {
-            console.warn('[claimTopic] Fallback to local workspace:', error?.message)
-            if (targetTopic) {
-                const built = buildProjectFromSupabaseTopic(targetTopic)
-                setProjects(prev => [built.project, ...prev.filter(p => p.id !== built.project.id)])
-                setSelectedProject(built)
-                setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
-                rememberProjectState(built)
-                setTopicModalOpen(false)
-                setCurrentNav('image_gen')
-                setMessage(`'${targetTopic.generated_title || targetTopic.topic}' 작업 프로젝트로 등록되었습니다!`)
-            }
+            console.warn('[claimTopic] server claim failed:', error?.message)
+            const msg = error?.message || '주제 선택 실패'
+            setMessage(msg.includes('already') || msg.includes('claimed') || msg.includes('선택')
+                ? '이미 다른 작업자가 선택한 주제입니다. 주제를 새로고침해 주세요.'
+                : msg)
+            await loadStdData(token, { showLoading: false }).catch(() => {})
         } finally {
             setLoading(false)
         }
@@ -4160,25 +4167,14 @@ export default function StdPortalPage() {
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
             const remembered = readRememberedProjectState(requestedProjectId)
-            if (remembered?.project?.id) {
+            if (remembered?.project?.id && projectMatchesRequester(remembered, activeImpEmail || email || user?.email)) {
                 setSelectedProject(remembered)
                 setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
                 rememberProjectState(remembered)
                 restorePersistedProjectMedia(remembered, fetchHeaders).catch(() => {})
                 return remembered
             }
-            const localProj = projects.find(p => p.id === requestedProjectId)
-            if (localProj) {
-                const targetTopic = topics.find(t => t.topic === localProj.title) || { topic: localProj.title }
-                const built = buildProjectFromSupabaseTopic(targetTopic)
-                built.project.id = requestedProjectId
-                setSelectedProject(built)
-                setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
-                rememberProjectState(built)
-                return built
-            } else {
-                setMessage(error.message || '작업 상세 조회 실패')
-            }
+            setMessage(error.message || '작업 상세 조회 실패')
         } finally {
             setProjectLoading(false)
         }

@@ -35,6 +35,24 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         return NextResponse.json({ success: false, error: 'Topic is not ready for STD web claim' }, { status: 409 })
     }
 
+    const { data: existingProject, error: existingProjectError } = await supabaseAdmin
+        .from('std_projects')
+        .select('id,employee_email')
+        .eq('topic_queue_id', topicId)
+        .limit(1)
+        .maybeSingle()
+    if (existingProjectError) {
+        return NextResponse.json({ success: false, error: existingProjectError.message }, { status: 500 })
+    }
+    if (existingProject) {
+        return NextResponse.json({
+            success: false,
+            error: 'Topic already claimed',
+            project_id: existingProject.id,
+            employee_email: existingProject.employee_email,
+        }, { status: 409 })
+    }
+
     const imageGridPrompts = buildStdImageGridPrompts(topic)
     const { data: patchedRows, error: patchError } = await supabaseAdmin
         .from('topics_queue')
@@ -95,8 +113,22 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         .single()
 
     if (projectError) {
+        await supabaseAdmin
+            .from('topics_queue')
+            .update({
+                status: 'pending',
+                assigned_employee_email: null,
+                assigned_at: null,
+            })
+            .eq('id', topicId)
+            .eq('assigned_employee_email', requester.email)
         return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     }
+
+    await supabaseAdmin
+        .from('user_topic_recommendations')
+        .update({ is_claimed: true, claimed_at: new Date().toISOString() })
+        .eq('topic_queue_id', topicId)
 
     const scenes = buildStdScenes(topic).map((scene: any) => ({
         ...scene,

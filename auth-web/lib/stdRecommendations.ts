@@ -166,6 +166,8 @@ async function cachedRecommendationTopics(email: string, limit: number, profile:
         .select('*, categories(*)')
         .in('id', topicIds)
         .eq('status', 'pending')
+        .is('assigned_at', null)
+        .is('assigned_employee_email', null)
         .not('generated_title', 'is', null)
 
     const preferredCategories = filters.ignore_category ? new Set<string>() : preferredCategorySet(profile)
@@ -320,6 +322,8 @@ export async function getStdRecommendedTopics(options: {
         .from('topics_queue')
         .select('*, categories(*)')
         .eq('status', 'pending')
+        .is('assigned_at', null)
+        .is('assigned_employee_email', null)
         .not('generated_title', 'is', null)
         .order('created_at', { ascending: false })
         .limit(300)

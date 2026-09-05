@@ -10,7 +10,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('std_projects')
-        .select('id,title,status,language,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,progress_payload')
+        .select('id,title,status,language,employee_email,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,progress_payload')
         .eq('employee_email', auth.requester.email)
         .order('updated_at', { ascending: false })
 
