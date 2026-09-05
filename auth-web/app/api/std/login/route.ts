@@ -114,8 +114,8 @@ export async function POST(req: Request) {
 
             return NextResponse.json({
                 success: true,
-                auth_type: 'supabase',
-                session_token: authData.session.access_token,
+                auth_type: 'desktop',
+                session_token: signDesktopSessionToken(normalizedEmail),
                 user: userPayload(resolvedProfile || fallbackProfile),
             })
         }

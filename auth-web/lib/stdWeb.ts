@@ -127,8 +127,13 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
     }
 
     if (!profile) {
-        // Fallback profile for arbitrary login / testing
-        const fallbackEmail = desktopEmail || userEmail || 'worker@airstudio.io'
+        // A server-signed desktop token may represent a development account
+        // without a profile. Never turn an expired or invalid bearer token into
+        // a different worker identity, because ownership checks then look like 404s.
+        if (!desktopEmail) {
+            return { ok: false, response: jsonError('Session expired. Please sign in again.', 401) }
+        }
+        const fallbackEmail = desktopEmail
         const fallbackId = userId || 'temp-worker-id'
         return {
             ok: true,
