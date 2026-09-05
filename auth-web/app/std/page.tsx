@@ -907,6 +907,13 @@ export default function StdPortalPage() {
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
     const [newSubPresetName, setNewSubPresetName] = useState('')
+    const subtitleStyleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
+        }
+    }, [])
 
     useEffect(() => {
         setSelectedSubtitleBlockIndexes([])
@@ -3892,29 +3899,87 @@ export default function StdPortalPage() {
         setMessage("'" + preset.name + "' 이미지 템플릿이 미리보기에 적용되었습니다.")
     }
 
-    const subtitleRenderSettings = () => ({
-        subtitle_bg_enabled: subBgStrip ? 1 : 0,
-        bg_enabled: subBgStrip ? 1 : 0,
-        subtitle_bg_color: subBgColor,
-        bg_color: subBgColor,
-        subtitle_bg_opacity: Number(subBgOpacity) || 0,
-        bg_opacity: Number(subBgOpacity) || 0,
-        subtitle_bg_v_offset: Number(subBgVOffset) || 0,
-        subtitle_font_family: subFontFamily,
-        subtitle_font_size: subFontSize,
-        subtitle_text_color: subTextColor,
-        subtitle_stroke_color: subStrokeColor,
-        subtitle_stroke_width: subStrokeWidth,
-        subtitle_line_spacing: subLineSpacing,
-        subtitle_max_chars: subMaxChars,
-        subtitle_pos_y: subPosY,
-        std_image_template_enabled: Boolean(selectedImageTemplatePreset),
-        std_image_template_preset_id: selectedImageTemplatePreset || null,
-        std_image_template_bg_url: templateBgUrl || null,
-        std_image_template_bg_color: templateBgColor || '#000000',
-        std_template_text_layers: selectedImageTemplatePreset ? textLayers : [],
-        std_template_shape_layers: selectedImageTemplatePreset ? shapeLayers : [],
-    })
+    const subtitleRenderSettings = (overrides: Record<string, any> = {}) => {
+        const nextSubBgStrip = overrides.subBgStrip ?? subBgStrip
+        const nextSubBgColor = overrides.subBgColor ?? subBgColor
+        const nextSubBgOpacity = overrides.subBgOpacity ?? subBgOpacity
+        const nextSubBgVOffset = overrides.subBgVOffset ?? subBgVOffset
+        const nextSubFontFamily = overrides.subFontFamily ?? subFontFamily
+        const nextSubFontSize = overrides.subFontSize ?? subFontSize
+        const nextSubTextColor = overrides.subTextColor ?? subTextColor
+        const nextSubStrokeColor = overrides.subStrokeColor ?? subStrokeColor
+        const nextSubStrokeWidth = overrides.subStrokeWidth ?? subStrokeWidth
+        const nextSubLineSpacing = overrides.subLineSpacing ?? subLineSpacing
+        const nextSubMaxChars = overrides.subMaxChars ?? subMaxChars
+        const nextSubPosY = overrides.subPosY ?? subPosY
+
+        return {
+            subtitle_bg_enabled: nextSubBgStrip ? 1 : 0,
+            bg_enabled: nextSubBgStrip ? 1 : 0,
+            subtitle_bg_color: nextSubBgColor,
+            bg_color: nextSubBgColor,
+            subtitle_bg_opacity: Number(nextSubBgOpacity) || 0,
+            bg_opacity: Number(nextSubBgOpacity) || 0,
+            subtitle_bg_v_offset: Number(nextSubBgVOffset) || 0,
+            subtitle_font_family: nextSubFontFamily,
+            subtitle_font_size: nextSubFontSize,
+            subtitle_text_color: nextSubTextColor,
+            subtitle_stroke_color: nextSubStrokeColor,
+            subtitle_stroke_width: nextSubStrokeWidth,
+            subtitle_line_spacing: nextSubLineSpacing,
+            subtitle_max_chars: nextSubMaxChars,
+            subtitle_pos_y: nextSubPosY,
+            std_image_template_enabled: Boolean(selectedImageTemplatePreset),
+            std_image_template_preset_id: selectedImageTemplatePreset || null,
+            std_image_template_bg_url: templateBgUrl || null,
+            std_image_template_bg_color: templateBgColor || '#000000',
+            std_template_text_layers: selectedImageTemplatePreset ? textLayers : [],
+            std_template_shape_layers: selectedImageTemplatePreset ? shapeLayers : [],
+        }
+    }
+
+    const persistSubtitleRenderSettings = (overrides: Record<string, any> = {}) => {
+        if (!selectedProject?.project?.id) return
+        const nextRenderSettings = {
+            ...(selectedProject.project.project_payload?.render_settings || {}),
+            ...subtitleRenderSettings(overrides),
+        }
+        const nextProjectPayload = {
+            ...(selectedProject.project.project_payload || {}),
+            render_settings: nextRenderSettings,
+        }
+        const nextSelectedProject = {
+            ...selectedProject,
+            project: {
+                ...selectedProject.project,
+                project_payload: nextProjectPayload,
+            },
+        }
+        setSelectedProject(nextSelectedProject)
+        rememberProjectState(nextSelectedProject)
+
+        if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
+        const projectId = selectedProject.project.id
+        subtitleStyleSaveTimerRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch('/api/std/projects/' + projectId, {
+                    method: 'PATCH',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        project_payload: {
+                            render_settings: nextRenderSettings,
+                        },
+                    }),
+                })
+                const payload = await safeParseJson(res, 'Subtitle style save failed')
+                if (!res.ok || payload.success === false) {
+                    throw new Error(payload.error || 'Subtitle style save failed')
+                }
+            } catch (error: any) {
+                setMessage(error?.message || 'Subtitle style save failed')
+            }
+        }, 500)
+    }
 
     const hexToRgba = (hex: string, opacity: string | number) => {
         const normalized = String(hex || '#000000').replace('#', '').trim()
@@ -6835,7 +6900,11 @@ export default function StdPortalPage() {
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <select
                                             value={subFontFamily}
-                                            onChange={e => setSubFontFamily(e.target.value)}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSubFontFamily(value)
+                                                persistSubtitleRenderSettings({ subFontFamily: value })
+                                            }}
                                             className="text-[11px] bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-2 text-white font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-32"
                                         >
                                             {SUBTITLE_FONTS.map(f => (
@@ -6847,7 +6916,11 @@ export default function StdPortalPage() {
                                         <input
                                             type="number"
                                             value={subFontSize}
-                                            onChange={e => setSubFontSize(e.target.value)}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSubFontSize(value)
+                                                persistSubtitleRenderSettings({ subFontSize: value })
+                                            }}
                                             className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
                                             step="0.1"
                                             min="1"
@@ -6858,7 +6931,11 @@ export default function StdPortalPage() {
                                         <input
                                             type="number"
                                             value={subLineSpacing}
-                                            onChange={e => setSubLineSpacing(e.target.value)}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSubLineSpacing(value)
+                                                persistSubtitleRenderSettings({ subLineSpacing: value })
+                                            }}
                                             className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
                                             step="0.05"
                                             min="-0.5"
@@ -6868,7 +6945,11 @@ export default function StdPortalPage() {
                                         <input
                                             type="number"
                                             value={subMaxChars}
-                                            onChange={e => setSubMaxChars(e.target.value)}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSubMaxChars(value)
+                                                persistSubtitleRenderSettings({ subMaxChars: value })
+                                            }}
                                             className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
                                             min="20"
                                             max="40"
@@ -6884,7 +6965,11 @@ export default function StdPortalPage() {
                                             <input
                                                 type="color"
                                                 value={subTextColor}
-                                                onChange={e => setSubTextColor(e.target.value)}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubTextColor(value)
+                                                    persistSubtitleRenderSettings({ subTextColor: value })
+                                                }}
                                                 className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
                                                 title="글자색"
                                             />
@@ -6894,7 +6979,11 @@ export default function StdPortalPage() {
                                             <input
                                                 type="color"
                                                 value={subStrokeColor}
-                                                onChange={e => setSubStrokeColor(e.target.value)}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubStrokeColor(value)
+                                                    persistSubtitleRenderSettings({ subStrokeColor: value })
+                                                }}
                                                 className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
                                                 title="테두리색"
                                             />
@@ -6911,7 +7000,11 @@ export default function StdPortalPage() {
                                         <input
                                             type="number"
                                             value={subStrokeWidth}
-                                            onChange={e => setSubStrokeWidth(e.target.value)}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSubStrokeWidth(value)
+                                                persistSubtitleRenderSettings({ subStrokeWidth: value })
+                                            }}
                                             className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
                                             min="0"
                                             max="15"
@@ -6921,7 +7014,11 @@ export default function StdPortalPage() {
                                         <div className="flex flex-col items-center gap-0.5 ml-1">
                                             <button
                                                 type="button"
-                                                onClick={() => setSubPosY(p => Math.max(0, p + 1))}
+                                                onClick={() => {
+                                                    const value = Math.max(0, subPosY + 1)
+                                                    setSubPosY(value)
+                                                    persistSubtitleRenderSettings({ subPosY: value })
+                                                }}
                                                 className="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
                                                 title="위로 (Y위치 증가)"
                                             >
@@ -6932,7 +7029,11 @@ export default function StdPortalPage() {
                                             </span>
                                             <button
                                                 type="button"
-                                                onClick={() => setSubPosY(p => Math.max(0, p - 1))}
+                                                onClick={() => {
+                                                    const value = Math.max(0, subPosY - 1)
+                                                    setSubPosY(value)
+                                                    persistSubtitleRenderSettings({ subPosY: value })
+                                                }}
                                                 className="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
                                                 title="아래로 (Y위치 감소)"
                                             >
@@ -6950,7 +7051,11 @@ export default function StdPortalPage() {
                                             <input
                                                 type="checkbox"
                                                 checked={subBgStrip}
-                                                onChange={e => setSubBgStrip(e.target.checked)}
+                                                onChange={e => {
+                                                    const value = e.target.checked
+                                                    setSubBgStrip(value)
+                                                    persistSubtitleRenderSettings({ subBgStrip: value })
+                                                }}
                                                 className="sr-only peer"
                                             />
                                             <div className="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
@@ -6959,7 +7064,11 @@ export default function StdPortalPage() {
                                             <input
                                                 type="color"
                                                 value={subBgColor}
-                                                onChange={e => setSubBgColor(e.target.value)}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubBgColor(value)
+                                                    persistSubtitleRenderSettings({ subBgColor: value })
+                                                }}
                                                 className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
                                                 title="배경색"
                                             />
@@ -6967,7 +7076,11 @@ export default function StdPortalPage() {
                                         <input
                                             type="number"
                                             value={subBgOpacity}
-                                            onChange={e => setSubBgOpacity(e.target.value)}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSubBgOpacity(value)
+                                                persistSubtitleRenderSettings({ subBgOpacity: value })
+                                            }}
                                             step="0.1"
                                             min="0"
                                             max="1"
@@ -6979,7 +7092,11 @@ export default function StdPortalPage() {
                                             <input
                                                 type="number"
                                                 value={subBgVOffset}
-                                                onChange={e => setSubBgVOffset(e.target.value)}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubBgVOffset(value)
+                                                    persistSubtitleRenderSettings({ subBgVOffset: value })
+                                                }}
                                                 step="1"
                                                 className="w-8 text-center text-[11px] bg-transparent border-0 py-0.5 text-white focus:outline-none"
                                                 title="세로 여백/오프셋"
