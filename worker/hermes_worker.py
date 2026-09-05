@@ -8590,12 +8590,19 @@ async def _revise_script_sections(
             "max_chars": int(budget.get("max_chars") or 400),
             "draft_text": draft_sections[index] if index < len(draft_sections) else "",
         })
-    prompt = f"""
+    validated_sections = []
+    chunk_size = 8 if len(scenes) >= 40 else 4
+    for chunk_start in range(0, len(scenes), chunk_size):
+        chunk_scenes = scenes[chunk_start:chunk_start + chunk_size]
+        chunk_inputs = inputs[chunk_start:chunk_start + chunk_size]
+        prompt = f"""
 {_script_rewrite_role(language)}
 
 Rewrite each planned narration scene below to address the QA report. This is
 a STRUCTURED REWRITE, not a summary: return exactly one item for every input
-scene_order, in the same order. Never merge, omit, or move a scene.
+scene_order, in the same order. Never merge, omit, or move a scene. This is
+rewrite chunk {chunk_start // chunk_size + 1} of {(len(scenes) + chunk_size - 1) // chunk_size};
+return only this chunk and preserve continuity with each draft_text.
 
 For the midpoint reversal, show the discovery or confrontation as an action;
 for the final payoff, earn it through the prior scene's setup. Preserve the
@@ -8607,27 +8614,26 @@ UPLOAD TITLE: {upload_title}
 STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
 QA REPORT: {json.dumps(quality_report or {}, ensure_ascii=False)}
 CATEGORY WRITING PROFILE: {category_writing_profile or "Preserve the selected category voice."}
-SCENES TO REWRITE: {json.dumps(inputs, ensure_ascii=False)}
+SCENES TO REWRITE: {json.dumps(chunk_inputs, ensure_ascii=False)}
 
 Return ONLY JSON:
 {{"sections":[{{"scene_order":1,"text":"rewritten narration for this exact scene"}}]}}
 """
-    raw = await ai_router.generate_text(
-        prompt, model, temperature=0.45, max_tokens=12000,
-        task_type="hermes_script_structured_rewrite",
-    )
-    rewritten_sections = _parse_script_chunk_sections(
-        raw,
-        scenes,
-        is_multi,
-    )
-    validated_sections = []
-    for index, (scene, section) in enumerate(zip(scenes, rewritten_sections)):
-        minimum = int((scene_budgets[index] if index < len(scene_budgets) else {}).get("min_chars") or 80)
-        validated = _ensure_scene_section_target_length(
-            section, scene, minimum, language=language, is_multi=is_multi,
+        raw = await ai_router.generate_text(
+            prompt, model, temperature=0.45, max_tokens=6000,
+            task_type="hermes_script_structured_rewrite",
         )
-        validated_sections.append(validated)
+        rewritten_sections = _parse_script_chunk_sections(raw, chunk_scenes, is_multi)
+        for local_index, (scene, section) in enumerate(zip(chunk_scenes, rewritten_sections)):
+            global_index = chunk_start + local_index
+            minimum = int(
+                (scene_budgets[global_index] if global_index < len(scene_budgets) else {}).get("min_chars") or 80
+            )
+            validated_sections.append(
+                _ensure_scene_section_target_length(
+                    section, scene, minimum, language=language, is_multi=is_multi,
+                )
+            )
     return validated_sections
 
 

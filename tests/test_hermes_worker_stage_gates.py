@@ -613,6 +613,15 @@ def test_script_plan_jobs_support_scoped_model_override():
     assert "job_model_override or config.SCRIPT_PLANNING_MODEL" in source
 
 
+def test_script_rewrite_is_chunked_to_preserve_every_scene_contract():
+    import inspect
+
+    source = inspect.getsource(hermes_worker._revise_script_sections)
+    assert "chunk_size = 8 if len(scenes) >= 40 else 4" in source
+    assert "chunk_scenes = scenes[chunk_start:chunk_start + chunk_size]" in source
+    assert "_parse_script_chunk_sections(raw, chunk_scenes, is_multi)" in source
+
+
 def test_script_quality_retries_malformed_json_response():
     class Router:
         def __init__(self):
