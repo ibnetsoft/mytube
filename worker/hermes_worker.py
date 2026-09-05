@@ -3754,6 +3754,13 @@ Return ONLY valid JSON in this shape:
                 merged["video_prompt_required"] = False
                 merged["media_prompt_status"] = "ready"
                 enriched_scenes.append(merged)
+                if checkpoint_callback:
+                    checkpoint_callback(
+                        stage="video_prompt",
+                        status="ready",
+                        scene_numbers=[merged.get("scene_order") or merged.get("scene_number")],
+                        scene=merged,
+                    )
                 continue
             if not media and scene.get("media_prompt_status") == "ready" and str(scene.get("video_prompt") or "").strip():
                 media = scene
@@ -10007,8 +10014,11 @@ Hard retry rules:
             int(item.get("scene_order") or item.get("scene_number"))
             for item in checkpoint_scenes
             if item.get("media_prompt_status") == "ready"
-            and str(item.get("video_prompt") or "").strip()
             and str(item.get("image_prompt") or "").strip()
+            and (
+                item.get("video_prompt_required") is False
+                or str(item.get("video_prompt") or "").strip()
+            )
             and str(item.get("scene_order") or item.get("scene_number") or "").isdigit()
         })
         current_marker = (
