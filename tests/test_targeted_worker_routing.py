@@ -42,3 +42,11 @@ def test_desktop_worker_direct_supabase_writes_include_worker_identity():
     assert "WORKER_ID" in autopilot
     assert "generated_by_worker_id" in hermes_worker
     assert "WORKER_INSTANCE_ID" in hermes_worker
+
+
+def test_central_hermes_chain_preserves_scoped_generation_controls():
+    source = read("auth-web/app/api/worker-central/jobs/[jobId]/complete/route.ts")
+
+    assert "ai_model_override: jobPayload.ai_model_override" in source
+    assert "defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate)" in source
+    assert "existing_result_replacement: Boolean(jobPayload.existing_result_replacement)" in source

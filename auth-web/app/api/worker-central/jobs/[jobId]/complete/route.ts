@@ -148,10 +148,13 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     narration_mode: jobPayload.narration_mode || 'dramatic_single',
                     narration_pace: jobPayload.narration_pace || 'senior',
                     tts_speed: jobPayload.tts_speed,
+                    ai_model_override: jobPayload.ai_model_override,
                     target_scene_count: jobPayload.target_scene_count,
                     repair_mode: jobPayload.repair_mode,
                     repair_instruction: jobPayload.repair_instruction,
                     repair_source_script: jobPayload.repair_source_script,
+                    defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
+                    existing_result_replacement: Boolean(jobPayload.existing_result_replacement),
                 },
                 status: 'pending',
             })
