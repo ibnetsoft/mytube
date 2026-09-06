@@ -1422,9 +1422,13 @@ export default function StdPortalPage() {
             try {
                 return JSON.parse(text)
             } catch {
+                const raw = text.slice(0, 1000)
+                const payloadTooLarge = res.status === 413 || raw.includes('FUNCTION_PAYLOAD_TOO_LARGE')
                 return {
-                    error: fallbackErrMsg || `Request failed with HTTP ${res.status}`,
-                    raw: text.slice(0, 1000),
+                    error: payloadTooLarge
+                        ? '파일 용량이 커서 서버 경유 업로드에 실패했습니다. 큰 영상은 Google Drive 직접 업로드 방식으로 다시 시도합니다.'
+                        : fallbackErrMsg || `Request failed with HTTP ${res.status}`,
+                    raw,
                 }
             }
         } catch (error: any) {
@@ -1792,6 +1796,22 @@ export default function StdPortalPage() {
             link.remove()
             return true
         }
+    }
+
+    const DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024
+
+    const inferVisualMimeType = (file: File, assetType: 'image' | 'video' | 'thumbnail') => {
+        const explicitType = String(file.type || '').trim()
+        if (explicitType) return explicitType
+        const lowerFileName = String(file.name || '').toLowerCase()
+        if (/\.(mp4|m4v)$/i.test(lowerFileName)) return 'video/mp4'
+        if (/\.mov$/i.test(lowerFileName)) return 'video/quicktime'
+        if (/\.webm$/i.test(lowerFileName)) return 'video/webm'
+        if (/\.png$/i.test(lowerFileName)) return 'image/png'
+        if (/\.(jpe?g)$/i.test(lowerFileName)) return 'image/jpeg'
+        if (/\.webp$/i.test(lowerFileName)) return 'image/webp'
+        if (/\.gif$/i.test(lowerFileName)) return 'image/gif'
+        return assetType === 'video' ? 'video/mp4' : 'application/octet-stream'
     }
 
     const downloadAllSceneImages = async () => {
@@ -4340,25 +4360,80 @@ export default function StdPortalPage() {
                     assets: [newAsset, ...prev.assets.filter(a => !(a.scene_number === sceneNum && a.asset_type === actualAssetType))]
                 }
             })
-            const mimeType = file.type || 'application/octet-stream'
-            const form = new FormData()
-            form.set('file', file)
-            form.set('asset_type', actualAssetType)
-            form.set('mime_type', mimeType)
-            form.set('file_name', file.name)
-            form.set('file_size', String(file.size))
-            form.set('scene_number', String(sceneNum))
+            const mimeType = inferVisualMimeType(file, actualAssetType)
+            let persistedAsset: any = null
+            const shouldUseDirectDriveUpload = actualAssetType === 'video' && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
 
-            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
-                method: 'POST',
-                headers: authedUploadHeaders,
-                body: form,
-            })
-            const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
-            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
-                throw new Error(uploadPayload.error || 'Asset upload failed')
+            if (shouldUseDirectDriveUpload) {
+                setMessage(`큰 영상 (${file.name}) Google Drive 직접 업로드 준비 중...`)
+                const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        asset_type: actualAssetType,
+                        mime_type: mimeType,
+                        file_name: file.name,
+                        file_size: file.size,
+                        scene_number: sceneNum,
+                    }),
+                })
+                const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
+                if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
+                    throw new Error(initPayload.error || 'Asset upload init failed')
+                }
+
+                setMessage(`큰 영상 (${file.name}) Google Drive 업로드 중...`)
+                const driveRes = await fetch(initPayload.upload_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': mimeType },
+                    body: file,
+                })
+                const drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
+                if (!driveRes.ok || !drivePayload.id) {
+                    throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+                }
+
+                const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        drive_file_id: drivePayload.id,
+                        target_folder_id: initPayload.target_folder_id,
+                        asset_type: actualAssetType,
+                        mime_type: mimeType,
+                        file_name: file.name,
+                        file_size: file.size,
+                        scene_number: sceneNum,
+                    }),
+                })
+                const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
+                if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                    throw new Error(completePayload.error || 'Asset upload complete failed')
+                }
+                persistedAsset = completePayload.asset
+            } else {
+                const form = new FormData()
+                form.set('file', file)
+                form.set('asset_type', actualAssetType)
+                form.set('mime_type', mimeType)
+                form.set('file_name', file.name)
+                form.set('file_size', String(file.size))
+                form.set('scene_number', String(sceneNum))
+
+                const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
+                    method: 'POST',
+                    headers: authedUploadHeaders,
+                    body: form,
+                })
+                const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
+                if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
+                    if (uploadRes.status === 413 && actualAssetType === 'video') {
+                        throw new Error('영상 파일이 서버 업로드 제한보다 큽니다. 새 버전에서는 큰 영상을 Google Drive 직접 업로드로 처리합니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
+                    }
+                    throw new Error(uploadPayload.error || 'Asset upload failed')
+                }
+                persistedAsset = uploadPayload.asset
             }
-            const persistedAsset = uploadPayload.asset
             const assetCacheKey = projectAssetCacheKey(selectedProject.project.id, persistedAsset)
             if (assetCacheKey && objectUrl) {
                 projectMediaObjectUrlsRef.current[assetCacheKey] = objectUrl
