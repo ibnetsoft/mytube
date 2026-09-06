@@ -8,6 +8,7 @@ import {
     DEFAULT_LONGFORM_MAX_DURATION_MINUTES,
     calculateLongformPayoutByScenes,
 } from '../../../../lib/stdPayoutPolicy'
+import { resolveCategoryImageStyle } from '../../../../lib/categoryImageStyles'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,6 +49,7 @@ const TOPICS_QUEUE_LIST_SELECT = `
     updated_at,
     is_auto_generated,
     assigned_script_style,
+    assigned_image_style,
     language,
     progress_payload,
     publish_metadata,
@@ -72,7 +74,7 @@ const TOPICS_QUEUE_LIST_SELECT = `
     generated_by_worker_job_id,
     generated_by_worker_at,
     translation_status,
-    categories(id,name,language,upload_channel_id,upload_channel_name,upload_channel_handle)
+    categories(id,name,language,default_script_style,default_image_style,upload_channel_id,upload_channel_name,upload_channel_handle)
 `
 
 type ContentLanguage = typeof CONTENT_LANGUAGES[number]
@@ -879,7 +881,9 @@ export async function POST(req: Request) {
                 SCRIPT_STYLE_KEYS,
                 DEFAULT_SCRIPT_STYLE
             )
-            // Image style is intentionally left to the Worker.
+            // Image style is owned by the category/Worker setting. Persist it on the topic
+            // so pregeneration, claim, and CoWork all use the same locked style.
+            const assignedImageStyle = resolveCategoryImageStyle(category.name, category.default_image_style)
 
             // 배정 대상 워커를 먼저 결정한 뒤, 그 워커의 선호 영상 길이에 맞게 duration을 보정한다.
             const worker = pickPreferredWorker(
@@ -903,6 +907,7 @@ export async function POST(req: Request) {
                 generated_title: String(topic || '').trim(),
                 assigned_employee_email: assignedEmployeeEmail,
                 assigned_script_style: assignedScriptStyle,
+                assigned_image_style: assignedImageStyle,
                 language: targetLang,
                 status: 'pending',
                 translation_status: 'pending',
@@ -943,11 +948,11 @@ export async function POST(req: Request) {
         ;({ data: insertedRows, error: insertError } = await supabase
             .from('topics_queue')
             .insert(inserts)
-            .select('id, topic, assigned_duration_minutes, assigned_script_style, language, pregenerated_structure_status'))
+            .select('id, topic, assigned_duration_minutes, assigned_script_style, assigned_image_style, language, pregenerated_structure_status'))
 
         // 신규 컬럼이 아직 Supabase 스키마에 반영되지 않은 환경에서만 fallback으로 재시도한다.
         if (isMissingColumnError(insertError)) {
-            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, language, translation_status, benchmark_analysis, ...rest }: any) => rest)
+            const fallbackInserts = inserts.map(({ recommended_duration_minutes, assigned_duration_minutes, duration_locked, estimated_payout, payout_policy, duration_reason, difficulty_level, assigned_script_style, assigned_image_style, language, translation_status, benchmark_analysis, ...rest }: any) => rest)
             const retry = await supabase
                 .from('topics_queue')
                 .insert(fallbackInserts)
@@ -982,6 +987,13 @@ export async function POST(req: Request) {
                         topic: r.topic,
                         target_duration_seconds: r.assigned_duration_minutes ? r.assigned_duration_minutes * 60 : (isLongformCategory ? minDurationMinutes * 60 : 60),
                         script_style: r.assigned_script_style || DEFAULT_SCRIPT_STYLE,
+                        image_style: r.assigned_image_style || resolveCategoryImageStyle(category.name, category.default_image_style),
+                        image_style_selection: {
+                            assigned_image_style: r.assigned_image_style || resolveCategoryImageStyle(category.name, category.default_image_style),
+                            category_default: resolveCategoryImageStyle(category.name, category.default_image_style),
+                            selection_source: 'category_default_locked',
+                            reason: '카테고리에 저장된 기본 이미지 스타일을 주제 생성 시점에 고정 적용합니다.',
+                        },
                         language: r.language || targetLang,
                         benchmark_analysis: benchmarkAnalysis,
                     },

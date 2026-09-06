@@ -55,12 +55,18 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
         const selectedImageStyle = String(
             job.result_payload?.image_style || structure?.image_style || ''
         ).trim()
+        const lockedImageStyle = String(
+            job.payload?.image_style || selectedImageStyle || ''
+        ).trim()
+        const lockedStructure = lockedImageStyle
+            ? { ...structure, image_style: lockedImageStyle }
+            : structure
         const rawImageStyleSelection = job.result_payload?.image_style_selection || structure?.image_style_selection || null
         const imageStyleSelection = rawImageStyleSelection && typeof rawImageStyleSelection === 'object'
             ? rawImageStyleSelection
             : null
         const updatePayload: Record<string, any> = {
-            pregenerated_structure: structure,
+            pregenerated_structure: lockedStructure,
             pregenerated_structure_status: 'ready',
             total_scenes: Array.isArray(structure?.scenes)
                 ? structure.scenes.length
@@ -84,8 +90,8 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                 generated_by_worker_at: new Date().toISOString(),
             }
         }
-        if (selectedImageStyle) {
-            updatePayload.assigned_image_style = selectedImageStyle
+        if (lockedImageStyle) {
+            updatePayload.assigned_image_style = lockedImageStyle
         }
         if (imageStyleSelection) {
             const existingBenchmark = job.payload?.benchmark_analysis || {}
@@ -95,9 +101,9 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
             }
             if (
                 !updatePayload.benchmark_analysis.image_style_selection.assigned_image_style
-                && selectedImageStyle
+                && lockedImageStyle
             ) {
-                updatePayload.benchmark_analysis.image_style_selection.assigned_image_style = selectedImageStyle
+                updatePayload.benchmark_analysis.image_style_selection.assigned_image_style = lockedImageStyle
             }
         }
 
@@ -137,9 +143,9 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                 payload: {
                     topic_queue_id: String(topicQueueId),
                     topic: jobPayload.topic,
-                    structure,
+                    structure: lockedStructure,
                     script_style: jobPayload.script_style,
-                    image_style: selectedImageStyle || jobPayload.image_style,
+                    image_style: lockedImageStyle || jobPayload.image_style,
                     image_style_selection: imageStyleSelection || jobPayload.image_style_selection,
                     language: jobPayload.language,
                     target_duration_seconds: jobPayload.target_duration_seconds,

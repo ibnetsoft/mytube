@@ -2926,7 +2926,13 @@ def _select_worker_image_style_for_plan(
         selected_style = str(selection.get("assigned_image_style") or category_default or "realistic").strip() or "realistic"
         return selected_style, selection
     except Exception as e:
-        raise RuntimeError(f"Worker image style selection failed; category fallback is disabled: {e}") from e
+        logger.warning(f"Worker image style selection failed; using fallback {category_default}: {e}")
+        return category_default, {
+            "assigned_image_style": category_default,
+            "automatic_style": category_default,
+            "selection_source": "worker_fallback",
+            "reason": "Worker image style selection failed, so the category fallback style was used.",
+        }
 
 
 def _mostly_english(value: str) -> bool:
@@ -3297,6 +3303,7 @@ def _generate_direct_image_grid_prompts(
     """Generate 2x2 prompts directly instead of concatenating per-scene prompts."""
     from services.image_grid_prompts import (
         build_compact_image_grid_prompts,
+        ensure_prompt_mentions_image_style,
         grid_windows,
         validate_image_grid_prompt_readiness,
     )
@@ -3451,6 +3458,11 @@ Schema:
         generated_grid["scene_numbers"] = expected["scene_numbers"]
         generated_grid["scene_ids"] = expected["scene_ids"]
         generated_grid["prompt"] = ""
+        generated_grid["shared_style"] = ensure_prompt_mentions_image_style(
+            str(generated_grid.get("shared_style") or ""),
+            image_style_key,
+            image_style_directive,
+        )
         panels = generated_grid.get("panels") if isinstance(generated_grid.get("panels"), list) else []
         for index, panel in enumerate(panels[:4]):
             if isinstance(panel, dict):
@@ -3500,6 +3512,11 @@ Schema:
             grid["scene_numbers"] = expected["scene_numbers"]
             grid["scene_ids"] = expected["scene_ids"]
             grid["prompt"] = ""
+            grid["shared_style"] = ensure_prompt_mentions_image_style(
+                str(grid.get("shared_style") or ""),
+                image_style_key,
+                image_style_directive,
+            )
             panels = grid.get("panels") if isinstance(grid.get("panels"), list) else []
             for index, panel in enumerate(panels[:4]):
                 if isinstance(panel, dict):

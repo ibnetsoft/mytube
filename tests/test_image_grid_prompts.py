@@ -6,6 +6,7 @@ from app.routers import image, user_topics
 from services.image_grid_prompts import (
     build_compact_image_grid_prompts,
     build_image_grid_prompts,
+    ensure_prompt_mentions_image_style,
     normalize_image_grid_prompts,
     validate_image_grid_prompt_readiness,
 )
@@ -25,6 +26,17 @@ def test_compact_grid_merges_required_guardrails_into_ai_negative_prompt():
     assert "avoid blur" in grid["prompt"]
     for required in ("no text", "no words", "no letters", "no captions", "no watermarks"):
         assert required in grid["prompt"].lower()
+
+
+def test_locked_image_style_is_prefixed_when_ai_omits_it():
+    prompt = ensure_prompt_mentions_image_style(
+        "consistent village palette and soft lighting",
+        "watercolor forest story",
+        "soft dreamlike watercolor folktale illustration",
+    )
+
+    assert prompt.startswith("Selected image style: watercolor forest story.")
+    assert "soft dreamlike watercolor folktale illustration" in prompt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
 from worker import hermes_worker
@@ -343,10 +355,12 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     assert len(grids) == 2
     assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert all(grid["template"] == "strict_2x2_compact_v1" for grid in grids)
+    assert all("Selected image style: 3d_render." in grid["prompt"] for grid in grids)
     grid_checkpoints = [event for event in checkpoints if event["stage"] == "image_grid_prompt"]
     scene_checkpoints = [event for event in checkpoints if event["stage"] == "image_prompt"]
     assert [event["scene_numbers"] for event in grid_checkpoints] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert [event["scene_numbers"] for event in scene_checkpoints] == [[1], [2], [3], [4], [5], [6], [7], [8]]
+    assert all("Selected image style: 3d_render." in event["scene"]["image_prompt"] for event in scene_checkpoints)
     assert all(event["status"] == "ready" for event in checkpoints)
 
 

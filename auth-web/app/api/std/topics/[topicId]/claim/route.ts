@@ -150,6 +150,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 original_worker_script: firstText(topic.pregenerated_script),
                 structure: topic.pregenerated_structure || {},
                 image_grid_prompts: imageGridPrompts,
+                image_style: summary.image_style,
                 main_character: topic.progress_payload?.main_character || topic.pregenerated_structure?.main_character || null,
                 publish_metadata: topic.publish_metadata || topic.progress_payload?.publish_metadata || {},
                 audio_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,

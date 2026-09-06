@@ -8,6 +8,7 @@ import {
     stripGeneratedPlanningText,
 } from './stdSubtitles'
 import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
+import { imageStyleLabelForPrompt, resolveCategoryImageStyle } from './categoryImageStyles'
 
 const getAuthClient = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -256,6 +257,10 @@ export function sceneImagePromptFromGrid(structure: any, scene: any, normalizedS
 export function buildStdScenes(topic: any) {
     const struct = topic?.pregenerated_structure || {}
     const scenes = Array.isArray(struct?.scenes) ? struct.scenes : []
+    const effectiveImageStyle = resolveCategoryImageStyle(
+        topic?.categories?.name || topic?.category_name,
+        topic?.assigned_image_style || topic?.categories?.default_image_style || struct?.image_style
+    )
     const script = stripGeneratedPlanningText(topic?.pregenerated_script || topic?.script || scenes
         .map((scene: any) => firstText(scene?.script_excerpt, scene?.scene_text, scene?.narration, scene?.description))
         .filter(Boolean)
@@ -287,11 +292,14 @@ export function buildStdScenes(topic: any) {
                 scene?.image_prompt,
                 sceneImagePromptFromGrid(struct, scene, normalizedSceneNumber)
             )
+            const styleLockedImagePrompt = imagePrompt && !imagePrompt.toLowerCase().includes(effectiveImageStyle.toLowerCase())
+                ? `${imageStyleLabelForPrompt(effectiveImageStyle)}\n${imagePrompt}`
+                : imagePrompt
             return {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
                 scene_text: sceneText,
-                image_prompt: imagePrompt,
+                image_prompt: styleLockedImagePrompt,
                 video_prompt: videoPrompt,
                 visual_type: requiresVideoPrompt ? 'video' : 'image',
                 video_prompt_required: requiresVideoPrompt,
@@ -305,6 +313,10 @@ export function buildStdImageGridPrompts(topic: any) {
     const struct = topic?.pregenerated_structure || {}
     const existing = normalizeImageGridPrompts(struct)
     const scenes = buildStdScenes(topic)
+    const effectiveImageStyle = resolveCategoryImageStyle(
+        topic?.categories?.name || topic?.category_name,
+        topic?.assigned_image_style || topic?.categories?.default_image_style || struct?.image_style
+    )
     const requiredGridCount = Math.ceil((scenes.length || 0) / 4)
     if (existing.length >= requiredGridCount) return existing
 
@@ -320,7 +332,7 @@ export function buildStdImageGridPrompts(topic: any) {
             grid_number: Math.floor(i / 4) + 1,
             label: `${start}-${end}`,
             scene_numbers: chunk.map((scene: any) => scene.scene_number),
-            prompt: `2x2 Grid Scene ${start}~${end}: Create a strict 2x2 grid layout with no borders, no margins, no text. ${panelText} Cinematic realistic photorealism, consistent characters, no captions, no logos.`,
+            prompt: `2x2 Grid Scene ${start}~${end}: ${imageStyleLabelForPrompt(effectiveImageStyle)} Create a strict 2x2 grid layout with no borders, no margins, no text. ${panelText} Use the selected image style consistently, consistent characters, no captions, no logos.`,
         })
     }
     return generated
@@ -340,6 +352,7 @@ export function normalizeTopicSummary(topic: any) {
         return totalSeconds > 0 ? Math.max(1, Math.ceil(totalSeconds / 60)) : null
     })()
     const structureImageStyle = firstText(structure?.image_style)
+    const categoryImageStyle = resolveCategoryImageStyle(category.name || topic.category_name, category.default_image_style)
     const estimatedPayout = calculateLongformPayoutByScenes(sceneCount)
     return {
         id: topic.id,
@@ -351,7 +364,7 @@ export function normalizeTopicSummary(topic: any) {
         estimated_payout: estimatedPayout,
         estimated_payout_usdt: estimatedPayout,
         script_style: topic.assigned_script_style || category.default_script_style || 'default',
-        image_style: topic.assigned_image_style || structureImageStyle || category.default_image_style || 'realistic',
+        image_style: topic.assigned_image_style || categoryImageStyle || structureImageStyle || 'realistic',
         scene_count: sceneCount,
         pregenerated_script: topic.pregenerated_script || topic.script || '',
         pregenerated_structure: structure,

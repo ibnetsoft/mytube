@@ -60,12 +60,12 @@ TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS = {
 }
 
 DEFAULT_OFFICIAL_CATEGORIES = [
-    {"id": 4, "name": "탈북사연", "language": "ko", "keywords": "탈북, 북한 실상, 정착 실화", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 6, "name": "해외감동", "language": "ko", "keywords": "해외 미담, 감동 실화, 기적", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 9, "name": "황혼19금", "language": "ko", "keywords": "황혼 로맨스, 시니어 부부, 남녀 심리", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 2, "name": "옛날이야기", "language": "ko", "keywords": "조선 야사, 구전동화, 한국 전설", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 5, "name": "한국사연", "language": "ko", "keywords": "국내 사연, 시청자 제보, 부부 갈등", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 7, "name": "무협", "language": "ko", "keywords": "무협 소설, 강호, 낭인, 동양풍", "default_script_style": "mystery_thriller", "default_image_style": "cinematic"},
+    {"id": 4, "name": "탈북사연", "language": "ko", "keywords": "탈북, 북한 실상, 정착 실화", "default_script_style": "story", "default_image_style": "shadowed investigation"},
+    {"id": 6, "name": "해외감동", "language": "ko", "keywords": "해외 미담, 감동 실화, 기적", "default_script_style": "story", "default_image_style": "watercolor"},
+    {"id": 9, "name": "황혼19금", "language": "ko", "keywords": "황혼 로맨스, 시니어 부부, 남녀 심리", "default_script_style": "story", "default_image_style": "rainy neon metropolis"},
+    {"id": 2, "name": "옛날이야기", "language": "ko", "keywords": "조선 야사, 구전동화, 한국 전설", "default_script_style": "story", "default_image_style": "watercolor forest story"},
+    {"id": 5, "name": "한국사연", "language": "ko", "keywords": "국내 사연, 시청자 제보, 부부 갈등", "default_script_style": "story", "default_image_style": "he moonlit hanok palace"},
+    {"id": 7, "name": "무협", "language": "ko", "keywords": "무협 소설, 강호, 낭인, 동양풍", "default_script_style": "mystery_thriller", "default_image_style": "classic vintage cinema"},
     {"id": 12, "name": "English Folktales", "language": "en", "keywords": "ancient folklore, folktales, classic bedtime stories, fairy tales, mythology storytelling, historical narration", "default_script_style": "story", "default_image_style": "realistic"},
     {"id": 13, "name": "日本昔話", "language": "ja", "keywords": "江戸時代 昔話,民話,日本の民話,歴史物語 朗読,怖い話,神話伝説", "default_script_style": "story", "default_image_style": "realistic"},
 ]

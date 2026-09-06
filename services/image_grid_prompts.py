@@ -114,6 +114,25 @@ def make_compact_image_grid_prompt(
     )
 
 
+def ensure_prompt_mentions_image_style(
+    prompt: str,
+    image_style_key: str = "",
+    image_style_directive: str = "",
+) -> str:
+    """Prefix a prompt with the locked category style when the model omitted it."""
+    text = str(prompt or "").strip()
+    style_key = str(image_style_key or "").strip()
+    directive = str(image_style_directive or "").strip()
+    if not style_key:
+        return text
+    if style_key.casefold() in text.casefold():
+        return text
+    style_line = f"Selected image style: {style_key}."
+    if directive and directive.casefold() not in text.casefold():
+        style_line = f"{style_line} Style directive: {directive}"
+    return f"{style_line}\n{text}".strip()
+
+
 def build_compact_image_grid_prompts(
     grid_specs: Iterable[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
