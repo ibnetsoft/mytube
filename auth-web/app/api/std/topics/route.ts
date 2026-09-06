@@ -27,9 +27,10 @@ function preferredCategorySet(profile: any): Set<string> {
 }
 
 function normalizeDirectTopic(topic: any) {
-    const summary = normalizeTopicSummary(topic)
-    const duration = Number(topic?.duration_minutes || topic?.recommended_duration_minutes || topic?.assigned_duration_minutes || summary.assigned_duration_minutes || 0) || null
-    const payout = Number(topic?.estimated_payout || summary.estimated_payout || 0) || 0
+    const normalizedTopic = normalizeTopicJsonFields(topic)
+    const summary = normalizeTopicSummary(normalizedTopic)
+    const duration = Number(normalizedTopic?.duration_minutes || normalizedTopic?.recommended_duration_minutes || normalizedTopic?.assigned_duration_minutes || summary.assigned_duration_minutes || 0) || null
+    const payout = Number(normalizedTopic?.estimated_payout || summary.estimated_payout || 0) || 0
     return {
         ...summary,
         duration_minutes: duration,
@@ -39,6 +40,26 @@ function normalizeDirectTopic(topic: any) {
         estimated_payout_usdt: payout,
         adjusted_payout: payout,
         adjusted_payout_usdt: payout,
+    }
+}
+
+function parseJsonObject(value: any): any {
+    if (!value || typeof value !== 'string') return value
+    try {
+        const parsed = JSON.parse(value)
+        return parsed && typeof parsed === 'object' ? parsed : value
+    } catch {
+        return value
+    }
+}
+
+function normalizeTopicJsonFields(topic: any): any {
+    if (!topic) return topic
+    return {
+        ...topic,
+        pregenerated_structure: parseJsonObject(topic.pregenerated_structure),
+        progress_payload: parseJsonObject(topic.progress_payload),
+        publish_metadata: parseJsonObject(topic.publish_metadata),
     }
 }
 
@@ -91,6 +112,7 @@ async function loadDirectPreparedTopics(limit: number, profile: any, filters: Re
 
     const preferredCategories = filters.ignore_category ? new Set<string>() : preferredCategorySet(profile)
     return (data || [])
+        .map(normalizeTopicJsonFields)
         .filter(isUnclaimedPendingTopic)
         .filter((topic: any) =>
             topic?.pregenerated_script_status === 'ready'
