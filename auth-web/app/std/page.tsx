@@ -1814,6 +1814,47 @@ export default function StdPortalPage() {
         return assetType === 'video' ? 'video/mp4' : 'application/octet-stream'
     }
 
+    const uploadDriveFileViaChunkProxy = async (uploadUrl: string, file: File, mimeType: string) => {
+        if (!selectedProject?.project?.id) throw new Error('Project not selected')
+        const chunkSize = 2 * 1024 * 1024
+        let uploadedBytes = 0
+        let finalDriveFile: any = null
+
+        while (uploadedBytes < file.size) {
+            const start = uploadedBytes
+            const end = Math.min(file.size, start + chunkSize) - 1
+            const chunk = file.slice(start, end + 1, mimeType)
+            setMessage(`Opera/브라우저 차단 우회 업로드 중... ${Math.round(((end + 1) / file.size) * 100)}%`)
+
+            const chunkRes = await fetch(
+                `/api/std/projects/${selectedProject.project.id}/assets/chunk?upload_url=${encodeURIComponent(uploadUrl)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        ...authedUploadHeaders,
+                        'Content-Type': mimeType,
+                        'Content-Range': `bytes ${start}-${end}/${file.size}`,
+                    },
+                    body: chunk,
+                }
+            )
+            const chunkPayload = await safeParseJson(chunkRes, 'Drive chunk upload failed')
+            if (!chunkRes.ok || chunkPayload.success === false) {
+                throw new Error(chunkPayload.error || `Drive chunk upload failed (${chunkRes.status})`)
+            }
+            if (chunkPayload.complete) {
+                finalDriveFile = chunkPayload.drive_file
+                break
+            }
+            uploadedBytes = end + 1
+        }
+
+        if (!finalDriveFile?.id) {
+            throw new Error('Drive upload finished without a file id')
+        }
+        return finalDriveFile
+    }
+
     const downloadAllSceneImages = async () => {
         if (!selectedProject?.scenes?.length) return
         const sourceScenes = selectedSceneIndexes.length > 0
@@ -4383,14 +4424,21 @@ export default function StdPortalPage() {
                 }
 
                 setMessage(`큰 영상 (${file.name}) Google Drive 업로드 중...`)
-                const driveRes = await fetch(initPayload.upload_url, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': mimeType },
-                    body: file,
-                })
-                const drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
-                if (!driveRes.ok || !drivePayload.id) {
-                    throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+                let drivePayload: any = null
+                try {
+                    const driveRes = await fetch(initPayload.upload_url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': mimeType },
+                        body: file,
+                    })
+                    drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
+                    if (!driveRes.ok || !drivePayload.id) {
+                        throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+                    }
+                } catch (driveError: any) {
+                    console.warn('[STD AssetUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
+                    setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
+                    drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
                 }
 
                 const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
