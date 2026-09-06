@@ -4,6 +4,10 @@ import { getStdRecommendedTopics } from '@/lib/stdRecommendations'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
+// Recommendations are backed by a live queue. Never reuse an older
+// Supabase REST response after a topic has been fully prepared.
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 const ROUTE_REVISION = 'std-topics-direct-refresh-fallback-3341'
 
