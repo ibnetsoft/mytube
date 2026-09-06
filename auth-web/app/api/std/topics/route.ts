@@ -98,7 +98,7 @@ async function inspectEligibilityDebug(topics: any[], limit: number) {
     }
 }
 
-async function loadDirectPreparedTopics(limit: number, profile: any, filters: Record<string, boolean>) {
+async function loadDirectPreparedTopics(limit: number) {
     const { data, error } = await supabaseAdmin
         .from('topics_queue')
         .select('*, categories(*)')
@@ -110,11 +110,8 @@ async function loadDirectPreparedTopics(limit: number, profile: any, filters: Re
         .limit(300)
     if (error) throw error
 
-    const preferredCategories = filters.ignore_category ? new Set<string>() : preferredCategorySet(profile)
     return (data || [])
         .map(normalizeTopicJsonFields)
-        .filter(isUnclaimedPendingTopic)
-        .filter((topic: any) => filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories))
         .slice(0, limit)
         .map(normalizeDirectTopic)
 }
@@ -136,7 +133,7 @@ export async function GET(req: Request) {
 
     try {
         if (refresh) {
-            const directTopics = await loadDirectPreparedTopics(limit, auth.requester.profile, routeFilters)
+            const directTopics = await loadDirectPreparedTopics(limit)
             if (directTopics.length > 0) {
                 const debug = searchParams.get('debug') === 'eligibility'
                     ? await inspectEligibilityDebug(directTopics, 20)
@@ -154,7 +151,7 @@ export async function GET(req: Request) {
         })
         let topics = await filterLiveEligibleTopics(result.topics)
         if (topics.length < 1 && refresh) {
-            topics = await loadDirectPreparedTopics(limit, auth.requester.profile, routeFilters)
+            topics = await loadDirectPreparedTopics(limit)
         }
         const debug = searchParams.get('debug') === 'eligibility'
             ? await inspectEligibilityDebug(result.topics, 20)
