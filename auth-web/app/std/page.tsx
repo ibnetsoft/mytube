@@ -1303,7 +1303,9 @@ export default function StdPortalPage() {
                     const persistedProject = {
                         ...updatedProject,
                         project: payload.project,
-                        scenes: Array.isArray(payload.scenes) ? mergeAssetsIntoScenes(payload.scenes, updatedProject.assets || []) : updatedScenes,
+                        scenes: Array.isArray(payload.scenes)
+                            ? mergeServerScenesPreservingMedia(payload.scenes, updatedProject.scenes, updatedProject.assets || [], payload.project?.id)
+                            : updatedScenes,
                     }
                     setSelectedProject(persistedProject)
                     rememberProjectState(persistedProject)
@@ -1703,6 +1705,33 @@ export default function StdPortalPage() {
                 asset_status: videoUrl || imageUrl ? 'ready' : (scene?.asset_status || 'missing'),
             }
         })
+    }
+
+    const mergeServerScenesPreservingMedia = (
+        serverScenes: any[],
+        currentScenes: any[] = [],
+        assets: any[] = [],
+        projectId?: string | null
+    ) => {
+        const currentBySceneNumber = new Map(
+            (currentScenes || []).map((scene: any, index: number) => [
+                Number(scene?.scene_number || scene?.scene_order || index + 1),
+                scene,
+            ])
+        )
+        const mediaPreservedScenes = (serverScenes || []).map((scene: any, index: number) => {
+            const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
+            const currentScene = currentBySceneNumber.get(sceneNumber) || {}
+            return {
+                ...currentScene,
+                ...scene,
+                image_url: sanitizeAssetUrl(scene?.image_url || scene?.image)
+                    || sanitizeAssetUrl(currentScene?.image_url || currentScene?.image),
+                video_url: sanitizeAssetUrl(scene?.video_url || scene?.video)
+                    || sanitizeAssetUrl(currentScene?.video_url || currentScene?.video),
+            }
+        })
+        return mergeAssetsIntoScenes(mediaPreservedScenes, assets, projectId)
     }
 
     const getSceneVideoPromptText = (scene: any, sceneNumber?: number) => {
@@ -4165,7 +4194,9 @@ export default function StdPortalPage() {
                     const persistedProject = {
                         ...updatedProject,
                         project: payload.project,
-                        scenes: Array.isArray(payload.scenes) ? mergeAssetsIntoScenes(payload.scenes, updatedProject.assets || []) : updatedProject.scenes,
+                        scenes: Array.isArray(payload.scenes)
+                            ? mergeServerScenesPreservingMedia(payload.scenes, updatedProject.scenes, updatedProject.assets || [], payload.project?.id)
+                            : updatedProject.scenes,
                     }
                     setSelectedProject(persistedProject)
                     rememberProjectState(persistedProject)
@@ -4244,7 +4275,9 @@ export default function StdPortalPage() {
                     const updatedFull = {
                         ...updatedFullForStorage,
                         project: payload.project,
-                        scenes: Array.isArray(payload.scenes) ? payload.scenes : updatedFullForStorage.scenes,
+                        scenes: Array.isArray(payload.scenes)
+                            ? mergeServerScenesPreservingMedia(payload.scenes, updatedFullForStorage.scenes, updatedFullForStorage.assets || [], payload.project?.id)
+                            : updatedFullForStorage.scenes,
                     }
                     setSelectedProject(updatedFull)
                     rememberProjectState(updatedFull)
