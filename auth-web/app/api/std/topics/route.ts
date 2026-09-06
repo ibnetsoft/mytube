@@ -51,6 +51,30 @@ async function filterLiveEligibleTopics(topics: any[]) {
     return topics.filter((topic: any) => eligibleIds.has(String(topic?.id)))
 }
 
+async function inspectEligibilityDebug(topics: any[], limit: number) {
+    const ids = Array.from(new Set((topics || []).map((topic: any) => topic?.id).filter(Boolean)))
+    const liveRows = ids.length
+        ? (await supabaseAdmin
+            .from('topics_queue')
+            .select('id,status,assigned_at,assigned_employee_email,pregenerated_script_status,pregenerated_structure_status,total_scenes,recommended_duration_minutes,assigned_duration_minutes,estimated_payout')
+            .in('id', ids)).data || []
+        : []
+    const { data: candidates } = await supabaseAdmin
+        .from('topics_queue')
+        .select('id,status,assigned_at,assigned_employee_email,pregenerated_script_status,pregenerated_structure_status,total_scenes,recommended_duration_minutes,assigned_duration_minutes,estimated_payout,created_at')
+        .eq('status', 'pending')
+        .is('assigned_at', null)
+        .or('assigned_employee_email.is.null,assigned_employee_email.eq.')
+        .not('generated_title', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+    return {
+        returned_ids: topics.map((topic: any) => topic?.id),
+        live_rows: liveRows,
+        direct_candidate_rows: candidates || [],
+    }
+}
+
 async function loadDirectPreparedTopics(limit: number, profile: any, filters: Record<string, boolean>) {
     const { data, error } = await supabaseAdmin
         .from('topics_queue')
@@ -102,7 +126,10 @@ export async function GET(req: Request) {
                 ignore_category: filters.has('category_ignore'),
             })
         }
-        return NextResponse.json({ success: true, topics, cached: result.cached, revision: ROUTE_REVISION })
+        const debug = searchParams.get('debug') === 'eligibility'
+            ? await inspectEligibilityDebug(result.topics, 20)
+            : undefined
+        return NextResponse.json({ success: true, topics, cached: result.cached, revision: ROUTE_REVISION, debug })
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message || 'Failed to load STD topics' }, { status: 500 })
     }
