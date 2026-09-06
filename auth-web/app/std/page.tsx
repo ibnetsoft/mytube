@@ -3412,23 +3412,21 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
             if (res.ok && payload?.project?.id) {
-                const built = buildProjectFromSupabaseTopic(targetTopic)
-                const finalProject = {
-                    ...built,
-                    project: {
-                        ...built.project,
-                        id: payload.project.id,
-                        title: payload.project.title || targetTopic.generated_title || targetTopic.topic,
-                    }
+                const openedProject = await openProject(payload.project.id)
+                const confirmedProject = openedProject || {
+                    ...buildProjectFromSupabaseTopic(targetTopic),
+                    project: payload.project,
+                    scenes: Array.isArray(payload.scenes) ? payload.scenes : [],
+                    assets: Array.isArray(payload.assets) ? payload.assets : [],
                 }
-                setProjects(prev => [finalProject.project, ...prev.filter(p => p.id !== finalProject.project.id)])
-                setSelectedProject(finalProject)
-                setCustomScriptText(cleanScriptContextText(finalProject.project.project_payload?.script || ''))
-                rememberProjectState(finalProject)
+                setProjects(prev => [confirmedProject.project, ...prev.filter(p => p.id !== confirmedProject.project.id)])
+                setSelectedProject(confirmedProject)
+                setCustomScriptText(cleanScriptContextText(confirmedProject.project.project_payload?.script || ''))
+                rememberProjectState(confirmedProject)
+                setTopics(prev => prev.filter(t => t.id !== topicId))
                 setTopicModalOpen(false)
                 setCurrentNav('image_gen')
-                setMessage(`'${finalProject.project.title}' 작업 프로젝트로 확정되었습니다!`)
-                await loadStdData(token, { showLoading: false })
+                setMessage(`'${confirmedProject.project.title}' 작업 프로젝트로 확정되었습니다!`)
                 return
             }
             throw new Error(payload.error || '주제 선택 실패')
