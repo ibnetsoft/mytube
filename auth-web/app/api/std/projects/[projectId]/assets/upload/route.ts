@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
@@ -26,6 +27,11 @@ function validMimeForAsset(assetType: string, mimeType: string): boolean {
     if (assetType === 'video') return mimeType.startsWith('video/')
     if (assetType === 'audio' || assetType === 'bgm' || assetType === 'sfx') return mimeType.startsWith('audio/')
     return Boolean(mimeType)
+}
+
+function uploadedById(value: any): string | null {
+    const id = String(value || '').trim()
+    return UUID_RE.test(id) ? id : null
 }
 
 function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetType: string, asset: any, assetUrl: string) {
@@ -231,7 +237,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 mime_type: driveFile.mimeType || mimeType,
                 file_size: driveFile.size ? Number(driveFile.size) : fileValue.size || null,
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
-                uploaded_by: auth.requester.user.id,
+                uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
                     web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
                     thumbnail_link: driveFile.thumbnailLink || null,

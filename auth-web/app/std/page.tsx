@@ -4341,50 +4341,24 @@ export default function StdPortalPage() {
                 }
             })
             const mimeType = file.type || 'application/octet-stream'
-            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    asset_type: actualAssetType,
-                    mime_type: mimeType,
-                    file_name: file.name,
-                    file_size: file.size,
-                    scene_number: sceneNum,
-                }),
-            })
-            const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
-            if (!initRes.ok || !initPayload.upload_url) {
-                throw new Error(initPayload.error || 'Asset upload init failed')
-            }
+            const form = new FormData()
+            form.set('file', file)
+            form.set('asset_type', actualAssetType)
+            form.set('mime_type', mimeType)
+            form.set('file_name', file.name)
+            form.set('file_size', String(file.size))
+            form.set('scene_number', String(sceneNum))
 
-            const driveRes = await fetch(initPayload.upload_url, {
-                method: 'PUT',
-                headers: { 'Content-Type': mimeType },
-                body: file,
-            })
-            const drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
-            if (!driveRes.ok || !drivePayload.id) {
-                throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
-            }
-
-            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
                 method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    drive_file_id: drivePayload.id,
-                    target_folder_id: initPayload.target_folder_id,
-                    asset_type: actualAssetType,
-                    mime_type: mimeType,
-                    file_name: file.name,
-                    file_size: file.size,
-                    scene_number: sceneNum,
-                }),
+                headers: authedUploadHeaders,
+                body: form,
             })
-            const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
-            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
-                throw new Error(completePayload.error || 'Asset upload complete failed')
+            const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
+            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
+                throw new Error(uploadPayload.error || 'Asset upload failed')
             }
-            const persistedAsset = completePayload.asset
+            const persistedAsset = uploadPayload.asset
             const assetCacheKey = projectAssetCacheKey(selectedProject.project.id, persistedAsset)
             if (assetCacheKey && objectUrl) {
                 projectMediaObjectUrlsRef.current[assetCacheKey] = objectUrl

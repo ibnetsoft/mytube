@@ -8,10 +8,16 @@ import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 export const dynamic = 'force-dynamic'
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
     return Number.isFinite(value) ? value : index + 1
+}
+
+function uploadedById(value: any): string | null {
+    const id = String(value || '').trim()
+    return UUID_RE.test(id) ? id : null
 }
 
 function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetType: string, asset: any, assetUrl: string) {
@@ -226,7 +232,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 mime_type: metadata.mimeType || body?.mime_type || null,
                 file_size: metadata.size ? Number(metadata.size) : Number(body?.file_size || 0) || null,
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
-                uploaded_by: auth.requester.user.id,
+                uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
                     web_view_link: metadata.webViewLink || driveFileLink(metadata.id),
                     thumbnail_link: metadata.thumbnailLink || null,
