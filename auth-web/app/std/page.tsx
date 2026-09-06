@@ -2312,7 +2312,18 @@ export default function StdPortalPage() {
         return tokens.map((token, index) => (
             <span
                 key={`${index}-${token}`}
-                className={index === activeTokenIndex ? 'rounded bg-white/20 px-0.5' : undefined}
+                className={index === activeTokenIndex ? 'rounded text-cyan-200' : undefined}
+                style={{
+                    display: 'inline',
+                    fontSize: 'inherit',
+                    fontWeight: 'inherit',
+                    lineHeight: 'inherit',
+                    padding: 0,
+                    margin: 0,
+                    transform: 'none',
+                    boxShadow: index === activeTokenIndex ? '0 0 0 2px rgba(255,255,255,0.18)' : undefined,
+                    backgroundColor: index === activeTokenIndex ? 'rgba(255,255,255,0.12)' : undefined,
+                }}
             >
                 {token}
             </span>
@@ -7647,7 +7658,7 @@ export default function StdPortalPage() {
                                                 }}
                                             >
                                                 <div
-                                                    className="inline-block max-w-[92%] px-4 py-1.5 rounded-lg transition-all"
+                                                    className="inline-block max-w-[92%] px-4 py-1.5 rounded-lg"
                                                     style={{
                                                         fontFamily: subFontFamily,
                                                         color: subTextColor,
